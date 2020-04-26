@@ -1,0 +1,58 @@
+name: Publish releases page
+
+on:
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 * * * *'
+
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment of GitHub Pages
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  scrape_and_publish_releases:
+    name: "Scrape and publish releases"
+    runs-on: ubuntu-20.04
+    #environment:
+    #  name: github-pages
+    #  url: ${{ steps.deployment.outputs.page_url }}
+    # Don't run this in everyone's forks.
+    if: github.repository == 'llvm/torch-mlir'
+    steps:
+      - name: Checking out repository
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      - name: Run scrape releases script
+        run: python ./tools/scrape_releases.py llvm torch-mlir > index.html
+        shell: bash
+      - run: git config --global user.email "none@none.com"
+      - run: git config --global user.name "torch-mlir"
+      - run: git add index.html
+      - run: git commit -am "Update releases."
+      - name: GitHub Push
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: github-pages
+          force: true
+      #- name: Setup Pages
+      #  uses: actions/configure-pages@v2
+      #- name: Upload artifact
+      #  uses: actions/upload-pages-artifact@v1
+      #  with:
+      #    # Upload entire repository
+      #    path: '.'
+      #- name: Deploy to GitHub Pages
+      #  id: deployment
+      #  uses: actions/deploy-pages@v1

@@ -1,0 +1,39 @@
+name: "Setup build environment"
+description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
+
+inputs:
+  cache-suffix:
+    description: |
+      Additional string that is used to compute the ccache hash.
+      Different jobs running the action need distinct values for this key,
+      but the content is irrelevant.
+    required: true
+
+runs:
+  using: "composite"
+
+  steps:
+  - name: Set up Python
+    uses: actions/setup-python@v2
+    with:
+      python-version: 3.9
+
+  - name: Install MLIR Python depends
+    run: |
+      python -m pip install -r $GITHUB_WORKSPACE/externals/llvm-project/mlir/python/requirements.txt
+    shell: bash
+
+  - name: Install PyTorch nightly depends
+    run: |
+      python -m pip install -r requirements.txt
+    shell: bash
+
+  - name: Install Ninja
+    uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
+
+  - name: Ccache for C++ compilation
+    uses: hendrikmuhs/ccache-action@v1.2
+    with:
+      key: ${{ runner.os }}-torch_mlir_build_assets-${{ inputs.cache-suffix }}
+      max-size: 2G
+      verbose: 2

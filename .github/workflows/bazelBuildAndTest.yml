@@ -1,0 +1,78 @@
+name: Bazel Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Ensure that only a single job or workflow using the same
+# concurrency group will run at a time. This would cancel
+# any in-progress jobs in the same github workflow and github
+# ref (e.g. refs/heads/main or refs/pull/<pr_number>/merge).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  ubuntu-build:
+    name: ubuntu-x86_64
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout torch-mlir
+      uses: actions/checkout@v3
+      with:
+        submodules: 'true'
+
+    - name: Setup cache for bazel
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/bazel
+        key: ubuntu_x86_64_torch_mlir_bazel_build_cache
+
+    # Change bazel cache directory to root ownership
+    # to allow writing to it from within the docker container.
+    # If no cache hits, this directory is not present
+    # so don't run chown (will error otherwise).
+    - name: Set bazel cache permissions
+      run: |
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R root:root "${HOME}/.cache/bazel"
+        fi
+
+    - name: Build docker image
+      run: |
+        docker build -f utils/bazel/docker/Dockerfile \
+                     -t torch-mlir:ci \
+                     .
+
+    - name: Bazel build torch-mlir
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   ./utils/bazel/docker/run_bazel_build.sh
+
+    # Switch back bazel cache directory to user ownership
+    # to allow GHA post-cache step to save cache without
+    # permissions issue.
+    - name: Switch bazel cache permissions
+      run: |
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
+        fi
+
+    - name: Send mail
+      if: failure()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ${{ secrets.SMTP_SERVER }}
+        server_port: ${{ secrets.SMTP_PORT }}
+        username: ${{ secrets.SMTP_USERNAME }}
+        password: ${{ secrets.SMTP_PASSWORD }}
+        subject: GitHub Action Bazel Build and Test failed!
+        body: Bazel Build job failed! See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} for more information.
+        to: ${{ secrets.MAIL_RECEIVER }}
+        from: Torch-MLIR Bazel Build GitHub Actions
