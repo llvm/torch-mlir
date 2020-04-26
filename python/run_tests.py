@@ -16,7 +16,7 @@ TEST_MODULES = (
 
 # Compute PYTHONPATH for sub processes.
 DIRSEP = ":" if os.path.pathsep == "/" else ";"
-PYTHONPATH = os.path.dirname(__file__)
+PYTHONPATH = os.path.abspath(os.path.dirname(__file__))
 if "PYTHONPATH" in os.environ:
   PYTHONPATH = PYTHONPATH + DIRSEP + os.environ["PYTHONPATH"]
 CHILD_ENVIRON = dict(os.environ)

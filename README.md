@@ -2,16 +2,16 @@
 
 ## Scratch-pad of build configurations that have worked
 
-### VSCode settings for configuring CMake
+## Quick start
 
-```json
-"cmake.configureArgs": [
-  "-DLLVM_TARGETS_TO_BUILD=X86",
-  "-DLLVM_ENABLE_PROJECTS=mlir;npcomp",
-  "-DPYTHON_EXECUTABLE=/bin/python3",
-  "-DLLVM_EXTERNAL_PROJECTS=npcomp",
-  "-DLLVM_ENABLE_ASSERTIONS:BOOL=ON"
-]
+```
+export LLVM_SRC_DIR=/path/to/llvm-project
+./tools/install_mlir.sh
+./tools/cmake_configure.sh
+
+cd build
+ninja
+./python/run_tests.py
 ```
 
 ### Installing pybind11
