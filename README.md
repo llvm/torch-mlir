@@ -1,6 +1,7 @@
 # npcomp - An aspirational MLIR based numpy compiler
 
-## Scratch-pad of build configurations that have worked
+This is a research prototype of MLIR dialects for representing
+numpy programs, and a set of reference tracing/compiler tools.
 
 ## Quick start
 
@@ -18,19 +19,21 @@ ninja
 
 The native extension relies on pybind11. In a perfect world, this could just
 be installed with your system package manager. However, at least on
-Ubuntu Disco, the system package installed with broken cmake files.
+some tested versions of Ubuntu, the system package installed with broken cmake 
+files.
 
-I built/installed from pybind11 head without issue and put it in /usr/local.
-There are better ways to do this.
+If this happens, you must install pybind11 from source.
 
 ### Building the python native library
 
 ```shell
 # From the build directory
 ninja NPCOMPNativePyExt
-# Outputs to tools/npcomp/python/npcomp/native...so
+ninja check-npcomp
+python3 ./python/run_tests.py
+
+# Setup PYTHONPATH for interactive use.
 export PYTHONPATH=$(pwd)/tools/npcomp/python
-python3 -m npcomp.smoketest
 ```
 
 Notes:
@@ -42,3 +45,4 @@ Notes:
   day this ends). Since the native library at development time binds to a
   specific version, if you try to run with a different python, you will get
   an error about the "native" module not being found.
+
