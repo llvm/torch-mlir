@@ -5,6 +5,7 @@ set -e
 td="$(realpath $(dirname $0)/..)"
 build_dir="$td/build"
 install_mlir="$td/install-mlir"
+build_mlir="$td/build-mlir"
 
 if ! [ -d "$install_mlir/include/mlir" ]; then
   echo "MLIR install path does not appear valid: $install_mlir"
@@ -26,5 +27,5 @@ cmake -GNinja \
   "-B$build_dir" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
-  "-DLLVM_EXTERNAL_LIT=$build_dir/bin/llvm-lit" \
+  "-DLLVM_EXTERNAL_LIT=$build_mlir/bin/llvm-lit" \
   "$@"

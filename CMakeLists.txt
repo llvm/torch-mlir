@@ -13,7 +13,7 @@ if(POLICY CMP0077)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
-project(standalone-dialect LANGUAGES CXX C)
+project(npcomp LANGUAGES CXX C)
 
 find_package(MLIR REQUIRED CONFIG)
 
@@ -34,10 +34,6 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 
-# MLIR npcomp project.
-#set(MLIR_NPCOMP_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}) # --src-root
-#set(MLIR_NPCOMP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include) # --includedir
-
 set(MLIR_NPCOMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MLIR_NPCOMP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -49,13 +45,8 @@ message(STATUS "Found ppython libraries: ${PYTHON_LIBRARIES}")
 find_package(pybind11 CONFIG REQUIRED)
 message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
 
-# TODO(laurenzo): What is the right way to get include directories for
-# cross project dependencies?
-#include_directories(${MLIR_NPCOMP_INCLUDE_DIR})
-#include_directories(${CMAKE_SOURCE_DIR}/../mlir/include)
-#include_directories(${CMAKE_BINARY_DIR}/tools/mlir/include)
-
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)
-
+add_subdirectory(tools)
+add_subdirectory(test)

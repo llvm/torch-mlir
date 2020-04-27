@@ -12,10 +12,9 @@
 
 namespace mlir {
 namespace npcomp {
-namespace numpy {
-
+namespace NUMPY {
+#define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
-
-} // namespace numpy
+} // namespace NUMPY
 } // namespace npcomp
 } // namespace mlir
