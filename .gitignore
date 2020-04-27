@@ -1,3 +1,5 @@
+.vscode
+
 build
 build-mlir
 install-mlir

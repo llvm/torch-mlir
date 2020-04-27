@@ -65,8 +65,12 @@ target_link_libraries(${extension_target}
   PRIVATE
     ${dialect_libs}
     ${conversion_libs}
-
     pybind11::module
+
+    # Local depends
+    NPCOMPNumpyDialect
+    
+    # Upstream depends
     LLVMSupport
     MLIRAffineToStandard
     MLIRAffineTransforms

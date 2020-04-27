@@ -1,1 +1,1 @@
-# Empty file
+add_subdirectory(Dialect)
