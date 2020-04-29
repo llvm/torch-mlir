@@ -18,7 +18,12 @@ As I work through things, I've been jotting down some design notes:
 ## Quick start
 
 ```
+LLVM_VERSION=10
+export CC=clang-$LLVM_VERSION
+export CXX=clang++-$LLVM_VERSION
+export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 export LLVM_SRC_DIR=/path/to/llvm-project
+
 ./tools/install_mlir.sh
 ./tools/cmake_configure.sh
 

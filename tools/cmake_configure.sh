@@ -22,16 +22,6 @@ if [ -z "$python_exe" ]; then
   exit 1
 fi
 
-# Detect linker.
-# TODO: Generalize this.
-for probe_linker in /usr/bin/ld.lld-10; do
-  if which ld.lld-10; then
-    echo "Using linker $probe_linker"
-    extra_opts+=("-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=$probe_linker")
-    break
-  fi
-done
-
 set -x
 cmake -GNinja \
   "-H$td" \
