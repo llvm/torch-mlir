@@ -2,6 +2,11 @@
 
 This is a research prototype of MLIR dialects for representing
 numpy programs, and a set of reference tracing/compiler tools.
+The primary purpose at this point is to establish a solid modeling
+of restricted Python programs and Numpy based computations in MLIR.
+While this project will provide some reference implementations to prove
+the design, the intention is to align this with the broader set of
+tools that exist at this level of abstraction.
 
 ## Design Notes
 
