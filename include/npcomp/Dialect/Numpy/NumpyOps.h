@@ -9,8 +9,12 @@
 #ifndef NPCOMP_DIALECT_NUMPY_NUMPY_OPS_H
 #define NPCOMP_DIALECT_NUMPY_NUMPY_OPS_H
 
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/FunctionSupport.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {

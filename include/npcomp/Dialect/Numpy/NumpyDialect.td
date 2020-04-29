@@ -21,6 +21,9 @@ def Numpy_Dialect : Dialect {
 }
 
 class Numpy_Op<string mnemonic, list<OpTrait> traits = []> :
-        Op<Numpy_Dialect, mnemonic, traits>;
+        Op<Numpy_Dialect, mnemonic, traits> {
+  let parser = [{ return parse$cppClass(parser, &result); }];
+  let printer = [{ return print$cppClass(p, *this); }];  
+}
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT

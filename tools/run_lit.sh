@@ -32,4 +32,6 @@ for i in "$@"; do
 done
 
 set -x
-cd $build_dir/test && python3 "$lit_exe" ${lit_args[@]}
+cd $build_dir
+ninja npcomp-opt
+cd test && python3 "$lit_exe" ${lit_args[@]}
