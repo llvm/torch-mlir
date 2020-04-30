@@ -27,3 +27,20 @@ module @example_generic_ufunc {
     }
   )
 }
+
+// -----
+// CHECK-LABEL: @ufunc_apply_ops
+module @ufunc_apply_ops {
+  numpy.generic_ufunc @numpy.add (
+    overload(%arg0: i32, %arg1: i32) -> i32 {
+      %0 = addi %arg0, %arg1 : i32
+      numpy.ufunc_return %0 : i32
+    }
+  )
+
+  func @example(%arg0: tensor<*xi32>, %arg1: tensor<*xi32>) -> tensor<*xi32> {
+    %0 = numpy.ufunc_call @numpy.add(%arg0, %arg1) : (tensor<*xi32>, tensor<*xi32>) 
+      -> tensor<*xi32>
+    return %0 : tensor<*xi32>
+  }
+}

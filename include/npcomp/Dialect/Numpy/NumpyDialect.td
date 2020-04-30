@@ -11,6 +11,10 @@
 
 include "mlir/IR/OpBase.td"
 
+//===----------------------------------------------------------------------===//
+// Dialect definition
+//===----------------------------------------------------------------------===//
+
 def Numpy_Dialect : Dialect {
   let name = "numpy";
   let summary = "Core numpy dialect";
@@ -20,10 +24,20 @@ def Numpy_Dialect : Dialect {
   let cppNamespace = "numpy";
 }
 
+//===----------------------------------------------------------------------===//
+// Op templates
+//===----------------------------------------------------------------------===//
+
 class Numpy_Op<string mnemonic, list<OpTrait> traits = []> :
         Op<Numpy_Dialect, mnemonic, traits> {
   let parser = [{ return parse$cppClass(parser, &result); }];
   let printer = [{ return print$cppClass(p, *this); }];  
 }
+
+//===----------------------------------------------------------------------===//
+// Type predicates
+//===----------------------------------------------------------------------===//
+
+def Numpy_AnyArray : TensorOf<[AnyType]>;
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT

@@ -49,4 +49,24 @@ def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
 
+def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
+  let summary = "Default operation on a func";
+  let description = [{
+    Invokes a ufunc with the given arguments. This variant models the __call__
+    behavior of a python ufunc except that it does not model the `out`
+    parameter, which indicates an in-place update.
+  }];
+  let arguments = (ins
+    FlatSymbolRefAttr:$ufunc_ref,
+    Variadic<Numpy_AnyArray>:$operands
+  );
+  let results = (outs
+    Numpy_AnyArray:$result
+  );
+
+  let assemblyFormat = [{
+    $ufunc_ref `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];  
+}
+
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS
