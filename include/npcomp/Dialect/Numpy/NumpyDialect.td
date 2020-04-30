@@ -17,7 +17,7 @@ def Numpy_Dialect : Dialect {
   let description = [{
     Dialect of types and core numpy ops and abstractions.
   }];
-  let cppNamespace = "NUMPY";
+  let cppNamespace = "numpy";
 }
 
 class Numpy_Op<string mnemonic, list<OpTrait> traits = []> :

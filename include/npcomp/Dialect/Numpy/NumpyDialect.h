@@ -12,13 +12,13 @@
 #include "mlir/IR/Dialect.h"
 
 namespace mlir {
-namespace npcomp {
-namespace NUMPY {
+namespace NPCOMP {
+namespace numpy {
 
 #include "npcomp/Dialect/Numpy/NumpyOpsDialect.h.inc"
 
-} // namespace NUMPY
-} // namespace npcomp
+} // namespace numpy
+} // namespace NPCOMP
 } // namespace mlir
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT_H

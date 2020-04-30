@@ -10,7 +10,7 @@
 #include "npcomp/Dialect/Numpy/NumpyOps.h"
 
 using namespace mlir;
-using namespace mlir::npcomp::NUMPY;
+using namespace mlir::NPCOMP::numpy;
 
 NumpyDialect::NumpyDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {

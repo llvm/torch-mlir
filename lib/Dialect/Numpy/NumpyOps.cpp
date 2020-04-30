@@ -13,8 +13,8 @@
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
 
 namespace mlir {
-namespace npcomp {
-namespace NUMPY {
+namespace NPCOMP {
+namespace numpy {
 
 //===----------------------------------------------------------------------===//
 // BuildinUfuncOp
@@ -147,6 +147,6 @@ static void printGenericUfuncOp(OpAsmPrinter &p, GenericUfuncOp op) {
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
-} // namespace NUMPY
-} // namespace npcomp
+} // namespace numpy
+} // namespace NPCOMP
 } // namespace mlir

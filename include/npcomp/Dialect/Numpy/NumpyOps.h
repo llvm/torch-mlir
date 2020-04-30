@@ -18,14 +18,14 @@
 #include "mlir/Interfaces/SideEffects.h"
 
 namespace mlir {
-namespace npcomp {
-namespace NUMPY {
+namespace NPCOMP {
+namespace numpy {
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/NumpyOps.h.inc"
 
-} // namespace NUMPY
-} // namespace npcomp
+} // namespace numpy
+} // namespace NPCOMP
 } // namespace mlir
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS_H

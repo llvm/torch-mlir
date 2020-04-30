@@ -37,7 +37,7 @@ def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
 
 def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
     Terminator,
-    HasParent<"NUMPY::GenericUfuncOp">]> {
+    HasParent<"numpy::GenericUfuncOp">]> {
   let summary = "Return a value from a generic_ufunc";
   let description = [{
     Must terminate the basic block of a generic_ufunc overload.
@@ -48,41 +48,5 @@ def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
-
-// def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
-//     IsolatedFromAbove,
-//     Symbol,
-//     NativeOpTrait<"FunctionLike">]> {
-//   let summary = "Defines a ufunc in terms of elementwise operations";
-//   let description = [{
-//     Defines a universal-function operator in terms of a region, containing
-//     a basic block of element-wise ops.
-//   }];
-
-//   let regions = (region AnyRegion:$body);
-
-//   let extraClassDeclaration = [{
-//     /// Returns the type of this function.
-//     FunctionType getType() {
-//       return getAttrOfType<TypeAttr>(getTypeAttrName())
-//           .getValue()
-//           .cast<FunctionType>();
-//     }
-
-//     /// Hook for OpTrait::FunctionLike, returns the number of function
-//     /// arguments. Depends on the type attribute being correct as checked by
-//     /// verifyType.
-//     unsigned getNumFuncArguments() { return getType().getInputs().size(); }
-
-//     /// Hook for OpTrait::FunctionLike, returns the number of function results.
-//     /// Depends on the type attribute being correct as checked by verifyType.
-//     unsigned getNumFuncResults() { return getType().getResults().size(); }
-
-//     /// Hook for OpTrait::FunctionLike, called after verifying that the 'type'
-//     /// attribute is present. This can check for preconditions of the
-//     /// getNumArguments hook not failing.
-//     LogicalResult verifyType();    
-//   }];  
-// }
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS
