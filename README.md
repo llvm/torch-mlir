@@ -29,6 +29,8 @@ export LLVM_SRC_DIR=/path/to/llvm-project
 
 cd build
 ninja
+ninja check-npcomp-opt
+# Note: currently, python tests run separately
 ./python/run_tests.py
 ```
 
