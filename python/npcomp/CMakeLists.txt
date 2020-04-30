@@ -27,9 +27,9 @@ set(extension_target NPCOMPNativePyExt)
 set(extension_pybind_sources
   native.cpp
   mlir_edsc.cpp
-)
-set(extension_llvm_sources
   mlir_init.cpp
+  mlir_ir.cpp
+  pybind_utils.cpp
 )
 set_source_files_properties(
   ${extension_pybind_sources}
@@ -37,7 +37,6 @@ set_source_files_properties(
     "-frtti -fexceptions")
 add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE} 
   ${extension_pybind_sources}
-  ${extension_llvm_sources}
 )
 
 set_target_properties(${extension_target} PROPERTIES LIBRARY_OUTPUT_DIRECTORY
@@ -60,7 +59,7 @@ set_target_properties(${extension_target} PROPERTIES LINK_FLAGS
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-llvm_update_compile_flags(${extension_target})
+# llvm_update_compile_flags(${extension_target})
 target_link_libraries(${extension_target} 
   PRIVATE
     ${dialect_libs}

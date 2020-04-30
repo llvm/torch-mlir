@@ -6,14 +6,41 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Dialect.h"
 #include "mlir/InitAllDialects.h"
+#include "mlir/Pass/PassManager.h"
+#include "npcomp/Dialect/Numpy/NumpyDialect.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Signals.h"
 
+namespace mlir {
 namespace npcomp {
 namespace python {
 
-void npcompMlirInitialize() {
+bool npcompMlirInitialize() {
+  // Enable LLVM's signal handler to get nice stack traces.
+  llvm::sys::SetOneShotPipeSignalFunction(
+      llvm::sys::DefaultOneShotPipeSignalHandler);
+  llvm::sys::PrintStackTraceOnErrorSignal("npcomp");
+
+  // Register any pass manager command line options.
+  mlir::registerPassManagerCLOptions();
+  mlir::registerMLIRContextCLOptions();
+
+  std::string program_name = "npcomp";
+  std::vector<const char *> default_options = {program_name.c_str(), nullptr};
+  llvm::cl::ParseCommandLineOptions(1, default_options.data());
+
+  // Global registration.
   ::mlir::registerAllDialects();
+
+  // Local registration.
+  registerDialect<NPCOMP::Numpy::NumpyDialect>();
+
+  return true;
 }
 
 } // namespace python
-} // namesapce npcomp
+} // namespace npcomp
+} // namespace mlir

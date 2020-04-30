@@ -62,12 +62,6 @@ struct CustomValueBuilder {
   Value value;
 };
 
-} // namespace edsc
-} // namespace mlir
-
-namespace npcomp {
-namespace python {
-
 struct PythonAttribute;
 struct PythonAttributedType;
 struct PythonBindable;
@@ -1178,5 +1172,5 @@ void defineMlirEdscModule(py::module m) {
       .def("__str__", &PythonAffineMap::str);
 }
 
-}  // namespace python
-}  // namespace npcomp
+} // namespace edsc
+} // namespace mlir

@@ -26,6 +26,8 @@ set -x
 cmake -GNinja \
   "-H$td" \
   "-B$build_dir" \
+  "-DCMAKE_BUILD_TYPE=Debug" \
+  "-DCMAKE_CXX_FLAGS_DEBUG=-g3 -gdwarf-2 -Weverything -Werror" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
   "-DLLVM_EXTERNAL_LIT=$build_mlir/bin/llvm-lit" \
