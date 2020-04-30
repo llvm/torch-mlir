@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
 
-  mlir::registerDialect<mlir::NPCOMP::numpy::NumpyDialect>();
+  mlir::registerDialect<mlir::NPCOMP::Numpy::NumpyDialect>();
   // TODO: Register standalone passes here.
 
   llvm::InitLLVM y(argc, argv);

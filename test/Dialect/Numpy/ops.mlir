@@ -1,4 +1,10 @@
 // RUN: npcomp-opt -split-input-file %s | npcomp-opt | FileCheck --dump-input=fail %s
+
+// CHECK-LABEL: @any_dtype
+func @any_dtype(%arg0: tensor<*x!numpy.any_dtype>) -> (tensor<*x!numpy.any_dtype>) {
+  return %arg0 : tensor<*x!numpy.any_dtype>
+}
+
 // -----
 // CHECK-LABEL: @builtin_ufunc
 module @builtin_ufunc {

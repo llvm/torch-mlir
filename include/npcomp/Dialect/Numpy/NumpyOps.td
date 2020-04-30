@@ -37,7 +37,7 @@ def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
 
 def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
     Terminator,
-    HasParent<"numpy::GenericUfuncOp">]> {
+    HasParent<"Numpy::GenericUfuncOp">]> {
   let summary = "Return a value from a generic_ufunc";
   let description = [{
     Must terminate the basic block of a generic_ufunc overload.

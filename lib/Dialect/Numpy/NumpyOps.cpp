@@ -14,7 +14,7 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace numpy {
+namespace Numpy {
 
 //===----------------------------------------------------------------------===//
 // BuildinUfuncOp
@@ -147,6 +147,6 @@ static void printGenericUfuncOp(OpAsmPrinter &p, GenericUfuncOp op) {
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
-} // namespace numpy
+} // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir

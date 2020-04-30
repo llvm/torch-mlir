@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Numpy/NumpyOps.h"
 
 using namespace mlir;
-using namespace mlir::NPCOMP::numpy;
+using namespace mlir::NPCOMP::Numpy;
 
 NumpyDialect::NumpyDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
@@ -18,4 +19,27 @@ NumpyDialect::NumpyDialect(MLIRContext *context)
 #define GET_OP_LIST
 #include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
       >();
+  addTypes<AnyDtypeType>();
+}
+
+Type NumpyDialect::parseType(DialectAsmParser &parser) const {
+  StringRef keyword;
+  if (parser.parseKeyword(&keyword))
+    return Type();
+
+  if (keyword == "any_dtype")
+    return AnyDtypeType::get(getContext());
+
+  parser.emitError(parser.getNameLoc(), "unknown numpy type: ") << keyword;
+  return Type();
+}
+
+void NumpyDialect::printType(Type type, DialectAsmPrinter &os) const {
+  switch (type.getKind()) {
+  case NumpyTypes::AnyDtypeType:
+    os << "any_dtype";
+    return;
+  default:
+    llvm_unreachable("unexpected 'numpy' type kind");
+  }
 }

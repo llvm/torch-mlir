@@ -13,11 +13,32 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace numpy {
+namespace Numpy {
+
+namespace NumpyTypes {
+enum Kind {
+  AnyDtypeType = Type::FIRST_PRIVATE_EXPERIMENTAL_9_TYPE,
+  LAST_NUMPY_TYPE = AnyDtypeType
+};
+} // namespace NumpyTypes
+
+// The singleton type representing an unknown dtype.
+class AnyDtypeType : public Type::TypeBase<AnyDtypeType, Type> {
+public:
+  using Base::Base;
+
+  static AnyDtypeType get(MLIRContext *context) {
+    return Base::get(context, NumpyTypes::Kind::AnyDtypeType);
+  }
+
+  static bool kindof(unsigned kind) {
+    return kind == NumpyTypes::Kind::AnyDtypeType;
+  }
+};
 
 #include "npcomp/Dialect/Numpy/NumpyOpsDialect.h.inc"
 
-} // namespace numpy
+} // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir
 
