@@ -1,4 +1,4 @@
-//===- mlir_if.cpp - MLIR IR Bindings -------------------------------------===//
+//===- mlir_ir.cpp - MLIR IR Bindings -------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "pybind_utils.h"
+#include "mlir_ir.h"
 
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/Parser.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
@@ -69,81 +67,109 @@ private:
   mlir::DiagnosticEngine::HandlerID handler_id;
 };
 
-/// Wrapper around Module, capturing a PyContext reference.
-struct PyModuleOp {
-  static void bind(py::module m) {
-    py::class_<PyModuleOp>(m, "ModuleOp")
-        .def("to_asm", &PyModuleOp::toAsm, py::arg("debug_info") = false,
-             py::arg("pretty") = false, py::arg("large_element_limit") = -1);
-  }
-
-  std::string toAsm(bool enableDebugInfo, bool prettyForm,
-                    int64_t largeElementLimit) {
-    // Print to asm.
-    std::string asmOutput;
-    llvm::raw_string_ostream sout(asmOutput);
-    OpPrintingFlags printFlags;
-    if (enableDebugInfo) {
-      printFlags.enableDebugInfo(prettyForm);
-    }
-    if (largeElementLimit >= 0) {
-      printFlags.elideLargeElementsAttrs(largeElementLimit);
-    }
-    module_op.print(sout, printFlags);
-    return sout.str();
-  }
-
-  std::shared_ptr<PyContext> context;
-  ModuleOp module_op;
-};
-
-/// Wrapper around MLIRContext.
-/// Unlike most, this is enforced to be a shared_ptr since arbitrary other
-/// types can capture it.
-struct PyContext : std::enable_shared_from_this<PyContext> {
-  static void bind(py::module m) {
-    py::class_<PyContext, std::shared_ptr<PyContext>>(m, "MLIRContext")
-        .def(py::init<>([]() {
-          // Need explicit make_shared to avoid UB with enable_shared_from_this.
-          return std::make_shared<PyContext>();
-        }))
-        .def("new_module",
-             [&](PyContext &context) -> PyModuleOp {
-               return PyModuleOp{context.shared_from_this()};
-             })
-        .def("parse_asm", &PyContext::parseAsm);
-  }
-
-  PyModuleOp parseAsm(const std::string &asm_text) {
-    // Arrange to get a view that includes a terminating null to avoid
-    // additional copy.
-    // TODO: Consider using the buffer protocol to access and avoid more copies.
-    const char *asm_chars = asm_text.c_str();
-    StringRef asm_sr(asm_chars, asm_text.size() + 1);
-
-    // TODO: Output non failure diagnostics (somewhere)
-    DiagnosticCapture diag_capture(&context);
-    auto module_ref = parseMLIRModuleFromString(asm_sr, &context);
-    if (!module_ref) {
-      throw py::raiseValueError(
-          diag_capture.consumeDiagnosticsAsString("Error parsing ASM"));
-    }
-    return PyModuleOp{shared_from_this(), module_ref.release()};
-  }
-
-  MLIRContext context;
-};
-
 void defineMlirIrModule(py::module m) {
   m.doc() = "Python bindings for constructs in the mlir/IR library";
 
   PyContext::bind(m);
+  PyBaseOperation::bind(m);
   PyModuleOp::bind(m);
+  PyRegionRef::bind(m);
+  PyBaseOpBuilder::bind(m);
+  PyOpBuilder::bind(m);
 }
 
 //===----------------------------------------------------------------------===//
-// Detail definitions
+// PyContext
 //===----------------------------------------------------------------------===//
+
+void PyContext::bind(py::module m) {
+  py::class_<PyContext, std::shared_ptr<PyContext>>(m, "MLIRContext")
+      .def(py::init<>([]() {
+        // Need explicit make_shared to avoid UB with enable_shared_from_this.
+        return std::make_shared<PyContext>();
+      }))
+      .def("new_module",
+           [&](PyContext &context) -> PyModuleOp {
+             return PyModuleOp(context.shared_from_this(), {});
+           })
+      .def("parse_asm", &PyContext::parseAsm);
+}
+
+PyModuleOp PyContext::parseAsm(const std::string &asm_text) {
+  // Arrange to get a view that includes a terminating null to avoid
+  // additional copy.
+  // TODO: Consider using the buffer protocol to access and avoid more copies.
+  const char *asm_chars = asm_text.c_str();
+  StringRef asm_sr(asm_chars, asm_text.size() + 1);
+
+  // TODO: Output non failure diagnostics (somewhere)
+  DiagnosticCapture diag_capture(&context);
+  auto module_ref = parseMLIRModuleFromString(asm_sr, &context);
+  if (!module_ref) {
+    throw py::raiseValueError(
+        diag_capture.consumeDiagnosticsAsString("Error parsing ASM"));
+  }
+  return PyModuleOp{shared_from_this(), module_ref.release()};
+}
+
+//===----------------------------------------------------------------------===//
+// PyBaseOperation
+//===----------------------------------------------------------------------===//
+
+PyBaseOperation::~PyBaseOperation() = default;
+
+void PyBaseOperation::bind(py::module m) {
+  py::class_<PyBaseOperation>(m, "BaseOperation")
+      .def_property_readonly(
+          "name",
+          [](PyBaseOperation *self) {
+            return std::string(self->getOperation()->getName().getStringRef());
+          })
+      .def_property_readonly("is_registered",
+                             [](PyBaseOperation *self) {
+                               return self->getOperation()->isRegistered();
+                             })
+      .def_property_readonly("num_regions",
+                             [](PyBaseOperation *self) {
+                               return self->getOperation()->getNumRegions();
+                             })
+      .def("region", [](PyBaseOperation *self, int index) {
+        auto *op = self->getOperation();
+        if (index < 0 || index >= op->getNumRegions()) {
+          throw py::raisePyError(PyExc_IndexError,
+                                 "Region index out of bounds");
+        }
+        return PyRegionRef(op->getRegion(index));
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// PyModuleOp
+//===----------------------------------------------------------------------===//
+
+void PyModuleOp::bind(py::module m) {
+  py::class_<PyModuleOp, PyBaseOperation>(m, "ModuleOp")
+      .def("to_asm", &PyModuleOp::toAsm, py::arg("debug_info") = false,
+           py::arg("pretty") = false, py::arg("large_element_limit") = -1);
+}
+
+Operation *PyModuleOp::getOperation() { return moduleOp; }
+
+std::string PyModuleOp::toAsm(bool enableDebugInfo, bool prettyForm,
+                              int64_t largeElementLimit) {
+  // Print to asm.
+  std::string asmOutput;
+  llvm::raw_string_ostream sout(asmOutput);
+  OpPrintingFlags printFlags;
+  if (enableDebugInfo) {
+    printFlags.enableDebugInfo(prettyForm);
+  }
+  if (largeElementLimit >= 0) {
+    printFlags.elideLargeElementsAttrs(largeElementLimit);
+  }
+  moduleOp.print(sout, printFlags);
+  return sout.str();
+}
 
 static OwningModuleRef parseMLIRModuleFromString(StringRef contents,
                                                  MLIRContext *context) {
@@ -225,6 +251,10 @@ void printLocation(Location loc, raw_ostream &out) {
   }
 }
 
+//===----------------------------------------------------------------------===//
+// DiagnosticCapture
+//===----------------------------------------------------------------------===//
+
 std::string
 DiagnosticCapture::consumeDiagnosticsAsString(const char *error_message) {
   std::string s;
@@ -264,6 +294,31 @@ DiagnosticCapture::consumeDiagnosticsAsString(const char *error_message) {
 
   diagnostics.clear();
   return sout.str();
+}
+
+//===----------------------------------------------------------------------===//
+// PyRegionRef
+//===----------------------------------------------------------------------===//
+
+void PyRegionRef::bind(py::module m) {
+  py::class_<PyRegionRef>(m, "RegionRef");
+}
+
+//===----------------------------------------------------------------------===//
+// OpBuilder implementations
+//===----------------------------------------------------------------------===//
+
+PyBaseOpBuilder::~PyBaseOpBuilder() = default;
+PyOpBuilder::~PyOpBuilder() = default;
+OpBuilder &PyOpBuilder::getBuilder() { return builder; }
+
+void PyBaseOpBuilder::bind(py::module m) {
+  py::class_<PyBaseOpBuilder>(m, "BaseOpBuilder");
+}
+
+void PyOpBuilder::bind(py::module m) {
+  py::class_<PyOpBuilder, PyBaseOpBuilder>(m, "OpBuilder")
+      .def(py::init<PyContext &>());
 }
 
 } // namespace mlir

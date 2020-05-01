@@ -18,7 +18,13 @@ module @parseSuccess {
   }
 }
 """)
+# CHECK: func @f
 print(m.to_asm())
+# CHECK: OP NAME: module
+print("OP NAME:", m.name)
+# CHECK: NUM_REGIONS: 1
+print("NUM_REGIONS:", m.num_regions)
+region = m.region(0)
 
 # CHECK-LABEL: PARSE_FAILURE
 print("PARSE_FAILURE")

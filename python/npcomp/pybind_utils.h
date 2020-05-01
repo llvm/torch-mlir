@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef NPCOMP_PYTHON_PYBIND_UTILS_H
+#define NPCOMP_PYTHON_PYBIND_UTILS_H
+
 #include <string>
 
 #include <pybind11/pybind11.h>
@@ -48,3 +51,5 @@ inline pybind11::error_already_set raiseValueError(const std::string &message) {
 }
 
 } // namespace pybind11
+
+#endif // NPCOMP_PYTHON_PYBIND_UTILS_H
