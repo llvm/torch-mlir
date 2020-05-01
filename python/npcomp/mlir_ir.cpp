@@ -28,6 +28,9 @@ static OwningModuleRef parseMLIRModuleFromString(StringRef contents,
 
 //===----------------------------------------------------------------------===//
 // Internal only template definitions
+// Since it is only legal to use explicit instantiations of templates in
+// mlir_ir.h, implementations are kept in this module to keep things scoped
+// well for the compiler.
 //===----------------------------------------------------------------------===//
 
 template <typename ListTy, typename ItemWrapperTy>
@@ -45,6 +48,9 @@ void PyIpListWrapper<ListTy, ItemWrapperTy>::bind(py::module m,
   };
 
   py::class_<ThisTy>(m, className)
+      .def_property_readonly(
+          "front",
+          [](ThisTy &self) { return ItemWrapperTy(self.list.front()); })
       .def("__len__", [](ThisTy &self) { return self.list.size(); })
       .def("__iter__",
            [](ThisTy &self) {
