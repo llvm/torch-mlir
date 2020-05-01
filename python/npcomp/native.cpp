@@ -34,7 +34,7 @@ void defineLLVMModule(pybind11::module m) {
           if (found_it == options_map.end()) {
             std::string message = "Unknown LLVM option: ";
             message.append(name);
-            throw raiseValueError(message.c_str());
+            throw py::raiseValueError(message.c_str());
           }
 
           std::string value_sr = value ? *value : "";
@@ -48,7 +48,7 @@ void defineLLVMModule(pybind11::module m) {
           if (found_it == options_map.end()) {
             std::string message = "Unknown LLVM option: ";
             message.append(name);
-            throw raiseValueError(message.c_str());
+            throw py::raiseValueError(message.c_str());
           }
           found_it->getValue()->setDefault();
         },

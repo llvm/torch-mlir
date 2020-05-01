@@ -25,9 +25,7 @@ struct type_caster<llvm::Optional<T>> : optional_caster<llvm::Optional<T>> {};
 } // namespace detail
 } // namespace pybind11
 
-namespace mlir {
-namespace npcomp {
-namespace python {
+namespace pybind11 {
 
 /// Raises a python exception with the given message.
 /// Correct usage:
@@ -49,6 +47,4 @@ inline pybind11::error_already_set raiseValueError(const std::string &message) {
   return raisePyError(PyExc_ValueError, message.c_str());
 }
 
-} // namespace python
-} // namespace npcomp
-} // namespace mlir
+} // namespace pybind11

@@ -45,7 +45,7 @@ class EmitterRegistry:
         # Emit op.  
         mlir_m = pft.mlir_module
         op_result_types = [mlir_m.make_type("tensor<*x!numpy.any_dtype>")]
-        op_result = edsc.op("numpy.generic_ufunc", op_inputs, op_result_types,
+        op_result = edsc.op("numpy.tmp_generic_ufunc", op_inputs, op_result_types,
                 ufunc_name=mlir_m.stringAttr(function_name))
         
         # Wrap returns.
@@ -104,8 +104,8 @@ class PyFuncTrace:
     >>> print(pft.mlir_module.get_ir().strip())
     module {
       func @simple_mul(%arg0: tensor<?x4xf32>, %arg1: tensor<1xf32>) -> tensor<?x4xf32> {
-        %0 = "numpy.generic_ufunc"(%arg0, %arg1) {ufunc_name = "numpy.multiply"} : (tensor<?x4xf32>, tensor<1xf32>) -> tensor<*x!numpy.any_dtype>
-        %1 = "numpy.generic_ufunc"(%0, %arg0) {ufunc_name = "numpy.add"} : (tensor<*x!numpy.any_dtype>, tensor<?x4xf32>) -> tensor<*x!numpy.any_dtype>
+        %0 = "numpy.tmp_generic_ufunc"(%arg0, %arg1) {ufunc_name = "numpy.multiply"} : (tensor<?x4xf32>, tensor<1xf32>) -> tensor<*x!numpy.any_dtype>
+        %1 = "numpy.tmp_generic_ufunc"(%0, %arg0) {ufunc_name = "numpy.add"} : (tensor<*x!numpy.any_dtype>, tensor<?x4xf32>) -> tensor<*x!numpy.any_dtype>
         %2 = "numpy.narrow"(%1) : (tensor<*x!numpy.any_dtype>) -> tensor<?x4xf32>
         return %2 : tensor<?x4xf32>
       }

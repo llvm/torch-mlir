@@ -8,9 +8,7 @@
 
 #include "pybind_utils.h"
 
-namespace mlir {
-namespace npcomp {
-namespace python {
+namespace pybind11 {
 
 pybind11::error_already_set raisePyError(PyObject *exc_class,
                                          const char *message) {
@@ -18,6 +16,4 @@ pybind11::error_already_set raisePyError(PyObject *exc_class,
   return pybind11::error_already_set();
 }
 
-} // namespace python
-} // namespace npcomp
-} // namespace mlir
+} // namespace pybind11

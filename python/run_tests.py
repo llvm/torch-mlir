@@ -6,6 +6,7 @@ import sys
 
 
 TEST_MODULES = (
+  "npcomp.mlir_ir_test",
   "npcomp.edsc_test",
   "npcomp.tracing.context",
   "npcomp.tracing.mlir_trace",
@@ -15,7 +16,7 @@ TEST_MODULES = (
 )
 
 # Compute PYTHONPATH for sub processes.
-DIRSEP = ":" if os.path.pathsep == "/" else ";"
+DIRSEP = ":" if os.path.sep == "/" else ";"
 PYTHONPATH = os.path.abspath(os.path.dirname(__file__))
 if "PYTHONPATH" in os.environ:
   PYTHONPATH = PYTHONPATH + DIRSEP + os.environ["PYTHONPATH"]
