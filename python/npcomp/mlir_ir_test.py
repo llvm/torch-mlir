@@ -25,6 +25,11 @@ print("OP NAME:", m.name)
 # CHECK: NUM_REGIONS: 1
 print("NUM_REGIONS:", m.num_regions)
 region = m.region(0)
+# CHECK: CONTAINED OP: func
+# CHECK: CONTAINED OP: module_terminator
+for block in region.blocks:
+  for op in block.operations:
+    print("CONTAINED OP:", op.name)
 
 # CHECK-LABEL: PARSE_FAILURE
 print("PARSE_FAILURE")

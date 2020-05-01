@@ -27,6 +27,45 @@ static OwningModuleRef parseMLIRModuleFromString(StringRef contents,
                                                  MLIRContext *context);
 
 //===----------------------------------------------------------------------===//
+// Internal only template definitions
+//===----------------------------------------------------------------------===//
+
+template <typename ListTy, typename ItemWrapperTy>
+void PyIpListWrapper<ListTy, ItemWrapperTy>::bind(py::module m,
+                                                  const char *className) {
+  struct PyItemIterator : public llvm::iterator_adaptor_base<
+                              PyItemIterator, typename ListTy::iterator,
+                              typename std::iterator_traits<
+                                  typename ListTy::iterator>::iterator_category,
+                              typename ListTy::value_type> {
+    PyItemIterator() = default;
+    PyItemIterator(typename ListTy::iterator &&other)
+        : PyItemIterator::iterator_adaptor_base(std::move(other)) {}
+    ItemWrapperTy operator*() const { return ItemWrapperTy(*this->I); }
+  };
+
+  py::class_<ThisTy>(m, className)
+      .def("__len__", [](ThisTy &self) { return self.list.size(); })
+      .def("__iter__",
+           [](ThisTy &self) {
+             PyItemIterator begin(self.list.begin());
+             PyItemIterator end(self.list.end());
+             return py::make_iterator(begin, end);
+           },
+           py::keep_alive<0, 1>());
+}
+
+//===----------------------------------------------------------------------===//
+// Explicit template instantiations
+//===----------------------------------------------------------------------===//
+
+template class PyIpListWrapper<Region::BlockListType, PyBlockRef>;
+using PyBlockList = PyIpListWrapper<Region::BlockListType, PyBlockRef>;
+
+template class PyIpListWrapper<Block::OpListType, PyOperationRef>;
+using PyOperationList = PyIpListWrapper<Block::OpListType, PyOperationRef>;
+
+//===----------------------------------------------------------------------===//
 // Diagnostics
 //===----------------------------------------------------------------------===//
 
@@ -70,12 +109,17 @@ private:
 void defineMlirIrModule(py::module m) {
   m.doc() = "Python bindings for constructs in the mlir/IR library";
 
-  PyContext::bind(m);
+  PyBlockList::bind(m, "BlockList");
+  PyOperationList::bind(m, "OperationList");
+
   PyBaseOperation::bind(m);
-  PyModuleOp::bind(m);
-  PyRegionRef::bind(m);
   PyBaseOpBuilder::bind(m);
+  PyBlockRef::bind(m);
+  PyContext::bind(m);
+  PyModuleOp::bind(m);
+  PyOperationRef::bind(m);
   PyOpBuilder::bind(m);
+  PyRegionRef::bind(m);
 }
 
 //===----------------------------------------------------------------------===//
@@ -122,19 +166,19 @@ void PyBaseOperation::bind(py::module m) {
   py::class_<PyBaseOperation>(m, "BaseOperation")
       .def_property_readonly(
           "name",
-          [](PyBaseOperation *self) {
-            return std::string(self->getOperation()->getName().getStringRef());
+          [](PyBaseOperation &self) {
+            return std::string(self.getOperation()->getName().getStringRef());
           })
       .def_property_readonly("is_registered",
-                             [](PyBaseOperation *self) {
-                               return self->getOperation()->isRegistered();
+                             [](PyBaseOperation &self) {
+                               return self.getOperation()->isRegistered();
                              })
       .def_property_readonly("num_regions",
-                             [](PyBaseOperation *self) {
-                               return self->getOperation()->getNumRegions();
+                             [](PyBaseOperation &self) {
+                               return self.getOperation()->getNumRegions();
                              })
-      .def("region", [](PyBaseOperation *self, int index) {
-        auto *op = self->getOperation();
+      .def("region", [](PyBaseOperation &self, int index) {
+        auto *op = self.getOperation();
         if (index < 0 || index >= op->getNumRegions()) {
           throw py::raisePyError(PyExc_IndexError,
                                  "Region index out of bounds");
@@ -144,9 +188,21 @@ void PyBaseOperation::bind(py::module m) {
 }
 
 //===----------------------------------------------------------------------===//
+// PyOperationRef
+//===----------------------------------------------------------------------===//
+
+PyOperationRef::~PyOperationRef() = default;
+void PyOperationRef::bind(py::module m) {
+  py::class_<PyOperationRef, PyBaseOperation>(m, "OperationRef");
+}
+
+Operation *PyOperationRef::getOperation() { return operation; }
+
+//===----------------------------------------------------------------------===//
 // PyModuleOp
 //===----------------------------------------------------------------------===//
 
+PyModuleOp::~PyModuleOp() = default;
 void PyModuleOp::bind(py::module m) {
   py::class_<PyModuleOp, PyBaseOperation>(m, "ModuleOp")
       .def("to_asm", &PyModuleOp::toAsm, py::arg("debug_info") = false,
@@ -297,11 +353,25 @@ DiagnosticCapture::consumeDiagnosticsAsString(const char *error_message) {
 }
 
 //===----------------------------------------------------------------------===//
+// PyBlockRef
+//===----------------------------------------------------------------------===//
+
+void PyBlockRef::bind(py::module m) {
+  py::class_<PyBlockRef>(m, "BlockRef")
+      .def_property_readonly("operations", [](PyBlockRef &self) {
+        return PyOperationList(self.block.getOperations());
+      });
+}
+
+//===----------------------------------------------------------------------===//
 // PyRegionRef
 //===----------------------------------------------------------------------===//
 
 void PyRegionRef::bind(py::module m) {
-  py::class_<PyRegionRef>(m, "RegionRef");
+  py::class_<PyRegionRef>(m, "RegionRef")
+      .def_property_readonly("blocks", [](PyRegionRef &self) {
+        return PyBlockList(self.region.getBlocks());
+      });
 }
 
 //===----------------------------------------------------------------------===//

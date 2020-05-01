@@ -22,6 +22,24 @@ namespace mlir {
 
 struct PyContext;
 
+//===----------------------------------------------------------------------===//
+// Utility types
+//===----------------------------------------------------------------------===//
+
+template <typename ListTy, typename ItemWrapperTy> class PyIpListWrapper {
+public:
+  using ThisTy = PyIpListWrapper<ListTy, ItemWrapperTy>;
+  static void bind(py::module m, const char *className);
+  PyIpListWrapper(ListTy &list) : list(list) {}
+
+private:
+  ListTy &list;
+};
+
+//===----------------------------------------------------------------------===//
+// Wrapper types
+//===----------------------------------------------------------------------===//
+
 /// Wrapper around an Operation*.
 struct PyBaseOperation {
   virtual ~PyBaseOperation();
@@ -33,6 +51,7 @@ struct PyBaseOperation {
 struct PyModuleOp : PyBaseOperation {
   PyModuleOp(std::shared_ptr<PyContext> context, ModuleOp moduleOp)
       : context(context), moduleOp(moduleOp) {}
+  ~PyModuleOp();
   static void bind(py::module m);
   Operation *getOperation() override;
   std::string toAsm(bool enableDebugInfo, bool prettyForm,
@@ -42,6 +61,17 @@ struct PyModuleOp : PyBaseOperation {
   ModuleOp moduleOp;
 };
 
+/// Wrapper around an Operation*.
+struct PyOperationRef : PyBaseOperation {
+  PyOperationRef(Operation *operation) : operation(operation) {}
+  PyOperationRef(Operation &operation) : operation(&operation) {}
+  ~PyOperationRef();
+  static void bind(py::module m);
+  Operation *getOperation() override;
+
+  Operation *operation;
+};
+
 /// Wrapper around MLIRContext.
 struct PyContext : std::enable_shared_from_this<PyContext> {
   static void bind(py::module m);
@@ -49,18 +79,18 @@ struct PyContext : std::enable_shared_from_this<PyContext> {
   MLIRContext context;
 };
 
-/// Wrapper around a Region&.
-struct PyRegionRef {
-  PyRegionRef(Region &region) : region(region) {}
-  static void bind(py::module m);
-  Region &region;
-};
-
 /// Wrapper around a Block&.
 struct PyBlockRef {
   PyBlockRef(Block &block) : block(block) {}
   static void bind(py::module m);
   Block &block;
+};
+
+/// Wrapper around a Region&.
+struct PyRegionRef {
+  PyRegionRef(Region &region) : region(region) {}
+  static void bind(py::module m);
+  Region &region;
 };
 
 /// Wrapper around an OpBuilder reference.
