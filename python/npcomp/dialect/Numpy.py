@@ -22,7 +22,7 @@ class Ops(ir.Ops):
     >>> f = ops.func_op("foobar", t.function(
     ...   [tensor_type, tensor_type], [tensor_type]), 
     ...   create_entry_block=True)
-    >>> uf = ops.numpy_ufunc_call("numpy.add", tensor_type,
+    >>> uf = ops.numpy_ufunc_call_op("numpy.add", tensor_type,
     ...   *f.first_block.args)
     >>> _ = ops.return_op(uf.results)
     >>> print(m.to_asm())
@@ -35,7 +35,7 @@ class Ops(ir.Ops):
       }
     }
   """
-  def numpy_ufunc_call(self, callee_symbol, result_type, *args):
+  def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
     """Creates a numpy.ufunc_call op."""
     c = self.context
     attrs = c.dictionary_attr({
