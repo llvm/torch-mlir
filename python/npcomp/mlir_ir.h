@@ -17,6 +17,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Region.h"
+#include "mlir/IR/SymbolTable.h"
 
 namespace mlir {
 
@@ -50,7 +51,9 @@ struct PyBaseOperation {
 /// Wrapper around Module, capturing a PyContext reference.
 struct PyModuleOp : PyBaseOperation {
   PyModuleOp(std::shared_ptr<PyContext> context, ModuleOp moduleOp)
-      : context(context), moduleOp(moduleOp) {}
+      : context(context), moduleOp(moduleOp) {
+    assert(moduleOp);
+  }
   ~PyModuleOp();
   static void bind(py::module m);
   Operation *getOperation() override;
@@ -63,13 +66,37 @@ struct PyModuleOp : PyBaseOperation {
 
 /// Wrapper around an Operation*.
 struct PyOperationRef : PyBaseOperation {
-  PyOperationRef(Operation *operation) : operation(operation) {}
+  PyOperationRef(Operation *operation) : operation(operation) {
+    assert(operation);
+  }
   PyOperationRef(Operation &operation) : operation(&operation) {}
   ~PyOperationRef();
   static void bind(py::module m);
   Operation *getOperation() override;
 
   Operation *operation;
+};
+
+/// Wrapper around SymbolTable.
+struct PySymbolTable {
+  PySymbolTable(SymbolTable &symbolTable) : symbolTable(symbolTable) {}
+  static void bind(py::module m);
+  SymbolTable &symbolTable;
+};
+
+/// Wrapper around Value.
+struct PyValue {
+  PyValue(Value value) : value(value) { assert(value); }
+  static void bind(py::module m);
+  operator Value() { return value; }
+  Value value;
+};
+
+/// Wrapper around Attribute.
+struct PyAttribute {
+  PyAttribute(Attribute attr) : attr(attr) { assert(attr); }
+  static void bind(py::module m);
+  Attribute attr;
 };
 
 /// Wrapper around MLIRContext.
@@ -93,6 +120,14 @@ struct PyRegionRef {
   Region &region;
 };
 
+struct PyType {
+  PyType() = default;
+  PyType(Type type) : type(type) {}
+  static void bind(py::module m);
+  operator Type() { return type; }
+  Type type;
+};
+
 /// Wrapper around an OpBuilder reference.
 /// This class is inherently dangerous because it does not track ownership
 /// of IR objects that it may be operating on and incorrect usage can cause
@@ -103,7 +138,7 @@ class PyBaseOpBuilder {
 public:
   virtual ~PyBaseOpBuilder();
   static void bind(py::module m);
-  virtual OpBuilder &getBuilder() = 0;
+  virtual OpBuilder &getBuilder(bool requirePosition = false) = 0;
 };
 
 /// Wrapper around an instance of an OpBuilder.
@@ -112,7 +147,7 @@ public:
   PyOpBuilder(PyContext &context) : builder(&context.context) {}
   ~PyOpBuilder() override;
   static void bind(py::module m);
-  OpBuilder &getBuilder() override;
+  OpBuilder &getBuilder(bool requirePosition = false) override;
 
 private:
   OpBuilder builder;
