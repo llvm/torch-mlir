@@ -5,6 +5,7 @@
 from typing import Optional
 
 import contextlib
+import os
 import threading
 
 import numpy as np
@@ -52,13 +53,18 @@ class TraceContext:
     "active",
   ]
   def __init__(self, desc=None):
+    _check_numpy_version()
     self._desc = desc
     self._next_id = 1
     self.active = False
 
   def _handle_ufunc(self, ufunc, method, inputs, kwargs):
     """Handles a ufunc invocation involving at least one TracedArray."""
-    raise NotImplementedError()
+    return NotImplemented
+
+  def _handle_array_func(self, func, types, inputs, kwargs):
+    """Handles an __array_func__ hook involving at least on TracedArray."""
+    return NotImplemented
 
   def get_next_id(self):
     """Gets the next unique id for the context."""
@@ -142,6 +148,22 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
     tc = self._tc
     _assert_active(tc)
     return tc._handle_ufunc(ufunc, method, inputs, kwargs)
+
+  def __array_function__(self, func, types, args, kwargs):
+    tc = self._tc
+    _assert_active(tc)    
+    return tc._handle_array_func(func, types, args, kwargs)
+
+
+def _check_numpy_version():
+  version = np.lib.NumpyVersion(np.__version__)
+  if version < "1.16.0":
+    raise RuntimeError("Numpy version >= 1.16 is required")
+  if version > "1.17.0": return
+  if os.environ.get("NUMPY_EXPERIMENTAL_ARRAY_FUNCTION") != "1":
+    raise RuntimeError(
+      "For numpy 1.16, the environment variable "
+      "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION must equal 1")
 
 
 if __name__ == "__main__":
