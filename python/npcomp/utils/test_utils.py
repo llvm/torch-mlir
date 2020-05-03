@@ -10,6 +10,8 @@ import sys
 
 _disable_var = "NPCOMP_DISABLE_FILECHECK"
 _filecheck_binary_var = "FILECHECK_BINARY"
+_redirect_io = None
+_redirect_context = None
 
 def is_filecheck_disabled():
   return _disable_var in os.environ
