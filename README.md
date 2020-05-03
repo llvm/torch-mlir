@@ -34,6 +34,10 @@ ninja check-npcomp-opt
 ./python/run_tests.py
 ```
 
+### Things to look at:
+
+* `python/npcomp/tracing/mlir_trace_test.py` : Simple test case of tracing a function to an MLIR module.
+
 ### Installing pybind11
 
 The native extension relies on pybind11. In a perfect world, this could just
