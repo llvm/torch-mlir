@@ -43,18 +43,22 @@ class Ops(ir.Ops):
     })
     return self.op("numpy.ufunc_call", [result_type], args, attrs)
 
+  def numpy_narrow(self, result_type, operand):
+    """Creates a numpy.narrow op."""
+    return self.op("numpy.narrow", [result_type], [operand])
+
 
 class Types(ir.Types):
   """Container/factory for dialect types.
 
     >>> t = Types(ir.MLIRContext())
-    >>> t.any_dtype
+    >>> t.numpy_any_dtype
     !numpy.any_dtype
-    >>> t.tensor(t.any_dtype, [1, 2, 3])
+    >>> t.tensor(t.numpy_any_dtype, [1, 2, 3])
     tensor<1x2x3x!numpy.any_dtype>
-    >>> t.tensor(t.any_dtype)
+    >>> t.tensor(t.numpy_any_dtype)
     tensor<*x!numpy.any_dtype>
-    >>> t.tensor(t.any_dtype, [-1, 2])
+    >>> t.tensor(t.numpy_any_dtype, [-1, 2])
     tensor<?x2x!numpy.any_dtype>
     >>> t.tensor(t.f32)
     tensor<*xf32>
@@ -64,7 +68,7 @@ class Types(ir.Types):
   """
   def __init__(self, context):
     super().__init__(context)
-    self.any_dtype = context.parse_type("!numpy.any_dtype")
+    self.numpy_any_dtype = context.parse_type("!numpy.any_dtype")
 
 
 def load_builtin_module(context=None):
@@ -91,16 +95,22 @@ def load_builtin_module(context=None):
 
 _BUILTIN_MODULE_ASM = r"""
   numpy.generic_ufunc @numpy.add (
-    // CHECK-SAME: overload(%arg0: i32, %arg1: i32) -> i32 {
     overload(%arg0: i32, %arg1: i32) -> i32 {
-      // CHECK: addi
       %0 = addi %arg0, %arg1 : i32
       numpy.ufunc_return %0 : i32
     },
-    // CHECK: overload(%arg0: f32, %arg1: f32) -> f32 {
     overload(%arg0: f32, %arg1: f32) -> f32 {
-      // CHECK: addf
       %0 = addf %arg0, %arg1 : f32
+      numpy.ufunc_return %0 : f32
+    }
+  )
+  numpy.generic_ufunc @numpy.multiple (
+    overload(%arg0: i32, %arg1: i32) -> i32 {
+      %0 = muli %arg0, %arg1 : i32
+      numpy.ufunc_return %0 : i32
+    },
+    overload(%arg0: f32, %arg1: f32) -> f32 {
+      %0 = mulf %arg0, %arg1 : f32
       numpy.ufunc_return %0 : f32
     }
   )

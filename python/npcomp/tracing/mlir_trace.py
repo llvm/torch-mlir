@@ -6,110 +6,184 @@ import re
 
 import numpy as np
 
-from . import context
-from ..native.mlir import edsc
+from ..dialect import Numpy
+from ..native.mlir import ir
+
+from .context import *
+from ..exporter import *
+from ..types import *
 
 
-def _map_typing_to_mlir_type(mlir_m, typing_annot):
-  """Maps a typing annotation to an MLIR type.
+class ModuleBuilder:
+  """Builds an MLIR module by tracing functions."""
+  def __init__(self, mlir_context=None):
+    self.context = context if mlir_context else ir.MLIRContext()
+    # TODO: Instead of bootstrapping a large module, populate imports
+    # dynamically.
+    self.module = Numpy.load_builtin_module(self.context)
+    self.ops = Numpy.Ops(self.context)
+    self.types = Numpy.Types(self.context)
 
-  Args:
-    mlir_m: MLIRModule.
-    typing_annot: Value for an __annotations__ entry.
-  Returns:
-    MLIR type or None if not mappable.
-  """
-  if typing_annot is np.ndarray:
-    return mlir_m.make_type("tensor<*x!numpy.any_dtype>")
-  return None
+  def trace(self, export_py_func: ExportPyFunction):
+    """Traces and exported python function."""
+    assert isinstance(export_py_func, ExportPyFunction), (
+      "Expected an exported python function (from the Exporter class)")
+    tracer = FunctionTracer(self, export_py_func)
+    with tracer:
+      tracer.trace()
 
 
-class GenericFunctionTrace:
-  """Represents a trace of a 'generic' python function in progress."""
+class FunctionTracer(TraceContext):
+  """A trace of a single function."""
+  __slots__ = [
+    "module_builder",
+    "epf",
+    "_args_array_params",
+    "_f",
+    "_f_types",
+    "_mlir_m",
+    "_mlir_c",
+    "_python_args",
+    "_ops",
+    "_result_array_params",
+    "_traced_arrays",
+    "_types",
+  ]
+  def __init__(self, module_builder: ModuleBuilder, epf: ExportPyFunction):
+    super().__init__(desc="[trace of %s]" % epf.__name__)
+    self.module_builder = module_builder
+    self.epf = epf
+    self._traced_arrays = {}  # Mapping of TracedArray to current consumer value
+    self._validate()
 
-  def __init__(self, mlir_m, mlir_f):
-    self._mlir_m = mlir_m
-    self._mlir_f = mlir_f
+    # Alias some parent members for convenience.
+    self._mlir_m = module_builder.module
+    self._mlir_c = module_builder.context
+    self._ops = module_builder.ops
+    self._types = module_builder.types
 
-  @property
-  def mlir_module(self):
-    return self._mlir_m
+    # Extract ArrayParams for all args and results.
+    self._args_array_params = [
+      ArrayParams.from_constraints(arg.constraints) 
+      for arg in self.epf.sig.args]
+    self._python_args = [None] * len(self._args_array_params)
+    self._result_array_params = ArrayParams.from_constraints(
+      self.epf.sig.result.constraints)    
 
-  @property
-  def mlir_function(self):
-    return self._mlir_f
+    # Create the MLIR function.
+    self._f, self._f_types = self._create_mlir_function()
+    self._create_trace_roots()
 
-  @classmethod
-  def from_typed_pyfunc(cls, mlir_m, pyfunc, name_in_module=None):
-    """Creates a generic function trace from a pyfunc with type annotations.
+  def trace(self):
+    # Invoke the python function with placeholders.
+    # TODO: More sophisticated signature merging
+    # TODO: Multiple results
+    # TODO: Error reporting
+    ops = self._ops
+    py_results = (self.epf.pyfunc(*self._python_args),)
+    if len(py_results) != len(self._f_types):
+      raise TracingError(
+        "Traced function returned != %d results: %r" % (
+          len(self._f_types), py_results,))
+        
+    # Narrow all results to the declared return types.
+    return_operands = []
+    for py_result, mlir_result_type in zip(py_results, self._f_types):
+      mlir_result = self.get_traced_array_value(py_result)
+      if mlir_result is None:
+        raise TracingError("Unregistered traced array: %r", (py_result,))
+      # narrow to declared result type.
+      return_operands.extend(
+        ops.numpy_narrow(mlir_result_type, mlir_result).results)
+    ops.return_op(return_operands)
 
-    This is a relatively limited mechanism which relies on typing annotations
-    for arguments and results and supports a relatively limited amount of
-    variation.
+  def set_traced_array(self, traced_array, value):
+    """Sets the current SSA value for a traced_array."""
+    assert isinstance(traced_array, TracedArray)
+    self._traced_arrays[traced_array] = value
 
-    Examples:
+  def get_traced_array_value(self, traced_array):
+    return self._traced_arrays.get(traced_array)
 
-    * Generic ndarrays:
-      >>> m = edsc.MLIRModule()
-      >>> def simple_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-      ...   return a * b
-      >>> gft = GenericFunctionTrace.from_typed_pyfunc(m, simple_mul)
-      >>> ir = gft.mlir_module.get_ir()
-      >>> print(re.findall("func @simple_mul.+", ir)[0])
-      func @simple_mul$$generic(%arg0: tensor<*x!numpy.any_dtype> {py_name = "a"}, %arg1: tensor<*x!numpy.any_dtype> {py_name = "b"}) -> tensor<*x!numpy.any_dtype> attributes {py_ftype = "generic_trace", py_name = "simple_mul"} {
+  def _validate(self):
+    if not all(arg.type_class == TypeClass.NdArray 
+               for arg in self.epf.sig.args):
+      raise NotImplementedError("Non NdArray args: %r" % (self.epf.sig.args,))
+    if not self.epf.sig.result.type_class == TypeClass.NdArray:
+      raise NotImplementedError("Non NdArray result: %r" % (
+        self.epf.sig.result,))
 
-    * None types must be annotated:
-      >>> m = edsc.MLIRModule()
-      >>> def simple_mul(a: np.ndarray, b: np.ndarray) -> None:
-      ...   return a * b
-      >>> gft = GenericFunctionTrace.from_typed_pyfunc(m, simple_mul)
-      >>> ir = gft.mlir_module.get_ir()
-      >>> print(re.findall("func @simple_mul.+", ir)[0])
-      func @simple_mul$$generic(%arg0: tensor<*x!numpy.any_dtype> {py_name = "a"}, %arg1: tensor<*x!numpy.any_dtype> {py_name = "b"}) attributes {py_ftype = "generic_trace", py_name = "simple_mul"} {
+  def _create_mlir_function(self):
+    mlir_c = self._mlir_c
+    mlir_m = self._mlir_m
+    ops = self._ops
+    types = self._types
+    epf = self.epf
+    f_args = [mlir_c.parse_type(ap.mlir_tensor_type_asm)
+              for ap in self._args_array_params]
+    f_types = [mlir_c.parse_type(
+      self._result_array_params.mlir_tensor_type_asm)]
+    ops.builder.insert_before_terminator(mlir_m.first_block)
+    f_type = types.function(f_args, f_types)
+    f = ops.func_op(epf.__name__, f_type, create_entry_block=True)
+    return f, f_types
 
-    Args:
-      mlir_m: An MLIRModule.
-      pyfunc: A python function to transform.
-    Returns:
-      A new GenericFunctionTrace.
-    """
-    if name_in_module is None:
-      name_in_module = pyfunc.__name__ + "$$generic"
-    code = pyfunc.__code__
-    # Process arguments.
-    f_args = []
-    for i in range(code.co_argcount):
-      arg_name = code.co_varnames[i]
-      arg_annot = pyfunc.__annotations__.get(arg_name)
-      if arg_annot is None:
-        raise ValueError("Function %s arg %d is missing a typing annotation" % (
-            pyfunc.__name__, i))
-      arg_type = _map_typing_to_mlir_type(mlir_m, arg_annot)
-      if arg_type is None:
-        raise ValueError("Function %s arg %d is not a supported type" % (
-            pyfunc.__name__, i))     
-      arg_type = arg_type({
-          "py_name": mlir_m.stringAttr(arg_name),
-      })
-      f_args.append(arg_type)
+  def _create_trace_roots(self):
+    entry_block = self._f.first_block
+    for index, ap in enumerate(self._args_array_params):
+      if ap is not None:
+        ta = TracedArray(self)
+        self.set_traced_array(ta, entry_block.args[index])
+        self._python_args[index] = ta
 
-    # Process results.
-    f_results = []
-    if "return" not in pyfunc.__annotations__:
-      raise ValueError("Un-annotated function returns not yet supported")
-    return_annot = pyfunc.__annotations__["return"]
-    if return_annot is not None:
-      return_type = _map_typing_to_mlir_type(mlir_m, return_annot)
-      if return_type is None:
-        raise ValueError("Function %s return type %r is not supported" % (
-            pyfunc.__name__, return_annot))
-      f_results.append(return_type)
+  def _handle_ufunc(self, ufunc, method, inputs, kwargs):
+    if method == "__call__":
+      if kwargs:
+        raise TracingError("Generic ufunc with kwargs not supported %r" % (
+          ufunc,))
+      
+      # Map inputs to TracedArrays.
+      # TODO: Process captures, promotions, etc.
+      op_inputs = []
+      for py_input in inputs:
+        if not isinstance(py_input, TracedArray):
+          raise TracingError("Unsupported ufunc input: %r", (py_input,))
+        op_input = self.get_traced_array_value(py_input)
+        if op_input is None:
+          raise TracingError("Unregistered traced array: %r", (py_input,))
+        op_inputs.append(op_input)
+      
+      # Emit op.
+      types = self._types
+      mlir_m = self._mlir_m
+      callee_symbol = _UFUNC_SYMBOL_MAP.get(ufunc)
+      if not callee_symbol:
+        raise TracingError("Unsupported ufunc: %r" % ufunc)
+      op_result_type = types.tensor(types.numpy_any_dtype)
+      call_op = self._ops.numpy_ufunc_call_op(
+        callee_symbol, op_result_type, *op_inputs)
+      op_result = call_op.results[0]
+      
+      # Wrap returns.
+      return_array = TracedArray(self)
+      self.set_traced_array(return_array, op_result)
+      return return_array
 
-    mlir_f = mlir_m.make_function(
-        name_in_module, f_args, f_results,
-        py_ftype=mlir_m.stringAttr("generic_trace"),
-        py_name=mlir_m.stringAttr(pyfunc.__name__))
-    return GenericFunctionTrace(mlir_m, mlir_f)
+    # Unsupported method.
+    raise TracingError("Unsupported ufunc method %r:%r" % (ufunc, method,))
+
+
+# TODO: There should be an open registry of ufuncs. But for now, just map
+# introspect the numpy package and record them.
+def _build_ufunc_symbol_map():
+  d = {}
+  for member in dir(np):
+    ufunc = getattr(np, member)
+    if isinstance(ufunc, np.ufunc):
+      d[ufunc] = "numpy." + member
+  return d
+
+_UFUNC_SYMBOL_MAP = _build_ufunc_symbol_map()
 
 
 if __name__ == "__main__":

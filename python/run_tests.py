@@ -13,7 +13,7 @@ TEST_MODULES = (
   "npcomp.tracing.mlir_trace",
   "npcomp.types",
   "npcomp.exporter",
-  "npcomp.exp.extractor",
+  "npcomp.tracing.mlir_trace_test",
 )
 
 # Compute PYTHONPATH for sub processes.

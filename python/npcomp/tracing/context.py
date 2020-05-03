@@ -10,6 +10,10 @@ import threading
 import numpy as np
 
 
+class TracingError(Exception):
+  pass
+
+
 class TraceContext:
   """Context for intercepting array traces.
 
@@ -42,10 +46,19 @@ class TraceContext:
 
   """
   _local = threading.local()
-
+  __slots__ = [
+    "_desc",
+    "_next_id",
+    "active",
+  ]
   def __init__(self, desc=None):
     self._desc = desc
     self._next_id = 1
+    self.active = False
+
+  def _handle_ufunc(self, ufunc, method, inputs, kwargs):
+    """Handles a ufunc invocation involving at least one TracedArray."""
+    raise NotImplementedError()
 
   def get_next_id(self):
     """Gets the next unique id for the context."""
@@ -78,15 +91,27 @@ class TraceContext:
 
   def __enter__(self):
     s = self._get_context_stack()
+    if s:
+      s[-1].active = False
     s.append(self)
+    self.active = True
     return self
 
   def __exit__(self, exc_type, exc_value, traceback):
     s = self._get_context_stack()
     s.pop()
+    self.active = False
+    if s:
+      s[-1].active = True
 
   def __repr__(self):
     return "<TraceContext %r>" % self._desc
+
+
+def _assert_active(tc: TraceContext):
+  assert tc.active, (
+    "Attempt to trace an action on an inactive trace context: %r" % tc)
+
 
 class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
   """An array that traces its operations.
@@ -103,6 +128,9 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
     self._tc = tc if tc is not None else TraceContext.current()
     self._uid = self._tc.get_next_id()
 
+  def __hash__(self):
+    return id(self)
+
   @property
   def uid(self):
     return self._uid
@@ -111,7 +139,9 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
     return "<TracedArray %d>" % self._uid
 
   def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
-    return NotImplemented
+    tc = self._tc
+    _assert_active(tc)
+    return tc._handle_ufunc(ufunc, method, inputs, kwargs)
 
 
 if __name__ == "__main__":

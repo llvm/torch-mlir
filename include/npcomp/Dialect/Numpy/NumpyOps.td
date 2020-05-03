@@ -69,4 +69,21 @@ def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
   }];  
 }
 
+def Numpy_Narrow : Numpy_Op<"narrow", []> {
+  let summary = "Narrows an array to a known type at boundaries.";
+  let description = [{
+    During tracing, specific data types are often unknown. This op generically
+    narrows from an unknown to a known data type at boundaries.
+  }];
+  let arguments = (ins
+    Numpy_AnyArray:$operand
+  );
+  let results = (outs
+    Numpy_AnyArray:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` functional-type($operand, $result)
+  }];  
+}
+
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS
