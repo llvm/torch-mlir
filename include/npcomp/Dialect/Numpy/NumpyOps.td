@@ -115,11 +115,32 @@ def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
 def Numpy_DotOp : Numpy_Op<"dot", []> {
   let summary = "Represents the `numpy.dot` operator";
   let description = [{
-    See: https://numpy.org/doc/stable/reference/generated/numpy.dot.html
+    See: https://docs.scipy.org/doc/numpy/reference/generated/numpy.dot.html
   }];
   let arguments = (ins
     Numpy_AnyArray:$a,
     Numpy_AnyArray:$b
+  );
+  let results = (outs
+    Numpy_AnyArray:$output
+  );
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, $output)
+  }];  
+}
+
+def Numpy_TransposeOp : Numpy_Op<"transpose", []> {
+  let summary = "Represents the `numpy.transpose` op with no permutation specified";
+  let description = [{
+    This op is equivalent to calling `numpy.transpose(arr)`, which reverses
+    the axes of the array. It is separate from the explicit form because it
+    is not always possible to locallly infer an appropriate axis transform
+    at the point of declaration.
+
+    See: https://docs.scipy.org/doc/numpy/reference/generated/numpy.transpose.html
+  }];
+  let arguments = (ins
+    Numpy_AnyArray:$a
   );
   let results = (outs
     Numpy_AnyArray:$output

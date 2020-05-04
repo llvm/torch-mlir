@@ -154,6 +154,13 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
     _assert_active(tc)    
     return tc._handle_array_func(func, types, args, kwargs)
 
+  @property
+  def T(self):
+    """Shortcut for transpose."""
+    tc = self._tc
+    _assert_active(tc)    
+    return tc._handle_array_func(np.transpose, [TracedArray], [self], {})
+    
 
 def _check_numpy_version():
   version = np.lib.NumpyVersion(np.__version__)

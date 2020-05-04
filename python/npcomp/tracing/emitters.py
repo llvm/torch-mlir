@@ -259,9 +259,17 @@ class EmitterRegistry:
         self.register_ufunc(ufunc, "__call__",
                             GenericCallUfuncEmitter("numpy." + member))
     # Register generic 1-result array funcs.
-    for f, op_name in ((np.inner, "numpy.inner"), (np.outer, "numpy.outer"),
-                       (np.dot, "numpy.dot"), (np.vdot, "numpy.vdot"),
-                       (np.linalg.det, "numpy.linalg.det")):
+    GENERIC_FUNCS = (
+        (np.inner, "numpy.inner"),
+        (np.outer, "numpy.outer"),
+        (np.dot, "numpy.dot"),
+        (np.vdot, "numpy.vdot"),
+        (np.linalg.det, "numpy.linalg.det"),
+        # TODO: This needs a custom implementation to differentiate when
+        # axes is specified (this version will fail).
+        (np.transpose, "numpy.transpose"),
+    )
+    for f, op_name in GENERIC_FUNCS:
       self.register_array_func(f, GenericArrayFuncEmitter(op_name))
 
 

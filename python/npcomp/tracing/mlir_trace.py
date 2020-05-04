@@ -28,13 +28,14 @@ class ModuleBuilder:
     self.emitters = (emitter_registry
                      if emitter_registry else EmitterRegistry.create_default())
 
-  def trace(self, export_py_func: ExportPyFunction):
-    """Traces and exported python function."""
-    assert isinstance(export_py_func, ExportPyFunction), (
-        "Expected an exported python function (from the Exporter class)")
-    tracer = FunctionTracer(self, export_py_func)
-    with tracer:
-      tracer.trace()
+  def trace(self, *export_py_funcs: ExportPyFunction):
+    """Traces exported py functions."""
+    for export_py_func in export_py_funcs:
+      assert isinstance(export_py_func, ExportPyFunction), (
+          "Expected an exported python function (from the Exporter class)")
+      tracer = FunctionTracer(self, export_py_func)
+      with tracer:
+        tracer.trace()
 
 
 class FunctionTracer(TraceContext):
