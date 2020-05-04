@@ -104,7 +104,7 @@ _BUILTIN_MODULE_ASM = r"""
       numpy.ufunc_return %0 : f32
     }
   )
-  numpy.generic_ufunc @numpy.multiple (
+  numpy.generic_ufunc @numpy.multiply (
     overload(%arg0: i32, %arg1: i32) -> i32 {
       %0 = muli %arg0, %arg1 : i32
       numpy.ufunc_return %0 : i32

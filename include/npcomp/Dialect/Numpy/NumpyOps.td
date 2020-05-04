@@ -13,6 +13,32 @@ include "NumpyDialect.td"
 include "mlir/Interfaces/SideEffects.td"
 include "mlir/IR/SymbolInterfaces.td"
 
+//----------------------------------------------------------------------------//
+// IR casting and conversions
+//----------------------------------------------------------------------------//
+
+def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
+  let summary = "Narrows an array to a known type at boundaries.";
+  let description = [{
+    During tracing, specific data types are often unknown. This op generically
+    narrows from an unknown to a known data type at boundaries.
+  }];
+  let arguments = (ins
+    Numpy_AnyArray:$operand
+  );
+  let results = (outs
+    Numpy_AnyArray:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` functional-type($operand, $result)
+  }];  
+}
+
+//----------------------------------------------------------------------------//
+// Universal function ops (ufunc)
+// See: https://docs.scipy.org/doc/numpy/reference/ufuncs.html
+//----------------------------------------------------------------------------//
+
 def Numpy_BuiltinUfuncOp : Numpy_Op<"builtin_ufunc", [Symbol]> {
   let summary = "References a built-in universal function";
   let description = [{
@@ -69,20 +95,37 @@ def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
   }];  
 }
 
-def Numpy_Narrow : Numpy_Op<"narrow", []> {
-  let summary = "Narrows an array to a known type at boundaries.";
+//----------------------------------------------------------------------------//
+// Built-in array functions
+//
+// These are ops that mirror supported array functions in numpy or related
+// libraries. Note that there is some evolution happening on the dispatch
+// mechanism for these.
+// See: https://numpy.org/neps/nep-0018-array-function-protocol.html
+// See: https://numpy.org/neps/nep-0037-array-module.html
+//
+// Note that operators are in general free to take any arguments, but there
+// are some conventions that are mirrored here:
+//
+// - `out` arguments indicate that the operation should perform a mutation
+//   of a specific array. This is not modeled at the individual op level,
+//   instead producing IR constructs to map the intent.
+//----------------------------------------------------------------------------//
+
+def Numpy_DotOp : Numpy_Op<"dot", []> {
+  let summary = "Represents the `numpy.dot` operator";
   let description = [{
-    During tracing, specific data types are often unknown. This op generically
-    narrows from an unknown to a known data type at boundaries.
+    See: https://numpy.org/doc/stable/reference/generated/numpy.dot.html
   }];
   let arguments = (ins
-    Numpy_AnyArray:$operand
+    Numpy_AnyArray:$a,
+    Numpy_AnyArray:$b
   );
   let results = (outs
-    Numpy_AnyArray:$result
+    Numpy_AnyArray:$output
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` functional-type($operand, $result)
+    operands attr-dict `:` functional-type(operands, $output)
   }];  
 }
 

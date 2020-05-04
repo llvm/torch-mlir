@@ -3,31 +3,35 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import re
-
+from typing import Iterable
 import numpy as np
 
 from ..dialect import Numpy
 from ..native.mlir import ir
 
 from .context import *
+from .emitters import *
 from ..exporter import *
 from ..types import *
 
 
 class ModuleBuilder:
   """Builds an MLIR module by tracing functions."""
-  def __init__(self, mlir_context=None):
-    self.context = context if mlir_context else ir.MLIRContext()
+
+  def __init__(self, mlir_context=None, emitter_registry=None):
+    self.context = mlir_context if mlir_context else ir.MLIRContext()
     # TODO: Instead of bootstrapping a large module, populate imports
     # dynamically.
     self.module = Numpy.load_builtin_module(self.context)
     self.ops = Numpy.Ops(self.context)
     self.types = Numpy.Types(self.context)
+    self.emitters = (emitter_registry
+                     if emitter_registry else EmitterRegistry.create_default())
 
   def trace(self, export_py_func: ExportPyFunction):
     """Traces and exported python function."""
     assert isinstance(export_py_func, ExportPyFunction), (
-      "Expected an exported python function (from the Exporter class)")
+        "Expected an exported python function (from the Exporter class)")
     tracer = FunctionTracer(self, export_py_func)
     with tracer:
       tracer.trace()
@@ -36,19 +40,20 @@ class ModuleBuilder:
 class FunctionTracer(TraceContext):
   """A trace of a single function."""
   __slots__ = [
-    "module_builder",
-    "epf",
-    "_args_array_params",
-    "_f",
-    "_f_types",
-    "_mlir_m",
-    "_mlir_c",
-    "_python_args",
-    "_ops",
-    "_result_array_params",
-    "_traced_arrays",
-    "_types",
+      "module_builder",
+      "epf",
+      "_args_array_params",
+      "_f",
+      "_f_types",
+      "_mlir_m",
+      "_mlir_c",
+      "_python_args",
+      "_ops",
+      "_result_array_params",
+      "_traced_arrays",
+      "_types",
   ]
+
   def __init__(self, module_builder: ModuleBuilder, epf: ExportPyFunction):
     super().__init__(desc="[trace of %s]" % epf.__name__)
     self.module_builder = module_builder
@@ -64,11 +69,12 @@ class FunctionTracer(TraceContext):
 
     # Extract ArrayParams for all args and results.
     self._args_array_params = [
-      ArrayParams.from_constraints(arg.constraints) 
-      for arg in self.epf.sig.args]
+        ArrayParams.from_constraints(arg.constraints)
+        for arg in self.epf.sig.args
+    ]
     self._python_args = [None] * len(self._args_array_params)
     self._result_array_params = ArrayParams.from_constraints(
-      self.epf.sig.result.constraints)    
+        self.epf.sig.result.constraints)
 
     # Create the MLIR function.
     self._f, self._f_types = self._create_mlir_function()
@@ -82,10 +88,11 @@ class FunctionTracer(TraceContext):
     ops = self._ops
     py_results = (self.epf.pyfunc(*self._python_args),)
     if len(py_results) != len(self._f_types):
-      raise TracingError(
-        "Traced function returned != %d results: %r" % (
-          len(self._f_types), py_results,))
-        
+      raise TracingError("Traced function returned != %d results: %r" % (
+          len(self._f_types),
+          py_results,
+      ))
+
     # Narrow all results to the declared return types.
     return_operands = []
     for py_result, mlir_result_type in zip(py_results, self._f_types):
@@ -94,7 +101,7 @@ class FunctionTracer(TraceContext):
         raise TracingError("Unregistered traced array: %r", (py_result,))
       # narrow to declared result type.
       return_operands.extend(
-        ops.numpy_narrow(mlir_result_type, mlir_result).results)
+          ops.numpy_narrow(mlir_result_type, mlir_result).results)
     ops.return_op(return_operands)
 
   def set_traced_array(self, traced_array, value):
@@ -106,12 +113,12 @@ class FunctionTracer(TraceContext):
     return self._traced_arrays.get(traced_array)
 
   def _validate(self):
-    if not all(arg.type_class == TypeClass.NdArray 
-               for arg in self.epf.sig.args):
+    if not all(
+        arg.type_class == TypeClass.NdArray for arg in self.epf.sig.args):
       raise NotImplementedError("Non NdArray args: %r" % (self.epf.sig.args,))
     if not self.epf.sig.result.type_class == TypeClass.NdArray:
-      raise NotImplementedError("Non NdArray result: %r" % (
-        self.epf.sig.result,))
+      raise NotImplementedError("Non NdArray result: %r" %
+                                (self.epf.sig.result,))
 
   def _create_mlir_function(self):
     mlir_c = self._mlir_c
@@ -119,10 +126,13 @@ class FunctionTracer(TraceContext):
     ops = self._ops
     types = self._types
     epf = self.epf
-    f_args = [mlir_c.parse_type(ap.mlir_tensor_type_asm)
-              for ap in self._args_array_params]
-    f_types = [mlir_c.parse_type(
-      self._result_array_params.mlir_tensor_type_asm)]
+    f_args = [
+        mlir_c.parse_type(ap.mlir_tensor_type_asm)
+        for ap in self._args_array_params
+    ]
+    f_types = [
+        mlir_c.parse_type(self._result_array_params.mlir_tensor_type_asm)
+    ]
     ops.builder.insert_before_terminator(mlir_m.first_block)
     f_type = types.function(f_args, f_types)
     f = ops.func_op(epf.__name__, f_type, create_entry_block=True)
@@ -136,56 +146,61 @@ class FunctionTracer(TraceContext):
         self.set_traced_array(ta, entry_block.args[index])
         self._python_args[index] = ta
 
+  def _resolve_input_ssa_values(self, trace_values: Iterable[TraceValue]):
+    """Resolves input python values to SSA values."""
+    ssa_values = []
+    for tv in trace_values:
+      assert tv.type == TraceValueType.NDARRAY, (
+          "Unsupported TraceValueType: %r" % tv.type)
+      ssa_value = self.get_traced_array_value(tv.value)
+      if ssa_value is None:
+        raise TracingError(
+            "Required a traced python NDARRAY but not found: %r" % (tv,))
+      ssa_values.append(ssa_value)
+    return ssa_values
+
+  def _resolve_result_py_values(self,
+                                trace_value_types: Iterable[TraceValueType],
+                                ssa_values):
+    """Resolves result SSA values to runtime python values."""
+    assert len(trace_value_types) == len(ssa_values), (
+        "Mismatched emitter declared result types and results")
+    py_values = []
+    for trace_value_type, ssa_value in zip(trace_value_types, ssa_values):
+      assert trace_value_type == TraceValueType.NDARRAY, (
+          "Unsupported TraceValueType: %r" % trace_value_type)
+      py_value = TracedArray(self)
+      self.set_traced_array(py_value, ssa_value)
+      py_values.append(py_value)
+    return py_values
+
+  def _emit_invocation(self, emitter: FuncEmitter, invocation: TraceInvocation):
+    tv_map = emitter.map_invocation(invocation)
+    input_ssa_values = self._resolve_input_ssa_values(tv_map.input_trace_values)
+    request = EmissionRequest(input_ssa_values,
+                              ops=self._ops,
+                              types=self._types,
+                              extra=tv_map.extra)
+    result_ssa_values = emitter.emit(request)
+    py_values = self._resolve_result_py_values(tv_map.result_trace_value_types,
+                                               result_ssa_values)
+    return emitter.map_results(py_values, tv_map.extra)
+
   def _handle_ufunc(self, ufunc, method, inputs, kwargs):
-    if method == "__call__":
-      if kwargs:
-        raise TracingError("Generic ufunc with kwargs not supported %r" % (
-          ufunc,))
-      
-      # Map inputs to TracedArrays.
-      # TODO: Process captures, promotions, etc.
-      op_inputs = []
-      for py_input in inputs:
-        if not isinstance(py_input, TracedArray):
-          raise TracingError("Unsupported ufunc input: %r", (py_input,))
-        op_input = self.get_traced_array_value(py_input)
-        if op_input is None:
-          raise TracingError("Unregistered traced array: %r", (py_input,))
-        op_inputs.append(op_input)
-      
-      # Emit op.
-      types = self._types
-      mlir_m = self._mlir_m
-      callee_symbol = _UFUNC_SYMBOL_MAP.get(ufunc)
-      if not callee_symbol:
-        raise TracingError("Unsupported ufunc: %r" % ufunc)
-      op_result_type = types.tensor(types.numpy_any_dtype)
-      call_op = self._ops.numpy_ufunc_call_op(
-        callee_symbol, op_result_type, *op_inputs)
-      op_result = call_op.results[0]
-      
-      # Wrap returns.
-      return_array = TracedArray(self)
-      self.set_traced_array(return_array, op_result)
-      return return_array
+    emitter = self.module_builder.emitters.lookup_ufunc(ufunc, method)
+    if not emitter:
+      return NotImplemented
+    invocation = TraceInvocation(inputs, kwargs, Protocol.UFUNC, method)
+    return self._emit_invocation(emitter, invocation)
 
-    # Unsupported method.
-    raise TracingError("Unsupported ufunc method %r:%r" % (ufunc, method,))
-
-
-# TODO: There should be an open registry of ufuncs. But for now, just map
-# introspect the numpy package and record them.
-def _build_ufunc_symbol_map():
-  d = {}
-  for member in dir(np):
-    ufunc = getattr(np, member)
-    if isinstance(ufunc, np.ufunc):
-      d[ufunc] = "numpy." + member
-  return d
-
-_UFUNC_SYMBOL_MAP = _build_ufunc_symbol_map()
+  def _handle_array_func(self, func, types, inputs, kwargs):
+    emitter = self.module_builder.emitters.lookup_array_func(func)
+    if not emitter:
+      return NotImplemented
+    invocation = TraceInvocation(inputs, kwargs, Protocol.ARRAY_FUNC)
+    return self._emit_invocation(emitter, invocation)
 
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+  import doctest
+  doctest.testmod()
