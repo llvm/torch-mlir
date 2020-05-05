@@ -5,6 +5,7 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
         NPCOMPNumpyDialect
+        NPCOMPBasicpyDialect
         )
 add_llvm_executable(npcomp-opt npcomp-opt.cpp)
 

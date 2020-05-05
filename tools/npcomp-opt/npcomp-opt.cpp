@@ -19,6 +19,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
 
+  mlir::registerDialect<mlir::NPCOMP::Basicpy::BasicpyDialect>();
   mlir::registerDialect<mlir::NPCOMP::Numpy::NumpyDialect>();
   // TODO: Register standalone passes here.
 
