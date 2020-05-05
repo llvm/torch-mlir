@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
+#include "npcomp/Dialect/Common.h"
 
 namespace mlir {
 namespace NPCOMP {
@@ -17,7 +18,7 @@ namespace Basicpy {
 
 namespace BasicpyTypes {
 enum Kind {
-  PlaceholderType = Type::FIRST_PRIVATE_EXPERIMENTAL_8_TYPE,
+  PlaceholderType = TypeRanges::Basicpy,
   LAST_BASICPY_TYPE = PlaceholderType
 };
 } // namespace BasicpyTypes

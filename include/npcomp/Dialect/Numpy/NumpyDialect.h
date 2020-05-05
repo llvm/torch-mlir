@@ -10,16 +10,14 @@
 #define NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
+#include "npcomp/Dialect/Common.h"
 
 namespace mlir {
 namespace NPCOMP {
 namespace Numpy {
 
 namespace NumpyTypes {
-enum Kind {
-  AnyDtypeType = Type::FIRST_PRIVATE_EXPERIMENTAL_9_TYPE,
-  LAST_NUMPY_TYPE = AnyDtypeType
-};
+enum Kind { AnyDtypeType = TypeRanges::Numpy, LAST_NUMPY_TYPE = AnyDtypeType };
 } // namespace NumpyTypes
 
 // The singleton type representing an unknown dtype.
