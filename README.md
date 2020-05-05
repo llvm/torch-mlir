@@ -25,6 +25,9 @@ export CXX=clang++-$LLVM_VERSION
 export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 export LLVM_SRC_DIR=/path/to/llvm-project
 
+# Check out last known good commit.
+(cd $LLVM_SRC_DIR && git checkout 26777ad7a0916ad7853aa9229bb8ec0346c68a61)
+
 ./tools/install_mlir.sh
 ./tools/cmake_configure.sh
 
