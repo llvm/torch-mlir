@@ -23,8 +23,7 @@ class ModuleBuilder:
     # TODO: Instead of bootstrapping a large module, populate imports
     # dynamically.
     self.module = Numpy.load_builtin_module(self.context)
-    self.ops = Numpy.Ops(self.context)
-    self.types = Numpy.Types(self.context)
+    self.helper = Numpy.DialectHelper(self.context)
     self.emitters = (emitter_registry
                      if emitter_registry else EmitterRegistry.create_default())
 
@@ -46,13 +45,12 @@ class FunctionTracer(TraceContext):
       "_args_array_params",
       "_f",
       "_f_types",
+      "_helper",
       "_mlir_m",
       "_mlir_c",
       "_python_args",
-      "_ops",
       "_result_array_params",
       "_traced_arrays",
-      "_types",
   ]
 
   def __init__(self, module_builder: ModuleBuilder, epf: ExportPyFunction):
@@ -65,8 +63,7 @@ class FunctionTracer(TraceContext):
     # Alias some parent members for convenience.
     self._mlir_m = module_builder.module
     self._mlir_c = module_builder.context
-    self._ops = module_builder.ops
-    self._types = module_builder.types
+    self._helper = module_builder.helper
 
     # Extract ArrayParams for all args and results.
     self._args_array_params = [
@@ -86,7 +83,7 @@ class FunctionTracer(TraceContext):
     # TODO: More sophisticated signature merging
     # TODO: Multiple results
     # TODO: Error reporting
-    ops = self._ops
+    h = self._helper
     py_results = (self.epf.pyfunc(*self._python_args),)
     if len(py_results) != len(self._f_types):
       raise TracingError("Traced function returned != %d results: %r" % (
@@ -102,8 +99,8 @@ class FunctionTracer(TraceContext):
         raise TracingError("Unregistered traced array: %r", (py_result,))
       # narrow to declared result type.
       return_operands.extend(
-          ops.numpy_narrow(mlir_result_type, mlir_result).results)
-    ops.return_op(return_operands)
+          h.numpy_narrow_op(mlir_result_type, mlir_result).results)
+    h.return_op(return_operands)
 
   def set_traced_array(self, traced_array, value):
     """Sets the current SSA value for a traced_array."""
@@ -124,8 +121,7 @@ class FunctionTracer(TraceContext):
   def _create_mlir_function(self):
     mlir_c = self._mlir_c
     mlir_m = self._mlir_m
-    ops = self._ops
-    types = self._types
+    h = self._helper
     epf = self.epf
     f_args = [
         mlir_c.parse_type(ap.mlir_tensor_type_asm)
@@ -134,9 +130,9 @@ class FunctionTracer(TraceContext):
     f_types = [
         mlir_c.parse_type(self._result_array_params.mlir_tensor_type_asm)
     ]
-    ops.builder.insert_before_terminator(mlir_m.first_block)
-    f_type = types.function(f_args, f_types)
-    f = ops.func_op(epf.__name__, f_type, create_entry_block=True)
+    h.builder.insert_before_terminator(mlir_m.first_block)
+    f_type = h.function_type(f_args, f_types)
+    f = h.func_op(epf.__name__, f_type, create_entry_block=True)
     return f, f_types
 
   def _create_trace_roots(self):
@@ -179,8 +175,7 @@ class FunctionTracer(TraceContext):
     tv_map = emitter.map_invocation(invocation)
     input_ssa_values = self._resolve_input_ssa_values(tv_map.input_trace_values)
     request = EmissionRequest(input_ssa_values,
-                              ops=self._ops,
-                              types=self._types,
+                              dialect_helper=self._helper,
                               extra=tv_map.extra)
     result_ssa_values = emitter.emit(request)
     py_values = self._resolve_result_py_values(tv_map.result_trace_value_types,

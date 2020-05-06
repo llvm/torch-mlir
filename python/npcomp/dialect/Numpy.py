@@ -6,25 +6,24 @@ from npcomp.native.mlir import ir
 
 __all__ = [
   "load_builtin_module",
-  "Types",
+  "DialectHelper",
 ]
 
 
-class Ops(ir.Ops):
-  r"""Dialect ops.
+class DialectHelper(ir.DialectHelper):
+  r"""Dialect helper.
   
     >>> c = ir.MLIRContext()
-    >>> t = Types(c)
+    >>> h = DialectHelper(c)
     >>> m = c.new_module()
-    >>> tensor_type = t.tensor(t.f32)
-    >>> ops = Ops(c)
-    >>> ops.builder.insert_block_start(m.first_block)
-    >>> f = ops.func_op("foobar", t.function(
+    >>> tensor_type = h.tensor_type(h.f32_type)
+    >>> h.builder.insert_block_start(m.first_block)
+    >>> f = h.func_op("foobar", h.function_type(
     ...   [tensor_type, tensor_type], [tensor_type]), 
     ...   create_entry_block=True)
-    >>> uf = ops.numpy_ufunc_call_op("numpy.add", tensor_type,
+    >>> uf = h.numpy_ufunc_call_op("numpy.add", tensor_type,
     ...   *f.first_block.args)
-    >>> _ = ops.return_op(uf.results)
+    >>> _ = h.return_op(uf.results)
     >>> print(m.to_asm())
     <BLANKLINE>
     <BLANKLINE>
@@ -34,7 +33,27 @@ class Ops(ir.Ops):
         return %0 : tensor<*xf32>
       }
     }
+
+  Types:
+    >>> t = DialectHelper(ir.MLIRContext())
+    >>> t.numpy_any_dtype
+    !numpy.any_dtype
+    >>> t.tensor_type(t.numpy_any_dtype, [1, 2, 3])
+    tensor<1x2x3x!numpy.any_dtype>
+    >>> t.tensor_type(t.numpy_any_dtype)
+    tensor<*x!numpy.any_dtype>
+    >>> t.tensor_type(t.numpy_any_dtype, [-1, 2])
+    tensor<?x2x!numpy.any_dtype>
+    >>> t.tensor_type(t.f32_type)
+    tensor<*xf32>
+    >>> t.function_type([t.i32_type], [t.f32_type])
+    (i32) -> f32
+
   """
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.numpy_any_dtype = self.context.parse_type("!numpy.any_dtype")
+
   def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
     """Creates a numpy.ufunc_call op."""
     c = self.context
@@ -43,32 +62,9 @@ class Ops(ir.Ops):
     })
     return self.op("numpy.ufunc_call", [result_type], args, attrs)
 
-  def numpy_narrow(self, result_type, operand):
+  def numpy_narrow_op(self, result_type, operand):
     """Creates a numpy.narrow op."""
     return self.op("numpy.narrow", [result_type], [operand])
-
-
-class Types(ir.Types):
-  """Container/factory for dialect types.
-
-    >>> t = Types(ir.MLIRContext())
-    >>> t.numpy_any_dtype
-    !numpy.any_dtype
-    >>> t.tensor(t.numpy_any_dtype, [1, 2, 3])
-    tensor<1x2x3x!numpy.any_dtype>
-    >>> t.tensor(t.numpy_any_dtype)
-    tensor<*x!numpy.any_dtype>
-    >>> t.tensor(t.numpy_any_dtype, [-1, 2])
-    tensor<?x2x!numpy.any_dtype>
-    >>> t.tensor(t.f32)
-    tensor<*xf32>
-    >>> t.function([t.i32], [t.f32])
-    (i32) -> f32
-
-  """
-  def __init__(self, context):
-    super().__init__(context)
-    self.numpy_any_dtype = context.parse_type("!numpy.any_dtype")
 
 
 def load_builtin_module(context=None):

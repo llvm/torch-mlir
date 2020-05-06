@@ -36,7 +36,8 @@ class TraceInvocation(
 
 
 class EmissionRequest(
-    namedtuple("EmissionRequest", ["input_ssa_values", "ops", "types", "extra"],
+    namedtuple("EmissionRequest",
+               ["input_ssa_values", "dialect_helper", "extra"],
                defaults=(None,))):
   """Represents the result of processing inputs from an invocation.
 
@@ -47,8 +48,7 @@ class EmissionRequest(
   blackbox mechanism to transfer un-tracked state from an invocation to
   emission.
 
-  The `ops` and `types` fields correspond to mlir.ir.Ops and mlir.ir.Types
-  instances respectively.
+  The `dialect_helper` fields correspond to mlir.ir.DialectHelper.
   """
   __slots__ = ()
 
@@ -166,9 +166,10 @@ class GenericCallUfuncEmitter(FuncEmitter):
     return py_results[0]
 
   def emit(self, request: EmissionRequest):
-    op_result_type = request.types.tensor(request.types.numpy_any_dtype)
-    call_op = request.ops.numpy_ufunc_call_op(self._ufunc_name, op_result_type,
-                                              *request.input_ssa_values)
+    h = request.dialect_helper
+    op_result_type = h.tensor_type(h.numpy_any_dtype)
+    call_op = h.numpy_ufunc_call_op(self._ufunc_name, op_result_type,
+                                    *request.input_ssa_values)
     return call_op.results
 
 
@@ -210,9 +211,10 @@ class GenericArrayFuncEmitter(FuncEmitter):
       return tuple(py_results)
 
   def emit(self, request: EmissionRequest):
-    op_result_types = [request.types.tensor(request.types.numpy_any_dtype)
+    h = request.dialect_helper
+    op_result_types = [h.tensor_type(h.numpy_any_dtype)
                       ] * self._nresults
-    op = request.ops.op(self._op_name, op_result_types,
+    op = h.op(self._op_name, op_result_types,
                         request.input_ssa_values)
     return op.results
 
