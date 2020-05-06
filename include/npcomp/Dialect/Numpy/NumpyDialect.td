@@ -40,7 +40,7 @@ class Numpy_Op<string mnemonic, list<OpTrait> traits = []> :
 
 def Numpy_AnyDtype : DialectType<Numpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Numpy::AnyDtypeType>()">, "any dtype">,
-    BuildableType<"$_builder.getType::mlir::NPCOMP::Numpy::AnyDtypeType()"> {
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Numpy::AnyDtypeType>()"> {
   let typeDescription = [{
     Placeholder for an unknown dtype in a tensor.
   }];

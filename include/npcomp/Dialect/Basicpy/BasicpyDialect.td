@@ -38,10 +38,39 @@ class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
 // Dialect types
 //===----------------------------------------------------------------------===//
 
+def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">, 
+    "Slot object"> {
+  let typeDescription = [{
+    Type for built-in objects which have a fixed number of slots and a type
+    name in the system catalog of types. In some ways, this resembles a
+    namedtuple, but it is used for built-in custom objects.
+  }];
+}
+
+def Basicpy_NoneType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::NoneType>()">, "None type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::NoneType>()"> {
+  let typeDescription = [{
+    Type of the Python 'None' value.
+  }];
+}
+
+def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::EllipsisType>()">, "Ellipsis type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::EllipsisType>()"> {
+  let typeDescription = [{
+    Type of the Python 'Ellipsis' value.
+  }];
+}
 
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
 
+def Basicpy_SingletonType : AnyTypeOf<[
+  Basicpy_NoneType,
+  Basicpy_EllipsisType
+]>;
 
 #endif // NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT
