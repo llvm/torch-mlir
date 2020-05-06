@@ -146,14 +146,14 @@ public:
                                           pyResultTypes.end());
                SmallVector<Value, 4> operands(pyOperands.begin(),
                                               pyOperands.end());
-               NamedAttributeList attrList;
+               MutableDictionaryAttr attrList;
                if (attrs) {
                  auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
                  if (!dictAttrs) {
                    throw py::raiseValueError(
                        "Expected `attrs` to be a DictionaryAttr");
                  }
-                 attrList = NamedAttributeList(dictAttrs);
+                 attrList = MutableDictionaryAttr(dictAttrs);
                }
                Operation *op =
                    Operation::create(loc, opName, types, operands, attrList);

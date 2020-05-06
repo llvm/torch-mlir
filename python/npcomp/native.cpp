@@ -15,9 +15,6 @@
 
 namespace mlir {
 void defineMlirIrModule(py::module m);
-namespace edsc {
-void defineMlirEdscModule(py::module m);
-} // namespace edsc
 
 namespace npcomp {
 namespace python {
@@ -67,8 +64,6 @@ PYBIND11_MODULE(native, m) {
   defineLLVMModule(llvm_m);
 
   auto mlir_m = m.def_submodule("mlir", "MLIR interop");
-  auto mlir_edsc_m = mlir_m.def_submodule("edsc");
-  edsc::defineMlirEdscModule(mlir_edsc_m);
   auto mlir_ir_m = mlir_m.def_submodule("ir");
   defineMlirIrModule(mlir_ir_m);
 }

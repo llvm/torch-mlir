@@ -26,7 +26,6 @@ set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 set(extension_target NPCOMPNativePyExt)
 set(extension_pybind_sources
   native.cpp
-  mlir_edsc.cpp
   mlir_init.cpp
   mlir_ir.cpp
   pybind_utils.cpp
