@@ -212,10 +212,8 @@ class GenericArrayFuncEmitter(FuncEmitter):
 
   def emit(self, request: EmissionRequest):
     h = request.dialect_helper
-    op_result_types = [h.tensor_type(h.numpy_any_dtype)
-                      ] * self._nresults
-    op = h.op(self._op_name, op_result_types,
-                        request.input_ssa_values)
+    op_result_types = [h.tensor_type(h.numpy_any_dtype)] * self._nresults
+    op = h.op(self._op_name, op_result_types, request.input_ssa_values)
     return op.results
 
 

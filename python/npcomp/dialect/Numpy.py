@@ -2,6 +2,7 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from npcomp.dialect import Basicpy
 from npcomp.native.mlir import ir
 
 __all__ = [
@@ -10,7 +11,7 @@ __all__ = [
 ]
 
 
-class DialectHelper(ir.DialectHelper):
+class DialectHelper(Basicpy.DialectHelper):
   r"""Dialect helper.
   
     >>> c = ir.MLIRContext()

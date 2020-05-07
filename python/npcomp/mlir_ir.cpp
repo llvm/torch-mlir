@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir_ir.h"
+#include "native.h"
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
@@ -117,163 +118,149 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
-// Python only classes
+// PyDialectHelper
 //===----------------------------------------------------------------------===//
 
-/// Helper for creating (possibly dialect specific) IR objects. This class
-/// is intended to be subclassed on the Python side (possibly with multiple
-/// inheritance) to provide Python level APIs for custom dialects. The base
-/// class contains helpers for std types and ops.
-class PyDialectHelper {
-public:
-  PyDialectHelper(std::shared_ptr<PyContext> context)
-      : pyOpBuilder(*context), context(std::move(context)) {
-  }
-  static void bind(py::module m) {
-    py::class_<PyDialectHelper>(m, "DialectHelper")
-        .def(py::init<std::shared_ptr<PyContext>>())
-        .def_property_readonly("builder",
-                               [](PyDialectHelper &self) -> PyBaseOpBuilder & {
-                                 return self.pyOpBuilder;
-                               })
-        .def_property_readonly(
-            "context",
-            [](PyDialectHelper &self) -> std::shared_ptr<PyContext> {
-              return self.context;
-            })
-        .def("op",
-             [](PyDialectHelper &self, const std::string &opNameStr,
-                std::vector<PyType> pyResultTypes,
-                std::vector<PyValue> pyOperands,
-                llvm::Optional<PyAttribute> attrs) -> PyOperationRef {
-               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(false);
-               Location loc = UnknownLoc::get(opBuilder.getContext());
-               OperationName opName(opNameStr, opBuilder.getContext());
-               SmallVector<Type, 4> types(pyResultTypes.begin(),
-                                          pyResultTypes.end());
-               SmallVector<Value, 4> operands(pyOperands.begin(),
-                                              pyOperands.end());
-               MutableDictionaryAttr attrList;
-               if (attrs) {
-                 auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
-                 if (!dictAttrs) {
-                   throw py::raiseValueError(
-                       "Expected `attrs` to be a DictionaryAttr");
-                 }
-                 attrList = MutableDictionaryAttr(dictAttrs);
+void PyDialectHelper::bind(py::module m) {
+  py::class_<PyDialectHelper>(m, "DialectHelper")
+      .def(py::init<std::shared_ptr<PyContext>>())
+      .def_property_readonly("builder",
+                             [](PyDialectHelper &self) -> PyBaseOpBuilder & {
+                               return self.pyOpBuilder;
+                             })
+      .def_property_readonly(
+          "context",
+          [](PyDialectHelper &self) -> std::shared_ptr<PyContext> {
+            return self.context;
+          })
+      .def("op",
+           [](PyDialectHelper &self, const std::string &opNameStr,
+              std::vector<PyType> pyResultTypes,
+              std::vector<PyValue> pyOperands,
+              llvm::Optional<PyAttribute> attrs) -> PyOperationRef {
+             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(false);
+             Location loc = UnknownLoc::get(opBuilder.getContext());
+             OperationName opName(opNameStr, opBuilder.getContext());
+             SmallVector<Type, 4> types(pyResultTypes.begin(),
+                                        pyResultTypes.end());
+             SmallVector<Value, 4> operands(pyOperands.begin(),
+                                            pyOperands.end());
+             MutableDictionaryAttr attrList;
+             if (attrs) {
+               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
+               if (!dictAttrs) {
+                 throw py::raiseValueError(
+                     "Expected `attrs` to be a DictionaryAttr");
                }
-               Operation *op =
-                   Operation::create(loc, opName, types, operands, attrList);
-               opBuilder.insert(op);
-               return op;
-             },
-             py::arg("op_name"), py::arg("result_types"), py::arg("operands"),
-             py::arg("attrs") = llvm::Optional<PyAttribute>())
-        .def("func_op",
-             [](PyDialectHelper &self, const std::string &name, PyType type,
-                bool createEntryBlock) {
-               auto functionType = type.type.dyn_cast_or_null<FunctionType>();
-               if (!functionType) {
-                 throw py::raiseValueError("Illegal function type");
-               }
-               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-               Location loc = UnknownLoc::get(opBuilder.getContext());
-               // TODO: Add function and arg/result attributes.
-               FuncOp op = opBuilder.create<FuncOp>(
-                   loc, StringRef(name), functionType,
-                   /*attrs=*/ArrayRef<NamedAttribute>());
-               if (createEntryBlock) {
-                 Block *entryBlock = new Block();
-                 entryBlock->addArguments(functionType.getInputs());
-                 op.getBody().push_back(entryBlock);
-                 opBuilder.setInsertionPointToStart(entryBlock);
-               }
-               return PyOperationRef(op);
-             },
-             py::arg("name"), py::arg("type"),
-             py::arg("create_entry_block") = false,
-             R"(Creates a new `func` op, optionally creating an entry block.
-               If an entry block is created, the builder will be positioned
-               to its start.)")
-        .def("return_op",
-             [](PyDialectHelper &self, std::vector<PyValue> pyOperands) {
-               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-               Location loc = UnknownLoc::get(opBuilder.getContext());
-               SmallVector<Value, 4> operands(pyOperands.begin(),
-                                              pyOperands.end());
-               return PyOperationRef(opBuilder.create<ReturnOp>(loc, operands));
-             })
+               attrList = MutableDictionaryAttr(dictAttrs);
+             }
+             Operation *op =
+                 Operation::create(loc, opName, types, operands, attrList);
+             opBuilder.insert(op);
+             return op;
+           },
+           py::arg("op_name"), py::arg("result_types"), py::arg("operands"),
+           py::arg("attrs") = llvm::Optional<PyAttribute>())
+      .def("func_op",
+           [](PyDialectHelper &self, const std::string &name, PyType type,
+              bool createEntryBlock) {
+             auto functionType = type.type.dyn_cast_or_null<FunctionType>();
+             if (!functionType) {
+               throw py::raiseValueError("Illegal function type");
+             }
+             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+             Location loc = UnknownLoc::get(opBuilder.getContext());
+             // TODO: Add function and arg/result attributes.
+             FuncOp op =
+                 opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
+                                          /*attrs=*/ArrayRef<NamedAttribute>());
+             if (createEntryBlock) {
+               Block *entryBlock = new Block();
+               entryBlock->addArguments(functionType.getInputs());
+               op.getBody().push_back(entryBlock);
+               opBuilder.setInsertionPointToStart(entryBlock);
+             }
+             return PyOperationRef(op);
+           },
+           py::arg("name"), py::arg("type"),
+           py::arg("create_entry_block") = false,
+           R"(Creates a new `func` op, optionally creating an entry block.
+              If an entry block is created, the builder will be positioned
+              to its start.)")
+      .def("return_op",
+           [](PyDialectHelper &self, std::vector<PyValue> pyOperands) {
+             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+             Location loc = UnknownLoc::get(opBuilder.getContext());
+             SmallVector<Value, 4> operands(pyOperands.begin(),
+                                            pyOperands.end());
+             return PyOperationRef(opBuilder.create<ReturnOp>(loc, operands));
+           })
 
-        // Types.
-        .def("integer_type",
-             [](PyDialectHelper &self, unsigned width) {
-               return PyType(IntegerType::get(width, &self.context->context));
-             },
-             py::arg("width") = 32)
-        .def_property_readonly(
-            "i1_type",
-            [](PyDialectHelper &self) {
-              return PyType(IntegerType::get(1, &self.context->context));
-            })
-        .def_property_readonly(
-            "i16_type",
-            [](PyDialectHelper &self) {
-              return PyType(IntegerType::get(32, &self.context->context));
-            })
-        .def_property_readonly(
-            "i32_type",
-            [](PyDialectHelper &self) {
-              return PyType(IntegerType::get(32, &self.context->context));
-            })
-        .def_property_readonly(
-            "i64_type",
-            [](PyDialectHelper &self) {
-              return PyType(IntegerType::get(64, &self.context->context));
-            })
-        .def_property_readonly(
-            "f32_type",
-            [](PyDialectHelper &self) {
-              return PyType(
-                  FloatType::get(StandardTypes::F32, &self.context->context));
-            })
-        .def_property_readonly(
-            "f64_type",
-            [](PyDialectHelper &self) {
-              return PyType(
-                  FloatType::get(StandardTypes::F64, &self.context->context));
-            })
-        .def("tensor_type",
-             [](PyDialectHelper &self, PyType elementType,
-                llvm::Optional<std::vector<int64_t>> shape) {
-               if (!elementType.type) {
-                 throw py::raiseValueError("Null element type");
-               }
-               if (shape) {
-                 return PyType(RankedTensorType::get(*shape, elementType.type));
-               } else {
-                 return PyType(UnrankedTensorType::get(elementType.type));
-               }
-             },
-             py::arg("element_type"),
-             py::arg("shape") = llvm::Optional<std::vector<int64_t>>())
-        .def("function_type",
-             [](PyDialectHelper &self, std::vector<PyType> inputs,
-                std::vector<PyType> results) {
-               llvm::SmallVector<Type, 4> inputTypes;
-               llvm::SmallVector<Type, 1> resultTypes;
-               for (auto input : inputs) {
-                 inputTypes.push_back(input.type);
-               }
-               for (auto result : results) {
-                 resultTypes.push_back(result.type);
-               }
-               return PyType(FunctionType::get(inputTypes, resultTypes,
-                                               &self.context->context));
-             });
-  }
-  PyOpBuilder pyOpBuilder;
-  std::shared_ptr<PyContext> context;
-};
+      // Types.
+      .def("integer_type",
+           [](PyDialectHelper &self, unsigned width) {
+             return PyType(IntegerType::get(width, &self.context->context));
+           },
+           py::arg("width") = 32)
+      .def_property_readonly("i1_type",
+                             [](PyDialectHelper &self) {
+                               return PyType(
+                                   IntegerType::get(1, &self.context->context));
+                             })
+      .def_property_readonly(
+          "i16_type",
+          [](PyDialectHelper &self) {
+            return PyType(IntegerType::get(32, &self.context->context));
+          })
+      .def_property_readonly(
+          "i32_type",
+          [](PyDialectHelper &self) {
+            return PyType(IntegerType::get(32, &self.context->context));
+          })
+      .def_property_readonly(
+          "i64_type",
+          [](PyDialectHelper &self) {
+            return PyType(IntegerType::get(64, &self.context->context));
+          })
+      .def_property_readonly("f32_type",
+                             [](PyDialectHelper &self) {
+                               return PyType(FloatType::get(
+                                   StandardTypes::F32, &self.context->context));
+                             })
+      .def_property_readonly("f64_type",
+                             [](PyDialectHelper &self) {
+                               return PyType(FloatType::get(
+                                   StandardTypes::F64, &self.context->context));
+                             })
+      .def("tensor_type",
+           [](PyDialectHelper &self, PyType elementType,
+              llvm::Optional<std::vector<int64_t>> shape) {
+             if (!elementType.type) {
+               throw py::raiseValueError("Null element type");
+             }
+             if (shape) {
+               return PyType(RankedTensorType::get(*shape, elementType.type));
+             } else {
+               return PyType(UnrankedTensorType::get(elementType.type));
+             }
+           },
+           py::arg("element_type"),
+           py::arg("shape") = llvm::Optional<std::vector<int64_t>>())
+      .def("function_type",
+           [](PyDialectHelper &self, std::vector<PyType> inputs,
+              std::vector<PyType> results) {
+             llvm::SmallVector<Type, 4> inputTypes;
+             llvm::SmallVector<Type, 1> resultTypes;
+             for (auto input : inputs) {
+               inputTypes.push_back(input.type);
+             }
+             for (auto result : results) {
+               resultTypes.push_back(result.type);
+             }
+             return PyType(FunctionType::get(inputTypes, resultTypes,
+                                             &self.context->context));
+           });
+}
 
 //===----------------------------------------------------------------------===//
 // Module initialization
@@ -413,6 +400,15 @@ void PyBaseOperation::bind(py::module m) {
                                std::vector<PyValue> results(op->result_begin(),
                                                             op->result_end());
                                return results;
+                             })
+      .def_property_readonly("result",
+                             [](PyBaseOperation &self) -> PyValue {
+                               auto *op = self.getOperation();
+                               if (op->getNumResults() != 1) {
+                                 throw py::raiseValueError(
+                                     "Operation does not have 1 result");
+                               }
+                               return op->getOpResult(0);
                              })
       .def("region",
            [](PyBaseOperation &self, int index) {
@@ -672,12 +668,15 @@ void PyType::bind(py::module m) {
 //===----------------------------------------------------------------------===//
 
 void PyValue::bind(py::module m) {
-  py::class_<PyValue>(m, "Value").def("__repr__", [](PyValue &self) {
-    std::string res;
-    llvm::raw_string_ostream os(res);
-    os << self.value;
-    return res;
-  });
+  py::class_<PyValue>(m, "Value")
+      .def_property_readonly(
+          "type", [](PyValue &self) -> PyType { return self.value.getType(); })
+      .def("__repr__", [](PyValue &self) {
+        std::string res;
+        llvm::raw_string_ostream os(res);
+        os << self.value;
+        return res;
+      });
 }
 
 //===----------------------------------------------------------------------===//

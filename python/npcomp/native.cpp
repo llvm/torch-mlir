@@ -9,18 +9,14 @@
 #include <cstddef>
 #include <unordered_map>
 
+#include "native.h"
 #include "pybind_utils.h"
 
 #include "llvm/Support/CommandLine.h"
 
 namespace mlir {
-void defineMlirIrModule(py::module m);
-
 namespace npcomp {
 namespace python {
-
-// Externs
-bool npcompMlirInitialize();
 
 void defineLLVMModule(pybind11::module m) {
   m.def("print_help_message", []() { llvm::cl::PrintHelpMessage(); });
@@ -66,6 +62,9 @@ PYBIND11_MODULE(native, m) {
   auto mlir_m = m.def_submodule("mlir", "MLIR interop");
   auto mlir_ir_m = mlir_m.def_submodule("ir");
   defineMlirIrModule(mlir_ir_m);
+
+  auto npcomp_dialect = m.def_submodule("dialect", "NPComp custom dialects");
+  defineNpcompDialect(npcomp_dialect);
 }
 
 } // namespace python

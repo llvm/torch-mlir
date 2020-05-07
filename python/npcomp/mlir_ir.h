@@ -153,6 +153,25 @@ private:
   OpBuilder builder;
 };
 
+//===----------------------------------------------------------------------===//
+// Custom types
+//===----------------------------------------------------------------------===//
+
+/// Helper for creating (possibly dialect specific) IR objects. This class
+/// is intended to be subclassed on the Python side (possibly with multiple
+/// inheritance) to provide Python level APIs for custom dialects. The base
+/// class contains helpers for std types and ops.
+class PyDialectHelper {
+public:
+  PyDialectHelper(std::shared_ptr<PyContext> context)
+      : pyOpBuilder(*context), context(std::move(context)) {}
+  static void bind(py::module m);
+
+protected:
+  PyOpBuilder pyOpBuilder;
+  std::shared_ptr<PyContext> context;
+};
+
 } // namespace mlir
 
 #endif // NPCOMP_PYTHON_MLIR_IR_H

@@ -28,6 +28,7 @@ set(extension_pybind_sources
   native.cpp
   mlir_init.cpp
   mlir_ir.cpp
+  npcomp_dialect.cpp
   pybind_utils.cpp
 )
 set_source_files_properties(
@@ -66,6 +67,7 @@ target_link_libraries(${extension_target}
     pybind11::module
 
     # Local depends
+    NPCOMPBasicpyDialect
     NPCOMPNumpyDialect
     
     # Upstream depends
