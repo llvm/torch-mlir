@@ -39,7 +39,7 @@ failed = []
 for test_module in TEST_MODULES:
   print("--------====== RUNNING %s ======--------" % test_module)
   try:
-    subprocess.check_call([sys.executable, "-m", test_module], 
+    subprocess.check_call([sys.executable, "-Wignore", "-m", test_module], 
                           env=CHILD_ENVIRON)
     print("--------====== DONE %s ======--------\n" % test_module)
     passed.append(test_module)

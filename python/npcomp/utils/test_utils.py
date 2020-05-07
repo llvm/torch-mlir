@@ -41,10 +41,7 @@ def end_filecheck_test(main_file):
   filecheck_binary = "FileCheck"
   if _filecheck_binary_var in os.environ:
     filecheck_binary = os.environ[_filecheck_binary_var]
-  print("Using FileCheck binary", filecheck_binary, 
-        "(customize by setting", _filecheck_binary_var, ")", file=sys.stderr)
   filecheck_args = [filecheck_binary, main_file, "--dump-input=fail"]
-  print("LAUNCHING FILECHECK:", filecheck_args, file=sys.stderr)
   p = subprocess.Popen(filecheck_args, stdin=subprocess.PIPE)
   p.communicate(filecheck_input.encode("UTF-8"))
   sys.exit(p.returncode)  
