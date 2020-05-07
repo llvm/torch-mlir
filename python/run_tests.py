@@ -7,6 +7,7 @@ import sys
 
 TEST_MODULES = (
   "npcomp.mlir_ir_test",
+  "npcomp.dialect.Basicpy",
   "npcomp.dialect.Numpy",
   "npcomp.tracing.context",
   "npcomp.tracing.mlir_trace",

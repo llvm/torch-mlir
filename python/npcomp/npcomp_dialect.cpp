@@ -21,12 +21,12 @@ public:
   static void bind(py::module m) {
     py::class_<BasicpyDialectHelper, PyDialectHelper>(m, "BasicpyDialectHelper")
         .def(py::init<std::shared_ptr<PyContext>>())
-        .def_property_readonly("basicpy_None_type",
+        .def_property_readonly("basicpy_NoneType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::NoneType::get(
                                      &self.context->context);
                                })
-        .def_property_readonly("basicpy_Ellipsis_type",
+        .def_property_readonly("basicpy_EllipsisType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::EllipsisType::get(
                                      &self.context->context);
