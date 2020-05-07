@@ -2,10 +2,10 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from ..types import *
-from ..exporter import *
-from .mlir_trace import *
-from ..utils import test_utils
+from npcomp.types import *
+from npcomp.exporter import *
+from npcomp.tracing.mlir_trace import *
+from npcomp.utils import test_utils
 
 test_utils.start_filecheck_test()
 

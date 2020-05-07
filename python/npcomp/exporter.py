@@ -6,7 +6,7 @@ import inspect
 import numpy as np
 from typing import Optional
 
-from .types import *
+from npcomp.types import *
 
 __all__ = [
   "Exporter",

@@ -22,6 +22,10 @@ if [ -z "$python_exe" ]; then
   exit 1
 fi
 
+# Write a .env file for python tooling.
+echo "Updating $td/.env file"
+echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python")\"" > "$td/.env"
+
 set -x
 cmake -GNinja \
   "-H$td" \

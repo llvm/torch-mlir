@@ -54,6 +54,10 @@ export PYTHONPATH="$(realpath build/python):$(realpath build/python_native)"
 The `run_tests.py` script is special in that it sets up the PYTHONPATH
 correctly when run.
 
+Note that running the `cmake_configure.sh` script will also output a `.env`
+file in the workspace folder with the correct PYTHONPATH set. This allows
+tools like VSCode to work by default for debugging.
+
 ### Things to look at:
 
 * `python/npcomp/tracing/mlir_trace_test.py` : Simple test case of tracing a function to an MLIR module.
