@@ -4,6 +4,9 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
+        NPCOMPE2E
+        NPCOMPTCP
+        NPCOMPTCF
         NPCOMPNumpyDialect
         NPCOMPBasicpyDialect
         )

@@ -1,0 +1,31 @@
+//===-- Passes.td - Pass definition file -------------------*- tablegen -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef NPCOMP_E2E_PASSES
+#define NPCOMP_E2E_PASSES
+
+include "mlir/Pass/PassBase.td"
+
+def LowerLinalgOnTensorToLinalgOnMemref :
+    Pass<"lower-linalg-tensor-to-memref", "FuncOp"> {
+  let summary = "Lowers linalg on tensors to linalg on memrefs";
+  let constructor = "mlir::NPCOMP::createLowerLinalgOnTensorToLinalgOnMemrefPass()";
+}
+
+def LowerBroadcastToToLoops :
+    Pass<"lower-broadcast-to-to-loops", "FuncOp"> {
+  let summary = "Lower tcp::BroadcastTo to loops.";
+  let constructor = "mlir::NPCOMP::createLowerBroadcastToToLoopsPass()";
+}
+
+def ResolveShapeOfOps : Pass<"resolve-shape-of-ops", "FuncOp"> {
+  let summary = "Resolve shape.shape_of ops to other shapes.";
+  let constructor = "mlir::NPCOMP::createResolveShapeOfOpsPass()";
+}
+
+#endif // NPCOMP_E2E_PASSES
