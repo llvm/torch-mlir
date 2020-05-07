@@ -3,7 +3,7 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from npcomp.dialect import Basicpy
-from npcomp.native.mlir import ir
+from _npcomp.mlir import ir
 
 __all__ = [
   "load_builtin_module",

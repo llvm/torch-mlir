@@ -6,9 +6,9 @@ import re
 from typing import Iterable
 import numpy as np
 
-from ..dialect import Numpy
-from ..native.mlir import ir
+from _npcomp.mlir import ir
 
+from ..dialect import Numpy
 from .context import *
 from .emitters import *
 from ..exporter import *

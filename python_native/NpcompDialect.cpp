@@ -1,4 +1,4 @@
-//===- npcomp_dialect.cpp - Custom dialect classes ------------------------===//
+//===- NpcompDialect.cpp - Custom dialect classes -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir_ir.h"
-#include "native.h"
+#include "MlirIr.h"
+#include "NpcompModule.h"
 
 #include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/BasicpyOps.h"

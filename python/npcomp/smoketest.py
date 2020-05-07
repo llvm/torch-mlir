@@ -1,2 +1,2 @@
-from . import native
-print(native.__doc__)
+import _npcomp
+print(_npcomp.__doc__)

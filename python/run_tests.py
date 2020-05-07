@@ -17,8 +17,14 @@ TEST_MODULES = (
 )
 
 # Compute PYTHONPATH for sub processes.
-DIRSEP = ":" if os.path.sep == "/" else ";"
-PYTHONPATH = os.path.abspath(os.path.dirname(__file__))
+DIRSEP = os.path.pathsep
+LOCAL_PYTHONPATH_COMPONENTS = [
+  # This directory.
+  os.path.abspath(os.path.dirname(__file__)),
+  # The parallel python_native directory (assuming in the build tree).
+  os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "python_native"))
+]
+PYTHONPATH = DIRSEP.join(LOCAL_PYTHONPATH_COMPONENTS)
 if "PYTHONPATH" in os.environ:
   PYTHONPATH = PYTHONPATH + DIRSEP + os.environ["PYTHONPATH"]
 CHILD_ENVIRON = dict(os.environ)

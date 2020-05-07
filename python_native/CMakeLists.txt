@@ -25,11 +25,11 @@ set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 # compiled separately for now.
 set(extension_target NPCOMPNativePyExt)
 set(extension_pybind_sources
-  native.cpp
-  mlir_init.cpp
-  mlir_ir.cpp
-  npcomp_dialect.cpp
-  pybind_utils.cpp
+  MlirInit.cpp
+  MlirIr.cpp
+  NpcompDialect.cpp
+  NpcompModule.cpp
+  PybindUtils.cpp
 )
 set_source_files_properties(
   ${extension_pybind_sources}
@@ -41,7 +41,7 @@ add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
 
 set_target_properties(${extension_target} PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                       "${CMAKE_CURRENT_BINARY_DIR}")
-set_target_properties(${extension_target} PROPERTIES OUTPUT_NAME native)
+set_target_properties(${extension_target} PROPERTIES OUTPUT_NAME _npcomp)
 set_target_properties(${extension_target} PROPERTIES PREFIX 
                       "${PYTHON_MODULE_PREFIX}")
 set_target_properties(${extension_target} PROPERTIES SUFFIX 

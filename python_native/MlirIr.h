@@ -1,4 +1,4 @@
-//===- mlir_ir.h - MLIR IR Bindings -------------------------------------===//
+//===- MlirIr.h - MLIR IR Bindings ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_PYTHON_MLIR_IR_H
-#define NPCOMP_PYTHON_MLIR_IR_H
+#ifndef NPCOMP_PYTHON_NATIVE_MLIR_IR_H
+#define NPCOMP_PYTHON_NATIVE_MLIR_IR_H
 
-#include "pybind_utils.h"
+#include "PybindUtils.h"
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -174,4 +174,4 @@ protected:
 
 } // namespace mlir
 
-#endif // NPCOMP_PYTHON_MLIR_IR_H
+#endif // NPCOMP_PYTHON_NATIVE_MLIR_IR_H

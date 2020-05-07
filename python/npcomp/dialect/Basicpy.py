@@ -2,8 +2,8 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from ..native.dialect import BasicpyDialectHelper as _BaseDialectHelper
-from ..native.mlir import ir
+from _npcomp.dialect import BasicpyDialectHelper as _BaseDialectHelper
+from _npcomp.mlir import ir
 
 __all__ = [
     "DialectHelper",

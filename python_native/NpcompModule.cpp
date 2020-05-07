@@ -9,8 +9,8 @@
 #include <cstddef>
 #include <unordered_map>
 
-#include "native.h"
-#include "pybind_utils.h"
+#include "NpcompModule.h"
+#include "PybindUtils.h"
 
 #include "llvm/Support/CommandLine.h"
 
@@ -48,7 +48,7 @@ void defineLLVMModule(pybind11::module m) {
         py::arg("name"));
 }
 
-PYBIND11_MODULE(native, m) {
+PYBIND11_MODULE(_npcomp, m) {
   // Guard the once init to happen once per process (vs module, which in
   // mondo builds can happen multiple times).
   static bool llvm_init_baton = ([]() { return npcompMlirInitialize(); })();

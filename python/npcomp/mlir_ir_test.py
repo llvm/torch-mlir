@@ -4,7 +4,7 @@
 
 """Test for the MLIR IR Python bindings"""
 
-from npcomp.native.mlir import ir
+from _npcomp.mlir import ir
 from npcomp.utils import test_utils
 
 test_utils.start_filecheck_test()

@@ -38,30 +38,25 @@ ninja check-npcomp-opt
 ./python/run_tests.py
 ```
 
+## Interactive Use
+
+The cmake configuration populates symlinks in the `build/python` directory
+mirroring the source layout. This allows edit-run without rebuilding (unless
+if files are added/removed).
+
+Configuring the `PYTHONPATH` should be sufficient to run any interactive
+tooling (`python3`, Jupyter/Colab, etc).
+
+```shell
+export PYTHONPATH="$(realpath build/python):$(realpath build/python_native)"
+```
+
+The `run_tests.py` script is special in that it sets up the PYTHONPATH
+correctly when run.
+
 ### Things to look at:
 
 * `python/npcomp/tracing/mlir_trace_test.py` : Simple test case of tracing a function to an MLIR module.
-
-### Installing pybind11
-
-The native extension relies on pybind11. In a perfect world, this could just
-be installed with your system package manager. However, at least on
-some tested versions of Ubuntu, the system package installed with broken cmake 
-files.
-
-If this happens, you must install pybind11 from source.
-
-### Building the python native library
-
-```shell
-# From the build directory
-ninja NPCOMPNativePyExt
-ninja check-npcomp
-python3 ./python/run_tests.py
-
-# Setup PYTHONPATH for interactive use.
-export PYTHONPATH=$(pwd)/tools/npcomp/python
-```
 
 Notes:
 

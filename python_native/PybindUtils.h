@@ -1,4 +1,4 @@
-//===- pybind_utils.h - Utilities for interop with python -----------------===//
+//===- PybindUtils.h - Utilities for interop with python ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_PYTHON_PYBIND_UTILS_H
-#define NPCOMP_PYTHON_PYBIND_UTILS_H
+#ifndef NPCOMP_PYTHON_NATIVE_PYBIND_UTILS_H
+#define NPCOMP_PYTHON_NATIVE_PYBIND_UTILS_H
 
 #include <string>
 
@@ -52,4 +52,4 @@ inline pybind11::error_already_set raiseValueError(const std::string &message) {
 
 } // namespace pybind11
 
-#endif // NPCOMP_PYTHON_PYBIND_UTILS_H
+#endif // NPCOMP_PYTHON_NATIVE_PYBIND_UTILS_H
