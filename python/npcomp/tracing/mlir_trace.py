@@ -95,8 +95,6 @@ class FunctionTracer(TraceContext):
     return_operands = []
     for py_result, mlir_result_type in zip(py_results, self._f_types):
       mlir_result = self.get_traced_array_value(py_result)
-      if mlir_result is None:
-        raise TracingError("Unregistered traced array: %r", (py_result,))
       # narrow to declared result type.
       return_operands.extend(
           h.numpy_narrow_op(mlir_result_type, mlir_result).results)
@@ -108,7 +106,10 @@ class FunctionTracer(TraceContext):
     self._traced_arrays[traced_array] = value
 
   def get_traced_array_value(self, traced_array):
-    return self._traced_arrays.get(traced_array)
+    traced_value = self._traced_arrays.get(traced_array)
+    if traced_value is None:
+      raise TracingError("Unregistered traced array: %r", (traced_array,))
+    return traced_value
 
   def _validate(self):
     if not all(
@@ -150,9 +151,6 @@ class FunctionTracer(TraceContext):
       assert tv.type == TraceValueType.NDARRAY, (
           "Unsupported TraceValueType: %r" % tv.type)
       ssa_value = self.get_traced_array_value(tv.value)
-      if ssa_value is None:
-        raise TracingError(
-            "Required a traced python NDARRAY but not found: %r" % (tv,))
       ssa_values.append(ssa_value)
     return ssa_values
 
@@ -195,6 +193,48 @@ class FunctionTracer(TraceContext):
       return NotImplemented
     invocation = TraceInvocation(inputs, kwargs, Protocol.ARRAY_FUNC)
     return self._emit_invocation(emitter, invocation)
+
+  def _emit_slice_value(self, slice_element):
+    h = self._helper
+    if slice_element == None:
+      return h.basicpy_singleton_op(h.basicpy_NoneType).result
+    elif slice_element == Ellipsis:
+      return h.basicpy_singleton_op(h.basicpy_EllipsisType).result
+    elif isinstance(slice_element, int):
+      return h.constant_op(h.index_type,
+                           h.context.index_attr(slice_element)).result
+    elif isinstance(slice_element, slice):
+      return self._emit_slice_object(slice_element)
+    else:
+      # Assume array convertible.
+      raise NotImplementedError(
+          "TODO: Slicing with generic arrays not yet implemented")
+
+  def _emit_slice_object(self, slice_object: slice):
+    h = self._helper
+    def emit_index(index):
+      if index is None:
+        return h.basicpy_singleton_op(h.basicpy_NoneType).result
+      else:
+        return h.constant_op(h.index_type,
+                            h.context.index_attr(int(index))).result
+    start = emit_index(slice_object.start)
+    stop = emit_index(slice_object.stop)
+    step = emit_index(slice_object.step)
+    return h.basicpy_slot_object_make_op("slice", start, stop, step).result
+
+  def _handle_array_getitem(self, array, key):
+    h = self._helper
+    array_value = self.get_traced_array_value(array)
+    # Array slicing is always based on a tuple.
+    slice_tuple = key if isinstance(key, tuple) else (key,)
+    # Resolve and emit each slice element.
+    slice_values = [self._emit_slice_value(elt) for elt in slice_tuple]
+    result_value = h.numpy_get_slice_op(
+      h.unknown_array_type, array_value, *slice_values).result
+    result_array = TracedArray(self)
+    self.set_traced_array(result_array, result_value)
+    return result_array
 
 
 if __name__ == "__main__":

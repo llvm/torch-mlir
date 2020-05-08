@@ -10,6 +10,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
 
 namespace mlir {

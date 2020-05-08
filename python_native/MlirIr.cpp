@@ -195,60 +195,71 @@ void PyDialectHelper::bind(py::module m) {
                                             pyOperands.end());
              return PyOperationRef(opBuilder.create<ReturnOp>(loc, operands));
            })
+      .def("constant_op",
+           [](PyDialectHelper &self, PyType type, PyAttribute value) {
+             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+             Location loc = UnknownLoc::get(opBuilder.getContext());
+             return PyOperationRef(
+                 opBuilder.create<ConstantOp>(loc, type.type, value.attr));
+           })
 
       // Types.
+      .def_property_readonly("index_type",
+                             [](PyDialectHelper &self) -> PyType {
+                               return IndexType::get(&self.context->context);
+                             })
       .def("integer_type",
-           [](PyDialectHelper &self, unsigned width) {
-             return PyType(IntegerType::get(width, &self.context->context));
+           [](PyDialectHelper &self, unsigned width) -> PyType {
+             return IntegerType::get(width, &self.context->context);
            },
            py::arg("width") = 32)
       .def_property_readonly("i1_type",
-                             [](PyDialectHelper &self) {
-                               return PyType(
-                                   IntegerType::get(1, &self.context->context));
+                             [](PyDialectHelper &self) -> PyType {
+                               return IntegerType::get(1,
+                                                       &self.context->context);
                              })
-      .def_property_readonly(
-          "i16_type",
-          [](PyDialectHelper &self) {
-            return PyType(IntegerType::get(32, &self.context->context));
-          })
-      .def_property_readonly(
-          "i32_type",
-          [](PyDialectHelper &self) {
-            return PyType(IntegerType::get(32, &self.context->context));
-          })
-      .def_property_readonly(
-          "i64_type",
-          [](PyDialectHelper &self) {
-            return PyType(IntegerType::get(64, &self.context->context));
-          })
+      .def_property_readonly("i16_type",
+                             [](PyDialectHelper &self) -> PyType {
+                               return IntegerType::get(32,
+                                                       &self.context->context);
+                             })
+      .def_property_readonly("i32_type",
+                             [](PyDialectHelper &self) -> PyType {
+                               return IntegerType::get(32,
+                                                       &self.context->context);
+                             })
+      .def_property_readonly("i64_type",
+                             [](PyDialectHelper &self) -> PyType {
+                               return IntegerType::get(64,
+                                                       &self.context->context);
+                             })
       .def_property_readonly("f32_type",
-                             [](PyDialectHelper &self) {
-                               return PyType(FloatType::get(
-                                   StandardTypes::F32, &self.context->context));
+                             [](PyDialectHelper &self) -> PyType {
+                               return FloatType::get(StandardTypes::F32,
+                                                     &self.context->context);
                              })
       .def_property_readonly("f64_type",
-                             [](PyDialectHelper &self) {
-                               return PyType(FloatType::get(
-                                   StandardTypes::F64, &self.context->context));
+                             [](PyDialectHelper &self) -> PyType {
+                               return FloatType::get(StandardTypes::F64,
+                                                     &self.context->context);
                              })
       .def("tensor_type",
            [](PyDialectHelper &self, PyType elementType,
-              llvm::Optional<std::vector<int64_t>> shape) {
+              llvm::Optional<std::vector<int64_t>> shape) -> PyType {
              if (!elementType.type) {
                throw py::raiseValueError("Null element type");
              }
              if (shape) {
-               return PyType(RankedTensorType::get(*shape, elementType.type));
+               return RankedTensorType::get(*shape, elementType.type);
              } else {
-               return PyType(UnrankedTensorType::get(elementType.type));
+               return UnrankedTensorType::get(elementType.type);
              }
            },
            py::arg("element_type"),
            py::arg("shape") = llvm::Optional<std::vector<int64_t>>())
       .def("function_type",
            [](PyDialectHelper &self, std::vector<PyType> inputs,
-              std::vector<PyType> results) {
+              std::vector<PyType> results) -> PyType {
              llvm::SmallVector<Type, 4> inputTypes;
              llvm::SmallVector<Type, 1> resultTypes;
              for (auto input : inputs) {
@@ -257,8 +268,8 @@ void PyDialectHelper::bind(py::module m) {
              for (auto result : results) {
                resultTypes.push_back(result.type);
              }
-             return PyType(FunctionType::get(inputTypes, resultTypes,
-                                             &self.context->context));
+             return FunctionType::get(inputTypes, resultTypes,
+                                      &self.context->context);
            });
 }
 
@@ -325,6 +336,10 @@ void PyContext::bind(py::module m) {
                throw py::raiseValueError(message);
              }
              return PyType(t);
+           })
+      .def("index_attr",
+           [](PyContext &self, int64_t indexValue) -> PyAttribute {
+             return IntegerAttr::get(IndexType::get(&self.context), indexValue);
            })
       .def("string_attr",
            [](PyContext &self, const std::string &s) -> PyAttribute {

@@ -72,6 +72,12 @@ public:
   StringAttr getClassName();
   unsigned getSlotCount();
   ArrayRef<Type> getSlotTypes();
+
+  // Shorthand to check whether the SlotObject is of a given className and
+  // arity.
+  bool isOfClassArity(StringRef className, int arity) {
+    return getClassName().getValue() == className && getSlotCount() == arity;
+  }
 };
 
 #include "npcomp/Dialect/Basicpy/BasicpyOpsDialect.h.inc"

@@ -73,4 +73,19 @@ def Basicpy_SingletonType : AnyTypeOf<[
   Basicpy_EllipsisType
 ]>;
 
+// A predicate to determine whether a Type is a SlotObject of a given
+// className and arity. Does no checking of slot types.
+class Basicpy_SlotObjectOfClassArity<string className, int arity> :
+  And<[
+    Basicpy_SlotObjectType.predicate,
+    CPred<
+      "$_self.cast<::mlir::NPCOMP::Basicpy::SlotObjectType>().isOfClassArity(\""
+      # className # "\", " # arity # ")">
+  ]>;
+
+// Type representing a 'slice' object, which mirrors the Python built-in
+// slice class.
+def Basicpy_SliceSlotObjectType : 
+  Type<Basicpy_SlotObjectOfClassArity<"slice", 3>>;
+
 #endif // NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT

@@ -6,13 +6,13 @@ from npcomp.dialect import Basicpy
 from _npcomp.mlir import ir
 
 __all__ = [
-  "load_builtin_module",
-  "DialectHelper",
+    "load_builtin_module",
+    "DialectHelper",
 ]
 
 
 class DialectHelper(Basicpy.DialectHelper):
-  r"""Dialect helper.
+    r"""Dialect helper.
   
     >>> c = ir.MLIRContext()
     >>> h = DialectHelper(c)
@@ -49,27 +49,33 @@ class DialectHelper(Basicpy.DialectHelper):
     tensor<*xf32>
     >>> t.function_type([t.i32_type], [t.f32_type])
     (i32) -> f32
+    >>> t.unknown_array_type
+    tensor<*x!numpy.any_dtype>
 
   """
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.numpy_any_dtype = self.context.parse_type("!numpy.any_dtype")
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.numpy_any_dtype = self.context.parse_type("!numpy.any_dtype")
+        self.unknown_array_type = self.tensor_type(self.numpy_any_dtype)
 
-  def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
-    """Creates a numpy.ufunc_call op."""
-    c = self.context
-    attrs = c.dictionary_attr({
-      "ufunc_ref": c.flat_symbol_ref_attr(callee_symbol)
-    })
-    return self.op("numpy.ufunc_call", [result_type], args, attrs)
+    def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
+        """Creates a numpy.ufunc_call op."""
+        c = self.context
+        attrs = c.dictionary_attr(
+            {"ufunc_ref": c.flat_symbol_ref_attr(callee_symbol)})
+        return self.op("numpy.ufunc_call", [result_type], args, attrs)
 
-  def numpy_narrow_op(self, result_type, operand):
-    """Creates a numpy.narrow op."""
-    return self.op("numpy.narrow", [result_type], [operand])
+    def numpy_narrow_op(self, result_type, operand):
+        """Creates a numpy.narrow op."""
+        return self.op("numpy.narrow", [result_type], [operand])
+
+    def numpy_get_slice_op(self, result_type, array, *slice_elements):
+        return self.op("numpy.get_slice", [result_type],
+                       [array] + list(slice_elements))
 
 
 def load_builtin_module(context=None):
-  """Loads a module populated with numpy built-ins.
+    """Loads a module populated with numpy built-ins.
 
   This is not a long-term solution but overcomes some bootstrapping
   issues.
@@ -79,15 +85,15 @@ def load_builtin_module(context=None):
     >>> op.is_registered
     True
     >>> op.name
-    'numpy.generic_ufunc'
+    'numpy.builtin_ufunc'
 
   Args:
     context: The MLIRContext to use (None to create a new one).
   Returns:
     A ModuleOp.
   """
-  if context is None: context = ir.MLIRContext()
-  return context.parse_asm(_BUILTIN_MODULE_ASM)
+    if context is None: context = ir.MLIRContext()
+    return context.parse_asm(_BUILTIN_MODULE_ASM)
 
 
 _BUILTIN_MODULE_ASM = r"""
@@ -96,5 +102,5 @@ _BUILTIN_MODULE_ASM = r"""
 """
 
 if __name__ == "__main__":
-  import doctest
-  doctest.testmod()
+    import doctest
+    doctest.testmod()

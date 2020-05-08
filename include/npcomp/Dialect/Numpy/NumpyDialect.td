@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT
 
 include "mlir/IR/OpBase.td"
+include "npcomp/Dialect/Basicpy/BasicpyDialect.td"
 
 //===----------------------------------------------------------------------===//
 // Dialect definition
@@ -50,6 +51,25 @@ def Numpy_AnyDtype : DialectType<Numpy_Dialect,
 // Type predicates
 //===----------------------------------------------------------------------===//
 
+// Any type, at any stage of analysis that can represent a numpy array.
 def Numpy_AnyArray : TensorOf<[AnyType]>;
+
+def Numpy_SliceTupleElement : AnyTypeOf<[
+  // Supports both "Index Arrays" and "Boolean mask index arrays".
+  Numpy_AnyArray,
+  
+  // Indicates that an axis should be added (np.newaxis == None).
+  Basicpy_NoneType,
+
+  // Indicates that intervening axes should be preserved.
+  Basicpy_EllipsisType,
+
+  // A discrete numeric index (represented as IndexType so that a proper
+  // width can be target dependent).
+  Index,
+
+  // A generalized slice object.
+  Basicpy_SliceSlotObjectType,
+], "types that are legal elements of a __getitem__ tuple operating on arrays">;
 
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT

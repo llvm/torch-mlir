@@ -58,6 +58,10 @@ class TraceContext:
     self._next_id = 1
     self.active = False
 
+  def _handle_array_getitem(self, array, key):
+    """Handles a call to __getitem__ on a traced array."""
+    raise NotImplementedError("Array slicing not implemented")
+
   def _handle_ufunc(self, ufunc, method, inputs, kwargs):
     """Handles a ufunc invocation involving at least one TracedArray."""
     return NotImplemented
@@ -143,6 +147,11 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
 
   def __repr__(self):
     return "<TracedArray %d>" % self._uid
+
+  def __getitem__(self, key):
+    tc = self._tc
+    _assert_active(tc)
+    return tc._handle_array_getitem(self, key)
 
   def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
     tc = self._tc

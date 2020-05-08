@@ -150,4 +150,39 @@ def Numpy_TransposeOp : Numpy_Op<"transpose", []> {
   }];  
 }
 
+//----------------------------------------------------------------------------//
+// Slicing
+// See: https://docs.scipy.org/doc/numpy/user/basics.indexing.html
+//----------------------------------------------------------------------------//
+
+def Numpy_GetSlice : Numpy_Op<"get_slice", []> {
+  let summary = "Gets a slice of an array";
+  let description = [{
+    This op encapsulates all forms of indexing into an array by taking a
+    variable number of `slice` arguments, each of which represents a single
+    entry in a generalized indexing-tuple. Once full type inference has
+    been performed, there should be sufficient static information to determine
+    the exact slice semantics solely by the signature of types of the `slice`
+    arguments.
+
+    Note that there is a more general form of this op that is generally
+    needed for AST extraction that takes a variable length `tuple` instead
+    of a static list of arguments. It is expected that during type refinement
+    most such uses should degenerate to this static variant.
+
+    Per numpy semantics, many forms of slice return a view instead of a copy,
+    and determining the exact form requires additional analysis.
+  }];
+  let arguments = (ins
+    Numpy_AnyArray:$a,
+    Variadic<Numpy_SliceTupleElement>:$slice_elements
+  );
+  let results = (outs
+    Numpy_AnyArray:$result
+  );
+  let assemblyFormat = [{
+    operands attr-dict `:` functional-type(operands, $result)
+  }];  
+}
+
 #endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS
