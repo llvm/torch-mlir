@@ -25,6 +25,7 @@ fi
 # Write a .env file for python tooling.
 echo "Updating $td/.env file"
 echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python")\"" > "$td/.env"
+echo "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION=1" >> "$td/.env"
 
 set -x
 cmake -GNinja \
