@@ -31,6 +31,8 @@ export LLVM_SRC_DIR=/path/to/llvm-project
 ./tools/install_mlir.sh
 ./tools/cmake_configure.sh
 
+
+# ./tools/test_all.sh runs all of these commands.
 cd build
 ninja
 ninja check-npcomp-opt
