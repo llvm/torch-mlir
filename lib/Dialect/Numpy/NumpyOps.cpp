@@ -74,7 +74,7 @@ static ParseResult parseGenericUfuncOp(OpAsmParser &parser,
     SmallVector<OpAsmParser::OperandType, 2> argNames;
     SmallVector<Type, 2> argTypes;
     SmallVector<Type, 1> resultTypes;
-    SmallVector<SmallVector<NamedAttribute, 2>, 1> unusedAttrs;
+    SmallVector<NamedAttrList, 1> unusedAttrs;
     bool isVariadic = false;
     if (::mlir::impl::parseFunctionSignature(parser, false, argNames, argTypes,
                                              unusedAttrs, isVariadic,

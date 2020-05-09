@@ -18,7 +18,7 @@ using namespace mlir::NPCOMP::tcp;
 
 LogicalResult AbortIfErrorOp::inferReturnTypes(
     MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
+    DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(NoneType::get(context));
   return success();
@@ -30,7 +30,7 @@ LogicalResult AbortIfErrorOp::inferReturnTypes(
 
 LogicalResult GetExtentOp::inferReturnTypes(
     MLIRContext *context, Optional<Location> location, ValueRange operands,
-    ArrayRef<NamedAttribute> attributes, RegionRange regions,
+    DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(IndexType::get(context));
   return success();
