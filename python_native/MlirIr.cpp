@@ -767,6 +767,9 @@ void PyValue::bind(py::module m) {
 
 void PyAttribute::bind(py::module m) {
   py::class_<PyAttribute>(m, "Attribute")
+      .def_property_readonly("type", [](PyAttribute &self) -> PyType {
+        return self.attr.getType();
+      })
       .def("__repr__", [](PyAttribute &self) {
         std::string res;
         llvm::raw_string_ostream os(res);
