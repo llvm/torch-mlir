@@ -2,6 +2,7 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import numpy as np
 from npcomp.dialect import Basicpy
 from _npcomp.mlir import ir
 
@@ -34,6 +35,16 @@ class DialectHelper(Basicpy.DialectHelper):
         return %0 : tensor<*xf32>
       }
     }
+
+  DenseElementsAttrs:
+    >>> c.dense_elements_attr(np.asarray([1, 2, 3, 4]))
+    dense<[1, 2, 3, 4]> : tensor<4xsi64>
+    >>> c.dense_elements_attr(np.asarray([[1, 2], [3, 4]]))
+    dense<[[1, 2], [3, 4]]> : tensor<2x2xsi64>
+    >>> c.dense_elements_attr(np.asarray([[1., 2.], [3., 4.]]))
+    dense<[[1.000000e+00, 2.000000e+00], [3.000000e+00, 4.000000e+00]]> : tensor<2x2xf64>
+    >>> c.dense_elements_attr(np.asarray([[1., 2.], [3., 4.]], dtype=np.float32))
+    dense<[[1.000000e+00, 2.000000e+00], [3.000000e+00, 4.000000e+00]]> : tensor<2x2xf32>
 
   Types:
     >>> t = DialectHelper(ir.MLIRContext())
