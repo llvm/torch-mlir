@@ -5,15 +5,15 @@ func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
   %shape = "shape.shape_of"(%arg0) : (tensor<?xf32>) -> !shape.shape
 
-  // CHECK: %[[SRCMEMREF:.+]] = "tcp.alloc_memref"
-  %src_memref = "tcp.alloc_memref"(%shape) : (!shape.shape) -> memref<?xf32>
+  // CHECK: %[[SRCMEMREF:.+]] = tcp.alloc_memref
+  %src_memref = tcp.alloc_memref %shape : memref<?xf32>
   // tensor_store of argument remains.
   // CHECK: tensor_store %arg0, %[[SRCMEMREF]]
   tensor_store %arg0, %src_memref : memref<?xf32>
   %src = tensor_load %src_memref : memref<?xf32>
 
-  // CHECK: %[[DSTMEMREF:.+]] = "tcp.alloc_memref"
-  %dst_memref = "tcp.alloc_memref"(%shape) : (!shape.shape) -> memref<?xf32>
+  // CHECK: %[[DSTMEMREF:.+]] = tcp.alloc_memref
+  %dst_memref = tcp.alloc_memref %shape : memref<?xf32>
   // tensor_store of internally created tensor is eliminated.
   // CHECK-NOT: tensor_store
   // CHECK: linalg.copy(%[[SRCMEMREF]], %[[DSTMEMREF]])

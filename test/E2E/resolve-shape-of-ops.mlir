@@ -2,7 +2,7 @@
 
 // CHECK-LABEL: func @basic
 func @basic(%arg0: !shape.shape) -> !shape.shape {
-  %memref = "tcp.alloc_memref"(%arg0) : (!shape.shape) -> memref<?xf32>
+  %memref = tcp.alloc_memref %arg0 : memref<?xf32>
   %tensor = tensor_load %memref : memref<?xf32>
   %shape = "shape.shape_of"(%tensor) : (tensor<?xf32>) -> !shape.shape
   // CHECK: return %arg0

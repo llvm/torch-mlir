@@ -88,6 +88,7 @@ Allocates a memref of the given shape.
   }];
   let arguments = (ins Shape_ShapeType:$shape);
   let results = (outs AnyMemRef:$memref);
+  let assemblyFormat = "$shape attr-dict `:`  type($memref)";
 }
 
 // TODO: Change to a more principled witness-based error handling mechanism.
@@ -118,6 +119,7 @@ This op has undefined behavior if the shape is an error.
   }];
   let arguments = (ins Shape_ShapeType:$shape, I64Attr:$dim);
   let results = (outs Index:$extent);
+  let assemblyFormat = "$shape `,` $dim attr-dict";
 }
 
 #endif // TCP_OPS
