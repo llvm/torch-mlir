@@ -124,8 +124,6 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // Convert tcp ops to Linalg where possible.
   pm.addPass(createConvertTCPToLinalgPass());
 
-  // TODO: legalize `dim` to shape.shape_of + tcp.get_extent
-
   // --------------------------------------------------------------------------
   // Tensor to buffer (memref) conversion.
   // --------------------------------------------------------------------------

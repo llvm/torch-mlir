@@ -115,6 +115,21 @@ public:
   }
 };
 
+// TODO: This should be layered in better somewhere.
+// We currently only create DimOp's during LowerBroadcastToToLoopsPattern,
+// so for now just stuff it in here.
+class LowerDimOpToShape : public OpRewritePattern<DimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(DimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto shape =
+        rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand());
+    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, shape, op.index());
+    return success();
+  }
+};
+
 namespace {
 class LowerBroadcastToToLoops
     : public LowerBroadcastToToLoopsBase<LowerBroadcastToToLoops> {
@@ -126,12 +141,13 @@ class LowerBroadcastToToLoops
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<loop::LoopOpsDialect>();
     target.addLegalDialect<tcp::TCPDialect>();
-    target.addIllegalOp<tcp::BroadcastToOp>();
+
     OwningRewritePatternList patterns;
-
-
     target.addIllegalOp<tcp::BroadcastToOp>();
     patterns.insert<LowerBroadcastToToLoopsPattern>(context);
+    target.addIllegalOp<DimOp>();
+    patterns.insert<LowerDimOpToShape>(context);
+
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }
