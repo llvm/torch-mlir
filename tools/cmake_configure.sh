@@ -36,5 +36,6 @@ cmake -GNinja \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
   "-DLLVM_EXTERNAL_LIT=$build_mlir/bin/llvm-lit" \
+  "-DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE" \
   "${extra_opts[@]}" \
   "$@"
