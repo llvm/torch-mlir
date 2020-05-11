@@ -11,7 +11,7 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
-#include "mlir/Dialect/LoopOps/LoopOps.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
@@ -86,7 +86,7 @@ public:
       // Loop invariant: At the start of iteration `i`, the rewriter insertion
       // point is inside `i` nested loops.
       for (int i = 0, e = resultType.getRank(); i < e; i++) {
-        auto loop = rewriter.create<loop::ForOp>(
+        auto loop = rewriter.create<scf::ForOp>(
             op.getLoc(), c0, outputExtents[i], c1, ValueRange({}));
         Block *body = loop.getBody();
         inductionVariables.push_back(body->getArgument(0));
@@ -139,7 +139,7 @@ class LowerBroadcastToToLoops
     ConversionTarget target(*context);
     target.addLegalDialect<shape::ShapeDialect>();
     target.addLegalDialect<StandardOpsDialect>();
-    target.addLegalDialect<loop::LoopOpsDialect>();
+    target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<tcp::TCPDialect>();
 
     OwningRewritePatternList patterns;
