@@ -49,6 +49,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -248,6 +249,11 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // region (much like IREE does with dispatch regions). For now, we are
   // planning on just inlining the islands, so there is little value in
   // doing this, but we should look at the layering aspects here later.
+
+  // At this point, we have loose shape calculations floating around, so
+  // it's a good time to do some general cleanups.
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(createCSEPass());
 
   // TODO:
   // lower linalg to loops: mlir::createConvertLinalgToLoopsPass()
