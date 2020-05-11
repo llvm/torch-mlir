@@ -28,4 +28,9 @@ def ResolveShapeOfOps : Pass<"resolve-shape-of-ops", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createResolveShapeOfOpsPass()";
 }
 
+def ResolveTensorLoadStoreOps : Pass<"resolve-tensor-load-store-ops", "FuncOp"> {
+  let summary = "Resolve tensor_load/tensor_store ops";
+  let constructor = "mlir::NPCOMP::createResolveTensorLoadStoreOpsPass()";
+}
+
 #endif // NPCOMP_E2E_PASSES
