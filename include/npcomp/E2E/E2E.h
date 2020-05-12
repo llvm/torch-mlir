@@ -25,6 +25,8 @@ createResolveShapeOfOpsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createResolveTensorLoadStoreOpsPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createLowerLinalgLoopDimOpsPass();
+
 void createLowerToHybridTensorMemRefPipeline(OpPassManager &pm);
 
 // The main pipeline that encapsulates the full E2E lowering.

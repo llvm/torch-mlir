@@ -44,6 +44,7 @@
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
+#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
@@ -179,6 +180,45 @@ mlir::NPCOMP::createResolveTensorLoadStoreOpsPass() {
 }
 
 //===----------------------------------------------------------------------===//
+// LowerLinalgLoopDimOps
+//===----------------------------------------------------------------------===//
+
+class LowerLinalgLoopDimOp : public OpRewritePattern<DimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(DimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto allocMemRef = op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
+    if (!allocMemRef)
+      return rewriter.notifyMatchFailure(op, "could not find alloc_memref");
+    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, allocMemRef.shape(),
+                                                  op.index());
+    return success();
+  }
+};
+
+class LowerLinalgLoopDimOps
+    : public LowerLinalgLoopDimOpsBase<LowerLinalgLoopDimOps> {
+  void runOnOperation() {
+    auto func = getOperation();
+    auto *context = &getContext();
+    OwningRewritePatternList patterns;
+    patterns.insert<LowerLinalgLoopDimOp>(context);
+    ConversionTarget target(*context);
+    target.addIllegalOp<DimOp>();
+    target.addLegalOp<tcp::GetExtentOp>();
+    if (failed(applyPartialConversion(func, target, patterns))) {
+      return signalPassFailure();
+    }
+  }
+};
+
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::NPCOMP::createLowerLinalgLoopDimOpsPass() {
+  return std::make_unique<LowerLinalgLoopDimOps>();
+}
+
+//===----------------------------------------------------------------------===//
 // createE2ELoweringPipeline
 //===----------------------------------------------------------------------===//
 
@@ -255,8 +295,36 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   pm.addPass(createCanonicalizerPass());
   pm.addPass(createCSEPass());
 
+  // --------------------------------------------------------------------------
+  // Lowering down to LLVM
+  // --------------------------------------------------------------------------
+  // Now, we begin the process of lowering to LLVM's level of abstraction
+  // (after which LLVM will take over lowering to machine code).
+
+  // Lower linalg ops to loops.
+  // TODO: Do some linalg optimizations like tiling here.
+  pm.addPass(createConvertLinalgToLoopsPass());
+
+  // Lowering linalg to loops introduces `dim` ops. Here we look through
+  // use-def chains to find `tcp.alloc_memref` ops that we can get a shape
+  // out of.
+  // Currently, this is trivial, but after more aggressive buffer
+  // allocation optimizations or linalg tiling this step will need to look
+  // through slices/views and stuff.
+  // TODO: It seems that "dim on memrefs" is being resolved in a
+  // fundamentally different way from "dim on tensors" is earlier in the
+  // pipeline. Investigate.
+  // We could somewhat unify them by having enough folding patterns for
+  // `shape.shape_of`. Above, we used the pattern
+  // "shape_of(tensor_load(alloc_memref(%shape))) -> %shape". Here we are
+  // doing `shape_of(alloc_memref(%shape)) -> %shape". It seems
+  // dangerous to just have a pile of these patterns and hope that one of
+  // them resolves things at any given point. So what we do is to use a
+  // very narrowly focused set of patterns that exploit just the invariants
+  // at each point.
+  pm.addPass(createLowerLinalgLoopDimOpsPass());
+
   // TODO:
-  // lower linalg to loops: mlir::createConvertLinalgToLoopsPass()
   // lower shape stuff to ssa values.
   // Convert all of it to LLVM?
 }

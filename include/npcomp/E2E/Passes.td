@@ -33,4 +33,9 @@ def ResolveTensorLoadStoreOps : Pass<"resolve-tensor-load-store-ops", "FuncOp"> 
   let constructor = "mlir::NPCOMP::createResolveTensorLoadStoreOpsPass()";
 }
 
+def LowerLinalgLoopDimOps : Pass<"lower-linalg-loop-dim-ops", "FuncOp"> {
+  let summary = "Lower dim ops introduced by linalg to loops lowering";
+  let constructor = "mlir::NPCOMP::createLowerLinalgLoopDimOpsPass();";
+}
+
 #endif // NPCOMP_E2E_PASSES

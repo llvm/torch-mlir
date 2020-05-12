@@ -110,7 +110,7 @@ established by this op.
 
 // TODO: This probably belongs in the shape dialect.
 def TCP_GetExtentOp : TCP_Op<"get_extent",
-    [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Gets the specified extent from a shape.";
   let description = [{
 Gets the specified extent from a shape.
