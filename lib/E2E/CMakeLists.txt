@@ -1,5 +1,6 @@
 add_mlir_library(NPCOMPE2E
   E2E.cpp
+  LowerRankedShapes.cpp
   LowerToHybridTensorMemRef.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -15,4 +16,5 @@ add_mlir_library(NPCOMPE2E
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRLinalgOps
+  MLIRStandardOps
   )

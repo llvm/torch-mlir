@@ -80,6 +80,11 @@ It is undefined behavior if such a broadcast is not legal.
   let results = (outs AnyRankedTensor:$result);
 }
 
+//===----------------------------------------------------------------------===//
+// Ops that need to be factored to a proper home.
+//===----------------------------------------------------------------------===//
+// TODO: Find a home for these.
+
 // TODO: This probably doesn't belong in the tcp dialect.
 def TCP_AllocMemRefOp : TCP_Op<"alloc_memref", []> {
   let summary = "Allocates a memref of the given shape.";
@@ -120,6 +125,47 @@ This op has undefined behavior if the shape is an error.
   let arguments = (ins Shape_ShapeType:$shape, I64Attr:$dim);
   let results = (outs Index:$extent);
   let assemblyFormat = "$shape `,` $dim attr-dict";
+}
+
+// TODO: Move this op to a more comprehensive "npcomp_rt" or "npcomp_hal"
+// dialect that properly demarcates the low-level interface to the npcomp
+// runtime.
+//
+// Note: This op operates on tensors since memref is not general enough to
+// represent the runtime tensor representations that we need in npcomp. In
+// fact, we may want it to operate on a proper runtime-specific type
+// instead of a "tensor".
+def TCP_RtGetTensorExtentOp : TCP_Op<"rt_get_tensor_extent",
+    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let summary = "Gets the extent of a tensor in a runtime specific way";
+  let description = [{
+    This op interfaces with an external runtime to obtain the extent of a
+    tensor's dimension.
+  }];
+  let arguments = (ins AnyRankedTensor:$tensor, I64Attr:$dim);
+  let results = (outs Index:$extent);
+}
+
+// TODO: This op belongs in the shape dialect as `shape.from_extents`.
+def TCP_ShapeFromExtentsOp : TCP_Op<"shape_from_extents",
+    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let summary = "Constructs a shape from extents";
+  let description = [{
+    Constructs a shape from the extents passed as arguments.
+  }];
+  let arguments = (ins Variadic<Index>:$extents);
+  let results = (outs Shape_ShapeType:$shape);
+}
+
+def TCP_AbortIfOp : TCP_Op<"abort_if"> {
+  let summary = "Aborts the program if the argument is true.";
+  let description = [{
+  Aborts the program if the argument is true.
+
+  TODO: Support a custom message.
+  }];
+  let arguments = (ins I1:$pred);
+  let results = (outs);
 }
 
 #endif // TCP_OPS

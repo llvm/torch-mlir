@@ -324,7 +324,18 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // at each point.
   pm.addPass(createLowerLinalgLoopDimOpsPass());
 
+  // Lower shapes to SSA values.
+  // This replaces all tcf::GetExtentOp's with explicit SSA computations
+  // for the scalar extent. This requires shapes which are ranked. Any
+  // unranked shapes will need to be handled by a runtime shape type,
+  // though we don't currently support that.
+  //
+  // At this point, in the case of programs with only ranked shapes, all
+  // !shape.shape types will be gone.
+  // TODO: Better demarcate the invariants here, such as having a verifier
+  // pass that checks no !shape.shape types left.
+  pm.addPass(createLowerRankedShapesPass());
+
   // TODO:
-  // lower shape stuff to ssa values.
   // Convert all of it to LLVM?
 }

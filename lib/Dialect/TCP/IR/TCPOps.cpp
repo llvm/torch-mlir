@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -33,6 +34,30 @@ LogicalResult GetExtentOp::inferReturnTypes(
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   inferredReturnTypes.push_back(IndexType::get(context));
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// RtGetTensorExtentOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult RtGetTensorExtentOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  inferredReturnTypes.push_back(IndexType::get(context));
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeFromExtentsOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult ShapeFromExtentsOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  inferredReturnTypes.push_back(shape::ShapeType::get(context));
   return success();
 }
 

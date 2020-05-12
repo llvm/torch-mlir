@@ -38,4 +38,9 @@ def LowerLinalgLoopDimOps : Pass<"lower-linalg-loop-dim-ops", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createLowerLinalgLoopDimOpsPass();";
 }
 
+def LowerRankedShapes : Pass<"lower-ranked-shapes", "FuncOp"> {
+  let summary = "Lower ranked !shape.shape types to SSA values";
+  let constructor = "mlir::NPCOMP::createLowerRankedShapesPass()";
+}
+
 #endif // NPCOMP_E2E_PASSES
