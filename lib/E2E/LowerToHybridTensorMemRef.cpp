@@ -39,6 +39,7 @@ static Value allocMemRefForTensor(OpBuilder &builder, Value tensor, Value shape,
 
 // TODO: Lower to linalg.indexed_generic instead and let linalg do the expansion
 // to loops?
+namespace {
 class LowerBroadcastToToLoopsPattern
     : public OpRewritePattern<tcp::BroadcastToOp> {
 public:
@@ -114,10 +115,12 @@ public:
     return success();
   }
 };
+} // namespace
 
 // TODO: This should be layered in better somewhere.
 // We currently only create DimOp's during LowerBroadcastToToLoopsPattern,
 // so for now just stuff it in here.
+namespace {
 class LowerDimOpToShape : public OpRewritePattern<DimOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -129,6 +132,7 @@ public:
     return success();
   }
 };
+} // namespace
 
 namespace {
 class LowerBroadcastToToLoops

@@ -28,6 +28,7 @@ using namespace mlir::NPCOMP;
 // TODO: Move this ABI-specific lowering to a separate pass that only does
 // that and make this pass require an invariant something like "a 'root'
 // set of tcp::ShapeFromExtentsOp exist".
+namespace {
 class LowerRootRankedShape : public OpRewritePattern<shape::ShapeOfOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -46,9 +47,11 @@ public:
     return success();
   }
 };
+} // namespace
 
 // This has to be a "conversion pattern" since the `operands` argument
 // gives access to the post-conversion operands from earlier ops.
+namespace {
 class LowerShapeBroadcastOp : public OpConversionPattern<shape::BroadcastOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -99,6 +102,7 @@ public:
     return success();
   }
 };
+} // namespace
 
 // Rewrite `get_extent(from_extents(x1,x2,x3), N) -> xN`
 //
@@ -107,6 +111,7 @@ public:
 // which isn't great)
 //
 // Also, we use OpConversionPattern to get post-rewrite operands as above.
+namespace {
 class LowerShapeGetExtentOp : public OpConversionPattern<tcp::GetExtentOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -122,6 +127,7 @@ public:
     return success();
   }
 };
+} // namespace
 
 // Basic invariant of this pass:
 // Every def of a !shape.shape type is replaced with a
@@ -150,6 +156,7 @@ public:
 // ranks of use-def cycles ahead of time or optimistically assume that
 // backedges will match the rank of forward edges, and somehow be robust
 // when that assumption fails.
+namespace {
 class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
   void runOnOperation() {
     auto func = getOperation();
@@ -172,6 +179,7 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     }
   }
 };
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::NPCOMP::createLowerRankedShapesPass() {

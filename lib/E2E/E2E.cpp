@@ -63,6 +63,7 @@ using namespace mlir::NPCOMP;
 // ResolveShapeOfOps
 //===----------------------------------------------------------------------===//
 
+namespace {
 class ResolveShapeOfOpViaAllocMemRefOp : public OpRewritePattern<shape::ShapeOfOp> {
   public:
     using OpRewritePattern::OpRewritePattern;
@@ -79,7 +80,9 @@ class ResolveShapeOfOpViaAllocMemRefOp : public OpRewritePattern<shape::ShapeOfO
       return failure();
     }
 };
+} // namespace
 
+namespace {
 class ResolveShapeOfOps : public ResolveShapeOfOpsBase<ResolveShapeOfOps> {
   void runOnOperation() {
     auto func = getOperation();
@@ -111,6 +114,7 @@ class ResolveShapeOfOps : public ResolveShapeOfOpsBase<ResolveShapeOfOps> {
     }
   }
 };
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::NPCOMP::createResolveShapeOfOpsPass() {
@@ -121,6 +125,7 @@ mlir::NPCOMP::createResolveShapeOfOpsPass() {
 // ResolveTensorLoadStoreOps
 //===----------------------------------------------------------------------===//
 
+namespace {
 class ReplaceTensorStoreWithCopyPattern
     : public OpRewritePattern<TensorStoreOp> {
 public:
@@ -136,7 +141,9 @@ public:
     return success();
   }
 };
+} // namespace
 
+namespace {
 class EraseUnusedTensorLoadOpPattern : public OpRewritePattern<TensorLoadOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -148,7 +155,9 @@ public:
     return success();
   }
 };
+} // namespace
 
+namespace {
 class ResolveTensorLoadStoreOps
     : public ResolveTensorLoadStoreOpsBase<ResolveTensorLoadStoreOps> {
   void runOnOperation() {
@@ -173,6 +182,7 @@ class ResolveTensorLoadStoreOps
     }
   }
 };
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::NPCOMP::createResolveTensorLoadStoreOpsPass() {
@@ -183,6 +193,7 @@ mlir::NPCOMP::createResolveTensorLoadStoreOpsPass() {
 // LowerLinalgLoopDimOps
 //===----------------------------------------------------------------------===//
 
+namespace {
 class LowerLinalgLoopDimOp : public OpRewritePattern<DimOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -196,7 +207,9 @@ public:
     return success();
   }
 };
+} // namespace
 
+namespace {
 class LowerLinalgLoopDimOps
     : public LowerLinalgLoopDimOpsBase<LowerLinalgLoopDimOps> {
   void runOnOperation() {
@@ -212,6 +225,7 @@ class LowerLinalgLoopDimOps
     }
   }
 };
+} // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::NPCOMP::createLowerLinalgLoopDimOpsPass() {
