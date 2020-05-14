@@ -18,44 +18,6 @@ class TCP_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<TCP_Dialect, mnemonic, traits> {
 }
 
-// TODO: Do islands belong inside this dialect?
-// It almost feels like they should be in an `error` dialect (containing
-// the witness type as well).
-// There would be no "shape.abort_if_error" because the aborting happens
-// inside the witness ops, with the island operating as a witness sink.
-def TCP_IslandOp : TCP_Op<"island"> {
-  let summary = "Island of no-side-effect ops.";
-  let description = [{
-Most ops in the `tcp` dialect have complex preconditions on their tensor 
-arguments (usually their shapes) so that they can be a good starting point
-for code generation compilation flows.
-We want an efficient way to understand which ops are related to which
-preconditions without cluttering the TCP ops themselves.
-To do this, we have this `tcp.island` op which takes as operands
-witness values establishing use-def edges between precondition assertions
-and this island op, and then restrict most other `tcp` ops to reside inside
-these islands. This makes code motion to rearrange `tcp` ops simpler
-by having the witness use-def edges, without needing for every `tcp` op
-to have extra operands.
-// TODO: Still unclear if this is really that useful. This mainly affects the
-// ability to hoist tcp ops. It should always be safe to sink TCP ops.
-  }];
-  let arguments = (ins Variadic<NoneType>:$witnesses);
-  let regions = (region AnyRegion:$body);
-  let results = (outs Variadic<AnyRankedTensor>:$results);
-  // TODO: verify return types match internal tcp.yield return ValueRange's.
-}
-
-def TCP_YieldOp
-    : TCP_Op<"yield", [NoSideEffect, HasParent<"IslandOp">, Terminator]> {
-  let summary = "yield-like terminator for tcp.island op.";
-  let description = [{
-Returns control and a variadic list of values to the parent tcp.island op.
-  }];
-  let arguments = (ins Variadic<AnyRankedTensor>:$operands);
-  let results = (outs);
-}
-
 // TODO: clarify allowed tensor element types.
 // TODO: HasParent is too restrictive? can't have an island with loop.for with
 // further ops inside it?
@@ -96,21 +58,23 @@ Allocates a memref of the given shape.
   let assemblyFormat = "$shape attr-dict `:`  type($memref)";
 }
 
-// TODO: Change to a more principled witness-based error handling mechanism.
+// TODO: Change to a more principled error handling mechanism.
 // This op probably doesn't need to exist eventually.
+// This op is also not correctly modeled right now, since it itself doesn't
+// produce the error in practice. The ops like shape.broadcast itself, when
+// lowered, immediately produce errors.
+// Right now, it's more of an "observe_error" which just keeps NoSideEffect
+// shape ops alive.
 def TCP_AbortIfErrorOp : TCP_Op<"abort_if_error",
     [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Aborts the program if the argument is an error shape.";
   let description = [{
 Aborts the program if its `shape` argument is an error shape.
-TODO: can we do something better designed here then just abort?
-
-Returns `none`, which can be used as a witness value to establish a use-def
-relationship between this op and an op that requires the precondition
-established by this op.
   }];
   let arguments = (ins Shape_ShapeType:$shape);
-  let results = (outs NoneType:$result);
+  // TODO: ODS seems to create redeclared class members if we remove this,
+  // resulting in C++ compilation errors.
+  let results = (outs NoneType:$dummy);
 }
 
 // TODO: This probably belongs in the shape dialect.

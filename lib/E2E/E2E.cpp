@@ -171,7 +171,7 @@ class ResolveTensorLoadStoreOps
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addDynamicallyLegalOp<TensorLoadOp>([](TensorLoadOp op) {
       for (auto user : op.getResult().getUsers())
-        if (!isa<tcp::YieldOp>(user))
+        if (!isa<ReturnOp>(user))
           return false;
       return true;
     });

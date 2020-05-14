@@ -33,15 +33,7 @@ public:
     Value rhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.rhs());
     Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
         op.getLoc(), lhsShape, rhsShape, /*error=*/nullptr);
-    Value witness =
-        rewriter.create<tcp::AbortIfErrorOp>(op.getLoc(), broadcastedShape);
-    tcp::IslandOp island =
-        rewriter.create<tcp::IslandOp>(op.getLoc(), op.getType(), witness);
-    Region &body = island.body();
-    Block *bodyBlock = new Block;
-    body.push_back(bodyBlock);
-    OpBuilder::InsertionGuard guard(rewriter);
-    rewriter.setInsertionPoint(bodyBlock, bodyBlock->begin());
+    rewriter.create<tcp::AbortIfErrorOp>(op.getLoc(), broadcastedShape);
     // TODO: It's annoying to do the dynamic broadcast above then
     // do the static transfer function here. Would be nice if they could
     // somehow be unified.
@@ -56,9 +48,7 @@ public:
         op.getLoc(), resultType, op.rhs(), broadcastedShape);
     Value add = rewriter.create<tcp::AddOp>(op.getLoc(), op.getType(),
                                             lhsBroadcasted, rhsBroadcasted);
-    rewriter.create<tcp::YieldOp>(op.getLoc(), add);
-
-    rewriter.replaceOp(op, island.getResults());
+    rewriter.replaceOp(op, add);
     return success();
   }
 };
