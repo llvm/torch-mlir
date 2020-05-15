@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
@@ -64,6 +65,8 @@ static llvm::cl::opt<bool>
                  llvm::cl::init(false));
 
 int main(int argc, char **argv) {
+  mlir::registerAsmPrinterCLOptions();
+
   // TODO: Move all npcomp registration to a common helper.
   mlir::registerAllDialects();
   mlir::registerAllPasses();
