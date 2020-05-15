@@ -17,38 +17,6 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-// Lowers ShapeOfOp's (which at this point should only operating on tensors
-// that need to have a full runtime-reified representation) to low-level
-// runtime interfaces.
-//
-// This is the "root" ranked shape lowering which creates the first
-// ShapeFromExtentsOp which is needed to start the whole ranked conversion
-// process.
-//
-// TODO: Move this ABI-specific lowering to a separate pass that only does
-// that and make this pass require an invariant something like "a 'root'
-// set of tcp::ShapeFromExtentsOp exist".
-namespace {
-class LowerRootRankedShape : public OpRewritePattern<shape::ShapeOfOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(shape::ShapeOfOp op,
-                                PatternRewriter &rewriter) const override {
-    auto tensor = op.getOperand();
-    auto type = tensor.getType().dyn_cast<RankedTensorType>();
-    if (!type)
-      return rewriter.notifyMatchFailure(op, "not a ranked tensor");
-    SmallVector<Value, 6> extents;
-    for (int i = 0, e = type.getRank(); i < e; i++) {
-      extents.push_back(rewriter.create<tcp::RtGetTensorExtentOp>(
-          op.getLoc(), tensor, rewriter.getI64IntegerAttr(i)));
-    }
-    rewriter.replaceOpWithNewOp<tcp::ShapeFromExtentsOp>(op, extents);
-    return success();
-  }
-};
-} // namespace
-
 // This has to be a "conversion pattern" since the `operands` argument
 // gives access to the post-conversion operands from earlier ops.
 namespace {
@@ -137,6 +105,9 @@ public:
 // operands to the `tcp.shape_from_extents` op) and produce a
 // `tcp.shape_from_extents` op.
 //
+// We expect that previous passes have inserted a "root" set of
+// tcp::ShapeFromExtentsOp's that allow this process to get started.
+//
 // We then use this to resolve get_extent ops by using a rewrite
 // `get_extent(from_extents(x1,x2,x3), N) -> xN`, which should apply in
 // maximally many places due to the above invariant.
@@ -163,7 +134,6 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     auto *context = &getContext();
 
     OwningRewritePatternList patterns;
-    patterns.insert<LowerRootRankedShape>(context);
     patterns.insert<LowerShapeBroadcastOp>(context);
     patterns.insert<LowerShapeGetExtentOp>(context);
     ConversionTarget target(*context);

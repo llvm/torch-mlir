@@ -43,4 +43,9 @@ def LowerRankedShapes : Pass<"lower-ranked-shapes", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createLowerRankedShapesPass()";
 }
 
+def LowerToMemRefABI : Pass<"lower-to-memref-abi", "FuncOp"> {
+  let summary = "Lower tensors at ABI boundaries to memref";
+  let constructor = "mlir::NPCOMP::createLowerToMemRefABIPass()";
+}
+
 #endif // NPCOMP_E2E_PASSES

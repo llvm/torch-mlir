@@ -218,7 +218,12 @@ class LowerLinalgLoopDimOps
     OwningRewritePatternList patterns;
     patterns.insert<LowerLinalgLoopDimOp>(context);
     ConversionTarget target(*context);
-    target.addIllegalOp<DimOp>();
+    target.addDynamicallyLegalOp<DimOp>([](DimOp op) -> bool {
+      // TODO: We only need this because we use `dim` ops for the memref
+      // ABI. Once we layer that out into our own runtime types, we can
+      // remove this.
+      return op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
+    });
     target.addLegalOp<tcp::GetExtentOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
@@ -291,12 +296,22 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // tensor_load/tensor_store ops.
   pm.addPass(createResolveTensorLoadStoreOpsPass());
 
-  // At this point, the IR is in a form where the interiors of islands
-  // don't have tensor ops (except tensor_store's of arguments and
-  // tensor_load's of returns).
+  // At this point, the IR is in a form where there are no tensor ops
+  // (except tensor_store's of arguments and tensor_load's of returns).
   //
   // This is a reasonable representation for doing buffer assignment.
+  // TODO: Do buffer assignment here.
+
+  // We need to finalize the removal of tensors from the program. To do
+  // that, we need to interface with a runtime ABI.
+  // We currently use a canonicalized version of upstream MLIR's memref
+  // ABI, where we canonically use unranked memref's for all
+  // arguments/returns (which makes the C-level ABI very predictable).
   //
+  // TODO: This pass is very tentative. See comments on LowerTensorLoadOp
+  // for where we need to take it.
+  pm.addPass(createLowerToMemRefABIPass());
+
   // TODO: Might want a different kind of island to better represent this.
   // This island op would explicitly capture all tensors as inputs, and it
   // would establish a more formalized ABI with the interior of the body
