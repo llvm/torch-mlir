@@ -249,6 +249,9 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
 
   // TODO: Do tcp.island coarsening here.
 
+  // TODO: This is approximately the place that we would fork off when
+  // lowering to IREE.
+
   // --------------------------------------------------------------------------
   // Tensor to buffer (memref) conversion.
   // --------------------------------------------------------------------------
