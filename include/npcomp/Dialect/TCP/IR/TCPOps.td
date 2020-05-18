@@ -89,6 +89,19 @@ This op has undefined behavior if the shape is an error.
   let arguments = (ins Shape_ShapeType:$shape, I64Attr:$dim);
   let results = (outs Index:$extent);
   let assemblyFormat = "$shape `,` $dim attr-dict";
+
+  let builders = [
+    // Helper to pass a simple integer instead of an integer attr.
+    OpBuilder<
+      [{
+        OpBuilder &builder, OperationState &result,
+        Value shape, int64_t dim
+      }],
+      [{
+        build(builder, result, shape, builder.getI64IntegerAttr(dim));
+      }]
+    >
+  ];
 }
 
 // TODO: Move this op to a more comprehensive "npcomp_rt" or "npcomp_hal"

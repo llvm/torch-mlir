@@ -48,4 +48,9 @@ def LowerToMemRefABI : Pass<"lower-to-memref-abi", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createLowerToMemRefABIPass()";
 }
 
+def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {
+  let summary = "Lower AllocMemRefOp's";
+  let constructor = "mlir::NPCOMP::createLowerAllocMemRefOpsPass()";
+}
+
 #endif // NPCOMP_E2E_PASSES

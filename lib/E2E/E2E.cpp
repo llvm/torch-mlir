@@ -238,6 +238,57 @@ mlir::NPCOMP::createLowerLinalgLoopDimOpsPass() {
 }
 
 //===----------------------------------------------------------------------===//
+// LowerAllocMemRefOps
+//===----------------------------------------------------------------------===//
+
+namespace {
+class LowerAllocMemRefOp : public OpRewritePattern<tcp::AllocMemRefOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(tcp::AllocMemRefOp op,
+                                PatternRewriter &rewriter) const override {
+    auto memrefType = op.getType().cast<MemRefType>();
+    auto shape = op.getOperand();
+    // std.alloc only accepts the dynamic extents as operands, so only
+    // collect those.
+    SmallVector<Value, 6> dynamicExtents;
+    for (int i = 0, e = memrefType.getRank(); i < e; i++) {
+      if (memrefType.isDynamicDim(i)) {
+        auto extent = rewriter.create<tcp::GetExtentOp>(op.getLoc(), shape, i);
+        dynamicExtents.push_back(extent);
+      }
+    }
+    rewriter.replaceOpWithNewOp<AllocOp>(op, memrefType, dynamicExtents);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class LowerAllocMemRefOps
+    : public LowerAllocMemRefOpsBase<LowerAllocMemRefOps> {
+  void runOnOperation() {
+    auto func = getOperation();
+    auto *context = &getContext();
+    OwningRewritePatternList patterns;
+    patterns.insert<LowerAllocMemRefOp>(context);
+    ConversionTarget target(*context);
+    target.addIllegalOp<tcp::AllocMemRefOp>();
+    target.addLegalOp<tcp::GetExtentOp>();
+    target.addLegalOp<AllocOp>();
+    if (failed(applyPartialConversion(func, target, patterns))) {
+      return signalPassFailure();
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::NPCOMP::createLowerAllocMemRefOpsPass() {
+  return std::make_unique<LowerAllocMemRefOps>();
+}
+
+//===----------------------------------------------------------------------===//
 // createE2ELoweringPipeline
 //===----------------------------------------------------------------------===//
 
@@ -355,6 +406,10 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // very narrowly focused set of patterns that exploit just the invariants
   // at each point.
   pm.addPass(createLowerLinalgLoopDimOpsPass());
+
+  // AllocMemRefOp's take a `!shape.shape` as an argument. We need to
+  // resolve this to individual extents before we lower ranked shapes.
+  pm.addPass(createLowerAllocMemRefOpsPass());
 
   // Lower shapes to SSA values.
   // This replaces all tcf::GetExtentOp's with explicit SSA computations

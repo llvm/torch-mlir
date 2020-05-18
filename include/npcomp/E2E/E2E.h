@@ -36,6 +36,8 @@ std::unique_ptr<OperationPass<FuncOp>> createLowerRankedShapesPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerToMemRefABIPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
+
 void createLowerToHybridTensorMemRefPipeline(OpPassManager &pm);
 
 // The main pipeline that encapsulates the full E2E lowering.
