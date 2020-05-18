@@ -33,7 +33,7 @@ public:
     Value rhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.rhs());
     Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
         op.getLoc(), lhsShape, rhsShape, /*error=*/nullptr);
-    rewriter.create<tcp::AbortIfErrorOp>(op.getLoc(), broadcastedShape);
+    rewriter.create<tcp::ShapeObserveErrorOp>(op.getLoc(), broadcastedShape);
     // TODO: It's annoying to do the dynamic broadcast above then
     // do the static transfer function here. Would be nice if they could
     // somehow be unified.

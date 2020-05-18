@@ -14,10 +14,10 @@ using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::tcp;
 
 //===----------------------------------------------------------------------===//
-// AbortIfErrorOp
+// ShapeObserveErrorOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult AbortIfErrorOp::inferReturnTypes(
+LogicalResult ShapeObserveErrorOp::inferReturnTypes(
     MLIRContext *context, Optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {

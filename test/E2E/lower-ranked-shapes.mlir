@@ -12,3 +12,11 @@ func @broadcast_rank2_rank1(%arg0: index, %arg1: index, %arg2: index) -> (index,
   %e1 = tcp.get_extent %2, 1
   return %e0, %e1 : index, index
 }
+
+// CHECK-LABEL: func @erase_shape_observe_error
+func @erase_shape_observe_error(%arg0: index) {
+  // CHECK-NOT tcp.shape_observe_error
+  %0 = "tcp.shape_from_extents"(%arg0) : (index) -> !shape.shape
+  "tcp.shape_observe_error"(%0) : (!shape.shape) -> none
+  return
+}

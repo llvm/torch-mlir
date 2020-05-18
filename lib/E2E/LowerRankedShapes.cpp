@@ -97,6 +97,23 @@ public:
 };
 } // namespace
 
+namespace {
+// Now that we have lowered ranked shapes, which reifies the eager
+// error-handling code, the tcp::ShapeObserveErrorOp's are no longer
+// needed.
+class EraseShapeObserveErrorOp
+    : public OpConversionPattern<tcp::ShapeObserveErrorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(tcp::ShapeObserveErrorOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 // Basic invariant of this pass:
 // Every def of a !shape.shape type is replaced with a
 // `tcp.shape_from_extents` op.
@@ -136,14 +153,15 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     OwningRewritePatternList patterns;
     patterns.insert<LowerShapeBroadcastOp>(context);
     patterns.insert<LowerShapeGetExtentOp>(context);
+    patterns.insert<EraseShapeObserveErrorOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<shape::ShapeOfOp>();
     target.addIllegalOp<shape::BroadcastOp>();
     target.addIllegalOp<tcp::GetExtentOp>();
     target.addLegalOp<tcp::ShapeFromExtentsOp>();
-    target.addLegalOp<tcp::RtGetTensorExtentOp>();
     target.addLegalOp<tcp::AbortIfOp>();
     target.addLegalDialect<StandardOpsDialect>();
+    target.addIllegalOp<tcp::ShapeObserveErrorOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }

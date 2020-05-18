@@ -63,13 +63,18 @@ Allocates a memref of the given shape.
 // This op is also not correctly modeled right now, since it itself doesn't
 // produce the error in practice. The ops like shape.broadcast itself, when
 // lowered, immediately produce errors.
-// Right now, it's more of an "observe_error" which just keeps NoSideEffect
-// shape ops alive.
-def TCP_AbortIfErrorOp : TCP_Op<"abort_if_error",
+// TODO: This should eventually be moved to a shape dialect.
+def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error",
     [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
-  let summary = "Aborts the program if the argument is an error shape.";
+  let summary = "Observes the fact that a shape might be an error.";
   let description = [{
-Aborts the program if its `shape` argument is an error shape.
+    This op is a structural placeholder that captures a shape such that it
+    is not erased. This will keep around shape computations that are later
+    lowered into eager error handling code.
+
+    The interaction of this op, especially with control flow and side
+    effecting ops, is not very well-defined, and needs to be worked
+    on/redesigned.
   }];
   let arguments = (ins Shape_ShapeType:$shape);
   // TODO: ODS seems to create redeclared class members if we remove this,
