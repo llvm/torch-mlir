@@ -222,7 +222,7 @@ class LowerLinalgLoopDimOps
       // TODO: We only need this because we use `dim` ops for the memref
       // ABI. Once we layer that out into our own runtime types, we can
       // remove this.
-      return op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
+      return !op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
     });
     target.addLegalOp<tcp::GetExtentOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
