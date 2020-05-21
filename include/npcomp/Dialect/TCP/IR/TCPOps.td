@@ -11,7 +11,7 @@
 
 include "npcomp/Dialect/TCP/IR/TCPBase.td"
 include "mlir/Dialect/Shape/IR/ShapeBase.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 
 class TCP_Op<string mnemonic, list<OpTrait> traits = []>

@@ -10,7 +10,7 @@
 #define NPCOMP_DIALECT_NUMPY_NUMPY_OPS
 
 include "NumpyDialect.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 //----------------------------------------------------------------------------//

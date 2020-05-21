@@ -10,7 +10,7 @@
 #define NPCOMP_DIALECT_BASICPY_BASICPY_OPS
 
 include "BasicpyDialect.td"
-include "mlir/Interfaces/SideEffects.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 def Basicpy_SingletonOp : Basicpy_Op<"singleton", [

@@ -20,5 +20,5 @@ add_mlir_library(NPCOMPE2E
   MLIRLinalgOps
   MLIRStandardOps
   MLIRStandardToLLVM
-  MLIRLoopToStandard
+  MLIRSCFToStandard
   )

@@ -14,6 +14,6 @@ add_mlir_dialect_library(NPCOMPTCP
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRSupport
-  MLIRSideEffects
+  MLIRSideEffectInterfaces
   MLIRShape
   )

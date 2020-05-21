@@ -78,7 +78,7 @@ target_link_libraries(${extension_target}
     MLIREDSC
     MLIREDSCInterface
     MLIRIR
-    MLIRLoopToStandard
+    MLIRSCFToStandard
     MLIRLLVMIR
     MLIRPass
     MLIRTargetLLVMIR
