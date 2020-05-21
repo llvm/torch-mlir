@@ -38,6 +38,8 @@ std::unique_ptr<OperationPass<FuncOp>> createLowerToMemRefABIPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
 
+std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
+
 void createLowerToHybridTensorMemRefPipeline(OpPassManager &pm);
 
 // The main pipeline that encapsulates the full E2E lowering.

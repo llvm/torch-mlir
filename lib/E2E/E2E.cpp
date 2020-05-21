@@ -42,6 +42,7 @@
 #include "npcomp/E2E/E2E.h"
 #include "PassDetail.h"
 
+#include "mlir/Conversion/LoopToStandard/ConvertLoopToStandard.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -379,7 +380,7 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   pm.addPass(createCSEPass());
 
   // --------------------------------------------------------------------------
-  // Lowering down to LLVM
+  // Preparation for converting to an LLVM module.
   // --------------------------------------------------------------------------
   // Now, we begin the process of lowering to LLVM's level of abstraction
   // (after which LLVM will take over lowering to machine code).
@@ -423,6 +424,23 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // pass that checks no !shape.shape types left.
   pm.addPass(createLowerRankedShapesPass());
 
-  // TODO:
-  // Convert all of it to LLVM?
+
+  // Run a final canonicalization pass to delete dead
+  // `tcp.shape_from_extents` ops.
+  // This is needed for correctness, since we can't currently lower that op
+  // to LLVM, since we don't have a runtime representation of `!shape.shape`.
+  // TODO: Change LowerRankedShapes to delete these ops itself.
+  pm.addPass(createCanonicalizerPass());
+
+  // --------------------------------------------------------------------------
+  // Final conversion to an LLVM module.
+  // --------------------------------------------------------------------------
+
+  // Convert scf to std control flow in preparation for going to LLVM.
+  pm.addPass(createLowerToCFGPass());
+
+  // Finally, convert to LLVM dialect using our custom LowerToLLVM pass
+  // which reuses the upstream patterns and gives us a place to add our own
+  // patterns for any custom ops and types we wish to lower.
+  pm.addPass(createLowerToLLVMPass());
 }

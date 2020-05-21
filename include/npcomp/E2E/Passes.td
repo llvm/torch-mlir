@@ -53,4 +53,9 @@ def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createLowerAllocMemRefOpsPass()";
 }
 
+def LowerToLLVM : Pass<"e2e-lower-to-llvm", "ModuleOp"> {
+  let summary = "Lower everything to LLVM";
+  let constructor = "mlir::NPCOMP::createLowerToLLVMPass();";
+}
+
 #endif // NPCOMP_E2E_PASSES
