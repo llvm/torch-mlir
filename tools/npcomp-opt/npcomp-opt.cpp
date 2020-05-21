@@ -20,14 +20,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
-#include "npcomp/Dialect/Numpy/NumpyDialect.h"
-#include "npcomp/Dialect/TCF/IR/TCFDialect.h"
-#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
-
-#include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/InitAll.h"
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -67,26 +60,11 @@ static llvm::cl::opt<bool>
 int main(int argc, char **argv) {
   mlir::registerAsmPrinterCLOptions();
 
-  // TODO: Move all npcomp registration to a common helper.
   mlir::registerAllDialects();
   mlir::registerAllPasses();
 
-  mlir::registerDialect<mlir::NPCOMP::Basicpy::BasicpyDialect>();
-  mlir::registerDialect<mlir::NPCOMP::Numpy::NumpyDialect>();
-  mlir::registerDialect<mlir::NPCOMP::tcf::TCFDialect>();
-  mlir::registerDialect<mlir::NPCOMP::tcp::TCPDialect>();
-
-  using mlir::Pass; // The .inc files reference this unqualified.
-#define GEN_PASS_REGISTRATION
-#include "npcomp/E2E/Passes.h.inc"
-  mlir::PassPipelineRegistration<>("e2e-lowering-pipeline", "E2E lowering pipeline.",
-                             mlir::NPCOMP::createE2ELoweringPipeline);
-  mlir::PassPipelineRegistration<>(
-      "lower-to-hybrid-tensor-memref-pipeline",
-      "Pipeline lowering to hybrid tensor/memref.",
-      mlir::NPCOMP::createLowerToHybridTensorMemRefPipeline);
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Conversion/Passes.h.inc"
+  mlir::NPCOMP::registerAllDialects();
+  mlir::NPCOMP::registerAllPasses();
 
   llvm::InitLLVM y(argc, argv);
 
