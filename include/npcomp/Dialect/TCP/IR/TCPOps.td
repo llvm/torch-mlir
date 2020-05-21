@@ -109,25 +109,6 @@ This op has undefined behavior if the shape is an error.
   ];
 }
 
-// TODO: Move this op to a more comprehensive "npcomp_rt" or "npcomp_hal"
-// dialect that properly demarcates the low-level interface to the npcomp
-// runtime.
-//
-// Note: This op operates on tensors since memref is not general enough to
-// represent the runtime tensor representations that we need in npcomp. In
-// fact, we may want it to operate on a proper runtime-specific type
-// instead of a "tensor".
-def TCP_RtGetTensorExtentOp : TCP_Op<"rt_get_tensor_extent",
-    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
-  let summary = "Gets the extent of a tensor in a runtime specific way";
-  let description = [{
-    This op interfaces with an external runtime to obtain the extent of a
-    tensor's dimension.
-  }];
-  let arguments = (ins AnyRankedTensor:$tensor, I64Attr:$dim);
-  let results = (outs Index:$extent);
-}
-
 // TODO: This op belongs in the shape dialect as `shape.from_extents`.
 def TCP_ShapeFromExtentsOp : TCP_Op<"shape_from_extents",
     [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {

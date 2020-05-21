@@ -38,18 +38,6 @@ LogicalResult GetExtentOp::inferReturnTypes(
 }
 
 //===----------------------------------------------------------------------===//
-// RtGetTensorExtentOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult RtGetTensorExtentOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(IndexType::get(context));
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // ShapeFromExtentsOp
 //===----------------------------------------------------------------------===//
 
