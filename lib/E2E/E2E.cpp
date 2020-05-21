@@ -424,9 +424,8 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   // pass that checks no !shape.shape types left.
   pm.addPass(createLowerRankedShapesPass());
 
-
   // Run a final canonicalization pass to delete dead
-  // `tcp.shape_from_extents` ops.
+  // `shape.from_extents` ops.
   // This is needed for correctness, since we can't currently lower that op
   // to LLVM, since we don't have a runtime representation of `!shape.shape`.
   // TODO: Change LowerRankedShapes to delete these ops itself.

@@ -109,17 +109,6 @@ This op has undefined behavior if the shape is an error.
   ];
 }
 
-// TODO: This op belongs in the shape dialect as `shape.from_extents`.
-def TCP_ShapeFromExtentsOp : TCP_Op<"shape_from_extents",
-    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
-  let summary = "Constructs a shape from extents";
-  let description = [{
-    Constructs a shape from the extents passed as arguments.
-  }];
-  let arguments = (ins Variadic<Index>:$extents);
-  let results = (outs Shape_ShapeType:$shape);
-}
-
 def TCP_AbortIfOp : TCP_Op<"abort_if"> {
   let summary = "Aborts the program if the argument is true.";
   let description = [{

@@ -27,8 +27,8 @@ public:
   matchAndRewrite(shape::BroadcastOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     shape::BroadcastOp::OperandAdaptor adaptor(operands);
-    auto lhs = adaptor.lhs().getDefiningOp<tcp::ShapeFromExtentsOp>();
-    auto rhs = adaptor.rhs().getDefiningOp<tcp::ShapeFromExtentsOp>();
+    auto lhs = adaptor.lhs().getDefiningOp<shape::FromExtentsOp>();
+    auto rhs = adaptor.rhs().getDefiningOp<shape::FromExtentsOp>();
     if (!lhs || !rhs)
       return rewriter.notifyMatchFailure(op, "operands not converted");
     // Establish invariant that rank(lhs) >= rank(rhs).
@@ -66,7 +66,7 @@ public:
       createAbortIfIllegalBroadcastExtent(lhsExtent, resultExtent);
       createAbortIfIllegalBroadcastExtent(rhsExtent, resultExtent);
     }
-    rewriter.replaceOpWithNewOp<tcp::ShapeFromExtentsOp>(op, resultExtents);
+    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(op, resultExtents);
     return success();
   }
 };
@@ -87,7 +87,7 @@ public:
   matchAndRewrite(tcp::GetExtentOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     tcp::GetExtentOp::OperandAdaptor adaptor(operands);
-    auto fromExtents = adaptor.shape().getDefiningOp<tcp::ShapeFromExtentsOp>();
+    auto fromExtents = adaptor.shape().getDefiningOp<shape::FromExtentsOp>();
     if (!fromExtents)
       return rewriter.notifyMatchFailure(op, "not a from_extents op");
     int64_t dim = op.dim().getLimitedValue();
@@ -116,14 +116,14 @@ public:
 
 // Basic invariant of this pass:
 // Every def of a !shape.shape type is replaced with a
-// `tcp.shape_from_extents` op.
-// When converting an op, look for the `tcp.shape_from_extents` op that
+// `shape.from_extents` op.
+// When converting an op, look for the `shape.from_extents` op that
 // defined all operands, then do a computation on the extents (i.e.
-// operands to the `tcp.shape_from_extents` op) and produce a
-// `tcp.shape_from_extents` op.
+// operands to the `shape.from_extents` op) and produce a
+// `shape.from_extents` op.
 //
 // We expect that previous passes have inserted a "root" set of
-// tcp::ShapeFromExtentsOp's that allow this process to get started.
+// shape::FromExtentsOp's that allow this process to get started.
 //
 // We then use this to resolve get_extent ops by using a rewrite
 // `get_extent(from_extents(x1,x2,x3), N) -> xN`, which should apply in
@@ -138,7 +138,7 @@ public:
 //
 // TODO: This approach doesn't naively work with control flow.
 // In the presence of non-cyclic control flow, we can just generalize the
-// `getDefiningOp<tcp::ShapeFromExtentsOp>()` calls into something that will
+// `getDefiningOp<shape::FromExtentsOp>()` calls into something that will
 // look through block arguments and rewrite "phi of shapes -> phi of extents".
 // In the presence of cyclic control flow, we need to somehow resolve the
 // ranks of use-def cycles ahead of time or optimistically assume that
@@ -158,7 +158,7 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     target.addIllegalOp<shape::ShapeOfOp>();
     target.addIllegalOp<shape::BroadcastOp>();
     target.addIllegalOp<tcp::GetExtentOp>();
-    target.addLegalOp<tcp::ShapeFromExtentsOp>();
+    target.addLegalOp<shape::FromExtentsOp>();
     target.addLegalOp<tcp::AbortIfOp>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addIllegalOp<tcp::ShapeObserveErrorOp>();

@@ -37,18 +37,6 @@ LogicalResult GetExtentOp::inferReturnTypes(
   return success();
 }
 
-//===----------------------------------------------------------------------===//
-// ShapeFromExtentsOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult ShapeFromExtentsOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(shape::ShapeType::get(context));
-  return success();
-}
-
 namespace mlir {
 namespace NPCOMP {
 namespace tcp {

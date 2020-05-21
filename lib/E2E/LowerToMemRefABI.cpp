@@ -101,7 +101,7 @@ public:
     SmallVector<Value, 6> extents;
     for (int i = 0, e = tensorType.getRank(); i < e; i++)
       extents.push_back(rewriter.create<DimOp>(op.getLoc(), rankedMemRef, i));
-    rewriter.replaceOpWithNewOp<tcp::ShapeFromExtentsOp>(op, extents);
+    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(op, extents);
     return success();
   }
 };
@@ -148,7 +148,7 @@ class LowerToMemRefABI : public LowerToMemRefABIBase<LowerToMemRefABI> {
 
     patterns.insert<LowerShapeOfOp>(context);
     target.addIllegalOp<shape::ShapeOfOp>();
-    target.addLegalOp<tcp::ShapeFromExtentsOp>();
+    target.addLegalOp<shape::FromExtentsOp>();
 
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();

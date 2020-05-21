@@ -12,7 +12,7 @@ func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
   // CHECK: %[[VAL_2:.*]] = memref_cast %[[VAL_1]] : memref<*xf32> to memref<?xf32>
   // CHECK: %[[VAL_3:.*]] = dim %[[VAL_2]], 0 : memref<?xf32>
-  // CHECK: %[[VAL_4:.*]] = "tcp.shape_from_extents"(%[[VAL_3]]) : (index) -> !shape.shape
+  // CHECK: %[[VAL_4:.*]] = shape.from_extents %[[VAL_3]]
   %shape = shape.shape_of %arg0 : tensor<?xf32>
 
   // CHECK: %[[VAL_5:.*]] = tcp.alloc_memref %[[VAL_4]] : memref<?xf32>
