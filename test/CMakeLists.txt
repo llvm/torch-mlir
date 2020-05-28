@@ -8,8 +8,11 @@ configure_lit_site_cfg(
 set(NPCOMP_OPT_TEST_DEPENDS
         FileCheck count not
         npcomp-opt
+        npcomp-run-mlir
 )
 
+# TODO: Rename this to just check-npcomp, now that npcomp-run-mlir exists
+# too.
 add_lit_testsuite(check-npcomp-opt "Running the npcomp-opt regression tests"
         ${CMAKE_CURRENT_BINARY_DIR}
         DEPENDS ${NPCOMP_OPT_TEST_DEPENDS}

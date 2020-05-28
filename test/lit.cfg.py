@@ -47,15 +47,25 @@ config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.npcomp_obj_root, 'test')
-config.npcomp_tools_dir = os.path.join(
-    config.npcomp_obj_root, 'tools', 'npcomp-opt')
+config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'tools')
+config.npcomp_runtime_shlib = os.path.join(
+    config.npcomp_obj_root,
+    'runtime',
+    'libNPCOMPRuntime' + config.llvm_shlib_ext
+)
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
-tool_dirs = [config.npcomp_tools_dir, config.llvm_tools_dir]
+tool_dirs = [
+        os.path.join(config.npcomp_tools_dir, 'npcomp-opt'),
+        os.path.join(config.npcomp_tools_dir, 'npcomp-run-mlir'),
+        config.llvm_tools_dir,
+]
 tools = [
-    'npcomp-opt'
+    'npcomp-opt',
+    'npcomp-run-mlir',
+    ToolSubst('%npcomp_runtime_shlib', config.npcomp_runtime_shlib),
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
