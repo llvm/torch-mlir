@@ -74,3 +74,12 @@ Notes:
   specific version, if you try to run with a different python, you will get
   an error about the "native" module not being found.
 
+## Compiler development
+
+For bash users, adding the following to your `.bashrc` defines some aliases
+that are useful during compiler development, such as shortcuts for builing
+and running `npcomp-opt`.
+
+```
+source $WHERE_YOU_CHECKED_OUT_NPCOMP/tools/bash_helpers.sh
+```
