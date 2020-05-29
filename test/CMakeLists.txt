@@ -5,18 +5,16 @@ configure_lit_site_cfg(
         ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
 )
 
-set(NPCOMP_OPT_TEST_DEPENDS
+set(NPCOMP_TEST_DEPENDS
         FileCheck count not
         npcomp-opt
         npcomp-run-mlir
 )
 
-# TODO: Rename this to just check-npcomp, now that npcomp-run-mlir exists
-# too.
-add_lit_testsuite(check-npcomp-opt "Running the npcomp-opt regression tests"
+add_lit_testsuite(check-npcomp "Running the npcomp regression tests"
         ${CMAKE_CURRENT_BINARY_DIR}
-        DEPENDS ${NPCOMP_OPT_TEST_DEPENDS}
+        DEPENDS ${NPCOMP_TEST_DEPENDS}
         )
-set_target_properties(check-npcomp-opt PROPERTIES FOLDER "Tests")
+set_target_properties(check-npcomp PROPERTIES FOLDER "Tests")
 
-add_lit_testsuites(NPCOMP_OPT ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${NPCOMP_OPT_TEST_DEPENDS})
+add_lit_testsuites(NPCOMP_OPT ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${NPCOMP_TEST_DEPENDS})

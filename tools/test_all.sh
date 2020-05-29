@@ -20,7 +20,7 @@ td="$(realpath $(dirname $0)/..)"
 cd $td/build
 
 ninja
-ninja check-npcomp-opt
+ninja check-npcomp
 ./python/run_tests.py
 
 echo
