@@ -1,10 +1,11 @@
-// RUN: npcomp-opt -lower-ranked-shapes <%s | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt -lower-ranked-shapes <%s -split-input-file -verify-diagnostics | FileCheck %s --dump-input=fail
 
 
 // CHECK-LABEL: func @broadcast_rank2_rank1
 func @broadcast_rank2_rank1(%arg0: index, %arg1: index, %arg2: index) -> (index, index) {
   // CHECK-NOT: shape.broadcast
   // CHECK-NOT: tcp.get_extent
+  // CHECK-NOT: shape.from_extents
   %0 = shape.from_extents %arg0, %arg1
   %1 = shape.from_extents %arg2
   %2 = "shape.broadcast"(%0, %1) : (!shape.shape, !shape.shape) -> !shape.shape
@@ -15,8 +16,17 @@ func @broadcast_rank2_rank1(%arg0: index, %arg1: index, %arg2: index) -> (index,
 
 // CHECK-LABEL: func @erase_shape_observe_error
 func @erase_shape_observe_error(%arg0: index) {
-  // CHECK-NOT tcp.shape_observe_error
+  // CHECK-NOT: tcp.shape_observe_error
+  // CHECK-NOT: shape.from_extents
   %0 = shape.from_extents %arg0
   "tcp.shape_observe_error"(%0) : (!shape.shape) -> none
   return
+}
+
+// -----
+
+func @cannot_erase_shape_from_extents() -> !shape.shape {
+  // expected-error @+1 {{could not be eliminated}}
+  %0 = shape.from_extents
+  return %0 : !shape.shape
 }

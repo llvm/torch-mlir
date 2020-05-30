@@ -165,6 +165,20 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }
+
+    // Erase all shape::FromExtentsOp's from the program. They can't be
+    // deleted during conversion because they become unused only after
+    // subsequent patterns bypass them.
+    auto walkResult = func.walk([](shape::FromExtentsOp op) {
+      if (!op.use_empty()) {
+        op.emitError("could not be eliminated");
+        return WalkResult::interrupt();
+      }
+      op.erase();
+      return WalkResult::advance();
+    });
+    if (walkResult.wasInterrupted())
+      return signalPassFailure();
   }
 };
 } // namespace
