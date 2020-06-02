@@ -145,7 +145,8 @@ Error compileAndRun(std::string mlirFile, std::string invokeFunction,
   PassManager pm(&context, /*verifyPasses=*/true);
   applyPassManagerCLOptions(pm);
 
-  NPCOMP::createE2ELoweringPipeline(pm);
+  NPCOMP::E2ELoweringPipelineOptions options;
+  NPCOMP::createE2ELoweringPipeline(pm, options);
   llvm::errs() << "RUNNING PIPELINE: ";
   pm.printAsTextualPipeline(llvm::errs());
   llvm::errs() << "\n";

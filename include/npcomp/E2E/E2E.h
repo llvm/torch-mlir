@@ -42,8 +42,17 @@ std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
 
 void createLowerToHybridTensorMemRefPipeline(OpPassManager &pm);
 
+struct E2ELoweringPipelineOptions
+    : public PassPipelineOptions<E2ELoweringPipelineOptions> {
+  // If this option is true, then perform optimizations.
+  // If this option is false, only do the bare minimum for correctness.
+  Option<bool> optimize{*this, "optimize", llvm::cl::desc("Do optimizations."),
+                        llvm::cl::init(false)};
+};
+
 // The main pipeline that encapsulates the full E2E lowering.
-void createE2ELoweringPipeline(OpPassManager &pm);
+void createE2ELoweringPipeline(OpPassManager &pm,
+                               const E2ELoweringPipelineOptions &options);
 
 } // namespace NPCOMP
 } // namespace mlir

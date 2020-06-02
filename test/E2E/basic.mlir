@@ -1,4 +1,5 @@
 // RUN: npcomp-opt <%s -pass-pipeline=e2e-lowering-pipeline | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=e2e-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
 
 // This is the simplest case, which is easy to stare at for debugging
 // purposes.

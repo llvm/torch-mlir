@@ -293,7 +293,8 @@ mlir::NPCOMP::createLowerAllocMemRefOpsPass() {
 // createE2ELoweringPipeline
 //===----------------------------------------------------------------------===//
 
-void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
+void mlir::NPCOMP::createE2ELoweringPipeline(
+    OpPassManager &pm, const E2ELoweringPipelineOptions &options) {
   // Input IR is TCF ops.
 
   // Convert to TCP.
@@ -376,8 +377,10 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
 
   // At this point, we have loose shape calculations floating around, so
   // it's a good time to do some general cleanups.
-  pm.addPass(createCanonicalizerPass());
-  pm.addPass(createCSEPass());
+  if (options.optimize) {
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+  }
 
   // --------------------------------------------------------------------------
   // Preparation for converting to an LLVM module.
@@ -425,10 +428,10 @@ void mlir::NPCOMP::createE2ELoweringPipeline(OpPassManager &pm) {
   pm.addPass(createLowerRankedShapesPass());
 
   // Run a some final cleanups.
-  // These are optimizations and not needed for correctness.
-  // TODO: Add tests that they aren't needed for correctness.
-  pm.addPass(createCanonicalizerPass());
-  pm.addPass(createCSEPass());
+  if (options.optimize) {
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+  }
 
   // --------------------------------------------------------------------------
   // Final conversion to an LLVM module.

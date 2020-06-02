@@ -35,9 +35,9 @@ inline void registerAllPasses() {
   using mlir::Pass; // The .inc files reference this unqualified.
 #define GEN_PASS_REGISTRATION
 #include "npcomp/E2E/Passes.h.inc"
-  mlir::PassPipelineRegistration<>("e2e-lowering-pipeline",
-                                   "E2E lowering pipeline.",
-                                   mlir::NPCOMP::createE2ELoweringPipeline);
+  mlir::PassPipelineRegistration<E2ELoweringPipelineOptions>(
+      "e2e-lowering-pipeline", "E2E lowering pipeline.",
+      mlir::NPCOMP::createE2ELoweringPipeline);
   mlir::PassPipelineRegistration<>(
       "lower-to-hybrid-tensor-memref-pipeline",
       "Pipeline lowering to hybrid tensor/memref.",
