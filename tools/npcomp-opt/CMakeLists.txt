@@ -7,6 +7,7 @@ set(LIBS
         NPCOMPE2E
         NPCOMPTCP
         NPCOMPTCF
+        NPCOMPNpcompRt
         NPCOMPNumpyDialect
         NPCOMPBasicpyDialect
         )

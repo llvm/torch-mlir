@@ -10,6 +10,7 @@
 #define NPCOMP_INITALL_H
 
 #include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
+#include "npcomp/Dialect/NpcompRt/IR/NpcompRtDialect.h"
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -25,6 +26,7 @@ namespace NPCOMP {
 inline void registerAllDialects() {
   registerDialect<Basicpy::BasicpyDialect>();
   registerDialect<Numpy::NumpyDialect>();
+  registerDialect<npcomp_rt::NpcompRtDialect>();
   registerDialect<tcf::TCFDialect>();
   registerDialect<tcp::TCPDialect>();
 }
