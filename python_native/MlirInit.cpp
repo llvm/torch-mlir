@@ -8,6 +8,7 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/InitAllDialects.h"
+#include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassManager.h"
 #include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/NumpyDialect.h"
@@ -35,6 +36,7 @@ bool npcompMlirInitialize() {
 
   // Global registration.
   ::mlir::registerAllDialects();
+  ::mlir::registerAllPasses();
 
   // Local registration.
   registerDialect<NPCOMP::Basicpy::BasicpyDialect>();

@@ -27,6 +27,7 @@ set(extension_target NPCOMPNativePyExt)
 set(extension_pybind_sources
   MlirInit.cpp
   MlirIr.cpp
+  MlirPass.cpp
   NpcompDialect.cpp
   NpcompModule.cpp
   PybindUtils.cpp

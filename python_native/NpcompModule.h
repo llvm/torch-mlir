@@ -13,6 +13,7 @@
 
 namespace mlir {
 void defineMlirIrModule(py::module m);
+void defineMlirPassModule(py::module m);
 
 namespace npcomp {
 namespace python {
