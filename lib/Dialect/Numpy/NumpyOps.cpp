@@ -130,7 +130,6 @@ static void printGenericUfuncOp(OpAsmPrinter &p, GenericUfuncOp op) {
       continue;
     }
 
-    auto argTypes = entryBlock.getArgumentTypes();
     for (unsigned i = 0, e = entryBlock.getNumArguments(); i < e; ++i) {
       auto arg = entryBlock.getArgument(i);
       if (i > 0)

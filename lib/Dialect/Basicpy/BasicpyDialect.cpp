@@ -33,7 +33,6 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
     return EllipsisType::get(getContext());
   if (keyword == "SlotObject") {
     StringRef className;
-    unsigned slotCount;
     if (parser.parseLess() || parser.parseKeyword(&className)) {
       return Type();
     }

@@ -75,7 +75,7 @@ public:
 
   // Shorthand to check whether the SlotObject is of a given className and
   // arity.
-  bool isOfClassArity(StringRef className, int arity) {
+  bool isOfClassArity(StringRef className, unsigned arity) {
     return getClassName().getValue() == className && getSlotCount() == arity;
   }
 };

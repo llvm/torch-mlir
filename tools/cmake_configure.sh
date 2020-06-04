@@ -32,10 +32,11 @@ cmake -GNinja \
   "-H$td" \
   "-B$build_dir" \
   "-DCMAKE_BUILD_TYPE=Debug" \
-  "-DCMAKE_CXX_FLAGS_DEBUG=-g3 -gdwarf-2 -Weverything -Werror" \
+  "-DCMAKE_CXX_FLAGS_DEBUG=-g3 -gdwarf-2" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
   "-DLLVM_EXTERNAL_LIT=$build_mlir/bin/llvm-lit" \
+  "-DLLVM_ENABLE_WARNINGS=ON" \
   "-DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE" \
   "${extra_opts[@]}" \
   "$@"
