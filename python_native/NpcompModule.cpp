@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <unordered_map>
 
+#include "MlirInit.h"
 #include "NpcompModule.h"
 #include "PybindUtils.h"
 

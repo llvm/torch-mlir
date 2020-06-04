@@ -18,7 +18,6 @@ void defineMlirPassModule(py::module m);
 namespace npcomp {
 namespace python {
 
-bool npcompMlirInitialize();
 void defineNpcompDialect(py::module m);
 
 } // namespace python

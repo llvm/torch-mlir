@@ -495,7 +495,7 @@ void PyBaseOperation::bind(py::module m) {
       .def("region",
            [](PyBaseOperation &self, int index) {
              auto *op = self.getOperation();
-             if (index < 0 || index >= op->getNumRegions()) {
+             if (index < 0 || index >= static_cast<int>(op->getNumRegions())) {
                throw py::raisePyError(PyExc_IndexError,
                                       "Region index out of bounds");
              }
@@ -689,8 +689,6 @@ DiagnosticCapture::consumeDiagnosticsAsString(const char *error_message) {
     case DiagnosticSeverity::Remark:
       sout << "[REMARK]";
       break;
-    default:
-      sout << "[UNKNOWN]";
     }
     // Message.
     sout << ": " << d << "\n";

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "MlirPass.h"
+#include "MlirInit.h"
 #include "NpcompModule.h"
 
 #include "mlir/Pass/PassRegistry.h"

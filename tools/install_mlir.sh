@@ -25,6 +25,8 @@ mkdir -p "$install_mlir"
 echo "Beginning build (commands will echo)"
 set -x
 
+# TODO: Make it possible to build without an RTTI compiled LLVM. There are
+# a handful of vague linkage issues that need to be fixed upstream.
 cmake -GNinja \
   "-H$LLVM_SRC_DIR/llvm" \
   "-B$build_mlir" \
@@ -37,6 +39,7 @@ cmake -GNinja \
   "-DCMAKE_INSTALL_PREFIX=$install_mlir" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_ENABLE_ASSERTIONS=On \
+  -DLLVM_ENABLE_RTTI=On
 
 cmake --build "$build_mlir" --target install
 #cmake --build "$build_mlir" --target install

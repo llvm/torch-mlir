@@ -24,8 +24,10 @@ set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 # Some of the low-level components do not support mixing RTTI modes and are
 # compiled separately for now.
 set(extension_target NPCOMPNativePyExt)
-set(extension_pybind_sources
+set(extension_llvm_sources
   MlirInit.cpp
+)
+set(extension_pybind_sources
   MlirIr.cpp
   MlirPass.cpp
   NpcompDialect.cpp
@@ -38,6 +40,7 @@ set_source_files_properties(
     "-frtti -fexceptions")
 add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE} 
   ${extension_pybind_sources}
+  ${extension_llvm_sources}
 )
 
 set_target_properties(${extension_target} PROPERTIES LIBRARY_OUTPUT_DIRECTORY
@@ -68,10 +71,16 @@ target_link_libraries(${extension_target}
     pybind11::module
 
     # Local depends
+    # Note: These need to also match tools/npcomp-opt/CMakeLists.txt
+    NPCOMPE2E
+    NPCOMPTCP
+    NPCOMPTCF
+    NPCOMPNpcompRt
     NPCOMPBasicpyDialect
     NPCOMPNumpyDialect
     
     # Upstream depends
+    
     LLVMSupport
     MLIRAffineToStandard
     MLIRAffineTransforms

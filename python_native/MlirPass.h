@@ -18,8 +18,8 @@ namespace mlir {
 
 struct PyPassManager {
   PyPassManager(std::shared_ptr<PyContext> context, bool verifyModules)
-      : context(std::move(context)),
-        passManager(&context->context, verifyModules) {}
+      : passManager(&context->context, verifyModules),
+        context(std::move(context)) {}
   static void bind(py::module m);
   PassManager passManager;
 

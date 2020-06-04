@@ -35,6 +35,9 @@ inline void registerAllPasses() {
   using mlir::Pass; // The .inc files reference this unqualified.
 #define GEN_PASS_REGISTRATION
 #include "npcomp/E2E/Passes.h.inc"
+  // TODO: The following pipeline registration uses pass manager options,
+  // which causes vague linkage issues when co-mingled with code that
+  // uses RTTI.
   mlir::PassPipelineRegistration<E2ELoweringPipelineOptions>(
       "e2e-lowering-pipeline", "E2E lowering pipeline.",
       mlir::NPCOMP::createE2ELoweringPipeline);

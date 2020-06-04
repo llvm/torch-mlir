@@ -4,6 +4,7 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
+        # Note: the following must also match python_native/CMakeLists.txt
         NPCOMPE2E
         NPCOMPTCP
         NPCOMPTCF
