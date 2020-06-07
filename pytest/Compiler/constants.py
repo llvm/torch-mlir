@@ -76,3 +76,11 @@ def ellipsis():
   # CHECK: basicpy.unknown_cast %[[A]]
   a = ...
   return a
+
+# CHECK-LABEL: func @none_constant
+@import_global
+def none_constant():
+  # CHECK: %[[A:.*]] = basicpy.singleton : !basicpy.NoneType
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = None
+  return a

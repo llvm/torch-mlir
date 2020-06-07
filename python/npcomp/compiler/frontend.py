@@ -191,6 +191,8 @@ class ExpressionImporter(BaseNodeVisitor):
       self.value = ir_h.basicpy_bool_constant_op(True).result
     elif value is False:
       self.value = ir_h.basicpy_bool_constant_op(False).result
+    elif value is None:
+      self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
     elif isinstance(value, int):
       # TODO: Configurable type mapping
       ir_type = ir_h.i64_type
