@@ -47,6 +47,9 @@ class DialectHelper(_BaseDialectHelper):
 
   """
 
+  def basicpy_unknown_cast(self, result_type, operand):
+    return self.op("basicpy.unknown_cast", [result_type], [operand])
+
   def basicpy_singleton_op(self, singleton_type):
     return self.op("basicpy.singleton", [singleton_type], [])
 

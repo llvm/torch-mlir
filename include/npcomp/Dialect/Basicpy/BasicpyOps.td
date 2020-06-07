@@ -13,6 +13,13 @@ include "BasicpyDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
+def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
+  let summary = "Casts to and from the UnknownType";
+  let arguments = (ins AnyType:$input);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
+}
+
 def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
     ConstantLike, NoSideEffect]> {
   let summary = "Constant value for a singleton type";

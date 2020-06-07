@@ -166,7 +166,9 @@ class FunctionDefImporter(BaseNodeVisitor):
     ir_h = self.fctx.ir_h
     expr = ExpressionImporter(self.fctx)
     expr.visit(ast_node.value)
-    ir_h.return_op([expr.value])
+    casted = ir_h.basicpy_unknown_cast(ir_h.basicpy_UnknownType,
+                                       expr.value).result
+    ir_h.return_op([casted])
 
 
 class ExpressionImporter(BaseNodeVisitor):
