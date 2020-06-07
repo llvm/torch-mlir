@@ -45,6 +45,8 @@ message(STATUS "Found ppython libraries: ${PYTHON_LIBRARIES}")
 find_package(pybind11 CONFIG REQUIRED)
 message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
 
+add_custom_target(check-npcomp)
+
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)

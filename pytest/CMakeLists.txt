@@ -11,10 +11,12 @@ set(NPCOMP_TEST_DEPENDS
         NPCOMPNativePyExt
 )
 
-add_lit_testsuite(check-npcomp-pytest "Running npcomp python lit tests"
+add_lit_testsuite(check-npcomp-pytest-lit "Running npcomp python lit tests"
         ${CMAKE_CURRENT_BINARY_DIR}
         DEPENDS ${NPCOMP_TEST_DEPENDS}
         )
-set_target_properties(check-npcomp-pytest PROPERTIES FOLDER "Tests")
+set_target_properties(check-npcomp-pytest-lit PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(NPCOMP_PYTEST ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${NPCOMP_TEST_DEPENDS})
+
+add_dependencies(check-npcomp check-npcomp-pytest-lit)
