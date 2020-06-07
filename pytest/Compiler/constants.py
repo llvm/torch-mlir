@@ -61,3 +61,10 @@ def joined_string_constant():
   a = "I am" " still here"
   return a
 
+# CHECK-LABEL: func @ellipsis
+@import_global
+def ellipsis():
+  # CHECK: %[[A:.*]] = basicpy.singleton : !basicpy.EllipsisType
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = ...
+  return a
