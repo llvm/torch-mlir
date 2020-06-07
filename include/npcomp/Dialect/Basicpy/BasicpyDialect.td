@@ -46,6 +46,22 @@ def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
   }];
 }
 
+def Basicpy_NoneType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::NoneType>()">, "None type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::NoneType>()"> {
+  let typeDescription = [{
+    Type of the Python 'None' value.
+  }];
+}
+
+def Basicpy_BoolType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BoolType>()">, "Bool type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BoolType>()"> {
+  let typeDescription = [{
+    Type for 'True' and 'False' values.
+  }];
+}
+
 def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">, 
     "Slot object"> {
@@ -53,14 +69,6 @@ def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
     Type for built-in objects which have a fixed number of slots and a type
     name in the system catalog of types. In some ways, this resembles a
     namedtuple, but it is used for built-in custom objects.
-  }];
-}
-
-def Basicpy_NoneType : DialectType<Basicpy_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::NoneType>()">, "None type">,
-    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::NoneType>()"> {
-  let typeDescription = [{
-    Type of the Python 'None' value.
   }];
 }
 

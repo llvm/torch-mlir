@@ -35,7 +35,7 @@ config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.substitutions.append(('%PYTHON', config.python_executable))
 
 llvm_config.with_system_environment(
-    ['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
+    ['HOME', 'INCLUDE', 'LIB', 'NPCOMP_DEBUG', 'TMP', 'TEMP'])
 
 llvm_config.use_default_substitutions()
 

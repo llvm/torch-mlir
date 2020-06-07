@@ -23,6 +23,7 @@ enum Kind {
   // Dialect types.
   UnknownType = TypeRanges::Basicpy,
   NoneType,
+  BoolType,
   EllipsisType,
   SlotObjectType,
 
@@ -55,6 +56,17 @@ public:
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
   static NoneType get(MLIRContext *context) {
     return Base::get(context, BasicpyTypes::NoneType);
+  }
+};
+
+/// Python 'bool' type (can contain values True or False, corresponding to
+/// i1 constants of 0 or 1).
+class BoolType : public Type::TypeBase<BoolType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) { return kind == BasicpyTypes::BoolType; }
+  static BoolType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::BoolType);
   }
 };
 

@@ -50,6 +50,14 @@ class DialectHelper(_BaseDialectHelper):
   def basicpy_unknown_cast(self, result_type, operand):
     return self.op("basicpy.unknown_cast", [result_type], [operand])
 
+  def basicpy_bool_constant_op(self, value):
+    c = self.context
+    ival = 1 if value else 0
+    attrs = c.dictionary_attr({
+      "value": c.integer_attr(self.i1_type, ival)
+    })
+    return self.op("basicpy.bool_constant", [self.basicpy_BoolType], [], attrs)
+        
   def basicpy_singleton_op(self, singleton_type):
     return self.op("basicpy.singleton", [singleton_type], [])
 

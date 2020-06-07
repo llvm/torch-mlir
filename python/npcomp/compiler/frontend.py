@@ -64,7 +64,8 @@ class ImportFrontend:
 
     # Define the function.
     # TODO: Much more needs to be done here (arg/result mapping, etc)
-    logging.debug("Importing global function {}:\n{}", ast_fd.name,
+    logging.debug(":::::::")
+    logging.debug("::: Importing global function {}:\n{}", ast_fd.name,
                   ast.dump(ast_fd, include_attributes=True))
     h.builder.set_file_line_col(filename_ident, ast_fd.lineno,
                                 ast_fd.col_offset)
@@ -181,7 +182,7 @@ class ExpressionImporter(BaseNodeVisitor):
   def visit(self, node):
     super().visit(node)
     assert self.value, ("ExpressionImporter did not assign a value (%r)" %
-                        (node,))
+                        (ast.dump(node),))
 
   def visit_Constant(self, ast_node):
     ir_c = self.fctx.ir_c
@@ -200,6 +201,13 @@ class ExpressionImporter(BaseNodeVisitor):
       else:
         self.fctx.abort("unsupported numeric constant type: %r" % (nval,))
       self.value = ir_h.constant_op(ir_type, ir_attr).result
+    elif isinstance(ast_node, ast.NameConstant):
+      if ast_node.value is True:
+        self.value = ir_h.basicpy_bool_constant_op(True).result
+      elif ast_node.value is False:
+        self.value = ir_h.basicpy_bool_constant_op(False).result
+      else:
+        self.fctx.abort("unknown named constant '%r'" % (ast_node.value,))
     else:
       self.fctx.abort("unknown constant type %s" %
                       (ast_node.__class__.__name__))

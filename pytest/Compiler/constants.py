@@ -8,6 +8,7 @@ def import_global(f):
   fe.import_global_function(f)
   print("// -----")
   print(fe.ir_module.to_asm())
+  return f
 
 
 # CHECK: func @integer_constants
@@ -26,4 +27,20 @@ def float_constants():
   a = 2.2
   # CHECK: %[[A_CAST:.*]] = basicpy.unknown_cast %[[A]] : f64 -> !basicpy.UnknownType
   # CHECK: return %[[A_CAST]]
+  return a
+
+# CHECK: func @bool_true_constant
+@import_global
+def bool_true_constant():
+  # CHECK: %[[A:.*]] = basicpy.bool_constant 1
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = True
+  return a
+
+# CHECK: func @bool_false_constant
+@import_global
+def bool_false_constant():
+  # CHECK: %[[A:.*]] = basicpy.bool_constant 0
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = False
   return a

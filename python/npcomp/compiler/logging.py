@@ -2,10 +2,13 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
 import string
 import sys
 
-_ENABLED = False
+__all__ = ["debug"]
+
+_ENABLED = "NPCOMP_DEBUG" in os.environ
 _formatter = string.Formatter()
 
 

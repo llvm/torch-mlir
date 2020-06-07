@@ -19,7 +19,7 @@ BasicpyDialect::BasicpyDialect(MLIRContext *context)
 #define GET_OP_LIST
 #include "npcomp/Dialect/Basicpy/BasicpyOps.cpp.inc"
       >();
-  addTypes<EllipsisType, NoneType, SlotObjectType, UnknownType>();
+  addTypes<EllipsisType, NoneType, BoolType, SlotObjectType, UnknownType>();
 
   // TODO: Make real ops for everything we need.
   allowUnknownOperations();
@@ -34,6 +34,8 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
     return UnknownType::get(getContext());
   if (keyword == "NoneType")
     return NoneType::get(getContext());
+  if (keyword == "BoolType")
+    return BoolType::get(getContext());
   if (keyword == "EllipsisType")
     return EllipsisType::get(getContext());
   if (keyword == "SlotObject") {
@@ -66,6 +68,9 @@ void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
     return;
   case BasicpyTypes::NoneType:
     os << "NoneType";
+    return;
+  case BasicpyTypes::BoolType:
+    os << "BoolType";
     return;
   case BasicpyTypes::EllipsisType:
     os << "EllipsisType";

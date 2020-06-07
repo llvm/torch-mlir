@@ -34,6 +34,20 @@ def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
+def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
+    ConstantLike, NoSideEffect]> {
+  let summary = "A boolean constant";
+  let description = [{
+    A constant of type !basicpy.BoolType that can take either an i1 value
+    of 0 (False) or 1 (True).
+  }];
+  let arguments = (ins I1Attr:$value);
+  let results = (outs
+    Basicpy_BoolType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+}
+
 def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [
     NoSideEffect]> {
   let summary = "Creates an instance of a SlotObject type";
