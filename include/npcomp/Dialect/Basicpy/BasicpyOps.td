@@ -13,27 +13,6 @@ include "BasicpyDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
-def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
-  let summary = "Casts to and from the UnknownType";
-  let arguments = (ins AnyType:$input);
-  let results = (outs AnyType:$result);
-  let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
-}
-
-def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
-    ConstantLike, NoSideEffect]> {
-  let summary = "Constant value for a singleton type";
-  let description = [{
-    Some types only have a single possible value, represented by the
-    SingletonAttr. This op allows creating constants of these types.
-  }];
-  let arguments = (ins);
-  let results = (outs
-    Basicpy_SingletonType:$result
-  );
-  let assemblyFormat = "attr-dict `:` type($result)";
-}
-
 def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
     ConstantLike, NoSideEffect]> {
   let summary = "A boolean constant";
@@ -90,6 +69,43 @@ def Basicpy_SlotObjectGetOp : Basicpy_Op<"slot_object_get", [
   let results = (outs
     AnyType:$result
   );
+}
+
+def Basicpy_StrConstantOp : Basicpy_Op<"str_constant", [
+    ConstantLike, NoSideEffect]> {
+  let summary = "Constant string value";
+  let description = [{
+    A string value of StrType. The value is represented by a StringAttr
+    that is UTF-8 encoded.
+  }];
+  let arguments = (ins
+    StrAttr:$value
+  );
+  let results = (outs
+    Basicpy_StrType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+}
+
+def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
+    ConstantLike, NoSideEffect]> {
+  let summary = "Constant value for a singleton type";
+  let description = [{
+    Some types only have a single possible value, represented by the
+    SingletonAttr. This op allows creating constants of these types.
+  }];
+  let arguments = (ins);
+  let results = (outs
+    Basicpy_SingletonType:$result
+  );
+  let assemblyFormat = "attr-dict `:` type($result)";
+}
+
+def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
+  let summary = "Casts to and from the UnknownType";
+  let arguments = (ins AnyType:$input);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
 }
 
 #endif // NPCOMP_DIALECT_BASICPY_BASICPY_OPS

@@ -38,11 +38,19 @@ class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
 // Dialect types
 //===----------------------------------------------------------------------===//
 
-def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::UnknownType>()">,
-    "Unknown type"> {
+def Basicpy_BoolType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BoolType>()">, "Bool type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BoolType>()"> {
   let typeDescription = [{
-    An unknown type (for the current phase of processing).
+    Type for 'True' and 'False' values.
+  }];
+}
+
+def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::EllipsisType>()">, "Ellipsis type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::EllipsisType>()"> {
+  let typeDescription = [{
+    Type of the Python 'Ellipsis' value.
   }];
 }
 
@@ -51,14 +59,6 @@ def Basicpy_NoneType : DialectType<Basicpy_Dialect,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::NoneType>()"> {
   let typeDescription = [{
     Type of the Python 'None' value.
-  }];
-}
-
-def Basicpy_BoolType : DialectType<Basicpy_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BoolType>()">, "Bool type">,
-    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BoolType>()"> {
-  let typeDescription = [{
-    Type for 'True' and 'False' values.
   }];
 }
 
@@ -72,11 +72,19 @@ def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
   }];
 }
 
-def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::EllipsisType>()">, "Ellipsis type">,
-    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::EllipsisType>()"> {
+def Basicpy_StrType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::StrType>()">,"String type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::StrType>()"> {
   let typeDescription = [{
-    Type of the Python 'Ellipsis' value.
+    Represents values of the python 'str' type.
+  }];
+}
+
+def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::UnknownType>()">,
+    "Unknown type"> {
+  let typeDescription = [{
+    An unknown type (for the current phase of processing).
   }];
 }
 

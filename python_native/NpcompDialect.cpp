@@ -21,16 +21,6 @@ public:
   static void bind(py::module m) {
     py::class_<BasicpyDialectHelper, PyDialectHelper>(m, "BasicpyDialectHelper")
         .def(py::init<std::shared_ptr<PyContext>>())
-        .def_property_readonly("basicpy_UnknownType",
-                               [](BasicpyDialectHelper &self) -> PyType {
-                                 return Basicpy::UnknownType::get(
-                                     &self.context->context);
-                               })
-        .def_property_readonly("basicpy_NoneType",
-                               [](BasicpyDialectHelper &self) -> PyType {
-                                 return Basicpy::NoneType::get(
-                                     &self.context->context);
-                               })
         .def_property_readonly("basicpy_BoolType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::BoolType::get(
@@ -39,6 +29,11 @@ public:
         .def_property_readonly("basicpy_EllipsisType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::EllipsisType::get(
+                                     &self.context->context);
+                               })
+        .def_property_readonly("basicpy_NoneType",
+                               [](BasicpyDialectHelper &self) -> PyType {
+                                 return Basicpy::NoneType::get(
                                      &self.context->context);
                                })
         .def("basicpy_SlotObject_type",
@@ -53,6 +48,16 @@ public:
                return Basicpy::SlotObjectType::get(classNameAttr, slotTypes);
              },
              py::arg("className"))
+        .def_property_readonly("basicpy_StrType",
+                               [](BasicpyDialectHelper &self) -> PyType {
+                                 return Basicpy::StrType::get(
+                                     &self.context->context);
+                               })
+        .def_property_readonly("basicpy_UnknownType",
+                               [](BasicpyDialectHelper &self) -> PyType {
+                                 return Basicpy::UnknownType::get(
+                                     &self.context->context);
+                               })
         .def("basicpy_slot_object_get_op",
              [](BasicpyDialectHelper &self, PyValue slotObject,
                 unsigned index) -> PyOperationRef {

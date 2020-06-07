@@ -21,11 +21,12 @@ namespace Basicpy {
 namespace BasicpyTypes {
 enum Kind {
   // Dialect types.
-  UnknownType = TypeRanges::Basicpy,
-  NoneType,
-  BoolType,
+  BoolType = TypeRanges::Basicpy,
   EllipsisType,
+  NoneType,
   SlotObjectType,
+  StrType,
+  UnknownType,
 
   // Dialect attributes.
   SingletonAttr,
@@ -36,28 +37,6 @@ enum Kind {
 namespace detail {
 struct SlotObjectTypeStorage;
 } // namespace detail
-
-/// An unknown type that could be any supported python type.
-class UnknownType : public Type::TypeBase<UnknownType, Type> {
-public:
-  using Base::Base;
-  static bool kindof(unsigned kind) {
-    return kind == BasicpyTypes::UnknownType;
-  }
-  static UnknownType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::UnknownType);
-  }
-};
-
-/// The type of the Python `None` value.
-class NoneType : public Type::TypeBase<NoneType, Type> {
-public:
-  using Base::Base;
-  static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
-  static NoneType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::NoneType);
-  }
-};
 
 /// Python 'bool' type (can contain values True or False, corresponding to
 /// i1 constants of 0 or 1).
@@ -82,6 +61,16 @@ public:
   }
 };
 
+/// The type of the Python `None` value.
+class NoneType : public Type::TypeBase<NoneType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
+  static NoneType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::NoneType);
+  }
+};
+
 class SlotObjectType : public Type::TypeBase<SlotObjectType, Type,
                                              detail::SlotObjectTypeStorage> {
 public:
@@ -98,6 +87,28 @@ public:
   // arity.
   bool isOfClassArity(StringRef className, unsigned arity) {
     return getClassName().getValue() == className && getSlotCount() == arity;
+  }
+};
+
+/// The type of the Python `str` values.
+class StrType : public Type::TypeBase<StrType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) { return kind == BasicpyTypes::StrType; }
+  static StrType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::StrType);
+  }
+};
+
+/// An unknown type that could be any supported python type.
+class UnknownType : public Type::TypeBase<UnknownType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) {
+    return kind == BasicpyTypes::UnknownType;
+  }
+  static UnknownType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::UnknownType);
   }
 };
 

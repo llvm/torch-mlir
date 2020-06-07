@@ -11,7 +11,7 @@ def import_global(f):
   return f
 
 
-# CHECK: func @integer_constants
+# CHECK-LABEL: func @integer_constants
 @import_global
 def integer_constants():
   # CHECK: %[[A:.*]] = constant 100 : i64
@@ -20,7 +20,7 @@ def integer_constants():
   # CHECK: return %[[A_CAST]]
   return a
 
-# CHECK: func @float_constants
+# CHECK-LABEL: func @float_constants
 @import_global
 def float_constants():
   # CHECK: %[[A:.*]] = constant 2.200000e+00 : f64
@@ -29,7 +29,7 @@ def float_constants():
   # CHECK: return %[[A_CAST]]
   return a
 
-# CHECK: func @bool_true_constant
+# CHECK-LABEL: func @bool_true_constant
 @import_global
 def bool_true_constant():
   # CHECK: %[[A:.*]] = basicpy.bool_constant 1
@@ -37,10 +37,27 @@ def bool_true_constant():
   a = True
   return a
 
-# CHECK: func @bool_false_constant
+# CHECK-LABEL: func @bool_false_constant
 @import_global
 def bool_false_constant():
   # CHECK: %[[A:.*]] = basicpy.bool_constant 0
   # CHECK: basicpy.unknown_cast %[[A]]
   a = False
   return a
+
+# CHECK-LABEL: func @string_constant
+@import_global
+def string_constant():
+  # CHECK: %[[A:.*]] = basicpy.str_constant "foobar"
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = "foobar"
+  return a
+
+# CHECK-LABEL: func @joined_string_constant
+@import_global
+def joined_string_constant():
+  # CHECK: %[[A:.*]] = basicpy.str_constant "I am still here"
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = "I am" " still here"
+  return a
+

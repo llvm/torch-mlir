@@ -19,7 +19,8 @@ BasicpyDialect::BasicpyDialect(MLIRContext *context)
 #define GET_OP_LIST
 #include "npcomp/Dialect/Basicpy/BasicpyOps.cpp.inc"
       >();
-  addTypes<EllipsisType, NoneType, BoolType, SlotObjectType, UnknownType>();
+  addTypes<BoolType, EllipsisType, NoneType, SlotObjectType, StrType,
+           UnknownType>();
 
   // TODO: Make real ops for everything we need.
   allowUnknownOperations();
@@ -30,14 +31,12 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
   if (parser.parseKeyword(&keyword))
     return Type();
 
-  if (keyword == "UnknownType")
-    return UnknownType::get(getContext());
-  if (keyword == "NoneType")
-    return NoneType::get(getContext());
   if (keyword == "BoolType")
     return BoolType::get(getContext());
   if (keyword == "EllipsisType")
     return EllipsisType::get(getContext());
+  if (keyword == "NoneType")
+    return NoneType::get(getContext());
   if (keyword == "SlotObject") {
     StringRef className;
     if (parser.parseLess() || parser.parseKeyword(&className)) {
@@ -56,6 +55,10 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
     return SlotObjectType::get(StringAttr::get(className, getContext()),
                                slotTypes);
   }
+  if (keyword == "StrType")
+    return StrType::get(getContext());
+  if (keyword == "UnknownType")
+    return UnknownType::get(getContext());
 
   parser.emitError(parser.getNameLoc(), "unknown basicpy type");
   return Type();
@@ -63,17 +66,14 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
 
 void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
   switch (type.getKind()) {
-  case BasicpyTypes::UnknownType:
-    os << "UnknownType";
-    return;
-  case BasicpyTypes::NoneType:
-    os << "NoneType";
-    return;
   case BasicpyTypes::BoolType:
     os << "BoolType";
     return;
   case BasicpyTypes::EllipsisType:
     os << "EllipsisType";
+    return;
+  case BasicpyTypes::NoneType:
+    os << "NoneType";
     return;
   case BasicpyTypes::SlotObjectType: {
     auto slotObject = type.cast<SlotObjectType>();
@@ -86,6 +86,12 @@ void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
     os << ">";
     return;
   }
+  case BasicpyTypes::StrType:
+    os << "StrType";
+    return;
+  case BasicpyTypes::UnknownType:
+    os << "UnknownType";
+    return;
   default:
     llvm_unreachable("unexpected 'basicpy' type kind");
   }

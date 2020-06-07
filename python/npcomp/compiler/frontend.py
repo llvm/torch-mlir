@@ -167,7 +167,7 @@ class FunctionDefImporter(BaseNodeVisitor):
     ir_h = self.fctx.ir_h
     expr = ExpressionImporter(self.fctx)
     expr.visit(ast_node.value)
-    casted = ir_h.basicpy_unknown_cast(ir_h.basicpy_UnknownType,
+    casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
                                        expr.value).result
     ir_h.return_op([casted])
 
@@ -208,6 +208,8 @@ class ExpressionImporter(BaseNodeVisitor):
         self.value = ir_h.basicpy_bool_constant_op(False).result
       else:
         self.fctx.abort("unknown named constant '%r'" % (ast_node.value,))
+    elif isinstance(ast_node, ast.Str):
+      self.value = ir_h.basicpy_str_constant_op(ast_node.s).result
     else:
       self.fctx.abort("unknown constant type %s" %
                       (ast_node.__class__.__name__))
