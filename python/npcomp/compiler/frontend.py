@@ -210,6 +210,8 @@ class ExpressionImporter(BaseNodeVisitor):
         self.fctx.abort("unknown named constant '%r'" % (ast_node.value,))
     elif isinstance(ast_node, ast.Str):
       self.value = ir_h.basicpy_str_constant_op(ast_node.s).result
+    elif isinstance(ast_node, ast.Bytes):
+      self.value = ir_h.basicpy_bytes_constant_op(ast_node.s).result
     elif isinstance(ast_node, ast.Ellipsis):
       self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_EllipsisType).result
     else:

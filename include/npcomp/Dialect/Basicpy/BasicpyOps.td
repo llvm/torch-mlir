@@ -27,6 +27,21 @@ def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
   let assemblyFormat = "$value attr-dict";
 }
 
+def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
+    ConstantLike, NoSideEffect]> {
+  let summary = "Constant bytes value";
+  let description = [{
+    A bytes value of BytesType. The value is represented by a StringAttr.
+  }];
+  let arguments = (ins
+    StrAttr:$value
+  );
+  let results = (outs
+    Basicpy_BytesType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+}
+
 def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [
     NoSideEffect]> {
   let summary = "Creates an instance of a SlotObject type";

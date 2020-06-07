@@ -46,6 +46,14 @@ def Basicpy_BoolType : DialectType<Basicpy_Dialect,
   }];
 }
 
+def Basicpy_BytesType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BytesType>()">, "Bytes type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BytesType>()"> {
+  let typeDescription = [{
+    Represents Python 'bytes' values.
+  }];
+}
+
 def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::EllipsisType>()">, "Ellipsis type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::EllipsisType>()"> {

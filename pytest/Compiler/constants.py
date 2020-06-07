@@ -61,6 +61,14 @@ def joined_string_constant():
   a = "I am" " still here"
   return a
 
+# CHECK-LABEL: func @bytes_constant
+@import_global
+def bytes_constant():
+  # CHECK: %[[A:.*]] = basicpy.bytes_constant "foobar"
+  # CHECK: basicpy.unknown_cast %[[A]]
+  a = b"foobar"
+  return a
+
 # CHECK-LABEL: func @ellipsis
 @import_global
 def ellipsis():

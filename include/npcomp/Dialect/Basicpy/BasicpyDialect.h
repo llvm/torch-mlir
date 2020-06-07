@@ -22,6 +22,7 @@ namespace BasicpyTypes {
 enum Kind {
   // Dialect types.
   BoolType = TypeRanges::Basicpy,
+  BytesType,
   EllipsisType,
   NoneType,
   SlotObjectType,
@@ -46,6 +47,16 @@ public:
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::BoolType; }
   static BoolType get(MLIRContext *context) {
     return Base::get(context, BasicpyTypes::BoolType);
+  }
+};
+
+/// The type of the Python `bytes` values.
+class BytesType : public Type::TypeBase<BytesType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) { return kind == BasicpyTypes::BytesType; }
+  static BytesType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::BytesType);
   }
 };
 

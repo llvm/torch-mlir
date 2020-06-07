@@ -26,6 +26,11 @@ public:
                                  return Basicpy::BoolType::get(
                                      &self.context->context);
                                })
+        .def_property_readonly("basicpy_BytesType",
+                               [](BasicpyDialectHelper &self) -> PyType {
+                                 return Basicpy::BytesType::get(
+                                     &self.context->context);
+                               })
         .def_property_readonly("basicpy_EllipsisType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::EllipsisType::get(

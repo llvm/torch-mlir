@@ -50,10 +50,14 @@ class DialectHelper(_BaseDialectHelper):
   def basicpy_bool_constant_op(self, value):
     c = self.context
     ival = 1 if value else 0
-    attrs = c.dictionary_attr({
-      "value": c.integer_attr(self.i1_type, ival)
-    })
+    attrs = c.dictionary_attr({"value": c.integer_attr(self.i1_type, ival)})
     return self.op("basicpy.bool_constant", [self.basicpy_BoolType], [], attrs)
+
+  def basicpy_bytes_constant_op(self, value):
+    c = self.context
+    attrs = c.dictionary_attr({"value": c.string_attr(value)})
+    return self.op("basicpy.bytes_constant", [self.basicpy_BytesType], [],
+                   attrs)
 
   def basicpy_singleton_op(self, singleton_type):
     return self.op("basicpy.singleton", [singleton_type], [])
@@ -69,14 +73,12 @@ class DialectHelper(_BaseDialectHelper):
 
   def basicpy_str_constant_op(self, value):
     c = self.context
-    attrs = c.dictionary_attr({
-      "value": c.string_attr(value.encode("utf-8"))
-    })
+    attrs = c.dictionary_attr({"value": c.string_attr(value.encode("utf-8"))})
     return self.op("basicpy.str_constant", [self.basicpy_StrType], [], attrs)
 
   def basicpy_unknown_cast_op(self, result_type, operand):
     return self.op("basicpy.unknown_cast", [result_type], [operand])
-        
+
 
 if __name__ == "__main__":
   import doctest
