@@ -5,7 +5,7 @@
 import string
 import sys
 
-_ENABLED = False
+_ENABLED = True
 _formatter = string.Formatter()
 
 

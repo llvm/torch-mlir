@@ -8,6 +8,7 @@ def binary_expression():
   a = 1
   b = 100
   c = a * b + 4
+  c = c * 2.0
   return c
 
 fe = ImportFrontend()

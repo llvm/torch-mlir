@@ -437,7 +437,7 @@ void PyContext::bind(py::module m) {
            },
            py::arg("type"), py::arg("value"))
       .def("float_attr",
-           [](PyContext &self, PyType type, double value) {
+           [](PyContext &self, PyType type, double value) -> PyAttribute {
              if (!type.type.isa<FloatType>()) {
                throw py::raiseValueError("Expected FloatType");
              }
