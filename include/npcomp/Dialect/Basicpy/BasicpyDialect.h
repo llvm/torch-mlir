@@ -21,7 +21,8 @@ namespace Basicpy {
 namespace BasicpyTypes {
 enum Kind {
   // Dialect types.
-  NoneType = TypeRanges::Basicpy,
+  UnknownType = TypeRanges::Basicpy,
+  NoneType,
   EllipsisType,
   SlotObjectType,
 
@@ -35,14 +36,24 @@ namespace detail {
 struct SlotObjectTypeStorage;
 } // namespace detail
 
+/// An unknown type that could be any supported python type.
+class UnknownType : public Type::TypeBase<UnknownType, Type> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) {
+    return kind == BasicpyTypes::UnknownType;
+  }
+  static UnknownType get(MLIRContext *context) {
+    return Base::get(context, BasicpyTypes::UnknownType);
+  }
+};
+
 /// The type of the Python `None` value.
 class NoneType : public Type::TypeBase<NoneType, Type> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
   static NoneType get(MLIRContext *context) {
-    // Call into a helper 'get' method in 'TypeBase' to get a uniqued instance
-    // of this type.
     return Base::get(context, BasicpyTypes::NoneType);
   }
 };
@@ -55,8 +66,6 @@ public:
     return kind == BasicpyTypes::EllipsisType;
   }
   static EllipsisType get(MLIRContext *context) {
-    // Call into a helper 'get' method in 'TypeBase' to get a uniqued instance
-    // of this type.
     return Base::get(context, BasicpyTypes::EllipsisType);
   }
 };

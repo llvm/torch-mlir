@@ -21,6 +21,11 @@ public:
   static void bind(py::module m) {
     py::class_<BasicpyDialectHelper, PyDialectHelper>(m, "BasicpyDialectHelper")
         .def(py::init<std::shared_ptr<PyContext>>())
+        .def_property_readonly("basicpy_UnknownType",
+                               [](BasicpyDialectHelper &self) -> PyType {
+                                 return Basicpy::UnknownType::get(
+                                     &self.context->context);
+                               })
         .def_property_readonly("basicpy_NoneType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::NoneType::get(
@@ -58,7 +63,7 @@ public:
                auto indexAttr = IntegerAttr::get(
                    IndexType::get(&self.context->context), index);
                OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-               Location loc = UnknownLoc::get(opBuilder.getContext());
+               Location loc = self.pyOpBuilder.getCurrentLoc();
                auto op = opBuilder.create<Basicpy::SlotObjectGetOp>(
                    loc, resultType, slotObject, indexAttr);
                return op.getOperation();

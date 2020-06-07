@@ -38,6 +38,14 @@ class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
 // Dialect types
 //===----------------------------------------------------------------------===//
 
+def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::UnknownType>()">,
+    "Unknown type"> {
+  let typeDescription = [{
+    An unknown type (for the current phase of processing).
+  }];
+}
+
 def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">, 
     "Slot object"> {

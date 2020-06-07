@@ -191,7 +191,7 @@ void PyDialectHelper::bind(py::module m) {
               std::vector<PyValue> pyOperands,
               llvm::Optional<PyAttribute> attrs) -> PyOperationRef {
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(false);
-             Location loc = UnknownLoc::get(opBuilder.getContext());
+             Location loc = self.pyOpBuilder.getCurrentLoc();
              OperationName opName(opNameStr, opBuilder.getContext());
              SmallVector<Type, 4> types(pyResultTypes.begin(),
                                         pyResultTypes.end());
@@ -221,7 +221,7 @@ void PyDialectHelper::bind(py::module m) {
                throw py::raiseValueError("Illegal function type");
              }
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-             Location loc = UnknownLoc::get(opBuilder.getContext());
+             Location loc = self.pyOpBuilder.getCurrentLoc();
              // TODO: Add function and arg/result attributes.
              FuncOp op =
                  opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
@@ -242,7 +242,7 @@ void PyDialectHelper::bind(py::module m) {
       .def("return_op",
            [](PyDialectHelper &self, std::vector<PyValue> pyOperands) {
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-             Location loc = UnknownLoc::get(opBuilder.getContext());
+             Location loc = self.pyOpBuilder.getCurrentLoc();
              SmallVector<Value, 4> operands(pyOperands.begin(),
                                             pyOperands.end());
              return PyOperationRef(opBuilder.create<ReturnOp>(loc, operands));
@@ -250,7 +250,7 @@ void PyDialectHelper::bind(py::module m) {
       .def("constant_op",
            [](PyDialectHelper &self, PyType type, PyAttribute value) {
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-             Location loc = UnknownLoc::get(opBuilder.getContext());
+             Location loc = self.pyOpBuilder.getCurrentLoc();
              return PyOperationRef(
                  opBuilder.create<ConstantOp>(loc, type.type, value.attr));
            })
@@ -329,8 +329,35 @@ void PyDialectHelper::bind(py::module m) {
 // Module initialization
 //===----------------------------------------------------------------------===//
 
+static void emitDiagnostic(DiagnosticSeverity severity, PyAttribute loc,
+                           std::string &message) {
+  auto locAttr = loc.attr.dyn_cast_or_null<LocationAttr>();
+  if (!locAttr) {
+    throw py::raiseValueError("Expected a LocationAttr");
+  }
+  auto &diagEngine = locAttr.getContext()->getDiagEngine();
+  diagEngine.emit(Location(locAttr), severity) << message;
+}
+
 void defineMlirIrModule(py::module m) {
   m.doc() = "Python bindings for constructs in the mlir/IR library";
+
+  // Globals.
+  m.def("emit_error",
+        [](PyAttribute loc, std::string message) {
+          emitDiagnostic(DiagnosticSeverity::Error, loc, message);
+        },
+        py::arg("loc"), py::arg("message"));
+  m.def("emit_warning",
+        [](PyAttribute loc, std::string message) {
+          emitDiagnostic(DiagnosticSeverity::Warning, loc, message);
+        },
+        py::arg("loc"), py::arg("message"));
+  m.def("emit_remark",
+        [](PyAttribute loc, std::string message) {
+          emitDiagnostic(DiagnosticSeverity::Remark, loc, message);
+        },
+        py::arg("loc"), py::arg("message"));
 
   // Python only types.
   PyDialectHelper::bind(m);
@@ -345,6 +372,7 @@ void defineMlirIrModule(py::module m) {
   PyBaseOpBuilder::bind(m);
   PyBlockRef::bind(m);
   PyContext::bind(m);
+  PyIdentifier::bind(m);
   PyModuleOp::bind(m);
   PyOperationRef::bind(m);
   PyOpBuilder::bind(m);
@@ -378,6 +406,17 @@ void PyContext::bind(py::module m) {
              // Python.
              return PyOpBuilder(self);
            })
+      .def("identifier",
+           [](PyContext &self, std::string s) -> PyIdentifier {
+             return Identifier::get(s, &self.context);
+           })
+      .def("file_line_col_loc_attr",
+           [](PyContext &self, PyIdentifier filename, unsigned line,
+              unsigned column) -> PyAttribute {
+             return static_cast<LocationAttr>(FileLineColLoc::get(
+                 filename.identifier, line, column, &self.context));
+           },
+           py::arg("filename"), py::arg("line"), py::arg("column"))
       // Salient functions from Builder.
       .def("parse_type",
            [](PyContext &self, const std::string &asmText) {
@@ -388,6 +427,21 @@ void PyContext::bind(py::module m) {
                throw py::raiseValueError(message);
              }
              return PyType(t);
+           })
+      .def("integer_attr",
+           [](PyContext &self, PyType type, int64_t value) -> PyAttribute {
+             if (!type.type.isa<IntegerType>()) {
+               throw py::raiseValueError("Expected IntegerType");
+             }
+             return IntegerAttr::get(type.type, value);
+           },
+           py::arg("type"), py::arg("value"))
+      .def("float_attr",
+           [](PyContext &self, PyType type, double value) {
+             if (!type.type.isa<FloatType>()) {
+               throw py::raiseValueError("Expected FloatType");
+             }
+             return FloatAttr::get(type.type, value);
            })
       .def("index_attr",
            [](PyContext &self, int64_t indexValue) -> PyAttribute {
@@ -744,6 +798,21 @@ void PyType::bind(py::module m) {
 }
 
 //===----------------------------------------------------------------------===//
+// PyIdentifier
+//===----------------------------------------------------------------------===//
+
+void PyIdentifier::bind(py::module m) {
+  py::class_<PyIdentifier>(m, "Identifier")
+      .def("__str__", [](PyIdentifier &self) { return self.identifier.str(); })
+      .def("__repr__", [](PyIdentifier &self) {
+        std::string s("<Identifier \"");
+        s.append(self.identifier.str());
+        s.append("\">");
+        return s;
+      });
+}
+
+//===----------------------------------------------------------------------===//
 // PyValue
 //===----------------------------------------------------------------------===//
 
@@ -765,9 +834,9 @@ void PyValue::bind(py::module m) {
 
 void PyAttribute::bind(py::module m) {
   py::class_<PyAttribute>(m, "Attribute")
-      .def_property_readonly("type", [](PyAttribute &self) -> PyType {
-        return self.attr.getType();
-      })
+      .def_property_readonly(
+          "type",
+          [](PyAttribute &self) -> PyType { return self.attr.getType(); })
       .def("__repr__", [](PyAttribute &self) {
         std::string res;
         llvm::raw_string_ostream os(res);
@@ -784,7 +853,7 @@ PyBaseOpBuilder::~PyBaseOpBuilder() = default;
 PyOpBuilder::~PyOpBuilder() = default;
 
 OpBuilder &PyOpBuilder::getBuilder(bool requirePosition) {
-  if (!builder.getBlock()) {
+  if (requirePosition && !builder.getBlock()) {
     throw py::raisePyError(PyExc_IndexError, "Insertion point not set");
   }
   return builder;
@@ -797,6 +866,27 @@ void PyBaseOpBuilder::bind(py::module m) {
 void PyOpBuilder::bind(py::module m) {
   py::class_<PyOpBuilder, PyBaseOpBuilder>(m, "OpBuilder")
       .def(py::init<PyContext &>())
+      .def_property("current_loc",
+                    [](PyOpBuilder &self) -> PyAttribute {
+                      return static_cast<Attribute>(self.getCurrentLoc());
+                    },
+                    [](PyOpBuilder &self, PyAttribute attr) {
+                      auto loc_attr =
+                          attr.attr.dyn_cast_or_null<LocationAttr>();
+                      if (!loc_attr) {
+                        throw py::raiseValueError("Expected a LocationAttr");
+                      }
+                      self.setCurrentLoc(Location(loc_attr));
+                    })
+      .def("set_file_line_col",
+           [](PyOpBuilder &self, PyIdentifier filename, unsigned line,
+              unsigned column) {
+             Location loc = FileLineColLoc::get(filename.identifier, line,
+                                                column, self.getContext());
+             self.setCurrentLoc(loc);
+           },
+           py::arg("filename"), py::arg("line"), py::arg("column"),
+           "Shortcut to set a FileLineCol current location")
       .def("clear_insertion_point",
            [](PyOpBuilder &self) { self.builder.clearInsertionPoint(); })
       .def("insert_op_before",

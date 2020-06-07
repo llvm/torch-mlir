@@ -13,6 +13,7 @@
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Identifier.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Operation.h"
@@ -92,6 +93,13 @@ struct PyValue {
   Value value;
 };
 
+/// Wrapper around Identifier.
+struct PyIdentifier {
+  PyIdentifier(Identifier identifier) : identifier(identifier) {}
+  static void bind(py::module m);
+  Identifier identifier;
+};
+
 /// Wrapper around Attribute.
 struct PyAttribute {
   PyAttribute(Attribute attr) : attr(attr) { assert(attr); }
@@ -139,6 +147,21 @@ public:
   virtual ~PyBaseOpBuilder();
   static void bind(py::module m);
   virtual OpBuilder &getBuilder(bool requirePosition = false) = 0;
+  MLIRContext *getContext() { return getBuilder(false).getContext(); }
+
+  // For convenience, we track the current location at the builder level
+  // to avoid lots of parameter passing.
+  void setCurrentLoc(Location loc) { currentLoc = loc; }
+  Location getCurrentLoc() {
+    if (currentLoc) {
+      return Location(currentLoc);
+    } else {
+      return UnknownLoc::get(getBuilder(false).getContext());
+    }
+  }
+
+private:
+  LocationAttr currentLoc;
 };
 
 /// Wrapper around an instance of an OpBuilder.
