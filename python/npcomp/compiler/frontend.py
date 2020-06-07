@@ -168,7 +168,7 @@ class FunctionDefImporter(BaseNodeVisitor):
     expr = ExpressionImporter(self.fctx)
     expr.visit(ast_node.value)
     casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                       expr.value).result
+                                          expr.value).result
     ir_h.return_op([casted])
 
 
@@ -184,39 +184,31 @@ class ExpressionImporter(BaseNodeVisitor):
     assert self.value, ("ExpressionImporter did not assign a value (%r)" %
                         (ast.dump(node),))
 
-  def visit_Constant(self, ast_node):
+  def emit_constant(self, value):
     ir_c = self.fctx.ir_c
     ir_h = self.fctx.ir_h
-    if isinstance(ast_node, ast.Num):
-      # Handle numeric constants.
-      nval = ast_node.n
-      if isinstance(nval, int):
-        # TODO: Configurable type mapping
-        ir_type = ir_h.i64_type
-        ir_attr = ir_c.integer_attr(ir_type, nval)
-      elif isinstance(nval, float):
-        # TODO: Configurable type mapping
-        ir_type = ir_h.f64_type
-        ir_attr = ir_c.float_attr(ir_type, nval)
-      else:
-        self.fctx.abort("unsupported numeric constant type: %r" % (nval,))
+    if value is True:
+      self.value = ir_h.basicpy_bool_constant_op(True).result
+    elif value is False:
+      self.value = ir_h.basicpy_bool_constant_op(False).result
+    elif isinstance(value, int):
+      # TODO: Configurable type mapping
+      ir_type = ir_h.i64_type
+      ir_attr = ir_c.integer_attr(ir_type, value)
       self.value = ir_h.constant_op(ir_type, ir_attr).result
-    elif isinstance(ast_node, ast.NameConstant):
-      if ast_node.value is True:
-        self.value = ir_h.basicpy_bool_constant_op(True).result
-      elif ast_node.value is False:
-        self.value = ir_h.basicpy_bool_constant_op(False).result
-      else:
-        self.fctx.abort("unknown named constant '%r'" % (ast_node.value,))
-    elif isinstance(ast_node, ast.Str):
-      self.value = ir_h.basicpy_str_constant_op(ast_node.s).result
-    elif isinstance(ast_node, ast.Bytes):
-      self.value = ir_h.basicpy_bytes_constant_op(ast_node.s).result
-    elif isinstance(ast_node, ast.Ellipsis):
+    elif isinstance(value, float):
+      # TODO: Configurable type mapping
+      ir_type = ir_h.f64_type
+      ir_attr = ir_c.float_attr(ir_type, value)
+      self.value = ir_h.constant_op(ir_type, ir_attr).result
+    elif isinstance(value, str):
+      self.value = ir_h.basicpy_str_constant_op(value).result
+    elif isinstance(value, bytes):
+      self.value = ir_h.basicpy_bytes_constant_op(value).result
+    elif isinstance(value, type(...)):
       self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_EllipsisType).result
     else:
-      self.fctx.abort("unknown constant type %s" %
-                      (ast_node.__class__.__name__))
+      self.fctx.abort("unknown constant type '%r'" % (value,))
 
   def visit_BinOp(self, ast_node):
     ir_c = self.fctx.ir_c
@@ -243,22 +235,25 @@ class ExpressionImporter(BaseNodeVisitor):
     self.value = value
 
   if sys.version_info < (3, 8, 0):
-    visit_Num = visit_Constant
-    visit_Str = visit_Constant
-    visit_Bytes = visit_Constant
-    visit_NameConstant = visit_Constant
-    visit_Ellipsis = visit_Constant
-  else:
-    # For >= 3.8.0, these are deprecated but still may be called for
-    # compatibility (in addition to visit_Constant). Just make them no-op.
-    def ignore(self, ast_node):
-      pass
+    # <3.8 breaks these out into separate AST classes.
+    def visit_Num(self, ast_node):
+      self.emit_constant(ast_node.n)
 
-    visit_Num = ignore
-    visit_Str = ignore
-    visit_Bytes = ignore
-    visit_NameConstant = ignore
-    visit_Ellipsis = ignore
+    def visit_Str(self, ast_node):
+      self.emit_constant(ast_node.s)
+
+    def visit_Bytes(self, ast_node):
+      self.emit_constant(ast_node.s)
+
+    def visit_NameConstant(self, ast_node):
+      self.emit_constant(ast_node.value)
+
+    def visit_Ellipsis(self, ast_node):
+      self.emit_constant(...)
+  else:
+
+    def visit_Constant(self, ast_node):
+      self.emit_constant(ast_node.value)
 
 
 class EmittedError(Exception):
