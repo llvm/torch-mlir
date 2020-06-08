@@ -17,6 +17,8 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
+#include "npcomp/Dialect/Basicpy/BasicpyOpsEnums.h.inc"
+
 namespace mlir {
 namespace NPCOMP {
 namespace Basicpy {

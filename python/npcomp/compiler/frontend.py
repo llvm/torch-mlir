@@ -213,18 +213,25 @@ class ExpressionImporter(BaseNodeVisitor):
       self.fctx.abort("unknown constant type '%r'" % (value,))
 
   def visit_BinOp(self, ast_node):
-    ir_c = self.fctx.ir_c
     ir_h = self.fctx.ir_h
     left = ExpressionImporter(self.fctx)
     left.visit(ast_node.left)
     right = ExpressionImporter(self.fctx)
     right.visit(ast_node.right)
-    ir_attrs = ir_c.dictionary_attr(
-        {"operation": ir_c.string_attr(ast_node.op.__class__.__name__)})
-    self.fctx.update_loc(ast_node)
-    # TODO: Change to a registered op.
-    self.value = ir_h.op("basicpy.binary_expr", [ir_h.basicpy_UnknownType],
-                         [left.value, right.value], ir_attrs).result
+    self.value = ir_h.basicpy_binary_expr_op(
+        ir_h.basicpy_UnknownType, left.value, right.value,
+        ast_node.op.__class__.__name__).result
+
+  def visit_Compare(self, ast_node):
+    ir_h = self.fctx.ir_h
+    if len(ast_node.ops) != 1:
+      self.fctx.abort("unsupported short-circuit comparison")
+    left = ExpressionImporter(self.fctx)
+    left.visit(ast_node.left)
+    right = ExpressionImporter(self.fctx)
+    right.visit(ast_node.comparators[0])
+    self.value = ir_h.basicpy_binary_compare_op(
+        left.value, right.value, ast_node.ops[0].__class__.__name__).result
 
   def visit_Name(self, ast_node):
     if not isinstance(ast_node.ctx, ast.Load):

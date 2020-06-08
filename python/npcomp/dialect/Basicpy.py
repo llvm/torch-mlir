@@ -47,6 +47,11 @@ class DialectHelper(_BaseDialectHelper):
 
   """
 
+  def basicpy_binary_expr_op(self, result_type, lhs, rhs, operation_name):
+    c = self.context
+    attrs = c.dictionary_attr({"operation": c.string_attr(operation_name)})
+    return self.op("basicpy.binary_expr", [result_type], [lhs, rhs], attrs)
+
   def basicpy_bool_constant_op(self, value):
     c = self.context
     ival = 1 if value else 0
@@ -58,6 +63,12 @@ class DialectHelper(_BaseDialectHelper):
     attrs = c.dictionary_attr({"value": c.string_attr(value)})
     return self.op("basicpy.bytes_constant", [self.basicpy_BytesType], [],
                    attrs)
+
+  def basicpy_binary_compare_op(self, lhs, rhs, operation_name):
+    c = self.context
+    attrs = c.dictionary_attr({"operation": c.string_attr(operation_name)})
+    return self.op("basicpy.binary_compare", [self.basicpy_BoolType],
+                   [lhs, rhs], attrs)
 
   def basicpy_singleton_op(self, singleton_type):
     return self.op("basicpy.singleton", [singleton_type], [])

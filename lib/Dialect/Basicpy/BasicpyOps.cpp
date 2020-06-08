@@ -13,6 +13,8 @@
 #include "mlir/IR/OpImplementation.h"
 #include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
 
+#include "npcomp/Dialect/Basicpy/BasicpyOpsEnums.cpp.inc"
+
 namespace mlir {
 namespace NPCOMP {
 namespace Basicpy {
