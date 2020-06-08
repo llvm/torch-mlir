@@ -186,13 +186,15 @@ private:
 /// class contains helpers for std types and ops.
 class PyDialectHelper {
 public:
-  PyDialectHelper(std::shared_ptr<PyContext> context)
-      : pyOpBuilder(*context), context(std::move(context)) {}
+  PyDialectHelper(PyContext &context, PyOpBuilder &builder)
+    : context(context), pyOpBuilder(builder) {}
   static void bind(py::module m);
-
+  MLIRContext *getContext() {
+    return pyOpBuilder.getContext();
+  }
 protected:
-  PyOpBuilder pyOpBuilder;
-  std::shared_ptr<PyContext> context;
+  PyContext &context;
+  PyOpBuilder &pyOpBuilder;
 };
 
 } // namespace mlir

@@ -23,7 +23,7 @@ class ModuleBuilder:
     # TODO: Instead of bootstrapping a large module, populate imports
     # dynamically.
     self.module = Numpy.load_builtin_module(self.context)
-    self.helper = Numpy.DialectHelper(self.context)
+    self.helper = Numpy.DialectHelper(self.context, ir.OpBuilder(self.context))
     self.emitters = (emitter_registry
                      if emitter_registry else EmitterRegistry.create_default())
 

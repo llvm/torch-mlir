@@ -60,13 +60,17 @@ PYBIND11_MODULE(_npcomp, m) {
   auto llvm_m = m.def_submodule("llvm", "LLVM interop");
   defineLLVMModule(llvm_m);
 
+  // "mlir" module.
   auto mlir_m = m.def_submodule("mlir", "MLIR interop");
   auto mlir_ir_m = mlir_m.def_submodule("ir");
   defineMlirIrModule(mlir_ir_m);
   // Note: not "pass" because it is a reserved word
   auto mlir_pass_m = mlir_m.def_submodule("passes");
   defineMlirPassModule(mlir_pass_m);
+  auto mlir_dialect_m = mlir_m.def_submodule("dialect");
+  defineMlirCoreDialects(mlir_dialect_m);
 
+  // Outer "_npcomp" module
   auto npcomp_dialect = m.def_submodule("dialect", "NPComp custom dialects");
   defineNpcompDialect(npcomp_dialect);
 }

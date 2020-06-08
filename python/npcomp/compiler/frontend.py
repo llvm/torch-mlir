@@ -10,6 +10,7 @@ import inspect
 import sys
 
 from _npcomp.mlir import ir
+from _npcomp.mlir.dialect import ScfDialectHelper
 from npcomp.dialect import Numpy
 
 from . import logging
@@ -19,13 +20,24 @@ __all__ = [
 ]
 
 
+# TODO: Remove this hack in favor of a helper function that combines
+# multiple dialect helpers so that we don't need to deal with the sharp
+# edge of initializing multiple native base classes.
+class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
+
+  def __init__(self, *args, **kwargs):
+    Numpy.DialectHelper.__init__(self, *args, **kwargs)
+    ScfDialectHelper.__init__(self, *args, **kwargs)
+
+
 class ImportFrontend:
   """Frontend for importing various entities into a Module."""
 
   def __init__(self, ir_context: ir.MLIRContext = None):
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
-    self._helper = Numpy.DialectHelper(self._ir_context)
+    self._helper = AllDialectHelper(self._ir_context,
+                                    ir.OpBuilder(self._ir_context))
 
   @property
   def ir_context(self):

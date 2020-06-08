@@ -33,6 +33,7 @@ set(extension_pybind_sources
   NpcompDialect.cpp
   NpcompModule.cpp
   PybindUtils.cpp
+  CoreDialects.cpp
 )
 set_source_files_properties(
   ${extension_pybind_sources}

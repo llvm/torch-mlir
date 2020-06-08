@@ -175,7 +175,8 @@ private:
 
 void PyDialectHelper::bind(py::module m) {
   py::class_<PyDialectHelper>(m, "DialectHelper")
-      .def(py::init<std::shared_ptr<PyContext>>())
+      .def(py::init<PyContext &, PyOpBuilder &>(), py::keep_alive<1, 2>(),
+           py::keep_alive<1, 3>())
       .def_property_readonly("builder",
                              [](PyDialectHelper &self) -> PyBaseOpBuilder & {
                                return self.pyOpBuilder;
@@ -183,7 +184,7 @@ void PyDialectHelper::bind(py::module m) {
       .def_property_readonly(
           "context",
           [](PyDialectHelper &self) -> std::shared_ptr<PyContext> {
-            return self.context;
+            return self.context.shared_from_this();
           })
       .def("op",
            [](PyDialectHelper &self, const std::string &opNameStr,
@@ -258,42 +259,38 @@ void PyDialectHelper::bind(py::module m) {
       // Types.
       .def_property_readonly("index_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IndexType::get(&self.context->context);
+                               return IndexType::get(self.getContext());
                              })
       .def("integer_type",
            [](PyDialectHelper &self, unsigned width) -> PyType {
-             return IntegerType::get(width, &self.context->context);
+             return IntegerType::get(width, self.getContext());
            },
            py::arg("width") = 32)
       .def_property_readonly("i1_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(1,
-                                                       &self.context->context);
+                               return IntegerType::get(1, self.getContext());
                              })
       .def_property_readonly("i16_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(32,
-                                                       &self.context->context);
+                               return IntegerType::get(32, self.getContext());
                              })
       .def_property_readonly("i32_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(32,
-                                                       &self.context->context);
+                               return IntegerType::get(32, self.getContext());
                              })
       .def_property_readonly("i64_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(64,
-                                                       &self.context->context);
+                               return IntegerType::get(64, self.getContext());
                              })
       .def_property_readonly("f32_type",
                              [](PyDialectHelper &self) -> PyType {
                                return FloatType::get(StandardTypes::F32,
-                                                     &self.context->context);
+                                                     self.getContext());
                              })
       .def_property_readonly("f64_type",
                              [](PyDialectHelper &self) -> PyType {
                                return FloatType::get(StandardTypes::F64,
-                                                     &self.context->context);
+                                                     self.getContext());
                              })
       .def("tensor_type",
            [](PyDialectHelper &self, PyType elementType,
@@ -321,7 +318,7 @@ void PyDialectHelper::bind(py::module m) {
                resultTypes.push_back(result.type);
              }
              return FunctionType::get(inputTypes, resultTypes,
-                                      &self.context->context);
+                                      self.getContext());
            });
 }
 
@@ -405,7 +402,8 @@ void PyContext::bind(py::module m) {
              // there is little reason to expose the inheritance hierarchy to
              // Python.
              return PyOpBuilder(self);
-           })
+           },
+           py::keep_alive<0, 1>())
       .def("identifier",
            [](PyContext &self, std::string s) -> PyIdentifier {
              return Identifier::get(s, &self.context);
@@ -865,7 +863,7 @@ void PyBaseOpBuilder::bind(py::module m) {
 
 void PyOpBuilder::bind(py::module m) {
   py::class_<PyOpBuilder, PyBaseOpBuilder>(m, "OpBuilder")
-      .def(py::init<PyContext &>())
+      .def(py::init<PyContext &>(), py::keep_alive<1, 2>())
       .def_property("current_loc",
                     [](PyOpBuilder &self) -> PyAttribute {
                       return static_cast<Attribute>(self.getCurrentLoc());

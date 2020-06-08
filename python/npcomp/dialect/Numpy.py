@@ -13,10 +13,10 @@ __all__ = [
 
 
 class DialectHelper(Basicpy.DialectHelper):
-    r"""Dialect helper.
+  r"""Dialect helper.
   
     >>> c = ir.MLIRContext()
-    >>> h = DialectHelper(c)
+    >>> h = DialectHelper(c, ir.OpBuilder(c))
     >>> m = c.new_module()
     >>> tensor_type = h.tensor_type(h.f32_type)
     >>> h.builder.insert_block_start(m.first_block)
@@ -47,7 +47,8 @@ class DialectHelper(Basicpy.DialectHelper):
     dense<[[1.000000e+00, 2.000000e+00], [3.000000e+00, 4.000000e+00]]> : tensor<2x2xf32>
 
   Types:
-    >>> t = DialectHelper(ir.MLIRContext())
+    >>> c = ir.MLIRContext()
+    >>> t = DialectHelper(c, ir.OpBuilder(c))
     >>> t.numpy_any_dtype
     !numpy.any_dtype
     >>> t.tensor_type(t.numpy_any_dtype, [1, 2, 3])
@@ -64,29 +65,32 @@ class DialectHelper(Basicpy.DialectHelper):
     tensor<*x!numpy.any_dtype>
 
   """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.numpy_any_dtype = self.context.parse_type("!numpy.any_dtype")
-        self.unknown_array_type = self.tensor_type(self.numpy_any_dtype)
+  @property
+  def numpy_any_dtype(self):
+    return self.context.parse_type("!numpy.any_dtype")
 
-    def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
-        """Creates a numpy.ufunc_call op."""
-        c = self.context
-        attrs = c.dictionary_attr(
-            {"ufunc_ref": c.flat_symbol_ref_attr(callee_symbol)})
-        return self.op("numpy.ufunc_call", [result_type], args, attrs)
+  @property
+  def unknown_array_type(self):
+    return self.tensor_type(self.numpy_any_dtype)
 
-    def numpy_narrow_op(self, result_type, operand):
-        """Creates a numpy.narrow op."""
-        return self.op("numpy.narrow", [result_type], [operand])
+  def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
+    """Creates a numpy.ufunc_call op."""
+    c = self.context
+    attrs = c.dictionary_attr(
+        {"ufunc_ref": c.flat_symbol_ref_attr(callee_symbol)})
+    return self.op("numpy.ufunc_call", [result_type], args, attrs)
 
-    def numpy_get_slice_op(self, result_type, array, *slice_elements):
-        return self.op("numpy.get_slice", [result_type],
-                       [array] + list(slice_elements))
+  def numpy_narrow_op(self, result_type, operand):
+    """Creates a numpy.narrow op."""
+    return self.op("numpy.narrow", [result_type], [operand])
+
+  def numpy_get_slice_op(self, result_type, array, *slice_elements):
+    return self.op("numpy.get_slice", [result_type],
+                   [array] + list(slice_elements))
 
 
 def load_builtin_module(context=None):
-    """Loads a module populated with numpy built-ins.
+  """Loads a module populated with numpy built-ins.
 
   This is not a long-term solution but overcomes some bootstrapping
   issues.
@@ -103,8 +107,9 @@ def load_builtin_module(context=None):
   Returns:
     A ModuleOp.
   """
-    if context is None: context = ir.MLIRContext()
-    return context.parse_asm(_BUILTIN_MODULE_ASM)
+  if context is None:
+    context = ir.MLIRContext()
+  return context.parse_asm(_BUILTIN_MODULE_ASM)
 
 
 _BUILTIN_MODULE_ASM = r"""
@@ -113,5 +118,5 @@ _BUILTIN_MODULE_ASM = r"""
 """
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+  import doctest
+  doctest.testmod()

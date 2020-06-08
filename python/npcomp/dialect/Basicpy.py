@@ -14,7 +14,7 @@ class DialectHelper(_BaseDialectHelper):
   r"""Dialect helper for the Basicpy dialect.
 
     >>> c = ir.MLIRContext()
-    >>> h = DialectHelper(c)
+    >>> h = DialectHelper(c, ir.OpBuilder(c))
     
   Dialect Types:
     >>> h.basicpy_NoneType

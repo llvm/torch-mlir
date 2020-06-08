@@ -14,6 +14,7 @@
 namespace mlir {
 void defineMlirIrModule(py::module m);
 void defineMlirPassModule(py::module m);
+void defineMlirCoreDialects(py::module m);
 
 namespace npcomp {
 namespace python {
