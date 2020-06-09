@@ -237,6 +237,41 @@ class ExpressionImporter(BaseNodeVisitor):
         ir_h.basicpy_UnknownType, left, right,
         ast_node.op.__class__.__name__).result
 
+  def visit_BoolOp(self, ast_node):
+    ir_h = self.fctx.ir_h
+    if isinstance(ast_node.op, ast.And):
+      return_first_true = False
+    elif isinstance(ast_node.op, ast.Or):
+      return_first_true = True
+    else:
+      self.fctx.abort("unknown bool op %r" % (ast.dump(ast_node.op)))
+
+    def emit_next(next_nodes):
+      next_node = next_nodes[0]
+      next_nodes = next_nodes[1:]
+      next_value = self.sub_evaluate(next_node)
+      if not next_nodes:
+        return next_value
+      condition_value = ir_h.basicpy_to_boolean_op(next_value).result
+      if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
+                                               condition_value, True)
+      orig_ip = ir_h.builder.insertion_point
+      # Short-circuit return case.
+      ir_h.builder.insertion_point = then_ip if return_first_true else else_ip
+      next_value_casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
+                                                       next_value).result
+      ir_h.scf_yield_op([next_value_casted])
+      # Nested evaluate next case.
+      ir_h.builder.insertion_point = else_ip if return_first_true else then_ip
+      nested_value = emit_next(next_nodes)
+      nested_value_casted = next_value_casted = ir_h.basicpy_unknown_cast_op(
+          ir_h.basicpy_UnknownType, nested_value).result
+      ir_h.scf_yield_op([nested_value_casted])
+      ir_h.builder.insertion_point = orig_ip
+      return if_op.result
+
+    self.value = emit_next(ast_node.values)
+
   def visit_Compare(self, ast_node):
     # Short-circuit comparison (degenerates to binary comparison when just
     # two operands).
@@ -283,6 +318,20 @@ class ExpressionImporter(BaseNodeVisitor):
     if value is None:
       self.fctx.abort("Local variable '%s' has not been assigned" % ast_node.id)
     self.value = value
+
+  def visit_UnaryOp(self, ast_node):
+    ir_h = self.fctx.ir_h
+    op = ast_node.op
+    operand_value = self.sub_evaluate(ast_node.operand)
+    if isinstance(op, ast.Not):
+      # Special handling for logical-not.
+      condition_value = ir_h.basicpy_to_boolean_op(operand_value).result
+      true_value = ir_h.basicpy_bool_constant_op(True).result
+      false_value = ir_h.basicpy_bool_constant_op(False).result
+      self.value = ir_h.select_op(condition_value, false_value,
+                                  true_value).result
+    else:
+      self.fctx.abort("Unknown unary op %r", (ast.dump(op)))
 
   if sys.version_info < (3, 8, 0):
     # <3.8 breaks these out into separate AST classes.

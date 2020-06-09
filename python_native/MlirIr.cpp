@@ -248,6 +248,15 @@ void PyDialectHelper::bind(py::module m) {
            R"(Creates a new `func` op, optionally creating an entry block.
               If an entry block is created, the builder will be positioned
               to its start.)")
+      .def("select_op",
+           [](PyDialectHelper &self, PyValue conditionValue, PyValue trueValue,
+              PyValue falseValue) -> PyOperationRef {
+             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+             Location loc = self.pyOpBuilder.getCurrentLoc();
+             return PyOperationRef(opBuilder.create<SelectOp>(
+                 loc, conditionValue, trueValue, falseValue));
+           },
+           py::arg("condition"), py::arg("true_value"), py::arg("false_value"))
       .def("return_op",
            [](PyDialectHelper &self, std::vector<PyValue> pyOperands) {
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);

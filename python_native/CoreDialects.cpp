@@ -55,7 +55,7 @@ public:
                      op.getThenBodyBuilder().saveInsertionPoint());
                }
              },
-             py::arg("cond"), py::arg("result_types"),
+             py::arg("result_types"), py::arg("cond"),
              py::arg("with_else_region") = false);
   }
 };

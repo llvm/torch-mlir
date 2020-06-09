@@ -240,6 +240,19 @@ def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
+def Basicpy_ToBooleanOp : Basicpy_Op<"to_boolean", [NoSideEffect]> {
+  let summary = "Evaluates an input to an i1 boolean value";
+  let description = [{
+    Applies the rules for interpreting a type as a boolean, returning an i1
+    indicating the truthiness of the operand. Since the output of this op
+    is intended to drive lower-level control flow, the i1 type is used (not
+    the user level BoolType).
+  }];
+  let arguments = (ins AnyType:$operand);
+  let results = (outs I1:$result);
+  let assemblyFormat = "$operand attr-dict `:` type($operand)";
+}
+
 def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
   let summary = "Casts to and from the UnknownType";
   let arguments = (ins AnyType:$input);
