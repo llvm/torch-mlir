@@ -52,6 +52,9 @@ class DialectHelper(_BaseDialectHelper):
     attrs = c.dictionary_attr({"operation": c.string_attr(operation_name)})
     return self.op("basicpy.binary_expr", [result_type], [lhs, rhs], attrs)
 
+  def basicpy_bool_cast_op(self, result_type, value):
+    return self.op("basicpy.bool_cast", [result_type], [value])
+
   def basicpy_bool_constant_op(self, value):
     c = self.context
     ival = 1 if value else 0

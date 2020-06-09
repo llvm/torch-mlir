@@ -80,8 +80,10 @@ target_link_libraries(${extension_target}
     NPCOMPBasicpyDialect
     NPCOMPNumpyDialect
     
+    # Core dialects
+    MLIRSCF
+
     # Upstream depends
-    
     LLVMSupport
     MLIRAffineToStandard
     MLIRAffineTransforms

@@ -196,6 +196,11 @@ class ExpressionImporter(BaseNodeVisitor):
     assert self.value, ("ExpressionImporter did not assign a value (%r)" %
                         (ast.dump(node),))
 
+  def sub_evaluate(self, sub_node):
+    sub_importer = ExpressionImporter(self.fctx)
+    sub_importer.visit(sub_node)
+    return sub_importer.value
+
   def emit_constant(self, value):
     ir_c = self.fctx.ir_c
     ir_h = self.fctx.ir_h
@@ -236,14 +241,46 @@ class ExpressionImporter(BaseNodeVisitor):
 
   def visit_Compare(self, ast_node):
     ir_h = self.fctx.ir_h
-    if len(ast_node.ops) != 1:
-      self.fctx.abort("unsupported short-circuit comparison")
-    left = ExpressionImporter(self.fctx)
-    left.visit(ast_node.left)
-    right = ExpressionImporter(self.fctx)
-    right.visit(ast_node.comparators[0])
-    self.value = ir_h.basicpy_binary_compare_op(
-        left.value, right.value, ast_node.ops[0].__class__.__name__).result
+    if len(ast_node.ops) == 1:
+      # Simplified single comparison emission.
+      left = self.sub_evaluate(ast_node.left)
+      right = self.sub_evaluate(ast_node.comparators[0])
+      self.value = ir_h.basicpy_binary_compare_op(
+          left, right, ast_node.ops[0].__class__.__name__).result
+    else:
+      # Short-circuit comparison.
+      false_value = ir_h.basicpy_bool_constant_op(False).result
+
+      def emit_next(left_value, comparisons):
+        operation, right_node = comparisons[0]
+        comparisons = comparisons[1:]
+        right_value = self.sub_evaluate(right_node)
+        compare_result = ir_h.basicpy_binary_compare_op(
+            left_value, right_value, operation.__class__.__name__).result
+        # Terminate by yielding the final compare result.
+        if not comparisons:
+          return compare_result
+
+        # Emit 'if' op and recurse. The if op takes an i1 (core dialect
+        # requirement) and returns a basicpy.BoolType. Since this is an 'and',
+        # all else clauses yield a false value.
+        compare_result_i1 = ir_h.basicpy_bool_cast_op(ir_h.i1_type,
+                                                      compare_result).result
+        if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_BoolType],
+                                                 compare_result_i1, True)
+        orig_ip = ir_h.builder.insertion_point
+        # Build the else clause.
+        ir_h.builder.insertion_point = else_ip
+        ir_h.scf_yield_op([false_value])
+        # Build the then clause.
+        ir_h.builder.insertion_point = then_ip
+        nested_result = emit_next(right_value, comparisons)
+        ir_h.scf_yield_op([nested_result])
+        ir_h.builder.insertion_point = orig_ip
+        return if_op.result
+
+      self.value = emit_next(self.sub_evaluate(ast_node.left),
+                             list(zip(ast_node.ops, ast_node.comparators)))
 
   def visit_Name(self, ast_node):
     if not isinstance(ast_node.ctx, ast.Load):

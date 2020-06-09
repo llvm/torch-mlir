@@ -14,6 +14,12 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 //===----------------------------------------------------------------------===//
+// Predicates
+//===----------------------------------------------------------------------===//
+
+def BoolOrI1Type : AnyTypeOf<[Basicpy_BoolType, I1], "Python bool or i1">;
+
+//===----------------------------------------------------------------------===//
 // Binary operation enum
 // The name matches the operation name in the python AST ("Add", "Mult", etc).
 //===----------------------------------------------------------------------===//
@@ -99,6 +105,18 @@ def Basicpy_BinaryExprOp : Basicpy_Op<"binary_expr", []> {
     AnyType:$result
   );
   let assemblyFormat = "$operation operands attr-dict `:` functional-type(operands, results)";
+}
+
+def Basicpy_BoolCastOp : Basicpy_Op<"bool_cast", [NoSideEffect]> {
+  let summary = "Casts between BoolType and i1";
+  let description = [{
+    When interfacing with lower level dialect or progressively lowering
+    the Python BoolType away, it is often necessary to cast between it and
+    i1, which is used to represent bool-ness at lower levels.
+  }];
+  let arguments = (ins BoolOrI1Type:$operand);
+  let results = (outs BoolOrI1Type:$result);
+  let assemblyFormat = "$operand attr-dict `:` type(operands) `->` type(results)";
 }
 
 def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [

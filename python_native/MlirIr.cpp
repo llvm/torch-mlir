@@ -32,6 +32,14 @@ static OwningModuleRef parseMLIRModuleFromString(StringRef contents,
                                                  MLIRContext *context);
 
 //===----------------------------------------------------------------------===//
+// Direct type bindings
+//===----------------------------------------------------------------------===//
+
+static void bindInsertPoint(py::module m) {
+  py::class_<OpBuilder::InsertPoint>(m, "InsertPoint");
+}
+
+//===----------------------------------------------------------------------===//
 // Internal only template definitions
 // Since it is only legal to use explicit instantiations of templates in
 // mlir_ir.h, implementations are kept in this module to keep things scoped
@@ -377,6 +385,9 @@ void defineMlirIrModule(py::module m) {
   PySymbolTable::bind(m);
   PyType::bind(m);
   PyValue::bind(m);
+
+  // Direct wrappings.
+  bindInsertPoint(m);
 }
 
 //===----------------------------------------------------------------------===//
@@ -875,6 +886,13 @@ void PyOpBuilder::bind(py::module m) {
                         throw py::raiseValueError("Expected a LocationAttr");
                       }
                       self.setCurrentLoc(Location(loc_attr));
+                    })
+      .def_property("insertion_point",
+                    [](PyOpBuilder &self) {
+                      return self.getBuilder(true).saveInsertionPoint();
+                    },
+                    [](PyOpBuilder &self, OpBuilder::InsertPoint ip) {
+                      self.getBuilder(false).restoreInsertionPoint(ip);
                     })
       .def("set_file_line_col",
            [](PyOpBuilder &self, PyIdentifier filename, unsigned line,

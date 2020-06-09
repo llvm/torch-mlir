@@ -93,10 +93,44 @@ def binary_not_in_():
   # CHECK: {{.*}} = basicpy.binary_compare {{.*}} "NotIn" {{.*}} : i64, i64
   return x not in y
 
-# @import_global
-# def short_circuit():
-#   x = 1
-#   y = 2
-#   z = 3
-#   return x < y < z
+@import_global
+def short_circuit():
+  # CHECK: %[[X:.*]] = constant 1 : i64
+  # CHECK: %[[Y:.*]] = constant 2 : i64
+  # CHECK: %[[Z:.*]] = constant 3 : i64
+  # CHECK: %[[OMEGA:.*]] = constant 5 : i64
+  x = 1
+  y = 2
+  z = 3
+  omega = 5
+  # CHECK: %[[FALSE:.*]] = basicpy.bool_constant 0
+  # CHECK: %[[CMP0:.*]] = basicpy.binary_compare %[[X]] "Lt" %[[Y]]
+  # CHECK: %[[CMP0_CAST:.*]] = basicpy.bool_cast %[[CMP0]] : !basicpy.BoolType -> i1
+  # CHECK: %[[IF0:.*]] = scf.if %[[CMP0_CAST]] -> (!basicpy.BoolType) {
+  # CHECK:   %[[CMP1:.*]] = basicpy.binary_compare %[[Y]] "Eq" %[[Z]]
+  # CHECK:   %[[CMP1_CAST:.*]] = basicpy.bool_cast %[[CMP1]] : !basicpy.BoolType -> i1
+  # CHECK:   %[[IF1:.*]] = scf.if %[[CMP1_CAST]] {{.*}} {
+  # CHECK:     %[[CMP2:.*]] = basicpy.binary_compare %[[Z]] "GtE" %[[OMEGA]]
+  # CHECK:     scf.yield %[[CMP2]]
+  # CHECK:   } else {
+  # CHECK:     scf.yield %[[FALSE]]
+  # CHECK:   }
+  # CHECK:   scf.yield %[[IF1]]
+  # CHECK: } else {
+  # CHECK:   scf.yield %[[FALSE]]
+  # CHECK: }
+  # CHECK: %[[RESULT:.*]] = basicpy.unknown_cast %[[IF0]]
+  # CHECK: return %[[RESULT]]
+  return x < y == z >= omega
 
+# CHECK-LABEL: nested_short_circuit_expression
+@import_global
+def nested_short_circuit_expression():
+  x = 1
+  y = 2
+  z = 3
+  # Verify that the (z + 5) gets nested into the if.
+  # CHECK: scf.if {{.*}} {
+  # CHECK-NEXT: constant 6
+  # CHECK-NEXT: binary_expr "Add"
+  return x < y == (z + 6)
