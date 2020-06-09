@@ -132,5 +132,5 @@ def nested_short_circuit_expression():
   # Verify that the (z + 5) gets nested into the if.
   # CHECK: scf.if {{.*}} {
   # CHECK-NEXT: constant 6
-  # CHECK-NEXT: binary_expr "Add"
+  # CHECK-NEXT: binary_expr
   return x < y == (z + 6)
