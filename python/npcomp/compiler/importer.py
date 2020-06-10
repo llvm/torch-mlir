@@ -109,7 +109,7 @@ class FunctionDefImporter(BaseNodeVisitor):
 
   def visit_Expr(self, ast_node):
     ir_h = self.fctx.ir_h
-    execop, ip = ir_h.basicpy_exec_op()
+    _, ip = ir_h.basicpy_exec_op()
     # Evaluate the expression in the exec body.
     orig_ip = ir_h.builder.insertion_point
     ir_h.builder.insertion_point = ip
