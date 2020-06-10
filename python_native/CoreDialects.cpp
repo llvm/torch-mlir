@@ -11,9 +11,6 @@
 
 #include "mlir/Dialect/SCF/SCF.h"
 
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/BasicpyOps.h"
-
 namespace mlir {
 namespace {
 

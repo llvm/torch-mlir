@@ -9,9 +9,9 @@
 #ifndef NPCOMP_INITALL_H
 #define NPCOMP_INITALL_H
 
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/NpcompRt/IR/NpcompRtDialect.h"
-#include "npcomp/Dialect/Numpy/NumpyDialect.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 

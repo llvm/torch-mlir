@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Numpy/NumpyDialect.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "npcomp/Dialect/Numpy/NumpyOps.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::Numpy;
@@ -17,7 +17,7 @@ NumpyDialect::NumpyDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
+#include "npcomp/Dialect/Numpy/IR/NumpyOps.cpp.inc"
       >();
   addTypes<AnyDtypeType>();
 }

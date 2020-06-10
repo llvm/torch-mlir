@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Numpy/NumpyOps.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
-#include "npcomp/Dialect/Numpy/NumpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
 namespace mlir {
 namespace NPCOMP {
@@ -146,7 +146,7 @@ static void printGenericUfuncOp(OpAsmPrinter &p, GenericUfuncOp op) {
 }
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/Numpy/NumpyOps.cpp.inc"
+#include "npcomp/Dialect/Numpy/IR/NumpyOps.cpp.inc"
 } // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT_H
-#define NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT_H
+#ifndef NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT_H
+#define NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT_H
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
@@ -123,10 +123,10 @@ public:
   }
 };
 
-#include "npcomp/Dialect/Basicpy/BasicpyOpsDialect.h.inc"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.h.inc"
 
 } // namespace Basicpy
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT_H
+#endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT_H

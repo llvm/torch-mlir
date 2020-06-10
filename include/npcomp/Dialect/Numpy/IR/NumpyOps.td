@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_NUMPY_NUMPY_OPS
-#define NPCOMP_DIALECT_NUMPY_NUMPY_OPS
+#ifndef NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
+#define NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 
 include "NumpyDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -185,4 +185,4 @@ def Numpy_GetSlice : Numpy_Op<"get_slice", []> {
   }];  
 }
 
-#endif // NPCOMP_DIALECT_NUMPY_NUMPY_OPS
+#endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT
-#define NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT
+#ifndef NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT
+#define NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT
 
 include "mlir/IR/OpBase.td"
-include "npcomp/Dialect/Basicpy/BasicpyDialect.td"
+include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.td"
 
 //===----------------------------------------------------------------------===//
 // Dialect definition
@@ -72,4 +72,4 @@ def Numpy_SliceTupleElement : AnyTypeOf<[
   Basicpy_SliceSlotObjectType,
 ], "types that are legal elements of a __getitem__ tuple operating on arrays">;
 
-#endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT
+#endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT

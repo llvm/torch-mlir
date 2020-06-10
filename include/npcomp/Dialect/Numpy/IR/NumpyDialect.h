@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT_H
-#define NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT_H
+#ifndef NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H
+#define NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
 #include "npcomp/Dialect/Common.h"
@@ -34,10 +34,10 @@ public:
   }
 };
 
-#include "npcomp/Dialect/Numpy/NumpyOpsDialect.h.inc"
+#include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"
 
 } // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_DIALECT_NUMPY_NUMPY_DIALECT_H
+#endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H

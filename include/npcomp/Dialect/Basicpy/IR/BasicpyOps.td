@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_BASICPY_BASICPY_OPS
-#define NPCOMP_DIALECT_BASICPY_BASICPY_OPS
+#ifndef NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS
+#define NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS
 
 include "BasicpyDialect.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
@@ -293,4 +293,4 @@ def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
   let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
 }
 
-#endif // NPCOMP_DIALECT_BASICPY_BASICPY_OPS
+#endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS

@@ -9,8 +9,8 @@
 #include "MlirIr.h"
 #include "NpcompModule.h"
 
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/BasicpyOps.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 
 namespace mlir {
 namespace NPCOMP {

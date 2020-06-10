@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "npcomp/Dialect/Basicpy/BasicpyOps.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
@@ -17,7 +17,7 @@ BasicpyDialect::BasicpyDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/Basicpy/BasicpyOps.cpp.inc"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"
       >();
   addTypes<BoolType, BytesType, EllipsisType, NoneType, SlotObjectType, StrType,
            UnknownType>();

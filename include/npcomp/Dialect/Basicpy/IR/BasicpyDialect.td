@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT
-#define NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT
+#ifndef NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT
+#define NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT
 
 include "mlir/IR/OpBase.td"
 
@@ -120,4 +120,4 @@ class Basicpy_SlotObjectOfClassArity<string className, int arity> :
 def Basicpy_SliceSlotObjectType : 
   Type<Basicpy_SlotObjectOfClassArity<"slice", 3>>;
 
-#endif // NPCOMP_DIALECT_BASICPY_BASICPY_DIALECT
+#endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT

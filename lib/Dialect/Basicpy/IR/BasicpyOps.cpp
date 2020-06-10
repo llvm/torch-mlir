@@ -7,13 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Basicpy/BasicpyOps.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
-#include "npcomp/Dialect/Basicpy/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 
-#include "npcomp/Dialect/Basicpy/BasicpyOpsEnums.cpp.inc"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOpsEnums.cpp.inc"
 
 namespace mlir {
 namespace NPCOMP {
@@ -161,7 +161,7 @@ static void printSlotObjectGetOp(OpAsmPrinter &p, SlotObjectGetOp op) {
 }
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/Basicpy/BasicpyOps.cpp.inc"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"
 } // namespace Basicpy
 } // namespace NPCOMP
 } // namespace mlir
