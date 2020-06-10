@@ -10,6 +10,7 @@
 #define NPCOMP_INITALL_H
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Dialect/NpcompRt/IR/NpcompRtDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
@@ -47,6 +48,8 @@ inline void registerAllPasses() {
       mlir::NPCOMP::createLowerToHybridTensorMemRefPipeline);
 #define GEN_PASS_REGISTRATION
 #include "npcomp/Conversion/Passes.h.inc"
+#define GEN_PASS_REGISTRATION
+#include "npcomp/Dialect/Basicpy/Transforms/Passes.h.inc"
 }
 } // namespace NPCOMP
 } // namespace mlir

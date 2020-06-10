@@ -78,6 +78,7 @@ target_link_libraries(${extension_target}
     NPCOMPTCF
     NPCOMPNpcompRt
     NPCOMPBasicpyDialect
+    NPCOMPBasicpyPasses
     NPCOMPNumpyDialect
     
     # Core dialects
