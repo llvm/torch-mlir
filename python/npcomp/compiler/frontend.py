@@ -309,6 +309,32 @@ class ExpressionImporter(BaseNodeVisitor):
     self.value = emit_next(self.sub_evaluate(ast_node.left),
                            list(zip(ast_node.ops, ast_node.comparators)))
 
+  def visit_IfExp(self, ast_node):
+    ir_h = self.fctx.ir_h
+    test_result = ir_h.basicpy_to_boolean_op(self.sub_evaluate(
+        ast_node.test)).result
+    if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
+                                             test_result, True)
+
+    orig_ip = ir_h.builder.insertion_point
+    # Build the then clause
+    ir_h.builder.insertion_point = then_ip
+    then_result = self.sub_evaluate(ast_node.body)
+    ir_h.scf_yield_op([
+        ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
+                                     then_result).result
+    ])
+    # Build the then clause.
+    ir_h.builder.insertion_point = else_ip
+    orelse_result = self.sub_evaluate(ast_node.orelse)
+    ir_h.scf_yield_op([
+        ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
+                                     orelse_result).result
+    ])
+    ir_h.builder.insertion_point = orig_ip
+
+    self.value = if_op.result
+
   def visit_Name(self, ast_node):
     if not isinstance(ast_node.ctx, ast.Load):
       self.fctx.abort("Unsupported expression name context type %s" %

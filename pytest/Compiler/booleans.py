@@ -75,3 +75,20 @@ def logical_not():
   # CHECK-DAG: %[[CONDITION:.*]] = basicpy.to_boolean %[[X]]
   # CHECK-DAG: %{{.*}} = select %[[CONDITION]], %[[FALSE]], %[[TRUE]] : !basicpy.BoolType
   return not x
+
+# CHECK-LABEL: func @conditional
+@import_global
+def conditional():
+  # CHECK: %[[X:.*]] = constant 1
+  x = 1
+  # CHECK: %[[CONDITION:.*]] = basicpy.to_boolean %[[X]]
+  # CHECK: %[[IF0:.*]] = scf.if %[[CONDITION]] -> (!basicpy.UnknownType) {
+  # CHECK:   %[[TWO:.*]] = constant 2 : i64
+  # CHECK:   %[[TWO_CAST:.*]] = basicpy.unknown_cast %[[TWO]]
+  # CHECK:   scf.yield %[[TWO_CAST]]
+  # CHECK: } else {
+  # CHECK:   %[[THREE:.*]] = constant 3 : i64
+  # CHECK:   %[[THREE_CAST:.*]] = basicpy.unknown_cast %[[THREE]]
+  # CHECK:   scf.yield %[[THREE_CAST]]
+  # CHECK: }
+  return 2 if x else 3
