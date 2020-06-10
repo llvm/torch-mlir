@@ -20,6 +20,29 @@ namespace NPCOMP {
 namespace Basicpy {
 
 //===----------------------------------------------------------------------===//
+// ExecOp
+//===----------------------------------------------------------------------===//
+
+void ExecOp::build(OpBuilder &builder, OperationState &result) {
+  OpBuilder::InsertionGuard guard(builder);
+  Region *body = result.addRegion();
+  builder.createBlock(body);
+}
+
+static ParseResult parseExecOp(OpAsmParser &parser, OperationState *result) {
+  Region *bodyRegion = result->addRegion();
+  if (parser.parseRegion(*bodyRegion, /*arguments=*/{}, /*argTypes=*/{}) ||
+      parser.parseOptionalAttrDict(result->attributes))
+    return failure();
+  return success();
+}
+
+static void printExecOp(OpAsmPrinter &p, ExecOp op) {
+  p << op.getOperationName();
+  p.printRegion(op.body());
+}
+
+//===----------------------------------------------------------------------===//
 // SlotObjectMakeOp
 //===----------------------------------------------------------------------===//
 

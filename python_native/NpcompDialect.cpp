@@ -22,7 +22,7 @@ public:
   static void bind(py::module m) {
     py::class_<BasicpyDialectHelper, PyDialectHelper>(m, "BasicpyDialectHelper")
         .def(py::init<PyContext &, PyOpBuilder &>(), py::keep_alive<1, 2>(),
-            py::keep_alive<1, 3>())
+             py::keep_alive<1, 3>())
         .def_property_readonly("basicpy_BoolType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::BoolType::get(
@@ -65,6 +65,24 @@ public:
                                  return Basicpy::UnknownType::get(
                                      self.getContext());
                                })
+        .def("basicpy_exec_op",
+             [](BasicpyDialectHelper &self) {
+               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+               Location loc = self.pyOpBuilder.getCurrentLoc();
+               auto op = opBuilder.create<Basicpy::ExecOp>(loc);
+               return py::make_tuple(PyOperationRef(op),
+                                     op.getBodyBuilder().saveInsertionPoint());
+             })
+        .def("basicpy_exec_discard_op",
+             [](BasicpyDialectHelper &self, std::vector<PyValue> pyOperands) {
+               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+               Location loc = self.pyOpBuilder.getCurrentLoc();
+               llvm::SmallVector<Value, 4> operands(pyOperands.begin(),
+                                                    pyOperands.end());
+               auto op =
+                   opBuilder.create<Basicpy::ExecDiscardOp>(loc, operands);
+               return PyOperationRef(op);
+             })
         .def("basicpy_slot_object_get_op",
              [](BasicpyDialectHelper &self, PyValue slotObject,
                 unsigned index) -> PyOperationRef {
@@ -77,8 +95,8 @@ public:
                  throw py::raiseValueError("Out of range slot index");
                }
                auto resultType = slotObjectType.getSlotTypes()[index];
-               auto indexAttr = IntegerAttr::get(
-                   IndexType::get(self.getContext()), index);
+               auto indexAttr =
+                   IntegerAttr::get(IndexType::get(self.getContext()), index);
                OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
                Location loc = self.pyOpBuilder.getCurrentLoc();
                auto op = opBuilder.create<Basicpy::SlotObjectGetOp>(

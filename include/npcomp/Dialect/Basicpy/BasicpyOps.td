@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_BASICPY_BASICPY_OPS
 
 include "BasicpyDialect.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
@@ -164,6 +165,38 @@ def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
     Basicpy_BytesType:$result
   );
   let assemblyFormat = "$value attr-dict";
+}
+
+def Basicpy_ExecOp : Basicpy_Op<"exec", [
+    SingleBlockImplicitTerminator<"ExecDiscardOp">]> {
+  let summary = "Evaluates an expression being executed as a statement";
+  let description = [{
+    The result is discarded. Typically expressions are no-side-effect and can
+    be re-ordered as needed. Embedding one in an exec op ensures that its
+    placement in program order is preserved. 
+  }];
+  let regions = (region SizedRegion<1>:$body);
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result">,
+  ];
+  let extraClassDeclaration = [{
+    OpBuilder getBodyBuilder() {
+      Block* body = getBody(0);
+      return OpBuilder::atBlockEnd(body);
+    }
+  }];
+}
+
+def Basicpy_ExecDiscardOp : Basicpy_Op<"exec_discard", [
+    NoSideEffect, ReturnLike, Terminator]> {
+  let summary = "Terminator for an exec block";
+  let description = [{
+    Discards results and terminates an exec block.
+  }];
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let assemblyFormat = "operands attr-dict `:` type(operands)";
 }
 
 def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [

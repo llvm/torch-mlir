@@ -82,11 +82,19 @@ class FunctionDefImporter(BaseNodeVisitor):
   def __init__(self, fctx, ast_fd):
     super().__init__(fctx)
     self.ast_fd = ast_fd
+    self._last_was_return = False
 
   def import_body(self):
+    ir_h = self.fctx.ir_h
     for ast_stmt in self.ast_fd.body:
+      self._last_was_return = False
       logging.debug("STMT: {}", ast.dump(ast_stmt, include_attributes=True))
       self.visit(ast_stmt)
+    if not self._last_was_return:
+      # Add a default terminator.
+      none_value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
+      none_cast = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType, none_value).result
+      ir_h.return_op([none_cast])
 
   def visit_Assign(self, ast_node):
     expr = ExpressionImporter(self.fctx)
@@ -99,6 +107,20 @@ class FunctionDefImporter(BaseNodeVisitor):
                         target.ctx.__class__.__name__)
       self.fctx.map_local_name(target.id, expr.value)
 
+  def visit_Expr(self, ast_node):
+    ir_h = self.fctx.ir_h
+    execop, ip = ir_h.basicpy_exec_op()
+    # Evaluate the expression in the exec body.
+    orig_ip = ir_h.builder.insertion_point
+    ir_h.builder.insertion_point = ip
+    expr = ExpressionImporter(self.fctx)
+    expr.visit(ast_node.value)
+    ir_h.basicpy_exec_discard_op([expr.value])
+    ir_h.builder.insertion_point = orig_ip
+
+  def visit_Pass(self, ast_node):
+    pass
+
   def visit_Return(self, ast_node):
     ir_h = self.fctx.ir_h
     expr = ExpressionImporter(self.fctx)
@@ -106,6 +128,7 @@ class FunctionDefImporter(BaseNodeVisitor):
     casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
                                           expr.value).result
     ir_h.return_op([casted])
+    self._last_was_return = True
 
 
 class ExpressionImporter(BaseNodeVisitor):
