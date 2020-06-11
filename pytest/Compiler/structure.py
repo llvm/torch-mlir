@@ -10,6 +10,13 @@ def import_global(f):
   print(fe.ir_module.to_asm())
   return f
 
+# CHECK-LABEL: func @positional_args
+# CHECK-SAME: (%arg0: !basicpy.UnknownType, %arg1: !basicpy.UnknownType) -> !basicpy.UnknownType
+@import_global
+def positional_args(a, b):
+  # CHECK: basicpy.binary_expr %arg0 "Add" %arg1
+  return a + b
+
 # CHECK-LABEL: func @pass_no_return
 @import_global
 def pass_no_return():
