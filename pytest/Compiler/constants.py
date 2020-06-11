@@ -32,7 +32,7 @@ def float_constants():
 # CHECK-LABEL: func @bool_true_constant
 @import_global
 def bool_true_constant():
-  # CHECK: %[[A:.*]] = basicpy.bool_constant 1
+  # CHECK: %[[A:.*]] = basicpy.bool_constant true
   # CHECK: basicpy.unknown_cast %[[A]]
   a = True
   return a
@@ -40,7 +40,7 @@ def bool_true_constant():
 # CHECK-LABEL: func @bool_false_constant
 @import_global
 def bool_false_constant():
-  # CHECK: %[[A:.*]] = basicpy.bool_constant 0
+  # CHECK: %[[A:.*]] = basicpy.bool_constant false
   # CHECK: basicpy.unknown_cast %[[A]]
   a = False
   return a

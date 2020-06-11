@@ -200,11 +200,16 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(DimOp op,
                                 PatternRewriter &rewriter) const override {
-    auto allocMemRef = op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
+    // TODO: Remove this const pattern when lowering to shape.get_extent.
+    auto constIndex = op.getConstantIndex();
+    if (!constIndex)
+      return failure();
+
+    auto allocMemRef = op.memrefOrTensor().getDefiningOp<tcp::AllocMemRefOp>();
     if (!allocMemRef)
       return rewriter.notifyMatchFailure(op, "could not find alloc_memref");
     rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, allocMemRef.shape(),
-                                                  op.index());
+                                                  *constIndex);
     return success();
   }
 };
@@ -223,7 +228,7 @@ class LowerLinalgLoopDimOps
       // TODO: We only need this because we use `dim` ops for the memref
       // ABI. Once we layer that out into our own runtime types, we can
       // remove this.
-      return !op.getOperand().getDefiningOp<tcp::AllocMemRefOp>();
+      return !op.memrefOrTensor().getDefiningOp<tcp::AllocMemRefOp>();
     });
     target.addLegalOp<tcp::GetExtentOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {

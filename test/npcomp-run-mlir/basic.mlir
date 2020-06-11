@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: npcomp-run-mlir -input %s -invoke basic -arg-value="dense<[1.0]> : tensor<1xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 | FileCheck %s
 

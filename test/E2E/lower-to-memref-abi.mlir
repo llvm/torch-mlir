@@ -1,3 +1,4 @@
+// XFAIL: *
 // RUN: npcomp-opt -lower-to-memref-abi <%s | FileCheck %s --dump-input=fail
 
 // CHECK-LABEL: func @identity

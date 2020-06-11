@@ -103,7 +103,7 @@ def short_circuit():
   y = 2
   z = 3
   omega = 5
-  # CHECK: %[[FALSE:.*]] = basicpy.bool_constant 0
+  # CHECK: %[[FALSE:.*]] = basicpy.bool_constant false
   # CHECK: %[[CMP0:.*]] = basicpy.binary_compare %[[X]] "Lt" %[[Y]]
   # CHECK: %[[CMP0_CAST:.*]] = basicpy.bool_cast %[[CMP0]] : !basicpy.BoolType -> i1
   # CHECK: %[[IF0:.*]] = scf.if %[[CMP0_CAST]] -> (!basicpy.BoolType) {

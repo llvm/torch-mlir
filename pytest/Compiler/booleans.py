@@ -70,8 +70,8 @@ def logical_or():
 def logical_not():
   # CHECK: %[[X:.*]] = constant 1
   x = 1
-  # CHECK-DAG: %[[TRUE:.*]] = basicpy.bool_constant 1 
-  # CHECK-DAG: %[[FALSE:.*]] = basicpy.bool_constant 0
+  # CHECK-DAG: %[[TRUE:.*]] = basicpy.bool_constant true 
+  # CHECK-DAG: %[[FALSE:.*]] = basicpy.bool_constant false
   # CHECK-DAG: %[[CONDITION:.*]] = basicpy.to_boolean %[[X]]
   # CHECK-DAG: %{{.*}} = select %[[CONDITION]], %[[FALSE]], %[[TRUE]] : !basicpy.BoolType
   return not x

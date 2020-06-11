@@ -126,9 +126,13 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(DimOp op,
                                 PatternRewriter &rewriter) const override {
+    // TODO: Remove this const pattern when lowering to shape.get_extent.
+    auto constIndex = op.getConstantIndex();
+    if (!constIndex)
+      return failure();
     auto shape =
-        rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand());
-    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, shape, op.index());
+        rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.memrefOrTensor());
+    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, shape, *constIndex);
     return success();
   }
 };

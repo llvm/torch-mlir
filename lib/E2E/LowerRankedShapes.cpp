@@ -66,7 +66,9 @@ public:
       createAbortIfIllegalBroadcastExtent(lhsExtent, resultExtent);
       createAbortIfIllegalBroadcastExtent(rhsExtent, resultExtent);
     }
-    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(op, resultExtents);
+    // TODO: Remove the return type once ODS is fixed to do proper inference.
+    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(
+        op, shape::ShapeType::get(rewriter.getContext()), resultExtents);
     return success();
   }
 };

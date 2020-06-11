@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/E2E/E2E.h"
 #include "PassDetail.h"
+#include "npcomp/E2E/E2E.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
@@ -71,7 +71,8 @@ public:
     // shape-erased, ref-counted multidimensional array of dense primitive
     // types. (Something like Py_buffer from the python buffer protocol is
     // another potential inspiration)
-    //   - [IREE HAL buffer view](https://github.com/google/iree/blob/634136f03c144ad3acd2f28cd87785b0b6b572ac/iree/hal/api_detail.h#L26)
+    //   - [IREE HAL buffer
+    //   view](https://github.com/google/iree/blob/634136f03c144ad3acd2f28cd87785b0b6b572ac/iree/hal/api_detail.h#L26)
     //   - [Python buffer protocol](https://docs.python.org/3/c-api/buffer.html)
     // 2. Use a custom LLVM conversion that creates the memref types.
     // For example, have an op
@@ -101,7 +102,9 @@ public:
     SmallVector<Value, 6> extents;
     for (int i = 0, e = tensorType.getRank(); i < e; i++)
       extents.push_back(rewriter.create<DimOp>(op.getLoc(), rankedMemRef, i));
-    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(op, extents);
+    // TODO: Remove the return type once ODS is fixed to do proper inference.
+    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(
+        op, shape::ShapeType::get(rewriter.getContext()), extents);
     return success();
   }
 };
