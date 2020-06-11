@@ -288,7 +288,7 @@ def Basicpy_ToBooleanOp : Basicpy_Op<"to_boolean", [NoSideEffect]> {
 
 def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
   let summary = "Casts to and from the UnknownType";
-  let arguments = (ins AnyType:$input);
+  let arguments = (ins AnyType:$operand);
   let results = (outs AnyType:$result);
   let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
 }
