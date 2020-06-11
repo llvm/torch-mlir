@@ -30,3 +30,10 @@ def arg_inference(a, b):
   # CHECK: basicpy.unknown_cast{{.*}} : i64 -> i64
   # CHECK: return{{.*}} : i64
   return a + 2 * b
+
+# CHECK-LABEL: func @conditional_inference
+# CHECK-SAME: (%arg0: i64, %arg1: !basicpy.BoolType, %arg2: i64) -> !basicpy.BoolType
+@import_global
+def conditional_inference(cond, a, b):
+  # CHECK-NOT: UnknownType
+  return a if cond + 1 else not(b * 4)
