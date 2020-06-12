@@ -27,6 +27,10 @@
 #include "iree/tools/init_mlir_passes.h"
 #include "iree/tools/init_targets.h"
 #include "iree/tools/init_xla_dialects.h"
+// TODO: For some reason these aren't bundled with the rest.
+#include "iree/compiler/Conversion/HLOToLinalg/Passes.h"
+#include "iree/compiler/Conversion/init_conversions.h"
+#include "iree/compiler/Dialect/HAL/Conversion/Passes.h"
 #endif // NPCOMP_ENABLE_IREE
 
 static void registerDependencyDialects() {
@@ -43,7 +47,19 @@ static void registerDependencyDialects() {
 }
 
 static void registerDependencyPasses() {
-
+#ifdef NPCOMP_ENABLE_IREE
+  // TODO: We should probably be registering the MLIR passes regardless
+  // of building with IREE, but we have to do it with IREE, and the
+  // dependencies are coming from there and wouldn't be great to duplicate.
+  // See iree/tools:init_mlir_passes_and_dialects
+  mlir::registerMlirPasses();
+  mlir::iree_compiler::registerAllIreePasses();
+  mlir::iree_compiler::registerHALConversionPasses();
+  mlir::iree_compiler::registerHALTargetBackends();
+  mlir::iree_compiler::registerLinalgToSPIRVPasses();
+  mlir::iree_compiler::registerHLOToLinalgPasses();
+  mlir::iree_compiler::registerLinalgToLLVMPasses();
+#endif // NPCOMP_ENABLE_IREE
 }
 
 void mlir::NPCOMP::registerAllDialects() {
