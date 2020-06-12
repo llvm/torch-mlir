@@ -71,15 +71,7 @@ target_link_libraries(${extension_target}
     ${conversion_libs}
     pybind11::module
 
-    # Local depends
-    # Note: These need to also match tools/npcomp-opt/CMakeLists.txt
-    NPCOMPE2E
-    NPCOMPTCP
-    NPCOMPTCF
-    NPCOMPNpcompRt
-    NPCOMPBasicpyDialect
-    NPCOMPBasicpyPasses
-    NPCOMPNumpyDialect
+    NPCOMPInitAll
     
     # Core dialects
     MLIRSCF

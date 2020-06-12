@@ -52,7 +52,7 @@ add_definitions(${LLVM_DEFINITIONS})
 # IREE configuration
 #-------------------------------------------------------------------------------
 
-if(${NPCOMP_ENABLE_IREE})
+if(NPCOMP_ENABLE_IREE)
   add_compile_definitions(NPCOMP_ENABLE_IREE)
   if(NPCOMP_IREE_SRCDIR)
     message(STATUS "Depending on IREE source: ${NPCOMP_IREE_SRCDIR}")
@@ -63,6 +63,9 @@ if(${NPCOMP_ENABLE_IREE})
   else()
     find_package(IREE REQUIRED CONFIG)
   endif()
+
+  message(STATUS "IREE INCLUDE DIRS: ${IREE_PUBLIC_INCLUDE_DIRS}")
+  include_directories("${IREE_PUBLIC_INCLUDE_DIRS}")
 endif()
 
 #-------------------------------------------------------------------------------

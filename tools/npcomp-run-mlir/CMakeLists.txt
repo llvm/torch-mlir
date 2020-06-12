@@ -22,5 +22,5 @@ target_link_libraries(npcomp-run-mlir PRIVATE
   MLIRParser
   MLIRTargetLLVMIR
   MLIRSupport
-  NPCOMPE2E
+  NPCOMPInitAll
   )
