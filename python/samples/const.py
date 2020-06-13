@@ -9,8 +9,10 @@ from npcomp.types import *
 weights = np.random.uniform(size=(16, 4)).astype(np.float32)
 bias = np.random.uniform(size=(4,)).astype(np.float32)
 
+
 def constants(a: np.ndarray) -> np.ndarray:
   return np.dot(a, weights) + bias
+
 
 # TODO: Implement subclassing and deriving constraints by run
 exp = npc.Exporter()

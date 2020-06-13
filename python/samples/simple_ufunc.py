@@ -6,8 +6,10 @@ import numpy as np
 import npcomp as npc
 from npcomp.types import *
 
+
 def simple_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
   return a * b + a + b
+
 
 # TODO: Implement subclassing and deriving constraints by run
 exp = npc.Exporter()
@@ -19,7 +21,7 @@ exp.simple_mul.sig.args["b"] += Shape(1)
 exp.simple_mul.sig.args["b"] += DType(np.float32)
 exp.simple_mul.sig.result += Shape(1, 4)
 exp.simple_mul.sig.result += DynamicDim(0)
-exp.simple_mul.sig.result += DType(np.float32)    
+exp.simple_mul.sig.result += DType(np.float32)
 
 mb = npc.tracing.ModuleBuilder()
 mb.trace(exp.simple_mul)

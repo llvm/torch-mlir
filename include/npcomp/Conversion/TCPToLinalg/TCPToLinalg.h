@@ -17,6 +17,6 @@ namespace mlir {
 namespace NPCOMP {
 std::unique_ptr<OperationPass<ModuleOp>> createConvertTCPToLinalgPass();
 }
-}
+} // namespace mlir
 
 #endif // NPCOMP_CONVERSION_TCPTOLINALG_CONVERTTCPTOLINALG_H

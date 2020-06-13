@@ -48,10 +48,11 @@ class TraceContext:
   """
   _local = threading.local()
   __slots__ = [
-    "_desc",
-    "_next_id",
-    "active",
+      "_desc",
+      "_next_id",
+      "active",
   ]
+
   def __init__(self, desc=None):
     _check_numpy_version()
     self._desc = desc
@@ -87,11 +88,11 @@ class TraceContext:
   @classmethod
   def optional_current(cls) -> Optional["TraceContext"]:
     s = cls._get_context_stack()
-    if s: 
+    if s:
       return s[-1]
     else:
       return None
-  
+
   @classmethod
   def current(cls) -> "TraceContext":
     c = cls.optional_current()
@@ -120,7 +121,7 @@ class TraceContext:
 
 def _assert_active(tc: TraceContext):
   assert tc.active, (
-    "Attempt to trace an action on an inactive trace context: %r" % tc)
+      "Attempt to trace an action on an inactive trace context: %r" % tc)
 
 
 class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
@@ -134,6 +135,7 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
     >>> TracedArray(tc=tc)
     <TracedArray 2>
   """
+
   def __init__(self, tc: Optional[TraceContext] = None):
     self._tc = tc if tc is not None else TraceContext.current()
     self._uid = self._tc.get_next_id()
@@ -160,28 +162,28 @@ class TracedArray(np.lib.mixins.NDArrayOperatorsMixin):
 
   def __array_function__(self, func, types, args, kwargs):
     tc = self._tc
-    _assert_active(tc)    
+    _assert_active(tc)
     return tc._handle_array_func(func, types, args, kwargs)
 
   @property
   def T(self):
     """Shortcut for transpose."""
     tc = self._tc
-    _assert_active(tc)    
+    _assert_active(tc)
     return tc._handle_array_func(np.transpose, [TracedArray], [self], {})
-    
+
 
 def _check_numpy_version():
   version = np.lib.NumpyVersion(np.__version__)
   if version < "1.16.0":
     raise RuntimeError("Numpy version >= 1.16 is required")
-  if version > "1.17.0": return
+  if version > "1.17.0":
+    return
   if os.environ.get("NUMPY_EXPERIMENTAL_ARRAY_FUNCTION") != "1":
-    raise RuntimeError(
-      "For numpy 1.16, the environment variable "
-      "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION must equal 1")
+    raise RuntimeError("For numpy 1.16, the environment variable "
+                       "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION must equal 1")
 
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+  import doctest
+  doctest.testmod()

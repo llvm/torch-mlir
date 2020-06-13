@@ -38,6 +38,7 @@ def logical_and():
   # CHECK: }
   return x and y and z
 
+
 # CHECK-LABEL: func @logical_or
 @import_global
 def logical_or():
@@ -65,16 +66,18 @@ def logical_or():
   z = 2
   return x or y or z
 
+
 # CHECK-LABEL: func @logical_not
 @import_global
 def logical_not():
   # CHECK: %[[X:.*]] = constant 1
   x = 1
-  # CHECK-DAG: %[[TRUE:.*]] = basicpy.bool_constant true 
+  # CHECK-DAG: %[[TRUE:.*]] = basicpy.bool_constant true
   # CHECK-DAG: %[[FALSE:.*]] = basicpy.bool_constant false
   # CHECK-DAG: %[[CONDITION:.*]] = basicpy.to_boolean %[[X]]
   # CHECK-DAG: %{{.*}} = select %[[CONDITION]], %[[FALSE]], %[[TRUE]] : !basicpy.BoolType
   return not x
+
 
 # CHECK-LABEL: func @conditional
 @import_global

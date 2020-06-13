@@ -20,6 +20,7 @@ def integer_constants():
   # CHECK: return %[[A_CAST]]
   return a
 
+
 # CHECK-LABEL: func @float_constants
 @import_global
 def float_constants():
@@ -29,6 +30,7 @@ def float_constants():
   # CHECK: return %[[A_CAST]]
   return a
 
+
 # CHECK-LABEL: func @bool_true_constant
 @import_global
 def bool_true_constant():
@@ -36,6 +38,7 @@ def bool_true_constant():
   # CHECK: basicpy.unknown_cast %[[A]]
   a = True
   return a
+
 
 # CHECK-LABEL: func @bool_false_constant
 @import_global
@@ -45,6 +48,7 @@ def bool_false_constant():
   a = False
   return a
 
+
 # CHECK-LABEL: func @string_constant
 @import_global
 def string_constant():
@@ -52,6 +56,7 @@ def string_constant():
   # CHECK: basicpy.unknown_cast %[[A]]
   a = "foobar"
   return a
+
 
 # CHECK-LABEL: func @joined_string_constant
 @import_global
@@ -61,6 +66,7 @@ def joined_string_constant():
   a = "I am" " still here"
   return a
 
+
 # CHECK-LABEL: func @bytes_constant
 @import_global
 def bytes_constant():
@@ -69,6 +75,7 @@ def bytes_constant():
   a = b"foobar"
   return a
 
+
 # CHECK-LABEL: func @ellipsis
 @import_global
 def ellipsis():
@@ -76,6 +83,7 @@ def ellipsis():
   # CHECK: basicpy.unknown_cast %[[A]]
   a = ...
   return a
+
 
 # CHECK-LABEL: func @none_constant
 @import_global

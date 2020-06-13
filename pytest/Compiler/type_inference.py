@@ -10,6 +10,7 @@ def import_global(f):
   print("// -----")
   return f
 
+
 # CHECK-LABEL: func @arithmetic_expression
 # CHECK-SAME: () -> i64
 @import_global
@@ -21,6 +22,7 @@ def arithmetic_expression():
   # CHECK: return{{.*}} : i64
   return 1 + 2 - 3 * 4
 
+
 # CHECK-LABEL: func @arg_inference
 # CHECK-SAME: (%arg0: i64, %arg1: i64) -> i64
 @import_global
@@ -31,9 +33,10 @@ def arg_inference(a, b):
   # CHECK: return{{.*}} : i64
   return a + 2 * b
 
+
 # CHECK-LABEL: func @conditional_inference
 # CHECK-SAME: (%arg0: i64, %arg1: !basicpy.BoolType, %arg2: i64) -> !basicpy.BoolType
 @import_global
 def conditional_inference(cond, a, b):
   # CHECK-NOT: UnknownType
-  return a if cond + 1 else not(b * 4)
+  return a if cond + 1 else not (b * 4)

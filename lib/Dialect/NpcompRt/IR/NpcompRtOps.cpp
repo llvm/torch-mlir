@@ -18,6 +18,6 @@ namespace NPCOMP {
 namespace npcomp_rt {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/NpcompRt/IR/NpcompRtOps.cpp.inc"
-} // namespace tcf
+} // namespace npcomp_rt
 } // namespace NPCOMP
 } // namespace mlir

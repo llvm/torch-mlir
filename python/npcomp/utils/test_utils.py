@@ -13,14 +13,17 @@ _filecheck_binary_var = "FILECHECK_BINARY"
 _redirect_io = None
 _redirect_context = None
 
+
 def is_filecheck_disabled():
   return _disable_var in os.environ
 
 
 def start_filecheck_test():
   if is_filecheck_disabled():
-    print("WARNING:FileCheck disabled due to", _disable_var, 
-        "in the environment", file=sys.stderr)
+    print("WARNING:FileCheck disabled due to",
+          _disable_var,
+          "in the environment",
+          file=sys.stderr)
     return
   global _redirect_io
   global _redirect_context
@@ -30,7 +33,8 @@ def start_filecheck_test():
 
 
 def end_filecheck_test(main_file):
-  if is_filecheck_disabled(): return
+  if is_filecheck_disabled():
+    return
   global _redirect_io
   global _redirect_context
   _redirect_context.__exit__(None, None, None)
@@ -44,7 +48,7 @@ def end_filecheck_test(main_file):
   filecheck_args = [filecheck_binary, main_file, "--dump-input=fail"]
   p = subprocess.Popen(filecheck_args, stdin=subprocess.PIPE)
   p.communicate(filecheck_input.encode("UTF-8"))
-  sys.exit(p.returncode)  
+  sys.exit(p.returncode)
 
 
 def run_under_filecheck(main_file, callback, disable_filecheck=False):
@@ -60,8 +64,10 @@ def run_under_filecheck(main_file, callback, disable_filecheck=False):
     disable_filecheck: Whether to disable filecheck.
   """
   if disable_filecheck or is_filecheck_disabled():
-    print("WARNING:FileCheck disabled due to", _disable_var, 
-        "in the environment", file=sys.stderr)
+    print("WARNING:FileCheck disabled due to",
+          _disable_var,
+          "in the environment",
+          file=sys.stderr)
     callback()
     sys.exit(0)
 

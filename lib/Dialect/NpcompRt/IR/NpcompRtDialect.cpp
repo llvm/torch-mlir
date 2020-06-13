@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/NpcompRt/IR/NpcompRtDialect.h"
-#include "npcomp/Dialect/NpcompRt/IR/NpcompRtOps.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "npcomp/Dialect/NpcompRt/IR/NpcompRtOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::npcomp_rt;
@@ -44,4 +44,3 @@ void NpcompRtDialect::printType(Type type, DialectAsmPrinter &os) const {
     llvm_unreachable("unexpected 'npcomp_rt' type kind");
   }
 }
-

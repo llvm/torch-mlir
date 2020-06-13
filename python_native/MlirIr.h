@@ -187,11 +187,10 @@ private:
 class PyDialectHelper {
 public:
   PyDialectHelper(PyContext &context, PyOpBuilder &builder)
-    : context(context), pyOpBuilder(builder) {}
+      : context(context), pyOpBuilder(builder) {}
   static void bind(py::module m);
-  MLIRContext *getContext() {
-    return pyOpBuilder.getContext();
-  }
+  MLIRContext *getContext() { return pyOpBuilder.getContext(); }
+
 protected:
   PyContext &context;
   PyOpBuilder &pyOpBuilder;

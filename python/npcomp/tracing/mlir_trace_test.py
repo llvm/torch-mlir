@@ -9,8 +9,10 @@ from npcomp.utils import test_utils
 
 test_utils.start_filecheck_test()
 
+
 def simple_mul(a: np.ndarray, b: np.ndarray) -> np.ndarray:
   return a * b + a + b
+
 
 # TODO: Implement subclassing and deriving constraints by run
 exp = Exporter()
@@ -22,7 +24,7 @@ exp.simple_mul.sig.args["b"] += Shape(1)
 exp.simple_mul.sig.args["b"] += DType(np.float32)
 exp.simple_mul.sig.result += Shape(1, 4)
 exp.simple_mul.sig.result += DynamicDim(0)
-exp.simple_mul.sig.result += DType(np.float32)    
+exp.simple_mul.sig.result += DType(np.float32)
 
 mb = ModuleBuilder()
 mb.trace(exp.simple_mul)

@@ -6,11 +6,14 @@ import numpy as np
 import npcomp as npc
 from npcomp.types import *
 
+
 def transpose_attribute(a: np.ndarray) -> np.ndarray:
   return a.T
 
+
 def transpose(a: np.ndarray) -> np.ndarray:
   return np.transpose(a)
+
 
 # TODO: Implement subclassing and deriving constraints by run
 exp = npc.Exporter()

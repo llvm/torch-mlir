@@ -65,21 +65,22 @@ using namespace mlir::NPCOMP;
 //===----------------------------------------------------------------------===//
 
 namespace {
-class ResolveShapeOfOpViaAllocMemRefOp : public OpRewritePattern<shape::ShapeOfOp> {
-  public:
-    using OpRewritePattern::OpRewritePattern;
-    LogicalResult matchAndRewrite(shape::ShapeOfOp op,
-                                  PatternRewriter &rewriter) const override {
-      if (auto tensorLoad = llvm::dyn_cast_or_null<TensorLoadOp>(
-              op.getOperand().getDefiningOp())) {
-        if (auto allocMemRef = llvm::dyn_cast_or_null<tcp::AllocMemRefOp>(
-                tensorLoad.getOperand().getDefiningOp())) {
-          rewriter.replaceOp(op, allocMemRef.getOperand());
-          return success();
-        }
+class ResolveShapeOfOpViaAllocMemRefOp
+    : public OpRewritePattern<shape::ShapeOfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(shape::ShapeOfOp op,
+                                PatternRewriter &rewriter) const override {
+    if (auto tensorLoad = llvm::dyn_cast_or_null<TensorLoadOp>(
+            op.getOperand().getDefiningOp())) {
+      if (auto allocMemRef = llvm::dyn_cast_or_null<tcp::AllocMemRefOp>(
+              tensorLoad.getOperand().getDefiningOp())) {
+        rewriter.replaceOp(op, allocMemRef.getOperand());
+        return success();
       }
-      return failure();
     }
+    return failure();
+  }
 };
 } // namespace
 
@@ -92,7 +93,7 @@ class ResolveShapeOfOps : public ResolveShapeOfOpsBase<ResolveShapeOfOps> {
     OwningRewritePatternList patterns;
     patterns.insert<ResolveShapeOfOpViaAllocMemRefOp>(context);
     ConversionTarget target(*context);
-    //target.addIllegalOp<shape::ShapeOfOp>();
+    // target.addIllegalOp<shape::ShapeOfOp>();
     target.addDynamicallyLegalOp<shape::ShapeOfOp>(
         [](shape::ShapeOfOp shapeOf) {
           // Only shape.shape_of on arguments to the entry block are legal at

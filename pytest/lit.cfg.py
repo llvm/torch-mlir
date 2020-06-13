@@ -39,15 +39,13 @@ llvm_config.with_system_environment(
 
 llvm_config.use_default_substitutions()
 
-# excludes: A list of files/directories to exclude from the testsuite. The 
-# 'Inputs'subdirectories contain auxiliary inputs for various tests in their 
+# excludes: A list of files/directories to exclude from the testsuite. The
+# 'Inputs'subdirectories contain auxiliary inputs for various tests in their
 # parent directories.
 config.excludes = [
-    'Inputs', 'Examples', 
-    'lit.cfg.py',
-    'CMakeLists.txt', 
-    'README.txt', 
-    'LICENSE.txt']
+    'Inputs', 'Examples', 'lit.cfg.py', 'CMakeLists.txt', 'README.txt',
+    'LICENSE.txt'
+]
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -56,22 +54,21 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.npcomp_obj_root, 'pytest')
 config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'tools')
 config.npcomp_runtime_shlib = os.path.join(
-    config.npcomp_obj_root,
-    'runtime',
-    'libNPCOMPRuntime' + config.llvm_shlib_ext
-)
+    config.npcomp_obj_root, 'runtime',
+    'libNPCOMPRuntime' + config.llvm_shlib_ext)
 
 # Tweak the PATH and PYTHONPATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 llvm_config.with_environment('PYTHONPATH', [
     os.path.join(config.npcomp_obj_root, "python"),
-    os.path.join(config.npcomp_obj_root, "python_native")],
-    append_path=True)
+    os.path.join(config.npcomp_obj_root, "python_native")
+],
+                             append_path=True)
 
 tool_dirs = [
-        os.path.join(config.npcomp_tools_dir, 'npcomp-opt'),
-        os.path.join(config.npcomp_tools_dir, 'npcomp-run-mlir'),
-        config.llvm_tools_dir,
+    os.path.join(config.npcomp_tools_dir, 'npcomp-opt'),
+    os.path.join(config.npcomp_tools_dir, 'npcomp-run-mlir'),
+    config.llvm_tools_dir,
 ]
 tools = [
     'npcomp-opt',

@@ -52,7 +52,7 @@ public:
     return success();
   }
 };
-}
+} // namespace
 
 namespace {
 class ConvertTCFToTCP : public ConvertTCFToTCPBase<ConvertTCFToTCP> {

@@ -25,8 +25,7 @@ std::unique_ptr<OperationPass<FuncOp>> createLowerBroadcastToToLoopsPass();
 std::unique_ptr<OperationPass<FuncOp>>
 createLowerLinalgOnTensorToLinalgOnMemrefPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createResolveShapeOfOpsPass();
+std::unique_ptr<OperationPass<FuncOp>> createResolveShapeOfOpsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createResolveTensorLoadStoreOpsPass();
 

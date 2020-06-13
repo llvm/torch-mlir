@@ -65,6 +65,7 @@ class DialectHelper(Basicpy.DialectHelper):
     tensor<*x!numpy.any_dtype>
 
   """
+
   @property
   def numpy_any_dtype(self):
     return self.context.parse_type("!numpy.any_dtype")
