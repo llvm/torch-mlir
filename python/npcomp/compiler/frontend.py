@@ -14,6 +14,7 @@ from npcomp.dialect import Numpy
 
 from . import logging
 from .importer import *
+from .target import *
 
 __all__ = [
     "ImportFrontend",
@@ -32,12 +33,21 @@ class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
 
 class ImportFrontend:
   """Frontend for importing various entities into a Module."""
+  __slots__ = [
+      "_ir_context",
+      "_ir_module",
+      "_helper",
+      "_target_factory",
+  ]
 
-  def __init__(self, ir_context: ir.MLIRContext = None):
+  def __init__(self,
+               ir_context: ir.MLIRContext = None,
+               target_factory: TargetFactory = GenericTarget64):
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
     self._helper = AllDialectHelper(self._ir_context,
                                     ir.OpBuilder(self._ir_context))
+    self._target_factory = target_factory
 
   @property
   def ir_context(self):
@@ -66,6 +76,7 @@ class ImportFrontend:
     h = self.ir_h
     ir_c = self.ir_context
     ir_m = self.ir_module
+    target = self._target_factory(h)
     filename = inspect.getsourcefile(f)
     source_lines, start_lineno = inspect.getsourcelines(f)
     source = "".join(source_lines)
@@ -94,7 +105,8 @@ class ImportFrontend:
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
-                           filename_ident=filename_ident)
+                           filename_ident=filename_ident,
+                           target=target)
     for f_arg, ir_arg in zip(f_params, ir_f.first_block.args):
       fctx.map_local_name(f_arg, ir_arg)
 

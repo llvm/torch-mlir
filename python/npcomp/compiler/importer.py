@@ -10,6 +10,7 @@ import sys
 from _npcomp.mlir import ir
 
 from . import logging
+from .target import *
 
 __all__ = [
     "FunctionContext",
@@ -24,14 +25,16 @@ class FunctionContext:
       "ir_c",
       "ir_f",
       "ir_h",
+      "target",
       "filename_ident",
       "local_name_value_map",
   ]
 
-  def __init__(self, ir_c, ir_f, ir_h, filename_ident):
+  def __init__(self, ir_c, ir_f, ir_h, target, filename_ident):
     self.ir_c = ir_c
     self.ir_f = ir_f
     self.ir_h = ir_h
+    self.target = target
     self.filename_ident = filename_ident
     self.local_name_value_map = dict()
 
@@ -93,7 +96,8 @@ class FunctionDefImporter(BaseNodeVisitor):
     if not self._last_was_return:
       # Add a default terminator.
       none_value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
-      none_cast = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType, none_value).result
+      none_cast = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
+                                               none_value).result
       ir_h.return_op([none_cast])
 
   def visit_Assign(self, ast_node):
@@ -137,6 +141,8 @@ class ExpressionImporter(BaseNodeVisitor):
   def __init__(self, fctx):
     super().__init__(fctx)
     self.value = None
+    self._int_type = fctx.target.impl_int_type
+    self._float_type = fctx.target.impl_float_type
 
   def visit(self, node):
     super().visit(node)
@@ -158,13 +164,11 @@ class ExpressionImporter(BaseNodeVisitor):
     elif value is None:
       self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
     elif isinstance(value, int):
-      # TODO: Configurable type mapping
-      ir_type = ir_h.i64_type
+      ir_type = self._int_type
       ir_attr = ir_c.integer_attr(ir_type, value)
       self.value = ir_h.constant_op(ir_type, ir_attr).result
     elif isinstance(value, float):
-      # TODO: Configurable type mapping
-      ir_type = ir_h.f64_type
+      ir_type = self._float_type
       ir_attr = ir_c.float_attr(ir_type, value)
       self.value = ir_h.constant_op(ir_type, ir_attr).result
     elif isinstance(value, str):
