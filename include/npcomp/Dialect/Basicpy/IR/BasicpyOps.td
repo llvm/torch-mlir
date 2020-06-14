@@ -150,6 +150,7 @@ def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
     Basicpy_BoolType:$result
   );
   let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
 }
 
 def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
@@ -165,6 +166,7 @@ def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
     Basicpy_BytesType:$result
   );
   let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
 }
 
 def Basicpy_ExecOp : Basicpy_Op<"exec", [
@@ -173,7 +175,7 @@ def Basicpy_ExecOp : Basicpy_Op<"exec", [
   let description = [{
     The result is discarded. Typically expressions are no-side-effect and can
     be re-ordered as needed. Embedding one in an exec op ensures that its
-    placement in program order is preserved. 
+    placement in program order is preserved.
   }];
   let regions = (region SizedRegion<1>:$body);
 
@@ -211,7 +213,7 @@ def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [
     omits the operand types (since they are equal to the types in the returned
     slot object). Example:
       %0 = basicpy.singleton : !basicpy.NoneType
-      %1 = basicpy.slot_object_make(%0) -> 
+      %1 = basicpy.slot_object_make(%0) ->
           !basicpy.SlotObject<slice, !basicpy.NoneType>
   }];
   let arguments = (ins
@@ -257,6 +259,7 @@ def Basicpy_StrConstantOp : Basicpy_Op<"str_constant", [
     Basicpy_StrType:$result
   );
   let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
 }
 
 def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
@@ -271,6 +274,7 @@ def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
     Basicpy_SingletonType:$result
   );
   let assemblyFormat = "attr-dict `:` type($result)";
+  let hasFolder = 1;
 }
 
 def Basicpy_ToBooleanOp : Basicpy_Op<"to_boolean", [NoSideEffect]> {

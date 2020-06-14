@@ -381,6 +381,12 @@ public:
         equations.addTypeEqualityEquation(op.left(), op.result(), op);
         return WalkResult::advance();
       }
+      if (auto op = dyn_cast<BinaryCompareOp>(childOp)) {
+        // TODO: This should really be applying arithmetic promotion, not
+        // strict equality.
+        equations.addTypeEqualityEquation(op.left(), op.right(), op);
+        return WalkResult::advance();
+      }
 
       // Fallback trait based equations.
       // ----------------------
@@ -410,7 +416,7 @@ public:
         }
       }
 
-      childOp->emitWarning() << "unhandled op in type inference";
+      childOp->emitRemark() << "unhandled op in type inference";
 
       return WalkResult::advance();
     });

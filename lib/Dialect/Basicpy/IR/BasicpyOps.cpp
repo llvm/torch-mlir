@@ -19,6 +19,22 @@ namespace NPCOMP {
 namespace Basicpy {
 
 //===----------------------------------------------------------------------===//
+// BoolConstantOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult BoolConstantOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+//===----------------------------------------------------------------------===//
+// BytesConstantOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult BytesConstantOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+//===----------------------------------------------------------------------===//
 // ExecOp
 //===----------------------------------------------------------------------===//
 
@@ -157,6 +173,23 @@ static void printSlotObjectGetOp(OpAsmPrinter &p, SlotObjectGetOp op) {
   p.printOptionalAttrDict(op.getAttrs(), {"index"});
   p << " : ";
   p.printType(op.object().getType());
+}
+
+//===----------------------------------------------------------------------===//
+// SingletonOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult SingletonOp::fold(ArrayRef<Attribute> operands) {
+  auto resultType = getResult().getType();
+  return TypeAttr::get(resultType);
+}
+
+//===----------------------------------------------------------------------===//
+// StrConstantOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult StrConstantOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
 }
 
 #define GET_OP_CLASSES

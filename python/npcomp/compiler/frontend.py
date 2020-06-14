@@ -92,11 +92,15 @@ class ImportFrontend:
                   ast.dump(ast_fd, include_attributes=True))
 
     # TODO: VERY BAD: Assumes all positional params.
-    unknown_type = h.basicpy_UnknownType
-    f_params = inspect.signature(f).parameters
-    arg_count = len(f_params)
-    ir_f_type = h.function_type([unknown_type for _ in range(arg_count)],
-                                [unknown_type])
+    f_signature = inspect.signature(f)
+    f_params = f_signature.parameters
+    f_input_types = [
+        self._resolve_signature_annotation(target, p.annotation)
+        for p in f_params.values()
+    ]
+    f_return_type = self._resolve_signature_annotation(
+        target, f_signature.return_annotation)
+    ir_f_type = h.function_type(f_input_types, [f_return_type])
 
     h.builder.set_file_line_col(filename_ident, ast_fd.lineno,
                                 ast_fd.col_offset)
@@ -107,9 +111,26 @@ class ImportFrontend:
                            ir_h=h,
                            filename_ident=filename_ident,
                            target=target)
-    for f_arg, ir_arg in zip(f_params, ir_f.first_block.args):
+    for f_arg, ir_arg in zip(f_params.keys(), ir_f.first_block.args):
       fctx.map_local_name(f_arg, ir_arg)
 
     fdimport = FunctionDefImporter(fctx, ast_fd)
     fdimport.import_body()
     return ir_f
+
+  def _resolve_signature_annotation(self, target: Target, annot):
+    ir_h = self._helper
+    if annot is inspect.Signature.empty:
+      return ir_h.basicpy_UnknownType
+
+    # TODO: Do something real here once we need more than the primitive types.
+    if annot is int:
+      return target.impl_int_type
+    elif annot is float:
+      return target.impl_float_type
+    elif annot is bool:
+      return ir_h.basicpy_BoolType
+    elif annot is str:
+      return ir_h.basicpy_StrType
+    else:
+      return ir_h.basicpy_UnknownType

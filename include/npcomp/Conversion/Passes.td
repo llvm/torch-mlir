@@ -29,4 +29,20 @@ def ConvertTCPToLinalg : Pass<"convert-tcp-to-linalg", "ModuleOp"> {
   let constructor = "mlir::NPCOMP::createConvertTCPToLinalgPass()";
 }
 
+//===----------------------------------------------------------------------===//
+// Basicpy conversions
+//===----------------------------------------------------------------------===//
+
+def ConvertBasicpyToStd : Pass<"convert-basicpy-to-std", "FuncOp"> {
+  let summary = "Convert representable Basicpy ops to std";
+  let constructor = "mlir::NPCOMP::createConvertBasicpyToStdPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// Conditionally compiled IREE backend passes
+//===----------------------------------------------------------------------===//
+
+#ifdef NPCOMP_ENABLE_IREE
+#endif // NPCOMP_ENABLE_IREE
+
 #endif // NPCOMP_CONVERSION_PASSES

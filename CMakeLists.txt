@@ -47,6 +47,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
+set(NPCOMP_TABLEGEN_ARGS "")
 
 #-------------------------------------------------------------------------------
 # IREE configuration
@@ -54,6 +55,7 @@ add_definitions(${LLVM_DEFINITIONS})
 
 if(NPCOMP_ENABLE_IREE)
   add_compile_definitions(NPCOMP_ENABLE_IREE)
+  string(APPEND NPCOMP_TABLEGEN_ARGS "-DNPCOMP_ENABLE_IREE")
   if(NPCOMP_IREE_SRCDIR)
     message(STATUS "Depending on IREE source: ${NPCOMP_IREE_SRCDIR}")
     set(IREE_BUILD_TESTS OFF CACHE BOOL "Override IREE setting")
