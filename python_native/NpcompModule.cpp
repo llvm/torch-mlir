@@ -12,8 +12,11 @@
 #include "npcomp/Python/MlirInit.h"
 #include "npcomp/Python/NpcompModule.h"
 #include "npcomp/Python/PybindUtils.h"
-
 #include "llvm/Support/CommandLine.h"
+
+#ifdef NPCOMP_ENABLE_IREE
+#include "npcomp/Backend/IREE/PythonModule.h"
+#endif
 
 namespace mlir {
 namespace npcomp {
@@ -73,6 +76,15 @@ PYBIND11_MODULE(_npcomp, m) {
   // Outer "_npcomp" module
   auto npcomp_dialect = m.def_submodule("dialect", "NPComp custom dialects");
   defineNpcompDialect(npcomp_dialect);
+
+  // Optional backend modules.
+  auto backend_m = m.def_submodule("backend", "Backend support");
+  (void)backend_m;
+
+#ifdef NPCOMP_ENABLE_IREE
+  auto iree_m = backend_m.def_submodule("iree", "IREE backend support");
+  defineBackendIREEModule(iree_m);
+#endif
 }
 
 } // namespace python

@@ -3,6 +3,10 @@ add_subdirectory(Dialect)
 add_subdirectory(E2E)
 add_subdirectory(Python)
 
+if(NPCOMP_ENABLE_IREE)
+  add_subdirectory(Backend/IREE)
+endif()
+
 ################################################################################
 # Setup the initialization target.
 # This includes conditional dependencies based on whether features are enabled.

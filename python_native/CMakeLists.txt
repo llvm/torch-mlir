@@ -15,6 +15,10 @@
 set(NPCOMP_PYEXT_LINK_MODE SHARED)
 set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 
+if(NPCOMP_ENABLE_IREE)
+  list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendIREEPythonModule)
+endif()
+
 # TODO(laurenzo): Add a config setting to control this.
 # set(NPCOMP_PYEXT_LINK_MODE MODULE)
 # set(NPCOMP_PYEXT_LIBADD "")
