@@ -1,4 +1,3 @@
-# XFAIL: *
 # RUN: %PYTHON %s
 
 from npcomp.compiler.frontend import *
