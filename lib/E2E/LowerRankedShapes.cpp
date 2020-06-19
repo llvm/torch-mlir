@@ -26,7 +26,7 @@ public:
   LogicalResult
   matchAndRewrite(shape::BroadcastOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    shape::BroadcastOp::OperandAdaptor adaptor(operands);
+    shape::BroadcastOp::Adaptor adaptor(operands);
     auto lhs = adaptor.lhs().getDefiningOp<shape::FromExtentsOp>();
     auto rhs = adaptor.rhs().getDefiningOp<shape::FromExtentsOp>();
     if (!lhs || !rhs)
@@ -88,7 +88,7 @@ public:
   LogicalResult
   matchAndRewrite(tcp::GetExtentOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    tcp::GetExtentOp::OperandAdaptor adaptor(operands);
+    tcp::GetExtentOp::Adaptor adaptor(operands);
     auto fromExtents = adaptor.shape().getDefiningOp<shape::FromExtentsOp>();
     if (!fromExtents)
       return rewriter.notifyMatchFailure(op, "not a from_extents op");

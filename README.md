@@ -27,7 +27,7 @@ export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 export LLVM_SRC_DIR=/path/to/llvm-project
 
 # Check out last known good commit.
-(cd $LLVM_SRC_DIR && git checkout 52cae05e087b3d4fd02849fc37c387c720055ffb)
+(cd $LLVM_SRC_DIR && git checkout 4836188ad9b3334b0c1e055d45ccaa54ed797e4b)
 
 ./tools/install_mlir.sh
 ./tools/cmake_configure.sh
@@ -70,7 +70,7 @@ Notes:
 * Python sources are symlinked to the output directory at configure time.
   Adding sources will require a reconfigure. Editing should not.
 * It is a very common issue to have both python 2.7 (aka. "python") and python
-  3.x (aka. "python3") on a system at a time (and we can only hope that one 
+  3.x (aka. "python3") on a system at a time (and we can only hope that one
   day this ends). Since the native library at development time binds to a
   specific version, if you try to run with a different python, you will get
   an error about the "native" module not being found.

@@ -28,7 +28,7 @@ public:
   LogicalResult
   matchAndRewrite(tcp::AbortIfOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    tcp::AbortIfOp::OperandAdaptor adaptor(operands);
+    tcp::AbortIfOp::Adaptor adaptor(operands);
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, abortIfFunc, adaptor.pred());
     return success();
   }
@@ -67,7 +67,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     populateStdToLLVMConversionPatterns(converter, patterns);
     patterns.insert<LowerAbortIf>(abortIfFunc);
 
-    if (failed(applyFullConversion(module, target, patterns, &converter))) {
+    if (failed(applyFullConversion(module, target, patterns))) {
       return signalPassFailure();
     }
   }

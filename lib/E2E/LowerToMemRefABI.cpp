@@ -28,7 +28,7 @@ public:
   LogicalResult
   matchAndRewrite(TensorStoreOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    TensorStoreOp::OperandAdaptor adaptor(operands);
+    TensorStoreOp::Adaptor adaptor(operands);
     // The tensor has been converted to an unranked memref. We need to cast
     // it to the original memref type and copy it to the destination.
     //
@@ -52,7 +52,7 @@ public:
   LogicalResult
   matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    TensorLoadOp::OperandAdaptor adaptor(operands);
+    TensorLoadOp::Adaptor adaptor(operands);
     auto type = UnrankedMemRefType::get(op.getType().getElementType(), 0);
     // TODO: This won't work. The LLVM unranked memref calling convention
     // doesn't allow returning an unranked memref becuase it lowers it to
@@ -93,7 +93,7 @@ public:
   LogicalResult
   matchAndRewrite(shape::ShapeOfOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    shape::ShapeOfOp::OperandAdaptor adaptor(operands);
+    shape::ShapeOfOp::Adaptor adaptor(operands);
     auto tensorType = op.arg().getType().cast<RankedTensorType>();
     auto rankedMemRefType =
         MemRefType::get(tensorType.getShape(), tensorType.getElementType());
