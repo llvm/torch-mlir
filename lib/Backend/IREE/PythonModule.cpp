@@ -31,6 +31,7 @@ public:
 /// Defines an "iree" module with backend support definitions.
 void mlir::npcomp::python::defineBackendIREEModule(py::module m) {
   py::class_<Blob>(m, "Blob", py::buffer_protocol())
+      .def("__len__", [](Blob &self) { return self.contents.size(); })
       .def_buffer([](Blob &self) -> py::buffer_info {
         return py::buffer_info(
             static_cast<void *>(&self.contents.front()), // Pointer to buffer

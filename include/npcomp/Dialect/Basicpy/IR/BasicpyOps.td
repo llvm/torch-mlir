@@ -295,6 +295,8 @@ def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
   let arguments = (ins AnyType:$operand);
   let results = (outs AnyType:$result);
   let assemblyFormat = "operands attr-dict `:` type(operands) `->` type(results)";
+
+  let hasCanonicalizer = 1;
 }
 
 #endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS

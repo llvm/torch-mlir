@@ -10,6 +10,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOpsEnums.cpp.inc"
@@ -190,6 +191,31 @@ OpFoldResult SingletonOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult StrConstantOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
+}
+
+//===----------------------------------------------------------------------===//
+// UnknownCastOp
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+class ElideIdentityUnknownCast : public OpRewritePattern<UnknownCastOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(UnknownCastOp op,
+                                PatternRewriter &rewriter) const {
+    if (op.operand().getType() != op.result().getType())
+      return failure();
+    rewriter.replaceOp(op, op.operand());
+    return success();
+  }
+};
+
+} // namespace
+
+void UnknownCastOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context) {
+  patterns.insert<ElideIdentityUnknownCast>(context);
 }
 
 #define GET_OP_CLASSES

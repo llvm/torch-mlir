@@ -224,17 +224,26 @@ void PyDialectHelper::bind(py::module m) {
            py::arg("attrs") = llvm::Optional<PyAttribute>())
       .def("func_op",
            [](PyDialectHelper &self, const std::string &name, PyType type,
-              bool createEntryBlock) {
+              bool createEntryBlock, llvm::Optional<PyAttribute> attrs) {
              auto functionType = type.type.dyn_cast_or_null<FunctionType>();
              if (!functionType) {
                throw py::raiseValueError("Illegal function type");
              }
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
              Location loc = self.pyOpBuilder.getCurrentLoc();
-             // TODO: Add function and arg/result attributes.
+             // TODO: Dedup attr creation from op().
+             MutableDictionaryAttr attrList;
+             if (attrs) {
+               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
+               if (!dictAttrs) {
+                 throw py::raiseValueError(
+                     "Expected `attrs` to be a DictionaryAttr");
+               }
+               attrList = MutableDictionaryAttr(dictAttrs);
+             }
              FuncOp op =
                  opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
-                                          /*attrs=*/ArrayRef<NamedAttribute>());
+                                          /*attrs=*/attrList.getAttrs());
              if (createEntryBlock) {
                Block *entryBlock = new Block();
                entryBlock->addArguments(functionType.getInputs());
@@ -245,6 +254,7 @@ void PyDialectHelper::bind(py::module m) {
            },
            py::arg("name"), py::arg("type"),
            py::arg("create_entry_block") = false,
+           py::arg("attrs") = llvm::Optional<PyAttribute>(),
            R"(Creates a new `func` op, optionally creating an entry block.
               If an entry block is created, the builder will be positioned
               to its start.)")
@@ -507,7 +517,10 @@ void PyContext::bind(py::module m) {
              return createDenseElementsAttrFromBuffer(&self.context,
                                                       array_info);
            },
-           py::arg("array"));
+           py::arg("array"))
+      .def_property_readonly("unit_attr", [](PyContext &self) -> PyAttribute {
+        return UnitAttr::get(&self.context);
+      });
 }
 
 PyModuleOp PyContext::parseAsm(const std::string &asm_text) {

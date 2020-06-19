@@ -105,7 +105,12 @@ class ImportFrontend:
     h.builder.set_file_line_col(filename_ident, ast_fd.lineno,
                                 ast_fd.col_offset)
     h.builder.insert_before_terminator(ir_m.first_block)
-    ir_f = h.func_op(ast_fd.name, ir_f_type, create_entry_block=True)
+    # TODO: Do not hardcode this IREE attribute.
+    attrs = ir_c.dictionary_attr({"iree.module.export": ir_c.unit_attr})
+    ir_f = h.func_op(ast_fd.name,
+                     ir_f_type,
+                     create_entry_block=True,
+                     attrs=attrs)
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
