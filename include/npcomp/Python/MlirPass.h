@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_PYTHON_NATIVE_MLIR_PASS_H
-#define NPCOMP_PYTHON_NATIVE_MLIR_PASS_H
+#ifndef NPCOMP_PYTHON_MLIR_PASS_H
+#define NPCOMP_PYTHON_MLIR_PASS_H
 
 #include "MlirIr.h"
 #include "PybindUtils.h"
@@ -29,4 +29,4 @@ private:
 
 } // namespace mlir
 
-#endif // NPCOMP_PYTHON_NATIVE_MLIR_PASS_H
+#endif // NPCOMP_PYTHON_MLIR_PASS_H

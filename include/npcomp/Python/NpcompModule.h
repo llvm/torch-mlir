@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_PYTHON_NATIVE_NPCOMP_MODULE_H
-#define NPCOMP_PYTHON_NATIVE_NPCOMP_MODULE_H
+#ifndef NPCOMP_PYTHON_NPCOMP_MODULE_H
+#define NPCOMP_PYTHON_NPCOMP_MODULE_H
 
 #include "PybindUtils.h"
 
@@ -25,4 +25,4 @@ void defineNpcompDialect(py::module m);
 } // namespace npcomp
 } // namespace mlir
 
-#endif // NPCOMP_PYTHON_NATIVE_NPCOMP_MODULE_H
+#endif // NPCOMP_PYTHON_NPCOMP_MODULE_H

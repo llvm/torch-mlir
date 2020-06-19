@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MlirIr.h"
-#include "NpcompModule.h"
+#include "npcomp/Python/MlirIr.h"
+#include "npcomp/Python/NpcompModule.h"
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_PYTHON_NATIVE_MLIR_IR_H
-#define NPCOMP_PYTHON_NATIVE_MLIR_IR_H
+#ifndef NPCOMP_PYTHON_MLIR_IR_H
+#define NPCOMP_PYTHON_MLIR_IR_H
 
 #include "PybindUtils.h"
 
@@ -198,4 +198,4 @@ protected:
 
 } // namespace mlir
 
-#endif // NPCOMP_PYTHON_NATIVE_MLIR_IR_H
+#endif // NPCOMP_PYTHON_MLIR_IR_H

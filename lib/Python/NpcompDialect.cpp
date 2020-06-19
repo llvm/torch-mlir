@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MlirIr.h"
-#include "NpcompModule.h"
+#include "npcomp/Python/MlirIr.h"
+#include "npcomp/Python/NpcompModule.h"
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"

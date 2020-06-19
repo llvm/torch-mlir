@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MlirPass.h"
-#include "MlirInit.h"
-#include "NpcompModule.h"
+#include "npcomp/Python/MlirPass.h"
+#include "npcomp/Python/MlirInit.h"
+#include "npcomp/Python/NpcompModule.h"
 
 #include "mlir/Pass/PassRegistry.h"
 

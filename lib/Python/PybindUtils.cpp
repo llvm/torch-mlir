@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PybindUtils.h"
+#include "npcomp/Python/PybindUtils.h"
 
 namespace pybind11 {
 

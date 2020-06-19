@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "MlirInit.h"
+#include "npcomp/Python/MlirInit.h"
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/InitAllDialects.h"

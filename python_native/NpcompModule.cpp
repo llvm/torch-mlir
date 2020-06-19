@@ -9,9 +9,9 @@
 #include <cstddef>
 #include <unordered_map>
 
-#include "MlirInit.h"
-#include "NpcompModule.h"
-#include "PybindUtils.h"
+#include "npcomp/Python/MlirInit.h"
+#include "npcomp/Python/NpcompModule.h"
+#include "npcomp/Python/PybindUtils.h"
 
 #include "llvm/Support/CommandLine.h"
 

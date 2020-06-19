@@ -25,21 +25,15 @@ set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 # compiled separately for now.
 set(extension_target NPCOMPNativePyExt)
 set(extension_llvm_sources
-  MlirInit.cpp
 )
 set(extension_pybind_sources
-  MlirIr.cpp
-  MlirPass.cpp
-  NpcompDialect.cpp
   NpcompModule.cpp
-  PybindUtils.cpp
-  CoreDialects.cpp
 )
 set_source_files_properties(
   ${extension_pybind_sources}
-  PROPERTIES COMPILE_FLAGS 
+  PROPERTIES COMPILE_FLAGS
     "-frtti -fexceptions")
-add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE} 
+add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
   ${extension_pybind_sources}
   ${extension_llvm_sources}
 )
@@ -47,10 +41,10 @@ add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
 set_target_properties(${extension_target} PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                       "${CMAKE_CURRENT_BINARY_DIR}")
 set_target_properties(${extension_target} PROPERTIES OUTPUT_NAME _npcomp)
-set_target_properties(${extension_target} PROPERTIES PREFIX 
+set_target_properties(${extension_target} PROPERTIES PREFIX
                       "${PYTHON_MODULE_PREFIX}")
-set_target_properties(${extension_target} PROPERTIES SUFFIX 
-                      "${PYTHON_MODULE_EXTENSION}")  
+set_target_properties(${extension_target} PROPERTIES SUFFIX
+                      "${PYTHON_MODULE_EXTENSION}")
 
 # pybind requires binding code to be compiled with -fvisibility=hidden
 # Better code can be generated if the entire project compiles that way, but
@@ -65,16 +59,12 @@ get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
 # llvm_update_compile_flags(${extension_target})
-target_link_libraries(${extension_target} 
+target_link_libraries(${extension_target}
   PRIVATE
     ${dialect_libs}
     ${conversion_libs}
-    pybind11::module
-
     NPCOMPInitAll
-    
-    # Core dialects
-    MLIRSCF
+    NPCOMPPythonCommon
 
     # Upstream depends
     LLVMSupport

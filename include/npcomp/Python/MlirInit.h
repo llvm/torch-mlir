@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef NPCOMP_PYTHON_MLIRINIT_H
+#define NPCOMP_PYTHON_MLIRINIT_H
+
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -14,7 +17,6 @@
 // here for parts of the code that are not RTTI-compatible.
 
 namespace mlir {
-
 namespace npcomp {
 namespace python {
 
@@ -24,3 +26,5 @@ bool npcompMlirInitialize();
 } // namespace python
 } // namespace npcomp
 } // namespace mlir
+
+#endif // NPCOMP_PYTHON_MLIRINIT_H
