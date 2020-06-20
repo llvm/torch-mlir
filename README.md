@@ -55,7 +55,7 @@ The project is roughly split into the following areas of code:
 * C++ [include](include) and [lib](lib) trees, following LLVM/MLIR conventions
 * LIT testing trees:
   * [test](test): Lit/FileCheck tests covering core MLIR based infra
-  * [pytest/Compiler](pytest/compiler): Lit test suite that drive the compiler 
+  * [pytest/Compiler](pytest/Compiler): Lit test suite that drive the compiler 
     infra from Python
   * [backend_test](backend_test): Lit test suites conditionally enabled for
     each backend
