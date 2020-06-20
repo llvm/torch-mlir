@@ -6,10 +6,19 @@ import os
 import string
 import sys
 
-__all__ = ["debug"]
+__all__ = ["debug", "debug_enabled", "enable"]
 
 _ENABLED = "NPCOMP_DEBUG" in os.environ
 _formatter = string.Formatter()
+
+
+def enable():
+  global _ENABLED
+  _ENABLED = True
+
+
+def debug_enabled():
+  return _ENABLED
 
 
 def debug(format_string, *args, **kwargs):
