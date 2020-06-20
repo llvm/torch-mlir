@@ -1,21 +1,65 @@
-# npcomp - An aspirational MLIR based numpy compiler
+# NPComp - An aspirational MLIR based numpy compiler
 
-This is a research prototype of MLIR dialects for representing
-numpy programs, and a set of reference tracing/compiler tools.
-The primary purpose at this point is to establish a solid modeling
-of restricted Python programs and Numpy based computations in MLIR.
-While this project will provide some reference implementations to prove
-the design, the intention is to align this with the broader set of
-tools that exist at this level of abstraction.
+NPComp aims to be an idiomatic subset of the Python language, suitable for
+extracting isolated, statically typed programs from a running Python session.
+It is inspired by many projects that have come before it, including:
 
-## Design Notes
+* PyPy/RPython
+* Numba
+* Pythran
+* TorchScript
+* Autograph
 
-As I work through things, I've been jotting down some design notes:
+As the name implies, NPComp also seeks to provide compiler-backed support
+for Numpy APIs.
 
-* [Type Extraction - April 15, 2020](https://gist.github.com/stellaraccident/ec1ab0f633cfca0a05866fd77705b4e4)
-* [Ufunc modeling Part 1 - April 29, 2020](https://gist.github.com/stellaraccident/4fcd2a24a66b6588f92b22b2b8ab974f)
-* [Array funcs and op granularity - May 5, 2020](https://gist.github.com/stellaraccident/2c11652cfdee1457921bc7c98807b462)
-* [AST Extraction - June 6, 2020](https://gist.github.com/stellaraccident/875f20d45dfc9b5daee59b11e3a2bc07)
+The project spawned out of both [LLVM's MLIR project](https://mlir.llvm.org/)
+and [The IREE Project](https://github.com/google/iree) and seeks to use the
+MLIR and IREE tooling to enable progressive lowering of high level compute
+dominant sub-programs in a way that preserves high level semantic information
+that is expected to be useful for exploiting parallelism, generating high
+performance code, and enabling portability and deployment to a range of
+devices. Some of these goals overlap with existing projects, and to a first
+approximation, the experiment with NPComp is to determine whether rebasing
+on the MLIR tooling and ML backends like IREE produce a lift.
+
+Before getting too excited, keep in mind that this project *barely* exists: it
+is very new and doesn't do anything useful yet :) We are using it as a testing
+ground for some new ideas and infrastructure improvement, and depending on
+how things turn out, may end up carrying it forward or breaking it up for
+parts.
+
+See the [features doc](docs/features.md) for a semi-curated status of what is
+implemented.
+
+## Architecture
+
+The compiler is separated into:
+
+* [Frontend importer](python/npcomp/compiler/frontend.py): Translates from
+  various AST levels to corresponding MLIR dialects.
+* Frontend compiler: MLIR passes and conversions, mostly operating on the
+  [basicpy](include/Dialect/Basicpy/IR/BasicpyOps.td) and
+  [numpy](include/Dialect/Numpy/IR/NumpyOps.td) dialects.
+* Backend compiler and runtime: Some effort has been taken to make this
+  pluggable, but right now, only the [IREE Backend](python/npcomp/compiler/backend/iree.py)
+  exists. There is in-tree work to also build a minimal reference backend
+  directly targeting LLVM.
+
+## Repository Layout
+
+The project is roughly split into the following areas of code:
+
+* [User-facing Python code](python/npcomp)
+* [_npcomp native module](python_native)
+* C++ [include](include) and [lib](lib) trees, following LLVM/MLIR conventions
+* LIT testing trees:
+  * [test](test): Lit/FileCheck tests covering core MLIR based infra
+  * [pytest/Compiler](pytest/compiler): Lit test suite that drive the compiler 
+    infra from Python
+  * [backend_test](backend_test): Lit test suites conditionally enabled for
+    each backend
+* [tools](tools): Scripts and binaries (npcomp-opt, npcomp-run-mlir, etc)
 
 ## Quick start
 
@@ -27,18 +71,22 @@ export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 export LLVM_SRC_DIR=/path/to/llvm-project
 
 # Check out last known good commit.
-(cd $LLVM_SRC_DIR && git checkout 4836188ad9b3334b0c1e055d45ccaa54ed797e4b)
+LLVM_COMMIT="$(cat ./built_tools/llvm.version)"
+(cd $LLVM_SRC_DIR && git checkout $LLVM_COMMIT)
 
-./tools/install_mlir.sh
-./tools/cmake_configure.sh
+./build_tools/install_mlir.sh
+./build_tools/cmake_configure.sh
 
-
-# ./tools/test_all.sh runs all of these commands.
+# Build and run tests
+# ./build_tools/test_all.sh runs all of these commands.
 cd build
 ninja
 ninja check-npcomp
-# Note: currently, python tests run separately
+# Note: currently, some python tests run separately
 ./python/run_tests.py
+
+# Setup PYTHONPATH for interactive use
+export PYTHONPATH="$(realpath build/python):$(realpath build/python_native):$(realpath build/iree/bindings/python)"
 ```
 
 ## Interactive Use
@@ -47,12 +95,8 @@ The cmake configuration populates symlinks in the `build/python` directory
 mirroring the source layout. This allows edit-run without rebuilding (unless
 if files are added/removed).
 
-Configuring the `PYTHONPATH` should be sufficient to run any interactive
-tooling (`python3`, Jupyter/Colab, etc).
-
-```shell
-export PYTHONPATH="$(realpath build/python):$(realpath build/python_native)"
-```
+Configuring the `PYTHONPATH` as above should be sufficient to run any 
+interactive tooling (`python3`, Jupyter/Colab, etc).
 
 The `run_tests.py` script is special in that it sets up the PYTHONPATH
 correctly when run.
@@ -60,10 +104,6 @@ correctly when run.
 Note that running the `cmake_configure.sh` script will also output a `.env`
 file in the workspace folder with the correct PYTHONPATH set. This allows
 tools like VSCode to work by default for debugging.
-
-### Things to look at:
-
-* `python/npcomp/tracing/mlir_trace_test.py` : Simple test case of tracing a function to an MLIR module.
 
 Notes:
 
