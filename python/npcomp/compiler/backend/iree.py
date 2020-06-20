@@ -10,6 +10,13 @@ __all__ = [
     "CompilerBackend",
 ]
 
+FRONTEND_PASSES = (
+    "basicpy-type-inference",
+    "convert-basicpy-to-std",
+    "canonicalize",
+    "convert-scf-to-std",
+)
+
 _ireec = None
 _ireert = None
 _cached_config = None
@@ -111,8 +118,7 @@ class CompilerBackend:
     backend compilation. They are separated to aid debugging.
     """
     # TOOD: Have an API for this
-    pm.addPassPipelines("basicpy-type-inference", "convert-basicpy-to-std",
-                        "canonicalize")
+    pm.addPassPipelines(*FRONTEND_PASSES)
 
   def add_backend_passes(self, pm: mlir.passes.PassManager):
     """Adds passes for full backend compilation.

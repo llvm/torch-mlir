@@ -27,3 +27,11 @@ def int_add(a: int, b: int):
 
 result = int_add(5, 6)
 assert result == 11
+
+
+@compile_function
+def simple_control_flow(a: int, b: int):
+  return (a * b) and (a - b)
+
+assert simple_control_flow(5, 6) == -1
+assert simple_control_flow(-1, 0) == 0
