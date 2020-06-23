@@ -7,12 +7,14 @@ Frontend to the compiler, allowing various ways to import code.
 
 import ast
 import inspect
+from typing import Optional
 
 from _npcomp.mlir import ir
 from _npcomp.mlir.dialect import ScfDialectHelper
 from npcomp.dialect import Numpy
 
 from . import logging
+from .environment import *
 from .importer import *
 from .target import *
 
@@ -38,16 +40,20 @@ class ImportFrontend:
       "_ir_module",
       "_helper",
       "_target_factory",
+      "_value_coder",
   ]
 
   def __init__(self,
                ir_context: ir.MLIRContext = None,
-               target_factory: TargetFactory = GenericTarget64):
+               *,
+               target_factory: TargetFactory = GenericTarget64,
+               value_coder: Optional[ValueCoder] = None):
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
     self._helper = AllDialectHelper(self._ir_context,
                                     ir.OpBuilder(self._ir_context))
     self._target_factory = target_factory
+    self._value_coder = value_coder if value_coder else BuiltinsValueCoder()
 
   @property
   def ir_context(self):
@@ -111,13 +117,19 @@ class ImportFrontend:
                      ir_f_type,
                      create_entry_block=True,
                      attrs=attrs)
+    env = Environment.for_const_global_function(h,
+                                                f,
+                                                parameter_bindings=zip(
+                                                    f_params.keys(),
+                                                    ir_f.first_block.args),
+                                                value_coder=self._value_coder,
+                                                target=target)
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
                            filename_ident=filename_ident,
-                           target=target)
-    for f_arg, ir_arg in zip(f_params.keys(), ir_f.first_block.args):
-      fctx.map_local_name(f_arg, ir_arg)
+                           target=target,
+                           environment=env)
 
     fdimport = FunctionDefImporter(fctx, ast_fd)
     fdimport.import_body()

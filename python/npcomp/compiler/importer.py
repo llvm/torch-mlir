@@ -10,6 +10,7 @@ import sys
 from _npcomp.mlir import ir
 
 from . import logging
+from .environment import *
 from .target import *
 
 __all__ = [
@@ -27,16 +28,16 @@ class FunctionContext:
       "ir_h",
       "target",
       "filename_ident",
-      "local_name_value_map",
+      "environment",
   ]
 
-  def __init__(self, ir_c, ir_f, ir_h, target, filename_ident):
+  def __init__(self, ir_c, ir_f, ir_h, target, filename_ident, environment):
     self.ir_c = ir_c
     self.ir_f = ir_f
     self.ir_h = ir_h
     self.target = target
     self.filename_ident = filename_ident
-    self.local_name_value_map = dict()
+    self.environment = environment
 
   def abort(self, message):
     """Emits an error diagnostic and raises an exception to abort."""
@@ -52,9 +53,12 @@ class FunctionContext:
     self.ir_h.builder.set_file_line_col(self.filename_ident, ast_node.lineno,
                                         ast_node.col_offset)
 
-  def map_local_name(self, name, value):
-    self.local_name_value_map[name] = value
-    logging.debug("Map name({}) -> value({})", name, value)
+  def lookup_name(self, name) -> NameReference:
+    ref = self.environment.lookup(name)
+    if ref is None:
+      self.abort("Could not resolve referenced name '{}'".format(name))
+    logging.debug("Map name({}) -> {}", name, ref)
+    return ref
 
 
 class BaseNodeVisitor(ast.NodeVisitor):
@@ -109,7 +113,13 @@ class FunctionDefImporter(BaseNodeVisitor):
         # TODO: Del, AugStore, etc
         self.fctx.abort("Unsupported assignment context type %s" %
                         target.ctx.__class__.__name__)
-      self.fctx.map_local_name(target.id, expr.value)
+      name_ref = self.fctx.lookup_name(target.id)
+      try:
+        name_ref.store(self.fctx.environment, expr.value)
+        logging.debug("STORE: {} <- {}", name_ref, expr.value)
+      except NotImplementedError:
+        self.fctx.abort(
+            "Cannot assign to '{}': Store not supported".format(name_ref))
 
   def visit_Expr(self, ast_node):
     ir_h = self.fctx.ir_h
@@ -155,30 +165,11 @@ class ExpressionImporter(BaseNodeVisitor):
     return sub_importer.value
 
   def emit_constant(self, value):
-    ir_c = self.fctx.ir_c
-    ir_h = self.fctx.ir_h
-    if value is True:
-      self.value = ir_h.basicpy_bool_constant_op(True).result
-    elif value is False:
-      self.value = ir_h.basicpy_bool_constant_op(False).result
-    elif value is None:
-      self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
-    elif isinstance(value, int):
-      ir_type = self._int_type
-      ir_attr = ir_c.integer_attr(ir_type, value)
-      self.value = ir_h.constant_op(ir_type, ir_attr).result
-    elif isinstance(value, float):
-      ir_type = self._float_type
-      ir_attr = ir_c.float_attr(ir_type, value)
-      self.value = ir_h.constant_op(ir_type, ir_attr).result
-    elif isinstance(value, str):
-      self.value = ir_h.basicpy_str_constant_op(value).result
-    elif isinstance(value, bytes):
-      self.value = ir_h.basicpy_bytes_constant_op(value).result
-    elif isinstance(value, type(...)):
-      self.value = ir_h.basicpy_singleton_op(ir_h.basicpy_EllipsisType).result
-    else:
+    env = self.fctx.environment
+    ir_const_value = env.value_coder.create_const(env, value)
+    if ir_const_value is NotImplemented:
       self.fctx.abort("unknown constant type '%r'" % (value,))
+    self.value = ir_const_value
 
   def visit_BinOp(self, ast_node):
     ir_h = self.fctx.ir_h
@@ -290,10 +281,11 @@ class ExpressionImporter(BaseNodeVisitor):
     if not isinstance(ast_node.ctx, ast.Load):
       self.fctx.abort("Unsupported expression name context type %s" %
                       ast_node.ctx.__class__.__name__)
-    # TODO: Need to apply scope rules: local, global, ...
-    value = self.fctx.local_name_value_map.get(ast_node.id)
+    name_ref = self.fctx.lookup_name(ast_node.id)
+    value = name_ref.load(self.fctx.environment)
+    logging.debug("LOAD {} -> {}", name_ref, value)
     if value is None:
-      self.fctx.abort("Local variable '%s' has not been assigned" % ast_node.id)
+      self.fctx.abort("Name reference '{}' cannot be loaded".format(name_ref))
     self.value = value
 
   def visit_UnaryOp(self, ast_node):
