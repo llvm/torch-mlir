@@ -139,13 +139,21 @@ class Environment(NameResolver):
     """
     try:
       code = f.__code__
+      globals_dict = f.__globals__
+      builtins_module = globals_dict["__builtins__"]
     except AttributeError:
-      assert False, "Function {} does not have a __code__ attribute".format(f)
+      assert False, (
+          "Function {} does not have required user-defined function attributes".
+          format(f))
 
     # Locals resolver.
     # Note that co_varnames should include both parameter and local names.
     locals_resolver = LocalNameResolver(code.co_varnames)
-    resolvers = (locals_resolver,)
+    resolvers = (
+        locals_resolver,
+        ConstModuleNameResolver(globals_dict, as_dict=True),
+        ConstModuleNameResolver(builtins_module),
+    )
     env = cls(ir_h, name_resolvers=resolvers, **kwargs)
 
     # Bind parameters.
@@ -198,6 +206,55 @@ class LocalNameResolver(NameResolver):
 
   def lookup(self, name) -> Optional[NameReference]:
     return self._name_refs.get(name)
+
+
+class ConstNameReference(NameReference):
+  """Represents a name/value mapping that will emit as a constant."""
+  __slots__ = [
+      "_py_value",
+  ]
+
+  def __init__(self, name, py_value):
+    super().__init__(name)
+    self._py_value = py_value
+
+  def load(self, env: "Environment") -> Optional[ir.Value]:
+    value = env.value_coder.create_const(env, self._py_value)
+    if value is NotImplemented:
+      logging.debug("Unsupported {}", self)
+      return None
+    return value
+
+  def __repr__(self):
+    return "<ConstNameReference({}={})>".format(self.name, self._py_value)
+
+
+class ConstModuleNameResolver(NameResolver):
+  """Resolves names from a module by treating them as immutable and loading
+  them as constants into a function scope.
+  """
+  __slots__ = [
+      "_as_dict",
+      "module",
+  ]
+
+  def __init__(self, module, *, as_dict=False):
+    super().__init__()
+    self.module = module
+    self._as_dict = as_dict
+
+  def lookup(self, name) -> Optional[NameReference]:
+    if self._as_dict:
+      if name in self.module:
+        py_value = self.module[name]
+      else:
+        return None
+    else:
+      try:
+        py_value = getattr(self.module, name)
+      except AttributeError:
+        return None
+    return ConstNameReference(name, py_value)
 
 
 class BuiltinsValueCoder:
