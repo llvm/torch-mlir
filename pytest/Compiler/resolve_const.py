@@ -23,11 +23,11 @@ def global_int():
   return OUTER_ONE
 
 
-# CHECK-LABEL: func @module_docstring
+# CHECK-LABEL: func @module_string
 @import_global
-def module_docstring():
-  # CHECK: basicpy.str_constant "Module docstring."
-  return __doc__
+def module_string():
+  # CHECK: basicpy.str_constant "Hello"
+  return OUTER_STRING
 
 
 # CHECK-LABEL: func @builtin_debug
