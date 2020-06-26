@@ -31,7 +31,7 @@ class ImportFrontend:
       "_helper",
       "_target_factory",
       "_value_coder",
-      "_macro_resolver",
+      "_partial_eval_hook",
   ]
 
   def __init__(self,
@@ -39,15 +39,15 @@ class ImportFrontend:
                *,
                target_factory: TargetFactory = GenericTarget64,
                value_coder: Optional[ValueCoder] = None,
-               macro_resolver: Optional[MacroResolver] = None):
+               partial_eval_hook: Optional[PartialEvalHook] = None):
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
     self._helper = AllDialectHelper(self._ir_context,
                                     ir.OpBuilder(self._ir_context))
     self._target_factory = target_factory
     self._value_coder = value_coder if value_coder else BuiltinsValueCoder()
-    self._macro_resolver = (macro_resolver if macro_resolver else
-                            build_default_macro_resolver())
+    self._partial_eval_hook = (partial_eval_hook if partial_eval_hook else
+                               build_default_partial_eval_hook())
 
   @property
   def ir_context(self):
@@ -62,8 +62,8 @@ class ImportFrontend:
     return self._helper
 
   @property
-  def macro_resolver(self):
-    return self._macro_resolver
+  def partial_eval_hook(self):
+    return self._partial_eval_hook
 
   def import_global_function(self, f):
     """Imports a global function.
@@ -121,7 +121,7 @@ class ImportFrontend:
         parameter_bindings=zip(f_params.keys(), ir_f.first_block.args),
         value_coder=self._value_coder,
         target=target,
-        macro_resolver=self._macro_resolver)
+        partial_eval_hook=self._partial_eval_hook)
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
@@ -166,8 +166,8 @@ class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
     ScfDialectHelper.__init__(self, *args, **kwargs)
 
 
-def build_default_macro_resolver() -> MacroResolver:
-  mr = MacroResolver()
+def build_default_partial_eval_hook() -> PartialEvalHook:
+  mr = PartialEvalHook()
   ### Modules
   mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
 

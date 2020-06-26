@@ -46,16 +46,16 @@ class FunctionContext:
     ir.emit_error(loc, message)
     raise EmittedError(loc, message)
 
-  def check_macro_evaluated(self, result: MacroEvalResult):
-    """Checks that a macro has evaluated without error."""
-    if result.type == MacroEvalType.ERROR:
+  def check_partial_evaluated(self, result: PartialEvalResult):
+    """Checks that a PartialEvalResult has evaluated without error."""
+    if result.type == PartialEvalType.ERROR:
       exc_info = result.yields
       loc = self.current_loc
       message = ("Error while evaluating value from environment:\n" +
                  "".join(traceback.format_exception(*exc_info)))
       ir.emit_error(loc, message)
       raise EmittedError(loc, message)
-    if result.type == MacroEvalType.NOT_EVALUATED:
+    if result.type == PartialEvalType.NOT_EVALUATED:
       self.abort("Unable to evaluate expression")
 
   @property
@@ -82,22 +82,26 @@ class FunctionContext:
       self.abort("Cannot code python value as constant: {}".format(py_value))
     return result
 
-  def emit_macro_result(self, macro_result: MacroEvalResult) -> ir.Value:
-    """Emits a macro result either as a direct IR value or a constant."""
-    self.check_macro_evaluated(macro_result)
-    if macro_result.type == MacroEvalType.YIELDS_IR_VALUE:
+  def emit_partial_eval_result(self,
+                               partial_result: PartialEvalResult) -> ir.Value:
+    """Emits a partial eval result either as a direct IR value or a constant."""
+    self.check_partial_evaluated(partial_result)
+    if partial_result.type == PartialEvalType.YIELDS_IR_VALUE:
       # Return directly.
-      return macro_result.yields
-    elif macro_result.type == MacroEvalType.YIELDS_LIVE_VALUE:
+      return partial_result.yields
+    elif partial_result.type == PartialEvalType.YIELDS_LIVE_VALUE:
       # Import constant.
-      return self.emit_const_value(macro_result.yields.live_value)
+      return self.emit_const_value(partial_result.yields.live_value)
     else:
-      self.abort("Unhandled macro result type {}".format(macro_result))
+      self.abort("Unhandled partial eval result type {}".format(partial_result))
 
 
 class BaseNodeVisitor(ast.NodeVisitor):
   """Base class of a node visitor that aborts on unhandled nodes."""
   IMPORTER_TYPE = "<unknown>"
+  __slots__ = [
+      "fctx",
+  ]
 
   def __init__(self, fctx):
     super().__init__()
@@ -119,6 +123,10 @@ class FunctionDefImporter(BaseNodeVisitor):
   Handles nodes that are direct children of a FunctionDef.
   """
   IMPORTER_TYPE = "statement"
+  __slots__ = [
+      "ast_fd",
+      "_last_was_return",
+  ]
 
   def __init__(self, fctx, ast_fd):
     super().__init__(fctx)
@@ -186,6 +194,9 @@ class ExpressionImporter(BaseNodeVisitor):
   IR value that the expression lowers to.
   """
   IMPORTER_TYPE = "expression"
+  __slots__ = [
+      "value",
+  ]
 
   def __init__(self, fctx):
     super().__init__(fctx)
@@ -209,12 +220,13 @@ class ExpressionImporter(BaseNodeVisitor):
     self.value = ir_const_value
 
   def visit_Attribute(self, ast_node):
-    # Import the attribute's value recursively as a macro if possible.
-    macro_importer = MacroImporter(self.fctx)
-    macro_importer.visit(ast_node)
-    if macro_importer.macro_result:
-      self.fctx.check_macro_evaluated(macro_importer.macro_result)
-      self.value = self.fctx.emit_macro_result(macro_importer.macro_result)
+    # Import the attribute's value recursively as a partial eval if possible.
+    pe_importer = PartialEvalImporter(self.fctx)
+    pe_importer.visit(ast_node)
+    if pe_importer.partial_eval_result:
+      self.fctx.check_partial_evaluated(pe_importer.partial_eval_result)
+      self.value = self.fctx.emit_partial_eval_result(
+          pe_importer.partial_eval_result)
       return
 
     self.fctx.abort("unhandled attribute access mode: {}".format(
@@ -331,9 +343,9 @@ class ExpressionImporter(BaseNodeVisitor):
       self.fctx.abort("Unsupported expression name context type %s" %
                       ast_node.ctx.__class__.__name__)
     name_ref = self.fctx.lookup_name(ast_node.id)
-    macro_result = name_ref.load(self.fctx.environment)
-    logging.debug("LOAD {} -> {}", name_ref, macro_result)
-    self.value = self.fctx.emit_macro_result(macro_result)
+    pe_result = name_ref.load(self.fctx.environment)
+    logging.debug("LOAD {} -> {}", name_ref, pe_result)
+    self.value = self.fctx.emit_partial_eval_result(pe_result)
 
   def visit_UnaryOp(self, ast_node):
     ir_h = self.fctx.ir_h
@@ -371,52 +383,55 @@ class ExpressionImporter(BaseNodeVisitor):
       self.emit_constant(ast_node.value)
 
 
-class MacroImporter(BaseNodeVisitor):
-  """Importer for expressions that can resolve through the environment's macro
-  system.
+class PartialEvalImporter(BaseNodeVisitor):
+  """Importer for performing greedy partial evaluation.
 
   Concretely this is used for Attribute.value and Call resolution.
 
   Attribute resolution is not just treated as a normal expression because it
-  is first subject to "macro expansion", allowing the environment's macro
-  resolution facility to operate on live python values from the containing
-  environment versus naively emitting code for attribute resolution from
+  is first subject to "partial evaluation", allowing the environment's partial
+  eval hook to operate on live python values from the containing
+  environment versus naively emitting code for attribute resolution for
   entities that can/should be considered constants from the hosting context.
   This is used, for example, to resolve attributes from modules without
-  by immediately dereferencing/transforming the intervening chain of attributes.
+  immediately dereferencing/transforming the intervening chain of attributes.
   """
-  IMPORTER_TYPE = "macro"
+  IMPORTER_TYPE = "partial_eval"
+  __slots__ = [
+      "partial_eval_result",
+  ]
 
   def __init__(self, fctx):
     super().__init__(fctx)
-    self.macro_result = None
+    self.partial_eval_result = None
 
   def visit_Attribute(self, ast_node):
     # Sub-evaluate the 'value'.
-    sub_macro = MacroImporter(self.fctx)
-    sub_macro.visit(ast_node.value)
+    sub_eval = PartialEvalImporter(self.fctx)
+    sub_eval.visit(ast_node.value)
 
-    if sub_macro.macro_result:
-      # Macro sub-evaluation successful.
-      sub_result = sub_macro.macro_result
+    if sub_eval.partial_eval_result:
+      # Partial sub-evaluation successful.
+      sub_result = sub_eval.partial_eval_result
     else:
       # Need to evaluate it as an expression.
       sub_expr = ExpressionImporter(self.fctx)
       sub_expr.visit(ast_node.value)
       assert sub_expr.value, (
-          "Macro sub expression did not return a value: %r" % (ast_node.value))
-      sub_result = MacroEvalResult.yields_ir_value(sub_expr.value)
+          "Evaluated sub expression did not return a value: %r" %
+          (ast_node.value))
+      sub_result = PartialEvalResult.yields_ir_value(sub_expr.value)
 
-    # Attempt to perform a static getattr as a macro if still operating on a
-    # live value.
-    self.fctx.check_macro_evaluated(sub_result)
-    if sub_result.type == MacroEvalType.YIELDS_LIVE_VALUE:
+    # Attempt to perform a static getattr as a partial eval if still operating
+    # on a live value.
+    self.fctx.check_partial_evaluated(sub_result)
+    if sub_result.type == PartialEvalType.YIELDS_LIVE_VALUE:
       logging.debug("STATIC getattr '{}' on {}", ast_node.attr, sub_result)
       getattr_result = sub_result.yields.resolve_getattr(
           self.fctx.environment, ast_node.attr)
-      if getattr_result.type != MacroEvalType.NOT_EVALUATED:
-        self.fctx.check_macro_evaluated(getattr_result)
-        self.macro_result = getattr_result
+      if getattr_result.type != PartialEvalType.NOT_EVALUATED:
+        self.fctx.check_partial_evaluated(getattr_result)
+        self.partial_eval_result = getattr_result
         return
       # If a non-statically evaluable live value, then convert to a constant
       # and dynamic dispatch.
@@ -424,7 +439,7 @@ class MacroImporter(BaseNodeVisitor):
     else:
       ir_value = sub_result.yields
 
-    # Yielding an IR value from a recursive macro evaluation means that the
+    # Yielding an IR value from a recursive partial evaluation means that the
     # entire chain needs to be hoisted to IR.
     # TODO: Implement.
     self.fctx.abort("dynamic-emitted getattr not yet supported: %r" %
@@ -432,9 +447,9 @@ class MacroImporter(BaseNodeVisitor):
 
   def visit_Name(self, ast_node):
     name_ref = self.fctx.lookup_name(ast_node.id)
-    macro_result = name_ref.load(self.fctx.environment)
-    logging.debug("LOAD MACRO {} -> {}", name_ref, macro_result)
-    self.macro_result = macro_result
+    partial_eval_result = name_ref.load(self.fctx.environment)
+    logging.debug("PARTIAL EVAL {} -> {}", name_ref, partial_eval_result)
+    self.partial_eval_result = partial_eval_result
 
 
 class EmittedError(Exception):

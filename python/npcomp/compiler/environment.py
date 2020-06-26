@@ -17,13 +17,13 @@ from .target import *
 __all__ = [
     "BuiltinsValueCoder",
     "Environment",
-    "MacroEvalResult",
-    "MacroEvalType",
-    "MacroResolver",
-    "MacroValueRef",
+    "LiveValueRef",
     "NameReference",
     "NameResolver",
-    "ResolveAttrMacroValueRef",
+    "PartialEvalResult",
+    "PartialEvalType",
+    "PartialEvalHook",
+    "ResolveAttrLiveValueRef",
     "ValueCoder",
     "ValueCoderChain",
 ]
@@ -59,7 +59,7 @@ class NameReference:
     self.name = name
 
   def load(self, env: "Environment",
-           ir_h: ir.DialectHelper) -> "MacroEvalResult":
+           ir_h: ir.DialectHelper) -> "PartialEvalResult":
     """Loads the IR Value associated with the name.
 
     The load may either be direct, returning an existing value or
@@ -68,9 +68,9 @@ class NameReference:
     Args:
       ir_h: The dialect helper used to emit code.
     Returns:
-      A macro evaluation result.
+      A partial evaluation result.
     """
-    return MacroEvalResult.not_evaluated()
+    return PartialEvalResult.not_evaluated()
 
   def store(self, env: "Environment", value: ir.Value, ir_h: ir.DialectHelper):
     """Stores a new value into the name.
@@ -103,57 +103,64 @@ class NameResolver:
 
 
 ################################################################################
-# Macro evaluation
+# Partial evaluation
 # When the compiler is extracting from a running program, it is likely that
 # evaluations produce live values which can be further partially evaluated
 # at import time, in the context of the running instance (versus emitting
-# program IR to do so). This facility is called macro evaluation and is
-# a pluggable component on the environment.
+# program IR to do so). This behavior is controlled through a PartialEvalHook
+# on the environment.
 ################################################################################
 
 
-class MacroEvalType(Enum):
-  # The macro could not be evaluated immediately and the operation should
-  # be code-generated. yields NotImplemented.
+class PartialEvalType(Enum):
+  # Could not be evaluated immediately and the operation should be
+  # code-generated. yields NotImplemented.
   NOT_EVALUATED = 0
 
-  # The macro yields a LiveValueRef
+  # Yields a LiveValueRef
   YIELDS_LIVE_VALUE = 1
 
-  # The macro yields an IR value
+  # Yields an IR value
   YIELDS_IR_VALUE = 2
 
   # Evaluation yielded an error (yields contains exc_info from sys.exc_info()).
   ERROR = 3
 
 
-class MacroEvalResult(namedtuple("MacroEvalResult", "type,yields")):
-  """Encapsulates the result of a macro evaluation."""
+class PartialEvalResult(namedtuple("PartialEvalResult", "type,yields")):
+  """Encapsulates the result of a partial evaluation."""
 
   @classmethod
   def not_evaluated(cls):
-    return cls(MacroEvalType.NOT_EVALUATED, NotImplemented)
+    return cls(PartialEvalType.NOT_EVALUATED, NotImplemented)
 
   @classmethod
   def yields_live_value(cls, live_value):
-    assert isinstance(live_value, MacroValueRef)
-    return cls(MacroEvalType.YIELDS_LIVE_VALUE, live_value)
+    assert isinstance(live_value, LiveValueRef)
+    return cls(PartialEvalType.YIELDS_LIVE_VALUE, live_value)
 
   @classmethod
   def yields_ir_value(cls, ir_value):
     assert isinstance(ir_value, ir.Value)
-    return cls(MacroEvalType.YIELDS_IR_VALUE, ir_value)
+    return cls(PartialEvalType.YIELDS_IR_VALUE, ir_value)
 
   @classmethod
   def error(cls):
-    return cls(MacroEvalType.ERROR, sys.exc_info())
+    return cls(PartialEvalType.ERROR, sys.exc_info())
+
+  @classmethod
+  def error_message(cls, message):
+    try:
+      raise RuntimeError(message)
+    except RuntimeError:
+      return cls.error()
 
 
-class MacroValueRef:
+class LiveValueRef:
   """Wraps a live value from the containing environment.
 
   Typically, when expressions encounter a live value, a limited number of
-  "macro" expansions can be done against it in place (versus emitting the code
+  partial evaluations can be done against it in place (versus emitting the code
   to import it and perform the operation). This default base class will not
   perform any static evaluations.
   """
@@ -165,31 +172,31 @@ class MacroValueRef:
     super().__init__()
     self.live_value = live_value
 
-  def resolve_getattr(self, env: "Environment", attr_name) -> MacroEvalResult:
+  def resolve_getattr(self, env: "Environment", attr_name) -> PartialEvalResult:
     """Gets a named attribute from the live value."""
-    return MacroEvalResult.not_evaluated()
+    return PartialEvalResult.not_evaluated()
 
   def __repr__(self):
     return "MacroValueRef({}, {})".format(self.__class__.__name__,
                                           self.live_value)
 
 
-class ResolveAttrMacroValueRef(MacroValueRef):
+class ResolveAttrLiveValueRef(LiveValueRef):
   """Custom MacroValueRef that will resolve attributes via getattr."""
   __slots__ = []
 
-  def resolve_getattr(self, env: "Environment", attr_name) -> MacroEvalResult:
+  def resolve_getattr(self, env: "Environment", attr_name) -> PartialEvalResult:
     logging.debug("RESOLVE_GETATTR '{}' on {}".format(attr_name,
                                                       self.live_value))
     try:
       attr_py_value = getattr(self.live_value, attr_name)
     except:
-      return MacroEvalResult.error()
-    return env.macro_resolver.resolve(attr_py_value)
+      return PartialEvalResult.error()
+    return env.partial_eval_hook.resolve(attr_py_value)
 
 
-class MacroResolver:
-  """Owned by an environment and performs system-wide macro resolution."""
+class PartialEvalHook:
+  """Owned by an environment to customize partial evaluation."""
   __slots__ = [
       "_value_map",
   ]
@@ -198,26 +205,26 @@ class MacroResolver:
     super().__init__()
     self._value_map = PyValueMap()
 
-  def resolve(self, py_value) -> MacroEvalResult:
-    """Performs macro resolution on a python value."""
+  def resolve(self, py_value) -> PartialEvalResult:
+    """Performs partial evaluation on a python value."""
     binding = self._value_map.lookup(py_value)
     if binding is None:
-      logging.debug("MACRO RESOLVE {}: Passthrough", py_value)
-      return MacroEvalResult.yields_live_value(MacroValueRef(py_value))
-    if isinstance(binding, MacroValueRef):
-      logging.debug("MACRO RESOLVE {}: {}", py_value, binding)
-      return MacroEvalResult.yields_live_value(binding)
-    if isinstance(binding, MacroEvalResult):
+      logging.debug("PARTIAL EVAL RESOLVE {}: Passthrough", py_value)
+      return PartialEvalResult.yields_live_value(LiveValueRef(py_value))
+    if isinstance(binding, LiveValueRef):
+      logging.debug("PARTIAL EVAL RESOLVE {}: {}", py_value, binding)
+      return PartialEvalResult.yields_live_value(binding)
+    if isinstance(binding, PartialEvalResult):
       return binding
     # Attempt to call.
     try:
       binding = binding(py_value)
-      assert isinstance(binding, MacroEvalResult), (
-          "Expected MacroEvalResult but got {}".format(binding))
-      logging.debug("MACRO RESOLVE {}: {}", py_value, binding)
+      assert isinstance(binding, PartialEvalResult), (
+          "Expected PartialEvalResult but got {}".format(binding))
+      logging.debug("PARTIAL EVAL RESOLVE {}: {}", py_value, binding)
       return binding
     except:
-      return MacroEvalResult.error()
+      return PartialEvalResult.error()
 
   def _bind(self,
             binding,
@@ -236,10 +243,10 @@ class MacroResolver:
           "Must specify one of 'for_ref', 'for_type' or 'for_predicate")
 
   def enable_getattr(self, **kwargs):
-    """Enables macro attribute resolution."""
+    """Enables partial evaluation of getattr."""
     self._bind(
-        lambda pv: MacroEvalResult.yields_live_value(
-            ResolveAttrMacroValueRef(pv)), **kwargs)
+        lambda pv: PartialEvalResult.yields_live_value(
+            ResolveAttrLiveValueRef(pv)), **kwargs)
 
 
 ################################################################################
@@ -258,7 +265,7 @@ class Environment(NameResolver):
       "_name_resolvers",
       "target",
       "value_coder",
-      "macro_resolver",
+      "partial_eval_hook",
   ]
 
   def __init__(self,
@@ -267,13 +274,14 @@ class Environment(NameResolver):
                target: Target,
                name_resolvers=(),
                value_coder,
-               macro_resolver=None):
+               partial_eval_hook=None):
     super().__init__()
     self.ir_h = ir_h
     self.target = target
     self._name_resolvers = name_resolvers
     self.value_coder = value_coder
-    self.macro_resolver = macro_resolver if macro_resolver else MacroResolver()
+    self.partial_eval_hook = partial_eval_hook if partial_eval_hook else PartialEvalHook(
+    )
 
   @classmethod
   def for_const_global_function(cls, ir_h: ir.DialectHelper, f, *,
@@ -332,12 +340,11 @@ class LocalNameReference(NameReference):
     super().__init__(name)
     self._current_value = initial_value
 
-  def load(self, env: "Environment") -> MacroEvalResult:
+  def load(self, env: "Environment") -> PartialEvalResult:
     if self._current_value is None:
-      return MacroEvalResult.error(
-          RuntimeError("Attempt to access local '{}' before assignment".format(
-              self.name)))
-    return MacroEvalResult.yields_ir_value(self._current_value)
+      return PartialEvalResult.error_message(
+          "Attempt to access local '{}' before assignment".format(self.name))
+    return PartialEvalResult.yields_ir_value(self._current_value)
 
   def store(self, env: "Environment", value: ir.Value):
     self._current_value = value
@@ -374,8 +381,8 @@ class ConstNameReference(NameReference):
     super().__init__(name)
     self._py_value = py_value
 
-  def load(self, env: "Environment") -> MacroEvalResult:
-    return env.macro_resolver.resolve(self._py_value)
+  def load(self, env: "Environment") -> PartialEvalResult:
+    return env.partial_eval_hook.resolve(self._py_value)
 
   def __repr__(self):
     return "<ConstNameReference({}={})>".format(self.name, self._py_value)
