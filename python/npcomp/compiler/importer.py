@@ -6,6 +6,7 @@ Importers for populating MLIR from AST.
 """
 import ast
 import sys
+import traceback
 
 from _npcomp.mlir import ir
 
@@ -45,6 +46,18 @@ class FunctionContext:
     ir.emit_error(loc, message)
     raise EmittedError(loc, message)
 
+  def check_macro_evaluated(self, result: MacroEvalResult):
+    """Checks that a macro has evaluated without error."""
+    if result.type == MacroEvalType.ERROR:
+      exc_info = result.yields
+      loc = self.current_loc
+      message = ("Error while evaluating value from environment:\n" +
+                 "".join(traceback.format_exception(*exc_info)))
+      ir.emit_error(loc, message)
+      raise EmittedError(loc, message)
+    if result.type == MacroEvalType.NOT_EVALUATED:
+      self.abort("Unable to evaluate expression")
+
   @property
   def current_loc(self):
     return self.ir_h.builder.current_loc
@@ -54,11 +67,32 @@ class FunctionContext:
                                         ast_node.col_offset)
 
   def lookup_name(self, name) -> NameReference:
+    """Lookup a name in the environment, requiring it to have evaluated."""
     ref = self.environment.lookup(name)
     if ref is None:
       self.abort("Could not resolve referenced name '{}'".format(name))
     logging.debug("Map name({}) -> {}", name, ref)
     return ref
+
+  def emit_const_value(self, py_value) -> ir.Value:
+    """Codes a value as a constant, returning an ir Value."""
+    env = self.environment
+    result = env.value_coder.create_const(env, py_value)
+    if result is NotImplemented:
+      self.abort("Cannot code python value as constant: {}".format(py_value))
+    return result
+
+  def emit_macro_result(self, macro_result: MacroEvalResult) -> ir.Value:
+    """Emits a macro result either as a direct IR value or a constant."""
+    self.check_macro_evaluated(macro_result)
+    if macro_result.type == MacroEvalType.YIELDS_IR_VALUE:
+      # Return directly.
+      return macro_result.yields
+    elif macro_result.type == MacroEvalType.YIELDS_LIVE_VALUE:
+      # Import constant.
+      return self.emit_const_value(macro_result.yields.live_value)
+    else:
+      self.abort("Unhandled macro result type {}".format(macro_result))
 
 
 class BaseNodeVisitor(ast.NodeVisitor):
@@ -146,13 +180,16 @@ class FunctionDefImporter(BaseNodeVisitor):
 
 
 class ExpressionImporter(BaseNodeVisitor):
+  """Imports expression nodes.
+
+  Visitor methods should either raise an exception or set self.value to the
+  IR value that the expression lowers to.
+  """
   IMPORTER_TYPE = "expression"
 
   def __init__(self, fctx):
     super().__init__(fctx)
     self.value = None
-    self._int_type = fctx.target.impl_int_type
-    self._float_type = fctx.target.impl_float_type
 
   def visit(self, node):
     super().visit(node)
@@ -170,6 +207,18 @@ class ExpressionImporter(BaseNodeVisitor):
     if ir_const_value is NotImplemented:
       self.fctx.abort("unknown constant type '%r'" % (value,))
     self.value = ir_const_value
+
+  def visit_Attribute(self, ast_node):
+    # Import the attribute's value recursively as a macro if possible.
+    macro_importer = MacroImporter(self.fctx)
+    macro_importer.visit(ast_node)
+    if macro_importer.macro_result:
+      self.fctx.check_macro_evaluated(macro_importer.macro_result)
+      self.value = self.fctx.emit_macro_result(macro_importer.macro_result)
+      return
+
+    self.fctx.abort("unhandled attribute access mode: {}".format(
+        ast.dump(ast_node)))
 
   def visit_BinOp(self, ast_node):
     ir_h = self.fctx.ir_h
@@ -282,11 +331,9 @@ class ExpressionImporter(BaseNodeVisitor):
       self.fctx.abort("Unsupported expression name context type %s" %
                       ast_node.ctx.__class__.__name__)
     name_ref = self.fctx.lookup_name(ast_node.id)
-    value = name_ref.load(self.fctx.environment)
-    logging.debug("LOAD {} -> {}", name_ref, value)
-    if value is None:
-      self.fctx.abort("Name reference '{}' cannot be loaded".format(name_ref))
-    self.value = value
+    macro_result = name_ref.load(self.fctx.environment)
+    logging.debug("LOAD {} -> {}", name_ref, macro_result)
+    self.value = self.fctx.emit_macro_result(macro_result)
 
   def visit_UnaryOp(self, ast_node):
     ir_h = self.fctx.ir_h
@@ -322,6 +369,72 @@ class ExpressionImporter(BaseNodeVisitor):
 
     def visit_Constant(self, ast_node):
       self.emit_constant(ast_node.value)
+
+
+class MacroImporter(BaseNodeVisitor):
+  """Importer for expressions that can resolve through the environment's macro
+  system.
+
+  Concretely this is used for Attribute.value and Call resolution.
+
+  Attribute resolution is not just treated as a normal expression because it
+  is first subject to "macro expansion", allowing the environment's macro
+  resolution facility to operate on live python values from the containing
+  environment versus naively emitting code for attribute resolution from
+  entities that can/should be considered constants from the hosting context.
+  This is used, for example, to resolve attributes from modules without
+  by immediately dereferencing/transforming the intervening chain of attributes.
+  """
+  IMPORTER_TYPE = "macro"
+
+  def __init__(self, fctx):
+    super().__init__(fctx)
+    self.macro_result = None
+
+  def visit_Attribute(self, ast_node):
+    # Sub-evaluate the 'value'.
+    sub_macro = MacroImporter(self.fctx)
+    sub_macro.visit(ast_node.value)
+
+    if sub_macro.macro_result:
+      # Macro sub-evaluation successful.
+      sub_result = sub_macro.macro_result
+    else:
+      # Need to evaluate it as an expression.
+      sub_expr = ExpressionImporter(self.fctx)
+      sub_expr.visit(ast_node.value)
+      assert sub_expr.value, (
+          "Macro sub expression did not return a value: %r" % (ast_node.value))
+      sub_result = MacroEvalResult.yields_ir_value(sub_expr.value)
+
+    # Attempt to perform a static getattr as a macro if still operating on a
+    # live value.
+    self.fctx.check_macro_evaluated(sub_result)
+    if sub_result.type == MacroEvalType.YIELDS_LIVE_VALUE:
+      logging.debug("STATIC getattr '{}' on {}", ast_node.attr, sub_result)
+      getattr_result = sub_result.yields.resolve_getattr(
+          self.fctx.environment, ast_node.attr)
+      if getattr_result.type != MacroEvalType.NOT_EVALUATED:
+        self.fctx.check_macro_evaluated(getattr_result)
+        self.macro_result = getattr_result
+        return
+      # If a non-statically evaluable live value, then convert to a constant
+      # and dynamic dispatch.
+      ir_value = self.fctx.emit_const_value(sub_result.yields.live_value)
+    else:
+      ir_value = sub_result.yields
+
+    # Yielding an IR value from a recursive macro evaluation means that the
+    # entire chain needs to be hoisted to IR.
+    # TODO: Implement.
+    self.fctx.abort("dynamic-emitted getattr not yet supported: %r" %
+                    (ir_value,))
+
+  def visit_Name(self, ast_node):
+    name_ref = self.fctx.lookup_name(ast_node.id)
+    macro_result = name_ref.load(self.fctx.environment)
+    logging.debug("LOAD MACRO {} -> {}", name_ref, macro_result)
+    self.macro_result = macro_result
 
 
 class EmittedError(Exception):

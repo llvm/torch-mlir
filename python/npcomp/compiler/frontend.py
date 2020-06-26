@@ -23,16 +23,6 @@ __all__ = [
 ]
 
 
-# TODO: Remove this hack in favor of a helper function that combines
-# multiple dialect helpers so that we don't need to deal with the sharp
-# edge of initializing multiple native base classes.
-class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
-
-  def __init__(self, *args, **kwargs):
-    Numpy.DialectHelper.__init__(self, *args, **kwargs)
-    ScfDialectHelper.__init__(self, *args, **kwargs)
-
-
 class ImportFrontend:
   """Frontend for importing various entities into a Module."""
   __slots__ = [
@@ -41,19 +31,23 @@ class ImportFrontend:
       "_helper",
       "_target_factory",
       "_value_coder",
+      "_macro_resolver",
   ]
 
   def __init__(self,
                ir_context: ir.MLIRContext = None,
                *,
                target_factory: TargetFactory = GenericTarget64,
-               value_coder: Optional[ValueCoder] = None):
+               value_coder: Optional[ValueCoder] = None,
+               macro_resolver: Optional[MacroResolver] = None):
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
     self._helper = AllDialectHelper(self._ir_context,
                                     ir.OpBuilder(self._ir_context))
     self._target_factory = target_factory
     self._value_coder = value_coder if value_coder else BuiltinsValueCoder()
+    self._macro_resolver = (macro_resolver if macro_resolver else
+                            build_default_macro_resolver())
 
   @property
   def ir_context(self):
@@ -66,6 +60,10 @@ class ImportFrontend:
   @property
   def ir_h(self):
     return self._helper
+
+  @property
+  def macro_resolver(self):
+    return self._macro_resolver
 
   def import_global_function(self, f):
     """Imports a global function.
@@ -117,13 +115,13 @@ class ImportFrontend:
                      ir_f_type,
                      create_entry_block=True,
                      attrs=attrs)
-    env = Environment.for_const_global_function(h,
-                                                f,
-                                                parameter_bindings=zip(
-                                                    f_params.keys(),
-                                                    ir_f.first_block.args),
-                                                value_coder=self._value_coder,
-                                                target=target)
+    env = Environment.for_const_global_function(
+        h,
+        f,
+        parameter_bindings=zip(f_params.keys(), ir_f.first_block.args),
+        value_coder=self._value_coder,
+        target=target,
+        macro_resolver=self._macro_resolver)
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
@@ -151,3 +149,30 @@ class ImportFrontend:
       return ir_h.basicpy_StrType
     else:
       return ir_h.basicpy_UnknownType
+
+
+################################################################################
+# Support
+################################################################################
+
+
+# TODO: Remove this hack in favor of a helper function that combines
+# multiple dialect helpers so that we don't need to deal with the sharp
+# edge of initializing multiple native base classes.
+class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
+
+  def __init__(self, *args, **kwargs):
+    Numpy.DialectHelper.__init__(self, *args, **kwargs)
+    ScfDialectHelper.__init__(self, *args, **kwargs)
+
+
+def build_default_macro_resolver() -> MacroResolver:
+  mr = MacroResolver()
+  ### Modules
+  mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
+
+  ### Tuples
+  # Enable attribute resolution on tuple, which includes namedtuple (which is
+  # really what we want).
+  mr.enable_getattr(for_type=tuple)
+  return mr

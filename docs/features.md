@@ -78,3 +78,68 @@ While transforming from an AST to the `basicpy` dialect, the importer inserted `
 The current [type inference algorithm](../lib/Dialect/Basicpy/Transforms/TypeInference.cpp) is a simple HM-style approach that is just sufficient to do basic propagation as needed to bootstrap (eliminating UnknownType in "simple" cases), but it is not sufficient when considering sub-typing.
 
 Upgrading and fully specifying the type inference behavior is being deferred as possible in favor of getting more of the system bootstrapped, but it will eventually need to be fairly full featured.
+
+## Macros
+
+Out of a desire to extract programs from a running python session, a facility
+exists to perform partial evaluation of key operations against live python
+values referenced from an outer environment. Actual use of this facility
+yields a language that is "not python" anymore, but if sufficiently well
+defined, the argument is that it can still be intuitive. The facility is
+completely opt-in, based on passing a `MacroResolver` to the `Environment` used
+to compile a function. The `MacroResolver` can bind logic to:
+
+* Specific references (i.e. functions like `len`)
+* Types (checked via issubclass)
+* Arbitrary lambda predicates
+
+When evaluating names against certain scopes that contain live values, the importer pre-processes the live value through the `MacroResolver`, either letting it generate:
+
+* A `MacroValueRef` that defines further allowed macro operations on the value.
+* A materialized IR value
+* An error
+
+Further, evaluation of expressions containing such macro results is deferred to a special AST visitor that will attempt to match macro invocations prior to emitting the corresponding code. `MacroValueRefs` can provide import time special processing for:
+
+* getattr
+* call (not yet implemented)
+* index (not yet implemented)
+
+In this way, a DSL can be constructed that effectively subsets the parts of the python environment that are supported. As an example, there is a default macro setup used for testing that enables `getattr` resolution against modules and tuples (including namedtuple). Combined with a `ConstModuleNameResolver` for resolving global names as constants, this allows code like the following to compile:
+
+```python
+# CHECK-LABEL: func @module_constant
+@import_global
+def module_constant():
+  # CHECK: constant 3.1415926535897931 : f64
+  return math.pi
+
+
+Sub = collections.namedtuple("Sub", "term")
+Record = collections.namedtuple("Record", "fielda,fieldb,inner")
+record = Record(5, 25, Sub(6))
+
+
+# CHECK-LABEL: func @namedtuple_attributes
+@import_global
+def namedtuple_attributes():
+  # CHECK: constant 6
+  # CHECK: constant 25
+  return record.inner.term - record.fieldb
+```
+
+This is accomplished with the following `MacroResolver` setup:
+
+```python
+  mr = MacroResolver()
+  ### Modules
+  mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
+
+  ### Tuples
+  # Enable attribute resolution on tuple, which includes namedtuple (which is
+  # really what we want).
+  mr.enable_getattr(for_type=tuple)
+  return mr
+```
+
+It is expected that this facility will evolve substantially, as it is the primary intended mechanism for remapping significant parts of the python namespace to builtin constructs (i.e. it will be the primary way to map `numpy` functions and values).
