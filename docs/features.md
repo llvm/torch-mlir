@@ -63,7 +63,7 @@ See [structure.py](../pytest/Compiler/structure.py).
 
 ## Name resolution:
 
-How names are resolved can be quite context dependent, varying from only resolving locals all the way to importing globals and maintaining them as mutable. In addition, this intersects with the precise strategy employed to perform "macro expansion" for builtin functions and attribute/index resolution.
+How names are resolved can be quite context dependent, varying from only resolving locals all the way to importing globals and maintaining them as mutable. In addition, this intersects with the precise strategy employed to perform "partial evaluation" for builtin functions and attribute/index resolution.
 
 Currently, the facility has been set up to be fairly generic (see [environment.py](../python/npcomp/compiler/environment.py)) with a helper for setting up scopes compatibility with global functions that do not form a closure. See:
 
@@ -79,33 +79,33 @@ The current [type inference algorithm](../lib/Dialect/Basicpy/Transforms/TypeInf
 
 Upgrading and fully specifying the type inference behavior is being deferred as possible in favor of getting more of the system bootstrapped, but it will eventually need to be fairly full featured.
 
-## Macros
+## Partial evaluation
 
 Out of a desire to extract programs from a running python session, a facility
 exists to perform partial evaluation of key operations against live python
 values referenced from an outer environment. Actual use of this facility
 yields a language that is "not python" anymore, but if sufficiently well
 defined, the argument is that it can still be intuitive. The facility is
-completely opt-in, based on passing a `MacroResolver` to the `Environment` used
-to compile a function. The `MacroResolver` can bind logic to:
+completely opt-in, based on passing a `PartialEvalHook` to the `Environment` used
+to compile a function. The `PartialEvalHook` can bind logic to:
 
 * Specific references (i.e. functions like `len`)
 * Types (checked via issubclass)
 * Arbitrary lambda predicates
 
-When evaluating names against certain scopes that contain live values, the importer pre-processes the live value through the `MacroResolver`, either letting it generate:
+When evaluating names against certain scopes that contain live values, the importer pre-processes the live value through the `PartialEvalHook`, either letting it generate:
 
-* A `MacroValueRef` that defines further allowed macro operations on the value.
+* A `LiveValueRef` that defines further allowed partial evaluation operations on the value.
 * A materialized IR value
 * An error
 
-Further, evaluation of expressions containing such macro results is deferred to a special AST visitor that will attempt to match macro invocations prior to emitting the corresponding code. `MacroValueRefs` can provide import time special processing for:
+Further, evaluation of expressions containing such partial evaluation results is deferred to a special AST visitor that will attempt to match partial evaluation invocations prior to emitting the corresponding code. `LiveValueRef` can provide import time special processing for:
 
 * getattr
 * call (not yet implemented)
 * index (not yet implemented)
 
-In this way, a DSL can be constructed that effectively subsets the parts of the python environment that are supported. As an example, there is a default macro setup used for testing that enables `getattr` resolution against modules and tuples (including namedtuple). Combined with a `ConstModuleNameResolver` for resolving global names as constants, this allows code like the following to compile:
+In this way, a DSL can be constructed that effectively subsets the parts of the python environment that are supported. As an example, there is a default `PartialEvalHook` used for testing that enables `getattr` resolution against modules and tuples (including namedtuple). Combined with a `ConstModuleNameResolver` for resolving global names as constants, this allows code like the following to compile:
 
 ```python
 # CHECK-LABEL: func @module_constant
@@ -128,10 +128,10 @@ def namedtuple_attributes():
   return record.inner.term - record.fieldb
 ```
 
-This is accomplished with the following `MacroResolver` setup:
+This is accomplished with the following `PartialEvalHook` setup:
 
 ```python
-  mr = MacroResolver()
+  mr = PartialEvalHook()
   ### Modules
   mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
 
