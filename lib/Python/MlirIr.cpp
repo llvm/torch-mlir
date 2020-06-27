@@ -504,6 +504,14 @@ void PyContext::bind(py::module m) {
              }
              return DictionaryAttr::get(attrs, &self.context);
            })
+      .def("array_attr",
+           [](PyContext &self, py::list l) -> PyAttribute {
+             SmallVector<Attribute, 4> attrs;
+             for (auto &it : l) {
+               attrs.push_back(it.cast<PyAttribute>().attr);
+             }
+             return ArrayAttr::get(attrs, &self.context);
+           })
       .def("dense_elements_attr",
            [](PyContext &self, py::buffer array) -> PyAttribute {
              // Request a contiguous view.

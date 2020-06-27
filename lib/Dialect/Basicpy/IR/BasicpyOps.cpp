@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Function.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -47,15 +48,83 @@ void ExecOp::build(OpBuilder &builder, OperationState &result) {
 
 static ParseResult parseExecOp(OpAsmParser &parser, OperationState *result) {
   Region *bodyRegion = result->addRegion();
-  if (parser.parseRegion(*bodyRegion, /*arguments=*/{}, /*argTypes=*/{}) ||
-      parser.parseOptionalAttrDict(result->attributes))
+  if (parser.parseOptionalAttrDictWithKeyword(result->attributes) ||
+      parser.parseRegion(*bodyRegion, /*arguments=*/{}, /*argTypes=*/{}))
     return failure();
   return success();
 }
 
 static void printExecOp(OpAsmPrinter &p, ExecOp op) {
   p << op.getOperationName();
+  p.printOptionalAttrDictWithKeyword(op.getAttrs());
   p.printRegion(op.body());
+}
+
+//===----------------------------------------------------------------------===//
+// FuncTemplateCallOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyBasicpyOp(FuncTemplateCallOp op) {
+  auto argNames = op.arg_names();
+  if (argNames.size() > op.args().size()) {
+    return op.emitOpError() << "expected <= kw arg names vs args";
+  }
+
+  for (auto it : llvm::enumerate(argNames)) {
+    auto argName = it.value().cast<StringAttr>().getValue();
+    if (argName == "*" && it.index() != 0) {
+      return op.emitOpError() << "positional arg pack must be the first kw arg";
+    }
+    if (argName == "**" && it.index() != argNames.size() - 1) {
+      return op.emitOpError() << "kw arg pack must be the last kw arg";
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// FuncTemplateOp
+//===----------------------------------------------------------------------===//
+
+void FuncTemplateOp::build(OpBuilder &builder, OperationState &result) {
+  OpBuilder::InsertionGuard guard(builder);
+  ensureTerminator(*result.addRegion(), builder, result.location);
+}
+
+static ParseResult parseFuncTemplateOp(OpAsmParser &parser,
+                                       OperationState *result) {
+  Region *bodyRegion = result->addRegion();
+  StringAttr symbolName;
+
+  if (parser.parseSymbolName(symbolName, SymbolTable::getSymbolAttrName(),
+                             result->attributes) ||
+      parser.parseOptionalAttrDictWithKeyword(result->attributes) ||
+      parser.parseRegion(*bodyRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+
+  FuncTemplateOp::ensureTerminator(*bodyRegion, parser.getBuilder(),
+                                   result->location);
+
+  return success();
+}
+
+static void printFuncTemplateOp(OpAsmPrinter &p, FuncTemplateOp op) {
+  p << op.getOperationName() << " ";
+  p.printSymbolName(op.getName());
+  p.printOptionalAttrDictWithKeyword(op.getAttrs(),
+                                     {SymbolTable::getSymbolAttrName()});
+  p.printRegion(op.body());
+}
+
+static LogicalResult verifyBasicpyOp(FuncTemplateOp op) {
+  Block *body = op.getBody();
+  for (auto &childOp : body->getOperations()) {
+    if (!llvm::isa<FuncOp>(childOp) &&
+        !llvm::isa<FuncTemplateTerminatorOp>(childOp)) {
+      return childOp.emitOpError() << "illegal operation in func_template";
+    }
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

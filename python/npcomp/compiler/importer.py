@@ -275,6 +275,39 @@ class ExpressionImporter(BaseNodeVisitor):
 
     self.value = emit_next(ast_node.values)
 
+  def visit_Call(self, ast_node):
+    # Evaluate positional args.
+    evaluated_args = []
+    for raw_arg in ast_node.args:
+      evaluated_args.append(self.sub_evaluate(raw_arg))
+
+    # Evaluate keyword args.
+    keyword_args = []
+    for raw_kw_arg in ast_node.keywords:
+      keyword_args.append((raw_kw_arg.arg, self.sub_evaluate(raw_kw_arg.value)))
+
+    # Perform partial evaluation of the callee.
+    callee_importer = PartialEvalImporter(self.fctx)
+    callee_importer.visit(ast_node.func)
+    callee_result = callee_importer.partial_eval_result
+    if (callee_result and
+        callee_result.type == PartialEvalType.YIELDS_LIVE_VALUE):
+      # This is a function known to the compiler. Perform a template call.
+      call_result = callee_result.yields.resolve_call(self.fctx.environment,
+                                                      evaluated_args,
+                                                      keyword_args)
+      if call_result.type != PartialEvalType.NOT_EVALUATED:
+        # Partial evaluation success.
+        self.fctx.check_partial_evaluated(call_result)
+        self.value = self.fctx.emit_partial_eval_result(call_result)
+        return
+
+    # The function is not known to the compiler.
+    self.fctx.check_partial_evaluated(callee_result)
+    # TODO: Implement first class functions.
+    self.fctx.abort("unhandled (potentially first-class function): {}".format(
+        ast.dump(ast_node)))
+
   def visit_Compare(self, ast_node):
     # Short-circuit comparison (degenerates to binary comparison when just
     # two operands).
