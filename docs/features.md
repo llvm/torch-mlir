@@ -143,3 +143,18 @@ This is accomplished with the following `PartialEvalHook` setup:
 ```
 
 It is expected that this facility will evolve substantially, as it is the primary intended mechanism for remapping significant parts of the python namespace to builtin constructs (i.e. it will be the primary way to map `numpy` functions and values).
+
+## Calls
+
+This is very much a WIP. Relevant ops:
+
+* `func_template`: Aggregates a list of function overloads to choose for a symbolic name.
+* `func_template_call`: Performs a symbolic call with python source conventions.
+
+The idea is that a library modules of `func_template` definitions is assembled with all concrete implementations that have compiler support. The python compiler will iterate over all such templates and bind partial evaluation rules in the environment to detect the calls. Then, when importing, `func_template_call` ops make the call.
+
+See the `basicpy.func_template` op for more detailed notes. The intention is that compiler-supported functions, methods, attribute getter/setter, and dunder functions can all exist in the library, with concrete resolution carried out by type constraints and corresponding type inference passes. Upon matches, concrete functions are pulled into the module being compiled and possibly inlined. With enough type constraints and some iteration, this should converge reasonably to a statically typed program.
+
+See the tests:
+
+* [template_call.py](../pytest/Compiler/template_call.py)

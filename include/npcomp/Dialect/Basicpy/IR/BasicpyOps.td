@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS
 
 include "BasicpyDialect.td"
+include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -199,6 +200,127 @@ def Basicpy_ExecDiscardOp : Basicpy_Op<"exec_discard", [
   }];
   let arguments = (ins Variadic<AnyType>:$operands);
   let assemblyFormat = "operands attr-dict `:` type(operands)";
+}
+
+def Basicpy_FuncTemplateCallOp : Basicpy_Op<"func_template_call", []> {
+  let summary = "Calls a function template";
+  let description = [{
+    Most function calls start with this generic calling op, which binds
+    symbolically to a func_template. At this level, there are very few
+    semantics associated with the call, since, often, both types and the
+    specific concrete callee cannot be determined.
+
+    Per python calling conventions, all functions return one result, even if
+    None or a tuple (which may be syntactically unpacked to multiple results).
+
+    If specified, the `argNames` operand is right aligned to the list of
+    positional `args`, representing arguments that are special or have been
+    passed with a keyword. The following arg names are special:
+      '*': Indicates that the argument is a positional argument pack (must be
+           the first arg name, if present).
+      '**': Indicates that the argument is a keyword argument pack (must be
+           the last arg name, if present).
+  }];
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$args,
+    StrArrayAttr:$arg_names);
+  let results = (outs AnyType:$result);
+  let assemblyFormat = "$callee `(` $args `)` `kw` $arg_names attr-dict `:` functional-type($args, results)";
+  let verifier = [{ return verifyBasicpyOp(*this); }];
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result">,
+  ];
+}
+
+def Basicpy_FuncTemplateOp : Basicpy_Op<"func_template", [
+    IsolatedFromAbove,
+    SingleBlockImplicitTerminator<"FuncTemplateTerminatorOp">,
+    NativeOpTrait<"SymbolTable">,
+    Symbol]> {
+  let summary = "Group of multiple overload-resolved concrete functions";
+  let description = [{
+    The outer func_template op acts as a module that can contain named concrete
+    functions that are interpreted as overloads. If the function signature is
+    sufficient to disambiguate (i.e. with nothing more than arity and MLIR
+    argument types), then this is all that is needed. However, in many cases,
+    additional attributes will need to be specified to further constrain types.
+    The first matching function signature is selected to satisfy a
+    `func_template_call` op.
+
+    TODO: Define this extended constraint matching.
+
+    Instantiation
+    -------------
+    Once a concrete function is selected as being applicable to a given call,
+    it will typically be instantiated as a standalone, unspecialized function
+    in the calling module (as a peer to the func_template). This function
+    will be uniquely identified by concating the outer func_template's symbol
+    name, '$', and the concrete instance's symbol name.
+
+    Note that the function may still be unspecialized (in that it contains
+    UnknownType arguments/results), and type inference is expected to further
+    specialize/inline/constrain it.
+
+    Naming
+    ------
+    By convention, func_templates are named to avoid collision for various
+    uses:
+      - Global function templates: "__global$python.qualified.name"
+      - Method names: "__method$method_name"
+      - Attribute getter: "__getattr$attr_name"
+      - Attribute setter: "__setattr$attr_name"
+
+    As in user-level python, for functions that bind to an instance, the first
+    argument must be a concrete type for the bound instance type. In this way,
+    there is one `func_template` for every unique member name and the normal
+    type constraints system is used to select the overload, just as if it was
+    a normal function call. It is left to utility routines to merge libraries
+    in a way that preserves this invariant.
+
+    TODO: This needs to be fleshed out more as some additional rules about
+    ordering and conflict resolution are likely needed to make this correct.
+
+    Correlation with python runtime
+    -------------------------------
+    When extracting a program, it is typically necessary to create weak
+    references to specific python functions and correlate them back to a named
+    template defined here. Often times this can just be done lexically, but
+    to avoid fragility, any func_template that correlates to a python
+    runtime function will have an additional attribute `py_bind` that is an
+    array of StringAttr qualified names to resolve and bind to in the python
+    runtime. In cases of divergence, the symbol name of the template should
+    be chosen just for uniqueness (not significance).
+
+    The qualified name format for `py_bind` attribute is:
+        package.name#local.qualified.name
+  }];
+  let arguments = (ins);
+  let regions = (region SizedRegion<1>:$body);
+
+  let verifier = [{ return verifyBasicpyOp(*this); }];
+
+  let skipDefaultBuilders = 1;
+  let builders = [
+    OpBuilder<"OpBuilder &builder, OperationState &result">,
+  ];
+  let extraClassDeclaration = [{
+    OpBuilder getBodyBuilder() {
+      Block* body = getBody(0);
+      return OpBuilder::atBlockEnd(body);
+    }
+  }];
+}
+
+def Basicpy_FuncTemplateTerminatorOp : Basicpy_Op<"func_template_terminator", [
+    HasParent<"Basicpy::FuncTemplateOp">,
+    Terminator]> {
+  let summary = "Terminator pseudo-op for the FuncTemplateOp";
+
+  let parser = ?;
+  let printer = ?;
 }
 
 def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [

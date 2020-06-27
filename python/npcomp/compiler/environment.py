@@ -176,6 +176,11 @@ class LiveValueRef:
     """Gets a named attribute from the live value."""
     return PartialEvalResult.not_evaluated()
 
+  def resolve_call(self, env: "Environment", args,
+                   keywords) -> PartialEvalResult:
+    """Resolves a function call given 'args' and 'keywords'."""
+    return PartialEvalResult.not_evaluated()
+
   def __repr__(self):
     return "MacroValueRef({}, {})".format(self.__class__.__name__,
                                           self.live_value)
@@ -193,6 +198,31 @@ class ResolveAttrLiveValueRef(LiveValueRef):
     except:
       return PartialEvalResult.error()
     return env.partial_eval_hook.resolve(attr_py_value)
+
+
+class TemplateCallLiveValueRef(LiveValueRef):
+  """Custom LiveValueRef that resolves calls to a func_template_call op."""
+  __slots__ = ["callee_name"]
+
+  def __init__(self, callee_name, live_value):
+    super().__init__(live_value)
+    self.callee_name = callee_name
+
+  def resolve_call(self, env: "Environment", args,
+                   keywords) -> PartialEvalResult:
+    linear_args = list(args)
+    kw_arg_names = []
+    for kw_name, kw_value in keywords:
+      kw_arg_names.append(kw_name)
+      linear_args.append(kw_value)
+
+    ir_h = env.ir_h
+    result_ir_value = ir_h.basicpy_func_template_call_op(
+        result_type=ir_h.basicpy_UnknownType,
+        callee_symbol=self.callee_name,
+        args=linear_args,
+        arg_names=kw_arg_names).result
+    return PartialEvalResult.yields_ir_value(result_ir_value)
 
 
 class PartialEvalHook:
@@ -247,6 +277,12 @@ class PartialEvalHook:
     self._bind(
         lambda pv: PartialEvalResult.yields_live_value(
             ResolveAttrLiveValueRef(pv)), **kwargs)
+
+  def enable_template_call(self, callee_name, **kwargs):
+    """"Enables a global template call."""
+    self._bind(
+        lambda pv: PartialEvalResult.yields_live_value(
+            TemplateCallLiveValueRef(callee_name, pv)), **kwargs)
 
 
 ################################################################################

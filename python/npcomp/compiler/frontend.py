@@ -167,12 +167,17 @@ class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
 
 
 def build_default_partial_eval_hook() -> PartialEvalHook:
-  mr = PartialEvalHook()
+  pe = PartialEvalHook()
   ### Modules
-  mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
+  pe.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
 
   ### Tuples
   # Enable attribute resolution on tuple, which includes namedtuple (which is
   # really what we want).
-  mr.enable_getattr(for_type=tuple)
-  return mr
+  pe.enable_getattr(for_type=tuple)
+
+  ### Temp: resolve a function to a template call for testing
+  import math
+  pe.enable_template_call("__global$math.ceil", for_ref=math.ceil)
+  pe.enable_template_call("__global$math.isclose", for_ref=math.isclose)
+  return pe

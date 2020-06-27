@@ -15,7 +15,7 @@ class DialectHelper(_BaseDialectHelper):
 
     >>> c = ir.MLIRContext()
     >>> h = DialectHelper(c, ir.OpBuilder(c))
-    
+
   Dialect Types:
     >>> h.basicpy_NoneType
     !basicpy.NoneType
@@ -95,6 +95,16 @@ class DialectHelper(_BaseDialectHelper):
 
   def basicpy_unknown_cast_op(self, result_type, operand):
     return self.op("basicpy.unknown_cast", [result_type], [operand])
+
+  def basicpy_func_template_call_op(self, result_type, callee_symbol, args,
+                                    arg_names):
+    """Creates a basicpy.func_template_call op."""
+    c = self.context
+    attrs = c.dictionary_attr({
+        "callee": c.flat_symbol_ref_attr(callee_symbol),
+        "arg_names": c.array_attr([c.string_attr(n) for n in arg_names]),
+    })
+    return self.op("basicpy.func_template_call", [result_type], args, attrs)
 
 
 if __name__ == "__main__":
