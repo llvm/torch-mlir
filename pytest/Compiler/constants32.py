@@ -2,16 +2,11 @@
 
 # Subset of constant tests which verify against a GenericTarget32.
 
-from npcomp.compiler.frontend import *
+from npcomp.compiler import test_config
 from npcomp.compiler.target import *
 
-
-def import_global(f):
-  fe = ImportFrontend(target_factory=GenericTarget32)
-  fe.import_global_function(f)
-  print("// -----")
-  print(fe.ir_module.to_asm())
-  return f
+import_global = test_config.create_import_dump_decorator(
+    target_factory=GenericTarget32)
 
 
 # CHECK-LABEL: func @integer_constants

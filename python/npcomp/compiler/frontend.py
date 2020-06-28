@@ -14,8 +14,10 @@ from _npcomp.mlir.dialect import ScfDialectHelper
 from npcomp.dialect import Numpy
 
 from . import logging
-from .environment import *
 from .importer import *
+from .interfaces import *
+from .name_resolver_base import *
+from .value_coder_base import *
 from .target import *
 
 __all__ = [
@@ -28,26 +30,20 @@ class ImportFrontend:
   __slots__ = [
       "_ir_context",
       "_ir_module",
-      "_helper",
-      "_target_factory",
-      "_value_coder",
-      "_partial_eval_hook",
+      "_ir_h",
+      "_config",
   ]
 
   def __init__(self,
-               ir_context: ir.MLIRContext = None,
                *,
-               target_factory: TargetFactory = GenericTarget64,
-               value_coder: Optional[ValueCoder] = None,
-               partial_eval_hook: Optional[PartialEvalHook] = None):
+               config: Configuration,
+               ir_context: ir.MLIRContext = None):
+    super().__init__()
     self._ir_context = ir.MLIRContext() if not ir_context else ir_context
     self._ir_module = self._ir_context.new_module()
-    self._helper = AllDialectHelper(self._ir_context,
-                                    ir.OpBuilder(self._ir_context))
-    self._target_factory = target_factory
-    self._value_coder = value_coder if value_coder else BuiltinsValueCoder()
-    self._partial_eval_hook = (partial_eval_hook if partial_eval_hook else
-                               build_default_partial_eval_hook())
+    self._ir_h = AllDialectHelper(self._ir_context,
+                                  ir.OpBuilder(self._ir_context))
+    self._config = config
 
   @property
   def ir_context(self):
@@ -59,11 +55,7 @@ class ImportFrontend:
 
   @property
   def ir_h(self):
-    return self._helper
-
-  @property
-  def partial_eval_hook(self):
-    return self._partial_eval_hook
+    return self._ir_h
 
   def import_global_function(self, f):
     """Imports a global function.
@@ -80,7 +72,7 @@ class ImportFrontend:
     h = self.ir_h
     ir_c = self.ir_context
     ir_m = self.ir_module
-    target = self._target_factory(h)
+    target = self._config.target_factory(h)
     filename = inspect.getsourcefile(f)
     source_lines, start_lineno = inspect.getsourcelines(f)
     source = "".join(source_lines)
@@ -115,26 +107,56 @@ class ImportFrontend:
                      ir_f_type,
                      create_entry_block=True,
                      attrs=attrs)
-    env = Environment.for_const_global_function(
-        h,
-        f,
-        parameter_bindings=zip(f_params.keys(), ir_f.first_block.args),
-        value_coder=self._value_coder,
-        target=target,
-        partial_eval_hook=self._partial_eval_hook)
+    env = self._create_const_global_env(f,
+                                        parameter_bindings=zip(
+                                            f_params.keys(),
+                                            ir_f.first_block.args),
+                                        target=target)
     fctx = FunctionContext(ir_c=ir_c,
                            ir_f=ir_f,
                            ir_h=h,
                            filename_ident=filename_ident,
-                           target=target,
                            environment=env)
 
     fdimport = FunctionDefImporter(fctx, ast_fd)
     fdimport.import_body()
     return ir_f
 
+  def _create_const_global_env(self, f, parameter_bindings, target):
+    """Helper to generate an environment for a global function.
+
+    This is a helper for the very common case and will be wholly insufficient
+    for advanced cases, including mutable global state, closures, etc.
+    Globals from the module are considered immutable.
+    """
+    ir_h = self._ir_h
+    try:
+      code = f.__code__
+      globals_dict = f.__globals__
+      builtins_module = globals_dict["__builtins__"]
+    except AttributeError:
+      assert False, (
+          "Function {} does not have required user-defined function attributes".
+          format(f))
+
+    # Locals resolver.
+    # Note that co_varnames should include both parameter and local names.
+    locals_resolver = LocalNameResolver(code.co_varnames)
+    resolvers = (
+        locals_resolver,
+        ConstModuleNameResolver(globals_dict, as_dict=True),
+        ConstModuleNameResolver(builtins_module),
+    )
+    env = Environment(config=self._config, ir_h=ir_h, name_resolvers=resolvers)
+
+    # Bind parameters.
+    for name, value in parameter_bindings:
+      logging.debug("STORE PARAM: {} <- {}", name, value)
+      locals_resolver.checked_resolve_name(name).store(env, value)
+    return env
+
   def _resolve_signature_annotation(self, target: Target, annot):
-    ir_h = self._helper
+    ir_h = self._ir_h
     if annot is inspect.Signature.empty:
       return ir_h.basicpy_UnknownType
 
@@ -164,20 +186,3 @@ class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
   def __init__(self, *args, **kwargs):
     Numpy.DialectHelper.__init__(self, *args, **kwargs)
     ScfDialectHelper.__init__(self, *args, **kwargs)
-
-
-def build_default_partial_eval_hook() -> PartialEvalHook:
-  pe = PartialEvalHook()
-  ### Modules
-  pe.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
-
-  ### Tuples
-  # Enable attribute resolution on tuple, which includes namedtuple (which is
-  # really what we want).
-  pe.enable_getattr(for_type=tuple)
-
-  ### Temp: resolve a function to a template call for testing
-  import math
-  pe.enable_template_call("__global$math.ceil", for_ref=math.ceil)
-  pe.enable_template_call("__global$math.isclose", for_ref=math.isclose)
-  return pe

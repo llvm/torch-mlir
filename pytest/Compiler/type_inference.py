@@ -1,14 +1,8 @@
 # RUN: %PYTHON %s | npcomp-opt -split-input-file -basicpy-type-inference | FileCheck %s --dump-input=fail
 
-from npcomp.compiler.frontend import *
+from npcomp.compiler import test_config
 
-
-def import_global(f):
-  fe = ImportFrontend()
-  fe.import_global_function(f)
-  print(fe.ir_module.to_asm())
-  print("// -----")
-  return f
+import_global = test_config.create_import_dump_decorator()
 
 
 # CHECK-LABEL: func @arithmetic_expression

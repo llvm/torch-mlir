@@ -3,6 +3,7 @@
 from npcomp.compiler.backend import iree
 from npcomp.compiler.frontend import *
 from npcomp.compiler import logging
+from npcomp.compiler import test_config
 from npcomp.compiler.target import *
 
 # TODO: This should all exist in a high level API somewhere.
@@ -13,7 +14,8 @@ logging.enable()
 
 
 def compile_function(f):
-  fe = ImportFrontend(target_factory=GenericTarget32)
+  fe = ImportFrontend(config=test_config.create_test_config(
+    target_factory=GenericTarget32))
   fe.import_global_function(f)
   compiler = iree.CompilerBackend()
   vm_blob = compiler.compile(fe.ir_module)

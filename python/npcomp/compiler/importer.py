@@ -11,8 +11,7 @@ import traceback
 from _npcomp.mlir import ir
 
 from . import logging
-from .environment import *
-from .target import *
+from .interfaces import *
 
 __all__ = [
     "FunctionContext",
@@ -27,16 +26,14 @@ class FunctionContext:
       "ir_c",
       "ir_f",
       "ir_h",
-      "target",
       "filename_ident",
       "environment",
   ]
 
-  def __init__(self, ir_c, ir_f, ir_h, target, filename_ident, environment):
+  def __init__(self, ir_c, ir_f, ir_h, filename_ident, environment):
     self.ir_c = ir_c
     self.ir_f = ir_f
     self.ir_h = ir_h
-    self.target = target
     self.filename_ident = filename_ident
     self.environment = environment
 
@@ -68,7 +65,7 @@ class FunctionContext:
 
   def lookup_name(self, name) -> NameReference:
     """Lookup a name in the environment, requiring it to have evaluated."""
-    ref = self.environment.lookup(name)
+    ref = self.environment.resolve_name(name)
     if ref is None:
       self.abort("Could not resolve referenced name '{}'".format(name))
     logging.debug("Map name({}) -> {}", name, ref)
@@ -77,7 +74,7 @@ class FunctionContext:
   def emit_const_value(self, py_value) -> ir.Value:
     """Codes a value as a constant, returning an ir Value."""
     env = self.environment
-    result = env.value_coder.create_const(env, py_value)
+    result = env.code_py_value_as_const(py_value)
     if result is NotImplemented:
       self.abort("Cannot code python value as constant: {}".format(py_value))
     return result
@@ -214,7 +211,7 @@ class ExpressionImporter(BaseNodeVisitor):
 
   def emit_constant(self, value):
     env = self.fctx.environment
-    ir_const_value = env.value_coder.create_const(env, value)
+    ir_const_value = env.code_py_value_as_const(value)
     if ir_const_value is NotImplemented:
       self.fctx.abort("unknown constant type '%r'" % (value,))
     self.value = ir_const_value
