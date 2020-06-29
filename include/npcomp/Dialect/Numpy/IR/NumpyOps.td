@@ -38,7 +38,8 @@ def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
 // NdArray type handling
 //----------------------------------------------------------------------------//
 
-def Numpy_CopyToArray : Numpy_Op<"create_array_from_tensor", [NoSideEffect]> {
+def Numpy_CreateArrayFromTensorOp : Numpy_Op<"create_array_from_tensor", [
+    NoSideEffect]> {
   let summary = "Creates an ndarray from a tensor.";
   let description = [{
     Creates a new ndarray that will contain the data of the given tensor.
@@ -54,7 +55,7 @@ def Numpy_CopyToArray : Numpy_Op<"create_array_from_tensor", [NoSideEffect]> {
   }];
 }
 
-def Numpy_CopyToTensor : Numpy_Op<"copy_to_tensor", []> {
+def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", []> {
   let summary = "Copies an ndarray, yielding a value-typed tensor.";
   let description = [{
     The semantics of this operation connote a copy of the data in the source

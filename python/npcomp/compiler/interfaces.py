@@ -113,6 +113,9 @@ class ValueCoderChain(ValueCoder):
   def __init__(self, sub_coders: Sequence[ValueCoder]):
     self._sub_coders = tuple(sub_coders)
 
+  def __repr__(self):
+    return "ValueCoderChain({})".format(self._sub_coders)
+
   def code_py_value_as_const(self, env: "Environment",
                              py_value) -> Union[_NotImplementedType, ir.Value]:
     for sc in self._sub_coders:

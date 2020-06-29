@@ -11,6 +11,7 @@ from .interfaces import *
 from .partial_eval_base import *
 from .target import *
 from .value_coder_base import *
+from .value_coder_numpy import *
 
 
 def create_import_dump_decorator(*,
@@ -30,7 +31,10 @@ def create_import_dump_decorator(*,
 
 
 def create_test_config(target_factory: TargetFactory = GenericTarget64):
-  value_coder = BuiltinsValueCoder()
+  value_coder = ValueCoderChain([
+      BuiltinsValueCoder(),
+      CreateNumpyValueCoder(),
+  ])
   pe_hook = build_default_partial_eval_hook()
 
   return Configuration(target_factory=target_factory,

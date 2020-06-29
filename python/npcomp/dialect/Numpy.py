@@ -14,14 +14,14 @@ __all__ = [
 
 class DialectHelper(Basicpy.DialectHelper):
   r"""Dialect helper.
-  
+
     >>> c = ir.MLIRContext()
     >>> h = DialectHelper(c, ir.OpBuilder(c))
     >>> m = c.new_module()
     >>> tensor_type = h.tensor_type(h.f32_type)
     >>> h.builder.insert_block_start(m.first_block)
     >>> f = h.func_op("foobar", h.function_type(
-    ...   [tensor_type, tensor_type], [tensor_type]), 
+    ...   [tensor_type, tensor_type], [tensor_type]),
     ...   create_entry_block=True)
     >>> uf = h.numpy_ufunc_call_op("numpy.add", tensor_type,
     ...   *f.first_block.args)

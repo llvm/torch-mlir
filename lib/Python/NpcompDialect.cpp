@@ -11,6 +11,8 @@
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 
 namespace mlir {
 namespace NPCOMP {
@@ -102,6 +104,26 @@ public:
                auto op = opBuilder.create<Basicpy::SlotObjectGetOp>(
                    loc, resultType, slotObject, indexAttr);
                return op.getOperation();
+             })
+        .def("numpy_create_array_from_tensor_op",
+             [](BasicpyDialectHelper &self, PyValue source) -> PyOperationRef {
+               auto sourceType = source.value.getType().dyn_cast<TensorType>();
+               if (!sourceType) {
+                 throw py::raiseValueError("expected tensor type for "
+                                           "numpy_create_array_from_tensor_op");
+               }
+               auto dtype = sourceType.getElementType();
+               auto ndarrayType =
+                   Numpy::NdArrayType::get(dtype, self.getContext());
+               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+               Location loc = self.pyOpBuilder.getCurrentLoc();
+               auto op = opBuilder.create<Numpy::CreateArrayFromTensorOp>(
+                   loc, ndarrayType, source.value);
+               return op.getOperation();
+             })
+        .def("numpy_NdArrayType",
+             [](BasicpyDialectHelper &self, PyType dtype) -> PyType {
+               return Numpy::NdArrayType::get(dtype.type, self.getContext());
              });
   }
 };
