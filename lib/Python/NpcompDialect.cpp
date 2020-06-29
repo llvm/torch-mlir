@@ -25,6 +25,9 @@ public:
     py::class_<BasicpyDialectHelper, PyDialectHelper>(m, "BasicpyDialectHelper")
         .def(py::init<PyContext &, PyOpBuilder &>(), py::keep_alive<1, 2>(),
              py::keep_alive<1, 3>())
+        // ---------------------------------------------------------------------
+        // Basicpy dialect
+        // ---------------------------------------------------------------------
         .def_property_readonly("basicpy_BoolType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::BoolType::get(
@@ -105,6 +108,26 @@ public:
                    loc, resultType, slotObject, indexAttr);
                return op.getOperation();
              })
+        // ---------------------------------------------------------------------
+        // Numpy dialect
+        // ---------------------------------------------------------------------
+        .def("numpy_copy_to_tensor_op",
+             [](BasicpyDialectHelper &self, PyValue source) -> PyOperationRef {
+               auto sourceType =
+                   source.value.getType().dyn_cast<Numpy::NdArrayType>();
+               if (!sourceType) {
+                 source.value.dump();
+                 throw py::raiseValueError("expected ndarray type for "
+                                           "numpy_copy_to_tensor_op");
+               }
+               auto dtype = sourceType.getDtype();
+               auto tensorType = UnrankedTensorType::get(dtype);
+               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+               Location loc = self.pyOpBuilder.getCurrentLoc();
+               auto op = opBuilder.create<Numpy::CopyToTensorOp>(
+                   loc, tensorType, source.value);
+               return op.getOperation();
+             })
         .def("numpy_create_array_from_tensor_op",
              [](BasicpyDialectHelper &self, PyValue source) -> PyOperationRef {
                auto sourceType = source.value.getType().dyn_cast<TensorType>();
@@ -113,8 +136,7 @@ public:
                                            "numpy_create_array_from_tensor_op");
                }
                auto dtype = sourceType.getElementType();
-               auto ndarrayType =
-                   Numpy::NdArrayType::get(dtype, self.getContext());
+               auto ndarrayType = Numpy::NdArrayType::get(dtype);
                OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
                Location loc = self.pyOpBuilder.getCurrentLoc();
                auto op = opBuilder.create<Numpy::CreateArrayFromTensorOp>(
@@ -123,7 +145,7 @@ public:
              })
         .def("numpy_NdArrayType",
              [](BasicpyDialectHelper &self, PyType dtype) -> PyType {
-               return Numpy::NdArrayType::get(dtype.type, self.getContext());
+               return Numpy::NdArrayType::get(dtype.type);
              });
   }
 };

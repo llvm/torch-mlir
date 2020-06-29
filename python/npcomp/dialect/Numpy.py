@@ -50,29 +50,39 @@ class DialectHelper(Basicpy.DialectHelper):
     >>> c = ir.MLIRContext()
     >>> t = DialectHelper(c, ir.OpBuilder(c))
     >>> t.numpy_any_dtype
-    !numpy.any_dtype
+    !basicpy.UnknownType
     >>> t.tensor_type(t.numpy_any_dtype, [1, 2, 3])
-    tensor<1x2x3x!numpy.any_dtype>
+    tensor<1x2x3x!basicpy.UnknownType>
     >>> t.tensor_type(t.numpy_any_dtype)
-    tensor<*x!numpy.any_dtype>
+    tensor<*x!basicpy.UnknownType>
     >>> t.tensor_type(t.numpy_any_dtype, [-1, 2])
-    tensor<?x2x!numpy.any_dtype>
+    tensor<?x2x!basicpy.UnknownType>
     >>> t.tensor_type(t.f32_type)
     tensor<*xf32>
     >>> t.function_type([t.i32_type], [t.f32_type])
     (i32) -> f32
-    >>> t.unknown_array_type
-    tensor<*x!numpy.any_dtype>
+    >>> t.unknown_tensor_type
+    tensor<*x!basicpy.UnknownType>
 
   """
 
   @property
   def numpy_any_dtype(self):
-    return self.context.parse_type("!numpy.any_dtype")
+    return self.basicpy_UnknownType
+
+  @property
+  def numpy_unknown_tensor_type(self):
+    return self.tensor_type(self.basicpy_UnknownType)
 
   @property
   def unknown_array_type(self):
-    return self.tensor_type(self.numpy_any_dtype)
+    return self.numpy_NdArrayType(self.basicpy_UnknownType)
+
+  def numpy_builtin_ufunc_call_op(self, *args, qualified_name, result_type):
+    """Creates a numpy.builtin_ufunc_call op."""
+    c = self.context
+    attrs = c.dictionary_attr({"qualified_name": c.string_attr(qualified_name)})
+    return self.op("numpy.builtin_ufunc_call", [result_type], args, attrs)
 
   def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
     """Creates a numpy.ufunc_call op."""

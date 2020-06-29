@@ -3,6 +3,8 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 """Partial evaluation helpers and support for built-in and common scenarios."""
 
+from typing import Any, Callable, Union
+
 from .interfaces import *
 from .py_value_utils import *
 from . import logging
@@ -76,7 +78,8 @@ class MappedPartialEvalHook(PartialEvalHook):
 
   An action can be one of
     - A `lambda python_value: PartialEvalResult...`
-    - A PartialEvalResult to directly return
+    - An object that supports as_partial_eval_result() (either a
+      PartialEvalResult or LiveValueRef qualify).
     - None to indicate that the python value should be processed directly
   """
   __slots__ = [
@@ -87,30 +90,37 @@ class MappedPartialEvalHook(PartialEvalHook):
     super().__init__()
     self._value_map = PyValueMap()
 
+  def __repr__(self):
+    return "MappedPartialEvalHook({})".format(self._value_map)
+
   def partial_evaluate(self, py_value) -> PartialEvalResult:
     """Performs partial evaluation on a python value."""
-    binding = self._value_map.lookup(py_value)
-    if binding is None:
-      logging.debug("PARTIAL EVAL RESOLVE {}: Passthrough", py_value)
+    logging.debug("LOOKUP: {}", py_value)
+    action = self._value_map.lookup(py_value)
+    if action is None:
+      # Passthrough.
       return PartialEvalResult.yields_live_value(LiveValueRef(py_value))
-    if isinstance(binding, PartialEvalResult):
-      return binding
     # Attempt to call.
     try:
-      binding = binding(py_value)
-      assert isinstance(binding, PartialEvalResult), (
-          "Expected PartialEvalResult but got {}".format(binding))
-      logging.debug("PARTIAL EVAL RESOLVE {}: {}", py_value, binding)
-      return binding
+      result = action(py_value).as_partial_eval_result()
+      assert isinstance(result, PartialEvalResult), (
+          "Expected PartialEvalResult but got {}".format(result))
+      logging.debug("PARTIAL EVAL RESOLVE {}: {}", py_value, result)
+      return result
     except:
       return PartialEvalResult.error()
 
-  def _bind_action(self,
-                   action,
-                   *,
-                   for_ref=_Unspec,
-                   for_type=_Unspec,
-                   for_predicate=_Unspec):
+  def bind_action(self,
+                  action: Union[PartialEvalResult, LiveValueRef,
+                                Callable[[Any], PartialEvalResult]],
+                  *,
+                  for_ref=_Unspec,
+                  for_type=_Unspec,
+                  for_predicate=_Unspec):
+    if hasattr(action, "as_partial_eval_result"):
+      # Registers a casting action.
+      action = lambda pv: pv.as_partial_eval_result()
+
     if for_ref is not _Unspec:
       self._value_map.bind_reference(for_ref, action)
     elif for_type is not _Unspec:
@@ -123,12 +133,12 @@ class MappedPartialEvalHook(PartialEvalHook):
 
   def enable_getattr(self, **kwargs):
     """Enables partial evaluation of getattr."""
-    self._bind_action(
+    self.bind_action(
         lambda pv: PartialEvalResult.yields_live_value(
             ResolveAttrLiveValueRef(pv)), **kwargs)
 
   def enable_template_call(self, callee_name, **kwargs):
     """"Enables a global template call."""
-    self._bind_action(
+    self.bind_action(
         lambda pv: PartialEvalResult.yields_live_value(
             TemplateCallLiveValueRef(callee_name, pv)), **kwargs)

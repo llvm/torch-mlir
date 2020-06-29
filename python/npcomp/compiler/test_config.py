@@ -37,6 +37,12 @@ def create_test_config(target_factory: TargetFactory = GenericTarget64):
   ])
   pe_hook = build_default_partial_eval_hook()
 
+  # Populate numpy partial evaluators.
+  npc.bind_ufuncs(npc.get_ufuncs_from_module(), pe_hook)
+
+  if logging.debug_enabled:
+    logging.debug("Partial eval mapping: {}", pe_hook)
+
   return Configuration(target_factory=target_factory,
                        value_coder=value_coder,
                        partial_eval_hook=pe_hook)

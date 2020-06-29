@@ -88,6 +88,19 @@ class PyValueMap:
     self._fallback_filters = list()  # of: list[(lambda v, Any)]
     self._validator = validator
 
+  def __repr__(self):
+    lines = ["refs={"]
+    for ref, binding in self._reference_map.items():
+      lines.append("  {}: {}".format(ref.referrent, binding))
+    lines.append("}, types={")
+    for t, binding in self._type_filters:
+      lines.append("  {}: {}".format(t, binding))
+    lines.append("}, filters={")
+    for f, binding in self._fallback_filters:
+      lines.append("  {}: {}".format(f, binding))
+    lines.append("}")
+    return "\n".join(lines)
+
   def bind_reference(self, match_value, binding):
     assert self._validator(binding), "Illegal binding"
     self._reference_map[HashableReference.create(match_value)] = binding

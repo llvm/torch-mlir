@@ -80,11 +80,35 @@ def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", []> {
 // See: https://docs.scipy.org/doc/numpy/reference/ufuncs.html
 //----------------------------------------------------------------------------//
 
+def Numpy_BuiltinUfuncCallOp : Numpy_Op<"builtin_ufunc_call"> {
+  let summary = "A __call__ operation on a named/builtin ufunc";
+  let description = [{
+    Simple ufunc call semantics for builtin ufuncs with none of the advanced
+    arguments specified.
+
+    Note that without the `out=` parameter, ufunc call operations (unlike
+    others like `at`) are defined purely in the value domain and do not alias.
+    As such, they operate on tensors, not ndarray.
+  }];
+  let arguments = (ins
+    StrAttr:$qualified_name,
+    Variadic<Numpy_AnyTensor>:$inputs
+  );
+  let results = (outs
+    Numpy_AnyTensor:$output
+  );
+  let assemblyFormat = [{
+    `<` $qualified_name `>` `(` operands `)` attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 def Numpy_BuiltinUfuncOp : Numpy_Op<"builtin_ufunc", [Symbol]> {
   let summary = "References a built-in universal function";
   let description = [{
     This module-level op binds by name to a fully-qualified numpy built-in
     ufunc (i.e. "numpy.add") and carries metadata associated with it.
+
+    Deprecated: Remove once using new builtin_ufunc_call.
   }];
 }
 
@@ -93,6 +117,7 @@ def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
     Symbol]> {
   let summary = "Defines a ufunc in terms of overloaded element-wise functions";
   let description = [{
+    Deprecated: Remove once using new builtin_ufunc_call.
   }];
 
   let arguments = (ins
@@ -108,6 +133,7 @@ def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
   let summary = "Return a value from a generic_ufunc";
   let description = [{
     Must terminate the basic block of a generic_ufunc overload.
+    Deprecated: Remove once using new builtin_ufunc_call.
   }];
   let arguments = (ins
     Variadic<AnyType>:$operands
@@ -122,6 +148,7 @@ def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
     Invokes a ufunc with the given arguments. This variant models the __call__
     behavior of a python ufunc except that it does not model the `out`
     parameter, which indicates an in-place update.
+    Deprecated: Remove once using new builtin_ufunc_call.
   }];
   let arguments = (ins
     FlatSymbolRefAttr:$ufunc_ref,

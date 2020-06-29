@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 
 using namespace mlir;
@@ -33,7 +34,7 @@ Type NumpyDialect::parseType(DialectAsmParser &parser) const {
     // Parse:
     //   ndarray<?>
     //   ndarray<i32>
-    Type dtype;
+    Type dtype = Basicpy::UnknownType::get(getContext());
     if (parser.parseLess())
       return Type();
     if (failed(parser.parseOptionalQuestion())) {
@@ -43,7 +44,7 @@ Type NumpyDialect::parseType(DialectAsmParser &parser) const {
     }
     if (parser.parseGreater())
       return Type();
-    return NdArrayType::get(dtype, getContext());
+    return NdArrayType::get(dtype);
   }
 
   parser.emitError(parser.getNameLoc(), "unknown numpy type: ") << keyword;
@@ -56,10 +57,11 @@ void NumpyDialect::printType(Type type, DialectAsmPrinter &os) const {
     os << "any_dtype";
     return;
   case NumpyTypes::NdArray: {
+    auto unknownType = Basicpy::UnknownType::get(getContext());
     auto ndarray = type.cast<NdArrayType>();
-    auto dtype = ndarray.getOptionalDtype();
+    auto dtype = ndarray.getDtype();
     os << "ndarray<";
-    if (dtype)
+    if (dtype != unknownType)
       os.printType(dtype);
     else
       os << "?";
@@ -100,8 +102,9 @@ struct NdArrayTypeStorage : public TypeStorage {
 } // namespace NPCOMP
 } // namespace mlir
 
-NdArrayType NdArrayType::get(Type optionalDtype, MLIRContext *context) {
-  return Base::get(context, NumpyTypes::NdArray, optionalDtype);
+NdArrayType NdArrayType::get(Type dtype) {
+  assert(dtype && "dtype cannot be null");
+  return Base::get(dtype.getContext(), NumpyTypes::NdArray, dtype);
 }
 
-Type NdArrayType::getOptionalDtype() { return getImpl()->optionalDtype; }
+Type NdArrayType::getDtype() { return getImpl()->optionalDtype; }

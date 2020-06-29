@@ -47,8 +47,8 @@ class NdArrayType
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }
-  static NdArrayType get(Type optionalDtype, MLIRContext *context);
-  Type getOptionalDtype();
+  static NdArrayType get(Type optionalDtype);
+  Type getDtype();
 };
 
 #include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"

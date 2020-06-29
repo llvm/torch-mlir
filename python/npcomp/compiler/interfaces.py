@@ -153,6 +153,9 @@ class PartialEvalType(Enum):
 class PartialEvalResult(namedtuple("PartialEvalResult", "type,yields")):
   """Encapsulates the result of a partial evaluation."""
 
+  def as_partial_eval_result(self) -> "PartialEvalResult":
+    return self
+
   @staticmethod
   def not_evaluated() -> "PartialEvalResult":
     return PartialEvalResult(PartialEvalType.NOT_EVALUATED, NotImplemented)
@@ -195,19 +198,22 @@ class LiveValueRef:
     super().__init__()
     self.live_value = live_value
 
+  def as_partial_eval_result(self) -> PartialEvalResult:
+    return PartialEvalResult.yields_live_value(self)
+
   def resolve_getattr(self, env: "Environment",
                       attr_name: str) -> PartialEvalResult:
     """Gets a named attribute from the live value."""
     return PartialEvalResult.not_evaluated()
 
-  def resolve_call(self, env: "Environment", args,
+  def resolve_call(self, env: "Environment", args: Sequence[ir.Value],
                    keywords: Sequence[str]) -> PartialEvalResult:
     """Resolves a function call given 'args' and 'keywords'."""
     return PartialEvalResult.not_evaluated()
 
   def __repr__(self):
-    return "MacroValueRef({}, {})".format(self.__class__.__name__,
-                                          self.live_value)
+    return "LiveValueRef({}, {})".format(self.__class__.__name__,
+                                         self.live_value)
 
 
 class PartialEvalHook:
