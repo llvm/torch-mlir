@@ -185,3 +185,43 @@ A goal of the numpy extension is to enable modeling of a strict subset of the nu
 Since a large portion of the numpy op surface area does not alias buffers, and those that do can (typically) be structurally identified, this extension chooses to err on the side of making a mutable `ndarray` be the basic datatype but ops that do not alias are defined in terms of the built-in `tensor` type (which represents an immutable value). Operations exist to copy an `ndarray` to a `tensor` and create a new `ndarray` from a tensor in order to bridge the worlds.
 
 For programs that do not introduce aliasing, it is within the bounds of simple canonicalizations or other local transforms to elide such copies and reduce to value types. For more complicated programs that do rely on aliasing, more complicated analysis/transforms can be done -- and which are are needed is somewhat backend specific (since some backends define themselves in terms of pure-value semantics whereas others carry a concept of buffer mutability all the way to their frontend).
+
+As an example of the kind of IR this produces, consider this (non-canonicalized) import of the simple python function:
+
+```python
+a = np.asarray([1.0, 2.0])
+b = np.asarray([3.0, 4.0])
+
+@import_global
+def global_add():
+  return np.add(a, b)
+```
+
+```mlir
+  func @global_add() -> !basicpy.UnknownType attributes {iree.module.export} {
+    %cst = constant dense<[1.000000e+00, 2.000000e+00]> : tensor<2xf64>
+    %0 = numpy.create_array_from_tensor %cst : (tensor<2xf64>) -> !numpy.ndarray<f64>
+    %cst_0 = constant dense<[3.000000e+00, 4.000000e+00]> : tensor<2xf64>
+    %1 = numpy.create_array_from_tensor %cst_0 : (tensor<2xf64>) -> !numpy.ndarray<f64>
+    %2 = numpy.copy_to_tensor %0 : (!numpy.ndarray<f64>) -> tensor<*xf64>
+    %3 = numpy.copy_to_tensor %1 : (!numpy.ndarray<f64>) -> tensor<*xf64>
+    %4 = numpy.builtin_ufunc_call<"numpy.add"> (%2, %3) : (tensor<*xf64>, tensor<*xf64>) -> tensor<*x!basicpy.UnknownType>
+    %5 = numpy.create_array_from_tensor %4 : (tensor<*x!basicpy.UnknownType>) -> !numpy.ndarray<?>
+    %6 = basicpy.unknown_cast %5 : !numpy.ndarray<?> -> !basicpy.UnknownType
+    return %6 : !basicpy.UnknownType
+  }
+```
+
+### Ufuncs
+
+So called [universal functions](https://numpy.org/doc/stable/reference/ufuncs.html) are a core numpy abstraction covering a variety of applications of elementwise operations. Presently, the compiler imports all `__call__` operations on them as a `numpy.builtin_ufunc_call` op with a symbolic name. This facility is expected to be extended later.
+
+In addition, other ufunc application functions still need to be defined:
+
+* `reduce`
+* `accumulate`
+* `reduceat`
+* `outer`
+* `at`
+
+It is expected that in addition to the black-box "builtin" ufuncs, the facility will grow to include library call based variants which can define their own scalar form.
