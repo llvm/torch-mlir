@@ -168,7 +168,7 @@ See the tests:
 ## Numpy extension
 
 Numpy compilation is factored as
-[an extension](../python/compiler/extensions/numpy) of the core python compiler, using the following features:
+[an extension](../python/npcomp/compiler/extensions/numpy) of the core python compiler, using the following features:
 
 * Value coders for importing constant ndarrays.
 * Partial evaluation hooks for emitting IR for various built-in ops.
