@@ -1,6 +1,11 @@
 # Supported compiler features
 
-## Data types:
+## Basic python support
+
+At the core, the compiler models a subset of the python language with various
+ways to extend this to provide compilation support for custom libraries, etc.
+
+### Data types:
 
 The compiler models more datatypes than are implemented by existing backends:
 
@@ -22,20 +27,20 @@ Next steps will extend type support to:
 
 In general, the high level modeling in the `basicpy` dialect will preserve the ability to represent fully dynamically typed forms of containers, but will also support restricted, parametric typed forms suitable for static typed implementations.
 
-### Planned numpy types include:
+#### Planned numpy types include:
 
 * Mutable and immutable `ndarray` variants with both known and unknown `dtype` (although most real backends will require a statically inferable dtype).
 * Various numpy scalar types that map to low level types already supported by MLIR/LLVM.
 
-## Constants/Literals:
+### Constants/Literals:
 
 See [the test as the SOT](../pytest/Compiler/constants.py). These will generally follow with data type support above but special notes will be called out here.
 
-## Comparisons:
+### Comparisons:
 
 Full support for comparison ops is expected. See [the test as the SOT](../pytest/Compiler/comparisons.py). Short-circuit control flow is properly emitted for compound comparisons (e.g. `x < y == z >= omega`).
 
-## Binary expressions:
+### Binary expressions:
 
 See [the test as the SOT](../pytest/Compiler/binary_expressions.py). All binary expressions should be modeled at the `basicpy` level.
 
@@ -46,7 +51,7 @@ Notes:
 * NPComp follows the [Numba convention](https://numba.pydata.org/numba-doc/dev/proposals/integer-typing.html) with respect to integer promotion and decisions regarding arbitrary sizes integer values.
 * Fully compliant support for div/floor-div modes is not yet supported (see [TODOs in the conversion patterns](../lib/Conversion/BasicpyToStd/PrimitiveOpsConversion.cpp)).
 
-## Logical/Boolean Operations:
+### Logical/Boolean Operations:
 
 * Short-circuiting `and` / `or` operations [are supported](../pytest/Compiler/booleans.py). Note that such operations return the evaluated value, not `bool`, so fewer constraints are available to type inference (as compared to more strongly typed forms of such operations).
 * `not` operations
@@ -54,14 +59,14 @@ Notes:
 
 Most of these operations are implemented in terms of the `basicpy.to_boolean` op, which is implemented for built-in types directly by the compiler (see [PrimitiveOpsConversion.cpp](../lib/Conversion/BasicpyToStd/PrimitiveOpsConversion.cpp)).
 
-## Miscellaneous structural components:
+### Miscellaneous structural components:
 
 See [structure.py](../pytest/Compiler/structure.py).
 
 * `pass` and functions without an explicit return causes the function to return None.
 * "Expression statements" are supported but not yet complete/correct. They are currently implemented in terms of the side-effecting `basicpy.exec` op, which wraps an expression and an explicit `basicpy.exec_discard` op to anchor it.
 
-## Name resolution:
+### Name resolution:
 
 How names are resolved can be quite context dependent, varying from only resolving locals all the way to importing globals and maintaining them as mutable. In addition, this intersects with the precise strategy employed to perform "partial evaluation" for builtin functions and attribute/index resolution.
 
@@ -69,7 +74,7 @@ Currently, the facility has been set up to be fairly generic (see [environment.p
 
 * [resolve_const.py test](../pytest/Compiler/resolve_const.py)
 
-## Type inference
+### Type inference
 
 See [type_inference.py](../pytest/Compiler/type_inference.py).
 
@@ -79,7 +84,7 @@ The current [type inference algorithm](../lib/Dialect/Basicpy/Transforms/TypeInf
 
 Upgrading and fully specifying the type inference behavior is being deferred as possible in favor of getting more of the system bootstrapped, but it will eventually need to be fairly full featured.
 
-## Partial evaluation
+### Partial evaluation
 
 Out of a desire to extract programs from a running python session, a facility
 exists to perform partial evaluation of key operations against live python
@@ -132,10 +137,10 @@ This is accomplished with the following `PartialEvalHook` setup:
 
 ```python
   mr = PartialEvalHook()
-  ### Modules
+  #### Modules
   mr.enable_getattr(for_type=ast.__class__)  # The module we use is arbitrary.
 
-  ### Tuples
+  #### Tuples
   # Enable attribute resolution on tuple, which includes namedtuple (which is
   # really what we want).
   mr.enable_getattr(for_type=tuple)
@@ -144,7 +149,7 @@ This is accomplished with the following `PartialEvalHook` setup:
 
 It is expected that this facility will evolve substantially, as it is the primary intended mechanism for remapping significant parts of the python namespace to builtin constructs (i.e. it will be the primary way to map `numpy` functions and values).
 
-## Calls
+### Calls
 
 This is very much a WIP. Relevant ops:
 
@@ -158,3 +163,25 @@ See the `basicpy.func_template` op for more detailed notes. The intention is tha
 See the tests:
 
 * [template_call.py](../pytest/Compiler/template_call.py)
+
+
+## Numpy extension
+
+Numpy compilation is factored as
+[an extension](../python/compiler/extensions/numpy) of the core python compiler, using the following features:
+
+* Value coders for importing constant ndarrays.
+* Partial evaluation hooks for emitting IR for various built-in ops.
+* Integration with the type inference system (future).
+* Integration with the library call mechanism in order to resolve `ndarray`
+  methods and non-op parts of the API (future).
+
+The [`numpy` dialect](../include/npcomp/Dialect/Numpy/IR/NumpyOps.td) is logically an extension of the [`basicpy` dialect](../include/npcomp/Dialect/Basicpy/IR/BasicpyOps.td), extending type support and providing coverage for numpy built-ins.
+
+### Tensor and array types
+
+A goal of the numpy extension is to enable modeling of a strict subset of the numpy API, relying on compiler tooling to bridge the gap to runtime systems that (potentially) take different opinions. As such, it has to model core types such as `ndarray` in a way that preserves semantics. The semantic that tends to give the most trouble is mutability: it is common for compilers to prefer numeric programs in value form; however, we have to meet numpy where it is. History has shown that prematurely restricting the highest levels to immutability, leaks concepts and "weirdness" in various ways that are hard to patch up later (this is a controversial statement).
+
+Since a large portion of the numpy op surface area does not alias buffers, and those that do can (typically) be structurally identified, this extension chooses to err on the side of making a mutable `ndarray` be the basic datatype but ops that do not alias are defined in terms of the built-in `tensor` type (which represents an immutable value). Operations exist to copy an `ndarray` to a `tensor` and create a new `ndarray` from a tensor in order to bridge the worlds.
+
+For programs that do not introduce aliasing, it is within the bounds of simple canonicalizations or other local transforms to elide such copies and reduce to value types. For more complicated programs that do rely on aliasing, more complicated analysis/transforms can be done -- and which are are needed is somewhat backend specific (since some backends define themselves in terms of pure-value semantics whereas others carry a concept of buffer mutability all the way to their frontend).
