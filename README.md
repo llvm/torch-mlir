@@ -55,7 +55,7 @@ The project is roughly split into the following areas of code:
 * C++ [include](include) and [lib](lib) trees, following LLVM/MLIR conventions
 * LIT testing trees:
   * [test](test): Lit/FileCheck tests covering core MLIR based infra
-  * [pytest/Compiler](pytest/Compiler): Lit test suite that drive the compiler 
+  * [pytest/Compiler](pytest/Compiler): Lit test suite that drive the compiler
     infra from Python
   * [backend_test](backend_test): Lit test suites conditionally enabled for
     each backend
@@ -82,8 +82,6 @@ LLVM_COMMIT="$(cat ./built_tools/llvm.version)"
 cd build
 ninja
 ninja check-npcomp
-# Note: currently, some python tests run separately
-./python/run_tests.py
 
 # Setup PYTHONPATH for interactive use
 export PYTHONPATH="$(realpath build/python):$(realpath build/python_native):$(realpath build/iree/bindings/python)"
@@ -95,11 +93,8 @@ The cmake configuration populates symlinks in the `build/python` directory
 mirroring the source layout. This allows edit-run without rebuilding (unless
 if files are added/removed).
 
-Configuring the `PYTHONPATH` as above should be sufficient to run any 
+Configuring the `PYTHONPATH` as above should be sufficient to run any
 interactive tooling (`python3`, Jupyter/Colab, etc).
-
-The `run_tests.py` script is special in that it sets up the PYTHONPATH
-correctly when run.
 
 Note that running the `cmake_configure.sh` script will also output a `.env`
 file in the workspace folder with the correct PYTHONPATH set. This allows

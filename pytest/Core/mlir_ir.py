@@ -1,12 +1,16 @@
+# RUN: %PYTHON %s | FileCheck %s --dump-input=fail
+
 #  Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-"""Test for the MLIR IR Python bindings"""
+"""Test for the MLIR IR Python bindings.
+
+TODO: These tests were just for bootstrapping and are not authoritative at this
+point.
+"""
 
 from _npcomp.mlir import ir
-from npcomp.utils import test_utils
 
-test_utils.start_filecheck_test()
 c = ir.MLIRContext()
 
 # CHECK-LABEL: module @parseSuccess
@@ -37,5 +41,3 @@ try:
 except ValueError as e:
   # CHECK: [ERROR]: expected operation name in quotes
   print(e)
-
-test_utils.end_filecheck_test(__file__)

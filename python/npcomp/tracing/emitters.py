@@ -58,9 +58,9 @@ class TraceValueMap(
                ["input_trace_values", "result_trace_value_types", "extra"],
                defaults=(None,))):
   """The result of mapping an invocation to corresponding op structure.
-  
+
   This type associates:
-    - Python (object, TraceValueType) representing invocation inputs that 
+    - Python (object, TraceValueType) representing invocation inputs that
       correspond to SSA values in the IR.
     - TraceValueTypes that are the expected logical result types from the
       invocation.
@@ -92,7 +92,7 @@ class FuncEmitter:
 
   def map_results(self, py_results, extra):
     """Maps a list of python results to actual function return values.
-    
+
     Args:
       py_results: List of python results corresponding to the emitted op
         results.
@@ -105,7 +105,7 @@ class FuncEmitter:
 
   def emit(self, request: EmissionRequest):
     """Emits IR using the provided ops and types factories.
-    
+
     Args:
       emission_inputs: An EmissionRequest produced by tracing each TraceValue
         from a previous call to map_invocation and the corresponding extra
@@ -120,7 +120,7 @@ class FuncEmitter:
 
 class GenericCallUfuncEmitter(FuncEmitter):
   """A FuncEmitter for generic ufuncs requiring no special behavior.
-  
+
   Representation:
     >>> emitter = GenericCallUfuncEmitter("numpy.add")
     >>> emitter
@@ -168,8 +168,9 @@ class GenericCallUfuncEmitter(FuncEmitter):
   def emit(self, request: EmissionRequest):
     h = request.dialect_helper
     op_result_type = h.tensor_type(h.numpy_any_dtype)
-    call_op = h.numpy_ufunc_call_op(self._ufunc_name, op_result_type,
-                                    *request.input_ssa_values)
+    call_op = h.numpy_builtin_ufunc_call_op(*request.input_ssa_values,
+                                            qualified_name=self._ufunc_name,
+                                            result_type=op_result_type)
     return call_op.results
 
 
@@ -219,7 +220,7 @@ class GenericArrayFuncEmitter(FuncEmitter):
 
 class EmitterRegistry:
   """Registry of known Emitter instances mapped to source function.
-  
+
     >>> r = EmitterRegistry.create_default()
     >>> r.lookup_ufunc(np.add, "__call__")
     <ufunc emitter 'numpy.add'>

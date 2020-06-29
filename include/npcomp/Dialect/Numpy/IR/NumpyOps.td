@@ -102,67 +102,6 @@ def Numpy_BuiltinUfuncCallOp : Numpy_Op<"builtin_ufunc_call"> {
   }];
 }
 
-def Numpy_BuiltinUfuncOp : Numpy_Op<"builtin_ufunc", [Symbol]> {
-  let summary = "References a built-in universal function";
-  let description = [{
-    This module-level op binds by name to a fully-qualified numpy built-in
-    ufunc (i.e. "numpy.add") and carries metadata associated with it.
-
-    Deprecated: Remove once using new builtin_ufunc_call.
-  }];
-}
-
-def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
-    IsolatedFromAbove,
-    Symbol]> {
-  let summary = "Defines a ufunc in terms of overloaded element-wise functions";
-  let description = [{
-    Deprecated: Remove once using new builtin_ufunc_call.
-  }];
-
-  let arguments = (ins
-    TypeArrayAttr:$overload_types);
-
-  let regions = (region
-    VariadicRegion<AnyRegion>:$overloads);
-}
-
-def Numpy_UfuncReturnOp : Numpy_Op<"ufunc_return", [
-    Terminator,
-    HasParent<"Numpy::GenericUfuncOp">]> {
-  let summary = "Return a value from a generic_ufunc";
-  let description = [{
-    Must terminate the basic block of a generic_ufunc overload.
-    Deprecated: Remove once using new builtin_ufunc_call.
-  }];
-  let arguments = (ins
-    Variadic<AnyType>:$operands
-  );
-
-  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
-}
-
-def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
-  let summary = "Default operation on a func";
-  let description = [{
-    Invokes a ufunc with the given arguments. This variant models the __call__
-    behavior of a python ufunc except that it does not model the `out`
-    parameter, which indicates an in-place update.
-    Deprecated: Remove once using new builtin_ufunc_call.
-  }];
-  let arguments = (ins
-    FlatSymbolRefAttr:$ufunc_ref,
-    Variadic<Numpy_AnyArray>:$operands
-  );
-  let results = (outs
-    Numpy_AnyArray:$result
-  );
-
-  let assemblyFormat = [{
-    $ufunc_ref `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];
-}
-
 //----------------------------------------------------------------------------//
 // Built-in array functions
 //

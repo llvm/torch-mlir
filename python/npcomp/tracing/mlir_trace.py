@@ -20,9 +20,7 @@ class ModuleBuilder:
 
   def __init__(self, mlir_context=None, emitter_registry=None):
     self.context = mlir_context if mlir_context else ir.MLIRContext()
-    # TODO: Instead of bootstrapping a large module, populate imports
-    # dynamically.
-    self.module = Numpy.load_builtin_module(self.context)
+    self.module = self.context.new_module()
     self.helper = Numpy.DialectHelper(self.context, ir.OpBuilder(self.context))
     self.emitters = (emitter_registry
                      if emitter_registry else EmitterRegistry.create_default())

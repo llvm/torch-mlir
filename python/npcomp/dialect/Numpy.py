@@ -17,24 +17,6 @@ class DialectHelper(Basicpy.DialectHelper):
 
     >>> c = ir.MLIRContext()
     >>> h = DialectHelper(c, ir.OpBuilder(c))
-    >>> m = c.new_module()
-    >>> tensor_type = h.tensor_type(h.f32_type)
-    >>> h.builder.insert_block_start(m.first_block)
-    >>> f = h.func_op("foobar", h.function_type(
-    ...   [tensor_type, tensor_type], [tensor_type]),
-    ...   create_entry_block=True)
-    >>> uf = h.numpy_ufunc_call_op("numpy.add", tensor_type,
-    ...   *f.first_block.args)
-    >>> _ = h.return_op(uf.results)
-    >>> print(m.to_asm())
-    <BLANKLINE>
-    <BLANKLINE>
-    module {
-      func @foobar(%arg0: tensor<*xf32>, %arg1: tensor<*xf32>) -> tensor<*xf32> {
-        %0 = numpy.ufunc_call @numpy.add(%arg0, %arg1) : (tensor<*xf32>, tensor<*xf32>) -> tensor<*xf32>
-        return %0 : tensor<*xf32>
-      }
-    }
 
   DenseElementsAttrs:
     >>> c.dense_elements_attr(np.asarray([1, 2, 3, 4]))
@@ -61,7 +43,7 @@ class DialectHelper(Basicpy.DialectHelper):
     tensor<*xf32>
     >>> t.function_type([t.i32_type], [t.f32_type])
     (i32) -> f32
-    >>> t.unknown_tensor_type
+    >>> t.numpy_unknown_tensor_type
     tensor<*x!basicpy.UnknownType>
 
   """
@@ -84,13 +66,6 @@ class DialectHelper(Basicpy.DialectHelper):
     attrs = c.dictionary_attr({"qualified_name": c.string_attr(qualified_name)})
     return self.op("numpy.builtin_ufunc_call", [result_type], args, attrs)
 
-  def numpy_ufunc_call_op(self, callee_symbol, result_type, *args):
-    """Creates a numpy.ufunc_call op."""
-    c = self.context
-    attrs = c.dictionary_attr(
-        {"ufunc_ref": c.flat_symbol_ref_attr(callee_symbol)})
-    return self.op("numpy.ufunc_call", [result_type], args, attrs)
-
   def numpy_narrow_op(self, result_type, operand):
     """Creates a numpy.narrow op."""
     return self.op("numpy.narrow", [result_type], [operand])
@@ -99,34 +74,6 @@ class DialectHelper(Basicpy.DialectHelper):
     return self.op("numpy.get_slice", [result_type],
                    [array] + list(slice_elements))
 
-
-def load_builtin_module(context=None):
-  """Loads a module populated with numpy built-ins.
-
-  This is not a long-term solution but overcomes some bootstrapping
-  issues.
-
-    >>> m = load_builtin_module()
-    >>> op = m.region(0).blocks.front.operations.front
-    >>> op.is_registered
-    True
-    >>> op.name
-    'numpy.builtin_ufunc'
-
-  Args:
-    context: The MLIRContext to use (None to create a new one).
-  Returns:
-    A ModuleOp.
-  """
-  if context is None:
-    context = ir.MLIRContext()
-  return context.parse_asm(_BUILTIN_MODULE_ASM)
-
-
-_BUILTIN_MODULE_ASM = r"""
-  numpy.builtin_ufunc @numpy.add
-  numpy.builtin_ufunc @numpy.multiply
-"""
 
 if __name__ == "__main__":
   import doctest

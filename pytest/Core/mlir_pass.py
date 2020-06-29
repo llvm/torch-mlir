@@ -1,3 +1,5 @@
+# RUN: %PYTHON %s | FileCheck %s --dump-input=fail
+
 #  Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -5,9 +7,7 @@
 
 from _npcomp.mlir import ir
 from _npcomp.mlir import passes
-from npcomp.utils import test_utils
 
-test_utils.start_filecheck_test()
 c = ir.MLIRContext()
 
 pm = passes.PassManager(c)
@@ -38,5 +38,3 @@ print("PASSES:", str(pm))
 pm.run(m)
 print(m.to_asm())
 # CHECK-NOT: func @notUsed
-
-test_utils.end_filecheck_test(__file__)
