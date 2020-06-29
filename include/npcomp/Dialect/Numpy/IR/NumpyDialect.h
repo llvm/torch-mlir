@@ -17,10 +17,18 @@ namespace NPCOMP {
 namespace Numpy {
 
 namespace NumpyTypes {
-enum Kind { AnyDtypeType = TypeRanges::Numpy, LAST_NUMPY_TYPE = AnyDtypeType };
+enum Kind {
+  AnyDtypeType = TypeRanges::Numpy,
+  NdArray,
+  LAST_NUMPY_TYPE = AnyDtypeType,
+};
 } // namespace NumpyTypes
 
-// The singleton type representing an unknown dtype.
+namespace detail {
+struct NdArrayTypeStorage;
+} // namespace detail
+
+/// The singleton type representing an unknown dtype.
 class AnyDtypeType : public Type::TypeBase<AnyDtypeType, Type> {
 public:
   using Base::Base;
@@ -32,6 +40,15 @@ public:
   static bool kindof(unsigned kind) {
     return kind == NumpyTypes::Kind::AnyDtypeType;
   }
+};
+
+class NdArrayType
+    : public Type::TypeBase<NdArrayType, Type, detail::NdArrayTypeStorage> {
+public:
+  using Base::Base;
+  static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }
+  static NdArrayType get(Type optionalDtype, MLIRContext *context);
+  Type getOptionalDtype();
 };
 
 #include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"
