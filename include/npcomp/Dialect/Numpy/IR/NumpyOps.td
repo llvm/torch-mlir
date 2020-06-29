@@ -31,7 +31,47 @@ def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
   );
   let assemblyFormat = [{
     $operand attr-dict `:` functional-type($operand, $result)
-  }];  
+  }];
+}
+
+//----------------------------------------------------------------------------//
+// NdArray type handling
+//----------------------------------------------------------------------------//
+
+def Numpy_CopyToArray : Numpy_Op<"create_array_from_tensor", [NoSideEffect]> {
+  let summary = "Creates an ndarray from a tensor.";
+  let description = [{
+    Creates a new ndarray that will contain the data of the given tensor.
+  }];
+  let arguments = (ins
+    Numpy_AnyTensor:$source
+  );
+  let results = (outs
+    Numpy_AnyArray:$dest
+  );
+  let assemblyFormat = [{
+    $source attr-dict `:` functional-type($source, $dest)
+  }];
+}
+
+def Numpy_CopyToTensor : Numpy_Op<"copy_to_tensor", []> {
+  let summary = "Copies an ndarray, yielding a value-typed tensor.";
+  let description = [{
+    The semantics of this operation connote a copy of the data in the source
+    ndarray, producing a destination value that will have the value in the
+    ndarray at the point of the copy. Of course, downstream transformations
+    are free to rearrange things to elide the copy or otherwise eliminate the
+    need for it.
+  }];
+  let arguments = (ins
+    Numpy_NdArrayType:$source
+  );
+  let results = (outs
+    Numpy_AnyTensor:$dest
+  );
+  let assemblyFormat = [{
+    $source attr-dict `:` functional-type($source, $dest)
+  }];
 }
 
 //----------------------------------------------------------------------------//
@@ -57,7 +97,7 @@ def Numpy_GenericUfuncOp : Numpy_Op<"generic_ufunc", [
   let arguments = (ins
     TypeArrayAttr:$overload_types);
 
-  let regions = (region 
+  let regions = (region
     VariadicRegion<AnyRegion>:$overloads);
 }
 
@@ -92,7 +132,7 @@ def Numpy_UfuncCallOp : Numpy_Op<"ufunc_call", []> {
 
   let assemblyFormat = [{
     $ufunc_ref `(` operands `)` attr-dict `:` functional-type(operands, results)
-  }];  
+  }];
 }
 
 //----------------------------------------------------------------------------//
@@ -126,7 +166,7 @@ def Numpy_DotOp : Numpy_Op<"dot", []> {
   );
   let assemblyFormat = [{
     operands attr-dict `:` functional-type(operands, $output)
-  }];  
+  }];
 }
 
 def Numpy_TransposeOp : Numpy_Op<"transpose", []> {
@@ -147,7 +187,7 @@ def Numpy_TransposeOp : Numpy_Op<"transpose", []> {
   );
   let assemblyFormat = [{
     operands attr-dict `:` functional-type(operands, $output)
-  }];  
+  }];
 }
 
 //----------------------------------------------------------------------------//
@@ -182,7 +222,7 @@ def Numpy_GetSlice : Numpy_Op<"get_slice", []> {
   );
   let assemblyFormat = [{
     operands attr-dict `:` functional-type(operands, $result)
-  }];  
+  }];
 }
 
 #endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS

@@ -88,8 +88,14 @@ def Numpy_NdArrayType : DialectType<Numpy_Dialect,
 // Type predicates
 //===----------------------------------------------------------------------===//
 
+// Any tensor type legal for numpy ops.
+def Numpy_AnyTensor : TensorOf<[AnyType]>;
+
 // Any type, at any stage of analysis that can represent a numpy array.
-def Numpy_AnyArray : TensorOf<[AnyType]>;
+def Numpy_AnyArray : AnyTypeOf<[
+  Numpy_AnyTensor,
+  Numpy_NdArrayType
+]>;
 
 def Numpy_SliceTupleElement : AnyTypeOf<[
   // Supports both "Index Arrays" and "Boolean mask index arrays".
