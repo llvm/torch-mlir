@@ -28,7 +28,7 @@ add_mlir_library(NPCOMPInitAll
 
   LINK_LIBS
 
-  PRIVATE
+  PUBLIC
   # Local depends
   NPCOMPE2E
   NPCOMPTCP
