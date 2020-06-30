@@ -2,6 +2,7 @@
 
 import numpy as np
 from npcomp.compiler import test_config
+from npcomp.compiler.frontend import EmittedError
 
 import_global = test_config.create_import_dump_decorator()
 
@@ -26,3 +27,14 @@ def global_add():
   # CHECK: %[[R_TENSOR:.*]] = numpy.builtin_ufunc_call<"numpy.add"> (%[[A]], %[[B]]) : (tensor<*xf64>, tensor<*xf64>) -> tensor<*x!basicpy.UnknownType>
   # CHECK: numpy.create_array_from_tensor %[[R_TENSOR]] : (tensor<*x!basicpy.UnknownType>) -> !numpy.ndarray<?>
   return np.add(a, b)
+
+
+@import_global(expect_error="ufunc call does not currently support keyword args"
+              )
+def keywords_not_supported():
+  return np.add(a, b, out=b)
+
+
+@import_global(expect_error="ufunc numpy.add expected 2 inputs but got 1")
+def mismatched_arg_count():
+  return np.add(a)

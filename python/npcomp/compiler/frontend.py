@@ -7,6 +7,7 @@ Frontend to the compiler, allowing various ways to import code.
 
 import ast
 import inspect
+import textwrap
 from typing import Optional
 
 from _npcomp.mlir import ir
@@ -76,6 +77,7 @@ class ImportFrontend:
     filename = inspect.getsourcefile(f)
     source_lines, start_lineno = inspect.getsourcelines(f)
     source = "".join(source_lines)
+    source = textwrap.dedent(source)
     ast_root = ast.parse(source, filename=filename)
     ast.increment_lineno(ast_root, start_lineno - 1)
     ast_fd = ast_root.body[0]

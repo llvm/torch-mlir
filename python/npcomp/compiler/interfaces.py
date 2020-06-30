@@ -13,6 +13,7 @@ from .target import *
 
 __all__ = [
     "Configuration",
+    "EmittedError",
     "Environment",
     "NameReference",
     "NameResolver",
@@ -20,11 +21,51 @@ __all__ = [
     "PartialEvalType",
     "PartialEvalResult",
     "LiveValueRef",
+    "UserReportableError",
     "ValueCoder",
     "ValueCoderChain",
 ]
 
 _NotImplementedType = type(NotImplemented)
+
+################################################################################
+# Exceptions
+################################################################################
+
+
+class EmittedError(Exception):
+  """Exception subclass that indicates an error diagnostic has been emitted.
+
+  By throwing, this lets us abort and handle at a higher level so as not
+  to duplicate diagnostics.
+  """
+
+  def __init__(self, loc, message):
+    super().__init__(loc, message)
+
+  @property
+  def loc(self):
+    return self.args[0]
+
+  @property
+  def message(self):
+    return self.args[1]
+
+
+class UserReportableError(Exception):
+  """Used to raise an error with a message that should be reported to the user.
+
+  Raising this error indicates that the error message is well formed and
+  makes sense without a traceback.
+  """
+
+  def __init__(self, message):
+    super().__init__(message)
+
+  @property
+  def message(self):
+    return self.args[0]
+
 
 ################################################################################
 # Name resolution
@@ -177,8 +218,8 @@ class PartialEvalResult(namedtuple("PartialEvalResult", "type,yields")):
   @staticmethod
   def error_message(message: str) -> "PartialEvalResult":
     try:
-      raise RuntimeError(message)
-    except RuntimeError:
+      raise UserReportableError(message)
+    except UserReportableError:
       return PartialEvalResult.error()
 
 

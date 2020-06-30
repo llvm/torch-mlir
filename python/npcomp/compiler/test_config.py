@@ -4,6 +4,7 @@
 """Various configuration helpers for testing."""
 
 import ast
+import functools
 
 from . import logging
 from .frontend import *
@@ -20,12 +21,32 @@ def create_import_dump_decorator(*,
   config = create_test_config(target_factory=target_factory)
   logging.debug("Testing with config: {}", config)
 
-  def decorator(f):
+  def do_import(f):
     fe = ImportFrontend(config=config)
     fe.import_global_function(f)
     print("// -----")
     print(fe.ir_module.to_asm())
     return f
+
+  def decorator(*args, expect_error=None):
+    if len(args) == 0:
+      # Higher order decorator.
+      return functools.partial(decorator, expect_error=expect_error)
+
+    assert len(args) == 1
+    try:
+      return do_import(f=args[0])
+    except EmittedError as e:
+      if expect_error and e.message == expect_error:
+        print("// EXPECTED_ERROR:", repr(e.message))
+        pass
+      elif expect_error:
+        print("// MISMATCHED_ERROR:", repr(e.message))
+        raise AssertionError("Expected error '{}' but got '{}'".format(
+            expect_error, e.message))
+      else:
+        print("// UNEXPECTED_ERROR:", repr(e.message))
+        raise e
 
   return decorator
 

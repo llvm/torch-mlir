@@ -46,10 +46,13 @@ class FunctionContext:
   def check_partial_evaluated(self, result: PartialEvalResult):
     """Checks that a PartialEvalResult has evaluated without error."""
     if result.type == PartialEvalType.ERROR:
-      exc_info = result.yields
+      exc_type, exc_value, tb = result.yields
       loc = self.current_loc
-      message = ("Error while evaluating value from environment:\n" +
-                 "".join(traceback.format_exception(*exc_info)))
+      if issubclass(exc_type, UserReportableError):
+        message = exc_value.message
+      else:
+        message = ("Error while evaluating value from environment:\n" +
+                   "".join(traceback.format_exception(exc_type, exc_value, tb)))
       ir.emit_error(loc, message)
       raise EmittedError(loc, message)
     if result.type == PartialEvalType.NOT_EVALUATED:
@@ -480,15 +483,3 @@ class PartialEvalImporter(BaseNodeVisitor):
     partial_eval_result = name_ref.load(self.fctx.environment)
     logging.debug("PARTIAL EVAL {} -> {}", name_ref, partial_eval_result)
     self.partial_eval_result = partial_eval_result
-
-
-class EmittedError(Exception):
-  """Exception subclass that indicates an error diagnostic has been emitted.
-
-  By throwing, this lets us abort and handle at a higher level so as not
-  to duplicate diagnostics.
-  """
-
-  def __init__(self, loc, message):
-    super().__init__("%s (at %r)" % (message, loc))
-    self.loc = loc
