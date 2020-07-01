@@ -20,4 +20,9 @@ def FunctionTypeInference : Pass<"basicpy-type-inference", "FuncOp"> {
   let constructor = "mlir::NPCOMP::Basicpy::createFunctionTypeInferencePass()";
 }
 
+def CPAFunctionTypeInference : Pass<"basicpy-cpa-type-inference", "FuncOp"> {
+  let summary = "Performs CPA function level type inference";
+  let constructor = "mlir::NPCOMP::Basicpy::createCPAFunctionTypeInferencePass()";
+}
+
 #endif // NPCOMP_BASICPY_PASSES

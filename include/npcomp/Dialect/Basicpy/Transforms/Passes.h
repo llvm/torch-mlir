@@ -18,6 +18,7 @@ namespace NPCOMP {
 namespace Basicpy {
 
 std::unique_ptr<OperationPass<FuncOp>> createFunctionTypeInferencePass();
+std::unique_ptr<OperationPass<FuncOp>> createCPAFunctionTypeInferencePass();
 
 } // namespace Basicpy
 } // namespace NPCOMP

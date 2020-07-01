@@ -14,10 +14,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 #ifndef NPCOMP_TYPING_CPASUPPORT_H
 #define NPCOMP_TYPING_CPASUPPORT_H
@@ -33,6 +35,13 @@ class Context;
 class Identifier {
 public:
   StringRef getValue() const { return value; }
+
+  void print(raw_ostream &os, bool brief = false);
+
+  friend raw_ostream &operator<<(raw_ostream &os, Identifier ident) {
+    ident.print(os);
+    return os;
+  }
 
 private:
   Identifier(StringRef value) : value(value) {}
@@ -67,8 +76,11 @@ public:
     TypeVarSet,
   };
   ObjectBase(Kind kind) : kind(kind) {}
+  virtual ~ObjectBase();
 
   Kind getKind() const { return kind; }
+
+  virtual void print(raw_ostream &os, bool brief = false) = 0;
 
 private:
   const Kind kind;
@@ -91,15 +103,20 @@ public:
 /// A unique type variable.
 /// Both the pointer and the ordinal will be unique within a context.
 /// Referred to as 't'
-class TypeVar : public TypeBase {
+class TypeVar : public TypeBase, public llvm::ilist_node<TypeVar> {
 public:
-  TypeVar(int ordinal) : TypeBase(Kind::TypeVar), ordinal(ordinal) {}
   bool classof(const ObjectBase *tb) { return tb->getKind() == Kind::TypeVar; }
 
   int getOrdinal() { return ordinal; }
 
+  void print(raw_ostream &os, bool brief = false) override;
+
 private:
+  TypeVar(int ordinal, Value anchor)
+      : TypeBase(Kind::TypeVar), ordinal(ordinal), anchor(anchor) {}
   int ordinal;
+  Value anchor;
+  friend class Context;
 };
 
 /// A type-cast type.
@@ -110,6 +127,8 @@ public:
 
   Identifier *getTypeIdentifier() { return typeIdentifier; }
   TypeVar *getTypeVar() { return typeVar; }
+
+  void print(raw_ostream &os, bool brief = false) override;
 
 private:
   CastType(Identifier *typeIdentifier, TypeVar *typeVar)
@@ -128,6 +147,8 @@ public:
 
   TypeBase *getType() { return type; }
 
+  void print(raw_ostream &os, bool brief = false) override;
+
 private:
   ReadType(TypeBase *type) : TypeBase(Kind::ReadType), type(type) {}
   TypeBase *type;
@@ -143,6 +164,8 @@ public:
   }
 
   TypeBase *getType() { return type; }
+
+  void print(raw_ostream &os, bool brief = false) override;
 
 private:
   WriteType(TypeBase *type) : TypeBase(Kind::WriteType), type(type) {}
@@ -172,6 +195,8 @@ public:
 
   mlir::Type getIrType() { return irType; }
 
+  void print(raw_ostream &os, bool brief = false) override;
+
 private:
   const mlir::Type irType;
 };
@@ -192,6 +217,8 @@ public:
   llvm::ArrayRef<TypeBase *> getFieldTypes() {
     return llvm::ArrayRef<TypeBase *>(fieldTypes, fieldCount);
   }
+
+  void print(raw_ostream &os, bool brief = false) override;
 
 private:
   ObjectValueType(Identifier *typeIdentifier, size_t fieldCount,
@@ -215,11 +242,16 @@ public:
   TypeBase *getT1() { return t1; }
   TypeBase *getT2() { return t2; }
 
+  void setContextOp(Operation *contextOp) { this->contextOp = contextOp; }
+
+  void print(raw_ostream &os, bool brief = false) override;
+
 private:
   Constraint(TypeBase *t1, TypeBase *t2)
       : ObjectBase(Kind::Constraint), t1(t1), t2(t2) {}
   TypeBase *t1;
   TypeBase *t2;
+  Operation *contextOp = nullptr;
   friend class Context;
 };
 
@@ -230,6 +262,8 @@ public:
   bool classof(ObjectBase *ob) { return ob->getKind() == Kind::ConstraintSet; }
 
   llvm::simple_ilist<Constraint> &getConstraints() { return constraints; }
+
+  void print(raw_ostream &os, bool brief = false) override;
 
 private:
   ConstraintSet() : ObjectBase(Kind::ConstraintSet){};
@@ -245,6 +279,8 @@ public:
 
   llvm::simple_ilist<TypeVar> &getTypeVars() { return typeVars; }
 
+  void print(raw_ostream &os, bool brief = false) override;
+
 private:
   TypeVarSet() : ObjectBase(Kind::TypeVarSet) {}
   llvm::simple_ilist<TypeVar> typeVars;
@@ -255,8 +291,10 @@ private:
 /// analysis.
 class Context {
 public:
-  TypeVar *newTypeVar() {
-    return allocator.Allocate<TypeVar>(++typeVarCounter);
+  TypeVar *newTypeVar(Value anchor) {
+    TypeVar *tv = allocator.Allocate<TypeVar>(1);
+    new (tv) TypeVar(++typeVarCounter, anchor);
+    return tv;
   }
 
   /// Gets a uniqued IRValueType for the IR Type.
@@ -321,8 +359,8 @@ public:
     return wt;
   }
 
-  /// Gets a Constraint.
-  Constraint *getConstraint(TypeBase *t1, TypeBase *t2) {
+  /// Creates a Constraint.
+  Constraint *newConstraint(TypeBase *t1, TypeBase *t2) {
     auto *c = allocator.Allocate<Constraint>(1);
     new (c) Constraint(t1, t2);
     return c;
