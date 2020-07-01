@@ -2,6 +2,7 @@ add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(E2E)
 add_subdirectory(Python)
+add_subdirectory(Typing)
 
 if(NPCOMP_ENABLE_IREE)
   add_subdirectory(Backend/IREE)
