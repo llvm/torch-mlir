@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/CPASupport.h"
+#include "npcomp/Typing/CPA/CPASupport.h"
 
 #include "mlir/IR/Operation.h"
 

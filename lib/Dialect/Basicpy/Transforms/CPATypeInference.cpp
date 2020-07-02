@@ -14,7 +14,7 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
-#include "npcomp/Typing/CPASupport.h"
+#include "npcomp/Typing/CPA/CPASupport.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "basicpy-type-inference"

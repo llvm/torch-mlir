@@ -14,5 +14,5 @@ add_mlir_conversion_library(NPCOMPBasicpyPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  NPCOMPTyping
+  NPCOMPTypingCPA
 )
