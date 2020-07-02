@@ -18,10 +18,11 @@ mkdir -p "$build_dir"
 function probe_python() {
   local python_exe="$1"
   local found
-  local command="import sys
+  local command
+  command="import sys
 if sys.version_info.major >= 3: print(sys.executable)"
   set +e
-  found="$(echo "$command" | "$python_exe" - 2>/dev/null)"
+  found="$("$python_exe" -c "$command")"
   if ! [ -z "$found" ]; then
     echo "$found"
   fi
@@ -30,6 +31,9 @@ if sys.version_info.major >= 3: print(sys.executable)"
 python_exe=""
 for python_candidate in python3 python; do
   python_exe="$(probe_python "$python_candidate")"
+  if ! [ -z "$python_exe" ]; then
+    break
+  fi
 done
 
 echo "Using python: $python_exe"
@@ -52,6 +56,21 @@ else
   }
 fi
 
+# Find llvm-lit.
+LLVM_LIT=""
+for candidate_lit in "$build_mlir/bin/llvm-lit" "$build_mlir/bin/llvm-lit.py"
+do
+  if [ -f "$candidate_lit" ]; then
+    LLVM_LIT="$candidate_lit"
+    break
+  fi
+done
+
+if [ -z "$LLVM_LIT" ]; then
+  echo "WARNING: Unable to find llvm-lit"
+fi
+echo "Using llvm-lit: $LLVM_LIT"
+
 # Write a .env file for python tooling.
 echo "Updating $td/.env file"
 echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python"):$(realpath "$build_dir/iree/bindings/python")\"" > "$td/.env"
@@ -65,7 +84,7 @@ cmake -GNinja \
   "-DCMAKE_CXX_FLAGS_DEBUG=$DEBUG_FLAGS" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
-  "-DLLVM_EXTERNAL_LIT=$build_mlir/bin/llvm-lit.py" \
+  "-DLLVM_EXTERNAL_LIT=$LLVM_LIT" \
   "-DLLVM_ENABLE_WARNINGS=ON" \
   "-DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE" \
   "${extra_opts[@]}" \
