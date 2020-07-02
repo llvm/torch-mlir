@@ -6,13 +6,60 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/CPA/CPASupport.h"
+#include "npcomp/Typing/CPA/Support.h"
+#include "npcomp/Typing/CPA/Interfaces.h"
 
 #include "mlir/IR/Operation.h"
 
-using namespace mlir::npcomp::typing::CPA;
+using namespace mlir::NPCOMP::Typing::CPA;
 
 ObjectBase::~ObjectBase() = default;
+
+//===----------------------------------------------------------------------===//
+// Environment
+//===----------------------------------------------------------------------===//
+
+Environment::Environment(Context &context)
+    : context(context), constraints(context.newConstraintSet()),
+      typeVars(context.newTypeVarSet()) {}
+
+TypeBase *Environment::mapValueToType(Value value) {
+  TypeBase *&cpaType = valueTypeMap[value];
+  if (cpaType)
+    return cpaType;
+
+  cpaType = context.mapIrType(value.getType());
+  assert(cpaType && "currently every IR type must map to a CPA type");
+
+  // Do accounting for type vars.
+  if (auto *tv = llvm::dyn_cast<TypeVar>(cpaType)) {
+    typeVars->getTypeVars().push_back(*tv);
+    tv->setAnchorValue(value);
+  }
+
+  return cpaType;
+}
+
+//===----------------------------------------------------------------------===//
+// Context
+//===----------------------------------------------------------------------===//
+
+TypeBase *Context::mapIrType(::mlir::Type irType) {
+  // First, see if the type knows how to map itself.
+  assert(irType);
+  if (auto mapper = irType.dyn_cast<CPA::TypeMapInterface>()) {
+    auto *cpaType = mapper.mapToCPAType(*this);
+    if (cpaType)
+      return cpaType;
+  }
+
+  // Fallback to an IR type.
+  return getIRValueType(irType);
+}
+
+//===----------------------------------------------------------------------===//
+// Printing
+//===----------------------------------------------------------------------===//
 
 void Identifier::print(raw_ostream &os, bool brief) {
   os << "'" << value << "'";
@@ -21,17 +68,19 @@ void Identifier::print(raw_ostream &os, bool brief) {
 void TypeVar::print(raw_ostream &os, bool brief) {
   os << "TypeVar(" << ordinal;
   if (!brief) {
-    os << ", ";
-    auto blockArg = anchor.dyn_cast<BlockArgument>();
-    if (blockArg) {
-      os << "BlockArgument(" << blockArg.getArgNumber();
-      auto *definingOp = blockArg.getDefiningOp();
-      if (definingOp) {
-        os << ", " << blockArg.getDefiningOp()->getName();
+    if (auto anchorValue = getAnchorValue()) {
+      os << ", ";
+      auto blockArg = anchorValue.dyn_cast<BlockArgument>();
+      if (blockArg) {
+        os << "BlockArgument(" << blockArg.getArgNumber();
+        auto *definingOp = blockArg.getDefiningOp();
+        if (definingOp) {
+          os << ", " << blockArg.getDefiningOp()->getName();
+        }
+        os << ")";
+      } else {
+        os << "{" << anchorValue << "}";
       }
-      os << ")";
-    } else {
-      os << "{" << anchor << "}";
     }
   }
   os << ")";

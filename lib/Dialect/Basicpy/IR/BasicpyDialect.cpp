@@ -11,6 +11,7 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 
 using namespace mlir;
+using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Basicpy;
 
 BasicpyDialect::BasicpyDialect(MLIRContext *context)
@@ -143,4 +144,13 @@ SlotObjectType SlotObjectType::get(StringAttr className,
                                    ArrayRef<Type> slotTypes) {
   return Base::get(className.getContext(), BasicpyTypes::SlotObjectType,
                    className, slotTypes);
+}
+
+//----------------------------------------------------------------------------//
+// CPA Interface Implementations
+//----------------------------------------------------------------------------//
+
+Typing::CPA::TypeBase *
+UnknownType::mapToCPAType(Typing::CPA::Context &context) {
+  return context.newTypeVar();
 }

@@ -7,6 +7,7 @@ add_mlir_dialect_library(NPCOMPBasicpyDialect
 
   DEPENDS
   MLIRBasicpyOpsIncGen
+  NPCOMPTypingCPA
 )
 
 target_link_libraries(NPCOMPBasicpyDialect PUBLIC MLIRIR)

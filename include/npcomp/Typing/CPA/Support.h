@@ -21,12 +21,12 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-#ifndef NPCOMP_TYPING_CPASUPPORT_H
-#define NPCOMP_TYPING_CPASUPPORT_H
+#ifndef NPCOMP_TYPING_CPA_SUPPORT_H
+#define NPCOMP_TYPING_CPA_SUPPORT_H
 
 namespace mlir {
-namespace npcomp {
-namespace typing {
+namespace NPCOMP {
+namespace Typing {
 namespace CPA {
 
 class Context;
@@ -94,10 +94,12 @@ private:
 class TypeBase : public ObjectBase {
 public:
   using ObjectBase::ObjectBase;
-  bool classof(const ObjectBase *tb) {
+  static bool classof(const ObjectBase *tb) {
     return tb->getKind() >= Kind::FIRST_TYPE &&
            tb->getKind() <= Kind::LAST_TYPE;
   }
+
+private:
 };
 
 /// A unique type variable.
@@ -105,17 +107,23 @@ public:
 /// Referred to as 't'
 class TypeVar : public TypeBase, public llvm::ilist_node<TypeVar> {
 public:
-  bool classof(const ObjectBase *tb) { return tb->getKind() == Kind::TypeVar; }
+  static bool classof(const ObjectBase *tb) {
+    return tb->getKind() == Kind::TypeVar;
+  }
 
   int getOrdinal() { return ordinal; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
+  /// Every instantiated type can be anchored. This is purely used for
+  /// re-association at a later time with the originaing IR.
+  Value getAnchorValue() { return anchorValue; }
+  void setAnchorValue(Value anchorValue) { this->anchorValue = anchorValue; }
+
 private:
-  TypeVar(int ordinal, Value anchor)
-      : TypeBase(Kind::TypeVar), ordinal(ordinal), anchor(anchor) {}
+  TypeVar(int ordinal) : TypeBase(Kind::TypeVar), ordinal(ordinal) {}
   int ordinal;
-  Value anchor;
+  Value anchorValue;
   friend class Context;
 };
 
@@ -123,7 +131,9 @@ private:
 /// Referred to as: 'cast(δ, t)'
 class CastType : public TypeBase {
 public:
-  bool classof(const ObjectBase *tb) { return tb->getKind() == Kind::CastType; }
+  static bool classof(const ObjectBase *tb) {
+    return tb->getKind() == Kind::CastType;
+  }
 
   Identifier *getTypeIdentifier() { return typeIdentifier; }
   TypeVar *getTypeVar() { return typeVar; }
@@ -143,7 +153,9 @@ private:
 /// Referred to as: 'read τ'
 class ReadType : public TypeBase {
 public:
-  bool classof(const ObjectBase *tb) { return tb->getKind() == Kind::ReadType; }
+  static bool classof(const ObjectBase *tb) {
+    return tb->getKind() == Kind::ReadType;
+  }
 
   TypeBase *getType() { return type; }
 
@@ -159,7 +171,7 @@ private:
 /// Referred to as: 'read τ'
 class WriteType : public TypeBase {
 public:
-  bool classof(const ObjectBase *tb) {
+  static bool classof(const ObjectBase *tb) {
     return tb->getKind() == Kind::WriteType;
   }
 
@@ -191,7 +203,9 @@ class IRValueType : public ValueType {
 public:
   IRValueType(mlir::Type irType)
       : ValueType(Kind::IRValueType), irType(irType) {}
-  bool classof(ObjectBase *ob) { return ob->getKind() == Kind::IRValueType; }
+  static bool classof(ObjectBase *ob) {
+    return ob->getKind() == Kind::IRValueType;
+  }
 
   mlir::Type getIrType() { return irType; }
 
@@ -205,7 +219,7 @@ private:
 /// Referred to as 'obj(δ, [ li : τi ])'
 class ObjectValueType : public ValueType {
 public:
-  bool classof(ObjectBase *ob) {
+  static bool classof(ObjectBase *ob) {
     return ob->getKind() == Kind::ObjectValueType;
   }
 
@@ -237,7 +251,9 @@ private:
 /// Referred to as: 'τ1 <: τ2'
 class Constraint : public ObjectBase, public llvm::ilist_node<Constraint> {
 public:
-  bool classof(ObjectBase *ob) { return ob->getKind() == Kind::Constraint; }
+  static bool classof(ObjectBase *ob) {
+    return ob->getKind() == Kind::Constraint;
+  }
 
   TypeBase *getT1() { return t1; }
   TypeBase *getT2() { return t2; }
@@ -259,7 +275,9 @@ private:
 /// Referred to as: 'C'
 class ConstraintSet : public ObjectBase {
 public:
-  bool classof(ObjectBase *ob) { return ob->getKind() == Kind::ConstraintSet; }
+  static bool classof(ObjectBase *ob) {
+    return ob->getKind() == Kind::ConstraintSet;
+  }
 
   llvm::simple_ilist<Constraint> &getConstraints() { return constraints; }
 
@@ -275,7 +293,9 @@ private:
 /// Referred to as 't_bar'
 class TypeVarSet : public ObjectBase {
 public:
-  bool classof(ObjectBase *ob) { return ob->getKind() == Kind::TypeVarSet; }
+  static bool classof(ObjectBase *ob) {
+    return ob->getKind() == Kind::TypeVarSet;
+  }
 
   llvm::simple_ilist<TypeVar> &getTypeVars() { return typeVars; }
 
@@ -287,13 +307,39 @@ private:
   friend class Context;
 };
 
+/// Represents an evaluation scope (i.e. a "countour" in the literature) that
+/// tracks type variables, IR associations and constraints.
+class Environment {
+public:
+  Environment(Context &context);
+
+  Context &getContext() { return context; }
+  ConstraintSet *getConstraints() { return constraints; }
+  TypeVarSet *getTypeVars() { return typeVars; }
+
+  /// Maps an IR value to a CPA type by applying an IR Type -> CPA Type
+  /// transfer function if not already mapped.
+  TypeBase *mapValueToType(Value value);
+
+private:
+  Context &context;
+  ConstraintSet *constraints;
+  TypeVarSet *typeVars;
+  llvm::DenseMap<Value, TypeBase *> valueTypeMap;
+};
+
 /// Manages instances and containers needed for the lifetime of a CPA
 /// analysis.
 class Context {
 public:
-  TypeVar *newTypeVar(Value anchor) {
+  /// Maps an IR Type to a CPA TypeBase.
+  /// This is currently not overridable but a hook may need to be provided
+  /// eventually.
+  TypeBase *mapIrType(::mlir::Type irType);
+
+  TypeVar *newTypeVar() {
     TypeVar *tv = allocator.Allocate<TypeVar>(1);
-    new (tv) TypeVar(++typeVarCounter, anchor);
+    new (tv) TypeVar(++typeVarCounter);
     return tv;
   }
 
@@ -388,8 +434,8 @@ private:
 };
 
 } // namespace CPA
-} // namespace typing
-} // namespace npcomp
+} // namespace Typing
+} // namespace NPCOMP
 } // namespace mlir
 
-#endif
+#endif // NPCOMP_TYPING_CPA_SUPPORT_H

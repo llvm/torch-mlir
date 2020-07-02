@@ -20,7 +20,8 @@ namespace NpcompRtTypes {
 enum Kind { BufferViewType = TypeRanges::NpcompRt };
 } // namespace NpcompRtTypes
 
-class BufferViewType : public Type::TypeBase<BufferViewType, Type, TypeStorage> {
+class BufferViewType
+    : public Type::TypeBase<BufferViewType, Type, TypeStorage> {
 public:
   using Base::Base;
 

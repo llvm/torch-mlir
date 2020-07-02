@@ -13,6 +13,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Types.h"
 #include "npcomp/Dialect/Common.h"
+#include "npcomp/Typing/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {
@@ -112,7 +113,9 @@ public:
 };
 
 /// An unknown type that could be any supported python type.
-class UnknownType : public Type::TypeBase<UnknownType, Type, TypeStorage> {
+class UnknownType
+    : public Type::TypeBase<UnknownType, Type, TypeStorage,
+                            Typing::CPA::TypeMapInterface::Trait> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) {
@@ -121,6 +124,8 @@ public:
   static UnknownType get(MLIRContext *context) {
     return Base::get(context, BasicpyTypes::UnknownType);
   }
+
+  Typing::CPA::TypeBase *mapToCPAType(Typing::CPA::Context &context);
 };
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.h.inc"

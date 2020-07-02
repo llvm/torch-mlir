@@ -1,7 +1,12 @@
 add_library(NPCOMPTypingCPA
-  CPASupport.cpp
+  Interfaces.cpp
+  Support.cpp
 )
 
 target_link_libraries(NPCOMPTypingCPA
   MLIRIR
+)
+
+add_dependencies(NPCOMPTypingCPA
+  NPCOMPTypingCPAInterfacesIncGen
 )

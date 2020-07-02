@@ -14,7 +14,8 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
-#include "npcomp/Typing/CPA/CPASupport.h"
+#include "npcomp/Typing/CPA/Interfaces.h"
+#include "npcomp/Typing/CPA/Support.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "basicpy-type-inference"
@@ -22,16 +23,13 @@
 using namespace llvm;
 using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
-using namespace mlir::npcomp::typing;
+using namespace mlir::NPCOMP::Typing;
 
 namespace {
 
 class InitialConstraintGenerator {
 public:
-  InitialConstraintGenerator(CPA::Context &cpaContext,
-                             CPA::ConstraintSet *constraints,
-                             CPA::TypeVarSet *typeVars)
-      : cpaContext(cpaContext), constraints(constraints), typeVars(typeVars) {}
+  InitialConstraintGenerator(CPA::Environment &env) : env(env) {}
 
   /// If a return op was visited, this will be one of them.
   Operation *getLastReturnOp() { return funcReturnOp; }
@@ -42,34 +40,17 @@ public:
     return innerReturnLikeOps;
   }
 
-  llvm::DenseMap<Value, CPA::TypeBase *> valueTypeMap;
-
   CPA::TypeBase *resolveValueType(Value value) {
-    CPA::TypeBase *&cpaType = valueTypeMap[value];
-    if (cpaType)
-      return cpaType;
-
-    Type t = value.getType();
-    if (t.isa<UnknownType>()) {
-      // Type variable.
-      auto *cpaTypeVar = cpaContext.newTypeVar(value);
-      cpaType = cpaTypeVar;
-      typeVars->getTypeVars().push_back(*cpaTypeVar);
-    } else {
-      // IR type.
-      cpaType = cpaContext.getIRValueType(t);
-    }
-
-    return cpaType;
+    return env.mapValueToType(value);
   }
 
   void addSubtypeConstraint(Value superValue, Value subValue,
-                            Operation *context) {
+                            Operation *contextOp) {
     auto superVt = resolveValueType(superValue);
     auto subVt = resolveValueType(subValue);
-    CPA::Constraint *c = cpaContext.newConstraint(superVt, subVt);
-    c->setContextOp(context);
-    constraints->getConstraints().push_back(*c);
+    CPA::Constraint *c = env.getContext().newConstraint(superVt, subVt);
+    c->setContextOp(contextOp);
+    env.getConstraints()->getConstraints().push_back(*c);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
@@ -183,9 +164,7 @@ private:
   // The last encountered ReturnLike op.
   Operation *funcReturnOp = nullptr;
   llvm::SmallVector<Operation *, 4> innerReturnLikeOps;
-  CPA::Context &cpaContext;
-  CPA::ConstraintSet *constraints;
-  CPA::TypeVarSet *typeVars;
+  CPA::Environment &env;
 };
 
 class CPAFunctionTypeInferencePass
@@ -197,19 +176,18 @@ public:
       return;
 
     CPA::Context cpaContext;
-    auto constraints = cpaContext.newConstraintSet();
-    auto typeVars = cpaContext.newTypeVarSet();
+    CPA::Environment env(cpaContext);
 
-    InitialConstraintGenerator p(cpaContext, constraints, typeVars);
+    InitialConstraintGenerator p(env);
     p.runOnFunction(func);
 
     llvm::errs() << "CONSTRAINTS:\n";
     llvm::errs() << "------------\n";
-    constraints->print(llvm::errs());
+    env.getConstraints()->print(llvm::errs());
 
     llvm::errs() << "TYPEVARS:\n";
     llvm::errs() << "---------\n";
-    typeVars->print(llvm::errs());
+    env.getTypeVars()->print(llvm::errs());
   }
 };
 
