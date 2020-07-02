@@ -29,7 +29,7 @@ struct NdArrayTypeStorage;
 } // namespace detail
 
 /// The singleton type representing an unknown dtype.
-class AnyDtypeType : public Type::TypeBase<AnyDtypeType, Type> {
+class AnyDtypeType : public Type::TypeBase<AnyDtypeType, Type, TypeStorage> {
 public:
   using Base::Base;
 

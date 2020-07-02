@@ -41,7 +41,7 @@ struct SlotObjectTypeStorage;
 
 /// Python 'bool' type (can contain values True or False, corresponding to
 /// i1 constants of 0 or 1).
-class BoolType : public Type::TypeBase<BoolType, Type> {
+class BoolType : public Type::TypeBase<BoolType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::BoolType; }
@@ -51,7 +51,7 @@ public:
 };
 
 /// The type of the Python `bytes` values.
-class BytesType : public Type::TypeBase<BytesType, Type> {
+class BytesType : public Type::TypeBase<BytesType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::BytesType; }
@@ -61,7 +61,7 @@ public:
 };
 
 /// The type of the Python `Ellipsis` value.
-class EllipsisType : public Type::TypeBase<EllipsisType, Type> {
+class EllipsisType : public Type::TypeBase<EllipsisType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) {
@@ -73,7 +73,7 @@ public:
 };
 
 /// The type of the Python `None` value.
-class NoneType : public Type::TypeBase<NoneType, Type> {
+class NoneType : public Type::TypeBase<NoneType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
@@ -102,7 +102,7 @@ public:
 };
 
 /// The type of the Python `str` values.
-class StrType : public Type::TypeBase<StrType, Type> {
+class StrType : public Type::TypeBase<StrType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == BasicpyTypes::StrType; }
@@ -112,7 +112,7 @@ public:
 };
 
 /// An unknown type that could be any supported python type.
-class UnknownType : public Type::TypeBase<UnknownType, Type> {
+class UnknownType : public Type::TypeBase<UnknownType, Type, TypeStorage> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) {
