@@ -50,7 +50,7 @@ if (which cygpath 2>/dev/null); then
     cygpath --windows "$1"
   }
 else
-  DEBUG_FLAGS="-g3 -gdwarf2"
+  DEBUG_FLAGS="-g3 -gdwarf-2"
   function translate_path() {
     echo "$1"
   }
