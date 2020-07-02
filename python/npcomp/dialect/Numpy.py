@@ -19,10 +19,10 @@ class DialectHelper(Basicpy.DialectHelper):
     >>> h = DialectHelper(c, ir.OpBuilder(c))
 
   DenseElementsAttrs:
-    >>> c.dense_elements_attr(np.asarray([1, 2, 3, 4]))
-    dense<[1, 2, 3, 4]> : tensor<4xsi64>
-    >>> c.dense_elements_attr(np.asarray([[1, 2], [3, 4]]))
-    dense<[[1, 2], [3, 4]]> : tensor<2x2xsi64>
+    >>> c.dense_elements_attr(np.asarray([1, 2, 3, 4], dtype=np.int32))
+    dense<[1, 2, 3, 4]> : tensor<4xsi32>
+    >>> c.dense_elements_attr(np.asarray([[1, 2], [3, 4]], dtype=np.int32))
+    dense<[[1, 2], [3, 4]]> : tensor<2x2xsi32>
     >>> c.dense_elements_attr(np.asarray([[1., 2.], [3., 4.]]))
     dense<[[1.000000e+00, 2.000000e+00], [3.000000e+00, 4.000000e+00]]> : tensor<2x2xf64>
     >>> c.dense_elements_attr(np.asarray([[1., 2.], [3., 4.]], dtype=np.float32))

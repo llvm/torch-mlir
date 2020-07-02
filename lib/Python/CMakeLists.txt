@@ -2,6 +2,13 @@
 # NPCOMPPythonCommon
 ################################################################################
 
+if(MSVC)
+  # Exceptions and RTTI
+  set(extension_cflags "/EHsc /GR")
+else()
+  set(extension_cflags "-frtti -fexceptions")
+endif()
+
 set(PYBIND_SOURCES
   MlirInit.cpp
   MlirIr.cpp
@@ -12,8 +19,7 @@ set(PYBIND_SOURCES
 )
 set_source_files_properties(
   ${PYBIND_SOURCES}
-  PROPERTIES COMPILE_FLAGS
-    "-frtti -fexceptions")
+  PROPERTIES COMPILE_FLAGS "${extension_cflags}")
 
 add_library(NPCOMPPythonCommon
   ${PYBIND_SOURCES}

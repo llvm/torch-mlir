@@ -71,7 +71,7 @@ export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 export LLVM_SRC_DIR=/path/to/llvm-project
 
 # Check out last known good commit.
-LLVM_COMMIT="$(cat ./built_tools/llvm.version)"
+LLVM_COMMIT="$(cat ./build_tools/llvm_version.txt)"
 (cd $LLVM_SRC_DIR && git checkout $LLVM_COMMIT)
 
 ./build_tools/install_mlir.sh

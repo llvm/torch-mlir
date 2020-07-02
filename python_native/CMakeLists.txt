@@ -15,6 +15,13 @@
 set(NPCOMP_PYEXT_LINK_MODE SHARED)
 set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
 
+if(MSVC)
+  # Exceptions and RTTI
+  set(extension_cflags "/EHsc /GR")
+else()
+  set(extension_cflags "-frtti -fexceptions")
+endif()
+
 if(NPCOMP_ENABLE_IREE)
   list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendIREEPythonModule)
 endif()
@@ -35,8 +42,7 @@ set(extension_pybind_sources
 )
 set_source_files_properties(
   ${extension_pybind_sources}
-  PROPERTIES COMPILE_FLAGS
-    "-frtti -fexceptions")
+  PROPERTIES COMPILE_FLAGS "${extension_cflags}")
 add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
   ${extension_pybind_sources}
   ${extension_llvm_sources}

@@ -29,6 +29,18 @@ option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via
 set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
 #-------------------------------------------------------------------------------
+# MSVC defaults
+#-------------------------------------------------------------------------------
+
+if(MSVC)
+    add_compile_options(
+        $<$<CONFIG:>:/MD>
+        $<$<CONFIG:Debug>:/MD>
+        $<$<CONFIG:Release>:/MD>
+    )
+endif()
+
+#-------------------------------------------------------------------------------
 # MLIR/LLVM Configuration
 #-------------------------------------------------------------------------------
 
