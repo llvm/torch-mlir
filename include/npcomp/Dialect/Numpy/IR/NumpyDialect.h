@@ -11,6 +11,7 @@
 
 #include "mlir/IR/Dialect.h"
 #include "npcomp/Dialect/Common.h"
+#include "npcomp/Typing/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {
@@ -43,12 +44,17 @@ public:
 };
 
 class NdArrayType
-    : public Type::TypeBase<NdArrayType, Type, detail::NdArrayTypeStorage> {
+    : public Type::TypeBase<NdArrayType, Type, detail::NdArrayTypeStorage,
+                            Typing::CPA::TypeMapInterface::Trait> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }
   static NdArrayType get(Type optionalDtype);
+  bool hasKnownDtype();
   Type getDtype();
+
+  // CPA::TypeMapInterface methods.
+  Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);
 };
 
 #include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"

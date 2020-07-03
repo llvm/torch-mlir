@@ -66,6 +66,25 @@ TypeNode *Environment::mapValueToType(Value value) {
 // Context
 //===----------------------------------------------------------------------===//
 
+Context::Context() {
+  environmentStack.emplace_back(std::make_unique<Environment>(*this));
+  currentEnvironment = environmentStack.back().get();
+  arrayElementIdent = getIdentifier("e");
+}
+
+ObjectValueType *Context::newArrayType(Identifier *typeIdentifier,
+                                       llvm::Optional<TypeNode *> elementType) {
+  TypeNode *concreteElementType;
+  if (elementType) {
+    concreteElementType = *elementType;
+  } else {
+    concreteElementType = newTypeVar();
+  }
+
+  return newObjectValueType(typeIdentifier, {arrayElementIdent},
+                            {concreteElementType});
+}
+
 TypeNode *Context::mapIrType(::mlir::Type irType) {
   // First, see if the type knows how to map itself.
   assert(irType);
@@ -190,7 +209,7 @@ void IRValueType::print(Context &context, raw_ostream &os, bool brief) {
 }
 
 void ObjectValueType::print(Context &context, raw_ostream &os, bool brief) {
-  os << "object(" << *typeIdentifier;
+  os << "object(" << *typeIdentifier << ",[";
   bool first = true;
   for (auto it : llvm::zip(getFieldIdentifiers(), getFieldTypes())) {
     if (!first)
@@ -204,7 +223,7 @@ void ObjectValueType::print(Context &context, raw_ostream &os, bool brief) {
     else
       os << "NULL";
   }
-  os << ")";
+  os << "])";
 }
 
 void Constraint::print(Context &context, raw_ostream &os, bool brief) {

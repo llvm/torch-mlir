@@ -12,6 +12,7 @@
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 
 using namespace mlir;
+using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Numpy;
 
 NumpyDialect::NumpyDialect(MLIRContext *context)
@@ -107,4 +108,20 @@ NdArrayType NdArrayType::get(Type dtype) {
   return Base::get(dtype.getContext(), NumpyTypes::NdArray, dtype);
 }
 
+bool NdArrayType::hasKnownDtype() {
+  return getDtype() != Basicpy::UnknownType::get(getContext());
+}
+
 Type NdArrayType::getDtype() { return getImpl()->optionalDtype; }
+
+Typing::CPA::TypeNode *
+NdArrayType::mapToCPAType(Typing::CPA::Context &context) {
+  llvm::Optional<Typing::CPA::TypeNode *> dtype;
+  if (hasKnownDtype()) {
+    // TODO: This should be using a general mechanism for resolving the dtype,
+    // but we don't have that yet, and for NdArray, these must be primitives
+    // anyway.
+    dtype = context.getIRValueType(getDtype());
+  }
+  return context.newArrayType(context.getIdentifier("!NdArray"), dtype);
+}

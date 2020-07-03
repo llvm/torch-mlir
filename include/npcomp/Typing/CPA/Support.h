@@ -269,15 +269,16 @@ public:
 
 private:
   ObjectValueType(Identifier *typeIdentifier, size_t fieldCount,
-                  Identifier **fieldIdentifiers, TypeNode **fieldTypes)
+                  Identifier *const *fieldIdentifiers,
+                  TypeNode *const *fieldTypes)
       // TODO: Real hashcode.
       : ValueType(Kind::ObjectValueType, 0), typeIdentifier(typeIdentifier),
         fieldCount(fieldCount), fieldIdentifiers(fieldIdentifiers),
         fieldTypes(fieldTypes) {}
   Identifier *typeIdentifier;
   size_t fieldCount;
-  Identifier **fieldIdentifiers;
-  TypeNode **fieldTypes;
+  Identifier *const *fieldIdentifiers;
+  TypeNode *const *fieldTypes;
   friend class Context;
 };
 
@@ -385,6 +386,11 @@ private:
 /// analysis.
 class Context {
 public:
+  Context();
+
+  /// Gets the current environment (roughly call scope).
+  Environment *getCurrentEnvironment() { return currentEnvironment; }
+
   /// Maps an IR Type to a CPA TypeNode.
   /// This is currently not overridable but a hook may need to be provided
   /// eventually.
@@ -395,6 +401,7 @@ public:
   TypeVar *newTypeVar() {
     TypeVar *tv = allocator.Allocate<TypeVar>(1);
     new (tv) TypeVar(++typeVarCounter);
+    currentEnvironment->getTypeVars().insert(tv);
     return tv;
   }
 
@@ -419,19 +426,28 @@ public:
 
   /// Creates a new ObjectValueType.
   /// Object value types are not uniqued.
-  // ObjectValueType *
-  // newObjectValueType(Identifier *typeIdentifier,
-  //                    llvm::ArrayRef<Identifier *> fieldIdentifiers) {
-  //   size_t n = fieldIdentifiers.size();
-  //   Identifier **allocFieldIdentifiers = allocator.Allocate<Identifier *>(n);
-  //   std::copy_n(fieldIdentifiers.begin(), n, allocFieldIdentifiers);
-  //   TypeNode **allocFieldTypes = allocator.Allocate<TypeNode *>(n);
-  //   std::fill_n(allocFieldTypes, n, nullptr);
-  //   auto *ovt = allocator.Allocate<ObjectValueType>(1);
-  //   new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
-  //                             allocFieldTypes);
-  //   return ovt;
-  // }
+  ObjectValueType *
+  newObjectValueType(Identifier *typeIdentifier,
+                     llvm::ArrayRef<Identifier *> fieldIdentifiers,
+                     llvm::ArrayRef<TypeNode *> fieldTypes) {
+    assert(fieldIdentifiers.size() == fieldTypes.size());
+    size_t n = fieldIdentifiers.size();
+
+    Identifier **allocFieldIdentifiers = allocator.Allocate<Identifier *>(n);
+    std::copy_n(fieldIdentifiers.begin(), n, allocFieldIdentifiers);
+    TypeNode **allocFieldTypes = allocator.Allocate<TypeNode *>(n);
+    std::copy_n(fieldTypes.begin(), n, allocFieldTypes);
+    auto *ovt = allocator.Allocate<ObjectValueType>(1);
+    new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
+                              allocFieldTypes);
+    return ovt;
+  }
+
+  /// Creates an array object type with a possibly unknown element type.
+  /// By convention, arrays have a single type slot for the element type
+  /// named 'e'.
+  ObjectValueType *newArrayType(Identifier *typeIdentifier,
+                                llvm::Optional<TypeNode *> elementType);
 
   /// Gets a CastType.
   CastType *getCastType(Identifier *typeIdentifier, TypeVar *typeVar) {
@@ -460,6 +476,7 @@ public:
     new (av) Constraint(v); // Copy ctor
     *it.first = av;         // Replace key pointer with durable allocation.
     addConstraintToGraph(av);
+    currentEnvironment->getConstraints().insert(av);
     return av;
   }
 
@@ -514,6 +531,9 @@ private:
   llvm::DenseSet<Constraint *, Constraint::PtrInfo> constraintUniquer;
   int typeVarCounter = 0;
 
+  // Singletons created for the context.
+  Identifier *arrayElementIdent;
+
   // Graph management.
   llvm::DenseMap<TypeNode *, ConstraintSet> fwdNodeToConstraintMap;
   llvm::DenseMap<Constraint *, TypeNodeSet> fwdConstraintToNodeMap;
@@ -526,6 +546,10 @@ private:
   /// Constraints that are pending propagation.
   ConstraintSet pendingConstraints;
   ConstraintSet pendingConstraintWorklist;
+
+  // Environment management.
+  std::vector<std::unique_ptr<Environment>> environmentStack;
+  Environment *currentEnvironment;
 };
 
 inline bool TypeNode::operator==(const TypeNode &that) const {

@@ -51,7 +51,6 @@ public:
     auto subVt = resolveValueType(subValue);
     CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
     c->setContextOp(contextOp);
-    env.getConstraints().insert(c);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
@@ -181,7 +180,7 @@ public:
       return;
 
     CPA::Context cpaContext;
-    CPA::Environment env(cpaContext);
+    auto &env = *cpaContext.getCurrentEnvironment();
 
     InitialConstraintGenerator p(env);
     p.runOnFunction(func);
