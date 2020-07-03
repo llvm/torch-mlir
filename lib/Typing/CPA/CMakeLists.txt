@@ -1,4 +1,5 @@
 add_library(NPCOMPTypingCPA
+  Algorithm.cpp
   Interfaces.cpp
   Support.cpp
 )

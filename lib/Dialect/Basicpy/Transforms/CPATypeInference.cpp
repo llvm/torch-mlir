@@ -14,6 +14,7 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
+#include "npcomp/Typing/CPA/Algorithm.h"
 #include "npcomp/Typing/CPA/Interfaces.h"
 #include "npcomp/Typing/CPA/Support.h"
 #include "llvm/Support/Debug.h"
@@ -50,7 +51,7 @@ public:
     auto subVt = resolveValueType(subValue);
     CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
     c->setContextOp(contextOp);
-    env.getConstraints()->getConstraints().push_back(*c);
+    env.getConstraints()->getContents().push_back(*c);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
@@ -78,6 +79,7 @@ public:
         // Note that the condition is always i1 and not subject to type
         // inference.
         addSubtypeConstraint(op.true_value(), op.false_value(), op);
+        addSubtypeConstraint(op.false_value(), op.true_value(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<ToBooleanOp>(childOp)) {
@@ -108,20 +110,24 @@ public:
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<UnknownCastOp>(childOp)) {
-        addSubtypeConstraint(op.operand(), op.result(), op);
+        addSubtypeConstraint(op.result(), op.operand(), op);
+        // addSubtypeConstraint(op.operand(), op.result(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<BinaryExprOp>(childOp)) {
         // TODO: This should really be applying arithmetic promotion, not
         // strict equality.
-        addSubtypeConstraint(op.left(), op.right(), op);
-        addSubtypeConstraint(op.left(), op.result(), op);
+        addSubtypeConstraint(op.result(), op.left(), op);
+        addSubtypeConstraint(op.result(), op.right(), op);
+        // addSubtypeConstraint(op.left(), op.right(), op);
+        // addSubtypeConstraint(op.left(), op.result(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<BinaryCompareOp>(childOp)) {
         // TODO: This should really be applying arithmetic promotion, not
         // strict equality.
         addSubtypeConstraint(op.left(), op.right(), op);
+        addSubtypeConstraint(op.right(), op.left(), op);
         return WalkResult::advance();
       }
 
@@ -142,7 +148,9 @@ public:
             }
             for (auto it : llvm::zip(funcReturnOp->getOperands(),
                                      childOp->getOperands())) {
-              addSubtypeConstraint(std::get<0>(it), std::get<1>(it), childOp);
+              // addSubtypeConstraint(std::get<0>(it), std::get<1>(it),
+              // childOp);
+              addSubtypeConstraint(std::get<1>(it), std::get<0>(it), childOp);
             }
           }
           funcReturnOp = childOp;
@@ -183,11 +191,18 @@ public:
 
     llvm::errs() << "CONSTRAINTS:\n";
     llvm::errs() << "------------\n";
-    env.getConstraints()->print(llvm::errs());
+    env.getConstraints()->print(llvm::errs(), true);
 
-    llvm::errs() << "TYPEVARS:\n";
+    llvm::errs() << "\nTYPEVARS:\n";
     llvm::errs() << "---------\n";
     env.getTypeVars()->print(llvm::errs());
+
+    CPA::PropagationWorklist prop(env);
+    do {
+      llvm::errs() << "\nPROPAGATE CLOSURE:\n";
+      llvm::errs() << "------------------\n";
+      prop.propagateTransitivity();
+    } while (prop.commit());
   }
 };
 

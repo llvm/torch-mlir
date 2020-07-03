@@ -226,7 +226,7 @@ private:
 class ValueType : public TypeBase {
 public:
   using TypeBase::TypeBase;
-  bool classof(ObjectBase *ob) {
+  static bool classof(const ObjectBase *ob) {
     return ob->getKind() >= Kind::FIRST_VALUE_TYPE &&
            ob->getKind() <= Kind::LAST_VALUE_TYPE;
   }
@@ -238,7 +238,7 @@ public:
   IRValueType(mlir::Type irType)
       : ValueType(Kind::IRValueType, llvm::hash_combine(irType)),
         irType(irType) {}
-  static bool classof(ObjectBase *ob) {
+  static bool classof(const ObjectBase *ob) {
     return ob->getKind() == Kind::IRValueType;
   }
 
@@ -254,7 +254,7 @@ private:
 /// Referred to as 'obj(δ, [ li : τi ])'
 class ObjectValueType : public ValueType {
 public:
-  static bool classof(ObjectBase *ob) {
+  static bool classof(const ObjectBase *ob) {
     return ob->getKind() == Kind::ObjectValueType;
   }
 
@@ -291,8 +291,8 @@ public:
     return ob->getKind() == Kind::Constraint;
   }
 
-  TypeBase *getT1() { return t1; }
-  TypeBase *getT2() { return t2; }
+  TypeBase *getLhs() { return t1; }
+  TypeBase *getRhs() { return t2; }
 
   void setContextOp(Operation *contextOp) { this->contextOp = contextOp; }
 
@@ -334,17 +334,18 @@ private:
 /// Referred to as: 'C'
 class ConstraintSet : public ObjectBase {
 public:
+  using CollectionTy = llvm::simple_ilist<Constraint>;
   static bool classof(ObjectBase *ob) {
     return ob->getKind() == Kind::ConstraintSet;
   }
 
-  llvm::simple_ilist<Constraint> &getConstraints() { return constraints; }
+  CollectionTy &getContents() { return constraints; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
 private:
   ConstraintSet() : ObjectBase(Kind::ConstraintSet){};
-  llvm::simple_ilist<Constraint> constraints;
+  CollectionTy constraints;
   friend class Context;
 };
 
