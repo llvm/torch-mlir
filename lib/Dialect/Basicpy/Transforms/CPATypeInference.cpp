@@ -48,7 +48,7 @@ public:
                             Operation *contextOp) {
     auto superVt = resolveValueType(superValue);
     auto subVt = resolveValueType(subValue);
-    CPA::Constraint *c = env.getContext().newConstraint(superVt, subVt);
+    CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
     c->setContextOp(contextOp);
     env.getConstraints()->getConstraints().push_back(*c);
   }

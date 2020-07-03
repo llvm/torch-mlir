@@ -61,6 +61,8 @@ TypeBase *Context::mapIrType(::mlir::Type irType) {
 // Printing
 //===----------------------------------------------------------------------===//
 
+void TypeBase::print(raw_ostream &os, bool brief) { os << "<BASE CLASS>"; }
+
 void Identifier::print(raw_ostream &os, bool brief) {
   os << "'" << value << "'";
 }

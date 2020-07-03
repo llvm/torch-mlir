@@ -16,6 +16,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ilist.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
@@ -93,13 +94,43 @@ private:
 /// Referred to as: 'τ' (tau)
 class TypeBase : public ObjectBase {
 public:
-  using ObjectBase::ObjectBase;
+  TypeBase(Kind kind, unsigned hashValue)
+      : ObjectBase(kind),
+        hashValue(llvm::hash_combine(static_cast<int>(kind), hashValue)) {}
   static bool classof(const ObjectBase *tb) {
     return tb->getKind() >= Kind::FIRST_TYPE &&
            tb->getKind() <= Kind::LAST_TYPE;
   }
 
+  bool operator==(const TypeBase &that) const;
+  void print(raw_ostream &os, bool brief = false) override;
+
+  struct PtrInfo : llvm::DenseMapInfo<TypeBase *> {
+    static TypeBase *getEmptyKey() {
+      static TypeBase empty(Kind::TypeBase, 0);
+      return &empty;
+    }
+    static TypeBase *getTombstoneKey() {
+      static TypeBase tombstone(Kind::TypeBase, 1);
+      return &tombstone;
+    }
+    static unsigned getHashValue(TypeBase *key) { return key->hashValue; }
+    static bool isEqual(TypeBase *lhs, TypeBase *rhs) {
+      if (lhs->getKind() == Kind::TypeBase ||
+          rhs->getKind() == Kind::TypeBase) {
+        // Base class is only created for special static values.
+        return lhs == rhs;
+      }
+      if (lhs == rhs)
+        return true;
+      return *lhs == *rhs;
+    }
+  };
+
 private:
+  unsigned hashValue;
+
+  friend struct PtrInfo;
 };
 
 /// A unique type variable.
@@ -111,7 +142,7 @@ public:
     return tb->getKind() == Kind::TypeVar;
   }
 
-  int getOrdinal() { return ordinal; }
+  int getOrdinal() const { return ordinal; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
@@ -121,7 +152,8 @@ public:
   void setAnchorValue(Value anchorValue) { this->anchorValue = anchorValue; }
 
 private:
-  TypeVar(int ordinal) : TypeBase(Kind::TypeVar), ordinal(ordinal) {}
+  TypeVar(int ordinal)
+      : TypeBase(Kind::TypeVar, llvm::hash_code(ordinal)), ordinal(ordinal) {}
   int ordinal;
   Value anchorValue;
   friend class Context;
@@ -135,15 +167,15 @@ public:
     return tb->getKind() == Kind::CastType;
   }
 
-  Identifier *getTypeIdentifier() { return typeIdentifier; }
-  TypeVar *getTypeVar() { return typeVar; }
+  Identifier *getTypeIdentifier() const { return typeIdentifier; }
+  TypeVar *getTypeVar() const { return typeVar; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
 private:
   CastType(Identifier *typeIdentifier, TypeVar *typeVar)
-      : TypeBase(Kind::CastType), typeIdentifier(typeIdentifier),
-        typeVar(typeVar) {}
+      : TypeBase(Kind::CastType, llvm::hash_combine(typeIdentifier, typeVar)),
+        typeIdentifier(typeIdentifier), typeVar(typeVar) {}
   Identifier *typeIdentifier;
   TypeVar *typeVar;
   friend class Context;
@@ -157,12 +189,13 @@ public:
     return tb->getKind() == Kind::ReadType;
   }
 
-  TypeBase *getType() { return type; }
+  TypeBase *getType() const { return type; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
 private:
-  ReadType(TypeBase *type) : TypeBase(Kind::ReadType), type(type) {}
+  ReadType(TypeBase *type)
+      : TypeBase(Kind::ReadType, llvm::hash_combine(type)), type(type) {}
   TypeBase *type;
   friend class Context;
 };
@@ -175,12 +208,13 @@ public:
     return tb->getKind() == Kind::WriteType;
   }
 
-  TypeBase *getType() { return type; }
+  TypeBase *getType() const { return type; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
 private:
-  WriteType(TypeBase *type) : TypeBase(Kind::WriteType), type(type) {}
+  WriteType(TypeBase *type)
+      : TypeBase(Kind::WriteType, llvm::hash_combine(type)), type(type) {}
   TypeBase *type;
   friend class Context;
 };
@@ -202,12 +236,13 @@ public:
 class IRValueType : public ValueType {
 public:
   IRValueType(mlir::Type irType)
-      : ValueType(Kind::IRValueType), irType(irType) {}
+      : ValueType(Kind::IRValueType, llvm::hash_combine(irType)),
+        irType(irType) {}
   static bool classof(ObjectBase *ob) {
     return ob->getKind() == Kind::IRValueType;
   }
 
-  mlir::Type getIrType() { return irType; }
+  mlir::Type getIrType() const { return irType; }
 
   void print(raw_ostream &os, bool brief = false) override;
 
@@ -237,7 +272,8 @@ public:
 private:
   ObjectValueType(Identifier *typeIdentifier, size_t fieldCount,
                   Identifier **fieldIdentifiers, TypeBase **fieldTypes)
-      : ValueType(Kind::ObjectValueType), typeIdentifier(typeIdentifier),
+      // TODO: Real hashcode.
+      : ValueType(Kind::ObjectValueType, 0), typeIdentifier(typeIdentifier),
         fieldCount(fieldCount), fieldIdentifiers(fieldIdentifiers),
         fieldTypes(fieldTypes) {}
   Identifier *typeIdentifier;
@@ -261,6 +297,29 @@ public:
   void setContextOp(Operation *contextOp) { this->contextOp = contextOp; }
 
   void print(raw_ostream &os, bool brief = false) override;
+
+  bool operator==(const Constraint &that) const {
+    return t1 == that.t1 && t2 == that.t2;
+  }
+
+  struct PtrInfo : llvm::DenseMapInfo<TypeBase *> {
+    static Constraint *getEmptyKey() {
+      auto emptyType = TypeBase::PtrInfo::getEmptyKey();
+      static Constraint empty(emptyType, emptyType);
+      return &empty;
+    }
+    static Constraint *getTombstoneKey() {
+      auto tombstoneType = TypeBase::PtrInfo::getTombstoneKey();
+      static Constraint tombstone(tombstoneType, tombstoneType);
+      return &tombstone;
+    }
+    static unsigned getHashValue(Constraint *key) {
+      return llvm::hash_combine(key->t1, key->t2);
+    }
+    static bool isEqual(Constraint *lhs, Constraint *rhs) {
+      return *lhs == *rhs;
+    }
+  };
 
 private:
   Constraint(TypeBase *t1, TypeBase *t2)
@@ -337,37 +396,12 @@ public:
   /// eventually.
   TypeBase *mapIrType(::mlir::Type irType);
 
+  // Create a new (non-uniqued) type var. These are not uniqued because by
+  // construction, we only ever ask for new type variables when needed.
   TypeVar *newTypeVar() {
     TypeVar *tv = allocator.Allocate<TypeVar>(1);
     new (tv) TypeVar(++typeVarCounter);
     return tv;
-  }
-
-  /// Gets a uniqued IRValueType for the IR Type.
-  IRValueType *getIRValueType(Type irType) {
-    auto it = irValueTypeMap.find(irType);
-    if (it != irValueTypeMap.end())
-      return it->second;
-    auto *irv = allocator.Allocate<IRValueType>(1);
-    new (irv) IRValueType(irType);
-    irValueTypeMap[irType] = irv;
-    return irv;
-  }
-
-  /// Creates a new ObjectValueType.
-  /// Object value types are not uniqued.
-  ObjectValueType *
-  newObjectValueType(Identifier *typeIdentifier,
-                     llvm::ArrayRef<Identifier *> fieldIdentifiers) {
-    size_t n = fieldIdentifiers.size();
-    Identifier **allocFieldIdentifiers = allocator.Allocate<Identifier *>(n);
-    std::copy_n(fieldIdentifiers.begin(), n, allocFieldIdentifiers);
-    TypeBase **allocFieldTypes = allocator.Allocate<TypeBase *>(n);
-    std::fill_n(allocFieldTypes, n, nullptr);
-    auto *ovt = allocator.Allocate<ObjectValueType>(1);
-    new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
-                              allocFieldTypes);
-    return ovt;
   }
 
   /// Gets a uniqued Identifier for the given value.
@@ -384,32 +418,54 @@ public:
     return id;
   }
 
+  /// Gets a uniqued IRValueType for the IR Type.
+  IRValueType *getIRValueType(Type irType) {
+    return getUniquedTypeBase<IRValueType>(irType);
+  }
+
+  /// Creates a new ObjectValueType.
+  /// Object value types are not uniqued.
+  // ObjectValueType *
+  // newObjectValueType(Identifier *typeIdentifier,
+  //                    llvm::ArrayRef<Identifier *> fieldIdentifiers) {
+  //   size_t n = fieldIdentifiers.size();
+  //   Identifier **allocFieldIdentifiers = allocator.Allocate<Identifier *>(n);
+  //   std::copy_n(fieldIdentifiers.begin(), n, allocFieldIdentifiers);
+  //   TypeBase **allocFieldTypes = allocator.Allocate<TypeBase *>(n);
+  //   std::fill_n(allocFieldTypes, n, nullptr);
+  //   auto *ovt = allocator.Allocate<ObjectValueType>(1);
+  //   new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
+  //                             allocFieldTypes);
+  //   return ovt;
+  // }
+
   /// Gets a CastType.
   CastType *getCastType(Identifier *typeIdentifier, TypeVar *typeVar) {
-    auto *ct = allocator.Allocate<CastType>(1);
-    new (ct) CastType(typeIdentifier, typeVar);
-    return ct;
+    return getUniquedTypeBase<CastType>(typeIdentifier, typeVar);
   }
 
   /// Gets a ReadType.
   ReadType *getReadType(TypeBase *type) {
-    auto *rt = allocator.Allocate<ReadType>(1);
-    new (rt) ReadType(type);
-    return rt;
+    return getUniquedTypeBase<ReadType>(type);
   }
 
   /// Gets a WriteType.
   WriteType *getWriteType(TypeBase *type) {
-    auto *wt = allocator.Allocate<WriteType>(1);
-    new (wt) WriteType(type);
-    return wt;
+    return getUniquedTypeBase<WriteType>(type);
   }
 
   /// Creates a Constraint.
-  Constraint *newConstraint(TypeBase *t1, TypeBase *t2) {
-    auto *c = allocator.Allocate<Constraint>(1);
-    new (c) Constraint(t1, t2);
-    return c;
+  Constraint *getConstraint(TypeBase *t1, TypeBase *t2) {
+    // Lookup based on a stack allocated key.
+    Constraint v(t1, t2);
+    auto it = constraintUniquer.insert(&v);
+    if (!it.second)
+      return *it.first;
+
+    auto *av = allocator.Allocate<Constraint>(1);
+    new (av) Constraint(v); // Copy ctor
+    *it.first = av;         // Replace key pointer with durable allocation.
+    return av;
   }
 
   /// Creates a new ConstraintSet.
@@ -427,11 +483,65 @@ public:
   }
 
 private:
+  template <typename ConcreteTy, typename... Args>
+  ConcreteTy *getUniquedTypeBase(Args &&... args) {
+    // Lookup based on stack allocated key.
+    ConcreteTy v(std::forward<Args>(args)...);
+    auto it = typeUniquer.insert(&v);
+    if (!it.second) {
+      return static_cast<ConcreteTy *>(*it.first);
+    }
+
+    auto *av = allocator.Allocate<ConcreteTy>(1);
+    new (av) ConcreteTy(v); // Copy ctor
+    *it.first = av;         // Replace key pointer with durable allocation.
+    return av;
+  }
+
   llvm::BumpPtrAllocator allocator;
-  llvm::DenseMap<mlir::Type, IRValueType *> irValueTypeMap;
   llvm::DenseMap<StringRef, Identifier *> identifierMap;
+  llvm::DenseSet<TypeBase *, TypeBase::PtrInfo> typeUniquer;
+  llvm::DenseSet<Constraint *, Constraint::PtrInfo> constraintUniquer;
   int typeVarCounter = 0;
 };
+
+inline bool TypeBase::operator==(const TypeBase &that) const {
+  if (getKind() != that.getKind())
+    return false;
+  switch (getKind()) {
+  case Kind::TypeVar: {
+    auto &thisCast = static_cast<const TypeVar &>(*this);
+    auto &thatCast = static_cast<const TypeVar &>(that);
+    return thisCast.getOrdinal() == thatCast.getOrdinal();
+  }
+  case Kind::CastType: {
+    auto &thisCast = static_cast<const CastType &>(*this);
+    auto &thatCast = static_cast<const CastType &>(that);
+    return thisCast.getTypeIdentifier() == thatCast.getTypeIdentifier() &&
+           thisCast.getTypeVar() == thatCast.getTypeVar();
+  }
+  case Kind::ReadType: {
+    auto &thisCast = static_cast<const ReadType &>(*this);
+    auto &thatCast = static_cast<const ReadType &>(that);
+    return thisCast.getType() == thatCast.getType();
+  }
+  case Kind::WriteType: {
+    auto &thisCast = static_cast<const WriteType &>(*this);
+    auto &thatCast = static_cast<const WriteType &>(that);
+    return thisCast.getType() == thatCast.getType();
+  }
+  case Kind::IRValueType: {
+    auto &thisCast = static_cast<const IRValueType &>(*this);
+    auto &thatCast = static_cast<const IRValueType &>(that);
+    return thisCast.getIrType() == thatCast.getIrType();
+  }
+  case Kind::ObjectValueType:
+    llvm_unreachable("ObjectValueType not implemented");
+  default:
+    llvm_unreachable("unhandled TypeBase subclass");
+  }
+  return false;
+}
 
 } // namespace CPA
 } // namespace Typing
