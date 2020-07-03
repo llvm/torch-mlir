@@ -17,7 +17,7 @@
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/ilist.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
@@ -56,7 +56,7 @@ public:
   enum class Kind {
     // Type
     FIRST_TYPE,
-    TypeBase = FIRST_TYPE,
+    TypeNode = FIRST_TYPE,
     TypeVar,
     CastType,
     ReadType,
@@ -73,15 +73,13 @@ public:
 
     // Constraint
     Constraint,
-    ConstraintSet,
-    TypeVarSet,
   };
   ObjectBase(Kind kind) : kind(kind) {}
   virtual ~ObjectBase();
 
   Kind getKind() const { return kind; }
 
-  virtual void print(raw_ostream &os, bool brief = false) = 0;
+  virtual void print(Context &context, raw_ostream &os, bool brief = false) = 0;
 
 private:
   const Kind kind;
@@ -92,9 +90,9 @@ private:
 ///   Precise Constraint-Based Type Inference for Java
 ///
 /// Referred to as: 'τ' (tau)
-class TypeBase : public ObjectBase {
+class TypeNode : public ObjectBase {
 public:
-  TypeBase(Kind kind, unsigned hashValue)
+  TypeNode(Kind kind, unsigned hashValue)
       : ObjectBase(kind),
         hashValue(llvm::hash_combine(static_cast<int>(kind), hashValue)) {}
   static bool classof(const ObjectBase *tb) {
@@ -102,22 +100,22 @@ public:
            tb->getKind() <= Kind::LAST_TYPE;
   }
 
-  bool operator==(const TypeBase &that) const;
-  void print(raw_ostream &os, bool brief = false) override;
+  bool operator==(const TypeNode &that) const;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
-  struct PtrInfo : llvm::DenseMapInfo<TypeBase *> {
-    static TypeBase *getEmptyKey() {
-      static TypeBase empty(Kind::TypeBase, 0);
+  struct PtrInfo : llvm::DenseMapInfo<TypeNode *> {
+    static TypeNode *getEmptyKey() {
+      static TypeNode empty(Kind::TypeNode, 0);
       return &empty;
     }
-    static TypeBase *getTombstoneKey() {
-      static TypeBase tombstone(Kind::TypeBase, 1);
+    static TypeNode *getTombstoneKey() {
+      static TypeNode tombstone(Kind::TypeNode, 1);
       return &tombstone;
     }
-    static unsigned getHashValue(TypeBase *key) { return key->hashValue; }
-    static bool isEqual(TypeBase *lhs, TypeBase *rhs) {
-      if (lhs->getKind() == Kind::TypeBase ||
-          rhs->getKind() == Kind::TypeBase) {
+    static unsigned getHashValue(TypeNode *key) { return key->hashValue; }
+    static bool isEqual(TypeNode *lhs, TypeNode *rhs) {
+      if (lhs->getKind() == Kind::TypeNode ||
+          rhs->getKind() == Kind::TypeNode) {
         // Base class is only created for special static values.
         return lhs == rhs;
       }
@@ -136,7 +134,7 @@ private:
 /// A unique type variable.
 /// Both the pointer and the ordinal will be unique within a context.
 /// Referred to as 't'
-class TypeVar : public TypeBase, public llvm::ilist_node<TypeVar> {
+class TypeVar : public TypeNode {
 public:
   static bool classof(const ObjectBase *tb) {
     return tb->getKind() == Kind::TypeVar;
@@ -144,7 +142,7 @@ public:
 
   int getOrdinal() const { return ordinal; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
   /// Every instantiated type can be anchored. This is purely used for
   /// re-association at a later time with the originaing IR.
@@ -153,7 +151,7 @@ public:
 
 private:
   TypeVar(int ordinal)
-      : TypeBase(Kind::TypeVar, llvm::hash_code(ordinal)), ordinal(ordinal) {}
+      : TypeNode(Kind::TypeVar, llvm::hash_code(ordinal)), ordinal(ordinal) {}
   int ordinal;
   Value anchorValue;
   friend class Context;
@@ -161,7 +159,7 @@ private:
 
 /// A type-cast type.
 /// Referred to as: 'cast(δ, t)'
-class CastType : public TypeBase {
+class CastType : public TypeNode {
 public:
   static bool classof(const ObjectBase *tb) {
     return tb->getKind() == Kind::CastType;
@@ -170,11 +168,11 @@ public:
   Identifier *getTypeIdentifier() const { return typeIdentifier; }
   TypeVar *getTypeVar() const { return typeVar; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
 private:
   CastType(Identifier *typeIdentifier, TypeVar *typeVar)
-      : TypeBase(Kind::CastType, llvm::hash_combine(typeIdentifier, typeVar)),
+      : TypeNode(Kind::CastType, llvm::hash_combine(typeIdentifier, typeVar)),
         typeIdentifier(typeIdentifier), typeVar(typeVar) {}
   Identifier *typeIdentifier;
   TypeVar *typeVar;
@@ -183,39 +181,39 @@ private:
 
 /// Type representing a read-field operation.
 /// Referred to as: 'read τ'
-class ReadType : public TypeBase {
+class ReadType : public TypeNode {
 public:
   static bool classof(const ObjectBase *tb) {
     return tb->getKind() == Kind::ReadType;
   }
 
-  TypeBase *getType() const { return type; }
+  TypeNode *getType() const { return type; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
 private:
-  ReadType(TypeBase *type)
-      : TypeBase(Kind::ReadType, llvm::hash_combine(type)), type(type) {}
-  TypeBase *type;
+  ReadType(TypeNode *type)
+      : TypeNode(Kind::ReadType, llvm::hash_combine(type)), type(type) {}
+  TypeNode *type;
   friend class Context;
 };
 
 /// Type representing a read-field operation.
 /// Referred to as: 'read τ'
-class WriteType : public TypeBase {
+class WriteType : public TypeNode {
 public:
   static bool classof(const ObjectBase *tb) {
     return tb->getKind() == Kind::WriteType;
   }
 
-  TypeBase *getType() const { return type; }
+  TypeNode *getType() const { return type; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
 private:
-  WriteType(TypeBase *type)
-      : TypeBase(Kind::WriteType, llvm::hash_combine(type)), type(type) {}
-  TypeBase *type;
+  WriteType(TypeNode *type)
+      : TypeNode(Kind::WriteType, llvm::hash_combine(type)), type(type) {}
+  TypeNode *type;
   friend class Context;
 };
 
@@ -223,9 +221,9 @@ private:
 ///   IRValueType: Wraps a primitive MLIR type
 ///   ObjectValueType: Defines an object.
 /// Referred to as 'τv' (tau-v)
-class ValueType : public TypeBase {
+class ValueType : public TypeNode {
 public:
-  using TypeBase::TypeBase;
+  using TypeNode::TypeNode;
   static bool classof(const ObjectBase *ob) {
     return ob->getKind() >= Kind::FIRST_VALUE_TYPE &&
            ob->getKind() <= Kind::LAST_VALUE_TYPE;
@@ -244,7 +242,7 @@ public:
 
   mlir::Type getIrType() const { return irType; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
 private:
   const mlir::Type irType;
@@ -263,15 +261,15 @@ public:
   llvm::ArrayRef<Identifier *> getFieldIdentifiers() {
     return llvm::ArrayRef<Identifier *>(fieldIdentifiers, fieldCount);
   }
-  llvm::ArrayRef<TypeBase *> getFieldTypes() {
-    return llvm::ArrayRef<TypeBase *>(fieldTypes, fieldCount);
+  llvm::ArrayRef<TypeNode *> getFieldTypes() {
+    return llvm::ArrayRef<TypeNode *>(fieldTypes, fieldCount);
   }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
 private:
   ObjectValueType(Identifier *typeIdentifier, size_t fieldCount,
-                  Identifier **fieldIdentifiers, TypeBase **fieldTypes)
+                  Identifier **fieldIdentifiers, TypeNode **fieldTypes)
       // TODO: Real hashcode.
       : ValueType(Kind::ObjectValueType, 0), typeIdentifier(typeIdentifier),
         fieldCount(fieldCount), fieldIdentifiers(fieldIdentifiers),
@@ -279,42 +277,42 @@ private:
   Identifier *typeIdentifier;
   size_t fieldCount;
   Identifier **fieldIdentifiers;
-  TypeBase **fieldTypes;
+  TypeNode **fieldTypes;
   friend class Context;
 };
 
 /// A Constraint between two types.
 /// Referred to as: 'τ1 <: τ2'
-class Constraint : public ObjectBase, public llvm::ilist_node<Constraint> {
+class Constraint : public ObjectBase {
 public:
   static bool classof(ObjectBase *ob) {
     return ob->getKind() == Kind::Constraint;
   }
 
-  TypeBase *getLhs() { return t1; }
-  TypeBase *getRhs() { return t2; }
+  TypeNode *getFrom() { return from; }
+  TypeNode *getTo() { return to; }
 
   void setContextOp(Operation *contextOp) { this->contextOp = contextOp; }
 
-  void print(raw_ostream &os, bool brief = false) override;
+  void print(Context &context, raw_ostream &os, bool brief = false) override;
 
   bool operator==(const Constraint &that) const {
-    return t1 == that.t1 && t2 == that.t2;
+    return from == that.from && to == that.to;
   }
 
-  struct PtrInfo : llvm::DenseMapInfo<TypeBase *> {
+  struct PtrInfo : llvm::DenseMapInfo<TypeNode *> {
     static Constraint *getEmptyKey() {
-      auto emptyType = TypeBase::PtrInfo::getEmptyKey();
+      auto emptyType = TypeNode::PtrInfo::getEmptyKey();
       static Constraint empty(emptyType, emptyType);
       return &empty;
     }
     static Constraint *getTombstoneKey() {
-      auto tombstoneType = TypeBase::PtrInfo::getTombstoneKey();
+      auto tombstoneType = TypeNode::PtrInfo::getTombstoneKey();
       static Constraint tombstone(tombstoneType, tombstoneType);
       return &tombstone;
     }
     static unsigned getHashValue(Constraint *key) {
-      return llvm::hash_combine(key->t1, key->t2);
+      return llvm::hash_combine(key->from, key->to);
     }
     static bool isEqual(Constraint *lhs, Constraint *rhs) {
       return *lhs == *rhs;
@@ -322,49 +320,44 @@ public:
   };
 
 private:
-  Constraint(TypeBase *t1, TypeBase *t2)
-      : ObjectBase(Kind::Constraint), t1(t1), t2(t2) {}
-  TypeBase *t1;
-  TypeBase *t2;
+  Constraint(TypeNode *from, TypeNode *to)
+      : ObjectBase(Kind::Constraint), from(from), to(to) {}
+  TypeNode *from;
+  TypeNode *to;
   Operation *contextOp = nullptr;
   friend class Context;
 };
 
 /// A set of constraints.
 /// Referred to as: 'C'
-class ConstraintSet : public ObjectBase {
+class ConstraintSet : public llvm::SmallPtrSet<Constraint *, 4> {
 public:
-  using CollectionTy = llvm::simple_ilist<Constraint>;
-  static bool classof(ObjectBase *ob) {
-    return ob->getKind() == Kind::ConstraintSet;
-  }
-
-  CollectionTy &getContents() { return constraints; }
-
-  void print(raw_ostream &os, bool brief = false) override;
-
-private:
-  ConstraintSet() : ObjectBase(Kind::ConstraintSet){};
-  CollectionTy constraints;
-  friend class Context;
+  static const ConstraintSet &getEmptySet();
+  using SmallPtrSet::SmallPtrSet;
+  void print(Context &context, raw_ostream &os, bool brief = false);
 };
 
 /// A set of TypeVar.
 /// Referred to as 't_bar'
-class TypeVarSet : public ObjectBase {
+class TypeVarSet : public llvm::SmallPtrSet<TypeVar *, 4> {
 public:
-  static bool classof(ObjectBase *ob) {
-    return ob->getKind() == Kind::TypeVarSet;
-  }
+  static const TypeVarSet &getEmptySet();
+  using SmallPtrSet::SmallPtrSet;
+  void print(Context &context, raw_ostream &os, bool brief = false);
+};
 
-  llvm::simple_ilist<TypeVar> &getTypeVars() { return typeVars; }
+/// Set for managing TypeNodes.
+class TypeNodeSet : public llvm::SmallPtrSet<TypeNode *, 4> {
+public:
+  static const TypeNodeSet &getEmptySet();
+  using SmallPtrSet::SmallPtrSet;
+};
 
-  void print(raw_ostream &os, bool brief = false) override;
-
-private:
-  TypeVarSet() : ObjectBase(Kind::TypeVarSet) {}
-  llvm::simple_ilist<TypeVar> typeVars;
-  friend class Context;
+/// Set for managing ValueTypes associated with a TypeVar.
+class ValueTypeSet : public llvm::SmallPtrSet<ValueType *, 4> {
+public:
+  static const ValueTypeSet &getEmptySet();
+  using SmallPtrSet::SmallPtrSet;
 };
 
 /// Represents an evaluation scope (i.e. a "countour" in the literature) that
@@ -374,28 +367,28 @@ public:
   Environment(Context &context);
 
   Context &getContext() { return context; }
-  ConstraintSet *getConstraints() { return constraints; }
-  TypeVarSet *getTypeVars() { return typeVars; }
+  ConstraintSet &getConstraints() { return constraints; }
+  TypeVarSet &getTypeVars() { return typeVars; }
 
   /// Maps an IR value to a CPA type by applying an IR Type -> CPA Type
   /// transfer function if not already mapped.
-  TypeBase *mapValueToType(Value value);
+  TypeNode *mapValueToType(Value value);
 
 private:
   Context &context;
-  ConstraintSet *constraints;
-  TypeVarSet *typeVars;
-  llvm::DenseMap<Value, TypeBase *> valueTypeMap;
+  ConstraintSet constraints;
+  TypeVarSet typeVars;
+  llvm::DenseMap<Value, TypeNode *> valueTypeMap;
 };
 
 /// Manages instances and containers needed for the lifetime of a CPA
 /// analysis.
 class Context {
 public:
-  /// Maps an IR Type to a CPA TypeBase.
+  /// Maps an IR Type to a CPA TypeNode.
   /// This is currently not overridable but a hook may need to be provided
   /// eventually.
-  TypeBase *mapIrType(::mlir::Type irType);
+  TypeNode *mapIrType(::mlir::Type irType);
 
   // Create a new (non-uniqued) type var. These are not uniqued because by
   // construction, we only ever ask for new type variables when needed.
@@ -421,7 +414,7 @@ public:
 
   /// Gets a uniqued IRValueType for the IR Type.
   IRValueType *getIRValueType(Type irType) {
-    return getUniquedTypeBase<IRValueType>(irType);
+    return getUniquedTypeNode<IRValueType>(irType);
   }
 
   /// Creates a new ObjectValueType.
@@ -432,7 +425,7 @@ public:
   //   size_t n = fieldIdentifiers.size();
   //   Identifier **allocFieldIdentifiers = allocator.Allocate<Identifier *>(n);
   //   std::copy_n(fieldIdentifiers.begin(), n, allocFieldIdentifiers);
-  //   TypeBase **allocFieldTypes = allocator.Allocate<TypeBase *>(n);
+  //   TypeNode **allocFieldTypes = allocator.Allocate<TypeNode *>(n);
   //   std::fill_n(allocFieldTypes, n, nullptr);
   //   auto *ovt = allocator.Allocate<ObjectValueType>(1);
   //   new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
@@ -442,21 +435,21 @@ public:
 
   /// Gets a CastType.
   CastType *getCastType(Identifier *typeIdentifier, TypeVar *typeVar) {
-    return getUniquedTypeBase<CastType>(typeIdentifier, typeVar);
+    return getUniquedTypeNode<CastType>(typeIdentifier, typeVar);
   }
 
   /// Gets a ReadType.
-  ReadType *getReadType(TypeBase *type) {
-    return getUniquedTypeBase<ReadType>(type);
+  ReadType *getReadType(TypeNode *type) {
+    return getUniquedTypeNode<ReadType>(type);
   }
 
   /// Gets a WriteType.
-  WriteType *getWriteType(TypeBase *type) {
-    return getUniquedTypeBase<WriteType>(type);
+  WriteType *getWriteType(TypeNode *type) {
+    return getUniquedTypeNode<WriteType>(type);
   }
 
   /// Creates a Constraint.
-  Constraint *getConstraint(TypeBase *t1, TypeBase *t2) {
+  Constraint *getConstraint(TypeNode *t1, TypeNode *t2) {
     // Lookup based on a stack allocated key.
     Constraint v(t1, t2);
     auto it = constraintUniquer.insert(&v);
@@ -466,6 +459,7 @@ public:
     auto *av = allocator.Allocate<Constraint>(1);
     new (av) Constraint(v); // Copy ctor
     *it.first = av;         // Replace key pointer with durable allocation.
+    addConstraintToGraph(av);
     return av;
   }
 
@@ -483,9 +477,17 @@ public:
     return tvs;
   }
 
+  /// Gets a reference to the current members.
+  /// This is the actual backing set. Any modification to the graph can
+  /// invalidate iterators.
+  const ValueTypeSet &getMembers(TypeNode *node) {
+    return typeNodeMembers[node];
+  }
+
 private:
+  /// Generically creates a uniquable TypeNode subclass.
   template <typename ConcreteTy, typename... Args>
-  ConcreteTy *getUniquedTypeBase(Args &&... args) {
+  ConcreteTy *getUniquedTypeNode(Args &&... args) {
     // Lookup based on stack allocated key.
     ConcreteTy v(std::forward<Args>(args)...);
     auto it = typeUniquer.insert(&v);
@@ -499,14 +501,34 @@ private:
     return av;
   }
 
+  /// Adds a constraint to the graph structure.
+  void addConstraintToGraph(Constraint *c);
+
+  /// Propagates any pending constraints.
+  void propagateConstraints();
+
+  // Allocation/uniquing management.
   llvm::BumpPtrAllocator allocator;
   llvm::DenseMap<StringRef, Identifier *> identifierMap;
-  llvm::DenseSet<TypeBase *, TypeBase::PtrInfo> typeUniquer;
+  llvm::DenseSet<TypeNode *, TypeNode::PtrInfo> typeUniquer;
   llvm::DenseSet<Constraint *, Constraint::PtrInfo> constraintUniquer;
   int typeVarCounter = 0;
+
+  // Graph management.
+  llvm::DenseMap<TypeNode *, ConstraintSet> fwdNodeToConstraintMap;
+  llvm::DenseMap<Constraint *, TypeNodeSet> fwdConstraintToNodeMap;
+  llvm::DenseMap<TypeNode *, ConstraintSet> bakNodeToConstraintMap;
+  // Note that we track contents for all TypeNodes, not just vars, as this
+  // can be used to determine illegal dataflows.
+  llvm::DenseMap<TypeNode *, ValueTypeSet> typeNodeMembers;
+
+  // Propagation worklist.
+  /// Constraints that are pending propagation.
+  ConstraintSet pendingConstraints;
+  ConstraintSet pendingConstraintWorklist;
 };
 
-inline bool TypeBase::operator==(const TypeBase &that) const {
+inline bool TypeNode::operator==(const TypeNode &that) const {
   if (getKind() != that.getKind())
     return false;
   switch (getKind()) {
@@ -539,7 +561,7 @@ inline bool TypeBase::operator==(const TypeBase &that) const {
   case Kind::ObjectValueType:
     llvm_unreachable("ObjectValueType not implemented");
   default:
-    llvm_unreachable("unhandled TypeBase subclass");
+    llvm_unreachable("unhandled TypeNode subclass");
   }
   return false;
 }

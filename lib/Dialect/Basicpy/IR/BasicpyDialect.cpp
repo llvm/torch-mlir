@@ -150,7 +150,7 @@ SlotObjectType SlotObjectType::get(StringAttr className,
 // CPA Interface Implementations
 //----------------------------------------------------------------------------//
 
-Typing::CPA::TypeBase *
+Typing::CPA::TypeNode *
 UnknownType::mapToCPAType(Typing::CPA::Context &context) {
   return context.newTypeVar();
 }

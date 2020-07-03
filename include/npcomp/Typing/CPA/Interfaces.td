@@ -13,8 +13,8 @@ include "mlir/IR/OpBase.td"
 
 def TypeMapInterface : TypeInterface<"TypeMapInterface"> {
   let methods = [
-    InterfaceMethod<"Maps an MLIR Type to a CPA::TypeBase.",
-      /*retTy=*/ "::mlir::NPCOMP::Typing::CPA::TypeBase *",
+    InterfaceMethod<"Maps an MLIR Type to a CPA::TypeNode.",
+      /*retTy=*/ "::mlir::NPCOMP::Typing::CPA::TypeNode *",
       /*methodName=*/ "mapToCPAType",
       /*args=*/ (ins
           "::mlir::NPCOMP::Typing::CPA::Context &":$context)>,

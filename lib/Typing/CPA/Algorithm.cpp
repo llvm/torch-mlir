@@ -11,10 +11,10 @@
 using namespace mlir::NPCOMP::Typing::CPA;
 
 PropagationWorklist::PropagationWorklist(Environment &env) : env(env) {
-  auto &contents = env.getConstraints()->getContents();
+  auto &contents = env.getConstraints();
   currentConstraints.reserve(contents.size() * 2);
-  for (auto &c : contents) {
-    currentConstraints.insert(&c);
+  for (auto *c : contents) {
+    currentConstraints.insert(c);
   }
 }
 
@@ -28,16 +28,16 @@ void PropagationWorklist::propagateTransitivity() {
   // Prepare for join.
   constexpr size_t N = 8;
   llvm::DenseMap<TypeVar *, llvm::SmallVector<ValueType *, N>> varToValueType;
-  llvm::DenseMap<TypeVar *, llvm::SmallVector<TypeBase *, N>> varToAny;
+  llvm::DenseMap<TypeVar *, llvm::SmallVector<TypeNode *, N>> varToAny;
   for (auto *c : currentConstraints) {
-    auto *lhsVar = llvm::dyn_cast<TypeVar>(c->getLhs());
-    auto *rhsVar = llvm::dyn_cast<TypeVar>(c->getRhs());
+    auto *lhsVar = llvm::dyn_cast<TypeVar>(c->getFrom());
+    auto *rhsVar = llvm::dyn_cast<TypeVar>(c->getTo());
 
     if (lhsVar) {
-      varToAny[lhsVar].push_back(c->getRhs());
+      varToAny[lhsVar].push_back(c->getTo());
     }
     if (rhsVar) {
-      if (auto *vt = llvm::dyn_cast<ValueType>(c->getLhs())) {
+      if (auto *vt = llvm::dyn_cast<ValueType>(c->getFrom())) {
         varToValueType[rhsVar].push_back(vt);
       }
     }
@@ -52,11 +52,11 @@ void PropagationWorklist::propagateTransitivity() {
     auto &rhsSet = anyIt->second;
 
     for (ValueType *lhsItem : lhsSet) {
-      for (TypeBase *rhsItem : rhsSet) {
+      for (TypeNode *rhsItem : rhsSet) {
         Constraint *newC = env.getContext().getConstraint(lhsItem, rhsItem);
         if (currentConstraints.insert(newC).second) {
           llvm::errs() << "-->ADD TRANS CONSTRAINT: ";
-          newC->print(llvm::errs());
+          newC->print(env.getContext(), llvm::errs());
           llvm::errs() << "\n";
           newConstraintCount += 1;
         }

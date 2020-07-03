@@ -125,7 +125,7 @@ public:
     return Base::get(context, BasicpyTypes::UnknownType);
   }
 
-  Typing::CPA::TypeBase *mapToCPAType(Typing::CPA::Context &context);
+  Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);
 };
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.h.inc"

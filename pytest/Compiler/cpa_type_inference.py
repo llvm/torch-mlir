@@ -13,11 +13,11 @@ def arithmetic_expression():
 
 # CHECK-LABEL: func @arg_inference
 @import_global
-def arg_inference(a, b):
+def arg_inference(a: int, b: int):
   return a + 2 * b
 
 
 # CHECK-LABEL: func @conditional_inference
 @import_global
-def conditional_inference(cond, a, b):
+def conditional_inference(cond: int, a: bool, b: int):
   return a if cond + 1 else not (b * 4)

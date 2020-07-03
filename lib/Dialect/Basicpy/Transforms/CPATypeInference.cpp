@@ -41,7 +41,7 @@ public:
     return innerReturnLikeOps;
   }
 
-  CPA::TypeBase *resolveValueType(Value value) {
+  CPA::TypeNode *resolveValueType(Value value) {
     return env.mapValueToType(value);
   }
 
@@ -51,7 +51,7 @@ public:
     auto subVt = resolveValueType(subValue);
     CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
     c->setContextOp(contextOp);
-    env.getConstraints()->getContents().push_back(*c);
+    env.getConstraints().insert(c);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
@@ -78,8 +78,8 @@ public:
       if (auto op = dyn_cast<SelectOp>(childOp)) {
         // Note that the condition is always i1 and not subject to type
         // inference.
-        addSubtypeConstraint(op.true_value(), op.false_value(), op);
-        addSubtypeConstraint(op.false_value(), op.true_value(), op);
+        // addSubtypeConstraint(op.true_value(), op.false_value(), op);
+        // addSubtypeConstraint(op.false_value(), op.true_value(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<ToBooleanOp>(childOp)) {
@@ -110,17 +110,14 @@ public:
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<UnknownCastOp>(childOp)) {
-        addSubtypeConstraint(op.result(), op.operand(), op);
-        // addSubtypeConstraint(op.operand(), op.result(), op);
+        addSubtypeConstraint(op.operand(), op.result(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<BinaryExprOp>(childOp)) {
         // TODO: This should really be applying arithmetic promotion, not
         // strict equality.
-        addSubtypeConstraint(op.result(), op.left(), op);
-        addSubtypeConstraint(op.result(), op.right(), op);
-        // addSubtypeConstraint(op.left(), op.right(), op);
-        // addSubtypeConstraint(op.left(), op.result(), op);
+        addSubtypeConstraint(op.left(), op.result(), op);
+        addSubtypeConstraint(op.right(), op.result(), op);
         return WalkResult::advance();
       }
       if (auto op = dyn_cast<BinaryCompareOp>(childOp)) {
@@ -191,11 +188,11 @@ public:
 
     llvm::errs() << "CONSTRAINTS:\n";
     llvm::errs() << "------------\n";
-    env.getConstraints()->print(llvm::errs(), true);
+    env.getConstraints().print(cpaContext, llvm::errs(), true);
 
     llvm::errs() << "\nTYPEVARS:\n";
     llvm::errs() << "---------\n";
-    env.getTypeVars()->print(llvm::errs());
+    env.getTypeVars().print(cpaContext, llvm::errs());
 
     CPA::PropagationWorklist prop(env);
     do {
