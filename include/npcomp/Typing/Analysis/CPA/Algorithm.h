@@ -13,10 +13,10 @@
 //   http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.129.2756
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_TYPING_CPA_ALGORITHM_H
-#define NPCOMP_TYPING_CPA_ALGORITHM_H
+#ifndef NPCOMP_TYPING_ANALYSIS_CPA_ALGORITHM_H
+#define NPCOMP_TYPING_ANALYSIS_CPA_ALGORITHM_H
 
-#include "npcomp/Typing/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Support.h"
 #include "llvm/ADT/DenseSet.h"
 
 namespace mlir {
@@ -51,4 +51,4 @@ private:
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_TYPING_CPA_ALGORITHM_H
+#endif // NPCOMP_TYPING_ANALYSIS_CPA_ALGORITHM_H

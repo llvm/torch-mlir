@@ -10,7 +10,7 @@
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 
 include "NumpyDialect.td"
-include "npcomp/Typing/CPA/Interfaces.td"
+include "npcomp/Typing/Analysis/CPA/Interfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 

@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_TYPING_CPA_INTERFACES_H
-#define NPCOMP_TYPING_CPA_INTERFACES_H
+#ifndef NPCOMP_TYPING_ANALYSIS_CPA_INTERFACES_H
+#define NPCOMP_TYPING_ANALYSIS_CPA_INTERFACES_H
 
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Types.h"
 
-#include "npcomp/Typing/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Support.h"
 
 namespace mlir {
 
-#include "npcomp/Typing/CPA/OpInterfaces.h.inc"
-#include "npcomp/Typing/CPA/TypeInterfaces.h.inc"
+#include "npcomp/Typing/Analysis/CPA/OpInterfaces.h.inc"
+#include "npcomp/Typing/Analysis/CPA/TypeInterfaces.h.inc"
 
 } // namespace mlir
 
-#endif // NPCOMP_TYPING_CPA_INTERFACES_H
+#endif // NPCOMP_TYPING_ANALYSIS_CPA_INTERFACES_H

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/CPA/Support.h"
-#include "npcomp/Typing/CPA/Interfaces.h"
+#include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 #include "mlir/IR/Operation.h"
 
@@ -233,9 +233,9 @@ void ObjectValueType::print(Context &context, raw_ostream &os, bool brief) {
 }
 
 void Constraint::print(Context &context, raw_ostream &os, bool brief) {
-  from->print(context, os, brief);
+  from->print(context, os, true);
   os << " <: ";
-  to->print(context, os, brief);
+  to->print(context, os, true);
   if (!brief && contextOp) {
     os << "\n      " << *contextOp;
   }

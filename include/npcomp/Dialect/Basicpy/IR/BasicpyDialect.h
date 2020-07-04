@@ -13,7 +13,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Types.h"
 #include "npcomp/Dialect/Common.h"
-#include "npcomp/Typing/CPA/Interfaces.h"
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {

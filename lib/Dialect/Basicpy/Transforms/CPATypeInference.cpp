@@ -14,9 +14,9 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
-#include "npcomp/Typing/CPA/Algorithm.h"
-#include "npcomp/Typing/CPA/Interfaces.h"
-#include "npcomp/Typing/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Algorithm.h"
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
+#include "npcomp/Typing/Analysis/CPA/Support.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "basicpy-type-inference"
@@ -220,6 +220,14 @@ public:
       llvm::errs() << "------------------\n";
       prop.propagateTransitivity();
     } while (prop.commit());
+
+    llvm::errs() << "CONSTRAINTS:\n";
+    llvm::errs() << "------------\n";
+    env.getConstraints().print(cpaContext, llvm::errs());
+
+    llvm::errs() << "\nTYPEVARS:\n";
+    llvm::errs() << "---------\n";
+    env.getTypeVars().print(cpaContext, llvm::errs());
   }
 };
 

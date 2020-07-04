@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/CPA/Interfaces.h"
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 using namespace mlir;
 
-#include "npcomp/Typing/CPA/OpInterfaces.cpp.inc"
-#include "npcomp/Typing/CPA/TypeInterfaces.cpp.inc"
+#include "npcomp/Typing/Analysis/CPA/OpInterfaces.cpp.inc"
+#include "npcomp/Typing/Analysis/CPA/TypeInterfaces.cpp.inc"

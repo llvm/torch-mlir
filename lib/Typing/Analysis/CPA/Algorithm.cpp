@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/CPA/Algorithm.h"
+#include "npcomp/Typing/Analysis/CPA/Algorithm.h"
 
 using namespace mlir::NPCOMP::Typing::CPA;
 

@@ -22,8 +22,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-#ifndef NPCOMP_TYPING_CPA_SUPPORT_H
-#define NPCOMP_TYPING_CPA_SUPPORT_H
+#ifndef NPCOMP_TYPING_ANALYSIS_CPA_SUPPORT_H
+#define NPCOMP_TYPING_ANALYSIS_CPA_SUPPORT_H
 
 namespace mlir {
 namespace NPCOMP {

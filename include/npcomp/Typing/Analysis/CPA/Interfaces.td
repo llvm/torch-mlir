@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_TYPING_CPA_CPA_INTERFACES
-#define NPCOMP_TYPING_CPA_CPA_INTERFACES
+#ifndef NPCOMP_TYPING_ANALYSIS_CPA_CPA_INTERFACES
+#define NPCOMP_TYPING_ANALYSIS_CPA_CPA_INTERFACES
 
 include "mlir/IR/OpBase.td"
 
@@ -35,4 +35,4 @@ def NPCOMP_CPATypeInferenceOpInterface : OpInterface<
   ];
 }
 
-#endif // NPCOMP_TYPING_CPA_CPA_INTERFACES
+#endif // NPCOMP_TYPING_ANALYSIS_CPA_CPA_INTERFACES

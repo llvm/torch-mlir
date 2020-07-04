@@ -1,1 +1,1 @@
-add_subdirectory(CPA)
+add_subdirectory(Analysis)
