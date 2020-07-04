@@ -8,7 +8,7 @@
 
 #include "npcomp/Typing/CPA/Interfaces.h"
 
-using namespace mlir::NPCOMP::Typing;
-using namespace mlir::NPCOMP::Typing::CPA;
+using namespace mlir;
 
-#include "npcomp/Typing/CPA/Interfaces.cpp.inc"
+#include "npcomp/Typing/CPA/OpInterfaces.cpp.inc"
+#include "npcomp/Typing/CPA/TypeInterfaces.cpp.inc"

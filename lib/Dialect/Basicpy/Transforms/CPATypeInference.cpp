@@ -26,6 +26,21 @@ using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
 using namespace mlir::NPCOMP::Typing;
 
+static CPA::TypeNode *localIrTypeMapHook(CPA::Context &cpaContext,
+                                         Type irType) {
+  // Handle core types that we can't define an interface on.
+  if (auto tensorType = irType.dyn_cast<TensorType>()) {
+    auto elTy = tensorType.getElementType();
+    llvm::Optional<CPA::TypeNode *> dtype;
+    if (elTy != UnknownType::get(irType.getContext())) {
+      dtype = cpaContext.mapIrType(elTy);
+    }
+    return cpaContext.newArrayType(cpaContext.getIdentifier("!Tensor"), dtype);
+  }
+
+  return nullptr;
+}
+
 namespace {
 
 class InitialConstraintGenerator {
@@ -70,6 +85,12 @@ public:
       if (childOp == funcOp)
         return WalkResult::advance();
       LLVM_DEBUG(llvm::dbgs() << "  + POPULATE: " << *childOp << "\n");
+      // Use the op interface.
+      if (auto opInt =
+              dyn_cast<NPCOMPTypingCPATypeInferenceOpInterface>(childOp)) {
+        opInt.addCPAConstraints(env.getContext());
+        return WalkResult::advance();
+      }
       // Special op handling.
       // Many of these (that are not standard ops) should become op
       // interfaces.
@@ -179,15 +200,15 @@ public:
     if (func.getBody().empty())
       return;
 
-    CPA::Context cpaContext;
-    auto &env = *cpaContext.getCurrentEnvironment();
+    CPA::Context cpaContext(localIrTypeMapHook);
+    auto &env = cpaContext.getCurrentEnvironment();
 
     InitialConstraintGenerator p(env);
     p.runOnFunction(func);
 
     llvm::errs() << "CONSTRAINTS:\n";
     llvm::errs() << "------------\n";
-    env.getConstraints().print(cpaContext, llvm::errs(), true);
+    env.getConstraints().print(cpaContext, llvm::errs());
 
     llvm::errs() << "\nTYPEVARS:\n";
     llvm::errs() << "---------\n";

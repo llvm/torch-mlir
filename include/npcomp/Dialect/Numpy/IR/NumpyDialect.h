@@ -45,7 +45,7 @@ public:
 
 class NdArrayType
     : public Type::TypeBase<NdArrayType, Type, detail::NdArrayTypeStorage,
-                            Typing::CPA::TypeMapInterface::Trait> {
+                            NPCOMPTypingTypeMapInterface::Trait> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }

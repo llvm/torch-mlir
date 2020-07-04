@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 
 include "NumpyDialect.td"
+include "npcomp/Typing/CPA/Interfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
@@ -39,6 +40,7 @@ def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
 //----------------------------------------------------------------------------//
 
 def Numpy_CreateArrayFromTensorOp : Numpy_Op<"create_array_from_tensor", [
+    DeclareOpInterfaceMethods<NPCOMP_CPATypeInferenceOpInterface>,
     NoSideEffect]> {
   let summary = "Creates an ndarray from a tensor.";
   let description = [{
@@ -55,7 +57,8 @@ def Numpy_CreateArrayFromTensorOp : Numpy_Op<"create_array_from_tensor", [
   }];
 }
 
-def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", []> {
+def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", [
+    DeclareOpInterfaceMethods<NPCOMP_CPATypeInferenceOpInterface>]> {
   let summary = "Copies an ndarray, yielding a value-typed tensor.";
   let description = [{
     The semantics of this operation connote a copy of the data in the source
@@ -80,7 +83,8 @@ def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", []> {
 // See: https://docs.scipy.org/doc/numpy/reference/ufuncs.html
 //----------------------------------------------------------------------------//
 
-def Numpy_BuiltinUfuncCallOp : Numpy_Op<"builtin_ufunc_call"> {
+def Numpy_BuiltinUfuncCallOp : Numpy_Op<"builtin_ufunc_call", [
+    DeclareOpInterfaceMethods<NPCOMP_CPATypeInferenceOpInterface>]> {
   let summary = "A __call__ operation on a named/builtin ufunc";
   let description = [{
     Simple ufunc call semantics for builtin ufuncs with none of the advanced

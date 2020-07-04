@@ -16,6 +16,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "npcomp/Typing/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {

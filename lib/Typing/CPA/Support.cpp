@@ -66,7 +66,7 @@ TypeNode *Environment::mapValueToType(Value value) {
 // Context
 //===----------------------------------------------------------------------===//
 
-Context::Context() {
+Context::Context(IrTypeMapHook irTypeMapHook) : irTypeMapHook(irTypeMapHook) {
   environmentStack.emplace_back(std::make_unique<Environment>(*this));
   currentEnvironment = environmentStack.back().get();
   arrayElementIdent = getIdentifier("e");
@@ -88,8 +88,14 @@ ObjectValueType *Context::newArrayType(Identifier *typeIdentifier,
 TypeNode *Context::mapIrType(::mlir::Type irType) {
   // First, see if the type knows how to map itself.
   assert(irType);
-  if (auto mapper = irType.dyn_cast<CPA::TypeMapInterface>()) {
+  if (auto mapper = irType.dyn_cast<NPCOMPTypingTypeMapInterface>()) {
     auto *cpaType = mapper.mapToCPAType(*this);
+    if (cpaType)
+      return cpaType;
+  }
+
+  if (irTypeMapHook) {
+    auto *cpaType = irTypeMapHook(*this, irType);
     if (cpaType)
       return cpaType;
   }

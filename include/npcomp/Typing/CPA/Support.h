@@ -386,10 +386,15 @@ private:
 /// analysis.
 class Context {
 public:
-  Context();
+  /// Hook for customizing default IR Type -> TypeNode conversion.
+  /// This is run if more specific conversions fail.
+  using IrTypeMapHook =
+      std::function<TypeNode *(Context &context, ::mlir::Type irType)>;
+
+  Context(IrTypeMapHook irTypeMapHook = nullptr);
 
   /// Gets the current environment (roughly call scope).
-  Environment *getCurrentEnvironment() { return currentEnvironment; }
+  Environment &getCurrentEnvironment() { return *currentEnvironment; }
 
   /// Maps an IR Type to a CPA TypeNode.
   /// This is currently not overridable but a hook may need to be provided
@@ -523,6 +528,9 @@ private:
 
   /// Propagates any pending constraints.
   void propagateConstraints();
+
+  // Configuration.
+  IrTypeMapHook irTypeMapHook;
 
   // Allocation/uniquing management.
   llvm::BumpPtrAllocator allocator;

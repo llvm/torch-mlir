@@ -11,11 +11,25 @@
 
 include "mlir/IR/OpBase.td"
 
-def TypeMapInterface : TypeInterface<"TypeMapInterface"> {
+// TODO: Check upstream: there doesn't seem to be a way to define interfaces
+// outside of the ::mlir root namespace.
+def NPCOMP_TypingCPATypeMapInterface : TypeInterface<
+    "NPCOMPTypingTypeMapInterface"> {
   let methods = [
     InterfaceMethod<"Maps an MLIR Type to a CPA::TypeNode.",
       /*retTy=*/ "::mlir::NPCOMP::Typing::CPA::TypeNode *",
       /*methodName=*/ "mapToCPAType",
+      /*args=*/ (ins
+          "::mlir::NPCOMP::Typing::CPA::Context &":$context)>,
+  ];
+}
+
+def NPCOMP_CPATypeInferenceOpInterface : OpInterface<
+    "NPCOMPTypingCPATypeInferenceOpInterface"> {
+  let methods = [
+    InterfaceMethod<"Adds CPA constraints for the op.",
+      /*retTy=*/ "void",
+      /*methodName=*/ "addCPAConstraints",
       /*args=*/ (ins
           "::mlir::NPCOMP::Typing::CPA::Context &":$context)>,
   ];

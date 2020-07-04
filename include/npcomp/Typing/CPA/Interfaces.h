@@ -9,18 +9,16 @@
 #ifndef NPCOMP_TYPING_CPA_INTERFACES_H
 #define NPCOMP_TYPING_CPA_INTERFACES_H
 
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/Types.h"
+
 #include "npcomp/Typing/CPA/Support.h"
 
 namespace mlir {
-namespace NPCOMP {
-namespace Typing {
-namespace CPA {
 
-#include "npcomp/Typing/CPA/Interfaces.h.inc"
+#include "npcomp/Typing/CPA/OpInterfaces.h.inc"
+#include "npcomp/Typing/CPA/TypeInterfaces.h.inc"
 
-} // namespace CPA
-} // namespace Typing
-} // namespace NPCOMP
 } // namespace mlir
 
 #endif // NPCOMP_TYPING_CPA_INTERFACES_H

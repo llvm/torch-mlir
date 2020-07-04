@@ -1,4 +1,6 @@
 set(LLVM_TARGET_DEFINITIONS Interfaces.td)
-mlir_tablegen(Interfaces.h.inc -gen-type-interface-decls)
-mlir_tablegen(Interfaces.cpp.inc -gen-type-interface-defs)
+mlir_tablegen(TypeInterfaces.h.inc -gen-type-interface-decls)
+mlir_tablegen(TypeInterfaces.cpp.inc -gen-type-interface-defs)
+mlir_tablegen(OpInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(OpInterfaces.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(NPCOMPTypingCPAInterfacesIncGen)

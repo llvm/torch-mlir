@@ -113,9 +113,8 @@ public:
 };
 
 /// An unknown type that could be any supported python type.
-class UnknownType
-    : public Type::TypeBase<UnknownType, Type, TypeStorage,
-                            Typing::CPA::TypeMapInterface::Trait> {
+class UnknownType : public Type::TypeBase<UnknownType, Type, TypeStorage,
+                                          NPCOMPTypingTypeMapInterface::Trait> {
 public:
   using Base::Base;
   static bool kindof(unsigned kind) {
