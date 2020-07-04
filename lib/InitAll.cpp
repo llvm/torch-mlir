@@ -14,6 +14,7 @@
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
+#include "npcomp/Typing/Transforms/Passes.h"
 
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
@@ -90,5 +91,7 @@ void mlir::NPCOMP::registerAllPasses() {
 #include "npcomp/Conversion/Passes.h.inc"
 #define GEN_PASS_REGISTRATION
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h.inc"
+#define GEN_PASS_REGISTRATION
+#include "npcomp/Typing/Transforms/Passes.h.inc"
   registerDependencyPasses();
 }

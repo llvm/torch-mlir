@@ -1,4 +1,4 @@
-//===- TypeInference.cpp - Type inference passes -----------------*- C++-*-===//
+//===- CPATypeInference.cpp - Type inference passes -----------------*- C++-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,13 +13,13 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
-#include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Typing/Analysis/CPA/Algorithm.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 #include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Transforms/Passes.h"
 #include "llvm/Support/Debug.h"
 
-#define DEBUG_TYPE "basicpy-type-inference"
+#define DEBUG_TYPE "cpa-type-inference"
 
 using namespace llvm;
 using namespace mlir;
@@ -234,6 +234,6 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
-mlir::NPCOMP::Basicpy::createCPAFunctionTypeInferencePass() {
+mlir::NPCOMP::Typing::createCPAFunctionTypeInferencePass() {
   return std::make_unique<CPAFunctionTypeInferencePass>();
 }

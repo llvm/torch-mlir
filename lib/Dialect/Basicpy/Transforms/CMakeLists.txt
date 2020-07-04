@@ -1,5 +1,4 @@
 add_mlir_conversion_library(NPCOMPBasicpyPasses
-  CPATypeInference.cpp
   TypeInference.cpp
 
   ADDITIONAL_HEADER_DIRS

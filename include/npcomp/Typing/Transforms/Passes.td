@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_BASICPY_PASSES
-#define NPCOMP_BASICPY_PASSES
+#ifndef NPCOMP_TYPING_TRANSFORMS_PASSES
+#define NPCOMP_TYPING_TRANSFORMS_PASSES
 
 include "mlir/Pass/PassBase.td"
 
@@ -15,9 +15,9 @@ include "mlir/Pass/PassBase.td"
 // TypeInference
 //===----------------------------------------------------------------------===//
 
-def FunctionTypeInference : Pass<"basicpy-type-inference", "FuncOp"> {
-  let summary = "Performs function level type inference";
-  let constructor = "mlir::NPCOMP::Basicpy::createFunctionTypeInferencePass()";
+def CPAFunctionTypeInference : Pass<"npcomp-cpa-type-inference", "FuncOp"> {
+  let summary = "Performs CPA function level type inference";
+  let constructor = "mlir::NPCOMP::Typing::createCPAFunctionTypeInferencePass()";
 }
 
-#endif // NPCOMP_BASICPY_PASSES
+#endif // NPCOMP_TYPING_TRANSFORMS_PASSES
