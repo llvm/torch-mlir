@@ -1,4 +1,4 @@
-# RUN: %PYTHON %s | npcomp-opt -split-input-file -basicpy-cpa-type-inference | FileCheck %s --dump-input=fail
+# RUN: %PYTHON %s | npcomp-opt -split-input-file -npcomp-cpa-type-inference | FileCheck %s --dump-input=fail
 
 import numpy as np
 from npcomp.compiler import test_config
