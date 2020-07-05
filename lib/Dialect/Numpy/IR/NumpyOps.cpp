@@ -34,9 +34,8 @@ static void constrainUnaryDtypeInvariantOp(Typing::CPA::Context &context,
       llvm::dyn_cast<Typing::CPA::ObjectValueType>(env.mapValueToType(dest));
   if (sourceTn && destTn && sourceTn->getFieldCount() == 1 &&
       destTn->getFieldCount() == 1) {
-    auto *c = context.getConstraint(sourceTn->getFieldTypes().front(),
-                                    destTn->getFieldTypes().front());
-    c->setContextOp(op);
+    context.getConstraint(sourceTn->getFieldTypes().front(),
+                          destTn->getFieldTypes().front());
   }
 }
 

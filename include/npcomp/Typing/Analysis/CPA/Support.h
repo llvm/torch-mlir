@@ -144,16 +144,10 @@ public:
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
 
-  /// Every instantiated type can be anchored. This is purely used for
-  /// re-association at a later time with the originaing IR.
-  Value getAnchorValue() { return anchorValue; }
-  void setAnchorValue(Value anchorValue) { this->anchorValue = anchorValue; }
-
 private:
   TypeVar(int ordinal)
       : TypeNode(Kind::TypeVar, llvm::hash_code(ordinal)), ordinal(ordinal) {}
   int ordinal;
-  Value anchorValue;
   friend class Context;
 };
 
@@ -293,8 +287,6 @@ public:
   TypeNode *getFrom() { return from; }
   TypeNode *getTo() { return to; }
 
-  void setContextOp(Operation *contextOp) { this->contextOp = contextOp; }
-
   void print(Context &context, raw_ostream &os, bool brief = false) override;
 
   bool operator==(const Constraint &that) const {
@@ -325,7 +317,6 @@ private:
       : ObjectBase(Kind::Constraint), from(from), to(to) {}
   TypeNode *from;
   TypeNode *to;
-  Operation *contextOp = nullptr;
   friend class Context;
 };
 

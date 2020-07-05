@@ -56,7 +56,7 @@ TypeNode *Environment::mapValueToType(Value value) {
   // Do accounting for type vars.
   if (auto *tv = llvm::dyn_cast<TypeVar>(cpaType)) {
     typeVars.insert(tv);
-    tv->setAnchorValue(value);
+    // TODO: Tie to value.
   }
 
   return cpaType;
@@ -161,21 +161,6 @@ void TypeNode::print(Context &context, raw_ostream &os, bool brief) {
 void TypeVar::print(Context &context, raw_ostream &os, bool brief) {
   os << "TypeVar(" << ordinal;
   if (!brief) {
-    if (auto anchorValue = getAnchorValue()) {
-      os << ", ";
-      auto blockArg = anchorValue.dyn_cast<BlockArgument>();
-      if (blockArg) {
-        os << "BlockArgument(" << blockArg.getArgNumber();
-        auto *definingOp = blockArg.getDefiningOp();
-        if (definingOp) {
-          os << ", " << blockArg.getDefiningOp()->getName();
-        }
-        os << ")";
-      } else {
-        os << "{" << anchorValue << "}";
-      }
-    }
-
     auto &members = context.getMembers(this);
     if (members.empty()) {
       os << " => EMPTY";
@@ -236,9 +221,6 @@ void Constraint::print(Context &context, raw_ostream &os, bool brief) {
   from->print(context, os, true);
   os << " <: ";
   to->print(context, os, true);
-  if (!brief && contextOp) {
-    os << "\n      " << *contextOp;
-  }
 }
 
 void ConstraintSet::print(Context &context, raw_ostream &os, bool brief) {

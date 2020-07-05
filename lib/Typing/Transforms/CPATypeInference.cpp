@@ -1,4 +1,5 @@
-//===- CPATypeInference.cpp - Type inference passes -----------------*- C++-*-===//
+//===- CPATypeInference.cpp - Type inference passes -----------------*-
+//C++-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -65,7 +66,6 @@ public:
     auto superVt = resolveValueType(superValue);
     auto subVt = resolveValueType(subValue);
     CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
-    c->setContextOp(contextOp);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
