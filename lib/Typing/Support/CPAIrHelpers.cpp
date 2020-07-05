@@ -52,7 +52,7 @@ TypeNode *CPA::getArrayElementType(ObjectValueType *arrayType) {
   return arrayType->getFieldTypes().front();
 }
 
-ObjectValueType *createTensorLikeArrayType(Context &context,
+ObjectValueType *CPA::createTensorLikeArrayType(Context &context,
                                            TensorType tensorType) {
   auto elTy = tensorType.getElementType();
   llvm::Optional<TypeNode *> dtype;

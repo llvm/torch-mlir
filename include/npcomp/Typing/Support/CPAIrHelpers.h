@@ -29,9 +29,11 @@ ObjectValueType *newArrayType(Context &context,
 /// via newArrayType.
 TypeNode *getArrayElementType(ObjectValueType *arrayType);
 
-/// Creates an IrTypeConstructor for specializing the element type of an
-/// existing TensorType.
-ObjectValueType::IrTypeConstructor createTensorLikeArrayType(TensorType tt);
+/// Creates an ObjectValueType for the given TensorType. The result will
+/// reconstruct the original TensorType's structure but with the resolved
+/// element type.
+ObjectValueType *createTensorLikeArrayType(Context &context,
+                                           TensorType tensorType);
 
 /// Creates a default IR type map hook which supports built-in MLIR types
 /// that do not implement the analysis interfaces.
