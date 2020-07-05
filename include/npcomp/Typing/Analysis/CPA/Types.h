@@ -105,13 +105,14 @@ public:
   }
 
   /// Collects all type variables that are dependencies of this TypeNode.
-  virtual void collectDependentTypeVars(TypeVarSet &typeVars);
+  virtual void collectDependentTypeVars(Context &context, TypeVarSet &typeVars);
 
   /// Constructs a corresponding IR type for this TypeNode.
   /// Returns a null Type on error, optionally emitting an error if a Location
   /// is provided.
   /// Not all TypeNodes in all states can be converted back to an IR type.
-  virtual mlir::Type constructIrType(const TypeVarMap &mapping,
+  virtual mlir::Type constructIrType(Context &context,
+                                     const TypeVarMap &mapping,
                                      MLIRContext *mlirContext,
                                      llvm::Optional<Location> loc = llvm::None);
 
@@ -159,15 +160,11 @@ public:
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
 
-  /// Constructs a corresponding IR type for this TypeNode.
-  /// Returns a null Type on error, optionally emitting an error if a Location
-  /// is provided.
-  /// Not all TypeNodes in all states can be converted back to an IR type.
-  /// Note that this facility is insufficient for the construction of
-  /// recursive types (which are presently excluded from being represented
-  /// at all).
+  void collectDependentTypeVars(Context &context,
+                                TypeVarSet &typeVars) override;
   mlir::Type
-  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+  constructIrType(Context &context, const TypeVarMap &mapping,
+                  MLIRContext *mlirContext,
                   llvm::Optional<Location> loc = llvm::None) override;
 
 private:
@@ -264,7 +261,8 @@ public:
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
   mlir::Type
-  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+  constructIrType(Context &context, const TypeVarMap &mapping,
+                  MLIRContext *mlirContext,
                   llvm::Optional<Location> loc = llvm::None) override;
 
 private:
@@ -294,9 +292,11 @@ public:
   }
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
-  void collectDependentTypeVars(TypeVarSet &typeVars) override;
+  void collectDependentTypeVars(Context &context,
+                                TypeVarSet &typeVars) override;
   mlir::Type
-  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+  constructIrType(Context &context, const TypeVarMap &mapping,
+                  MLIRContext *mlirContext,
                   llvm::Optional<Location> loc = llvm::None) override;
 
 private:
@@ -398,6 +398,8 @@ public:
 /// tracks type variables, IR associations and constraints.
 class Environment {
 public:
+  using ValueTypeNodeMap = llvm::DenseMap<Value, TypeNode *>;
+
   Environment(Context &context);
 
   Context &getContext() { return context; }
@@ -408,11 +410,14 @@ public:
   /// transfer function if not already mapped.
   TypeNode *mapValueToType(Value value);
 
+  /// The current mapping of IR Value to TypeNode.
+  const ValueTypeNodeMap &getValueTypeMap() { return valueTypeMap; }
+
 private:
   Context &context;
   ConstraintSet constraints;
   TypeVarSet typeVars;
-  llvm::DenseMap<Value, TypeNode *> valueTypeMap;
+  ValueTypeNodeMap valueTypeMap;
 };
 
 /// Manages instances and containers needed for the lifetime of a CPA

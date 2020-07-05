@@ -28,6 +28,58 @@ using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
 using namespace mlir::NPCOMP::Typing;
 
+static void printReport(CPA::Environment &env, MLIRContext &mlirContext,
+                        llvm::raw_ostream &os) {
+  auto &cpaContext = env.getContext();
+  os << "CONSTRAINTS:\n";
+  os << "------------\n";
+  env.getConstraints().print(cpaContext, os);
+
+  os << "\nTYPEVARS:\n";
+  os << "---------\n";
+  env.getTypeVars().print(cpaContext, os);
+
+  os << "\nVALUE->TYPE NODE MAPPING:";
+  os << "\n-------------------------\n";
+  for (auto &it : env.getValueTypeMap()) {
+    auto irValue = it.first;
+    auto typeNode = it.second;
+    CPA::GreedyTypeNodeVarResolver resolver(cpaContext, mlirContext,
+                                            irValue.getLoc());
+    if (failed(resolver.analyzeTypeNode(typeNode))) {
+      os << "! ";
+      typeNode->print(cpaContext, os, false);
+      os << " -> " << irValue;
+      os << "\n";
+      continue;
+    }
+
+    if (resolver.getMappings().empty()) {
+      // Not generic.
+      os << "= ";
+      typeNode->print(cpaContext, os, false);
+      os << " -> " << irValue;
+      os << "\n";
+      continue;
+    }
+
+    // Generic.
+    os << "*";
+    auto newIrType = typeNode->constructIrType(
+        cpaContext, resolver.getMappings(), &mlirContext, irValue.getLoc());
+    if (!newIrType) {
+      os << "!";
+    } else {
+      os << " " << newIrType << ":";
+    }
+
+    os << " ";
+    typeNode->print(cpaContext, os, false);
+    os << " -> " << irValue;
+    os << "\n";
+  }
+}
+
 namespace {
 
 class InitialConstraintGenerator {
@@ -192,28 +244,60 @@ public:
     InitialConstraintGenerator p(env);
     p.runOnFunction(func);
 
-    llvm::errs() << "CONSTRAINTS:\n";
-    llvm::errs() << "------------\n";
-    env.getConstraints().print(cpaContext, llvm::errs());
-
-    llvm::errs() << "\nTYPEVARS:\n";
-    llvm::errs() << "---------\n";
-    env.getTypeVars().print(cpaContext, llvm::errs());
-
     CPA::PropagationWorklist prop(env);
     do {
-      llvm::errs() << "\nPROPAGATE CLOSURE:\n";
-      llvm::errs() << "------------------\n";
       prop.propagateTransitivity();
     } while (prop.commit());
 
-    llvm::errs() << "CONSTRAINTS:\n";
-    llvm::errs() << "------------\n";
-    env.getConstraints().print(cpaContext, llvm::errs());
+    LLVM_DEBUG(printReport(env, getContext(), llvm::dbgs()));
 
-    llvm::errs() << "\nTYPEVARS:\n";
-    llvm::errs() << "---------\n";
-    env.getTypeVars().print(cpaContext, llvm::errs());
+    // Apply updates.
+    // TODO: This is far too naive and is basically only valid for single-block
+    // functions that are not called. Generalize it.
+    for (auto &it : env.getValueTypeMap()) {
+      auto irValue = it.first;
+      auto typeNode = it.second;
+      auto loc = irValue.getLoc();
+      CPA::GreedyTypeNodeVarResolver resolver(cpaContext, getContext(),
+                                              irValue.getLoc());
+      if (failed(resolver.analyzeTypeNode(typeNode))) {
+        mlir::emitRemark(loc)
+            << "type inference did not converge to an "
+            << "unambiguous type (this is a terribly unacceptable level of "
+            << "detail in an error message)";
+        return signalPassFailure();
+      }
+
+      if (resolver.getMappings().empty()) {
+        // The type is not generic/unknown, so it does not need to be updated.
+        continue;
+      }
+
+      auto newType = typeNode->constructIrType(
+          cpaContext, resolver.getMappings(), &getContext(), loc);
+      if (!newType) {
+        auto diag = mlir::emitRemark(loc);
+        diag << "type inference converged but a concrete IR "
+             << "type could not be constructed";
+        return signalPassFailure();
+      }
+      irValue.setType(newType);
+    }
+
+    // Now rewrite the function type based on actual types of entry block
+    // args and the final return op operands.
+    // Again, this is just a toy that will work for very simple, global
+    // functions.
+    auto entryBlockTypes = func.getBody().front().getArgumentTypes();
+    SmallVector<Type, 4> inputTypes(entryBlockTypes.begin(),
+                                    entryBlockTypes.end());
+    SmallVector<Type, 4> resultTypes;
+    if (p.getLastReturnOp()) {
+      auto resultRange = p.getLastReturnOp()->getOperandTypes();
+      resultTypes.append(resultRange.begin(), resultRange.end());
+    }
+    auto funcType = FunctionType::get(inputTypes, resultTypes, &getContext());
+    func.setType(funcType);
   }
 };
 

@@ -8,8 +8,8 @@
 
 #include "npcomp/Typing/Analysis/CPA/Types.h"
 
-#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 #include "mlir/IR/Operation.h"
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 using namespace mlir::NPCOMP::Typing::CPA;
 
@@ -66,38 +66,62 @@ TypeNode *Environment::mapValueToType(Value value) {
 // TypeNode and descendent methods
 //===----------------------------------------------------------------------===//
 
-void TypeNode::collectDependentTypeVars(TypeVarSet &typeVars) {}
+void TypeNode::collectDependentTypeVars(Context &context,
+                                        TypeVarSet &typeVars) {}
 
-mlir::Type TypeNode::constructIrType(const TypeVarMap &mapping,
+mlir::Type TypeNode::constructIrType(Context &context,
+                                     const TypeVarMap &mapping,
                                      MLIRContext *mlirContext,
                                      llvm::Optional<Location> loc) {
   mlir::emitOptionalError(loc, "base class cannot construct concrete types");
   return {};
 }
 
-mlir::Type TypeVar::constructIrType(const TypeVarMap &mapping,
-                                    MLIRContext *mlirContext,
-                                    llvm::Optional<Location> loc) {
-  // TODO
-  return {};
+void TypeVar::collectDependentTypeVars(Context &context, TypeVarSet &typeVars) {
+  typeVars.insert(this);
 }
 
-mlir::Type IRValueType::constructIrType(const TypeVarMap &mapping,
+mlir::Type TypeVar::constructIrType(Context &context, const TypeVarMap &mapping,
+                                    MLIRContext *mlirContext,
+                                    llvm::Optional<Location> loc) {
+  auto *resolvedTypeNode = mapping.lookup(this);
+  if (!resolvedTypeNode) {
+    if (loc) {
+      mlir::emitError(*loc)
+          << "type variable " << getOrdinal() << " was not assigned a type";
+    }
+    return {};
+  }
+  return resolvedTypeNode->constructIrType(context, mapping, mlirContext, loc);
+}
+
+mlir::Type IRValueType::constructIrType(Context &context,
+                                        const TypeVarMap &mapping,
                                         MLIRContext *mlirContext,
                                         llvm::Optional<Location> loc) {
   return irType;
 }
 
-void ObjectValueType::collectDependentTypeVars(TypeVarSet &typeVars) {
+void ObjectValueType::collectDependentTypeVars(Context &context,
+                                               TypeVarSet &typeVars) {
   for (auto *fieldType : getFieldTypes()) {
-    fieldType->collectDependentTypeVars(typeVars);
+    fieldType->collectDependentTypeVars(context, typeVars);
   }
 }
 
-mlir::Type ObjectValueType::constructIrType(const TypeVarMap &mapping,
+mlir::Type ObjectValueType::constructIrType(Context &context,
+                                            const TypeVarMap &mapping,
                                             MLIRContext *mlirContext,
                                             llvm::Optional<Location> loc) {
-  return {};
+  llvm::SmallVector<mlir::Type, 4> fieldIrTypes;
+  for (TypeNode *fieldType : getFieldTypes()) {
+    auto irType =
+        fieldType->constructIrType(context, mapping, mlirContext, loc);
+    if (!irType)
+      return {};
+    fieldIrTypes.push_back(irType);
+  }
+  return irCtor(this, fieldIrTypes, mlirContext, loc);
 }
 
 //===----------------------------------------------------------------------===//
