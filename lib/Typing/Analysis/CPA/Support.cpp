@@ -1,4 +1,4 @@
-//===- CPASupport.h - Support types and utilities for CPA -----------------===//
+//===- Support.cpp - Support types and utilities for CPA ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -63,26 +63,50 @@ TypeNode *Environment::mapValueToType(Value value) {
 }
 
 //===----------------------------------------------------------------------===//
+// TypeNode and descendent methods
+//===----------------------------------------------------------------------===//
+
+void TypeNode::collectDependentTypeVars(TypeVarSet &typeVars) {}
+
+mlir::Type TypeNode::constructIrType(const TypeVarMap &mapping,
+                                     MLIRContext *mlirContext,
+                                     llvm::Optional<Location> loc) {
+  mlir::emitOptionalError(loc, "base class cannot construct concrete types");
+  return {};
+}
+
+mlir::Type TypeVar::constructIrType(const TypeVarMap &mapping,
+                                    MLIRContext *mlirContext,
+                                    llvm::Optional<Location> loc) {
+  // TODO
+  return {};
+}
+
+mlir::Type IRValueType::constructIrType(const TypeVarMap &mapping,
+                                        MLIRContext *mlirContext,
+                                        llvm::Optional<Location> loc) {
+  return irType;
+}
+
+void ObjectValueType::collectDependentTypeVars(TypeVarSet &typeVars) {
+  for (auto *fieldType : getFieldTypes()) {
+    fieldType->collectDependentTypeVars(typeVars);
+  }
+}
+
+mlir::Type ObjectValueType::constructIrType(const TypeVarMap &mapping,
+                                            MLIRContext *mlirContext,
+                                            llvm::Optional<Location> loc) {
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // Context
 //===----------------------------------------------------------------------===//
 
 Context::Context(IrTypeMapHook irTypeMapHook) : irTypeMapHook(irTypeMapHook) {
   environmentStack.emplace_back(std::make_unique<Environment>(*this));
   currentEnvironment = environmentStack.back().get();
-  arrayElementIdent = getIdentifier("e");
-}
-
-ObjectValueType *Context::newArrayType(Identifier *typeIdentifier,
-                                       llvm::Optional<TypeNode *> elementType) {
-  TypeNode *concreteElementType;
-  if (elementType) {
-    concreteElementType = *elementType;
-  } else {
-    concreteElementType = newTypeVar();
-  }
-
-  return newObjectValueType(typeIdentifier, {arrayElementIdent},
-                            {concreteElementType});
 }
 
 TypeNode *Context::mapIrType(::mlir::Type irType) {

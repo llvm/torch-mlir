@@ -1,0 +1,45 @@
+//===- IrHelpers.h - Helpers for bridging analysis and IR types -----------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef NPCOMP_TYPING_SUPPORT_CPA_IR_HELPERS_H
+#define NPCOMP_TYPING_SUPPORT_CPA_IR_HELPERS_H
+
+#include "mlir/IR/StandardTypes.h"
+#include "npcomp/Typing/Analysis/CPA/Support.h"
+
+namespace mlir {
+namespace NPCOMP {
+namespace Typing {
+namespace CPA {
+
+/// Creates an array object type with a possibly unknown element type.
+/// By convention, arrays have a single type slot for the element type
+/// named 'e'.
+ObjectValueType *newArrayType(Context &context,
+                              ObjectValueType::IrTypeConstructor irCtor,
+                              Identifier *typeIdentifier,
+                              llvm::Optional<TypeNode *> elementType);
+
+/// Gets the TypeNode associated with the element type for an array allocated
+/// via newArrayType.
+TypeNode *getArrayElementType(ObjectValueType *arrayType);
+
+/// Creates an IrTypeConstructor for specializing the element type of an
+/// existing TensorType.
+ObjectValueType::IrTypeConstructor createTensorLikeArrayType(TensorType tt);
+
+/// Creates a default IR type map hook which supports built-in MLIR types
+/// that do not implement the analysis interfaces.
+Context::IrTypeMapHook createDefaultTypeMapHook();
+
+} // namespace CPA
+} // namespace Typing
+} // namespace NPCOMP
+} // namespace mlir
+
+#endif // NPCOMP_TYPING_SUPPORT_CPA_IR_HELPERS_H

@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
+
 #include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
+#include "npcomp/Typing/Support/CPAIrHelpers.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -123,5 +125,12 @@ NdArrayType::mapToCPAType(Typing::CPA::Context &context) {
     // anyway.
     dtype = context.getIRValueType(getDtype());
   }
-  return context.newArrayType(context.getIdentifier("!NdArray"), dtype);
+  auto irCtor = [](Typing::CPA::ObjectValueType *ovt,
+                   llvm::ArrayRef<mlir::Type> fieldTypes,
+                   MLIRContext *mlirContext, llvm::Optional<Location>) {
+    assert(fieldTypes.size() == 1);
+    return NdArrayType::get(fieldTypes.front());
+  };
+  return Typing::CPA::newArrayType(context, irCtor,
+                                   context.getIdentifier("!NdArray"), dtype);
 }

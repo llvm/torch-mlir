@@ -15,8 +15,10 @@
 
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Casting.h"
@@ -31,6 +33,8 @@ namespace Typing {
 namespace CPA {
 
 class Context;
+class TypeVarSet;
+class TypeVarMap;
 
 /// A uniqued string identifier.
 class Identifier {
@@ -100,6 +104,17 @@ public:
            tb->getKind() <= Kind::LAST_TYPE;
   }
 
+  /// Collects all type variables that are dependencies of this TypeNode.
+  virtual void collectDependentTypeVars(TypeVarSet &typeVars);
+
+  /// Constructs a corresponding IR type for this TypeNode.
+  /// Returns a null Type on error, optionally emitting an error if a Location
+  /// is provided.
+  /// Not all TypeNodes in all states can be converted back to an IR type.
+  virtual mlir::Type constructIrType(const TypeVarMap &mapping,
+                                     MLIRContext *mlirContext,
+                                     llvm::Optional<Location> loc = llvm::None);
+
   bool operator==(const TypeNode &that) const;
   void print(Context &context, raw_ostream &os, bool brief = false) override;
 
@@ -143,6 +158,17 @@ public:
   int getOrdinal() const { return ordinal; }
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
+
+  /// Constructs a corresponding IR type for this TypeNode.
+  /// Returns a null Type on error, optionally emitting an error if a Location
+  /// is provided.
+  /// Not all TypeNodes in all states can be converted back to an IR type.
+  /// Note that this facility is insufficient for the construction of
+  /// recursive types (which are presently excluded from being represented
+  /// at all).
+  mlir::Type
+  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+                  llvm::Optional<Location> loc = llvm::None) override;
 
 private:
   TypeVar(int ordinal)
@@ -237,6 +263,9 @@ public:
   mlir::Type getIrType() const { return irType; }
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
+  mlir::Type
+  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+                  llvm::Optional<Location> loc = llvm::None) override;
 
 private:
   const mlir::Type irType;
@@ -246,6 +275,11 @@ private:
 /// Referred to as 'obj(δ, [ li : τi ])'
 class ObjectValueType : public ValueType {
 public:
+  /// Constructs a corresponding IR type given a list of resolved field types.
+  using IrTypeConstructor =
+      std::function<mlir::Type(ObjectValueType *ovt, llvm::ArrayRef<mlir::Type>,
+                               MLIRContext *, llvm::Optional<Location>)>;
+
   static bool classof(const ObjectBase *ob) {
     return ob->getKind() == Kind::ObjectValueType;
   }
@@ -260,15 +294,20 @@ public:
   }
 
   void print(Context &context, raw_ostream &os, bool brief = false) override;
+  void collectDependentTypeVars(TypeVarSet &typeVars) override;
+  mlir::Type
+  constructIrType(const TypeVarMap &mapping, MLIRContext *mlirContext,
+                  llvm::Optional<Location> loc = llvm::None) override;
 
 private:
-  ObjectValueType(Identifier *typeIdentifier, size_t fieldCount,
-                  Identifier *const *fieldIdentifiers,
+  ObjectValueType(IrTypeConstructor irCtor, Identifier *typeIdentifier,
+                  size_t fieldCount, Identifier *const *fieldIdentifiers,
                   TypeNode *const *fieldTypes)
       // TODO: Real hashcode.
-      : ValueType(Kind::ObjectValueType, 0), typeIdentifier(typeIdentifier),
-        fieldCount(fieldCount), fieldIdentifiers(fieldIdentifiers),
-        fieldTypes(fieldTypes) {}
+      : ValueType(Kind::ObjectValueType, 0), irCtor(std::move(irCtor)),
+        typeIdentifier(typeIdentifier), fieldCount(fieldCount),
+        fieldIdentifiers(fieldIdentifiers), fieldTypes(fieldTypes) {}
+  IrTypeConstructor irCtor;
   Identifier *typeIdentifier;
   size_t fieldCount;
   Identifier *const *fieldIdentifiers;
@@ -337,6 +376,9 @@ public:
   using SmallPtrSet::SmallPtrSet;
   void print(Context &context, raw_ostream &os, bool brief = false);
 };
+
+/// A small mapping of TypeVar -> TypeNode.
+class TypeVarMap : public llvm::SmallMapVector<TypeVar *, TypeNode *, 4> {};
 
 /// Set for managing TypeNodes.
 class TypeNodeSet : public llvm::SmallPtrSet<TypeNode *, 4> {
@@ -423,7 +465,8 @@ public:
   /// Creates a new ObjectValueType.
   /// Object value types are not uniqued.
   ObjectValueType *
-  newObjectValueType(Identifier *typeIdentifier,
+  newObjectValueType(ObjectValueType::IrTypeConstructor irCtor,
+                     Identifier *typeIdentifier,
                      llvm::ArrayRef<Identifier *> fieldIdentifiers,
                      llvm::ArrayRef<TypeNode *> fieldTypes) {
     assert(fieldIdentifiers.size() == fieldTypes.size());
@@ -434,16 +477,10 @@ public:
     TypeNode **allocFieldTypes = allocator.Allocate<TypeNode *>(n);
     std::copy_n(fieldTypes.begin(), n, allocFieldTypes);
     auto *ovt = allocator.Allocate<ObjectValueType>(1);
-    new (ovt) ObjectValueType(typeIdentifier, n, allocFieldIdentifiers,
+    new (ovt) ObjectValueType(irCtor, typeIdentifier, n, allocFieldIdentifiers,
                               allocFieldTypes);
     return ovt;
   }
-
-  /// Creates an array object type with a possibly unknown element type.
-  /// By convention, arrays have a single type slot for the element type
-  /// named 'e'.
-  ObjectValueType *newArrayType(Identifier *typeIdentifier,
-                                llvm::Optional<TypeNode *> elementType);
 
   /// Gets a CastType.
   CastType *getCastType(Identifier *typeIdentifier, TypeVar *typeVar) {
@@ -529,9 +566,6 @@ private:
   llvm::DenseSet<TypeNode *, TypeNode::PtrInfo> typeUniquer;
   llvm::DenseSet<Constraint *, Constraint::PtrInfo> constraintUniquer;
   int typeVarCounter = 0;
-
-  // Singletons created for the context.
-  Identifier *arrayElementIdent;
 
   // Graph management.
   llvm::DenseMap<TypeNode *, ConstraintSet> fwdNodeToConstraintMap;

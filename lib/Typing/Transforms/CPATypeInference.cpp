@@ -1,5 +1,5 @@
 //===- CPATypeInference.cpp - Type inference passes -----------------*-
-//C++-*-===//
+// C++-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,6 +17,7 @@
 #include "npcomp/Typing/Analysis/CPA/Algorithm.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 #include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Support/CPAIrHelpers.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 #include "llvm/Support/Debug.h"
 
@@ -26,21 +27,6 @@ using namespace llvm;
 using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
 using namespace mlir::NPCOMP::Typing;
-
-static CPA::TypeNode *localIrTypeMapHook(CPA::Context &cpaContext,
-                                         Type irType) {
-  // Handle core types that we can't define an interface on.
-  if (auto tensorType = irType.dyn_cast<TensorType>()) {
-    auto elTy = tensorType.getElementType();
-    llvm::Optional<CPA::TypeNode *> dtype;
-    if (elTy != UnknownType::get(irType.getContext())) {
-      dtype = cpaContext.mapIrType(elTy);
-    }
-    return cpaContext.newArrayType(cpaContext.getIdentifier("!Tensor"), dtype);
-  }
-
-  return nullptr;
-}
 
 namespace {
 
@@ -65,7 +51,7 @@ public:
                             Operation *contextOp) {
     auto superVt = resolveValueType(superValue);
     auto subVt = resolveValueType(subValue);
-    CPA::Constraint *c = env.getContext().getConstraint(superVt, subVt);
+    env.getContext().getConstraint(superVt, subVt);
   }
 
   LogicalResult runOnFunction(FuncOp funcOp) {
@@ -200,7 +186,7 @@ public:
     if (func.getBody().empty())
       return;
 
-    CPA::Context cpaContext(localIrTypeMapHook);
+    CPA::Context cpaContext(CPA::createDefaultTypeMapHook());
     auto &env = cpaContext.getCurrentEnvironment();
 
     InitialConstraintGenerator p(env);
