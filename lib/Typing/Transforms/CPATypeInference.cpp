@@ -16,7 +16,7 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Typing/Analysis/CPA/Algorithm.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
-#include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Types.h"
 #include "npcomp/Typing/Support/CPAIrHelpers.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 #include "llvm/Support/Debug.h"

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Typing/Analysis/CPA/Support.h"
-#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
+#include "npcomp/Typing/Analysis/CPA/Types.h"
 
+#include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 #include "mlir/IR/Operation.h"
 
 using namespace mlir::NPCOMP::Typing::CPA;

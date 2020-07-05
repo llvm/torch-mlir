@@ -12,7 +12,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Types.h"
 
-#include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Types.h"
 
 namespace mlir {
 

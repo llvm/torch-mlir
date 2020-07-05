@@ -16,7 +16,7 @@
 #ifndef NPCOMP_TYPING_ANALYSIS_CPA_ALGORITHM_H
 #define NPCOMP_TYPING_ANALYSIS_CPA_ALGORITHM_H
 
-#include "npcomp/Typing/Analysis/CPA/Support.h"
+#include "npcomp/Typing/Analysis/CPA/Types.h"
 #include "llvm/ADT/DenseSet.h"
 
 namespace mlir {
