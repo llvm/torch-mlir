@@ -2,12 +2,7 @@
 # NPCOMPPythonCommon
 ################################################################################
 
-if(MSVC)
-  # Exceptions and RTTI
-  set(extension_cflags "/EHsc /GR")
-else()
-  set(extension_cflags "-frtti -fexceptions")
-endif()
+include(NpcompPython)
 
 set(PYBIND_SOURCES
   MlirInit.cpp
@@ -17,9 +12,6 @@ set(PYBIND_SOURCES
   PybindUtils.cpp
   CoreDialects.cpp
 )
-set_source_files_properties(
-  ${PYBIND_SOURCES}
-  PROPERTIES COMPILE_FLAGS "${extension_cflags}")
 
 add_library(NPCOMPPythonCommon
   ${PYBIND_SOURCES}
@@ -43,3 +35,5 @@ target_link_libraries(NPCOMPPythonCommon
   MLIRPass
   MLIRTransforms
 )
+
+npcomp_python_target_compile_options(NPCOMPPythonCommon)

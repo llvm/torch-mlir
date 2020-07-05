@@ -2,6 +2,8 @@
 # Native extensions
 ################################################################################
 
+include(NpcompPython)
+
 # Normally on unix-like platforms, extensions are built as "MODULE" libraries
 # and do not explicitly link to the python shared object. This allows for
 # come greater deployment flexibility since the extension will bind to
@@ -14,13 +16,6 @@
 # TODO(laurenzo): OSX requires allowing undefined (-undefined dynamic_lookup)
 set(NPCOMP_PYEXT_LINK_MODE SHARED)
 set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
-
-if(MSVC)
-  # Exceptions and RTTI
-  set(extension_cflags "/EHsc /GR")
-else()
-  set(extension_cflags "-frtti -fexceptions")
-endif()
 
 if(NPCOMP_ENABLE_IREE)
   list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendIREEPythonModule)
@@ -92,3 +87,5 @@ target_link_libraries(${extension_target}
 
     ${NPCOMP_PYEXT_LIBADD}
 )
+
+npcomp_python_target_compile_options(${extension_target})

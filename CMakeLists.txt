@@ -20,6 +20,7 @@ endif()
 project(npcomp LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -65,6 +66,14 @@ set(NPCOMP_TABLEGEN_ARGS "")
 # IREE configuration
 #-------------------------------------------------------------------------------
 
+function(npcomp_add_iree_src)
+  # TODO: Find a way to fix this upstream as globally demoting warnings
+  # like this is a really bad thing to be doing. Also, Abseil seems to try
+  # really hard to keep us from touching these so some still get through.
+  add_compile_options(-Wno-sign-compare -Wno-unused-template)
+  add_subdirectory("${NPCOMP_IREE_SRCDIR}" "iree" EXCLUDE_FROM_ALL)
+endfunction()
+
 if(NPCOMP_ENABLE_IREE)
   add_compile_definitions(NPCOMP_ENABLE_IREE)
   string(APPEND NPCOMP_TABLEGEN_ARGS "-DNPCOMP_ENABLE_IREE")
@@ -74,7 +83,7 @@ if(NPCOMP_ENABLE_IREE)
     set(IREE_BUILD_SAMPLES OFF CACHE BOOL "Override IREE setting" FORCE)
     set(IREE_BUILD_PYTHON_BINDINGS ON CACHE BOOL "Override IREE setting" FORCE)
     set(IREE_MLIR_DEP_MODE "DISABLED" CACHE STRING "Override IREE setting")
-    add_subdirectory("${NPCOMP_IREE_SRCDIR}" "iree" EXCLUDE_FROM_ALL)
+    npcomp_add_iree_src()
   else()
     find_package(IREE REQUIRED CONFIG)
   endif()
