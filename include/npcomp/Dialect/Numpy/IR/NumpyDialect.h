@@ -49,9 +49,20 @@ class NdArrayType
 public:
   using Base::Base;
   static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }
-  static NdArrayType get(Type optionalDtype);
+
+  /// Constructs an NdArray with a dtype and no shape. Setting the dtype
+  /// to !basicpy.UnknownType will print as ?.
+  static NdArrayType get(Type dtype,
+                         llvm::Optional<ArrayRef<int64_t>> shape = llvm::None);
+
+  /// Returns whether the dtype is a concrete type (versus
+  /// !basicpy.UnknownType).
   bool hasKnownDtype();
   Type getDtype();
+
+  /// If the shape has been partially specified, this will have a value.
+  /// unknown dimensions are -1.
+  llvm::Optional<ArrayRef<int64_t>> getOptionalShape();
 
   // CPA::TypeMapInterface methods.
   Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);

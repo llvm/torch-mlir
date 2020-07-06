@@ -16,7 +16,7 @@ b = np.asarray([3.0, 4.0])
 # Test the basic flow of invoking a ufunc call with constants captured from
 # a global using explicit function syntax (np.add(a, b)).
 # CHECK-LABEL: func @global_add
-# CHECK-SAME: -> !numpy.ndarray<f64>
+# CHECK-SAME: -> !numpy.ndarray<*:f64>
 @import_global
 def global_add():
   # CHECK-NOT: UnknownType
