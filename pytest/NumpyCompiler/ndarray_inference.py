@@ -1,4 +1,4 @@
-# RUN: %PYTHON %s | npcomp-opt -split-input-file -npcomp-cpa-type-inference | FileCheck %s --dump-input=fail
+# RUN: %PYTHON %s | npcomp-opt -split-input-file -npcomp-cpa-type-inference -canonicalize | FileCheck %s --dump-input=fail
 
 import numpy as np
 from npcomp.compiler import test_config
@@ -20,6 +20,7 @@ b = np.asarray([3.0, 4.0])
 @import_global
 def global_add():
   # CHECK-NOT: UnknownType
-  # CHECK: numpy.builtin_ufunc_call<"numpy.add"> ({{.*}}, {{.*}}) : (tensor<2xf64>, tensor<2xf64>) -> tensor<*xf64>
+  # CHECK: numpy.builtin_ufunc_call<"numpy.multiply"> ({{.*}}, {{.*}}) : (tensor<2xf64>, tensor<2xf64>) -> tensor<*xf64>
+  # CHECK: numpy.builtin_ufunc_call<"numpy.add"> ({{.*}}, {{.*}}) : (tensor<2xf64>, tensor<*xf64>) -> tensor<*xf64>
   # CHECK-NOT: UnknownType
-  return np.add(a, b)
+  return np.add(a, np.multiply(a, b))

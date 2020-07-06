@@ -10,6 +10,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
@@ -55,6 +56,34 @@ void BuiltinUfuncCallOp::addCPAConstraints(Typing::CPA::Context &context) {
   for (auto input : inputs()) {
     constrainUnaryDtypeInvariantOp(context, input, output(), *this);
   }
+}
+
+//----------------------------------------------------------------------------//
+// CreateArrayFromTensorOp
+//----------------------------------------------------------------------------//
+
+namespace {
+/// Match create_array_from_tensor -> copy_to_tensor and elide in favor
+/// of the original tensor.
+class ElideCreateRedundantArrayFromTensor
+    : public OpRewritePattern<CopyToTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(CopyToTensorOp op,
+                                PatternRewriter &rewriter) const {
+    auto createArrayOp =
+        dyn_cast_or_null<CreateArrayFromTensorOp>(op.source().getDefiningOp());
+    if (createArrayOp && createArrayOp.dest().hasOneUse()) {
+      rewriter.replaceOp(op, createArrayOp.source());
+    }
+    return success();
+  }
+};
+} // namespace
+
+void CopyToTensorOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &patterns, MLIRContext *context) {
+  patterns.insert<ElideCreateRedundantArrayFromTensor>(context);
 }
 
 namespace mlir {

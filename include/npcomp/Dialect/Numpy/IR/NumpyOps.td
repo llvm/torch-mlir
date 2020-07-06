@@ -76,6 +76,7 @@ def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", [
   let assemblyFormat = [{
     $source attr-dict `:` functional-type($source, $dest)
   }];
+  let hasCanonicalizer = 1;
 }
 
 //----------------------------------------------------------------------------//
