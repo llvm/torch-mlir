@@ -219,11 +219,14 @@ NdArrayType::mapToCPAType(Typing::CPA::Context &context) {
     // anyway.
     dtype = context.getIRValueType(getDtype());
   }
-  auto irCtor = [](Typing::CPA::ObjectValueType *ovt,
-                   llvm::ArrayRef<mlir::Type> fieldTypes,
-                   MLIRContext *mlirContext, llvm::Optional<Location>) {
+  // Safe to capture an ArrayRef backed by type storage since it is uniqued.
+  auto optionalShape = getOptionalShape();
+  auto irCtor = [optionalShape](Typing::CPA::ObjectValueType *ovt,
+                                llvm::ArrayRef<mlir::Type> fieldTypes,
+                                MLIRContext *mlirContext,
+                                llvm::Optional<Location>) {
     assert(fieldTypes.size() == 1);
-    return NdArrayType::get(fieldTypes.front());
+    return NdArrayType::get(fieldTypes.front(), optionalShape);
   };
   return Typing::CPA::newArrayType(context, irCtor,
                                    context.getIdentifier("!NdArray"), dtype);

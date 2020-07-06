@@ -121,7 +121,13 @@ public:
                                            "numpy_copy_to_tensor_op");
                }
                auto dtype = sourceType.getDtype();
-               auto tensorType = UnrankedTensorType::get(dtype);
+               auto optionalShape = sourceType.getOptionalShape();
+               TensorType tensorType;
+               if (optionalShape) {
+                 tensorType = RankedTensorType::get(*optionalShape, dtype);
+               } else {
+                 tensorType = UnrankedTensorType::get(dtype);
+               }
                OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
                Location loc = self.pyOpBuilder.getCurrentLoc();
                auto op = opBuilder.create<Numpy::CopyToTensorOp>(
@@ -136,7 +142,12 @@ public:
                                            "numpy_create_array_from_tensor_op");
                }
                auto dtype = sourceType.getElementType();
-               auto ndarrayType = Numpy::NdArrayType::get(dtype);
+               llvm::Optional<ArrayRef<int64_t>> optionalShape;
+               if (auto rankedTensorType =
+                       sourceType.dyn_cast<RankedTensorType>()) {
+                 optionalShape = rankedTensorType.getShape();
+               }
+               auto ndarrayType = Numpy::NdArrayType::get(dtype, optionalShape);
                OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
                Location loc = self.pyOpBuilder.getCurrentLoc();
                auto op = opBuilder.create<Numpy::CreateArrayFromTensorOp>(

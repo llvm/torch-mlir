@@ -20,6 +20,6 @@ b = np.asarray([3.0, 4.0])
 @import_global
 def global_add():
   # CHECK-NOT: UnknownType
-  # CHECK: numpy.builtin_ufunc_call<"numpy.add"> ({{.*}}, {{.*}}) : (tensor<*xf64>, tensor<*xf64>) -> tensor<*xf64>
+  # CHECK: numpy.builtin_ufunc_call<"numpy.add"> ({{.*}}, {{.*}}) : (tensor<2xf64>, tensor<2xf64>) -> tensor<*xf64>
   # CHECK-NOT: UnknownType
   return np.add(a, b)

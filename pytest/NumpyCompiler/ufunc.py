@@ -24,7 +24,7 @@ def global_add():
   # CHECK-DAG: %[[B_ARRAY:.*]] = numpy.create_array_from_tensor %[[CST_B_TENSOR]]
   # CHECK-DAG: %[[A:.*]] = numpy.copy_to_tensor %[[A_ARRAY]]
   # CHECK-DAG: %[[B:.*]] = numpy.copy_to_tensor %[[B_ARRAY]]
-  # CHECK: %[[R_TENSOR:.*]] = numpy.builtin_ufunc_call<"numpy.add"> (%[[A]], %[[B]]) : (tensor<*xf64>, tensor<*xf64>) -> tensor<*x!basicpy.UnknownType>
+  # CHECK: %[[R_TENSOR:.*]] = numpy.builtin_ufunc_call<"numpy.add"> (%[[A]], %[[B]]) : (tensor<2xf64>, tensor<2xf64>) -> tensor<*x!basicpy.UnknownType>
   # CHECK: numpy.create_array_from_tensor %[[R_TENSOR]] : (tensor<*x!basicpy.UnknownType>) -> !numpy.ndarray<*:?>
   return np.add(a, b)
 
