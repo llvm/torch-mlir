@@ -50,8 +50,9 @@ config.test_exec_root = os.path.join(config.npcomp_obj_root, 'test')
 config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'tools')
 config.npcomp_runtime_shlib = os.path.join(
     config.npcomp_obj_root,
+    'lib',
     'runtime',
-    'libNPCOMPRuntime' + config.llvm_shlib_ext
+    'libNPCOMPCompilerRuntimeShlib' + config.llvm_shlib_ext
 )
 
 # Tweak the PATH to include the tools dir.

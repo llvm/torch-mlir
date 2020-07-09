@@ -366,13 +366,11 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
 
   // We need to finalize the removal of tensors from the program. To do
   // that, we need to interface with a runtime ABI.
-  // We currently use a canonicalized version of upstream MLIR's memref
-  // ABI, where we canonically use unranked memref's for all
-  // arguments/returns (which makes the C-level ABI very predictable).
-  //
-  // TODO: This pass is very tentative. See comments on LowerTensorLoadOp
-  // for where we need to take it.
-  pm.addPass(createLowerToMemRefABIPass());
+  // We have a specialized dialect npcomprt which models the runtime data
+  // structures, and function signatures (and presumably eventually, other
+  // ABI boundaries like external calls if we ever support it) will be
+  // converted.
+  pm.addPass(createLowerToNpcomprtABIPass());
 
   // TODO: Might want a different kind of island to better represent this.
   // This island op would explicitly capture all tensors as inputs, and it

@@ -3,7 +3,7 @@ add_mlir_library(NPCOMPE2E
   LowerRankedShapes.cpp
   LowerToHybridTensorMemRef.cpp
   LowerToLLVM.cpp
-  LowerToMemRefABI.cpp
+  LowerToNpcomprtABI.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SRC_DIR}/include/npcomp/E2E

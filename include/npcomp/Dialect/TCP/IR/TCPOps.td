@@ -109,15 +109,4 @@ This op has undefined behavior if the shape is an error.
   ];
 }
 
-def TCP_AbortIfOp : TCP_Op<"abort_if"> {
-  let summary = "Aborts the program if the argument is true.";
-  let description = [{
-  Aborts the program if the argument is true.
-
-  TODO: Support a custom message.
-  }];
-  let arguments = (ins I1:$pred);
-  let results = (outs);
-}
-
 #endif // TCP_OPS

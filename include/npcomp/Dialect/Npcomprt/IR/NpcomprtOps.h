@@ -15,12 +15,12 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace npcomp_rt {
+namespace npcomprt {
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/NpcompRt/IR/NpcompRtOps.h.inc"
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h.inc"
 
-} // namespace npcomp_rt
+} // namespace npcomprt
 } // namespace NPCOMP
 } // namespace mlir
 

@@ -23,4 +23,8 @@ target_link_libraries(npcomp-run-mlir PRIVATE
   MLIRTargetLLVMIR
   MLIRSupport
   NPCOMPInitAll
+  NPCOMPJITRuntime
+  )
+add_dependencies(npcomp-run-mlir
+  NPCOMPCompilerRuntimeShlib
   )

@@ -21,7 +21,6 @@ cd $td/build
 
 ninja
 ninja check-npcomp
-./python/run_tests.py
 
 echo
 echo "========"

@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
 using namespace mlir;
@@ -50,7 +51,9 @@ public:
           rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::ne, extent, c1);
       auto bothTrue =
           rewriter.create<AndOp>(op.getLoc(), extentNeMax, extentNeOne);
-      rewriter.create<tcp::AbortIfOp>(op.getLoc(), bothTrue);
+      // TODO: Should there be a more generic error-handling dialect?
+      // It seems a bit awkward to hardcode npcomprt here.
+      rewriter.create<npcomprt::AbortIfOp>(op.getLoc(), bothTrue);
     };
 
     auto resultExtents = llvm::to_vector<6>(lhs.extents());
@@ -161,22 +164,24 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     target.addIllegalOp<shape::BroadcastOp>();
     target.addIllegalOp<tcp::GetExtentOp>();
     target.addLegalOp<shape::FromExtentsOp>();
-    target.addLegalOp<tcp::AbortIfOp>();
+    target.addLegalOp<npcomprt::AbortIfOp>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addIllegalOp<tcp::ShapeObserveErrorOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }
 
-    // Erase all shape::FromExtentsOp's from the program. They can't be
+    // Erase some stray shape ops from the program. They can't be
     // deleted during conversion because they become unused only after
     // subsequent patterns bypass them.
-    auto walkResult = func.walk([](shape::FromExtentsOp op) {
-      if (!op.use_empty()) {
-        op.emitError("could not be eliminated");
+    auto walkResult = func.walk([](Operation *op) {
+      if (!(isa<shape::FromExtentsOp>(op) || isa<shape::ConstShapeOp>(op)))
+        return WalkResult::advance();
+      if (!op->use_empty()) {
+        op->emitError("could not be eliminated");
         return WalkResult::interrupt();
       }
-      op.erase();
+      op->erase();
       return WalkResult::advance();
     });
     if (walkResult.wasInterrupted())

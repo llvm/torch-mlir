@@ -18,7 +18,7 @@ namespace TypeRanges {
 enum {
   Basicpy = Type::FIRST_PRIVATE_EXPERIMENTAL_3_TYPE,
   Numpy = Basicpy + 50,
-  NpcompRt = Numpy + 50,
+  Npcomprt = Numpy + 50,
 };
 }
 

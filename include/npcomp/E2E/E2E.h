@@ -33,7 +33,7 @@ std::unique_ptr<OperationPass<FuncOp>> createLowerLinalgLoopDimOpsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerRankedShapesPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLowerToMemRefABIPass();
+std::unique_ptr<OperationPass<ModuleOp>> createLowerToNpcomprtABIPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
 

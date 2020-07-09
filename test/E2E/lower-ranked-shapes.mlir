@@ -14,18 +14,22 @@ func @broadcast_rank2_rank1(%arg0: index, %arg1: index, %arg2: index) -> (index,
   return %e0, %e1 : index, index
 }
 
-// CHECK-LABEL: func @erase_shape_observe_error
-func @erase_shape_observe_error(%arg0: index) {
+// CHECK-LABEL: func @erase_stray_shape_ops
+func @erase_stray_shape_ops(%arg0: index) {
   // CHECK-NOT: tcp.shape_observe_error
   // CHECK-NOT: shape.from_extents
   %0 = shape.from_extents %arg0
   "tcp.shape_observe_error"(%0) : (!shape.shape) -> none
+  // CHECK-NOT: tcp.shape_observe_error
+  // CHECK-NOT: shape.const_shape
+  %1 = shape.const_shape []
+  "tcp.shape_observe_error"(%1) : (!shape.shape) -> none
   return
 }
 
 // -----
 
-func @cannot_erase_shape_from_extents() -> !shape.shape {
+func @cannot_erase_stray_shape_ops() -> !shape.shape {
   // expected-error @+1 {{could not be eliminated}}
   %0 = shape.from_extents
   return %0 : !shape.shape

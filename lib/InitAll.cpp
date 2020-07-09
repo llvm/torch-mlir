@@ -10,7 +10,7 @@
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
-#include "npcomp/Dialect/NpcompRt/IR/NpcompRtDialect.h"
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -67,7 +67,7 @@ static void registerDependencyPasses() {
 void mlir::NPCOMP::registerAllDialects() {
   registerDialect<Basicpy::BasicpyDialect>();
   registerDialect<Numpy::NumpyDialect>();
-  registerDialect<npcomp_rt::NpcompRtDialect>();
+  registerDialect<npcomprt::NpcomprtDialect>();
   registerDialect<tcf::TCFDialect>();
   registerDialect<tcp::TCPDialect>();
   registerDependencyDialects();

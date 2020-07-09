@@ -118,7 +118,6 @@ add_subdirectory(lib)
 add_subdirectory(python)
 add_subdirectory(python_native)
 add_subdirectory(pytest)
-add_subdirectory(runtime)
 add_subdirectory(tools)
 add_subdirectory(test)
 

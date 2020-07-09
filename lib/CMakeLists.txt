@@ -1,8 +1,10 @@
 add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(E2E)
+add_subdirectory(JITRuntime)
 add_subdirectory(Python)
 add_subdirectory(Typing)
+add_subdirectory(runtime)
 
 if(NPCOMP_ENABLE_IREE)
   add_subdirectory(Backend/IREE)
@@ -34,7 +36,7 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPE2E
   NPCOMPTCP
   NPCOMPTCF
-  NPCOMPNpcompRt
+  NPCOMPNpcomprt
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
   NPCOMPNumpyDialect

@@ -14,29 +14,28 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace npcomp_rt {
+namespace npcomprt {
 
-namespace NpcompRtTypes {
-enum Kind { BufferViewType = TypeRanges::NpcompRt };
-} // namespace NpcompRtTypes
+namespace NpcomprtTypes {
+enum Kind { TensorType = TypeRanges::Npcomprt };
+} // namespace NpcomprtTypes
 
-class BufferViewType
-    : public Type::TypeBase<BufferViewType, Type, TypeStorage> {
+class TensorType : public Type::TypeBase<TensorType, Type, TypeStorage> {
 public:
   using Base::Base;
 
-  static BufferViewType get(MLIRContext *context) {
-    return Base::get(context, NpcompRtTypes::Kind::BufferViewType);
+  static TensorType get(MLIRContext *context) {
+    return Base::get(context, NpcomprtTypes::Kind::TensorType);
   }
 
   static bool kindof(unsigned kind) {
-    return kind == NpcompRtTypes::Kind::BufferViewType;
+    return kind == NpcomprtTypes::Kind::TensorType;
   }
 };
 
-#include "npcomp/Dialect/NpcompRt/IR/NpcompRtOpsDialect.h.inc"
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOpsDialect.h.inc"
 
-} // namespace npcomp_rt
+} // namespace npcomprt
 } // namespace NPCOMP
 } // namespace mlir
 
