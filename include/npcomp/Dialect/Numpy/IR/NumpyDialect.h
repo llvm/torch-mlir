@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/StandardTypes.h"
 #include "npcomp/Dialect/Common.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
@@ -63,6 +64,9 @@ public:
   /// If the shape has been partially specified, this will have a value.
   /// unknown dimensions are -1.
   llvm::Optional<ArrayRef<int64_t>> getOptionalShape();
+
+  /// Converts to an equivalent TensorType.
+  TensorType toTensorType();
 
   // CPA::TypeMapInterface methods.
   Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);

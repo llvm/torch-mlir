@@ -40,6 +40,7 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
   NPCOMPNumpyDialect
+  NPCOMPNumpyPasses
   NPCOMPTypingPasses
 
   ${ALL_DEPENDS}

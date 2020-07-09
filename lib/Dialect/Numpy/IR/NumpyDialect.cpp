@@ -210,6 +210,15 @@ llvm::Optional<ArrayRef<int64_t>> NdArrayType::getOptionalShape() {
   return getImpl()->getOptionalShape();
 }
 
+TensorType NdArrayType::toTensorType() {
+  auto shape = getOptionalShape();
+  if (shape) {
+    return RankedTensorType::get(*shape, getDtype());
+  } else {
+    return UnrankedTensorType::get(getDtype());
+  }
+}
+
 Typing::CPA::TypeNode *
 NdArrayType::mapToCPAType(Typing::CPA::Context &context) {
   llvm::Optional<Typing::CPA::TypeNode *> dtype;

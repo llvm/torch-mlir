@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_BASICPY_TRANSFORMS_PASSES_H
-#define NPCOMP_DIALECT_BASICPY_TRANSFORMS_PASSES_H
+#ifndef NPCOMP_DIALECT_NUMPY_TRANSFORMS_PASSES_H
+#define NPCOMP_DIALECT_NUMPY_TRANSFORMS_PASSES_H
 
 #include "mlir/Pass/Pass.h"
 
@@ -15,12 +15,12 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace Basicpy {
+namespace Numpy {
 
-std::unique_ptr<OperationPass<FuncOp>> createFunctionTypeInferencePass();
+std::unique_ptr<OperationPass<ModuleOp>> createPublicFunctionsToTensorPass();
 
-} // namespace Basicpy
+} // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_DIALECT_BASICPY_TRANSFORMS_PASSES_H
+#endif // NPCOMP_DIALECT_NUMPY_TRANSFORMS_PASSES_H
