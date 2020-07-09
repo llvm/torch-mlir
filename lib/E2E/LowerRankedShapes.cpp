@@ -18,8 +18,24 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-// This has to be a "conversion pattern" since the `operands` argument
-// gives access to the post-conversion operands from earlier ops.
+namespace {
+class LowerConstShapeOp : public OpConversionPattern<shape::ConstShapeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(shape::ConstShapeOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto extents = llvm::to_vector<6>(llvm::map_range(
+        op.shape().getValues<int64_t>(), [&](int64_t extent) -> Value {
+          return rewriter.create<ConstantIndexOp>(op.getLoc(), extent);
+        }));
+    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(
+        op, rewriter.getType<shape::ShapeType>(), extents);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class LowerShapeBroadcastOp : public OpConversionPattern<shape::BroadcastOp> {
 public:
@@ -137,6 +153,8 @@ public:
 // This is similar to the approach that is used in IREE. It is basically a
 // combination of the ConvertShapeToShapex pass and the
 // "ranked_dim(make_ranked_shape(x1, x2), N) -> xN" folding pattern.
+// These patterns have to be "conversion patterns" since the `operands` argument
+// gives access to the post-conversion operands from earlier ops.
 //
 // This pass depends heavily on ranked shapes, since only ranked shapes can
 // be statically expanded to a fixed set of SSA extents.
@@ -156,6 +174,7 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     auto *context = &getContext();
 
     OwningRewritePatternList patterns;
+    patterns.insert<LowerConstShapeOp>(context);
     patterns.insert<LowerShapeBroadcastOp>(context);
     patterns.insert<LowerShapeGetExtentOp>(context);
     patterns.insert<EraseShapeObserveErrorOp>(context);
@@ -175,7 +194,7 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     // deleted during conversion because they become unused only after
     // subsequent patterns bypass them.
     auto walkResult = func.walk([](Operation *op) {
-      if (!(isa<shape::FromExtentsOp>(op) || isa<shape::ConstShapeOp>(op)))
+      if (!isa<shape::FromExtentsOp>(op))
         return WalkResult::advance();
       if (!op->use_empty()) {
         op->emitError("could not be eliminated");
