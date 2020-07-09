@@ -39,6 +39,15 @@ def ConvertBasicpyToStd : Pass<"convert-basicpy-to-std", "FuncOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// Numpy conversions
+//===----------------------------------------------------------------------===//
+
+def ConvertNumpyToTCF : Pass<"convert-numpy-to-tcf", "FuncOp"> {
+  let summary = "Convert the numpy dialect to supported TCF ops";
+  let constructor = "mlir::NPCOMP::createConvertNumpyToTCFPass()";
+}
+
+//===----------------------------------------------------------------------===//
 // Conditionally compiled IREE backend passes
 //===----------------------------------------------------------------------===//
 

@@ -17,6 +17,7 @@
 #include "npcomp/Typing/Transforms/Passes.h"
 
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
+#include "npcomp/Conversion/NumpyToTCF/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 #include "npcomp/E2E/E2E.h"
