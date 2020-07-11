@@ -27,6 +27,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 #-------------------------------------------------------------------------------
 
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
+option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
 #-------------------------------------------------------------------------------
@@ -61,6 +62,15 @@ include_directories(${PROJECT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 set(NPCOMP_TABLEGEN_ARGS "")
+
+#-------------------------------------------------------------------------------
+# Optional feature selection
+#-------------------------------------------------------------------------------
+
+if(NPCOMP_ENABLE_REFJIT)
+  add_compile_definitions(NPCOMP_ENABLE_REFJIT)
+  message(STATUS "Reference JIT backend enabled")
+endif()
 
 #-------------------------------------------------------------------------------
 # IREE configuration

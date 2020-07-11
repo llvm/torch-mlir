@@ -14,6 +14,10 @@
 #include "npcomp/Python/PybindUtils.h"
 #include "llvm/Support/CommandLine.h"
 
+#ifdef NPCOMP_ENABLE_REFJIT
+#include "npcomp/Backend/RefJIT/PythonModule.h"
+#endif
+
 #ifdef NPCOMP_ENABLE_IREE
 #include "npcomp/Backend/IREE/PythonModule.h"
 #endif
@@ -80,6 +84,12 @@ PYBIND11_MODULE(_npcomp, m) {
   // Optional backend modules.
   auto backend_m = m.def_submodule("backend", "Backend support");
   (void)backend_m;
+
+#ifdef NPCOMP_ENABLE_REFJIT
+  auto refjit_m =
+      backend_m.def_submodule("refjit", "Reference CPU Jit Backend");
+  ::npcomp::python::defineBackendRefJitModule(refjit_m);
+#endif
 
 #ifdef NPCOMP_ENABLE_IREE
   auto iree_m = backend_m.def_submodule("iree", "IREE backend support");
