@@ -1,4 +1,21 @@
 ################################################################################
+# Resources that must be packaged into the python tree
+################################################################################
+
+add_custom_target(NPCOMPPythonResources)
+add_custom_command(
+    TARGET NPCOMPPythonResources
+    COMMAND ${CMAKE_COMMAND} -E copy
+        # TODO: Make the runtime library work for windows.
+        ${CMAKE_BINARY_DIR}/lib/runtime/libNPCOMPCompilerRuntimeShlib.so
+        ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/backend/refjit_resources/libNPCOMPCompilerRuntimeShlib.so
+)
+add_dependencies(NPCOMPPythonResources
+  NPCOMPCompilerRuntimeShlib
+  )
+
+
+################################################################################
 # Manage python source files
 ################################################################################
 function (create_symlinks)
@@ -26,7 +43,7 @@ function (create_symlinks)
             set(command cmd.exe /c mklink ${link} ${target})
         endif()
 
-        execute_process(COMMAND ${command} 
+        execute_process(COMMAND ${command}
                         RESULT_VARIABLE result
                         ERROR_VARIABLE output)
 

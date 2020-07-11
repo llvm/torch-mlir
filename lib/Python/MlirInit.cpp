@@ -8,6 +8,7 @@
 
 #include "npcomp/Python/MlirInit.h"
 
+#include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
@@ -17,8 +18,10 @@
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/InitAll.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/TargetSelect.h"
 
 namespace mlir {
 namespace npcomp {
@@ -45,6 +48,11 @@ bool npcompMlirInitialize() {
   // Local registration.
   ::mlir::NPCOMP::registerAllDialects();
   ::mlir::NPCOMP::registerAllPasses();
+
+  // LLVM codegen initialization.
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  mlir::initializeLLVMPasses();
 
   return true;
 }

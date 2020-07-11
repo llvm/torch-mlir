@@ -2,6 +2,8 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
+
 from _npcomp import mlir
 from npcomp.compiler import logging
 
@@ -45,6 +47,11 @@ def is_enabled() -> bool:
     return False
 
 
+def get_runtime_libs():
+  resources_dir = os.path.join(os.path.dirname(__file__), "refjit_resources")
+  return [os.path.join(resources_dir, "libNPCOMPCompilerRuntimeShlib.so")]
+
+
 class CompilerBackend:
   """Main entry-point for the backend."""
 
@@ -79,7 +86,8 @@ class CompilerBackend:
     if self._debug:
       logging.debug("Backend IR:{}", imported_ir_module.to_asm())
 
-    jit_module = self._refjit.JITModule.from_mlir(imported_ir_module, [])
+    jit_module = self._refjit.JITModule.from_compiled_module(
+        imported_ir_module, get_runtime_libs())
     return jit_module
 
   def load(self, jit_module):
@@ -87,3 +95,25 @@ class CompilerBackend:
 
     Since this is a JIT instead of an AOT compiler,
     """
+    return JitModuleInvoker(jit_module)
+
+
+class JitModuleInvoker:
+  """Wrapper around a native JitModule for calling functions."""
+
+  def __init__(self, jit_module):
+    super().__init__()
+    self._jit_module = jit_module
+
+  def __getitem__(self, function_name):
+
+    def invoke(*args):
+      results = self._jit_module.invoke(function_name, args)
+      if len(results) == 1:
+        # De-tuple.
+        return results[0]
+      else:
+        return tuple(results)
+
+    invoke.__isnpcomp__ = True
+    return invoke

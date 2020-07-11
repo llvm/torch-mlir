@@ -22,7 +22,9 @@ if(NPCOMP_ENABLE_IREE)
 endif()
 
 if(NPCOMP_ENABLE_REFJIT)
-  list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendRefJITPythonModule)
+  list(APPEND NPCOMP_PYEXT_LIBADD
+    NPCOMPBackendRefJITPythonModule
+  )
 endif()
 
 # TODO(laurenzo): Add a config setting to control this.

@@ -1,4 +1,4 @@
-# RUN: %PYTHON %s
+# RUN: %PYTHON %s | FileCheck %s --dump-input=fail
 
 import numpy as np
 
@@ -34,3 +34,11 @@ b = np.asarray([3.0, 4.0], dtype=np.float32)
 @compile_function
 def global_add():
   return np.add(a, np.add(b, a))
+
+
+# Make sure we aren't accidentally invoking the python function :)
+assert global_add.__isnpcomp__
+
+# CHECK: GLOBAL_ADD: [5. 8.]
+result = global_add()
+print("GLOBAL_ADD:", result)

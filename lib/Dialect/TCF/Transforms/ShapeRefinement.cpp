@@ -24,6 +24,7 @@ namespace {
 class ShapeRefinementPass : public TCFShapeRefinementBase<ShapeRefinementPass> {
   void runOnOperation() override {
     auto func = getOperation();
+    // TODO: Implement for real.
     func.walk([](tcf::AddOp addOp) {
       auto lhsType = addOp.lhs().getType();
       auto rhsType = addOp.rhs().getType();

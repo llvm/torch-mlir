@@ -20,3 +20,7 @@ target_link_libraries(NPCOMPBackendRefJITPythonModule
 )
 
 npcomp_python_target_compile_options(NPCOMPBackendRefJITPythonModule)
+
+add_dependencies(NPCOMPBackendRefJITPythonModule
+  NPCOMPPythonResources
+)
