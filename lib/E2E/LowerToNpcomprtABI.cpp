@@ -139,6 +139,39 @@ public:
 };
 } // namespace
 
+namespace {
+class LowerGlobalOp : public OpConversionPattern<tcp::GlobalOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(tcp::GlobalOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<npcomprt::GlobalOp>(op, op.sym_name(),
+                                                    op.value());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class LowerGetGlobalMemrefOp
+    : public OpConversionPattern<tcp::GetGlobalMemrefOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(tcp::GetGlobalMemrefOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto abiMemrefType = UnrankedMemRefType::get(
+        op.getType().cast<ShapedType>().getElementType(), /*memorySpace=*/0);
+    auto abiMemref = rewriter.create<npcomprt::GetGlobalOp>(
+        op.getLoc(), abiMemrefType, op.global());
+    // Cast back to the original type.
+    rewriter.replaceOpWithNewOp<MemRefCastOp>(op, abiMemref, op.getType());
+    return success();
+  }
+};
+} // namespace
+
 static LogicalResult doDialectConversion(ModuleOp module) {
   auto *context = module.getContext();
 
@@ -171,6 +204,14 @@ static LogicalResult doDialectConversion(ModuleOp module) {
   target.addLegalOp<ConstantOp>();
   target.addLegalOp<shape::FromExtentsOp>();
   target.addLegalOp<npcomprt::GetExtentOp>();
+
+  patterns.insert<LowerGlobalOp>(context);
+  target.addIllegalOp<tcp::GlobalOp>();
+  target.addLegalOp<npcomprt::GlobalOp>();
+
+  patterns.insert<LowerGetGlobalMemrefOp>(context);
+  target.addIllegalOp<tcp::GetGlobalMemrefOp>();
+  target.addLegalOp<npcomprt::GetGlobalOp>();
 
   return applyPartialConversion(module, target, patterns);
 }

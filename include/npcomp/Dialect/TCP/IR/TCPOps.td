@@ -13,6 +13,7 @@ include "npcomp/Dialect/TCP/IR/TCPBase.td"
 include "mlir/Dialect/Shape/IR/ShapeBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/IR/SymbolInterfaces.td"
 
 class TCP_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<TCP_Dialect, mnemonic, traits> {
@@ -56,6 +57,32 @@ Allocates a memref of the given shape.
   let arguments = (ins Shape_ShapeType:$shape);
   let results = (outs AnyMemRef:$memref);
   let assemblyFormat = "$shape attr-dict `:`  type($memref)";
+}
+
+def TCP_GlobalOp : TCP_Op<"global", [Symbol]> {
+  let summary = "Represents a global variable";
+  let description = [{
+    Represents a global variable.
+
+    Currently, only constant tensors are supported, and they are not
+    considered to be exported.
+  }];
+  let arguments = (ins StrAttr:$sym_name, ElementsAttr:$value);
+  let results = (outs);
+
+  let printer = [{ return ::print$cppClass(p, *this); }];
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+}
+
+def TCP_GetGlobalMemrefOp : TCP_Op<"get_global_memref"> {
+  let summary = "Obtain a memref pointing at the given global";
+  let description = [{
+    Obtain a memref pointing at the given global.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$global);
+  let results = (outs AnyMemRef:$memref);
+  let assemblyFormat = "$global attr-dict `:` type($memref)";
+  let verifier = "return ::verify$cppClass(*this);";
 }
 
 // TODO: Change to a more principled error handling mechanism.

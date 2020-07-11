@@ -47,3 +47,5 @@ npctall() {
 # https://superuser.com/q/253068
 export FIGNORE=$FIGNORE:nstall-mlir
 
+export PYTHONPATH="$(realpath ${build_dir}/python):$(realpath ${build_dir}/python_native):$(realpath ${build_dir}/iree/bindings/python)"
+

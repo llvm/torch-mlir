@@ -359,7 +359,8 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   pm.addPass(createResolveTensorLoadStoreOpsPass());
 
   // At this point, the IR is in a form where there are no tensor ops
-  // (except tensor_store's of arguments and tensor_load's of returns).
+  // (except tensor_store's of arguments, tensor_load's of returns, and
+  // constants).
   //
   // This is a reasonable representation for doing buffer assignment.
   // TODO: Do buffer assignment here.

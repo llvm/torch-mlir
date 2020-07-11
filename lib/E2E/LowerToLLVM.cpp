@@ -23,6 +23,28 @@ using mlir::LLVM::LLVMFuncOp;
 using mlir::LLVM::LLVMType;
 
 //===----------------------------------------------------------------------===//
+// Utilities.
+//===----------------------------------------------------------------------===//
+
+// TODO: Move other descriptor types to here.
+
+// Get the LLVMType for npcomprt::GlobalDescriptor.
+static LLVMType getGlobalDescriptorTy(LLVM::LLVMDialect *llvmDialect) {
+  return LLVMType::getStructTy(
+      // std::int32_t numExtents;
+      LLVMType::getIntNTy(llvmDialect, 32),
+      // std::int32_t *extents;
+      LLVMType::getIntNTy(llvmDialect, 32).getPointerTo(),
+      // It is important that this struct member is a type-erased pointer
+      // so that this type is "context-free" and can be created in conversion
+      // patterns independently of the actual type of the data stored in the
+      // buffer.
+      //
+      // void *data;
+      LLVMType::getInt8PtrTy(llvmDialect));
+}
+
+//===----------------------------------------------------------------------===//
 // Compiler runtime functions.
 //===----------------------------------------------------------------------===//
 
@@ -66,6 +88,36 @@ public:
         rewriter.getI32ArrayAttr({1}));
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(
         op, backingFunc, ValueRange({rank, descriptorPtr}));
+    return success();
+  }
+  LLVM::LLVMFuncOp backingFunc;
+};
+} // namespace
+
+namespace {
+class GetGlobalOpCompilerRuntimeLowering
+    : public OpConversionPattern<npcomprt::GetGlobalOp> {
+public:
+  GetGlobalOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
+      : OpConversionPattern<npcomprt::GetGlobalOp>(backingFunc.getContext()),
+        backingFunc(backingFunc) {}
+  LogicalResult
+  matchAndRewrite(npcomprt::GetGlobalOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto llvmDialect =
+        rewriter.getContext()->getRegisteredDialect<LLVM::LLVMDialect>();
+    // It would be nice if we could use the constructor here that takes just the
+    // global, but keeping track of the converted llvm.mlir.global op that gets
+    // created from the npcomprt.global while conversion is going on is a
+    // headache.
+    //
+    // Instead, we rely on the symbol name being the same and the result type
+    // always being the same.
+    auto globalAddr = rewriter.create<LLVM::AddressOfOp>(
+        op.getLoc(), getGlobalDescriptorTy(llvmDialect).getPointerTo(),
+        op.globalAttr());
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op, backingFunc,
+                                              ValueRange({globalAddr}));
     return success();
   }
   LLVM::LLVMFuncOp backingFunc;
@@ -140,7 +192,163 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
         "from_memref", funcTy, builder, module.getLoc());
     patterns.insert<FromMemrefOpCompilerRuntimeLowering>(fromMemrefFunc);
   }
+
+  {
+    // Hardcoding f32 is fine here, since unranked memref descriptors have
+    // identical struct layout / ABI / contents regardless of the element type.
+    auto mlirFunctionType = builder.getFunctionType(
+        {getGlobalDescriptorTy(llvmDialect).getPointerTo()},
+        {UnrankedMemRefType::get(builder.getF32Type(), /*memorySpace=*/0)});
+    LLVMType funcTy = convertFunctionType(mlirFunctionType);
+    LLVMFuncOp backingFunc = createCompilerRuntimeFuncDecl(
+        "get_global", funcTy, builder, module.getLoc());
+    patterns.insert<GetGlobalOpCompilerRuntimeLowering>(backingFunc);
+  }
 }
+
+//===----------------------------------------------------------------------===//
+// Lowering for npcomprt.global
+//===----------------------------------------------------------------------===//
+
+namespace {
+class LowerNpcomprtGlobalOp : public OpConversionPattern<npcomprt::GlobalOp> {
+public:
+  explicit LowerNpcomprtGlobalOp(LLVMTypeConverter &typeConverter)
+      : OpConversionPattern<npcomprt::GlobalOp>(&typeConverter.getContext()),
+        typeConverter(typeConverter) {}
+  LogicalResult
+  matchAndRewrite(npcomprt::GlobalOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto llvmDialect = typeConverter.getDialect();
+    auto globalDescriptorTy = getGlobalDescriptorTy(llvmDialect);
+
+    // Create the data buffer.
+    auto dataBuffer = createGlobalForDenseElementsAttr(
+        (Twine("__npcomprt_global_data_buffer_") + op.sym_name()).str(),
+        op.value().cast<DenseElementsAttr>(), op, rewriter);
+
+    // Create the extents buffer.
+    auto extentsI32 = rewriter.getI32TensorAttr(llvm::to_vector<6>(
+        llvm::map_range(op.value().getType().cast<ShapedType>().getShape(),
+                        [](int64_t i) -> int32_t { return i; })));
+    auto extentsBuffer = createGlobalForDenseElementsAttr(
+        (Twine("__npcomprt_global_extents_") + op.sym_name()).str(), extentsI32,
+        op, rewriter);
+
+    // Create the GlobalDescriptor.
+    auto globalDescriptorGlobal = rewriter.create<LLVM::GlobalOp>(
+        op.getLoc(), globalDescriptorTy, /*isConstant=*/true,
+        LLVM::Linkage::Internal, op.sym_name(), /*value=*/Attribute());
+
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.createBlock(&globalDescriptorGlobal.initializer());
+
+    // Create the body of the initializer.
+    Value globalDescriptor =
+        rewriter.create<LLVM::UndefOp>(op.getLoc(), globalDescriptorTy);
+    auto updateDescriptor = [&](Value value,
+                                std::initializer_list<int32_t> position) {
+      globalDescriptor = rewriter.create<LLVM::InsertValueOp>(
+          op.getLoc(), globalDescriptor, value,
+          /*position=*/rewriter.getI32ArrayAttr(position));
+    };
+    updateDescriptor(
+        rewriter.create<LLVM::ConstantOp>(
+            op.getLoc(), LLVMType::getIntNTy(llvmDialect, 32),
+            rewriter.getI32IntegerAttr(
+                op.value().getType().cast<ShapedType>().getRank())),
+        {0});
+
+    // The global is actually an array, so we need to get a bare i32* pointer
+    // type. We could do this with GEP but it would be more verbose.
+    auto extentsBufferArrayAddress =
+        rewriter.create<LLVM::AddressOfOp>(op.getLoc(), extentsBuffer);
+    auto extentsBufferAddress = rewriter.create<LLVM::BitcastOp>(
+        op.getLoc(), LLVMType::getIntNTy(llvmDialect, 32).getPointerTo(),
+        extentsBufferArrayAddress);
+    updateDescriptor(extentsBufferAddress, {1});
+
+    auto dataBufferAddress =
+        rewriter.create<LLVM::AddressOfOp>(op.getLoc(), dataBuffer);
+    auto typeErasedDataBufferAddress = rewriter.create<LLVM::BitcastOp>(
+        op.getLoc(), LLVMType::getInt8PtrTy(llvmDialect), dataBufferAddress);
+    updateDescriptor(typeErasedDataBufferAddress, {2});
+    rewriter.create<LLVM::ReturnOp>(op.getLoc(), globalDescriptor);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  // TODO: It feels like MLIR core should have better utilities for this.
+  LLVM::GlobalOp createGlobalForDenseElementsAttr(
+      StringRef symbolName, DenseElementsAttr elements, npcomprt::GlobalOp op,
+      ConversionPatternRewriter &rewriter) const {
+    auto type = elements.getType().cast<ShapedType>();
+
+    // LLVM translation doesn't handle the case of zero-sized tensors, which can
+    // happen e.g. for the number of extents of a rank-0 (i.e. scalar).
+    //
+    // We fake-up a size-1 DenseElementsAttr to use for creating the global.
+    // That takes up binary space (one element instead of zero), but that seems
+    // fine.
+    //
+    // TODO: LLVM translation in MLIR core should handle this case better.
+    if (type.getNumElements() == 0) {
+      auto elementType = type.getElementType();
+      Attribute singleElement;
+      if (elementType.isIntOrIndex())
+        singleElement = rewriter.getIntegerAttr(elementType, 0);
+      else if (elementType.isa<FloatType>())
+        singleElement = rewriter.getFloatAttr(elementType, 0);
+      assert(singleElement &&
+             "could not fake up an element for a zero element tensor");
+      type = RankedTensorType::get({1}, elementType);
+      elements =
+          DenseElementsAttr::get(type, ArrayRef<Attribute>(singleElement));
+    }
+
+    auto llvmType = getLLVMTypeForShapedType(type, op, rewriter);
+    return rewriter.create<LLVM::GlobalOp>(
+        op.getLoc(), llvmType,
+        /*isConstant=*/true, LLVM::Linkage::Internal, symbolName, elements);
+  }
+
+  LLVMType getLLVMTypeForShapedType(ShapedType type, npcomprt::GlobalOp op,
+                                    ConversionPatternRewriter &rewriter) const {
+    auto llvmType =
+        typeConverter.convertType(type.getElementType()).cast<LLVMType>();
+
+    // MLIR->LLVM lowering for globals requires non-scalar data types. So use a
+    // dummy size-1 array for the scalar case.
+    //
+    // TODO: LLVM translation in MLIR core should handle this case better.
+    if (type.getRank() == 0)
+      return LLVMType::getArrayTy(llvmType, 1);
+
+    if (!llvmType) {
+      rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
+        diag << "cannot convert element type " << type.getElementType()
+             << " to an LLVM type";
+      });
+      return nullptr;
+    }
+
+    // Construct an LLVM nested array type for the tensor initializer.
+    // tensor<f32> -> float
+    // tensor<10xf32> -> [10 x float]
+    // tensor<2x3xf32> -> [2 x [3 x float]]
+    assert(type.hasStaticShape());
+    auto shape = type.getShape();
+    while (!shape.empty()) {
+      llvmType = LLVMType::getArrayTy(llvmType, shape.back());
+      shape = shape.drop_back();
+    }
+    return llvmType;
+  }
+  LLVMTypeConverter &typeConverter;
+};
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Lowering for module metadata
@@ -443,6 +651,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
     patterns.insert<LowerModuleMetadata>(context);
+    patterns.insert<LowerNpcomprtGlobalOp>(converter);
 
     if (failed(applyFullConversion(module, target, patterns))) {
       return signalPassFailure();

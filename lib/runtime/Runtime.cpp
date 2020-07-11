@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "CompilerDataStructures.h"
+
 using namespace npcomprt;
 
 //===----------------------------------------------------------------------===//
@@ -63,39 +65,7 @@ std::int32_t Tensor::getDataByteSize() const {
 //===----------------------------------------------------------------------===//
 // Module metadata descriptors.
 //===----------------------------------------------------------------------===//
-// These descriptors are never created by runtime code. They are always
-// embedded by the compiler as static data inside the module.
-//
-// Their definitions need to be kept in sync with the compiler code in
-// LowerToLLVM.cpp
 
-// All arguments are packed into this type-erased form for being invoked. See
-// LowerToLLVM.cpp for more details.
-typedef void ABIFunc(void **, void **);
-
-namespace {
-struct FuncDescriptor {
-  // The length of the function name.
-  std::int32_t nameLen;
-  // The name of the function, to allow lookup.
-  const char *name;
-  // This is a raw function pointer to the function's entry point as
-  // emitted by the compiler.
-  ABIFunc *functionPtr;
-  std::int32_t numInputs;
-  std::int32_t numOutputs;
-  // TODO: Add arg/result descriptors and other metadata.
-  // With those descriptors.
-};
-} // namespace
-
-// The top-level entry point of the module metadata emitted by the
-// compiler.
-struct npcomprt::ModuleDescriptor {
-  std::int32_t numFuncDescriptors;
-  // TODO: Update compiler code to emit this as a separate global.
-  FuncDescriptor *functionDescriptors;
-};
 
 //===----------------------------------------------------------------------===//
 // Module operations.

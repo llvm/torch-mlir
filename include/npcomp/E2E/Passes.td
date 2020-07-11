@@ -23,6 +23,15 @@ def LowerBroadcastToToLoops :
   let constructor = "mlir::NPCOMP::createLowerBroadcastToToLoopsPass()";
 }
 
+def LowerConstantTensorsToMemrefs :
+    Pass<"lower-constant-tensors-to-memrefs", "ModuleOp"> {
+  let summary = "Lower std.constant of tensor type to hybrid tensor/memref.";
+  let description = [{
+    This has to be a module pass since it involves creating tcp.global ops.
+  }];
+  let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefsPass()";
+}
+
 def ResolveShapeOfOps : Pass<"resolve-shape-of-ops", "FuncOp"> {
   let summary = "Resolve shape.shape_of ops to other shapes.";
   let constructor = "mlir::NPCOMP::createResolveShapeOfOpsPass()";

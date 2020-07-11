@@ -10,6 +10,7 @@
 #define NPCOMPRT_OPS
 
 include "npcomp/Dialect/Npcomprt/IR/NpcomprtBase.td"
+include "mlir/IR/SymbolInterfaces.td"
 
 class Npcomprt_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Npcomprt_Dialect, mnemonic, traits> {
@@ -55,6 +56,44 @@ def Npcomprt_AbortIfOp : Npcomprt_Op<"abort_if"> {
   let arguments = (ins I1:$pred);
   let results = (outs);
   let assemblyFormat = "$pred attr-dict";
+}
+
+def Npcomprt_GlobalOp : Npcomprt_Op<"global", [Symbol]> {
+  let summary = "Represents a global variable";
+  let description = [{
+    Represents a global variable.
+
+    Currently, only constant tensors are supported, and they are not
+    considered to be exported.
+  }];
+  let arguments = (ins StrAttr:$sym_name, ElementsAttr:$value);
+  let results = (outs);
+
+  let printer = [{ return ::print$cppClass(p, *this); }];
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+}
+
+def Npcomprt_GetGlobalOp : Npcomprt_Op<"get_global"> {
+  let summary = "Obtain a rank-erased memref pointing at the given global";
+  let description = [{
+    Obtain a rank-erased memref pointing at the given global.
+
+    TODO: As we define the runtime layer better, we should have fewer
+    entry points that return memrefs, or at least have a clearer separation
+    between the "memref world" and the "npcomprt world".
+    Something like forming IREE dispatch regions seems to be the missing thing:
+    - Everything inside the dispatch regions gets things marshaled from the
+      runtime (flow/hal/npcomprt) layer to/from memrefs in a clear way.
+    - Everything outside the dispatch regions purely uses the runtime
+      (flow/hal/npcomprt) data structures.
+    Globals should be one of the things that are purely runtime data structures,
+    rather than using memrefs. For now, using memrefs is simpler though.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$global);
+  let results = (outs AnyUnrankedMemRef:$memref);
+  let assemblyFormat = "$global attr-dict `:` type($memref)";
+  let verifier = "return ::verify$cppClass(*this);";
+  // TODO: verify exists and shape is compatible
 }
 
 def Npcomprt_ModuleMetadataOp : Npcomprt_Op<"module_metadata", [

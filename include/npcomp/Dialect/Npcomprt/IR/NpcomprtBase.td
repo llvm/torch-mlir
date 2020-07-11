@@ -27,7 +27,7 @@ def Npcomprt_Tensor
     : DialectType<
           Npcomprt_Dialect,
           CPred<"$_self.isa<::mlir::NPCOMP::npcomprt::TensorType>()">,
-          "buffer view">,
+          "npcomprt.tensor">,
       BuildableType<
           "$_builder.getType<::mlir::NPCOMP::npcomprt::TensorType>()"> {
   let typeDescription = [{The runtime type that represents a buffer.}];

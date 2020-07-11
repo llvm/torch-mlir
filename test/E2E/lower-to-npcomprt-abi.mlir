@@ -37,6 +37,23 @@ func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
 // -----
 
+
+// CHECK: npcomprt.global @g dense<7.000000e+00> : tensor<10xf32>
+tcp.global @g dense<7.0> : tensor<10xf32>
+// CHECK-LABEL: func @gets_global() -> !npcomprt.tensor 
+func @gets_global() -> tensor<10xf32> {
+// CHECK:    %[[GMEMREF:.*]] = npcomprt.get_global @g : memref<*xf32>
+// CHECK:    %[[ORIGMEMREF:.*]] = memref_cast %[[GMEMREF]] : memref<*xf32> to memref<10xf32>
+// CHECK:    %[[RETMEMREF:.*]] = memref_cast %[[ORIGMEMREF:.*]] : memref<10xf32> to memref<*xf32>
+// CHECK:    %[[RET:.*]] = npcomprt.from_memref %[[RETMEMREF]] : memref<*xf32>
+// CHECK:    return %[[RET]] : !npcomprt.tensor
+  %0 = tcp.get_global_memref @g : memref<10xf32>
+  %1 = tensor_load %0 : memref<10xf32>
+  return %1 : tensor<10xf32>
+}
+
+// -----
+
 // expected-error @+1 {{func not expressible with npcomprt ABI}}
 func @unhandled_abi_type_on_public_func(%arg0: i32) {
   return

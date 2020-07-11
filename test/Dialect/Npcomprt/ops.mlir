@@ -12,3 +12,9 @@ func @f(%arg0: !npcomprt.tensor) {
   return
 }
 
+// CHECK-LABEL: npcomprt.global @g dense<0.0{{.*}}> : tensor<10xf32>
+npcomprt.global @g dense<0.0> : tensor<10xf32>
+func @uses_global() {
+  npcomprt.get_global @g : memref<*xf32>
+  return
+}
