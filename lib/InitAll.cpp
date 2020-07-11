@@ -14,6 +14,7 @@
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
+#include "npcomp/Dialect/TCF/Transforms/Passes.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 
@@ -95,6 +96,8 @@ void mlir::NPCOMP::registerAllPasses() {
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h.inc"
 #define GEN_PASS_REGISTRATION
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h.inc"
+#define GEN_PASS_REGISTRATION
+#include "npcomp/Dialect/TCF/Transforms/Passes.h.inc"
 #define GEN_PASS_REGISTRATION
 #include "npcomp/Typing/Transforms/Passes.h.inc"
   registerDependencyPasses();

@@ -14,8 +14,9 @@ FRONTEND_PASSES = (
     "npcomp-cpa-type-inference",
     "numpy-public-functions-to-tensor",
     "convert-numpy-to-tcf",
-    "canonicalize",
     "convert-scf-to-std",
+    "canonicalize",
+    "tcf-shape-refinement",
 )
 
 _refjit = None
@@ -63,11 +64,20 @@ class CompilerBackend:
       for IREE, it is a serialized VM flatbuffer) but the contract is that
       it is operated on by methods on this class.
     """
+    # Frontend.
     pm = mlir.passes.PassManager(imported_ir_module.context)
     pm.addPassPipelines(*FRONTEND_PASSES)
     pm.run(imported_ir_module)
     if self._debug:
       logging.debug("Frontend IR:{}", imported_ir_module.to_asm())
+
+    # Backend.
+    # Note that this is a separate pass manager purely to aid in debugging.
+    pm = mlir.passes.PassManager(imported_ir_module.context)
+    self._refjit.build_backend_compilation_pipeline(pm)
+    pm.run(imported_ir_module)
+    if self._debug:
+      logging.debug("Backend IR:{}", imported_ir_module.to_asm())
 
     jit_module = self._refjit.JITModule.from_mlir(imported_ir_module, [])
     return jit_module

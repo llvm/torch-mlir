@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/JITRuntime/JITModule.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
@@ -20,6 +19,7 @@
 #include "mlir/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "npcomp/InitAll.h"
+#include "npcomp/JITRuntime/JITModule.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -78,9 +78,8 @@ static Type convertToMLIRType(npcomprt::ElementType type, Builder &builder) {
   }
 }
 
-static RankedTensorType
-getCorrespondingMLIRTensorType(npcomprt::Tensor &tensor,
-                               Builder &builder) {
+static RankedTensorType getCorrespondingMLIRTensorType(npcomprt::Tensor &tensor,
+                                                       Builder &builder) {
   auto elementType = convertToMLIRType(tensor.getElementType(), builder);
   SmallVector<int64_t, 6> extents;
   for (int i = 0, e = tensor.getRank(); i < e; i++)
@@ -102,8 +101,7 @@ static Attribute convertToMLIRAttribute(npcomprt::Tensor &tensor,
   }
 }
 
-static void printOutput(npcomprt::Tensor &tensor,
-                        llvm::raw_ostream &os) {
+static void printOutput(npcomprt::Tensor &tensor, llvm::raw_ostream &os) {
   MLIRContext context;
   Builder builder(&context);
   auto attr = convertToMLIRAttribute(tensor, builder);
@@ -126,8 +124,19 @@ Error compileAndRun(std::string mlirFile, std::string invokeFunction,
   OwningModuleRef moduleRef = parseSourceFile(mlirFile, &context);
   if (!moduleRef)
     return make_string_error(Twine("could not open ") + mlirFile);
+
   ModuleOp module = *moduleRef;
-  auto expectedJitModule = npcomp::JITModule::fromMLIR(module, sharedLibs);
+
+  // Compile.
+  PassManager pm(module.getContext(), /*verifyPasses=*/true);
+  applyPassManagerCLOptions(pm);
+  npcomp::JITModule::buildBackendCompilationPipeline(pm);
+  if (failed(pm.run(module))) {
+    return make_string_error(Twine("error compiling to jit backend"));
+  }
+
+  auto expectedJitModule =
+      npcomp::JITModule::fromCompiledModule(module, sharedLibs);
   if (!expectedJitModule)
     return expectedJitModule.takeError();
   auto jitModule = std::move(*expectedJitModule);

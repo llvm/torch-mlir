@@ -12,25 +12,27 @@
 
 #include "npcomp/JITRuntime/JITModule.h"
 #include "npcomp/Python/MlirIr.h"
+#include "npcomp/Python/MlirPass.h"
 
 using llvm::SmallVector;
 using llvm::StringRef;
+using llvm::Twine;
 
 // Make namespaces consistent.
 using mlir::PyModuleOp;
+using mlir::PyPassManager;
 using npcomp::JITModule;
 using npcomprt::Ref;
 using npcomprt::Tensor;
 
 template <typename T>
-static T checkError(llvm::Expected<T> expected, const char *messagePrefix) {
-  if (expected)
+static T checkError(llvm::Expected<T> &&expected, Twine banner = {}) {
+  if (LLVM_LIKELY(expected))
     return std::move(*expected);
-  // TODO: FIXME: Figure out how these errors work. This crashes at runtime.
-  auto error = expected.takeError();
+
   std::string errorMessage;
   llvm::raw_string_ostream os(errorMessage);
-  os << messagePrefix << error;
+  llvm::logAllUnhandledErrors(expected.takeError(), os, banner);
   os.flush();
   throw py::raisePyError(PyExc_RuntimeError, errorMessage.c_str());
 }
@@ -83,15 +85,19 @@ py::array wrapTensorAsArray(Ref<Tensor> tensor) {
 }
 
 void npcomp::python::defineBackendRefJitModule(py::module m) {
+  m.def("build_backend_compilation_pipeline", [](PyPassManager &pm) {
+    JITModule::buildBackendCompilationPipeline(pm.passManager);
+  });
   py::class_<JITModule>(m, "JITModule")
-      .def_static("from_mlir",
+      .def_static("from_compiled_module",
                   [](PyModuleOp module, std::vector<std::string> pySharedLibs)
                       -> std::unique_ptr<JITModule> {
                     SmallVector<StringRef, 4> sharedLibs(pySharedLibs.begin(),
                                                          pySharedLibs.end());
-                    auto jitModule = checkError(
-                        JITModule::fromMLIR(module.moduleOp, sharedLibs),
-                        "error creating JITModule");
+                    auto jitModule =
+                        checkError(JITModule::fromCompiledModule(
+                                       module.moduleOp, sharedLibs),
+                                   "error creating JITModule: ");
                     return jitModule;
                   },
                   py::arg("module"), py::arg("shared_libs"))

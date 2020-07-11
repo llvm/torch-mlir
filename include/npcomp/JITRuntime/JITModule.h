@@ -19,14 +19,32 @@
 
 #include <memory>
 
+namespace mlir {
+class PassManager;
+} // namespace mlir
+
 namespace npcomp {
 // Wrapper around npcomprt data structures and a JITted module, facilitating
 // interaction.
 class JITModule {
 public:
-  // Factory function for creation.
+  /// Populates a PassManager with a pipeline that performs backend compilation.
+  /// The resulting module can be passed to fromCompiledModule().
+  static void buildBackendCompilationPipeline(mlir::PassManager &pm);
+
+  /// Constructs a JITModule from a compiled Module.
+  /// The module should be the result of having run the backend compilation
+  /// pipeline successfully.
   static llvm::Expected<std::unique_ptr<JITModule>>
-  fromMLIR(mlir::ModuleOp module, llvm::ArrayRef<llvm::StringRef> sharedLibs);
+  fromCompiledModule(mlir::ModuleOp module,
+                     llvm::ArrayRef<llvm::StringRef> sharedLibs);
+
+  /// All in one factory function for compiling from an input module.
+  /// This method will construct a PassManager, perform backend compilation
+  /// and construct a JITModule all in one.
+  // static llvm::Expected<std::unique_ptr<JITModule>>
+  // fromMLIR(mlir::ModuleOp module, llvm::ArrayRef<llvm::StringRef>
+  // sharedLibs);
 
   llvm::Expected<llvm::SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6>>
   invoke(llvm::StringRef functionName,

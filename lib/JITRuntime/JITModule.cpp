@@ -26,23 +26,16 @@ static Error make_string_error(const Twine &message) {
                                        llvm::inconvertibleErrorCode());
 }
 
-static LogicalResult runE2ELowering(ModuleOp module) {
-  PassManager pm(module.getContext(), /*verifyPasses=*/true);
-  applyPassManagerCLOptions(pm);
-
-  NPCOMP::E2ELoweringPipelineOptions options;
-  NPCOMP::createE2ELoweringPipeline(pm, options);
-  return pm.run(module);
-}
-
 JITModule::JITModule() {}
 
-llvm::Expected<std::unique_ptr<JITModule>>
-JITModule::fromMLIR(mlir::ModuleOp module,
-                    llvm::ArrayRef<llvm::StringRef> sharedLibs) {
-  if (failed(runE2ELowering(module)))
-    return make_string_error("could not lower module");
+void JITModule::buildBackendCompilationPipeline(PassManager &pm) {
+  NPCOMP::E2ELoweringPipelineOptions options;
+  NPCOMP::createE2ELoweringPipeline(pm, options);
+}
 
+llvm::Expected<std::unique_ptr<JITModule>>
+JITModule::fromCompiledModule(mlir::ModuleOp module,
+                              llvm::ArrayRef<llvm::StringRef> sharedLibs) {
   auto expectedEngine = ExecutionEngine::create(
       module, [](llvm::Module *) { return Error::success(); },
       /*jitCodeGenOptLevel=*/llvm::None, llvm::to_vector<6>(sharedLibs));
