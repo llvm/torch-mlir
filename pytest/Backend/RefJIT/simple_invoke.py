@@ -19,8 +19,8 @@ def compile_function(f):
       target_factory=GenericTarget32))
   fe.import_global_function(f)
   compiler = refjit.CompilerBackend()
-  vm_blob = compiler.compile(fe.ir_module)
-  loaded_m = compiler.load(vm_blob)
+  blob = compiler.compile(fe.ir_module)
+  loaded_m = compiler.load(blob)
   return loaded_m[f.__name__]
 
 

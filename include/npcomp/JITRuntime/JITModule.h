@@ -39,13 +39,6 @@ public:
   fromCompiledModule(mlir::ModuleOp module,
                      llvm::ArrayRef<llvm::StringRef> sharedLibs);
 
-  /// All in one factory function for compiling from an input module.
-  /// This method will construct a PassManager, perform backend compilation
-  /// and construct a JITModule all in one.
-  // static llvm::Expected<std::unique_ptr<JITModule>>
-  // fromMLIR(mlir::ModuleOp module, llvm::ArrayRef<llvm::StringRef>
-  // sharedLibs);
-
   llvm::Expected<llvm::SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6>>
   invoke(llvm::StringRef functionName,
          llvm::ArrayRef<npcomprt::Ref<npcomprt::Tensor>> inputs);
