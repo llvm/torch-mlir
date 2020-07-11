@@ -23,10 +23,38 @@ using mlir::LLVM::LLVMFuncOp;
 using mlir::LLVM::LLVMType;
 
 //===----------------------------------------------------------------------===//
-// Utilities.
+// Descriptor types shared with the runtime.
+//
+// These correspond to the types in CompilerDataStructures.h
 //===----------------------------------------------------------------------===//
 
-// TODO: Move other descriptor types to here.
+// Get the LLVMType for npcomprt::FuncDescriptor.
+static LLVMType getFuncDescriptorTy(LLVM::LLVMDialect *llvmDialect) {
+  return LLVMType::getStructTy(llvmDialect,
+                               {
+                                   // Name length.
+                                   LLVMType::getIntNTy(llvmDialect, 32),
+                                   // Name chars.
+                                   LLVMType::getInt8PtrTy(llvmDialect),
+                                   // Type-erased function pointer.
+                                   LLVMType::getInt8PtrTy(llvmDialect),
+                                   // Number of inputs.
+                                   LLVMType::getIntNTy(llvmDialect, 32),
+                                   // Number of outputs.
+                                   LLVMType::getIntNTy(llvmDialect, 32),
+                               });
+}
+
+// Get the LLVMType for npcomprt::ModuleDescriptor.
+static LLVMType getModuleDescriptorTy(LLVM::LLVMDialect *llvmDialect) {
+  return LLVMType::getStructTy(
+      llvmDialect, {
+                       // std::int32_t numFuncDescriptors;
+                       LLVMType::getIntNTy(llvmDialect, 32),
+                       // FuncDescriptor *functionDescriptors;
+                       getFuncDescriptorTy(llvmDialect).getPointerTo(),
+                   });
+}
 
 // Get the LLVMType for npcomprt::GlobalDescriptor.
 static LLVMType getGlobalDescriptorTy(LLVM::LLVMDialect *llvmDialect) {
@@ -374,19 +402,7 @@ createFuncDescriptorArray(ArrayRef<npcomprt::FuncMetadataOp> funcMetadatas,
   }
 
   // This must match FuncDescriptor in the runtime.
-  auto funcDescriptorTy = LLVMType::getStructTy(
-      llvmDialect, {
-                       // Name length.
-                       llvmI32Ty,
-                       // Name chars.
-                       LLVMType::getInt8PtrTy(llvmDialect),
-                       // Type-erased function pointer.
-                       LLVMType::getInt8PtrTy(llvmDialect),
-                       // Number of inputs.
-                       llvmI32Ty,
-                       // Number of outputs.
-                       llvmI32Ty,
-                   });
+  auto funcDescriptorTy = getFuncDescriptorTy(llvmDialect);
   auto funcDescriptorArrayTy =
       LLVMType::getArrayTy(funcDescriptorTy, funcMetadatas.size());
   auto funcDescriptorArrayGlobal = builder.create<LLVM::GlobalOp>(
@@ -458,11 +474,7 @@ LLVM::GlobalOp createModuleDescriptor(LLVM::GlobalOp funcDescriptorArray,
   auto *llvmDialect =
       builder.getContext()->getRegisteredDialect<LLVM::LLVMDialect>();
   auto llvmI32Ty = LLVMType::getIntNTy(llvmDialect, 32);
-  auto moduleDescriptorTy = LLVMType::getStructTy(
-      llvmDialect, {
-                       llvmI32Ty,
-                       funcDescriptorArray.getType().getPointerTo(),
-                   });
+  auto moduleDescriptorTy = getModuleDescriptorTy(llvmDialect);
   // TODO: Ideally this symbol name would somehow be related to the module
   // name, if we could consistently assume we had one.
   // TODO: We prepend _mlir so that mlir::ExecutionEngine's lookup logic (which
@@ -490,8 +502,13 @@ LLVM::GlobalOp createModuleDescriptor(LLVM::GlobalOp funcDescriptorArray,
           builder.getI32IntegerAttr(
               funcDescriptorArray.getType().getArrayNumElements())),
       {0});
-  updateDescriptor(builder.create<LLVM::AddressOfOp>(loc, funcDescriptorArray),
-                   {1});
+
+  auto funcDecriptorArrayAddress =
+      builder.create<LLVM::AddressOfOp>(loc, funcDescriptorArray);
+  auto rawFuncDescriptorPtr = builder.create<LLVM::BitcastOp>(
+      loc, getFuncDescriptorTy(llvmDialect).getPointerTo(),
+      funcDecriptorArrayAddress);
+  updateDescriptor(rawFuncDescriptorPtr, {1});
   builder.create<LLVM::ReturnOp>(loc, moduleDescriptor);
 
   return moduleDescriptorGlobal;

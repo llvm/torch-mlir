@@ -93,7 +93,6 @@ def Npcomprt_GetGlobalOp : Npcomprt_Op<"get_global"> {
   let results = (outs AnyUnrankedMemRef:$memref);
   let assemblyFormat = "$global attr-dict `:` type($memref)";
   let verifier = "return ::verify$cppClass(*this);";
-  // TODO: verify exists and shape is compatible
 }
 
 def Npcomprt_ModuleMetadataOp : Npcomprt_Op<"module_metadata", [
