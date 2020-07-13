@@ -432,7 +432,7 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   // pass that checks no !shape.shape types left.
   pm.addPass(createLowerRankedShapesPass());
 
-  // Run a some final cleanups.
+  // Run a some cleanups.
   if (options.optimize) {
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
@@ -449,4 +449,11 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   // which reuses the upstream patterns and gives us a place to add our own
   // patterns for any custom ops and types we wish to lower.
   pm.addPass(createLowerToLLVMPass());
+
+  // Although LLVM will clean everything up eventually, for the sake of IR
+  // clarity while still in MLIR, run some cleanups.
+  if (options.optimize) {
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+  }
 }
