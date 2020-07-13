@@ -119,7 +119,7 @@ static void printOutputs(ArrayRef<npcomprt::Ref<npcomprt::Tensor>> outputs,
 
 Error compileAndRun(std::string mlirFile, std::string invokeFunction,
                     ArrayRef<StringRef> argValues,
-                    ArrayRef<StringRef> sharedLibs) {
+                    ArrayRef<StringRef> sharedLibs, bool optimize) {
   MLIRContext context;
   OwningModuleRef moduleRef = parseSourceFile(mlirFile, &context);
   if (!moduleRef)
@@ -130,7 +130,7 @@ Error compileAndRun(std::string mlirFile, std::string invokeFunction,
   // Compile.
   PassManager pm(module.getContext(), /*verifyPasses=*/true);
   applyPassManagerCLOptions(pm);
-  npcomp::JITModule::buildBackendCompilationPipeline(pm);
+  npcomp::JITModule::buildBackendCompilationPipeline(pm, optimize);
   if (failed(pm.run(module))) {
     return make_string_error(Twine("error compiling to jit backend"));
   }
@@ -170,6 +170,10 @@ struct Options {
   cl::list<std::string> sharedLibs{"shared-libs", cl::ZeroOrMore,
                                    cl::MiscFlags::CommaSeparated,
                                    cl::desc("Libraries to link dynamically")};
+  cl::opt<bool> optimize{
+      "optimize", cl::Optional,
+      cl::desc("whether the e2e pass pipeline should run optimizations"),
+      cl::init(false)};
 };
 } // namespace
 
@@ -194,7 +198,7 @@ int main(int argc, char **argv) {
   SmallVector<StringRef, 6> argValues(options.argValues.begin(),
                                       options.argValues.end());
   Error error = compileAndRun(options.inputFile, options.invokeFunction,
-                              argValues, sharedLibs);
+                              argValues, sharedLibs, options.optimize);
 
   int exitCode = EXIT_SUCCESS;
   llvm::handleAllErrors(std::move(error),

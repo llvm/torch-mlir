@@ -28,8 +28,10 @@ static Error make_string_error(const Twine &message) {
 
 JITModule::JITModule() {}
 
-void JITModule::buildBackendCompilationPipeline(PassManager &pm) {
+void JITModule::buildBackendCompilationPipeline(PassManager &pm,
+                                                bool optimize) {
   NPCOMP::E2ELoweringPipelineOptions options;
+  options.optimize = optimize;
   NPCOMP::createE2ELoweringPipeline(pm, options);
 }
 

@@ -30,7 +30,8 @@ class JITModule {
 public:
   /// Populates a PassManager with a pipeline that performs backend compilation.
   /// The resulting module can be passed to fromCompiledModule().
-  static void buildBackendCompilationPipeline(mlir::PassManager &pm);
+  static void buildBackendCompilationPipeline(mlir::PassManager &pm,
+                                              bool optimize = false);
 
   /// Constructs a JITModule from a compiled Module.
   /// The module should be the result of having run the backend compilation
