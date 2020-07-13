@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir -input %s \
+// RUN: npcomp-run-mlir %s \
 // RUN:   -invoke constant_add \
 // RUN:   -arg-value="dense<[3.0, 5.0]> : tensor<2xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \

@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir -input %s \
+// RUN: npcomp-run-mlir %s \
 // RUN:   -invoke multiple_ops \
 // RUN:   -arg-value="dense<1.0> : tensor<f32>" \
 // RUN:   -arg-value="dense<[1.0]> : tensor<1xf32>" \

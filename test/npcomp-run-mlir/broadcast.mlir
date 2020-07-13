@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir -input %s \
+// RUN: npcomp-run-mlir %s \
 // RUN:   -invoke broadcast \
 // RUN:   -arg-value="dense<[[1.0], [10.0]]> : tensor<2x1xf32>" \
 // RUN:   -arg-value="dense<[[3.0, 4.0]]> : tensor<1x2xf32>" \

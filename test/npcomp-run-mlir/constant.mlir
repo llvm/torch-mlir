@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir -input %s \
+// RUN: npcomp-run-mlir %s \
 // RUN:   -invoke constant \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s

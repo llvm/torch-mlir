@@ -160,8 +160,8 @@ Error compileAndRun(std::string mlirFile, std::string invokeFunction,
 namespace {
 namespace cl = llvm::cl;
 struct Options {
-  cl::opt<std::string> inputFile{"input", cl::Required,
-                                 cl::desc("the input .mlir file")};
+  cl::opt<std::string> inputFile{
+      cl::Positional, cl::desc("the input .mlir file"), cl::init("-")};
   cl::opt<std::string> invokeFunction{"invoke", cl::Required,
                                       cl::desc("function to invoke")};
   cl::list<std::string> argValues{"arg-value", cl::ZeroOrMore,

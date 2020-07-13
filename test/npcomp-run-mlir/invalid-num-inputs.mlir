@@ -1,4 +1,4 @@
-// RUN: not npcomp-run-mlir -input %s \
+// RUN: not npcomp-run-mlir %s \
 // RUN:   -invoke requires_one_input \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s

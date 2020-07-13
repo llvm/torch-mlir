@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir -input %s \
+// RUN: npcomp-run-mlir %s \
 // RUN:   -invoke mixed_rank \
 // RUN:   -arg-value="dense<[1.0]> : tensor<1xf32>" \
 // RUN:   -arg-value="dense<[[1.0, 2.0], [3.0, 4.0]]> : tensor<2x2xf32>" \
