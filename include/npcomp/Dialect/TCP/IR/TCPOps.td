@@ -91,8 +91,7 @@ def TCP_GetGlobalMemrefOp : TCP_Op<"get_global_memref"> {
 // produce the error in practice. The ops like shape.broadcast itself, when
 // lowered, immediately produce errors.
 // TODO: This should eventually be moved to a shape dialect.
-def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error",
-    [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error", []> {
   let summary = "Observes the fact that a shape might be an error.";
   let description = [{
     This op is a structural placeholder that captures a shape such that it
@@ -110,8 +109,7 @@ def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error",
 }
 
 // TODO: This probably belongs in the shape dialect.
-def TCP_GetExtentOp : TCP_Op<"get_extent",
-    [NoSideEffect, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def TCP_GetExtentOp : TCP_Op<"get_extent", [NoSideEffect]> {
   let summary = "Gets the specified extent from a shape.";
   let description = [{
 Gets the specified extent from a shape.

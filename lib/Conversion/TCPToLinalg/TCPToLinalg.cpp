@@ -31,11 +31,11 @@ public:
     auto genericOp = rewriter.create<linalg::GenericOp>(
         op.getLoc(), llvm::makeArrayRef({op.getType()}),
         ValueRange({op.lhs(), op.rhs()}),
-        /*args_in=*/rewriter.getI64IntegerAttr(2),
-        /*args_out=*/rewriter.getI64IntegerAttr(1),
-        /*indexing_maps=*/rewriter.getAffineMapArrayAttr(accesses),
-        /*iterator_types=*/rewriter.getStrArrayAttr(iterators), /*doc=*/nullptr,
-        /*library_call=*/nullptr);
+        /*args_in=*/2,
+        /*args_out=*/1,
+        /*indexing_maps=*/accesses,
+        /*iterator_types=*/iterators,
+        /*function_ref=*/nullptr);
 
     Region &region = genericOp.region();
     Block *block = rewriter.createBlock(&region, region.begin());
