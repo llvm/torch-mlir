@@ -3,10 +3,7 @@ set -e
 td="$(realpath $(dirname $0)/..)"
 
 # Find LLVM source (assumes it is adjacent to this directory).
-if [ -z "$LLVM_SRC_DIR" ]; then
-  LLVM_SRC_DIR="$td/../llvm-project"
-fi
-LLVM_SRC_DIR="$(realpath "$LLVM_SRC_DIR")"
+LLVM_SRC_DIR="$(realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
 
 if ! [ -f "$LLVM_SRC_DIR/llvm/CMakeLists.txt" ]; then
   echo "Expected LLVM_SRC_DIR variable to be set correctly (got '$LLVM_SRC_DIR')"
@@ -42,4 +39,3 @@ cmake -GNinja \
   -DLLVM_ENABLE_RTTI=On
 
 cmake --build "$build_mlir" --target install
-#cmake --build "$build_mlir" --target install
