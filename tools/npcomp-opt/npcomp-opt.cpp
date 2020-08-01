@@ -59,6 +59,7 @@ static llvm::cl::opt<bool>
 
 int main(int argc, char **argv) {
   mlir::registerAsmPrinterCLOptions();
+  mlir::registerMLIRContextCLOptions();
 
   mlir::registerAllDialects();
   mlir::registerAllPasses();
