@@ -1,3 +1,8 @@
+==============================================================================
+The LLVM Project is under the Apache License v2.0 with LLVM Exceptions:
+As an incubator project with ambition to become part of the LLVM Project,
+CIRCT is under the same license.
+==============================================================================
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -201,7 +206,7 @@
     limitations under the License.
 
 
---- LLVM Exceptions to the Apache 2.0 License ----
+---- LLVM Exceptions to the Apache 2.0 License ----
 
 As an exception, if, as a result of your compiling your source code, portions
 of this Software are embedded into an Object form of such source code, you
@@ -217,3 +222,14 @@ prospectively choose to deem waived or otherwise exclude such Section(s) of
 the License, but only in their entirety and only with respect to the Combined
 Software.
 
+==============================================================================
+Software from third parties included in the LLVM Project:
+==============================================================================
+The LLVM Project contains third party software which is under different license
+terms. All such code will be identified clearly using at least one of two
+mechanisms:
+1) It will be in a separate directory tree with its own `LICENSE.txt` or
+   `LICENSE` file at the top containing the specific license and restrictions
+   which apply to that software, or
+2) It will contain specific license and restriction terms at the top of every
+   file.

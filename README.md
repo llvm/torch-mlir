@@ -1,38 +1,25 @@
-# NPComp - An aspirational MLIR based numpy compiler
+# NPComp - MLIR based compiler toolkit for numerical python programs
 
-NPComp aims to be an idiomatic subset of the Python language, suitable for
-extracting isolated, statically typed programs from a running Python session.
-It is inspired by many projects that have come before it, including:
+> This project is participating in the LLVM Incubator process: as such, it is
+not part of any official LLVM release.  While incubation status is not
+necessarily a reflection of the completeness or stability of the code, it
+does indicate that the project is not yet endorsed as a component of LLVM.
 
-* PyPy/RPython
-* Numba
-* Pythran
-* TorchScript
-* Autograph
+The NPComp project aims to provide tooling for compiling numerical python programs of various forms to take advantage of MLIR+LLVM code generation and backend runtime systems.
 
-As the name implies, NPComp also seeks to provide compiler-backed support
-for Numpy APIs.
+In addition to providing a bridge to a variety of Python based numerical programming frameworks, NPComp also directly develops components for tracing and compilation of generic Python program fragments.
 
-The project spawned out of both [LLVM's MLIR project](https://mlir.llvm.org/)
-and [The IREE Project](https://github.com/google/iree) and seeks to use the
-MLIR and IREE tooling to enable progressive lowering of high level compute
-dominant sub-programs in a way that preserves high level semantic information
-that is expected to be useful for exploiting parallelism, generating high
-performance code, and enabling portability and deployment to a range of
-devices. Some of these goals overlap with existing projects, and to a first
-approximation, the experiment with NPComp is to determine whether rebasing
-on the MLIR tooling and ML backends like IREE produce a lift.
+## Framework integrations
 
-Before getting too excited, keep in mind that this project *barely* exists: it
-is very new and doesn't do anything useful yet :) We are using it as a testing
-ground for some new ideas and infrastructure improvement, and depending on
-how things turn out, may end up carrying it forward or breaking it up for
-parts.
+* Coming soon
 
-See the [features doc](docs/features.md) for a semi-curated status of what is
-implemented.
+## Python language compiler tookit
 
-## Architecture
+At the core of NPComp are a set of dialects and python support code for tracing (define by run) numerical programs and compiling idiomatic subsets of the Python language. As another interpretation of the name, NPComp also seeks to provide compiler-backed support for Numpy APIs.
+
+See the [features doc](docs/features.md) for a semi-curated status of what is implemented in this area.
+
+### Architecture
 
 The compiler is separated into:
 
