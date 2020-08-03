@@ -39,7 +39,7 @@ Broadcasts `operand` to the shape `shape`.
 
 It is undefined behavior if such a broadcast is not legal.
   }];
-  let arguments = (ins AnyRankedTensor:$operand, Shape_ShapeType:$shape);
+  let arguments = (ins AnyRankedTensor:$operand, Shape_ExtentTensorType:$shape);
   let results = (outs AnyRankedTensor:$result);
 }
 
@@ -54,7 +54,7 @@ def TCP_AllocMemRefOp : TCP_Op<"alloc_memref", []> {
   let description = [{
 Allocates a memref of the given shape.
   }];
-  let arguments = (ins Shape_ShapeType:$shape);
+  let arguments = (ins Shape_ExtentTensorType:$shape);
   let results = (outs AnyMemRef:$memref);
   let assemblyFormat = "$shape attr-dict `:`  type($memref)";
 }
@@ -102,36 +102,10 @@ def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error", []> {
     effecting ops, is not very well-defined, and needs to be worked
     on/redesigned.
   }];
-  let arguments = (ins Shape_ShapeType:$shape);
+  let arguments = (ins Shape_ShapeOrExtentTensorType:$shape);
   // TODO: ODS seems to create redeclared class members if we remove this,
   // resulting in C++ compilation errors.
   let results = (outs NoneType:$dummy);
-}
-
-// TODO: This probably belongs in the shape dialect.
-def TCP_GetExtentOp : TCP_Op<"get_extent", [NoSideEffect]> {
-  let summary = "Gets the specified extent from a shape.";
-  let description = [{
-Gets the specified extent from a shape.
-
-This op has undefined behavior if the shape is an error.
-  }];
-  let arguments = (ins Shape_ShapeType:$shape, I64Attr:$dim);
-  let results = (outs Index:$extent);
-  let assemblyFormat = "$shape `,` $dim attr-dict";
-
-  let builders = [
-    // Helper to pass a simple integer instead of an integer attr.
-    OpBuilder<
-      [{
-        OpBuilder &builder, OperationState &result,
-        Value shape, int64_t dim
-      }],
-      [{
-        build(builder, result, shape, builder.getI64IntegerAttr(dim));
-      }]
-    >
-  ];
 }
 
 #endif // TCP_OPS

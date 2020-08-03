@@ -201,16 +201,11 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(DimOp op,
                                 PatternRewriter &rewriter) const override {
-    // TODO: Remove this const pattern when lowering to shape.get_extent.
-    auto constIndex = op.getConstantIndex();
-    if (!constIndex)
-      return failure();
-
     auto allocMemRef = op.memrefOrTensor().getDefiningOp<tcp::AllocMemRefOp>();
     if (!allocMemRef)
       return rewriter.notifyMatchFailure(op, "could not find alloc_memref");
-    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, allocMemRef.shape(),
-                                                  *constIndex);
+    rewriter.replaceOpWithNewOp<shape::GetExtentOp>(
+        op, rewriter.getIndexType(), allocMemRef.shape(), op.index());
     return success();
   }
 };
@@ -231,7 +226,7 @@ class LowerLinalgLoopDimOps
       // remove this.
       return !op.memrefOrTensor().getDefiningOp<tcp::AllocMemRefOp>();
     });
-    target.addLegalOp<tcp::GetExtentOp>();
+    target.addLegalOp<shape::GetExtentOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }
@@ -261,7 +256,8 @@ public:
     SmallVector<Value, 6> dynamicExtents;
     for (int i = 0, e = memrefType.getRank(); i < e; i++) {
       if (memrefType.isDynamicDim(i)) {
-        auto extent = rewriter.create<tcp::GetExtentOp>(op.getLoc(), shape, i);
+        auto extent =
+            rewriter.create<shape::GetExtentOp>(op.getLoc(), shape, i);
         dynamicExtents.push_back(extent);
       }
     }
@@ -281,8 +277,9 @@ class LowerAllocMemRefOps
     patterns.insert<LowerAllocMemRefOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<tcp::AllocMemRefOp>();
-    target.addLegalOp<tcp::GetExtentOp>();
+    target.addLegalOp<shape::GetExtentOp>();
     target.addLegalOp<AllocOp>();
+    target.addLegalOp<ConstantOp>();
     if (failed(applyPartialConversion(func, target, patterns))) {
       return signalPassFailure();
     }
@@ -433,8 +430,11 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   pm.addPass(createLowerRankedShapesPass());
 
   // Run a some cleanups.
+  // TODO: Some folding and DCE of dangling ops is still needed here. Once the
+  // invariants above are tightened up, the canonicalize should be moved into
+  // the optimize block.
+  pm.addPass(createCanonicalizerPass());
   if (options.optimize) {
-    pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
   }
 

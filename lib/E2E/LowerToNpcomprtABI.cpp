@@ -132,8 +132,14 @@ public:
       extents.push_back(rewriter.create<npcomprt::GetExtentOp>(
           op.getLoc(), rewriter.getIndexType(), adaptor.arg(), ci));
     }
-    rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(
-        op, rewriter.getType<shape::ShapeType>(), extents);
+    auto newShape = rewriter.create<shape::FromExtentsOp>(
+        op.getLoc(), rewriter.getType<shape::ShapeType>(), extents);
+    // TODO: Provide a builder that doesn't require the result type.
+    rewriter.replaceOpWithNewOp<shape::ToExtentTensorOp>(
+        op,
+        RankedTensorType::get({ShapedType::kDynamicSize},
+                              rewriter.getIndexType()),
+        newShape);
     return success();
   }
 };
@@ -203,6 +209,7 @@ static LogicalResult doDialectConversion(ModuleOp module) {
   target.addIllegalOp<shape::ShapeOfOp>();
   target.addLegalOp<ConstantOp>();
   target.addLegalOp<shape::FromExtentsOp>();
+  target.addLegalOp<shape::ToExtentTensorOp>();
   target.addLegalOp<npcomprt::GetExtentOp>();
 
   patterns.insert<LowerGlobalOp>(context);

@@ -37,6 +37,21 @@ public:
 } // namespace
 
 namespace {
+
+// Given an operand that is either a Shape or Extent Tensor, returns an
+// Extent Tensor or nullptr if this cannot be locally determined.
+// The return value, if !nullptr, will be a 1D RankedTensorType (with possibly
+// unknown element).
+Value findExtentsFromShape(Value operand, bool requireKnownRank) {
+  if (auto tensorType = operand.getType().dyn_cast<RankedTensorType>()) {
+    if (tensorType.getRank() == 1 &&
+        (!requireKnownRank || tensorType.hasStaticShape())) {
+      return operand;
+    }
+  }
+  return nullptr;
+}
+
 class LowerShapeBroadcastOp : public OpConversionPattern<shape::BroadcastOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -44,14 +59,21 @@ public:
   matchAndRewrite(shape::BroadcastOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     shape::BroadcastOp::Adaptor adaptor(operands);
-    auto lhs = adaptor.lhs().getDefiningOp<shape::FromExtentsOp>();
-    auto rhs = adaptor.rhs().getDefiningOp<shape::FromExtentsOp>();
-    if (!lhs || !rhs)
-      return rewriter.notifyMatchFailure(op, "operands not converted");
+    // When the ranks are statically known, generate non-branchy code.
+    // TODO: Generate rank-generic code.
+    auto lhsExtents = findExtentsFromShape(adaptor.lhs(), true);
+    auto rhsExtents = findExtentsFromShape(adaptor.rhs(), true);
+    if (!lhsExtents || !rhsExtents)
+      return rewriter.notifyMatchFailure(op, "dynamic extents not supported");
+
     // Establish invariant that rank(lhs) >= rank(rhs).
-    if (lhs.extents().size() < rhs.extents().size())
-      std::swap(lhs, rhs);
-    auto rankDiscrepancy = lhs.extents().size() - rhs.extents().size();
+    auto lhsSize = lhsExtents.getType().cast<RankedTensorType>().getDimSize(0);
+    auto rhsSize = rhsExtents.getType().cast<RankedTensorType>().getDimSize(0);
+    if (lhsSize < rhsSize) {
+      std::swap(lhsExtents, rhsExtents);
+      std::swap(lhsSize, rhsSize);
+    }
+    auto rankDiscrepancy = lhsSize - rhsSize;
 
     // Helper that creates IR
     // ```
@@ -72,19 +94,31 @@ public:
       rewriter.create<npcomprt::AbortIfOp>(op.getLoc(), bothTrue);
     };
 
-    auto resultExtents = llvm::to_vector<6>(lhs.extents());
-    for (int i = 0, e = rhs.extents().size(); i < e; i++) {
-      auto lhsExtent = lhs.extents()[rankDiscrepancy + i];
-      auto rhsExtent = rhs.extents()[i];
+    SmallVector<Value, 6> resultExtents;
+    for (int i = 0, e = lhsSize; i < e; i++) {
+      auto lhsDim = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
+      auto lhsExtent = rewriter.create<ExtractElementOp>(
+          op.getLoc(), lhsExtents, ValueRange{lhsDim});
+      if (i < rankDiscrepancy) {
+        // Padded extent.
+        resultExtents.push_back(lhsExtent);
+        continue;
+      }
+
+      // Non-padded extent.
+      auto rhsDim =
+          rewriter.create<ConstantIndexOp>(op.getLoc(), i - rankDiscrepancy);
+      auto rhsExtent = rewriter.create<ExtractElementOp>(
+          op.getLoc(), rhsExtents, ValueRange{rhsDim});
       auto ugt = rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::ugt,
                                          lhsExtent, rhsExtent);
-      auto max =
+      auto resultExtent =
           rewriter.create<SelectOp>(op.getLoc(), ugt, lhsExtent, rhsExtent);
-      auto &resultExtent = resultExtents[rankDiscrepancy + i];
-      resultExtent = max;
       createAbortIfIllegalBroadcastExtent(lhsExtent, resultExtent);
       createAbortIfIllegalBroadcastExtent(rhsExtent, resultExtent);
+      resultExtents.push_back(resultExtent);
     }
+
     // TODO: Remove the return type once ODS is fixed to do proper inference.
     rewriter.replaceOpWithNewOp<shape::FromExtentsOp>(
         op, shape::ShapeType::get(rewriter.getContext()), resultExtents);
@@ -93,26 +127,44 @@ public:
 };
 } // namespace
 
-// Rewrite `get_extent(from_extents(x1,x2,x3), N) -> xN`
-//
-// TODO: this should be a fold on tcp::GetExtentOp.
-// (though then the contract of this pass depends on that set of folds,
-// which isn't great)
-//
-// Also, we use OpConversionPattern to get post-rewrite operands as above.
 namespace {
-class LowerShapeGetExtentOp : public OpConversionPattern<tcp::GetExtentOp> {
+class LowerShapeToExtentTensorOp
+    : public OpConversionPattern<shape::ToExtentTensorOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tcp::GetExtentOp op, ArrayRef<Value> operands,
+  matchAndRewrite(shape::ToExtentTensorOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    tcp::GetExtentOp::Adaptor adaptor(operands);
-    auto fromExtents = adaptor.shape().getDefiningOp<shape::FromExtentsOp>();
-    if (!fromExtents)
-      return rewriter.notifyMatchFailure(op, "not a from_extents op");
-    int64_t dim = op.dim().getLimitedValue();
-    rewriter.replaceOp(op, ValueRange(fromExtents.extents())[dim]);
+    shape::ToExtentTensorOpAdaptor adaptor(operands);
+    if (adaptor.input().getType().isa<shape::ShapeType>()) {
+      // Convert by matching to a producing FromExtentsOp.
+      auto fromExtents = adaptor.input().getDefiningOp<shape::FromExtentsOp>();
+      if (!fromExtents) {
+        return rewriter.notifyMatchFailure(op, "not a from_extents op");
+      }
+      rewriter.replaceOpWithNewOp<TensorFromElementsOp>(op,
+                                                        fromExtents.extents());
+      return success();
+    }
+
+    // Assume that it is already an extent tensor.
+    // TODO: Since these ops are all multi-type, there should be a utility
+    // for switching on the allowable types instead of just assuming that it
+    // is an extent tensor.
+    rewriter.replaceOp(op, adaptor.input());
+    return success();
+  }
+};
+
+class LowerShapeGetExtentOp : public OpConversionPattern<shape::GetExtentOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(shape::GetExtentOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    shape::GetExtentOp::Adaptor adaptor(operands);
+    rewriter.replaceOpWithNewOp<ExtractElementOp>(op, adaptor.shape(),
+                                                  adaptor.dim());
     return success();
   }
 };
@@ -136,19 +188,12 @@ public:
 } // namespace
 
 // Basic invariant of this pass:
-// Every def of a !shape.shape type is replaced with a
-// `shape.from_extents` op.
-// When converting an op, look for the `shape.from_extents` op that
-// defined all operands, then do a computation on the extents (i.e.
-// operands to the `shape.from_extents` op) and produce a
-// `shape.from_extents` op.
+// Every `shape.from_extents` op operating on an extent tensor
+// (`tensor<?xindex>`) is replaced by corresponding standard ops and folded
+// away (for the ranked case, it should be possible to eliminate these).
 //
 // We expect that previous passes have inserted a "root" set of
 // shape::FromExtentsOp's that allow this process to get started.
-//
-// We then use this to resolve get_extent ops by using a rewrite
-// `get_extent(from_extents(x1,x2,x3), N) -> xN`, which should apply in
-// maximally many places due to the above invariant.
 //
 // This is similar to the approach that is used in IREE. It is basically a
 // combination of the ConvertShapeToShapex pass and the
@@ -167,6 +212,11 @@ public:
 // ranks of use-def cycles ahead of time or optimistically assume that
 // backedges will match the rank of forward edges, and somehow be robust
 // when that assumption fails.
+//
+// TODO: Add in a fold of
+// `extract_element(tensor_from_elements(x0, x1, ...), n) -> xn` to restore
+// the above invariant without relying on a subsequent canonicalization
+// step.
 namespace {
 class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
   void runOnOperation() {
@@ -177,12 +227,14 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     patterns.insert<LowerConstShapeOp>(context);
     patterns.insert<LowerShapeBroadcastOp>(context);
     patterns.insert<LowerShapeGetExtentOp>(context);
+    patterns.insert<LowerShapeToExtentTensorOp>(context);
     patterns.insert<EraseShapeObserveErrorOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<shape::ShapeOfOp>();
     target.addIllegalOp<shape::BroadcastOp>();
-    target.addIllegalOp<tcp::GetExtentOp>();
+    target.addIllegalOp<shape::GetExtentOp>();
     target.addLegalOp<shape::FromExtentsOp>();
+    target.addIllegalOp<shape::ToExtentTensorOp>();
     target.addLegalOp<npcomprt::AbortIfOp>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addIllegalOp<tcp::ShapeObserveErrorOp>();
@@ -196,11 +248,12 @@ class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
     auto walkResult = func.walk([](Operation *op) {
       if (!isa<shape::FromExtentsOp>(op))
         return WalkResult::advance();
-      if (!op->use_empty()) {
+      if (op->use_empty()) {
+        op->erase();
+      } else {
         op->emitError("could not be eliminated");
         return WalkResult::interrupt();
       }
-      op->erase();
       return WalkResult::advance();
     });
     if (walkResult.wasInterrupted())

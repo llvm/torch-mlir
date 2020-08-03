@@ -18,17 +18,18 @@ func @identity(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[VAL_1:.*]] = constant 0 : i32
 // CHECK:           %[[VAL_2:.*]] = npcomprt.get_extent %[[VAL_0]], %[[VAL_1]]
 // CHECK:           %[[VAL_3:.*]] = shape.from_extents %[[VAL_2]]
-// CHECK:           %[[VAL_4:.*]] = tcp.alloc_memref %[[VAL_3]] : memref<?xf32>
-// CHECK:           %[[VAL_5:.*]] = npcomprt.to_memref %[[VAL_0]] : memref<*xf32>
-// CHECK:           %[[VAL_6:.*]] = memref_cast %[[VAL_5]] : memref<*xf32> to memref<?xf32>
-// CHECK:           linalg.copy(%[[VAL_6]], %[[VAL_4]]) : memref<?xf32>, memref<?xf32>
-// CHECK:           %[[VAL_7:.*]] = memref_cast %[[VAL_4]] : memref<?xf32> to memref<*xf32>
-// CHECK:           %[[VAL_8:.*]] = npcomprt.from_memref %[[VAL_7]] : memref<*xf32>
-// CHECK:           return %[[VAL_8]] : !npcomprt.tensor
+// CHECK:           %[[VAL_4:.*]] = shape.to_extent_tensor %[[VAL_3]]
+// CHECK:           %[[VAL_5:.*]] = tcp.alloc_memref %[[VAL_4]] : memref<?xf32>
+// CHECK:           %[[VAL_6:.*]] = npcomprt.to_memref %[[VAL_0]] : memref<*xf32>
+// CHECK:           %[[VAL_7:.*]] = memref_cast %[[VAL_6]] : memref<*xf32> to memref<?xf32>
+// CHECK:           linalg.copy(%[[VAL_7]], %[[VAL_5]]) : memref<?xf32>, memref<?xf32>
+// CHECK:           %[[VAL_8:.*]] = memref_cast %[[VAL_5]] : memref<?xf32> to memref<*xf32>
+// CHECK:           %[[VAL_9:.*]] = npcomprt.from_memref %[[VAL_8]] : memref<*xf32>
+// CHECK:           return %[[VAL_9]] : !npcomprt.tensor
 // CHECK:         }
 
 func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
-  %shape = shape.shape_of %arg0 : tensor<?xf32>
+  %shape = shape.shape_of %arg0 : tensor<?xf32> -> tensor<?xindex>
   %memref = tcp.alloc_memref %shape : memref<?xf32>
   tensor_store %arg0, %memref : memref<?xf32>
   %ret = tensor_load %memref : memref<?xf32>
@@ -40,7 +41,7 @@ func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
 // CHECK: npcomprt.global @g dense<7.000000e+00> : tensor<10xf32>
 tcp.global @g dense<7.0> : tensor<10xf32>
-// CHECK-LABEL: func @gets_global() -> !npcomprt.tensor 
+// CHECK-LABEL: func @gets_global() -> !npcomprt.tensor
 func @gets_global() -> tensor<10xf32> {
 // CHECK:    %[[GMEMREF:.*]] = npcomprt.get_global @g : memref<*xf32>
 // CHECK:    %[[ORIGMEMREF:.*]] = memref_cast %[[GMEMREF]] : memref<*xf32> to memref<10xf32>

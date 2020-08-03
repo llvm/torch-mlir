@@ -19,6 +19,12 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 
 namespace {
+
+RankedTensorType getExtentTensorType(Builder &builder) {
+  return RankedTensorType::get({ShapedType::kDynamicSize},
+                               builder.getIndexType());
+}
+
 class ConvertAdd : public OpRewritePattern<tcf::AddOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -34,6 +40,9 @@ public:
     Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
         op.getLoc(), lhsShape, rhsShape, /*error=*/nullptr);
     rewriter.create<tcp::ShapeObserveErrorOp>(op.getLoc(), broadcastedShape);
+    Value broadcastedExtents = rewriter.create<shape::ToExtentTensorOp>(
+        op.getLoc(), getExtentTensorType(rewriter), broadcastedShape);
+
     // TODO: It's annoying to do the dynamic broadcast above then
     // do the static transfer function here. Would be nice if they could
     // somehow be unified.
@@ -43,9 +52,9 @@ public:
     auto resultType =
         RankedTensorType::get(broadcastedStaticShape, lhsType.getElementType());
     Value lhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.lhs(), broadcastedShape);
+        op.getLoc(), resultType, op.lhs(), broadcastedExtents);
     Value rhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.rhs(), broadcastedShape);
+        op.getLoc(), resultType, op.rhs(), broadcastedExtents);
     Value add = rewriter.create<tcp::AddOp>(op.getLoc(), op.getType(),
                                             lhsBroadcasted, rhsBroadcasted);
     rewriter.replaceOp(op, add);

@@ -3,7 +3,7 @@
 // CHECK-LABEL: func @basic
 func @basic(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 
-  %shape = "shape.shape_of"(%arg0) : (tensor<?xf32>) -> !shape.shape
+  %shape = "shape.shape_of"(%arg0) : (tensor<?xf32>) -> tensor<?xindex>
 
   // CHECK: %[[SRCMEMREF:.+]] = tcp.alloc_memref
   %src_memref = tcp.alloc_memref %shape : memref<?xf32>

@@ -62,9 +62,9 @@ public:
 
     // TODO: handle output rank > input rank.
     for (int i = 0, e = resultType.getRank(); i < e; i++) {
-
-      Value outputExtent = rewriter.create<tcp::GetExtentOp>(
-          op.getLoc(), op.shape(), rewriter.getI64IntegerAttr(i));
+      Value dimIndex = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
+      Value outputExtent = rewriter.create<shape::GetExtentOp>(
+          op.getLoc(), rewriter.getIndexType(), op.shape(), dimIndex);
       outputExtents.push_back(outputExtent);
     }
     int rankDiff = resultType.getRank() - inputType.getRank();
@@ -127,12 +127,10 @@ public:
   LogicalResult matchAndRewrite(DimOp op,
                                 PatternRewriter &rewriter) const override {
     // TODO: Remove this const pattern when lowering to shape.get_extent.
-    auto constIndex = op.getConstantIndex();
-    if (!constIndex)
-      return failure();
     auto shape =
         rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.memrefOrTensor());
-    rewriter.replaceOpWithNewOp<tcp::GetExtentOp>(op, shape, *constIndex);
+    rewriter.replaceOpWithNewOp<shape::GetExtentOp>(op, rewriter.getIndexType(),
+                                                    shape, op.index());
     return success();
   }
 };
