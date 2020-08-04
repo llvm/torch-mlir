@@ -38,7 +38,6 @@ The compiler is separated into:
 The project is roughly split into the following areas of code:
 
 * [User-facing Python code](python/npcomp)
-* [_npcomp native module](python_native)
 * C++ [include](include) and [lib](lib) trees, following LLVM/MLIR conventions
 * LIT testing trees:
   * [test](test): Lit/FileCheck tests covering core MLIR based infra
@@ -71,7 +70,7 @@ ninja
 ninja check-npcomp
 
 # Setup PYTHONPATH for interactive use
-export PYTHONPATH="$(realpath build/python):$(realpath build/python_native):$(realpath build/iree/bindings/python)"
+export PYTHONPATH="$(realpath build/python):$(realpath build/iree/bindings/python)"
 ```
 
 ## Interactive Use
