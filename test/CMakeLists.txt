@@ -1,3 +1,7 @@
+llvm_canonicalize_cmake_booleans(
+  NPCOMP_ENABLE_IREE
+)
+
 configure_lit_site_cfg(
         ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
         ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -9,7 +13,18 @@ set(NPCOMP_TEST_DEPENDS
         FileCheck count not
         npcomp-opt
         npcomp-run-mlir
+        NPCOMPNativePyExt
 )
+
+# Optional features.
+if(NPCOMP_ENABLE_IREE)
+  LIST(APPEND NPCOMP_TEST_DEPENDS
+    # TODO: Fix this so it has an IREE prefix
+    bindings_python_pyiree_rt_rt
+    # TODO: Why is this separate?
+    bindings_python_pyiree_rt_system_api
+  )
+endif()
 
 add_lit_testsuite(check-npcomp-lit "Running the npcomp regression tests"
         ${CMAKE_CURRENT_BINARY_DIR}

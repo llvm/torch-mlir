@@ -31,6 +31,9 @@ config.host_arch = "@HOST_ARCH@"
 config.npcomp_src_root = "@CMAKE_SOURCE_DIR@"
 config.npcomp_obj_root = "@CMAKE_BINARY_DIR@"
 
+# Optional features.
+config.npcomp_enable_iree = @NPCOMP_ENABLE_IREE@
+
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.
 try:
