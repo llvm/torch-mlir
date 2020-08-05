@@ -29,6 +29,9 @@ if(NPCOMP_ENABLE_IREE)
   )
 endif()
 
+get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+
 add_mlir_library(NPCOMPInitAll
   InitAll.cpp
 
@@ -47,5 +50,7 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPTCFPasses
   NPCOMPTypingPasses
 
+  ${dialect_libs}
+  ${conversion_libs}
   ${ALL_DEPENDS}
 )

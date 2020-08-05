@@ -10,7 +10,6 @@ add_mlir_library(NPCOMPE2E
 
   DEPENDS
   NPCOMPE2EPassIncGen
-  MLIRLinalgOps
 
   LINK_COMPONENTS
   Core
@@ -22,3 +21,5 @@ add_mlir_library(NPCOMPE2E
   MLIRStandardToLLVM
   MLIRSCFToStandard
   )
+
+mlir_check_all_link_libraries(NPCOMPE2E)

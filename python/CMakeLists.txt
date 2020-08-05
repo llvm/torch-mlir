@@ -135,7 +135,6 @@ target_link_libraries(${extension_target}
     ${dialect_libs}
 
     # Upstream depends
-    LLVMSupport
     MLIRAffineToStandard
     MLIRAffineTransforms
     MLIRDialect
@@ -152,3 +151,5 @@ target_link_libraries(${extension_target}
 )
 
 npcomp_python_target_compile_options(${extension_target})
+
+mlir_check_all_link_libraries(${extension_target})

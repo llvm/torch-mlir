@@ -6,8 +6,9 @@ add_mlir_dialect_library(NPCOMPNumpyDialect
   ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/Numpy
 
   DEPENDS
-  NPCOMPBasicpyDialect
   MLIRNumpyOpsIncGen
-)
 
-target_link_libraries(NPCOMPNumpyDialect PUBLIC MLIRIR)
+  LINK_LIBS PUBLIC
+  NPCOMPBasicpyDialect
+  MLIRIR
+)
