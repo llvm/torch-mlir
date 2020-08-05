@@ -40,7 +40,6 @@ target_link_libraries(NPCOMPPythonCommon
   MLIRSCF
 
   # Upstream depends
-  LLVMSupport
   MLIRDialect
   MLIREDSC
   MLIREDSCInterface
@@ -48,8 +47,8 @@ target_link_libraries(NPCOMPPythonCommon
   MLIRLLVMIR
   MLIRPass
   MLIRTransforms
-
-  ${ExtraInit_LIBADD}
 )
 
 npcomp_python_target_compile_options(NPCOMPPythonCommon)
+
+mlir_check_all_link_libraries(NPCOMPPythonCommon)

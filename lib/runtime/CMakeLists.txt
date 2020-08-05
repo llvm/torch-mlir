@@ -17,6 +17,8 @@ add_mlir_library(NPCOMPRuntime
   EXCLUDE_FROM_LIBMLIR
 )
 
+mlir_check_all_link_libraries(NPCOMPRuntime)
+
 # The library that defines the symbols that the compiler emits references
 # to.
 # Note: is uses some of the same facilities that the user API depends on,
@@ -35,4 +37,3 @@ add_mlir_library(NPCOMPCompilerRuntimeShlib
 target_link_libraries(NPCOMPCompilerRuntimeShlib PRIVATE NPCOMPRuntime)
 set_target_properties(NPCOMPCompilerRuntimeShlib PROPERTIES LINK_FLAGS
     "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/unix_version.script")
-

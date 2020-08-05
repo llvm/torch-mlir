@@ -10,3 +10,5 @@ add_llvm_executable(npcomp-opt npcomp-opt.cpp)
 
 llvm_update_compile_flags(npcomp-opt)
 target_link_libraries(npcomp-opt PRIVATE ${LIBS})
+
+mlir_check_all_link_libraries(npcomp-opt)
