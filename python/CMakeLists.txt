@@ -73,8 +73,13 @@ include(NpcompPython)
 # symbols, which is better for development.
 # TODO(laurenzo): Windows requires linking against the PYTHON_LIBRARIES
 # TODO(laurenzo): OSX requires allowing undefined (-undefined dynamic_lookup)
-set(NPCOMP_PYEXT_LINK_MODE SHARED)
-set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
+if(NPCOMP_PYTHON_BINDINGS_VERSION_LOCKED)
+  set(NPCOMP_PYEXT_LINK_MODE SHARED)
+  set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
+else()
+  set(NPCOMP_PYEXT_LINK_MODE MODULE)
+  set(NPCOMP_PYEXT_LIBADD)
+endif()
 
 if(NPCOMP_ENABLE_IREE)
   list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendIREEPythonModule)
@@ -86,10 +91,6 @@ if(NPCOMP_ENABLE_REFJIT)
   )
 endif()
 
-# TODO(laurenzo): Add a config setting to control this.
-# set(NPCOMP_PYEXT_LINK_MODE MODULE)
-# set(NPCOMP_PYEXT_LIBADD "")
-
 # When building the extension, distinguish between those sources that use
 # pybind (and need rtti/exceptions) and those that only use LLVM/MLIR.
 # Some of the low-level components do not support mixing RTTI modes and are
@@ -100,9 +101,6 @@ set(extension_llvm_sources
 set(extension_pybind_sources
   NpcompModule.cpp
 )
-set_source_files_properties(
-  ${extension_pybind_sources}
-  PROPERTIES COMPILE_FLAGS "${extension_cflags}")
 add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
   ${extension_pybind_sources}
   ${extension_llvm_sources}
@@ -128,13 +126,13 @@ set_target_properties(${extension_target} PROPERTIES LINK_FLAGS
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-# llvm_update_compile_flags(${extension_target})
 target_link_libraries(${extension_target}
   PRIVATE
-    ${dialect_libs}
-    ${conversion_libs}
-    NPCOMPInitAll
     NPCOMPPythonCommon
+    NPCOMPInitAll
+
+    ${conversion_libs}
+    ${dialect_libs}
 
     # Upstream depends
     LLVMSupport
