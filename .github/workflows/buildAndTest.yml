@@ -3,9 +3,9 @@ name: Build and Test
 on: [push, pull_request]
 
 jobs:
-  env:
-    LLVM: external/llvm-project
   build-llvm:
+    env:
+      LLVM: external/llvm-project
     name: Build LLVM
     runs-on: ubuntu-latest
     steps:
@@ -34,6 +34,8 @@ jobs:
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TEST=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON
         cmake --build . --target install -- -j$(nproc)
   build:
+    env:
+      LLVM: external/llvm-project
     name: Build and Test
     needs: build-llvm
     runs-on: ubuntu-latest
