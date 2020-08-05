@@ -3,12 +3,14 @@ name: Build and Test
 on: [push, pull_request]
 
 jobs:
+  env:
+    LLVM: external/llvm-project
   build-llvm:
     name: Build LLVM
     runs-on: ubuntu-latest
     steps:
     - name: Configure Environment
-      run: echo "::add-path::$GITHUB_WORKSPACE/llvm/install/bin"
+      run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
@@ -21,14 +23,14 @@ jobs:
       id: cache-llvm
       uses: actions/cache@v2
       with:
-        path: llvm
+        path: ${LLVM}
         key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
-        mkdir llvm/build
-        mkdir llvm/install
-        cd llvm/build
+        mkdir ${LLVM}/build
+        mkdir ${LLVM}/install
+        cd ${LLVM}/build
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TEST=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON
         cmake --build . --target install -- -j$(nproc)
   build:
@@ -37,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Configure Environment
-      run: echo "::add-path::$GITHUB_WORKSPACE/llvm/install/bin"
+      run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
@@ -50,25 +52,25 @@ jobs:
       id: cache-llvm
       uses: actions/cache@v2
       with:
-        path: llvm
+        path: ${LLVM}
         key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
-        mkdir llvm/build
-        mkdir llvm/install
-        cd llvm/build
+        mkdir ${LLVM}/build
+        mkdir ${LLVM}/install
+        cd ${LLVM}/build
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TEST=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON
         cmake --build . --target install -- -j$(nproc)
     - name: Build and Test npcomp (Assert)
       run: |
         mkdir build_assert
         cd build_assert
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../llvm/install/lib/cmake/mlir/ -DLLVM_DIR=../llvm/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_EXTERNAL_LIT=`pwd`/../llvm/build/bin/llvm-lit
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
         make check-npcomp -j$(nproc)
     - name: Build and Test npcomp (Release)
       run: |
         mkdir build_release
         cd build_release
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../llvm/install/lib/cmake/mlir/ -DLLVM_DIR=../llvm/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../llvm/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
         make check-npcomp -j$(nproc)
