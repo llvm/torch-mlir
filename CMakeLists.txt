@@ -106,9 +106,12 @@ endif()
 # Python Configuration
 #-------------------------------------------------------------------------------
 
+set(NPCOMP_PYTHON_BINDINGS_VERSION_LOCKED 1 CACHE BOOL
+       "Links to specific python libraries, resolving all symbols.")
+
 # TODO(laurenzo): Rationalize with how this is done elsewhere
 find_package(PythonInterp REQUIRED)
-find_package(PythonLibs REQUIRED)
+find_package(PythonLibs)
 message(STATUS "Found python include dirs: ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Found ppython libraries: ${PYTHON_LIBRARIES}")
 find_package(pybind11 CONFIG REQUIRED)
@@ -125,6 +128,6 @@ add_custom_target(check-npcomp)
 
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
-add_subdirectory(python)
 add_subdirectory(tools)
+add_subdirectory(python)
 add_subdirectory(test)
