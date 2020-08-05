@@ -38,7 +38,9 @@ public:
     Value lhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.lhs());
     Value rhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.rhs());
     Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
-        op.getLoc(), lhsShape, rhsShape, /*error=*/nullptr);
+        op.getLoc(), rewriter.getType<mlir::shape::ShapeType>(), lhsShape,
+        rhsShape,
+        /*error=*/nullptr);
     rewriter.create<tcp::ShapeObserveErrorOp>(op.getLoc(), broadcastedShape);
     Value broadcastedExtents = rewriter.create<shape::ToExtentTensorOp>(
         op.getLoc(), getExtentTensorType(rewriter), broadcastedShape);
