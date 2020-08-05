@@ -50,5 +50,3 @@ target_link_libraries(NPCOMPPythonCommon
 )
 
 npcomp_python_target_compile_options(NPCOMPPythonCommon)
-
-mlir_check_all_link_libraries(NPCOMPPythonCommon)
