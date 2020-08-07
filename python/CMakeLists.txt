@@ -2,12 +2,13 @@
 # Resources that must be packaged into the python tree
 ################################################################################
 
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/backend/refjit_resources")
 add_custom_target(NPCOMPPythonResources)
 add_custom_command(
-    TARGET NPCOMPPythonResources
-    COMMAND ${CMAKE_COMMAND} -E copy
+  TARGET NPCOMPPythonResources
+  COMMAND ${CMAKE_COMMAND} -E copy
         # TODO: Make the runtime library work for windows.
-        ${CMAKE_BINARY_DIR}/lib/runtime/libNPCOMPCompilerRuntimeShlib.so
+        ${CMAKE_BINARY_DIR}/lib/libNPCOMPCompilerRuntimeShlib.so
         ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/backend/refjit_resources/libNPCOMPCompilerRuntimeShlib.so
 )
 add_dependencies(NPCOMPPythonResources
