@@ -4,7 +4,6 @@ on: [push, pull_request]
 
 env:
   LLVM: external/llvm-project
-  LLVMconfig: -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON
 jobs:
   build-llvm:
     name: Build LLVM
@@ -27,12 +26,12 @@ jobs:
         path: ${{ env.LLVM }}
         key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
+      if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
         mkdir -p ${LLVM}/build
         mkdir -p ${LLVM}/install
         cd ${LLVM}/build
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON
-        make bin/llvm-lit
         cmake --build . --target install -- -j$(nproc)
   build:
     name: Build and Test
@@ -69,20 +68,11 @@ jobs:
     - name: Install pybind11
       run: |
         sudo apt-get install python3-pybind11
-        wget https://github.com/pybind/pybind11/archive/v2.2.3.tar.gz
-        tar xvf v2.2.3.tar.gz
-        cd pybind11-2.2.3
-        mkdir build
-        mkdir install
-        cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=../install
-        make -j$(nproc)
-        make install
     - name: Build and Test npcomp (Assert)
       run: |
         mkdir build_assert
         cd build_assert
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DCMAKE_PREFIX_PATH=../pybind11-2.2.3/install -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
         make check-npcomp -j$(nproc)
     - name: Build and Test npcomp (Release)
       run: |
