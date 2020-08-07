@@ -54,7 +54,6 @@ config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'tools')
 config.npcomp_runtime_shlib = os.path.join(
     config.npcomp_obj_root,
     'lib',
-    'runtime',
     'libNPCOMPCompilerRuntimeShlib' + config.llvm_shlib_ext
 )
 

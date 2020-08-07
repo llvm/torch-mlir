@@ -25,7 +25,7 @@ npcomp-run-mlir() {
   # $ npcomp-run-mlir <regular npcomp-run-mlir options>
   ninja -C "$build_dir" npcomp-run-mlir NPCOMPCompilerRuntimeShlib 1>&2 || return 1
   $build_dir/tools/npcomp-run-mlir/npcomp-run-mlir \
-    -shared-libs="${build_dir}/lib/runtime/libNPCOMPCompilerRuntimeShlib.so" "$@"
+    -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
 }
 
 # Go to the root of your npcomp checkout.
