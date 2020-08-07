@@ -7,7 +7,7 @@ env:
 jobs:
   build-llvm:
     name: Build LLVM
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Configure Environment
       run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
@@ -24,7 +24,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
+        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
@@ -36,7 +36,7 @@ jobs:
   build:
     name: Build and Test
     needs: build-llvm
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Configure Environment
       run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
@@ -53,7 +53,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
+        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
