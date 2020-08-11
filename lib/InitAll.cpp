@@ -8,6 +8,8 @@
 
 #include "npcomp/InitAll.h"
 
+#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/ATenPasses.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
@@ -68,6 +70,7 @@ static void registerDependencyPasses() {
 }
 
 void mlir::NPCOMP::registerAllDialects() {
+  registerDialect<mlir::NPCOMP::aten::ATenDialect>();
   registerDialect<Basicpy::BasicpyDialect>();
   registerDialect<Numpy::NumpyDialect>();
   registerDialect<npcomprt::NpcomprtDialect>();
@@ -100,5 +103,6 @@ void mlir::NPCOMP::registerAllPasses() {
 #include "npcomp/Dialect/TCF/Transforms/Passes.h.inc"
 #define GEN_PASS_REGISTRATION
 #include "npcomp/Typing/Transforms/Passes.h.inc"
+  mlir::NPCOMP::aten::registerATenPasses();
   registerDependencyPasses();
 }

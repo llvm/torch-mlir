@@ -1,3 +1,4 @@
+add_subdirectory(ATen)
 add_subdirectory(Basicpy)
 add_subdirectory(Npcomprt)
 add_subdirectory(Numpy)
