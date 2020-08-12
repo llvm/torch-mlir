@@ -19,7 +19,7 @@ dependencies are published by Google at regular intervals and common LLVM
 commits.
 
 In general, unless if the versions found by this script are too old, integrating
-at it's recommendation will increase the probability that dependencies are
+at its recommendation will increase the probability that dependencies are
 actually mutually compatible with each other and make for an easier time
 upgrading. It is experimental and subject to change.
 """
