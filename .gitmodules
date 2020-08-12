@@ -1,3 +1,6 @@
 [submodule "external/llvm-project"]
 	path = external/llvm-project
 	url = https://github.com/llvm/llvm-project.git
+[submodule "external/mlir-hlo"]
+	path = external/mlir-hlo
+	url = https://github.com/tensorflow/mlir-hlo
