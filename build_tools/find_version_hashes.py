@@ -3,6 +3,27 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+"""Find common version hashes for dependent projects.
+
+Sample usage:
+  ./build_tools/find_version_hashes.py --iree_dir=${IREE_DIR}
+
+This script will fetch dependent projects and seek back over the last
+--revision-depth commits against their respective version files in order to
+find common revisions of each that share a same common LLVM hash, reporting
+all such hashes.
+
+Note that this procedure is not guaranteed to work or produce a recent
+version. It has a reasonable probability of working since the non-LLVM
+dependencies are published by Google at regular intervals and common LLVM
+commits.
+
+In general, unless if the versions found by this script are too old, integrating
+at it's recommendation will increase the probability that dependencies are
+actually mutually compatible with each other and make for an easier time
+upgrading. It is experimental and subject to change.
+"""
+
 import argparse
 import collections
 import os
