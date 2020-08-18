@@ -11,7 +11,8 @@ In addition to providing a bridge to a variety of Python based numerical program
 
 ## Framework integrations
 
-* Coming soon
+* [PyTorch](frontends/pytorch/README.md) -- Experimental integration for
+  extracting programs from PyTorch.
 
 ## Python language compiler tookit
 
