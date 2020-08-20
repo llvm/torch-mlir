@@ -42,18 +42,17 @@ private:
   std::map<Operation *, std::string> opToName;
 
 public:
-  ATenOpReportPass() :
-    output(nullptr),
-    tableFields({"reads", "writes", "activation_in", "activation_out",
-          "parameters_in", "ops:MAC", "ops:==", "ops:>", "ops:*",
-          "ops:+", "ops:/", "ops:sqrt", "ops:-", "grad"}) {}
+  ATenOpReportPass()
+      : output(nullptr),
+        tableFields({"reads", "writes", "activation_in", "activation_out",
+                     "parameters_in", "ops:MAC", "ops:==", "ops:>", "ops:*",
+                     "ops:+", "ops:/", "ops:sqrt", "ops:-", "grad"}) {}
 
-  ATenOpReportPass(std::string *output) :
-    output(output),
-    tableFields({"reads", "writes", "activation_in", "activation_out",
-          "parameters_in", "ops:MAC", "ops:==", "ops:>", "ops:*",
-          "ops:+", "ops:/", "ops:sqrt", "ops:-", "grad"}) {}
-
+  ATenOpReportPass(std::string *output)
+      : output(output),
+        tableFields({"reads", "writes", "activation_in", "activation_out",
+                     "parameters_in", "ops:MAC", "ops:==", "ops:>", "ops:*",
+                     "ops:+", "ops:/", "ops:sqrt", "ops:-", "grad"}) {}
 
   std::string emitJSONReport() {
 
@@ -62,7 +61,7 @@ public:
     auto graph = getOperation().lookupSymbol<mlir::FuncOp>("graph");
     graph.walk([&](Operation *op) {
       if (auto stats =
-          mlir::dyn_cast<mlir::NPCOMP::StatisticsOpInterface>(op)) {
+              mlir::dyn_cast<mlir::NPCOMP::StatisticsOpInterface>(op)) {
 
         // name for this layer
         std::string layerName = opToName[op];
@@ -124,7 +123,7 @@ public:
     });
 
     std::string report = emitJSONReport();
-    if(output) {
+    if (output) {
       *output = report;
     } else {
       graph.emitWarning(report);
@@ -134,22 +133,16 @@ public:
 
 } // namespace
 
-namespace mlir {
-namespace NPCOMP {
-namespace aten {
-
-std::unique_ptr<mlir::Pass> createATenOpReportPass() {
+std::unique_ptr<mlir::Pass> mlir::NPCOMP::aten::createATenOpReportPass() {
   return std::make_unique<ATenOpReportPass>();
 }
-std::unique_ptr<mlir::Pass> createATenOpReportPass(std::string &report) {
+
+std::unique_ptr<mlir::Pass>
+mlir::NPCOMP::aten::createATenOpReportPass(std::string &report) {
   return std::make_unique<ATenOpReportPass>(&report);
 }
 
 void mlir::NPCOMP::aten::registerATenOpReportPass() {
   PassRegistration<ATenOpReportPass>("aten-op-report",
-                                      "Generate ATen operation report");
+                                     "Generate ATen operation report");
 }
-
-} // namespace aten
-} // namespace NPCOMP
-} // namespace mlir
