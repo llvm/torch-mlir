@@ -130,6 +130,12 @@ find_package(pybind11 CONFIG REQUIRED)
 message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
 
 #-------------------------------------------------------------------------------
+# Pytorch Configuration
+#-------------------------------------------------------------------------------
+
+find_package(Torch)
+
+#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
@@ -137,9 +143,12 @@ set(MLIR_NPCOMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MLIR_NPCOMP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 add_custom_target(check-npcomp)
+add_custom_target(check-all)
+add_dependencies(check-all check-npcomp)
 
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(python)
 add_subdirectory(test)
+add_subdirectory(frontends)
