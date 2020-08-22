@@ -1167,15 +1167,23 @@ def gen_td_output_file(args):
   return gen_output_file(args, 'ATenOps.td')
 
 
-def check_overrides(overrides, overridden):
+def check_overrides(availagle_fgens, overrides, overridden):
   misses = 0
   for mapsig, cpp_sig in overrides.items():
     mapsig_key = get_mapsig_key(mapsig)
     if not mapsig_key in overridden:
       misses += 1
-      print('ATenMLIRType function missed override: {}; // {}'.format(
-          cpp_sig, mapsig),
+      print('ERROR: ATenMLIRType function missed override:\n'
+            '  CPPSIG: {}\n'
+            '  MAPSIG: {}\n'
+            '  KEY   : {}\n'.format(cpp_sig, mapsig, mapsig_key),
             file=sys.stderr)
+  if misses != 0:
+    print('Some required overrides were missing (see above).')
+    print('Available overrides:')
+    for fgen in availagle_fgens:
+      print('         ', get_mapsig_key(fgen.mapsig))
+
   return misses == 0
 
 
@@ -1186,8 +1194,9 @@ def generate(args):
         file=sys.stderr)
   assert len(errors) == 0
 
-  overrides = parse_local_overrides(args.overridetype)
-  print('{} function overrides in {}'.format(len(overrides), args.overridetype),
+  local_overrides = parse_local_overrides(args.overridetype)
+  print('{} function overrides in {}'.format(len(local_overrides),
+                                             args.overridetype),
         file=sys.stderr)
 
   fgens = []
@@ -1206,13 +1215,21 @@ def generate(args):
   functions = generate_functions(fgens)
   hfunctions = generate_class_functions(fgens)
 
-  tdfunctions, overridden = generate_td_functions(fgens, overrides)
-  assert check_overrides(overrides, overridden)
+  tdfunctions, overridden = generate_td_functions(fgens, local_overrides)
+  assert check_overrides(
+      fgens,
+      local_overrides,
+      overridden), ('Missing overrides when generating td functions')
+
   #print(tdfunctions)
 
-  regs, overridden = generate_registrations(fgens, overrides)
+  regs, overridden = generate_registrations(fgens, local_overrides)
   #print (len(overrides), len(overridden))
-  assert check_overrides(overrides, overridden)
+  assert check_overrides(
+      fgens,
+      local_overrides,
+      overridden), ('Missing local overrides when generating registrations')
+
   # Create output files ...
   print(_H_HEADER.format(gen=os.path.basename(sys.argv[0]), hfuncs=hfunctions),
         file=gen_h_output_file(args))

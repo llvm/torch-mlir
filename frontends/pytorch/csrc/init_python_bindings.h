@@ -8,12 +8,16 @@
 #ifndef INIT_PYTHON_BINDINGS_H
 #define INIT_PYTHON_BINDINGS_H
 
-#include "torch/csrc/jit/pybind.h"
+#include <pybind11/pybind11.h>
 
 namespace torch_mlir {
 
-// Initialize bindings for torch_mlir functions
-void InitBindings(py::module m);
+// Perform top-level initialization for the module.
+void InitBindings(pybind11::module &m);
+
+// Adds bindings related to the type-dispatch program capture mechanism.
+// Only defined if NPCOMP_ENABLE_TORCH_TYPE_DISPATCH (optional feature).
+void InitTypeDispatchBindings(pybind11::module &m);
 
 } // namespace torch_mlir
 

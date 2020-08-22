@@ -8,7 +8,7 @@ configure_lit_site_cfg(
 set(TEST_DEPENDS
   FileCheck count not
   _torch_mlir
-  aten_ops
+  #aten_ops
   )
 
 add_lit_testsuite(check-frontends-pytorch "Running the frontends-pytorch regression tests"
