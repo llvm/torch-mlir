@@ -127,7 +127,7 @@ void InitModuleBindings(py::module &m) {
     module->print(ss);
     return ss.str();
   });
-
+}
 } // namespace
 
 void InitTypeDispatchBindings(py::module &m) { InitModuleBindings(m); }

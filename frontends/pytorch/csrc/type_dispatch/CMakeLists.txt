@@ -22,7 +22,7 @@ add_library(npcomp_torch_type_dispatch_bindings
   )
 
 get_property(mlir_libs GLOBAL PROPERTY MLIR_ALL_LIBS)
-target_link_libraries(_torch_mlir
+target_link_libraries(npcomp_torch_type_dispatch_bindings
   NPCOMPATenDialect
   ${TORCH_LIBRARIES}
   ${mlir_libs}
