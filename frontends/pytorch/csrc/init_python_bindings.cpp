@@ -5,18 +5,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// This file implements Python bindings to the MLIR/NPCOMP ATen dialect.
-// Roughly speaking, it enables something like this:
-//
-//  dev = torch_mlir.mlir_device()
-//  t0 = torch.randn((4,4), device=dev)
-//  t1 = torch.randn((4,4), device=dev)
-//  t2 = t0 + t1
-//  t2_mlir = torch_mlir.get_mlir( t2 )
-//  t2_cpu = t2.to('cpu')
-//
-// In this case t2_cpu contains the result of the computation, and t2_mlir
-// contains the mlir description of the computation.
+// This is the top-level entry point for the MLIR/NPCOMP <-> PyTorch bridge.
+// It provides several mechanisms for extracting programs from PyTorch via:
+//   a) A pseudo-device which captures the operations to an MLIR module
+//      (implemented via the legacy type_dispatch mechanism for PyTorch 1.3).
+//   b) Direct IR translation from PyTorch Graphs (not implemented).
+//   c) Using the PyTorch JIT facility (not implemented).
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -36,26 +30,11 @@
 #include "npcomp/Dialect/ATen/ATenPasses.h"
 #include "npcomp/Dialect/ATen/LivenessReport.h"
 
-// Then ATen headers with workarounds
-#include "ATen/ArrayRef.h"
-namespace at {
-template <typename T> using ArrayRef = c10::ArrayRef<T>;
-}
-#include "ATen/SmallVector.h"
-namespace at {
-template <typename T, int S> using SmallVector = c10::SmallVector<T, S>;
-}
-#include <ATen/Tensor.h>
-
-// other headers
-
-#include "aten_mlir_bridge.h"
-#include "aten_mlir_type.h"
 #include "init_python_bindings.h"
-#include "mlir_gen.h"
 
 #include <string>
 
+namespace py = pybind11;
 using namespace mlir;
 
 namespace llvm {
@@ -89,43 +68,7 @@ mlir::OwningModuleRef LoadModule(mlir::MLIRContext &context, std::string mlir) {
   return module;
 }
 
-void InitModuleBindings(py::module m) {
-  m.def("_initialize_aten_bindings",
-        []() { ATenMLIRType::InitializeAtenBindings(); });
-  m.def("_set_default_device", []() {});
-
-  m.def("_get_mlir", [](std::vector<at::Tensor> &ts) -> std::string {
-    if (ts.size() == 0)
-      return std::string();
-
-    mlir::MLIRContext context;
-
-    // gather IR for all the tensors
-    std::vector<ir::Value> recorded_ir;
-    for (auto &t : ts)
-      if (c10::optional<MLIRTensor> at = bridge::TryGetMLIRTensor(t))
-        recorded_ir.push_back(at->GetIrValue());
-
-    // generate MLIR from IR
-    auto mlir_gen = MLIRGen(context).genModule(recorded_ir);
-    mlir::OwningModuleRef module = std::move(std::get<0>(mlir_gen));
-
-    mlir::PassManager pm(module->getContext());
-
-    pm.addPass(mlir::createCSEPass());
-    pm.addPass(mlir::NPCOMP::aten::createATenLayerNamePass());
-    if (failed(pm.run(*module))) {
-      llvm::errs() << "ATenLayerNamePass failed";
-      return "<error>";
-    }
-
-    // dump MLIR to string and return
-    std::string s;
-    llvm::raw_string_ostream ss(s);
-    module->print(ss);
-    return ss.str();
-  });
-
+void InitModuleBindings(py::module &m) {
   m.def(
       "_op_report",
       [](std::string mlir) -> std::string {
@@ -204,7 +147,13 @@ void InitModuleBindings(py::module m) {
 
 } // namespace
 
-void InitBindings(py::module m) { InitModuleBindings(m); }
+void InitBindings(py::module &m) {
+  InitModuleBindings(m);
+
+#if defined(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
+  InitTypeDispatchBindings(m);
+#endif
+}
 
 } // namespace torch_mlir
 

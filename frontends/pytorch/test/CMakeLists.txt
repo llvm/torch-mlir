@@ -8,8 +8,14 @@ configure_lit_site_cfg(
 set(TEST_DEPENDS
   FileCheck count not
   _torch_mlir
-  aten_ops
   )
+
+
+if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
+  list(APPEND TEST_DEPENDS
+    aten_ops
+  )
+endif()
 
 add_lit_testsuite(check-frontends-pytorch "Running the frontends-pytorch regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
