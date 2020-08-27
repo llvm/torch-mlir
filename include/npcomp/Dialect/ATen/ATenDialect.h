@@ -25,27 +25,6 @@ namespace mlir {
 namespace NPCOMP {
 namespace aten {
 
-/// The ATenDialect models 'A Tensor library' from Pytorch.  The intention
-/// is to provide an abstraction which is isomorphic with datastructures
-/// returned from the pytorch jit, enabling integration with Pytorch models.
-/// Most of the actual operation definitions in tablegen are themselves
-/// generated from C APIs exported by Pytorch.
-class ATenDialect : public mlir::Dialect {
-public:
-  explicit ATenDialect(mlir::MLIRContext *ctx);
-  static StringRef getDialectNamespace() { return "aten"; }
-
-  /// Parse a type registered to this dialect. Overridding this method is
-  /// required for dialects that have custom types.
-  /// Technically this is only needed to be able to round-trip to textual IR.
-  mlir::Type parseType(DialectAsmParser &parser) const override;
-
-  /// Print a type registered to this dialect. Overridding this method is
-  /// only required for dialects that have custom types.
-  /// Technically this is only needed to be able to round-trip to textual IR.
-  void printType(mlir::Type type, DialectAsmPrinter &os) const override;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////// Custom Types for the Dialect ///////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,13 +32,6 @@ public:
 namespace detail {
 struct ATenListTypeStorage;
 }
-
-/// LLVM-style RTTI: one entry per subclass to allow dyn_cast/isa.
-enum ATenTypeKind {
-  // The enum starts at the range reserved for this dialect.
-  ATEN_TYPE = mlir::Type::FIRST_PRIVATE_EXPERIMENTAL_0_TYPE,
-  ATEN_LIST,
-};
 
 /// A variadic list of arguments in ATen
 class ATenListType : public mlir::Type::TypeBase<ATenListType, mlir::Type,
@@ -72,9 +44,6 @@ public:
 
   /// Get the unique instance of this Type from the context.
   static ATenListType get(mlir::Type elementType);
-
-  /// Support method to enable LLVM-style RTTI type casting.
-  static bool kindof(unsigned kind) { return kind == ATenTypeKind::ATEN_LIST; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +92,8 @@ namespace aten {
 // include TableGen generated Op definitions
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/ATen/ATen.h.inc"
+
+#include "npcomp/Dialect/ATen/ATenDialect.h.inc"
 
 } // namespace aten
 } // namespace NPCOMP

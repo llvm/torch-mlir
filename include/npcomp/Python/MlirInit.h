@@ -17,11 +17,19 @@
 // here for parts of the code that are not RTTI-compatible.
 
 namespace mlir {
+
+class MLIRContext;
+
 namespace npcomp {
 namespace python {
 
 // One time initialization.
 bool npcompMlirInitialize();
+
+// Loads globally registered dialects into the MLIRContext.
+// This is temporary until there is an upstream story for handling dialect
+// registration in python-based systems.
+void loadGlobalDialectsIntoContext(MLIRContext *context);
 
 } // namespace python
 } // namespace npcomp

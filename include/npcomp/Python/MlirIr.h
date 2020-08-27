@@ -109,6 +109,7 @@ struct PyAttribute {
 
 /// Wrapper around MLIRContext.
 struct PyContext : std::enable_shared_from_this<PyContext> {
+  PyContext();
   static void bind(py::module m);
   PyModuleOp parseAsm(const std::string &asm_text);
   MLIRContext context;

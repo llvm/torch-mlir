@@ -20,6 +20,10 @@ namespace Basicpy {
 std::unique_ptr<OperationPass<FuncOp>> createFunctionTypeInferencePass();
 
 } // namespace Basicpy
+
+/// Registers all Basicpy transformation passes.
+void registerBasicpyPasses();
+
 } // namespace NPCOMP
 } // namespace mlir
 

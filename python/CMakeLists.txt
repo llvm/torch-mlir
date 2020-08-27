@@ -140,7 +140,6 @@ target_link_libraries(${extension_target}
     MLIRAffineTransforms
     MLIRDialect
     MLIREDSC
-    MLIREDSCInterface
     MLIRIR
     MLIRSCFToStandard
     MLIRLLVMIR

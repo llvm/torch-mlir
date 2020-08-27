@@ -1,4 +1,5 @@
 add_mlir_conversion_library(NPCOMPTCFPasses
+  Passes.cpp
   ShapeRefinement.cpp
 
   ADDITIONAL_HEADER_DIRS

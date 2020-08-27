@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Python/MlirIr.h"
+#include "npcomp/Python/MlirInit.h"
 #include "npcomp/Python/NpcompModule.h"
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -16,6 +17,7 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Parser.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -315,13 +317,11 @@ void PyDialectHelper::bind(py::module m) {
                              })
       .def_property_readonly("f32_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return FloatType::get(StandardTypes::F32,
-                                                     self.getContext());
+                               return FloatType::getF32(self.getContext());
                              })
       .def_property_readonly("f64_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return FloatType::get(StandardTypes::F64,
-                                                     self.getContext());
+                               return FloatType::getF64(self.getContext());
                              })
       .def(
           "tensor_type",
@@ -420,6 +420,10 @@ void defineMlirIrModule(py::module m) {
 //===----------------------------------------------------------------------===//
 // PyContext
 //===----------------------------------------------------------------------===//
+
+PyContext::PyContext() {
+  mlir::npcomp::python::loadGlobalDialectsIntoContext(&context);
+}
 
 void PyContext::bind(py::module m) {
   py::class_<PyContext, std::shared_ptr<PyContext>>(m, "MLIRContext")
@@ -686,59 +690,49 @@ static OwningModuleRef parseMLIRModuleFromString(StringRef contents,
 // a bit easier to scan.
 // TODO: Upstream this.
 void printLocation(Location loc, raw_ostream &out) {
-  switch (loc->getKind()) {
-  case StandardAttributes::OpaqueLocation:
-    printLocation(loc.cast<OpaqueLoc>().getFallbackLocation(), out);
-    break;
-  case StandardAttributes::UnknownLocation:
-    out << "  [unknown location]\n";
-    break;
-  case StandardAttributes::FileLineColLocation: {
-    auto line_col_loc = loc.cast<FileLineColLoc>();
-    StringRef this_filename = line_col_loc.getFilename();
-    auto slash_pos = this_filename.find_last_of("/\\");
-    // We print both the basename and extended names with a structure like
-    // `foo.py:35:4`. Even though technically the line/col
-    // information is redundant to include in both names, having it on both
-    // makes it easier to paste the paths into an editor and jump to the exact
-    // location.
-    std::string line_col_suffix = ":" + std::to_string(line_col_loc.getLine()) +
-                                  ":" +
-                                  std::to_string(line_col_loc.getColumn());
-    bool has_basename = false;
-    StringRef basename = this_filename;
-    if (slash_pos != StringRef::npos) {
-      has_basename = true;
-      basename = this_filename.substr(slash_pos + 1);
-    }
-    out << "  at: " << basename << line_col_suffix;
-    if (has_basename) {
-      StringRef extended_name = this_filename;
-      // Print out two tabs, as basenames usually vary in length by more than
-      // one tab width.
-      out << "\t\t( " << extended_name << line_col_suffix << " )";
-    }
-    out << "\n";
-    break;
-  }
-  case StandardAttributes::NameLocation: {
-    auto nameLoc = loc.cast<NameLoc>();
-    out << "  @'" << nameLoc.getName() << "':\n";
-    auto childLoc = nameLoc.getChildLoc();
-    if (!childLoc.isa<UnknownLoc>()) {
-      out << "(...\n";
-      printLocation(childLoc, out);
-      out << ")\n";
-    }
-    break;
-  }
-  case StandardAttributes::CallSiteLocation: {
-    auto call_site = loc.cast<CallSiteLoc>();
-    printLocation(call_site.getCaller(), out);
-    printLocation(call_site.getCallee(), out);
-    break;
-  }
-  }
+  TypeSwitch<Location>(loc)
+      .Case<OpaqueLoc>(
+          [&](OpaqueLoc loc) { printLocation(loc.getFallbackLocation(), out); })
+      .Case<UnknownLoc>([&](Location) { out << "  [unknown location]\n"; })
+      .Case<FileLineColLoc>([&](FileLineColLoc line_col_loc) {
+        StringRef this_filename = line_col_loc.getFilename();
+        auto slash_pos = this_filename.find_last_of("/\\");
+        // We print both the basename and extended names with a structure like
+        // `foo.py:35:4`. Even though technically the line/col
+        // information is redundant to include in both names, having it on both
+        // makes it easier to paste the paths into an editor and jump to the
+        // exact location.
+        std::string line_col_suffix =
+            ":" + std::to_string(line_col_loc.getLine()) + ":" +
+            std::to_string(line_col_loc.getColumn());
+        bool has_basename = false;
+        StringRef basename = this_filename;
+        if (slash_pos != StringRef::npos) {
+          has_basename = true;
+          basename = this_filename.substr(slash_pos + 1);
+        }
+        out << "  at: " << basename << line_col_suffix;
+        if (has_basename) {
+          StringRef extended_name = this_filename;
+          // Print out two tabs, as basenames usually vary in length by more
+          // than one tab width.
+          out << "\t\t( " << extended_name << line_col_suffix << " )";
+        }
+        out << "\n";
+      })
+      .Case<NameLoc>([&](NameLoc nameLoc) {
+        out << "  @'" << nameLoc.getName() << "':\n";
+        auto childLoc = nameLoc.getChildLoc();
+        if (!childLoc.isa<UnknownLoc>()) {
+          out << "(...\n";
+          printLocation(childLoc, out);
+          out << ")\n";
+        }
+      })
+      .Case<CallSiteLoc>([&](CallSiteLoc callSite) {
+        printLocation(callSite.getCaller(), out);
+        printLocation(callSite.getCallee(), out);
+      });
 }
 
 //===----------------------------------------------------------------------===//

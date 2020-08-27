@@ -15,6 +15,9 @@
 namespace mlir {
 namespace NPCOMP {
 
+/// Registers all E2E passes.
+void registerE2EPasses();
+
 // Look in createE2ELoweringPipeline for more information about how these
 // passes fit together.
 //

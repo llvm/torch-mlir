@@ -1,4 +1,5 @@
 add_mlir_conversion_library(NPCOMPTypingPasses
+  Passes.cpp
   CPATypeInference.cpp
 
   ADDITIONAL_HEADER_DIRS

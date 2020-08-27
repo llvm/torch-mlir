@@ -20,6 +20,10 @@ namespace Numpy {
 std::unique_ptr<OperationPass<ModuleOp>> createPublicFunctionsToTensorPass();
 
 } // namespace Numpy
+
+/// Registers all Numpy transformation passes.
+void registerNumpyPasses();
+
 } // namespace NPCOMP
 } // namespace mlir
 

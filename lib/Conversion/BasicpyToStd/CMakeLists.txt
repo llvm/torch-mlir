@@ -1,4 +1,4 @@
-add_mlir_conversion_library(BasicpyToSTD
+add_mlir_conversion_library(NPCOMPBasicpyToSTD
   Passes.cpp
   PrimitiveOpsConversion.cpp
 

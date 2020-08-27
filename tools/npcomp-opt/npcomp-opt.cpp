@@ -52,19 +52,16 @@ static llvm::cl::opt<bool> allowUnregisteredDialects(
     llvm::cl::desc("Allow operation with no registered dialects"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool>
-    showDialects("show-dialects",
-                 llvm::cl::desc("Print the list of registered dialects"),
-                 llvm::cl::init(false));
-
 int main(int argc, char **argv) {
+  mlir::DialectRegistry registry;
+
   mlir::registerAsmPrinterCLOptions();
   mlir::registerMLIRContextCLOptions();
 
-  mlir::registerAllDialects();
+  mlir::registerAllDialects(registry);
   mlir::registerAllPasses();
 
-  mlir::NPCOMP::registerAllDialects();
+  mlir::NPCOMP::registerAllDialects(registry);
   mlir::NPCOMP::registerAllPasses();
 
   llvm::InitLLVM y(argc, argv);
@@ -76,15 +73,6 @@ int main(int argc, char **argv) {
   // Parse pass names in main to ensure static initialization completed.
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "MLIR modular optimizer driver\n");
-
-  mlir::MLIRContext context;
-  if (showDialects) {
-    llvm::outs() << "Registered Dialects:\n";
-    for (mlir::Dialect *dialect : context.getRegisteredDialects()) {
-      llvm::outs() << dialect->getNamespace() << "\n";
-    }
-    return 0;
-  }
 
   // Set up the input file.
   std::string errorMessage;
@@ -100,7 +88,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
+  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline, registry,
                          splitInputFile, verifyDiagnostics, verifyPasses,
                          allowUnregisteredDialects))) {
     return 1;

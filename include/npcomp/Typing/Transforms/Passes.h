@@ -20,6 +20,10 @@ namespace Typing {
 std::unique_ptr<OperationPass<FuncOp>> createCPAFunctionTypeInferencePass();
 
 } // namespace Typing
+
+/// Registers all typing passes.
+void registerTypingPasses();
+
 } // namespace NPCOMP
 } // namespace mlir
 

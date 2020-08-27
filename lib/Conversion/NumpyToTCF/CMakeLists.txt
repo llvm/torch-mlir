@@ -1,4 +1,4 @@
-add_mlir_conversion_library(BasicpyToIREEVM
+add_mlir_conversion_library(NPCOMPNumpyToTCF
   Passes.cpp
 
   DEPENDS

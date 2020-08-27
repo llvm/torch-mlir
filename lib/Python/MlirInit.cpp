@@ -23,11 +23,7 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
-namespace mlir {
-namespace npcomp {
-namespace python {
-
-bool npcompMlirInitialize() {
+bool mlir::npcomp::python::npcompMlirInitialize() {
   // Enable LLVM's signal handler to get nice stack traces.
   llvm::sys::SetOneShotPipeSignalFunction(
       llvm::sys::DefaultOneShotPipeSignalHandler);
@@ -41,12 +37,8 @@ bool npcompMlirInitialize() {
   std::vector<const char *> default_options = {program_name.c_str(), nullptr};
   llvm::cl::ParseCommandLineOptions(1, default_options.data());
 
-  // Global registration.
-  ::mlir::registerAllDialects();
+  // Pass registration.
   ::mlir::registerAllPasses();
-
-  // Local registration.
-  ::mlir::NPCOMP::registerAllDialects();
   ::mlir::NPCOMP::registerAllPasses();
 
   // LLVM codegen initialization.
@@ -57,8 +49,23 @@ bool npcompMlirInitialize() {
   return true;
 }
 
-LogicalResult parsePassPipeline(StringRef pipeline, OpPassManager &pm,
-                                raw_ostream &errorStream = llvm::errs()) {
+void mlir::npcomp::python::loadGlobalDialectsIntoContext(MLIRContext *context) {
+  static mlir::DialectRegistry registry = ([]() {
+    mlir::DialectRegistry registry;
+    ::mlir::registerAllDialects(registry);
+    ::mlir::NPCOMP::registerAllDialects(registry);
+    return registry;
+  })();
+  registry.loadAll(context);
+}
+
+namespace mlir {
+namespace npcomp {
+namespace python {
+
+LogicalResult parsePassPipeline(
+    StringRef pipeline, OpPassManager &pm,
+    raw_ostream &errorStream = llvm::errs()) {
   return ::mlir::parsePassPipeline(pipeline, pm, errorStream);
 }
 

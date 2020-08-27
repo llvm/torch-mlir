@@ -11,20 +11,11 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/StandardTypes.h"
-#include "npcomp/Dialect/Common.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {
 namespace Numpy {
-
-namespace NumpyTypes {
-enum Kind {
-  AnyDtypeType = TypeRanges::Numpy,
-  NdArray,
-  LAST_NUMPY_TYPE = AnyDtypeType,
-};
-} // namespace NumpyTypes
 
 namespace detail {
 struct NdArrayTypeStorage;
@@ -35,13 +26,7 @@ class AnyDtypeType : public Type::TypeBase<AnyDtypeType, Type, TypeStorage> {
 public:
   using Base::Base;
 
-  static AnyDtypeType get(MLIRContext *context) {
-    return Base::get(context, NumpyTypes::Kind::AnyDtypeType);
-  }
-
-  static bool kindof(unsigned kind) {
-    return kind == NumpyTypes::Kind::AnyDtypeType;
-  }
+  static AnyDtypeType get(MLIRContext *context) { return Base::get(context); }
 };
 
 class NdArrayType
@@ -49,7 +34,6 @@ class NdArrayType
                             NPCOMPTypingTypeMapInterface::Trait> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) { return kind == NumpyTypes::NdArray; }
 
   /// Constructs an NdArray with a dtype and no shape. Setting the dtype
   /// to !basicpy.UnknownType will print as ?.
