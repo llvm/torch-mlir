@@ -9,10 +9,12 @@
 #ifndef NPCOMP_INITALL_H
 #define NPCOMP_INITALL_H
 
+#include "mlir/IR/Dialect.h"
+
 namespace mlir {
 namespace NPCOMP {
 
-void registerAllDialects();
+void registerAllDialects(mlir::DialectRegistry &registry);
 void registerAllPasses();
 
 } // namespace NPCOMP

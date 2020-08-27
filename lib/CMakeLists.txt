@@ -46,6 +46,7 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPATenDialect
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
+  NPCOMPConversionPasses
   NPCOMPNumpyDialect
   NPCOMPNumpyPasses
   NPCOMPTCFPasses

@@ -12,8 +12,7 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::tcp;
 
-TCPDialect::TCPDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void TCPDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "npcomp/Dialect/TCP/IR/TCPOps.cpp.inc"

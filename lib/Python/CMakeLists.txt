@@ -42,7 +42,6 @@ target_link_libraries(NPCOMPPythonCommon
   # Upstream depends
   MLIRDialect
   MLIREDSC
-  MLIREDSCInterface
   MLIRIR
   MLIRLLVMIR
   MLIRPass

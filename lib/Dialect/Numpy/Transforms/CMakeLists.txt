@@ -1,4 +1,5 @@
 add_mlir_conversion_library(NPCOMPNumpyPasses
+  Passes.cpp
   PublicFunctionToTensor.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -20,10 +20,7 @@
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 
-#include "npcomp/Conversion/BasicpyToStd/Passes.h"
-#include "npcomp/Conversion/NumpyToTCF/Passes.h"
-#include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
+#include "npcomp/Conversion/Passes.h"
 #include "npcomp/E2E/E2E.h"
 
 #ifdef NPCOMP_ENABLE_IREE
@@ -40,16 +37,18 @@
 #include "iree/compiler/Dialect/HAL/Conversion/Passes.h"
 #endif // NPCOMP_ENABLE_IREE
 
-static void registerDependencyDialects() {
+
+
+static void registerDependencyDialects(mlir::DialectRegistry &registry) {
 #ifdef NPCOMP_ENABLE_IREE
   // TODO: We should probably be registering the MLIR dialects regardless
   // of building with IREE, but we have to do it with IREE, and the
   // dependencies are coming from there and wouldn't be great to duplicate.
   // See iree/tools:init_mlir_passes_and_dialects
-  mlir::registerMlirDialects();
-  mlir::registerXLADialects();
-  mlir::iree_compiler::registerIreeDialects();
-  mlir::iree_compiler::registerIreeCompilerModuleDialects();
+  mlir::registerMlirDialects(registry);
+  mlir::registerXLADialects(registry);
+  mlir::iree_compiler::registerIreeDialects(registry);
+  mlir::iree_compiler::registerIreeCompilerModuleDialects(registry);
 #endif // NPCOMP_ENABLE_IREE
 }
 
@@ -69,40 +68,25 @@ static void registerDependencyPasses() {
 #endif // NPCOMP_ENABLE_IREE
 }
 
-void mlir::NPCOMP::registerAllDialects() {
-  registerDialect<mlir::NPCOMP::aten::ATenDialect>();
-  registerDialect<Basicpy::BasicpyDialect>();
-  registerDialect<Numpy::NumpyDialect>();
-  registerDialect<npcomprt::NpcomprtDialect>();
-  registerDialect<tcf::TCFDialect>();
-  registerDialect<tcp::TCPDialect>();
-  registerDependencyDialects();
+void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
+  // clang-format off
+  registry.insert<mlir::NPCOMP::aten::ATenDialect,
+                  Basicpy::BasicpyDialect,
+                  Numpy::NumpyDialect,
+                  npcomprt::NpcomprtDialect,
+                  tcf::TCFDialect,
+                  tcp::TCPDialect>();
+  // clang-format on
+  registerDependencyDialects(registry);
 }
 
 void mlir::NPCOMP::registerAllPasses() {
-  using mlir::Pass; // The .inc files reference this unqualified.
-#define GEN_PASS_REGISTRATION
-#include "npcomp/E2E/Passes.h.inc"
-  // TODO: The following pipeline registration uses pass manager options,
-  // which causes vague linkage issues when co-mingled with code that
-  // uses RTTI.
-  mlir::PassPipelineRegistration<E2ELoweringPipelineOptions>(
-      "e2e-lowering-pipeline", "E2E lowering pipeline.",
-      mlir::NPCOMP::createE2ELoweringPipeline);
-  mlir::PassPipelineRegistration<>(
-      "lower-to-hybrid-tensor-memref-pipeline",
-      "Pipeline lowering to hybrid tensor/memref.",
-      mlir::NPCOMP::createLowerToHybridTensorMemRefPipeline);
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Conversion/Passes.h.inc"
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Dialect/Basicpy/Transforms/Passes.h.inc"
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Dialect/Numpy/Transforms/Passes.h.inc"
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Dialect/TCF/Transforms/Passes.h.inc"
-#define GEN_PASS_REGISTRATION
-#include "npcomp/Typing/Transforms/Passes.h.inc"
   mlir::NPCOMP::aten::registerATenPasses();
+  mlir::NPCOMP::registerE2EPasses();
+  mlir::NPCOMP::registerConversionPasses();
+  mlir::NPCOMP::registerBasicpyPasses();
+  mlir::NPCOMP::registerNumpyPasses();
+  mlir::NPCOMP::registerTCFPasses();
+  mlir::NPCOMP::registerTypingPasses();
   registerDependencyPasses();
 }

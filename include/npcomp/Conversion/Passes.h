@@ -1,4 +1,4 @@
-//===- Common.h - Common definitions for all dialects -----------*- C++ -*-===//
+//===------------------------------------------------------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,23 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_COMMON_H
-#define NPCOMP_DIALECT_COMMON_H
-
-#include "mlir/IR/Types.h"
+#ifndef NPCOMP_CONVERSION_PASSES_H
+#define NPCOMP_CONVERSION_PASSES_H
 
 namespace mlir {
 namespace NPCOMP {
 
-namespace TypeRanges {
-enum {
-  Basicpy = Type::FIRST_PRIVATE_EXPERIMENTAL_3_TYPE,
-  Numpy = Basicpy + 50,
-  Npcomprt = Numpy + 50,
-};
-}
+/// Registers all NPCOMP conversion passes.
+void registerConversionPasses();
 
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_DIALECT_COMMON_H
+#endif // NPCOMP_CONVERSION_PASSES_H

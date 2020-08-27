@@ -117,10 +117,11 @@ static void printOutputs(ArrayRef<npcomprt::Ref<npcomprt::Tensor>> outputs,
   }
 }
 
-Error compileAndRun(std::string mlirFile, std::string invokeFunction,
-                    ArrayRef<StringRef> argValues,
+Error compileAndRun(std::string mlirFile, mlir::DialectRegistry &registry,
+                    std::string invokeFunction, ArrayRef<StringRef> argValues,
                     ArrayRef<StringRef> sharedLibs, bool optimize) {
   MLIRContext context;
+  registry.loadAll(&context);
   OwningModuleRef moduleRef = parseSourceFile(mlirFile, &context);
   if (!moduleRef)
     return make_string_error(Twine("could not open ") + mlirFile);
@@ -178,9 +179,10 @@ struct Options {
 } // namespace
 
 int main(int argc, char **argv) {
-  mlir::registerAllDialects();
+  mlir::DialectRegistry registry;
+  mlir::registerAllDialects(registry);
   mlir::registerAllPasses();
-  mlir::NPCOMP::registerAllDialects();
+  mlir::NPCOMP::registerAllDialects(registry);
   mlir::NPCOMP::registerAllPasses();
 
   llvm::InitLLVM y(argc, argv);
@@ -197,8 +199,9 @@ int main(int argc, char **argv) {
                                        options.sharedLibs.end());
   SmallVector<StringRef, 6> argValues(options.argValues.begin(),
                                       options.argValues.end());
-  Error error = compileAndRun(options.inputFile, options.invokeFunction,
-                              argValues, sharedLibs, options.optimize);
+  Error error =
+      compileAndRun(options.inputFile, registry, options.invokeFunction,
+                    argValues, sharedLibs, options.optimize);
 
   int exitCode = EXIT_SUCCESS;
   llvm::handleAllErrors(std::move(error),

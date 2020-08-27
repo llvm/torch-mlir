@@ -12,13 +12,13 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Typing/Support/CPAIrHelpers.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Numpy;
 
-NumpyDialect::NumpyDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void NumpyDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.cpp.inc"
@@ -107,40 +107,35 @@ Type NumpyDialect::parseType(DialectAsmParser &parser) const {
 }
 
 void NumpyDialect::printType(Type type, DialectAsmPrinter &os) const {
-  switch (type.getKind()) {
-  case NumpyTypes::AnyDtypeType:
-    os << "any_dtype";
-    return;
-  case NumpyTypes::NdArray: {
-    auto unknownType = Basicpy::UnknownType::get(getContext());
-    auto ndarray = type.cast<NdArrayType>();
-    auto shape = ndarray.getOptionalShape();
-    auto dtype = ndarray.getDtype();
-    os << "ndarray<";
-    if (!shape) {
-      os << "*:";
-    } else {
-      os << "[";
-      for (auto it : llvm::enumerate(*shape)) {
-        if (it.index() > 0)
-          os << ",";
-        if (it.value() < 0)
-          os << "?";
+  TypeSwitch<Type>(type)
+      .Case<AnyDtypeType>([&](Type) { os << "any_dtype"; })
+      .Case<NdArrayType>([&](NdArrayType t) {
+        auto unknownType = Basicpy::UnknownType::get(getContext());
+        auto ndarray = type.cast<NdArrayType>();
+        auto shape = ndarray.getOptionalShape();
+        auto dtype = ndarray.getDtype();
+        os << "ndarray<";
+        if (!shape) {
+          os << "*:";
+        } else {
+          os << "[";
+          for (auto it : llvm::enumerate(*shape)) {
+            if (it.index() > 0)
+              os << ",";
+            if (it.value() < 0)
+              os << "?";
+            else
+              os << it.value();
+          }
+          os << "]:";
+        }
+        if (dtype != unknownType)
+          os.printType(dtype);
         else
-          os << it.value();
-      }
-      os << "]:";
-    }
-    if (dtype != unknownType)
-      os.printType(dtype);
-    else
-      os << "?";
-    os << ">";
-    return;
-  }
-  default:
-    llvm_unreachable("unexpected 'numpy' type kind");
-  }
+          os << "?";
+        os << ">";
+      })
+      .Default([&](Type) { llvm_unreachable("unexpected 'numpy' type kind"); });
 }
 
 //----------------------------------------------------------------------------//
@@ -197,7 +192,7 @@ struct NdArrayTypeStorage : public TypeStorage {
 NdArrayType NdArrayType::get(Type dtype,
                              llvm::Optional<ArrayRef<int64_t>> shape) {
   assert(dtype && "dtype cannot be null");
-  return Base::get(dtype.getContext(), NumpyTypes::NdArray, dtype, shape);
+  return Base::get(dtype.getContext(), dtype, shape);
 }
 
 bool NdArrayType::hasKnownDtype() {

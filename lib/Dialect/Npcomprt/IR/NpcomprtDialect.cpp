@@ -9,12 +9,12 @@
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::npcomprt;
 
-NpcomprtDialect::NpcomprtDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void NpcomprtDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.cpp.inc"
@@ -36,11 +36,8 @@ Type NpcomprtDialect::parseType(DialectAsmParser &parser) const {
 }
 
 void NpcomprtDialect::printType(Type type, DialectAsmPrinter &os) const {
-  switch (type.getKind()) {
-  case NpcomprtTypes::Kind::TensorType:
-    os << "tensor";
-    return;
-  default:
-    llvm_unreachable("unexpected 'npcomprt' type kind");
-  }
+  TypeSwitch<Type>(type)
+      .Case<NPCOMP::npcomprt::TensorType>([&](Type) { os << "tensor"; })
+      .Default(
+          [&](Type) { llvm_unreachable("unexpected 'npcomprt' type kind"); });
 }

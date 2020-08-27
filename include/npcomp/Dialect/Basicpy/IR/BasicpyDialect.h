@@ -12,29 +12,11 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Types.h"
-#include "npcomp/Dialect/Common.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 namespace mlir {
 namespace NPCOMP {
 namespace Basicpy {
-
-namespace BasicpyTypes {
-enum Kind {
-  // Dialect types.
-  BoolType = TypeRanges::Basicpy,
-  BytesType,
-  EllipsisType,
-  NoneType,
-  SlotObjectType,
-  StrType,
-  UnknownType,
-
-  // Dialect attributes.
-  SingletonAttr,
-  LAST_BASICPY_TYPE = SingletonAttr,
-};
-} // namespace BasicpyTypes
 
 namespace detail {
 struct SlotObjectTypeStorage;
@@ -45,51 +27,34 @@ struct SlotObjectTypeStorage;
 class BoolType : public Type::TypeBase<BoolType, Type, TypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) { return kind == BasicpyTypes::BoolType; }
-  static BoolType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::BoolType);
-  }
+  static BoolType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// The type of the Python `bytes` values.
 class BytesType : public Type::TypeBase<BytesType, Type, TypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) { return kind == BasicpyTypes::BytesType; }
-  static BytesType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::BytesType);
-  }
+  static BytesType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// The type of the Python `Ellipsis` value.
 class EllipsisType : public Type::TypeBase<EllipsisType, Type, TypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) {
-    return kind == BasicpyTypes::EllipsisType;
-  }
-  static EllipsisType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::EllipsisType);
-  }
+  static EllipsisType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// The type of the Python `None` value.
 class NoneType : public Type::TypeBase<NoneType, Type, TypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) { return kind == BasicpyTypes::NoneType; }
-  static NoneType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::NoneType);
-  }
+  static NoneType get(MLIRContext *context) { return Base::get(context); }
 };
 
 class SlotObjectType : public Type::TypeBase<SlotObjectType, Type,
                                              detail::SlotObjectTypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) {
-    return kind == BasicpyTypes::SlotObjectType;
-  }
   static SlotObjectType get(StringAttr className, ArrayRef<Type> slotTypes);
   StringAttr getClassName();
   unsigned getSlotCount();
@@ -106,10 +71,7 @@ public:
 class StrType : public Type::TypeBase<StrType, Type, TypeStorage> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) { return kind == BasicpyTypes::StrType; }
-  static StrType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::StrType);
-  }
+  static StrType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// An unknown type that could be any supported python type.
@@ -117,12 +79,7 @@ class UnknownType : public Type::TypeBase<UnknownType, Type, TypeStorage,
                                           NPCOMPTypingTypeMapInterface::Trait> {
 public:
   using Base::Base;
-  static bool kindof(unsigned kind) {
-    return kind == BasicpyTypes::UnknownType;
-  }
-  static UnknownType get(MLIRContext *context) {
-    return Base::get(context, BasicpyTypes::UnknownType);
-  }
+  static UnknownType get(MLIRContext *context) { return Base::get(context); }
 
   Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);
 };

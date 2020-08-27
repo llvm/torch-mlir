@@ -20,6 +20,10 @@ namespace tcf {
 std::unique_ptr<OperationPass<FuncOp>> createShapeRefinementPass();
 
 } // namespace tcf
+
+/// Registers all TCF transformation passes.
+void registerTCFPasses();
+
 } // namespace NPCOMP
 } // namespace mlir
 

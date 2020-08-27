@@ -9,13 +9,13 @@
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Basicpy;
 
-BasicpyDialect::BasicpyDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+void BasicpyDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"
@@ -68,39 +68,25 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
 }
 
 void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
-  switch (type.getKind()) {
-  case BasicpyTypes::BoolType:
-    os << "BoolType";
-    return;
-  case BasicpyTypes::BytesType:
-    os << "BytesType";
-    return;
-  case BasicpyTypes::EllipsisType:
-    os << "EllipsisType";
-    return;
-  case BasicpyTypes::NoneType:
-    os << "NoneType";
-    return;
-  case BasicpyTypes::SlotObjectType: {
-    auto slotObject = type.cast<SlotObjectType>();
-    auto slotTypes = slotObject.getSlotTypes();
-    os << "SlotObject<" << slotObject.getClassName().getValue();
-    if (!slotTypes.empty()) {
-      os << ", ";
-      llvm::interleaveComma(slotTypes, os, [&](Type t) { os.printType(t); });
-    }
-    os << ">";
-    return;
-  }
-  case BasicpyTypes::StrType:
-    os << "StrType";
-    return;
-  case BasicpyTypes::UnknownType:
-    os << "UnknownType";
-    return;
-  default:
-    llvm_unreachable("unexpected 'basicpy' type kind");
-  }
+  TypeSwitch<Type>(type)
+      .Case<BoolType>([&](Type) { os << "BoolType"; })
+      .Case<BytesType>([&](Type) { os << "BytesType"; })
+      .Case<EllipsisType>([&](Type) { os << "EllipsisType"; })
+      .Case<NoneType>([&](Type) { os << "NoneType"; })
+      .Case<SlotObjectType>([&](SlotObjectType slotObject) {
+        auto slotTypes = slotObject.getSlotTypes();
+        os << "SlotObject<" << slotObject.getClassName().getValue();
+        if (!slotTypes.empty()) {
+          os << ", ";
+          llvm::interleaveComma(slotTypes, os,
+                                [&](Type t) { os.printType(t); });
+        }
+        os << ">";
+      })
+      .Case<StrType>([&](Type) { os << "StrType"; })
+      .Case<UnknownType>([&](Type) { os << "UnknownType"; })
+      .Default(
+          [&](Type) { llvm_unreachable("unexpected 'basicpy' type kind"); });
 }
 
 //----------------------------------------------------------------------------//
@@ -142,8 +128,7 @@ unsigned SlotObjectType::getSlotCount() { return getImpl()->slotTypes.size(); }
 
 SlotObjectType SlotObjectType::get(StringAttr className,
                                    ArrayRef<Type> slotTypes) {
-  return Base::get(className.getContext(), BasicpyTypes::SlotObjectType,
-                   className, slotTypes);
+  return Base::get(className.getContext(), className, slotTypes);
 }
 
 //----------------------------------------------------------------------------//

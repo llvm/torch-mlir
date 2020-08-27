@@ -61,6 +61,27 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 
 //===----------------------------------------------------------------------===//
+// Pass registration
+//===----------------------------------------------------------------------===//
+
+namespace {
+#define GEN_PASS_REGISTRATION
+#include "npcomp/E2E/Passes.h.inc"
+} // end namespace
+
+void mlir::NPCOMP::registerE2EPasses() {
+  ::registerPasses();
+
+  mlir::PassPipelineRegistration<E2ELoweringPipelineOptions>(
+      "e2e-lowering-pipeline", "E2E lowering pipeline.",
+      mlir::NPCOMP::createE2ELoweringPipeline);
+  mlir::PassPipelineRegistration<>(
+      "lower-to-hybrid-tensor-memref-pipeline",
+      "Pipeline lowering to hybrid tensor/memref.",
+      mlir::NPCOMP::createLowerToHybridTensorMemRefPipeline);
+}
+
+//===----------------------------------------------------------------------===//
 // ResolveShapeOfOps
 //===----------------------------------------------------------------------===//
 

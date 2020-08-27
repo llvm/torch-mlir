@@ -14,15 +14,37 @@ include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "npcomp/Dialect/ATen/ATenOpInterface.td"
 
-def aten_Dialect : Dialect {
+//===----------------------------------------------------------------------===//
+// Dialect definition
+//===----------------------------------------------------------------------===//
+
+/// The ATenDialect models 'A Tensor library' from Pytorch.  The intention
+/// is to provide an abstraction which is isomorphic with datastructures
+/// returned from the pytorch jit, enabling integration with Pytorch models.
+/// Most of the actual operation definitions in tablegen are themselves
+/// generated from C APIs exported by Pytorch.
+def ATen_Dialect : Dialect {
   let name = "aten";
   let cppNamespace = "aten";
 }
 
+//===----------------------------------------------------------------------===//
+// Dialect types
+//===----------------------------------------------------------------------===//
+
+def ATen_ListType : DialectType<ATen_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::aten::ATenListType>()">, "ATen List">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::aten::ATenListType()"> {
+  let typeDescription = [{
+    A variadic list of arguments in ATen.
+  }];
+}
+
 // TODO: convert to "let results =" style
+// TODO: Rename prefix from "aten" to "ATen" for consistency.
 
 class aten_Op<string mnemonic, list<OpTrait> traits = [StatisticsOpInterface]> :
-    Op<aten_Dialect, mnemonic, traits>;
+    Op<ATen_Dialect, mnemonic, traits>;
 
 
 // Most ops are automatically generated from pytorch specs.
