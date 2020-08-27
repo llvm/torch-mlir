@@ -11,9 +11,9 @@
 
 #include "npcomp/Dialect/ATen/ATenDialect.h"
 
-#include "llvm/Support/Debug.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "aten-op-stats"
 
@@ -25,7 +25,8 @@ namespace NPCOMP {
 namespace aten {
 
 // Return the op statistics for conv2d-like operations.
-template <class T> std::map<std::string, uint64_t> getConv2dStatistics(T *o, uint64_t groups) {
+template <class T>
+std::map<std::string, uint64_t> getConv2dStatistics(T *o, uint64_t groups) {
 
   std::map<std::string, uint64_t> toReturn;
 
@@ -66,11 +67,13 @@ template <class T> std::map<std::string, uint64_t> getConv2dStatistics(T *o, uin
 }
 
 // Return the op statistics for conv2dBackward-like operations.
-template<typename T>
-std::map<std::string, uint64_t> getConv2dBackwardStatistics(T op, uint64_t groups) {
+template <typename T>
+std::map<std::string, uint64_t> getConv2dBackwardStatistics(T op,
+                                                            uint64_t groups) {
 
   std::map<std::string, uint64_t> toReturn;
-  TensorType dx_out_resultTy = op.getResult(0).getType().template cast<TensorType>();
+  TensorType dx_out_resultTy =
+      op.getResult(0).getType().template cast<TensorType>();
   uint64_t dx_out_volume = getTensorVolume(dx_out_resultTy);
 
   TensorType weightTy = op.getOperand(2).getType().template cast<TensorType>();
@@ -79,7 +82,7 @@ std::map<std::string, uint64_t> getConv2dBackwardStatistics(T op, uint64_t group
   uint64_t kernel_width = weightTy.getShape()[2];
   uint64_t kernel_height = weightTy.getShape()[3];
 
-   uint64_t MACs_per_loss =
+  uint64_t MACs_per_loss =
       (loss_in_depth / groups) * kernel_height * kernel_width;
 
   uint64_t total_MACs = dx_out_volume * MACs_per_loss;
@@ -118,7 +121,6 @@ std::map<std::string, uint64_t> getConv2dBackwardStatistics(T op, uint64_t group
 
   return toReturn;
 }
-
 
 // Return a model of the number of bytes needed to represent the operand of
 // the given convolution-like operation with the given index.  The shape is
@@ -222,8 +224,7 @@ uint64_t getConv2dResultTransferVolume(T *o, unsigned int idx, bool write) {
 }
 
 // Return the op statistics for matrixmultiply-like operations.
-template<typename T>
-std::map<std::string, uint64_t> getMMOpStatistics(T op) {
+template <typename T> std::map<std::string, uint64_t> getMMOpStatistics(T op) {
 
   std::map<std::string, uint64_t> toReturn;
 

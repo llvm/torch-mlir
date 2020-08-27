@@ -115,8 +115,8 @@ std::string LivenessReport::emitJSONReport() {
     for (auto v : vlist) {
       int64_t vol = getTensorVolume(v.getType());
       if (v.getDefiningOp()) {
-        if (auto a = v.getDefiningOp()->getAttrOfType<StringAttr>(
-                "layer_name")) {
+        if (auto a =
+                v.getDefiningOp()->getAttrOfType<StringAttr>("layer_name")) {
           auto definingOp = v.getDefiningOp();
           auto ld = layerDetail.getInteger(a.getValue().str());
           if (ld)

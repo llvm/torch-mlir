@@ -14,7 +14,7 @@
 namespace mlir {
 namespace NPCOMP {
 #include "npcomp/Dialect/ATen/ATenOpInterfaces.h.inc"
-} // namespace aten
 } // namespace NPCOMP
+} // namespace mlir
 
 #endif

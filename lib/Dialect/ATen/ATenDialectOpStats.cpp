@@ -55,7 +55,7 @@ std::map<std::string, uint64_t> AdaptiveAvgPool2dBackwardOp::getStatistics() {
   return toReturn;
 }
 
-  // add
+// add
 std::map<std::string, uint64_t> AddOp::getStatistics() {
 
   std::map<std::string, uint64_t> toReturn;
@@ -222,7 +222,8 @@ uint64_t ConvolutionOp::getResultTransferVolume(unsigned int idx, bool write) {
 std::map<std::string, uint64_t> ConvolutionBackwardOp::getStatistics() {
   return getConv2dBackwardStatistics(*this, 1);
 }
-std::map<std::string, uint64_t> ConvolutionBackwardOverrideableOp::getStatistics() {
+std::map<std::string, uint64_t>
+ConvolutionBackwardOverrideableOp::getStatistics() {
   auto co = cast<mlir::NPCOMP::aten::ConstantOp>(groups().getDefiningOp());
   auto ia = co.template getAttrOfType<IntegerAttr>("value");
   uint64_t groups = ia.getValue().getZExtValue();
@@ -463,7 +464,7 @@ std::map<std::string, uint64_t> MeanOp::getStatistics() {
 //   getMMOpStatistics(*this);
 // }
 std::map<std::string, uint64_t> MmOp::getStatistics() {
-  return getMMOpStatistics(*this );
+  return getMMOpStatistics(*this);
 }
 
 // mul

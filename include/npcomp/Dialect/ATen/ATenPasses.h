@@ -20,7 +20,7 @@ namespace aten {
 // #define GEN_PASS_CLASSES
 // #include "npcomp/Dialect/ATen/ATenPasses.h.inc"
 
-  void registerATenPasses();
+void registerATenPasses();
 } // namespace aten
 } // namespace NPCOMP
 } // namespace mlir

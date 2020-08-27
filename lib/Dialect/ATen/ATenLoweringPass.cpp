@@ -61,7 +61,8 @@ namespace {
 static Value typeCast(PatternRewriter &builder, Value val, Type destTy) {
   if (val.getType() == destTy)
     return val;
-  return builder.create<mlir::NPCOMP::aten::TypeCastOp>(val.getLoc(), destTy, val)
+  return builder
+      .create<mlir::NPCOMP::aten::TypeCastOp>(val.getLoc(), destTy, val)
       .getResult();
 }
 
@@ -69,11 +70,11 @@ static Value typeCast(PatternRewriter &builder, Value val, Type destTy) {
 /// unknown shape.
 static MemRefType getShapeErasedMemRefType(MemRefType type) {
   std::vector<int64_t> shape = type.getShape();
-  for(int i = 0; i < shape.size(); i++) {
+  for (int i = 0; i < shape.size(); i++) {
     shape[i] = -1;
   }
-  return MemRefType::get(shape, type.getElementType(),
-                         type.getAffineMaps(), type.getMemorySpace());
+  return MemRefType::get(shape, type.getElementType(), type.getAffineMaps(),
+                         type.getMemorySpace());
 }
 
 /// Create a type cast to memref
@@ -82,14 +83,12 @@ static Value memRefTypeCast(PatternRewriter &builder, Value val) {
 
   if (auto memrefTy = type.dyn_cast<MemRefType>()) {
     MemRefType newType = getShapeErasedMemRefType(memrefTy);
-    return builder.create<MemRefCastOp>(val.getLoc(),
-                                          val, newType)
-      .getResult();
+    return builder.create<MemRefCastOp>(val.getLoc(), val, newType).getResult();
   }
   if (auto tensorTy = type.dyn_cast<TensorType>()) {
-      auto memRefType = mlir::MemRefType::get(tensorTy.getShape(),
-                                          tensorTy.getElementType(), {}, 0);
-      return typeCast(builder, val, memRefType);
+    auto memRefType = mlir::MemRefType::get(tensorTy.getShape(),
+                                            tensorTy.getElementType(), {}, 0);
+    return typeCast(builder, val, memRefType);
   }
   return val;
 }
@@ -186,7 +185,7 @@ static std::string getSimplyMangledFuncName(std::string prefix,
     ret = ret + sep + getSimplyMangledType(t);
   for (const Type t : operTy) {
     std::string s = getSimplyMangledType(t);
-    if(s.size() > 0)
+    if (s.size() > 0)
       ret = ret + sep + getSimplyMangledType(t);
   }
   ret += "_out";
@@ -194,25 +193,22 @@ static std::string getSimplyMangledFuncName(std::string prefix,
   return ret;
 }
 static std::string getSimplyMangledFuncName(std::string prefix,
-                               FunctionType fnTy) {
+                                            FunctionType fnTy) {
 
   return getSimplyMangledFuncName(prefix, fnTy.getInputs(), fnTy.getResults());
 }
 
-std::string getMangledFuncName(std::string prefix,
-                               FunctionType fnTy) {
+std::string getMangledFuncName(std::string prefix, FunctionType fnTy) {
   return getSimplyMangledFuncName(prefix, fnTy);
 }
 
-std::string getMangledFuncName(std::string prefix,
-                               ArrayRef<Type> opTys,
+std::string getMangledFuncName(std::string prefix, ArrayRef<Type> opTys,
                                ArrayRef<Type> retTys) {
   return getSimplyMangledFuncName(prefix, opTys, retTys);
 }
 
 static FuncOp getATenFn(ModuleOp module, std::string mangledFunctionName,
-                        ArrayRef<Value> operands,
-                        ArrayRef<Type> retTys) {
+                        ArrayRef<Value> operands, ArrayRef<Type> retTys) {
   Builder builder(module);
 
   SmallVector<Type, 8> tys;
@@ -242,8 +238,8 @@ static FuncOp getATenFn(ModuleOp module, std::string mangledFunctionName,
 class AddOpConversion_affine : public ConversionPattern {
 public:
   explicit AddOpConversion_affine(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::AddOp::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(mlir::NPCOMP::aten::AddOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -310,78 +306,72 @@ public:
   }
 };
 
-
 // Replace the given operation with a call to the given function.
 // The function is assumed to accept memrefs and scalar types and return
 // Memrefs. Here the result types are converted back to the result types of op,
 // but operands are NOT converted.  This allows non-standard mappings from
 // operand types to function types.
-LogicalResult
-rewriteWithVoidFunctionCallExplicit(Operation *op,
-                                    ArrayRef<Value> callops,
-                                    ArrayRef<Value> operands,
-                                    ConversionPatternRewriter &rewriter,
-                                    std::string functionName) {
+LogicalResult rewriteWithVoidFunctionCallExplicit(
+    Operation *op, ArrayRef<Value> callops, ArrayRef<Value> operands,
+    ConversionPatternRewriter &rewriter, std::string functionName) {
 
-    auto loc = op->getLoc();
-    edsc::ScopedContext scope(rewriter, loc);
+  auto loc = op->getLoc();
+  edsc::ScopedContext scope(rewriter, loc);
 
-    // The original operation types.
-    SmallVector<Type, 8> opTys;
-    // Shape erased versions of the original operation types.
-    SmallVector<Type, 8> erasedOpTys;
-    for (const Value &o: callops) {
-      Type t = o.getType();
-      opTys.push_back(t);
-      if (t.isa<MemRefType>())
-        erasedOpTys.push_back(getShapeErasedMemRefType(t.cast<MemRefType>()));
-      else
-        erasedOpTys.push_back(t);
+  // The original operation types.
+  SmallVector<Type, 8> opTys;
+  // Shape erased versions of the original operation types.
+  SmallVector<Type, 8> erasedOpTys;
+  for (const Value &o : callops) {
+    Type t = o.getType();
+    opTys.push_back(t);
+    if (t.isa<MemRefType>())
+      erasedOpTys.push_back(getShapeErasedMemRefType(t.cast<MemRefType>()));
+    else
+      erasedOpTys.push_back(t);
+  }
+
+  std::vector<Value> newOps = callops;
+  SmallVector<Value, 8> newResults;
+
+  // Result types of the original operation, converted to memrefs.
+  SmallVector<Type, 8> retTys;
+  // Erased version of the return type.  This is the return types of the
+  // generated function call.
+  SmallVector<Type, 8> erasedRetTys;
+  for (const auto &o : op->getResults()) {
+    Type t = o.getType();
+    if (t.isa<TensorType>()) {
+      TensorType tensorResultTy = t.cast<TensorType>();
+      MemRefType memRefResultTy = mlir::MemRefType::get(
+          tensorResultTy.getShape(), tensorResultTy.getElementType(), {}, 0);
+      MemRefType erasedMemRefResultTy =
+          getShapeErasedMemRefType(memRefResultTy);
+      retTys.push_back(memRefResultTy);
+
+      // assume memRefResultTy has known shape, so we don't need any
+      // dynamic dimensions for the alloc.
+      assert(memRefResultTy.hasStaticShape());
+      Value allocVal = rewriter.create<AllocOp>(op->getLoc(), memRefResultTy);
+      Value castVal = memRefTypeCast(rewriter, allocVal);
+      newOps.push_back(castVal);
+      newResults.push_back(allocVal);
+    } else {
+      return failure();
     }
+  }
 
-    std::vector<Value> newOps = callops;
-    SmallVector<Value, 8> newResults;
+  SmallVector<Type, 8> empty;
+  std::string mangledFunctionName =
+      getMangledFuncName(functionName, opTys, retTys);
+  FuncOp funcOp = getATenFn(op->getParentOfType<ModuleOp>(),
+                            mangledFunctionName, newOps, empty);
 
-    // Result types of the original operation, converted to memrefs.
-    SmallVector<Type, 8> retTys;
-    // Erased version of the return type.  This is the return types of the
-    // generated function call.
-    SmallVector<Type, 8> erasedRetTys;
-    for (const auto &o: op->getResults()) {
-      Type t = o.getType();
-      if (t.isa<TensorType>()) {
-        TensorType tensorResultTy = t.cast<TensorType>();
-        MemRefType memRefResultTy =
-          mlir::MemRefType::get(tensorResultTy.getShape(),
-                                tensorResultTy.getElementType(), {}, 0);
-        MemRefType erasedMemRefResultTy = getShapeErasedMemRefType(memRefResultTy);
-        retTys.push_back(memRefResultTy);
+  auto new_call =
+      callOperation(empty, rewriter.getSymbolRefAttr(funcOp), newOps);
 
-        // assume memRefResultTy has known shape, so we don't need any
-        // dynamic dimensions for the alloc.
-        assert(memRefResultTy.hasStaticShape());
-        Value allocVal = rewriter.create<AllocOp>(op->getLoc(),
-                                                  memRefResultTy);
-        Value castVal = memRefTypeCast(rewriter, allocVal);
-        newOps.push_back(castVal);
-        newResults.push_back(allocVal);
-      } else {
-        return failure();
-      }
-    }
-
-    SmallVector<Type, 8> empty;
-    std::string mangledFunctionName = getMangledFuncName(functionName, opTys, retTys);
-    FuncOp funcOp = getATenFn(op->getParentOfType<ModuleOp>(),
-                              mangledFunctionName,
-                              newOps,
-                              empty);
-
-    auto new_call = callOperation(empty,
-                                  rewriter.getSymbolRefAttr(funcOp), newOps);
-
-    rewriter.replaceOp(op, newResults);
-    return success();
+  rewriter.replaceOp(op, newResults);
+  return success();
 }
 
 // Replace the given operation with a call to the given function.
@@ -389,54 +379,53 @@ rewriteWithVoidFunctionCallExplicit(Operation *op,
 // Memrefs.  Other operand types (e.g. aten.list and tensor<> are converted
 // appropriately.  The called function passes results of the original function
 // as memref arguments at the end of the original set of operands.
-LogicalResult
-rewriteWithFunctionCall(Operation *op, ArrayRef<Value> operands,
-                        ConversionPatternRewriter &rewriter,
-                        std::string functionName) {
-    auto loc = op->getLoc();
-    edsc::ScopedContext scope(rewriter, loc);
+LogicalResult rewriteWithFunctionCall(Operation *op, ArrayRef<Value> operands,
+                                      ConversionPatternRewriter &rewriter,
+                                      std::string functionName) {
+  auto loc = op->getLoc();
+  edsc::ScopedContext scope(rewriter, loc);
 
-    // Convert the arguments to the original call.
-    SmallVector<Value, 8> callops;
-    for (auto &o: operands) {
-      Type t = o.getType();
-      if (t.isa<MemRefType>()) {
-        // Cast it to some memref type that we accept
-        callops.push_back(memRefTypeCast(rewriter, o));
-      } else if (t.isa<IntegerType>() || t.isa<FloatType>()) {
-        callops.push_back(o);
-      } else if (t.isa<ATenListType>()) {
-        // FIXME: lots of assumptions here.
-        auto unpack = [](auto &op, auto &v) -> void {
-          auto co = cast<mlir::NPCOMP::aten::ConstantOp>(op.getDefiningOp());
-          DenseElementsAttr a =
-          co.template getAttrOfType<DenseElementsAttr>("value");
-          for (auto i : a.getIntValues())
-            v.push_back(i.getSExtValue());
-        };
-        std::vector<uint64_t> values;
-        unpack(o, values);
-        callops.push_back(constInt(values[0], 32));
-      } else {
-        return failure();
-      }
+  // Convert the arguments to the original call.
+  SmallVector<Value, 8> callops;
+  for (auto &o : operands) {
+    Type t = o.getType();
+    if (t.isa<MemRefType>()) {
+      // Cast it to some memref type that we accept
+      callops.push_back(memRefTypeCast(rewriter, o));
+    } else if (t.isa<IntegerType>() || t.isa<FloatType>()) {
+      callops.push_back(o);
+    } else if (t.isa<ATenListType>()) {
+      // FIXME: lots of assumptions here.
+      auto unpack = [](auto &op, auto &v) -> void {
+        auto co = cast<mlir::NPCOMP::aten::ConstantOp>(op.getDefiningOp());
+        DenseElementsAttr a =
+            co.template getAttrOfType<DenseElementsAttr>("value");
+        for (auto i : a.getIntValues())
+          v.push_back(i.getSExtValue());
+      };
+      std::vector<uint64_t> values;
+      unpack(o, values);
+      callops.push_back(constInt(values[0], 32));
+    } else {
+      return failure();
     }
-    return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter, functionName);
+  }
+  return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter,
+                                             functionName);
 }
 
-
 /// Lower Add
-template<typename Op>
+template <typename Op>
 class ATenFunctionCallConversion : public ConversionPattern {
 public:
   explicit ATenFunctionCallConversion(MLIRContext *context)
-      : ConversionPattern(Op::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(Op::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, Op::getFunctionConversionName());
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   Op::getFunctionConversionName());
   }
 };
 
@@ -444,8 +433,8 @@ public:
 class ConstantOpConversion : public ConversionPattern {
 public:
   explicit ConstantOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::ConstantOp::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(mlir::NPCOMP::aten::ConstantOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -459,14 +448,15 @@ public:
     Type t = result.getType();
     if (t.isa<IntegerType>()) {
       auto it = t.cast<IntegerType>();
-      if(it.getWidth() > 1) {
+      if (it.getWidth() > 1) {
         auto a = op->getAttrOfType<IntegerAttr>("value");
-        SmallVector<Value, 8> newValues {rewriter.create<mlir::ConstantOp>(loc, a)};
+        SmallVector<Value, 8> newValues{
+            rewriter.create<mlir::ConstantOp>(loc, a)};
         rewriter.replaceOp(op, newValues);
         return success();
       } else {
         auto a = op->getAttrOfType<BoolAttr>("value");
-        SmallVector<Value, 8> newValues {constInt(a.getValue(), it.getWidth())};
+        SmallVector<Value, 8> newValues{constInt(a.getValue(), it.getWidth())};
         rewriter.replaceOp(op, newValues);
         return success();
       }
@@ -485,8 +475,8 @@ public:
 class AddOpConversion : public ConversionPattern {
 public:
   explicit AddOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::AddOp::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(mlir::NPCOMP::aten::AddOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -513,8 +503,8 @@ public:
 class AsStridedOpConversion : public ConversionPattern {
 public:
   explicit AsStridedOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::AsStridedOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::AsStridedOp::getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -527,7 +517,8 @@ public:
     // construct the shape argument
     std::vector<Value> shape;
     std::vector<int64_t> result_shape;
-    auto co0 = cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
+    auto co0 =
+        cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
     DenseElementsAttr a0 =
         co0.template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a0.getAttributeValues())
@@ -539,7 +530,8 @@ public:
 
     // construct the stride argument
     std::vector<Value> stride;
-    auto co1 = cast<mlir::NPCOMP::aten::ConstantOp>(operands[2].getDefiningOp());
+    auto co1 =
+        cast<mlir::NPCOMP::aten::ConstantOp>(operands[2].getDefiningOp());
     DenseElementsAttr a1 =
         co1.template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a1.getAttributeValues())
@@ -551,19 +543,21 @@ public:
 
     APInt offset(32, 0);
     if (operands.size() > 3) {
-      auto co2 = cast<mlir::NPCOMP::aten::ConstantOp>(operands[3].getDefiningOp());
+      auto co2 =
+          cast<mlir::NPCOMP::aten::ConstantOp>(operands[3].getDefiningOp());
       auto ia2 = co2.getAttrOfType<IntegerAttr>("value");
       offset = ia2.getValue();
     }
 
-    SmallVector<Value, 8> callops{xVal,      shape[0],
-                               shape[1],  shape[2],
-                               shape[3],  stride[0],
-                               stride[1], stride[2],
-                               stride[3], constInt(offset.getSExtValue(), 32)};
+    SmallVector<Value, 8> callops{
+        xVal,      shape[0],
+        shape[1],  shape[2],
+        shape[3],  stride[0],
+        stride[1], stride[2],
+        stride[3], constInt(offset.getSExtValue(), 32)};
 
-
-    return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter, "as_strided");
+    return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter,
+                                               "as_strided");
   }
 };
 
@@ -571,8 +565,8 @@ public:
 class BatchNormOpConversion : public ConversionPattern {
 public:
   explicit BatchNormOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::BatchNormOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::BatchNormOp::getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -585,8 +579,8 @@ public:
 class ConvolutionOpConversion : public ConversionPattern {
 public:
   explicit ConvolutionOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::ConvolutionOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::ConvolutionOp::getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -614,8 +608,8 @@ public:
 class DivOpConversion : public ConversionPattern {
 public:
   explicit DivOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::DivOp::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(mlir::NPCOMP::aten::DivOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -627,8 +621,8 @@ public:
 class LogSoftmaxOpConversion : public ConversionPattern {
 public:
   explicit LogSoftmaxOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::LogSoftmaxOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::LogSoftmaxOp::getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -657,8 +651,8 @@ public:
 class MaxPoolOpConversion : public ConversionPattern {
 public:
   explicit MaxPoolOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::MaxPool2dOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::MaxPool2dOp::getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -678,7 +672,8 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "max_pool2d_with_indices");
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   "max_pool2d_with_indices");
   }
 };
 
@@ -686,14 +681,15 @@ public:
 class MaxPool2dWithIndicesBackwardOpConversion : public ConversionPattern {
 public:
   explicit MaxPool2dWithIndicesBackwardOpConversion(MLIRContext *context)
-      : ConversionPattern(
-            mlir::NPCOMP::aten::MaxPool2dWithIndicesBackwardOp::getOperationName(), 1,
-            context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::MaxPool2dWithIndicesBackwardOp::
+                              getOperationName(),
+                          1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "max_pool2d_with_indices_backward");
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   "max_pool2d_with_indices_backward");
   }
 };
 
@@ -701,7 +697,8 @@ public:
 class MMOpConversion : public ConversionPattern {
 public:
   explicit MMOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::MmOp::getOperationName(), 1, context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::MmOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -714,8 +711,8 @@ public:
 class MulOpConversion : public ConversionPattern {
 public:
   explicit MulOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::MulOp::getOperationName(), 1, context) {
-  }
+      : ConversionPattern(mlir::NPCOMP::aten::MulOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -728,8 +725,9 @@ public:
 class NativeBatchNormOpConversion : public ConversionPattern {
 public:
   explicit NativeBatchNormOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::NativeBatchNormOp::getOperationName(),
-                          1, context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::NativeBatchNormOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -742,13 +740,15 @@ public:
 class NllLoss2dBackwardOpConversion : public ConversionPattern {
 public:
   explicit NllLoss2dBackwardOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::NllLoss2dBackwardOp::getOperationName(),
-                          1, context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::NllLoss2dBackwardOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "nll_loss2d_backward");
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   "nll_loss2d_backward");
   }
 };
 
@@ -756,13 +756,15 @@ public:
 class NllLoss2dForwardOpConversion : public ConversionPattern {
 public:
   explicit NllLoss2dForwardOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::NllLoss2dForwardOp::getOperationName(),
-                          1, context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::NllLoss2dForwardOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "nll_loss2d_forward");
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   "nll_loss2d_forward");
   }
 };
 
@@ -770,8 +772,9 @@ public:
 class NllLossBackwardOpConversion : public ConversionPattern {
 public:
   explicit NllLossBackwardOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::NllLossBackwardOp::getOperationName(),
-                          1, context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::NllLossBackwardOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -784,13 +787,15 @@ public:
 class NllLossForwardOpConversion : public ConversionPattern {
 public:
   explicit NllLossForwardOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::NllLossForwardOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::NllLossForwardOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "nll_loss_forward");  }
+    return rewriteWithFunctionCall(op, operands, rewriter, "nll_loss_forward");
+  }
 };
 
 /// Lower ReLU
@@ -811,13 +816,15 @@ public:
 class ThresholdBackwardOpConversion : public ConversionPattern {
 public:
   explicit ThresholdBackwardOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::ThresholdBackwardOp::getOperationName(),
-                          1, context) {}
+      : ConversionPattern(
+            mlir::NPCOMP::aten::ThresholdBackwardOp::getOperationName(), 1,
+            context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return rewriteWithFunctionCall(op, operands, rewriter, "threshold_backward");
+    return rewriteWithFunctionCall(op, operands, rewriter,
+                                   "threshold_backward");
   }
 };
 
@@ -825,7 +832,8 @@ public:
 class TransposeOpConversion : public ConversionPattern {
 public:
   explicit TransposeOpConversion(MLIRContext *context)
-      : ConversionPattern(mlir::NPCOMP::aten::TOp::getOperationName(), 1, context) {}
+      : ConversionPattern(mlir::NPCOMP::aten::TOp::getOperationName(), 1,
+                          context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -849,13 +857,13 @@ public:
 
     Value xVal = memRefTypeCast(rewriter, operands[0]);
 
-     // construct the shape argument
+    // construct the shape argument
     SmallVector<Value, 8> shape;
-    auto co = dyn_cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
+    auto co =
+        dyn_cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
     DenseElementsAttr a = co.template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a.getAttributeValues())
       shape.push_back(rewriter.create<mlir::ConstantOp>(co.getLoc(), i));
-
 
     // pad out the shape with -1 to make it 4d
     while (shape.size() < 4)
@@ -863,7 +871,8 @@ public:
 
     SmallVector<Value, 8> callops{xVal, shape[0], shape[1], shape[2], shape[3]};
 
-    return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter, "view");
+    return rewriteWithVoidFunctionCallExplicit(op, callops, operands, rewriter,
+                                               "view");
   }
 };
 
@@ -896,9 +905,8 @@ struct ATenLoweringPass
 
     // c++ patterns
     acapPatterns.insert<
-      ConstantOpConversion,
-      AddOpConversion, ConvolutionOpConversion, ReLUOpConversion,
-        TransposeOpConversion, BatchNormOpConversion,
+        ConstantOpConversion, AddOpConversion, ConvolutionOpConversion,
+        ReLUOpConversion, TransposeOpConversion, BatchNormOpConversion,
         NativeBatchNormOpConversion, MaxPoolOpConversion,
         MaxPool2dWithIndicesOpConversion, AddmmOpConversion, ViewOpConversion,
         MulOpConversion, MMOpConversion, AsStridedOpConversion,

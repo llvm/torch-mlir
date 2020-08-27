@@ -89,38 +89,39 @@ void npcomp::python::defineBackendRefJitModule(py::module m) {
     JITModule::buildBackendCompilationPipeline(pm.passManager);
   });
   py::class_<JITModule>(m, "JITModule")
-      .def_static("from_compiled_module",
-                  [](PyModuleOp module, std::vector<std::string> pySharedLibs)
-                      -> std::unique_ptr<JITModule> {
-                    SmallVector<StringRef, 4> sharedLibs(pySharedLibs.begin(),
-                                                         pySharedLibs.end());
-                    auto jitModule =
-                        checkError(JITModule::fromCompiledModule(
-                                       module.moduleOp, sharedLibs),
-                                   "error creating JITModule: ");
-                    return jitModule;
-                  },
-                  py::arg("module"), py::arg("shared_libs"))
-      .def("invoke",
-           [](JITModule &self, std::string functionName,
-              std::vector<py::buffer> inputs) {
-             // Prepare inputs.
-             llvm::SmallVector<Ref<Tensor>, 4> inputTensors;
-             inputTensors.reserve(inputs.size());
-             for (py::buffer &inputBuffer : inputs) {
-               inputTensors.push_back(copyBufferToTensor(inputBuffer));
-             }
+      .def_static(
+          "from_compiled_module",
+          [](PyModuleOp module, std::vector<std::string> pySharedLibs)
+              -> std::unique_ptr<JITModule> {
+            SmallVector<StringRef, 4> sharedLibs(pySharedLibs.begin(),
+                                                 pySharedLibs.end());
+            auto jitModule = checkError(
+                JITModule::fromCompiledModule(module.moduleOp, sharedLibs),
+                "error creating JITModule: ");
+            return jitModule;
+          },
+          py::arg("module"), py::arg("shared_libs"))
+      .def(
+          "invoke",
+          [](JITModule &self, std::string functionName,
+             std::vector<py::buffer> inputs) {
+            // Prepare inputs.
+            llvm::SmallVector<Ref<Tensor>, 4> inputTensors;
+            inputTensors.reserve(inputs.size());
+            for (py::buffer &inputBuffer : inputs) {
+              inputTensors.push_back(copyBufferToTensor(inputBuffer));
+            }
 
-             auto outputs = checkError(self.invoke(functionName, inputTensors),
-                                       "error invoking JIT function: ");
-             std::vector<py::array> outputArrays;
-             outputArrays.reserve(outputs.size());
-             for (Ref<Tensor> &outputTensor : outputs) {
-               outputArrays.push_back(wrapTensorAsArray(outputTensor));
-             }
-             return outputArrays;
-           },
-           py::arg("function_name"), py::arg("inputs"));
+            auto outputs = checkError(self.invoke(functionName, inputTensors),
+                                      "error invoking JIT function: ");
+            std::vector<py::array> outputArrays;
+            outputArrays.reserve(outputs.size());
+            for (Ref<Tensor> &outputTensor : outputs) {
+              outputArrays.push_back(wrapTensorAsArray(outputTensor));
+            }
+            return outputArrays;
+          },
+          py::arg("function_name"), py::arg("inputs"));
 
   // A Ref<Tensor> needs to be bound because we use it as a base for the
   // ndarray (the array retains a reference to it). Users should not encounter

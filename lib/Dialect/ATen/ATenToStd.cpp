@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/ATen/ATenToStd.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "npcomp/Dialect/ATen/ATenDialect.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

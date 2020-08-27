@@ -32,13 +32,14 @@ void PyPassManager::bind(py::module m) {
   py::class_<PyPassManager>(m, "PassManager")
       .def(py::init<std::shared_ptr<PyContext>, bool>(), py::arg("context"),
            py::arg("verifyModules") = true)
-      .def("enableCrashReproducerGeneration",
-           [](PyPassManager &self, std::string outputFile,
-              bool genLocalReproducer) {
-             self.passManager.enableCrashReproducerGeneration(
-                 outputFile, genLocalReproducer);
-           },
-           py::arg("outputFile"), py::arg("genLocalReproducer") = false)
+      .def(
+          "enableCrashReproducerGeneration",
+          [](PyPassManager &self, std::string outputFile,
+             bool genLocalReproducer) {
+            self.passManager.enableCrashReproducerGeneration(
+                outputFile, genLocalReproducer);
+          },
+          py::arg("outputFile"), py::arg("genLocalReproducer") = false)
       .def("__len__",
            [](PyPassManager &self) { return self.passManager.size(); })
       .def("__str__",

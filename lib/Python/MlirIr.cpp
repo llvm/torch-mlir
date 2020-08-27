@@ -65,13 +65,14 @@ void PyIpListWrapper<ListTy, ItemWrapperTy>::bind(py::module m,
           "front",
           [](ThisTy &self) { return ItemWrapperTy(self.list.front()); })
       .def("__len__", [](ThisTy &self) { return self.list.size(); })
-      .def("__iter__",
-           [](ThisTy &self) {
-             PyItemIterator begin(self.list.begin());
-             PyItemIterator end(self.list.end());
-             return py::make_iterator(begin, end);
-           },
-           py::keep_alive<0, 1>());
+      .def(
+          "__iter__",
+          [](ThisTy &self) {
+            PyItemIterator begin(self.list.begin());
+            PyItemIterator end(self.list.end());
+            return py::make_iterator(begin, end);
+          },
+          py::keep_alive<0, 1>());
 }
 
 //===----------------------------------------------------------------------===//
@@ -194,79 +195,81 @@ void PyDialectHelper::bind(py::module m) {
           [](PyDialectHelper &self) -> std::shared_ptr<PyContext> {
             return self.context.shared_from_this();
           })
-      .def("op",
-           [](PyDialectHelper &self, const std::string &opNameStr,
-              std::vector<PyType> pyResultTypes,
-              std::vector<PyValue> pyOperands,
-              llvm::Optional<PyAttribute> attrs) -> PyOperationRef {
-             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(false);
-             Location loc = self.pyOpBuilder.getCurrentLoc();
-             OperationName opName(opNameStr, opBuilder.getContext());
-             SmallVector<Type, 4> types(pyResultTypes.begin(),
-                                        pyResultTypes.end());
-             SmallVector<Value, 4> operands(pyOperands.begin(),
-                                            pyOperands.end());
-             MutableDictionaryAttr attrList;
-             if (attrs) {
-               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
-               if (!dictAttrs) {
-                 throw py::raiseValueError(
-                     "Expected `attrs` to be a DictionaryAttr");
-               }
-               attrList = MutableDictionaryAttr(dictAttrs);
-             }
-             Operation *op =
-                 Operation::create(loc, opName, types, operands, attrList);
-             opBuilder.insert(op);
-             return op;
-           },
-           py::arg("op_name"), py::arg("result_types"), py::arg("operands"),
-           py::arg("attrs") = llvm::Optional<PyAttribute>())
-      .def("func_op",
-           [](PyDialectHelper &self, const std::string &name, PyType type,
-              bool createEntryBlock, llvm::Optional<PyAttribute> attrs) {
-             auto functionType = type.type.dyn_cast_or_null<FunctionType>();
-             if (!functionType) {
-               throw py::raiseValueError("Illegal function type");
-             }
-             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-             Location loc = self.pyOpBuilder.getCurrentLoc();
-             // TODO: Dedup attr creation from op().
-             MutableDictionaryAttr attrList;
-             if (attrs) {
-               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
-               if (!dictAttrs) {
-                 throw py::raiseValueError(
-                     "Expected `attrs` to be a DictionaryAttr");
-               }
-               attrList = MutableDictionaryAttr(dictAttrs);
-             }
-             FuncOp op =
-                 opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
-                                          /*attrs=*/attrList.getAttrs());
-             if (createEntryBlock) {
-               Block *entryBlock = new Block();
-               entryBlock->addArguments(functionType.getInputs());
-               op.getBody().push_back(entryBlock);
-               opBuilder.setInsertionPointToStart(entryBlock);
-             }
-             return PyOperationRef(op);
-           },
-           py::arg("name"), py::arg("type"),
-           py::arg("create_entry_block") = false,
-           py::arg("attrs") = llvm::Optional<PyAttribute>(),
-           R"(Creates a new `func` op, optionally creating an entry block.
+      .def(
+          "op",
+          [](PyDialectHelper &self, const std::string &opNameStr,
+             std::vector<PyType> pyResultTypes, std::vector<PyValue> pyOperands,
+             llvm::Optional<PyAttribute> attrs) -> PyOperationRef {
+            OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(false);
+            Location loc = self.pyOpBuilder.getCurrentLoc();
+            OperationName opName(opNameStr, opBuilder.getContext());
+            SmallVector<Type, 4> types(pyResultTypes.begin(),
+                                       pyResultTypes.end());
+            SmallVector<Value, 4> operands(pyOperands.begin(),
+                                           pyOperands.end());
+            MutableDictionaryAttr attrList;
+            if (attrs) {
+              auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
+              if (!dictAttrs) {
+                throw py::raiseValueError(
+                    "Expected `attrs` to be a DictionaryAttr");
+              }
+              attrList = MutableDictionaryAttr(dictAttrs);
+            }
+            Operation *op =
+                Operation::create(loc, opName, types, operands, attrList);
+            opBuilder.insert(op);
+            return op;
+          },
+          py::arg("op_name"), py::arg("result_types"), py::arg("operands"),
+          py::arg("attrs") = llvm::Optional<PyAttribute>())
+      .def(
+          "func_op",
+          [](PyDialectHelper &self, const std::string &name, PyType type,
+             bool createEntryBlock, llvm::Optional<PyAttribute> attrs) {
+            auto functionType = type.type.dyn_cast_or_null<FunctionType>();
+            if (!functionType) {
+              throw py::raiseValueError("Illegal function type");
+            }
+            OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+            Location loc = self.pyOpBuilder.getCurrentLoc();
+            // TODO: Dedup attr creation from op().
+            MutableDictionaryAttr attrList;
+            if (attrs) {
+              auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
+              if (!dictAttrs) {
+                throw py::raiseValueError(
+                    "Expected `attrs` to be a DictionaryAttr");
+              }
+              attrList = MutableDictionaryAttr(dictAttrs);
+            }
+            FuncOp op =
+                opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
+                                         /*attrs=*/attrList.getAttrs());
+            if (createEntryBlock) {
+              Block *entryBlock = new Block();
+              entryBlock->addArguments(functionType.getInputs());
+              op.getBody().push_back(entryBlock);
+              opBuilder.setInsertionPointToStart(entryBlock);
+            }
+            return PyOperationRef(op);
+          },
+          py::arg("name"), py::arg("type"),
+          py::arg("create_entry_block") = false,
+          py::arg("attrs") = llvm::Optional<PyAttribute>(),
+          R"(Creates a new `func` op, optionally creating an entry block.
               If an entry block is created, the builder will be positioned
               to its start.)")
-      .def("select_op",
-           [](PyDialectHelper &self, PyValue conditionValue, PyValue trueValue,
-              PyValue falseValue) -> PyOperationRef {
-             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-             Location loc = self.pyOpBuilder.getCurrentLoc();
-             return PyOperationRef(opBuilder.create<SelectOp>(
-                 loc, conditionValue, trueValue, falseValue));
-           },
-           py::arg("condition"), py::arg("true_value"), py::arg("false_value"))
+      .def(
+          "select_op",
+          [](PyDialectHelper &self, PyValue conditionValue, PyValue trueValue,
+             PyValue falseValue) -> PyOperationRef {
+            OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+            Location loc = self.pyOpBuilder.getCurrentLoc();
+            return PyOperationRef(opBuilder.create<SelectOp>(
+                loc, conditionValue, trueValue, falseValue));
+          },
+          py::arg("condition"), py::arg("true_value"), py::arg("false_value"))
       .def("return_op",
            [](PyDialectHelper &self, std::vector<PyValue> pyOperands) {
              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
@@ -288,11 +291,12 @@ void PyDialectHelper::bind(py::module m) {
                              [](PyDialectHelper &self) -> PyType {
                                return IndexType::get(self.getContext());
                              })
-      .def("integer_type",
-           [](PyDialectHelper &self, unsigned width) -> PyType {
-             return IntegerType::get(width, self.getContext());
-           },
-           py::arg("width") = 32)
+      .def(
+          "integer_type",
+          [](PyDialectHelper &self, unsigned width) -> PyType {
+            return IntegerType::get(width, self.getContext());
+          },
+          py::arg("width") = 32)
       .def_property_readonly("i1_type",
                              [](PyDialectHelper &self) -> PyType {
                                return IntegerType::get(1, self.getContext());
@@ -319,20 +323,21 @@ void PyDialectHelper::bind(py::module m) {
                                return FloatType::get(StandardTypes::F64,
                                                      self.getContext());
                              })
-      .def("tensor_type",
-           [](PyDialectHelper &self, PyType elementType,
-              llvm::Optional<std::vector<int64_t>> shape) -> PyType {
-             if (!elementType.type) {
-               throw py::raiseValueError("Null element type");
-             }
-             if (shape) {
-               return RankedTensorType::get(*shape, elementType.type);
-             } else {
-               return UnrankedTensorType::get(elementType.type);
-             }
-           },
-           py::arg("element_type"),
-           py::arg("shape") = llvm::Optional<std::vector<int64_t>>())
+      .def(
+          "tensor_type",
+          [](PyDialectHelper &self, PyType elementType,
+             llvm::Optional<std::vector<int64_t>> shape) -> PyType {
+            if (!elementType.type) {
+              throw py::raiseValueError("Null element type");
+            }
+            if (shape) {
+              return RankedTensorType::get(*shape, elementType.type);
+            } else {
+              return UnrankedTensorType::get(elementType.type);
+            }
+          },
+          py::arg("element_type"),
+          py::arg("shape") = llvm::Optional<std::vector<int64_t>>())
       .def("function_type",
            [](PyDialectHelper &self, std::vector<PyType> inputs,
               std::vector<PyType> results) -> PyType {
@@ -367,21 +372,24 @@ void defineMlirIrModule(py::module m) {
   m.doc() = "Python bindings for constructs in the mlir/IR library";
 
   // Globals.
-  m.def("emit_error",
-        [](PyAttribute loc, std::string message) {
-          emitDiagnostic(DiagnosticSeverity::Error, loc, message);
-        },
-        py::arg("loc"), py::arg("message"));
-  m.def("emit_warning",
-        [](PyAttribute loc, std::string message) {
-          emitDiagnostic(DiagnosticSeverity::Warning, loc, message);
-        },
-        py::arg("loc"), py::arg("message"));
-  m.def("emit_remark",
-        [](PyAttribute loc, std::string message) {
-          emitDiagnostic(DiagnosticSeverity::Remark, loc, message);
-        },
-        py::arg("loc"), py::arg("message"));
+  m.def(
+      "emit_error",
+      [](PyAttribute loc, std::string message) {
+        emitDiagnostic(DiagnosticSeverity::Error, loc, message);
+      },
+      py::arg("loc"), py::arg("message"));
+  m.def(
+      "emit_warning",
+      [](PyAttribute loc, std::string message) {
+        emitDiagnostic(DiagnosticSeverity::Warning, loc, message);
+      },
+      py::arg("loc"), py::arg("message"));
+  m.def(
+      "emit_remark",
+      [](PyAttribute loc, std::string message) {
+        emitDiagnostic(DiagnosticSeverity::Remark, loc, message);
+      },
+      py::arg("loc"), py::arg("message"));
 
   // Python only types.
   PyDialectHelper::bind(m);
@@ -426,25 +434,27 @@ void PyContext::bind(py::module m) {
              return PyModuleOp(self.shared_from_this(), m);
            })
       .def("parse_asm", &PyContext::parseAsm)
-      .def("new_builder",
-           [](PyContext &self) {
-             // Note: we collapse the Builder and OpBuilder into one because
-             // there is little reason to expose the inheritance hierarchy to
-             // Python.
-             return PyOpBuilder(self);
-           },
-           py::keep_alive<0, 1>())
+      .def(
+          "new_builder",
+          [](PyContext &self) {
+            // Note: we collapse the Builder and OpBuilder into one because
+            // there is little reason to expose the inheritance hierarchy to
+            // Python.
+            return PyOpBuilder(self);
+          },
+          py::keep_alive<0, 1>())
       .def("identifier",
            [](PyContext &self, std::string s) -> PyIdentifier {
              return Identifier::get(s, &self.context);
            })
-      .def("file_line_col_loc_attr",
-           [](PyContext &self, PyIdentifier filename, unsigned line,
-              unsigned column) -> PyAttribute {
-             return static_cast<LocationAttr>(FileLineColLoc::get(
-                 filename.identifier, line, column, &self.context));
-           },
-           py::arg("filename"), py::arg("line"), py::arg("column"))
+      .def(
+          "file_line_col_loc_attr",
+          [](PyContext &self, PyIdentifier filename, unsigned line,
+             unsigned column) -> PyAttribute {
+            return static_cast<LocationAttr>(FileLineColLoc::get(
+                filename.identifier, line, column, &self.context));
+          },
+          py::arg("filename"), py::arg("line"), py::arg("column"))
       // Salient functions from Builder.
       .def("parse_type",
            [](PyContext &self, const std::string &asmText) {
@@ -456,14 +466,15 @@ void PyContext::bind(py::module m) {
              }
              return PyType(t);
            })
-      .def("integer_attr",
-           [](PyContext &self, PyType type, int64_t value) -> PyAttribute {
-             if (!type.type.isa<IntegerType>()) {
-               throw py::raiseValueError("Expected IntegerType");
-             }
-             return IntegerAttr::get(type.type, value);
-           },
-           py::arg("type"), py::arg("value"))
+      .def(
+          "integer_attr",
+          [](PyContext &self, PyType type, int64_t value) -> PyAttribute {
+            if (!type.type.isa<IntegerType>()) {
+              throw py::raiseValueError("Expected IntegerType");
+            }
+            return IntegerAttr::get(type.type, value);
+          },
+          py::arg("type"), py::arg("value"))
       .def("float_attr",
            [](PyContext &self, PyType type, double value) -> PyAttribute {
              if (!type.type.isa<FloatType>()) {
@@ -512,20 +523,20 @@ void PyContext::bind(py::module m) {
              }
              return ArrayAttr::get(attrs, &self.context);
            })
-      .def("dense_elements_attr",
-           [](PyContext &self, py::buffer array) -> PyAttribute {
-             // Request a contiguous view.
-             int flags = PyBUF_C_CONTIGUOUS | PyBUF_FORMAT;
-             Py_buffer *view = new Py_buffer();
-             if (PyObject_GetBuffer(array.ptr(), view, flags) != 0) {
-               delete view;
-               throw py::error_already_set();
-             }
-             py::buffer_info array_info(view);
-             return createDenseElementsAttrFromBuffer(&self.context,
-                                                      array_info);
-           },
-           py::arg("array"))
+      .def(
+          "dense_elements_attr",
+          [](PyContext &self, py::buffer array) -> PyAttribute {
+            // Request a contiguous view.
+            int flags = PyBUF_C_CONTIGUOUS | PyBUF_FORMAT;
+            Py_buffer *view = new Py_buffer();
+            if (PyObject_GetBuffer(array.ptr(), view, flags) != 0) {
+              delete view;
+              throw py::error_already_set();
+            }
+            py::buffer_info array_info(view);
+            return createDenseElementsAttrFromBuffer(&self.context, array_info);
+          },
+          py::arg("array"))
       .def_property_readonly("unit_attr", [](PyContext &self) -> PyAttribute {
         return UnitAttr::get(&self.context);
       });
@@ -905,67 +916,74 @@ void PyBaseOpBuilder::bind(py::module m) {
 void PyOpBuilder::bind(py::module m) {
   py::class_<PyOpBuilder, PyBaseOpBuilder>(m, "OpBuilder")
       .def(py::init<PyContext &>(), py::keep_alive<1, 2>())
-      .def_property("current_loc",
-                    [](PyOpBuilder &self) -> PyAttribute {
-                      return static_cast<Attribute>(self.getCurrentLoc());
-                    },
-                    [](PyOpBuilder &self, PyAttribute attr) {
-                      auto loc_attr =
-                          attr.attr.dyn_cast_or_null<LocationAttr>();
-                      if (!loc_attr) {
-                        throw py::raiseValueError("Expected a LocationAttr");
-                      }
-                      self.setCurrentLoc(Location(loc_attr));
-                    })
-      .def_property("insertion_point",
-                    [](PyOpBuilder &self) {
-                      return self.getBuilder(true).saveInsertionPoint();
-                    },
-                    [](PyOpBuilder &self, OpBuilder::InsertPoint ip) {
-                      self.getBuilder(false).restoreInsertionPoint(ip);
-                    })
-      .def("set_file_line_col",
-           [](PyOpBuilder &self, PyIdentifier filename, unsigned line,
-              unsigned column) {
-             Location loc = FileLineColLoc::get(filename.identifier, line,
-                                                column, self.getContext());
-             self.setCurrentLoc(loc);
-           },
-           py::arg("filename"), py::arg("line"), py::arg("column"),
-           "Shortcut to set a FileLineCol current location")
+      .def_property(
+          "current_loc",
+          [](PyOpBuilder &self) -> PyAttribute {
+            return static_cast<Attribute>(self.getCurrentLoc());
+          },
+          [](PyOpBuilder &self, PyAttribute attr) {
+            auto loc_attr = attr.attr.dyn_cast_or_null<LocationAttr>();
+            if (!loc_attr) {
+              throw py::raiseValueError("Expected a LocationAttr");
+            }
+            self.setCurrentLoc(Location(loc_attr));
+          })
+      .def_property(
+          "insertion_point",
+          [](PyOpBuilder &self) {
+            return self.getBuilder(true).saveInsertionPoint();
+          },
+          [](PyOpBuilder &self, OpBuilder::InsertPoint ip) {
+            self.getBuilder(false).restoreInsertionPoint(ip);
+          })
+      .def(
+          "set_file_line_col",
+          [](PyOpBuilder &self, PyIdentifier filename, unsigned line,
+             unsigned column) {
+            Location loc = FileLineColLoc::get(filename.identifier, line,
+                                               column, self.getContext());
+            self.setCurrentLoc(loc);
+          },
+          py::arg("filename"), py::arg("line"), py::arg("column"),
+          "Shortcut to set a FileLineCol current location")
       .def("clear_insertion_point",
            [](PyOpBuilder &self) { self.builder.clearInsertionPoint(); })
-      .def("insert_op_before",
-           [](PyOpBuilder &self, PyBaseOperation &pyOp) {
-             Operation *op = pyOp.getOperation();
-             self.builder.setInsertionPoint(op);
-           },
-           "Sets the insertion point to just before the specified op.")
-      .def("insert_op_after",
-           [](PyOpBuilder &self, PyBaseOperation &pyOp) {
-             Operation *op = pyOp.getOperation();
-             self.builder.setInsertionPointAfter(op);
-           },
-           "Sets the insertion point to just after the specified op.")
-      .def("insert_block_start",
-           [](PyOpBuilder &self, PyBlockRef block) {
-             self.builder.setInsertionPointToStart(&block.block);
-           },
-           "Sets the insertion point to the start of the block.")
-      .def("insert_block_end",
-           [](PyOpBuilder &self, PyBlockRef block) {
-             self.builder.setInsertionPointToEnd(&block.block);
-           },
-           "Sets the insertion point to the end of the block.")
-      .def("insert_before_terminator",
-           [](PyOpBuilder &self, PyBlockRef block) {
-             auto *terminator = block.block.getTerminator();
-             if (!terminator) {
-               throw py::raiseValueError("Block has no terminator");
-             }
-             self.builder.setInsertionPoint(terminator);
-           },
-           "Sets the insertion point to just before the block terminator.");
+      .def(
+          "insert_op_before",
+          [](PyOpBuilder &self, PyBaseOperation &pyOp) {
+            Operation *op = pyOp.getOperation();
+            self.builder.setInsertionPoint(op);
+          },
+          "Sets the insertion point to just before the specified op.")
+      .def(
+          "insert_op_after",
+          [](PyOpBuilder &self, PyBaseOperation &pyOp) {
+            Operation *op = pyOp.getOperation();
+            self.builder.setInsertionPointAfter(op);
+          },
+          "Sets the insertion point to just after the specified op.")
+      .def(
+          "insert_block_start",
+          [](PyOpBuilder &self, PyBlockRef block) {
+            self.builder.setInsertionPointToStart(&block.block);
+          },
+          "Sets the insertion point to the start of the block.")
+      .def(
+          "insert_block_end",
+          [](PyOpBuilder &self, PyBlockRef block) {
+            self.builder.setInsertionPointToEnd(&block.block);
+          },
+          "Sets the insertion point to the end of the block.")
+      .def(
+          "insert_before_terminator",
+          [](PyOpBuilder &self, PyBlockRef block) {
+            auto *terminator = block.block.getTerminator();
+            if (!terminator) {
+              throw py::raiseValueError("Block has no terminator");
+            }
+            self.builder.setInsertionPoint(terminator);
+          },
+          "Sets the insertion point to just before the block terminator.");
 }
 
 } // namespace mlir

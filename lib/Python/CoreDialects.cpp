@@ -32,28 +32,29 @@ public:
                auto op = opBuilder.create<scf::YieldOp>(loc, yields);
                return op.getOperation();
              })
-        .def("scf_if_op",
-             [](ScfDialectHelper &self, std::vector<PyType> pyResultTypes,
-                PyValue cond, bool withElseRegion) {
-               OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
-               Location loc = self.pyOpBuilder.getCurrentLoc();
-               llvm::SmallVector<Type, 4> resultTypes(pyResultTypes.begin(),
-                                                      pyResultTypes.end());
-               auto op = opBuilder.create<scf::IfOp>(loc, resultTypes, cond,
-                                                     withElseRegion);
-               if (withElseRegion) {
-                 return py::make_tuple(
-                     PyOperationRef(op),
-                     op.getThenBodyBuilder().saveInsertionPoint(),
-                     op.getElseBodyBuilder().saveInsertionPoint());
-               } else {
-                 return py::make_tuple(
-                     PyOperationRef(op),
-                     op.getThenBodyBuilder().saveInsertionPoint());
-               }
-             },
-             py::arg("result_types"), py::arg("cond"),
-             py::arg("with_else_region") = false);
+        .def(
+            "scf_if_op",
+            [](ScfDialectHelper &self, std::vector<PyType> pyResultTypes,
+               PyValue cond, bool withElseRegion) {
+              OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
+              Location loc = self.pyOpBuilder.getCurrentLoc();
+              llvm::SmallVector<Type, 4> resultTypes(pyResultTypes.begin(),
+                                                     pyResultTypes.end());
+              auto op = opBuilder.create<scf::IfOp>(loc, resultTypes, cond,
+                                                    withElseRegion);
+              if (withElseRegion) {
+                return py::make_tuple(
+                    PyOperationRef(op),
+                    op.getThenBodyBuilder().saveInsertionPoint(),
+                    op.getElseBodyBuilder().saveInsertionPoint());
+              } else {
+                return py::make_tuple(
+                    PyOperationRef(op),
+                    op.getThenBodyBuilder().saveInsertionPoint());
+              }
+            },
+            py::arg("result_types"), py::arg("cond"),
+            py::arg("with_else_region") = false);
   }
 };
 

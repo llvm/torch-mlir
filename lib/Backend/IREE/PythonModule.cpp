@@ -44,33 +44,36 @@ void mlir::npcomp::python::defineBackendIREEModule(py::module m) {
         );
       });
 
-  m.def("build_flow_transform_pass_pipeline",
-        [](PyPassManager &pm) {
-          mlir::iree_compiler::IREE::Flow::buildFlowTransformPassPipeline(
-              pm.passManager);
-        },
-        py::arg("pm"),
-        py::doc("Builds a pass pipeline for top-level Flow import"));
-  m.def("build_hal_transform_pass_pipeline",
-        [](PyPassManager &pm, std::vector<std::string> targetBackends) {
-          mlir::iree_compiler::IREE::HAL::TargetOptions options;
-          if (targetBackends.empty()) {
-            options.targets =
-                mlir::iree_compiler::IREE::HAL::getRegisteredTargetBackends();
-          } else {
-            options.targets = std::move(targetBackends);
-          }
-          iree_compiler::IREE::HAL::buildHALTransformPassPipeline(
-              pm.passManager, options);
-        },
-        py::arg("pm"), py::arg("target_backends") = std::vector<std::string>(),
-        py::doc("Builds a pass pipeline for top-level Flow import"));
-  m.def("build_vm_transform_pass_pipeline",
-        [](PyPassManager &pm) {
-          mlir::iree_compiler::IREE::VM::buildVMTransformPassPipeline(
-              pm.passManager);
-        },
-        py::arg("pm"), py::doc("Builds the VM transformation pipeline"));
+  m.def(
+      "build_flow_transform_pass_pipeline",
+      [](PyPassManager &pm) {
+        mlir::iree_compiler::IREE::Flow::buildFlowTransformPassPipeline(
+            pm.passManager);
+      },
+      py::arg("pm"),
+      py::doc("Builds a pass pipeline for top-level Flow import"));
+  m.def(
+      "build_hal_transform_pass_pipeline",
+      [](PyPassManager &pm, std::vector<std::string> targetBackends) {
+        mlir::iree_compiler::IREE::HAL::TargetOptions options;
+        if (targetBackends.empty()) {
+          options.targets =
+              mlir::iree_compiler::IREE::HAL::getRegisteredTargetBackends();
+        } else {
+          options.targets = std::move(targetBackends);
+        }
+        iree_compiler::IREE::HAL::buildHALTransformPassPipeline(pm.passManager,
+                                                                options);
+      },
+      py::arg("pm"), py::arg("target_backends") = std::vector<std::string>(),
+      py::doc("Builds a pass pipeline for top-level Flow import"));
+  m.def(
+      "build_vm_transform_pass_pipeline",
+      [](PyPassManager &pm) {
+        mlir::iree_compiler::IREE::VM::buildVMTransformPassPipeline(
+            pm.passManager);
+      },
+      py::arg("pm"), py::doc("Builds the VM transformation pipeline"));
   m.def("translate_to_vm_bytecode", [](PyModuleOp &module) {
     // TODO: Make the options parameterizable.
     mlir::iree_compiler::IREE::VM::BytecodeTargetOptions options;

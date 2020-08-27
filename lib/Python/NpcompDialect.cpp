@@ -48,18 +48,19 @@ public:
                                  return Basicpy::NoneType::get(
                                      self.getContext());
                                })
-        .def("basicpy_SlotObject_type",
-             [](BasicpyDialectHelper &self, std::string className,
-                py::args pySlotTypes) -> PyType {
-               SmallVector<Type, 4> slotTypes;
-               for (auto pySlotType : pySlotTypes) {
-                 slotTypes.push_back(pySlotType.cast<PyType>());
-               }
-               auto classNameAttr =
-                   StringAttr::get(className, self.getContext());
-               return Basicpy::SlotObjectType::get(classNameAttr, slotTypes);
-             },
-             py::arg("className"))
+        .def(
+            "basicpy_SlotObject_type",
+            [](BasicpyDialectHelper &self, std::string className,
+               py::args pySlotTypes) -> PyType {
+              SmallVector<Type, 4> slotTypes;
+              for (auto pySlotType : pySlotTypes) {
+                slotTypes.push_back(pySlotType.cast<PyType>());
+              }
+              auto classNameAttr =
+                  StringAttr::get(className, self.getContext());
+              return Basicpy::SlotObjectType::get(classNameAttr, slotTypes);
+            },
+            py::arg("className"))
         .def_property_readonly("basicpy_StrType",
                                [](BasicpyDialectHelper &self) -> PyType {
                                  return Basicpy::StrType::get(
