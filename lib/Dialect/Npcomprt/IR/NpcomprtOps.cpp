@@ -91,9 +91,9 @@ static LogicalResult verify(FuncMetadataOp op) {
   if (!func)
     return op.emitError() << "must reference a valid func";
 
-  if (op.numInputs().getLimitedValue() != func.getNumArguments())
+  if (op.numInputs() != func.getNumArguments())
     return op.emitError() << "must agree on number of inputs";
-  if (op.numOutputs().getLimitedValue() != func.getNumResults())
+  if (op.numOutputs() != func.getNumResults())
     return op.emitError() << "must agree on number of outputs";
   return success();
 }
