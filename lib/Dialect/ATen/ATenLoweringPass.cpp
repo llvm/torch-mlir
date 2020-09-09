@@ -891,6 +891,10 @@ MemRefType convertTensorType(TensorType tensor) {
 struct ATenLoweringPass
     : public PassWrapper<ATenLoweringPass, OperationPass<ModuleOp>> {
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<LLVM::LLVMDialect, StandardOpsDialect>();
+  }
+
   void runOnOperation() override {
     LLVMTypeConverter typeConverter(getOperation().getContext());
     typeConverter.addConversion([&](Type type) {
