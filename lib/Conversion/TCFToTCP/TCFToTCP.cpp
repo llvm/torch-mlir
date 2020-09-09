@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/TCF/IR/TCFOps.h"
+#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
 using namespace mlir;
@@ -68,7 +69,11 @@ public:
 namespace {
 class ConvertTCFToTCP : public ConvertTCFToTCPBase<ConvertTCFToTCP> {
 public:
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<shape::ShapeDialect,tcp::TCPDialect>();
+  }
+
+  void runOnOperation() override {
     ModuleOp module = getOperation();
     MLIRContext *context = &getContext();
 
