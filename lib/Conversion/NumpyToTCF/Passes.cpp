@@ -11,6 +11,7 @@
 #include "../PassDetail.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
+#include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFOps.h"
 
 using namespace mlir;
@@ -43,7 +44,11 @@ private:
 
 namespace {
 class ConvertNumpyToTCF : public ConvertNumpyToTCFBase<ConvertNumpyToTCF> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<NPCOMP::tcf::TCFDialect>();
+  }
+
+  void runOnOperation() override {
     FuncOp func = getOperation();
     MLIRContext *context = &getContext();
 
