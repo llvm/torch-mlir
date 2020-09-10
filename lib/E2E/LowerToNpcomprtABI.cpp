@@ -227,7 +227,11 @@ namespace {
 // This pass lowers the public ABI of the module to the primitives exposed by
 // the npcomprt dialect.
 class LowerToNpcomprtABI : public LowerToNpcomprtABIBase<LowerToNpcomprtABI> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect, npcomprt::NpcomprtDialect>();
+  }
+
+  void runOnOperation() override {
     ModuleOp module = getOperation();
 
     // Before we lower anything, capture any needed metadata about the argument

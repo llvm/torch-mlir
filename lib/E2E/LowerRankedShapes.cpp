@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
@@ -219,7 +220,11 @@ public:
 // step.
 namespace {
 class LowerRankedShapes : public LowerRankedShapesBase<LowerRankedShapes> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<npcomprt::NpcomprtDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 
