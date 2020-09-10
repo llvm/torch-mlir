@@ -183,7 +183,11 @@ public:
 namespace {
 class ResolveTensorLoadStoreOps
     : public ResolveTensorLoadStoreOpsBase<ResolveTensorLoadStoreOps> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 
@@ -291,7 +295,11 @@ public:
 namespace {
 class LowerAllocMemRefOps
     : public LowerAllocMemRefOpsBase<LowerAllocMemRefOps> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<shape::ShapeDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
     OwningRewritePatternList patterns;

@@ -637,7 +637,11 @@ static LLVMFuncOp createWrapperFunc(LLVMFuncOp func) {
 
 namespace {
 class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<LLVM::LLVMDialect>();
+  }
+
+  void runOnOperation() override {
     auto module = getOperation();
     auto *context = &getContext();
 

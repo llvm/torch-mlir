@@ -139,7 +139,11 @@ public:
 namespace {
 class LowerBroadcastToToLoops
     : public LowerBroadcastToToLoopsBase<LowerBroadcastToToLoops> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<shape::ShapeDialect, tcp::TCPDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
@@ -257,7 +261,11 @@ namespace {
 class LowerLinalgOnTensorToLinalgOnMemref
     : public LowerLinalgOnTensorToLinalgOnMemrefBase<
           LowerLinalgOnTensorToLinalgOnMemref> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<shape::ShapeDialect, tcp::TCPDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 
@@ -351,7 +359,11 @@ GlobalCreator::GlobalCreator(ModuleOp module) {
 namespace {
 class LowerConstantTensorsToMemrefs
     : public LowerConstantTensorsToMemrefsBase<LowerConstantTensorsToMemrefs> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<tcp::TCPDialect>();
+  }
+
+  void runOnOperation() override {
     auto module = getOperation();
     GlobalCreator globals(module);
 
