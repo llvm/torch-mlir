@@ -20,17 +20,11 @@
 
 using namespace npcomprt;
 
-extern "C" void __npcomp_compiler_rt_abort_if(bool b) {
+extern "C" void __npcomp_compiler_rt_abort_if(bool b, const char *msg) {
   if (b) {
-    std::fprintf(stderr, "NPCOMP: aborting!\n");
+    std::fprintf(stderr, "NPCOMP: aborting: %s\n", msg);
     std::exit(1);
   }
-}
-
-extern "C" std::size_t __npcomp_compiler_rt_get_extent(Tensor *tensor,
-                                                       std::int32_t dim) {
-  assert(dim < tensor->getRank() && "dim out of bounds!");
-  return tensor->getExtent(dim);
 }
 
 namespace {

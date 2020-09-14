@@ -1,4 +1,4 @@
-// RUN: npcomp-opt -split-input-file -lower-constant-tensors-to-memrefs <%s | FileCheck %s
+// RUN: npcomp-opt -split-input-file -lower-constant-tensors-to-memref <%s | FileCheck %s
 
 // CHECK-LABEL: module {
 // We check the debug name too since we put some effort into making that readable.
@@ -7,7 +7,7 @@
 // CHECK: func @basic
 func @basic() -> tensor<3x4xf32> {
   // CHECK: %[[MEMREF:.*]] = tcp.get_global_memref @__constant_3x4xf32 : memref<3x4xf32>
-  // CHECK: %[[TENSOR:.*]] = tensor_load %[[MEMREF]]
+  // CHECK: %[[TENSOR:.*]] = tcp.memref_to_tensor %[[MEMREF]]
   %0 = constant dense<7.0> : tensor<3x4xf32>
   // CHECK: return %[[TENSOR]]
   return %0 : tensor<3x4xf32>

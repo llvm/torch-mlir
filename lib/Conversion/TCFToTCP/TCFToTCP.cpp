@@ -38,13 +38,18 @@ public:
     }
     Value lhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.lhs());
     Value rhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.rhs());
+
+    // Create the constraints, and the assuming region.
+    Value witness = rewriter.create<shape::CstrBroadcastableOp>(
+        op.getLoc(), lhsShape, rhsShape);
+    auto assuming = rewriter.create<shape::AssumingOp>(
+        op.getLoc(), ArrayRef<Type>{op.getType()}, witness);
+
+    // Start building the region body.
+    rewriter.createBlock(&assuming.doRegion());
     Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
-        op.getLoc(), rewriter.getType<mlir::shape::ShapeType>(), lhsShape,
-        rhsShape,
+        op.getLoc(), getExtentTensorType(rewriter), lhsShape, rhsShape,
         /*error=*/nullptr);
-    rewriter.create<tcp::ShapeObserveErrorOp>(op.getLoc(), broadcastedShape);
-    Value broadcastedExtents = rewriter.create<shape::ToExtentTensorOp>(
-        op.getLoc(), getExtentTensorType(rewriter), broadcastedShape);
 
     // TODO: It's annoying to do the dynamic broadcast above then
     // do the static transfer function here. Would be nice if they could
@@ -55,12 +60,15 @@ public:
     auto resultType =
         RankedTensorType::get(broadcastedStaticShape, lhsType.getElementType());
     Value lhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.lhs(), broadcastedExtents);
+        op.getLoc(), resultType, op.lhs(), broadcastedShape);
     Value rhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.rhs(), broadcastedExtents);
+        op.getLoc(), resultType, op.rhs(), broadcastedShape);
     Value add = rewriter.create<tcp::AddOp>(op.getLoc(), op.getType(),
                                             lhsBroadcasted, rhsBroadcasted);
-    rewriter.replaceOp(op, add);
+    rewriter.create<shape::AssumingYieldOp>(op.getLoc(), add);
+
+    // Finally, replace with the results of the shape.assuming
+    rewriter.replaceOp(op, assuming.getResults());
     return success();
   }
 };

@@ -9,8 +9,6 @@
 #include "PassDetail.h"
 #include "npcomp/E2E/E2E.h"
 
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Verifier.h"
@@ -23,6 +21,13 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
+// Get the type used to represent MemRefType `type` on ABI boundaries.
+// For convenience we do a cast to MemRefType internally.
+static Type getABIMemrefType(Type type) {
+  return UnrankedMemRefType::get(type.cast<MemRefType>().getElementType(),
+                                 /*memorySpace=*/0);
+}
+
 //===----------------------------------------------------------------------===//
 // Creating module metadata.
 //===----------------------------------------------------------------------===//
@@ -30,10 +35,10 @@ using namespace mlir::NPCOMP;
 // Returns true if the function signature can be expressed with the npcomprt
 // ABI.
 static bool expressibleWithNpcomprtABI(FunctionType type) {
-  // Currently, only tensor types can be exposed at npcomprt ABI boundaries.
+  // Currently, only memref types can be exposed at npcomprt ABI boundaries.
   return llvm::all_of(
       llvm::concat<const Type>(type.getInputs(), type.getResults()),
-      [](Type t) { return t.isa<TensorType>(); });
+      [](Type t) { return t.isa<MemRefType>(); });
 }
 
 static LogicalResult createModuleMetadata(ModuleOp module) {
@@ -70,82 +75,6 @@ static LogicalResult createModuleMetadata(ModuleOp module) {
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerTensorStoreOp : public OpConversionPattern<TensorStoreOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(TensorStoreOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    TensorStoreOp::Adaptor adaptor(operands);
-    auto memrefType = op.memref().getType().cast<MemRefType>();
-    Value abiMemref = rewriter.create<npcomprt::ToMemrefOp>(
-        op.getLoc(),
-        UnrankedMemRefType::get(memrefType.getElementType(), /*memorySpace=*/0),
-        adaptor.tensor());
-    auto memref =
-        rewriter.create<MemRefCastOp>(op.getLoc(), abiMemref, memrefType);
-    rewriter.replaceOpWithNewOp<linalg::CopyOp>(op, memref, adaptor.memref());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class LowerTensorLoadOp : public OpConversionPattern<TensorLoadOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    TensorLoadOp::Adaptor adaptor(operands);
-    auto abiMemref = rewriter.create<MemRefCastOp>(
-        op.getLoc(), adaptor.memref(),
-        UnrankedMemRefType::get(
-            adaptor.memref().getType().cast<MemRefType>().getElementType(),
-            /*memorySpace=*/0));
-    rewriter.replaceOpWithNewOp<npcomprt::FromMemrefOp>(
-        op, rewriter.getType<npcomprt::TensorType>(), abiMemref);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class LowerShapeOfOp : public OpConversionPattern<shape::ShapeOfOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(shape::ShapeOfOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    shape::ShapeOfOp::Adaptor adaptor(operands);
-    // TODO: For now npcomp only supports ranked tensor types for its shape
-    // lowering, since we don't have a runtime shape struct and lower all shapes
-    // to individual SSA values.
-    auto tensorType = op.arg().getType().cast<RankedTensorType>();
-    SmallVector<Value, 6> extents;
-    for (int i = 0, e = tensorType.getRank(); i < e; i++) {
-      auto ci = rewriter.create<ConstantOp>(op.getLoc(),
-                                            rewriter.getI32IntegerAttr(i));
-      // TODO: Shouldn't the index type for the output be inferred since
-      // https://reviews.llvm.org/rG31f40f603d0c00b313397196124c5f39090badf0
-      // ?
-      extents.push_back(rewriter.create<npcomprt::GetExtentOp>(
-          op.getLoc(), rewriter.getIndexType(), adaptor.arg(), ci));
-    }
-    auto newShape = rewriter.create<shape::FromExtentsOp>(
-        op.getLoc(), rewriter.getType<shape::ShapeType>(), extents);
-    // TODO: Provide a builder that doesn't require the result type.
-    rewriter.replaceOpWithNewOp<shape::ToExtentTensorOp>(
-        op,
-        RankedTensorType::get({ShapedType::kDynamicSize},
-                              rewriter.getIndexType()),
-        newShape);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class LowerGlobalOp : public OpConversionPattern<tcp::GlobalOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -167,12 +96,93 @@ public:
   LogicalResult
   matchAndRewrite(tcp::GetGlobalMemrefOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto abiMemrefType = UnrankedMemRefType::get(
-        op.getType().cast<ShapedType>().getElementType(), /*memorySpace=*/0);
     auto abiMemref = rewriter.create<npcomprt::GetGlobalOp>(
-        op.getLoc(), abiMemrefType, op.global());
+        op.getLoc(), getABIMemrefType(op.getType()), op.global());
     // Cast back to the original type.
     rewriter.replaceOpWithNewOp<MemRefCastOp>(op, abiMemref, op.getType());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class LowerAssertOp : public OpConversionPattern<AssertOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AssertOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    AssertOp::Adaptor adaptor(operands);
+    // The npcomprt runtime function aborts if the argument is true, rather than
+    // when it is false as an `assert` does. So negate the predicate (by xor'ing
+    // with 1).
+    auto c1 = rewriter.create<ConstantOp>(
+        op.getLoc(), rewriter.getIntegerAttr(rewriter.getI1Type(),
+                                             APInt(/*numBits=*/1, /*val=*/1)));
+    Value assertFailed = rewriter.create<XOrOp>(op.getLoc(), adaptor.arg(), c1);
+    rewriter.replaceOpWithNewOp<npcomprt::AbortIfOp>(op, assertFailed,
+                                                     op.msgAttr());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// At ABI bondaries, use !npcomprt.tensor instead of memref.
+class FuncOpSignatureConversion : public OpConversionPattern<FuncOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(FuncOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    FunctionType type = op.getType();
+
+    TypeConverter::SignatureConversion entryConversion(type.getNumInputs());
+    if (failed(typeConverter->convertSignatureArgs(type.getInputs(),
+                                                   entryConversion)))
+      return rewriter.notifyMatchFailure(op, "could not convert inputs");
+    SmallVector<Type, 1> newResultTypes;
+    if (failed(typeConverter->convertTypes(type.getResults(), newResultTypes)))
+      return rewriter.notifyMatchFailure(op, "could not convert outputs");
+
+    rewriter.updateRootInPlace(op, [&] {
+      // Update the function type.
+      op.setType(FunctionType::get(entryConversion.getConvertedTypes(),
+                                   newResultTypes, op.getContext()));
+      // Rewrite the entry block.
+      Block &oldEntry = op.getBody().front();
+      Block &newEntry =
+          *rewriter.applySignatureConversion(&op.getBody(), entryConversion);
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToStart(&newEntry);
+      BlockArgument newArg, oldArg;
+      for (auto newAndOldArg :
+           llvm::zip(newEntry.getArguments(), oldEntry.getArguments())) {
+        std::tie(newArg, oldArg) = newAndOldArg;
+        auto abiMemref = rewriter.create<npcomprt::ToMemrefOp>(
+            op.getLoc(), getABIMemrefType(oldArg.getType()), newArg);
+        auto memref = rewriter.create<MemRefCastOp>(op.getLoc(), abiMemref,
+                                                    oldArg.getType());
+        rewriter.replaceUsesOfBlockArgument(oldArg, memref);
+      }
+    });
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// At the return ABI boundaries, convert to !npcomprt.tensor type.
+// This pattern is needed to trigger the type conversion mechanics to do a
+// target materialization.
+class RewriteReturnOp : public OpConversionPattern<ReturnOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(ReturnOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    op.getParentOfType<FuncOp>().dump();
+    rewriter.replaceOpWithNewOp<ReturnOp>(op, operands);
     return success();
   }
 };
@@ -181,44 +191,40 @@ public:
 static LogicalResult doDialectConversion(ModuleOp module) {
   auto *context = module.getContext();
 
-  TypeConverter converter;
-  converter.addConversion([](TensorType type) {
+  TypeConverter typeConverter;
+  typeConverter.addConversion([](Type type) { return type; });
+  typeConverter.addConversion([](MemRefType type) {
     return npcomprt::TensorType::get(type.getContext());
   });
-  converter.addConversion([](npcomprt::TensorType type) { return type; });
+  typeConverter.addTargetMaterialization(
+      [](OpBuilder &builder, npcomprt::TensorType type, ValueRange inputs,
+         Location loc) -> Value {
+        assert(inputs.size() == 1);
+        auto abiMemref = builder.create<MemRefCastOp>(
+            loc, inputs[0], getABIMemrefType(inputs[0].getType()));
+        return builder.create<npcomprt::FromMemrefOp>(loc, type, abiMemref);
+      });
 
   OwningRewritePatternList patterns;
   ConversionTarget target(*context);
+  target.addLegalDialect<npcomprt::NpcomprtDialect>();
+  target.addLegalDialect<StandardOpsDialect>();
 
-  populateFuncOpTypeConversionPattern(patterns, context, converter);
-  target.addDynamicallyLegalOp<mlir::FuncOp>([&](mlir::FuncOp op) {
-    return converter.isSignatureLegal(op.getType());
-  });
-
-  patterns.insert<LowerTensorStoreOp>(context);
-  target.addIllegalOp<TensorStoreOp>();
-  target.addLegalOp<npcomprt::ToMemrefOp>();
-  target.addLegalOp<linalg::CopyOp>();
-  target.addLegalOp<MemRefCastOp>();
-
-  patterns.insert<LowerTensorLoadOp>(context);
-  target.addIllegalOp<TensorLoadOp>();
-  target.addLegalOp<npcomprt::FromMemrefOp>();
-
-  patterns.insert<LowerShapeOfOp>(context);
-  target.addIllegalOp<shape::ShapeOfOp>();
-  target.addLegalOp<ConstantOp>();
-  target.addLegalOp<shape::FromExtentsOp>();
-  target.addLegalOp<shape::ToExtentTensorOp>();
-  target.addLegalOp<npcomprt::GetExtentOp>();
+  patterns.insert<FuncOpSignatureConversion>(typeConverter, context);
+  target.addDynamicallyLegalOp<FuncOp>(
+      [&](FuncOp op) { return typeConverter.isSignatureLegal(op.getType()); });
+  patterns.insert<RewriteReturnOp>(typeConverter, context);
+  target.addDynamicallyLegalOp<ReturnOp>(
+      [&](ReturnOp op) { return typeConverter.isLegal(op); });
 
   patterns.insert<LowerGlobalOp>(context);
   target.addIllegalOp<tcp::GlobalOp>();
-  target.addLegalOp<npcomprt::GlobalOp>();
 
   patterns.insert<LowerGetGlobalMemrefOp>(context);
   target.addIllegalOp<tcp::GetGlobalMemrefOp>();
-  target.addLegalOp<npcomprt::GetGlobalOp>();
+
+  patterns.insert<LowerAssertOp>(context);
+  target.addIllegalOp<AssertOp>();
 
   return applyPartialConversion(module, target, patterns);
 }
@@ -228,7 +234,7 @@ namespace {
 // the npcomprt dialect.
 class LowerToNpcomprtABI : public LowerToNpcomprtABIBase<LowerToNpcomprtABI> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, npcomprt::NpcomprtDialect>();
+    registry.insert<npcomprt::NpcomprtDialect>();
   }
 
   void runOnOperation() override {

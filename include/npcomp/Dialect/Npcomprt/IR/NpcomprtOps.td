@@ -36,26 +36,14 @@ def Npcomprt_FromMemrefOp : Npcomprt_Op<"from_memref"> {
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
-def Npcomprt_GetExtentOp : Npcomprt_Op<"get_extent"> {
-  let summary = "Gets the specified extent of the tensor";
-  let description = [{
-    Gets the `dim`'th extent of the tensor.
-  }];
-  let arguments = (ins Npcomprt_Tensor:$tensor, I32:$dim);
-  // TODO: Use i32 instead of index so the runtime function
-  // can return std::int32_t.
-  let results = (outs Index:$extent);
-  let assemblyFormat = "$tensor `,` $dim attr-dict";
-}
-
 def Npcomprt_AbortIfOp : Npcomprt_Op<"abort_if"> {
   let summary = "Aborts if the predicate is true";
   let description = [{
     Aborts if the predicate is true.
   }];
-  let arguments = (ins I1:$pred);
+  let arguments = (ins I1:$pred, StrAttr:$msg);
   let results = (outs);
-  let assemblyFormat = "$pred attr-dict";
+  let assemblyFormat = "$pred `,` $msg attr-dict";
 }
 
 def Npcomprt_GlobalOp : Npcomprt_Op<"global", [Symbol]> {

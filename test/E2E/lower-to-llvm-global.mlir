@@ -1,8 +1,7 @@
 // RUN: npcomp-opt -e2e-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
 
 // CHECK-LABEL:   llvm.func @malloc(!llvm.i64) -> !llvm.ptr<i8>
-// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1)
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_extent(!llvm.ptr<i8>, !llvm.i32) -> !llvm.i64
+// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
