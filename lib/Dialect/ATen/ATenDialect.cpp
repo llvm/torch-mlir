@@ -10,6 +10,8 @@
 #include "mlir/IR/DialectImplementation.h"
 
 using namespace mlir;
+using namespace mlir::NPCOMP;
+using namespace mlir::NPCOMP::aten;
 
 namespace mlir {
 namespace NPCOMP {
@@ -89,6 +91,10 @@ void ATenDialect::printType(mlir::Type type, DialectAsmPrinter &os) const {
   os << ">";
 }
 
+} // namespace aten
+} // namespace NPCOMP
+} // namespace mlir
+
 void ATenDialect::initialize() {
   addTypes<ATenListType>();
   addOperations<
@@ -100,7 +106,4 @@ void ATenDialect::initialize() {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/ATen/ATen.cpp.inc"
 
-} // namespace aten
 #include "npcomp/Dialect/ATen/ATenOpInterfaces.cpp.inc"
-} // namespace NPCOMP
-} // namespace mlir

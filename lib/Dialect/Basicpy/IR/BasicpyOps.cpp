@@ -287,8 +287,9 @@ void UnknownCastOp::getCanonicalizationPatterns(
   patterns.insert<ElideIdentityUnknownCast>(context);
 }
 
-#define GET_OP_CLASSES
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"
 } // namespace Basicpy
 } // namespace NPCOMP
 } // namespace mlir
+
+#define GET_OP_CLASSES
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"

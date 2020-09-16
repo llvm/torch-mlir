@@ -22,10 +22,10 @@ public:
   static TensorType get(MLIRContext *context) { return Base::get(context); }
 };
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOpsDialect.h.inc"
-
 } // namespace npcomprt
 } // namespace NPCOMP
 } // namespace mlir
+
+#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOpsDialect.h.inc"
 
 #endif // NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTDIALECT_H

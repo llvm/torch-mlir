@@ -18,15 +18,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
-namespace mlir {
-namespace NPCOMP {
-namespace Numpy {
-
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h.inc"
-
-} // namespace Numpy
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS_H

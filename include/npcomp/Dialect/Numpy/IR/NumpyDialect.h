@@ -56,10 +56,10 @@ public:
   Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);
 };
 
-#include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"
-
 } // namespace Numpy
 } // namespace NPCOMP
 } // namespace mlir
+
+#include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.h.inc"
 
 #endif // NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H

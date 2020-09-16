@@ -22,7 +22,7 @@ def Numpy_Dialect : Dialect {
   let description = [{
     Dialect of types and core numpy ops and abstractions.
   }];
-  let cppNamespace = "Numpy";
+  let cppNamespace = "::mlir::NPCOMP::Numpy";
 }
 
 //===----------------------------------------------------------------------===//

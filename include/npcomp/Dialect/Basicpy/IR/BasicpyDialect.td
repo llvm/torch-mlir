@@ -21,7 +21,7 @@ def Basicpy_Dialect : Dialect {
   let description = [{
     Core types and ops 
   }];
-  let cppNamespace = "Basicpy";
+  let cppNamespace = "::mlir::NPCOMP::Basicpy";
 }
 
 //===----------------------------------------------------------------------===//

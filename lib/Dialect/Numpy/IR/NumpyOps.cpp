@@ -86,11 +86,5 @@ void CopyToTensorOp::getCanonicalizationPatterns(
   patterns.insert<ElideCreateRedundantArrayFromTensor>(context);
 }
 
-namespace mlir {
-namespace NPCOMP {
-namespace Numpy {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.cpp.inc"
-} // namespace Numpy
-} // namespace NPCOMP
-} // namespace mlir

@@ -84,10 +84,10 @@ public:
   Typing::CPA::TypeNode *mapToCPAType(Typing::CPA::Context &context);
 };
 
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.h.inc"
-
 } // namespace Basicpy
 } // namespace NPCOMP
 } // namespace mlir
+
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.h.inc"
 
 #endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT_H

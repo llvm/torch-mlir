@@ -58,11 +58,5 @@ static LogicalResult verifyGetGlobalMemrefOp(GetGlobalMemrefOp op) {
   return success();
 }
 
-namespace mlir {
-namespace NPCOMP {
-namespace tcp {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TCP/IR/TCPOps.cpp.inc"
-} // namespace tcp
-} // namespace NPCOMP
-} // namespace mlir
