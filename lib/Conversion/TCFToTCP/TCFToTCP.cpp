@@ -70,7 +70,7 @@ namespace {
 class ConvertTCFToTCP : public ConvertTCFToTCPBase<ConvertTCFToTCP> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect,tcp::TCPDialect>();
+    registry.insert<shape::ShapeDialect, tcp::TCPDialect>();
   }
 
   void runOnOperation() override {

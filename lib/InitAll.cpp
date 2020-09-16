@@ -37,8 +37,6 @@
 #include "iree/compiler/Dialect/HAL/Conversion/Passes.h"
 #endif // NPCOMP_ENABLE_IREE
 
-
-
 static void registerDependencyDialects(mlir::DialectRegistry &registry) {
 #ifdef NPCOMP_ENABLE_IREE
   // TODO: We should probably be registering the MLIR dialects regardless

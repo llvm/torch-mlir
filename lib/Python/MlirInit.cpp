@@ -63,9 +63,8 @@ namespace mlir {
 namespace npcomp {
 namespace python {
 
-LogicalResult parsePassPipeline(
-    StringRef pipeline, OpPassManager &pm,
-    raw_ostream &errorStream = llvm::errs()) {
+LogicalResult parsePassPipeline(StringRef pipeline, OpPassManager &pm,
+                                raw_ostream &errorStream = llvm::errs()) {
   return ::mlir::parsePassPipeline(pipeline, pm, errorStream);
 }
 
