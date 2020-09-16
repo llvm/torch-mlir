@@ -86,17 +86,10 @@ uint64_t getTensorVolume(const Type ty) {
 
 #include "npcomp/Dialect/ATen/ATenOpInterfaces.h"
 
-namespace mlir {
-namespace NPCOMP {
-namespace aten {
 // include TableGen generated Op definitions
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/ATen/ATen.h.inc"
 
 #include "npcomp/Dialect/ATen/ATenDialect.h.inc"
-
-} // namespace aten
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif

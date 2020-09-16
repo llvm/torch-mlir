@@ -11,14 +11,6 @@
 
 #include "mlir/IR/Dialect.h"
 
-namespace mlir {
-namespace NPCOMP {
-namespace tcf {
-
 #include "npcomp/Dialect/TCF/IR/TCFOpsDialect.h.inc"
-
-} // namespace tcf
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif // NPCOMP_DIALECT_TCF_IR_TCFDIALECT_H

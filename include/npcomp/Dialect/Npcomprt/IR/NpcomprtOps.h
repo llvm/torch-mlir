@@ -14,15 +14,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 
-namespace mlir {
-namespace NPCOMP {
-namespace npcomprt {
-
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h.inc"
-
-} // namespace npcomprt
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif // NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTOPS_H

@@ -13,15 +13,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
 
-namespace mlir {
-namespace NPCOMP {
-namespace tcf {
-
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TCF/IR/TCFOps.h.inc"
-
-} // namespace tcf
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif // NPCOMP_DIALECT_TCF_IR_TCFOPS_H

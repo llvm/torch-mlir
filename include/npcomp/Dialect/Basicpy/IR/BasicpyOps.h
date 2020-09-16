@@ -22,15 +22,7 @@
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOpsEnums.h.inc"
 
-namespace mlir {
-namespace NPCOMP {
-namespace Basicpy {
-
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h.inc"
-
-} // namespace Basicpy
-} // namespace NPCOMP
-} // namespace mlir
 
 #endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS_H

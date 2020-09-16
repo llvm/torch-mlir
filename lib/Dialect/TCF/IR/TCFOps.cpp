@@ -11,11 +11,5 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::tcf;
 
-namespace mlir {
-namespace NPCOMP {
-namespace tcf {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TCF/IR/TCFOps.cpp.inc"
-} // namespace tcf
-} // namespace NPCOMP
-} // namespace mlir

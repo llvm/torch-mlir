@@ -25,7 +25,7 @@ include "npcomp/Dialect/ATen/ATenOpInterface.td"
 /// generated from C APIs exported by Pytorch.
 def ATen_Dialect : Dialect {
   let name = "aten";
-  let cppNamespace = "aten";
+  let cppNamespace = "::mlir::NPCOMP::aten";
 }
 
 //===----------------------------------------------------------------------===//

@@ -98,11 +98,5 @@ static LogicalResult verify(FuncMetadataOp op) {
   return success();
 }
 
-namespace mlir {
-namespace NPCOMP {
-namespace npcomprt {
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.cpp.inc"
-} // namespace npcomprt
-} // namespace NPCOMP
-} // namespace mlir
