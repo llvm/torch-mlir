@@ -22,7 +22,7 @@ Example usage (fully automatic discovery):
        alpha=ScalarValue()).with_outref_variant()
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import logging
 import random
@@ -92,6 +92,10 @@ class ValueSpec:
     super().__init__()
     self.name = name
 
+  @property
+  def mlir_ods_predicate(self):
+    return "AnyType"
+
   def generate_example(self, index=0):
     """Generates an example value."""
     raise NotImplementedError()
@@ -109,6 +113,10 @@ class TensorValue(ValueSpec):
       example_size = (2, 3, 7)  # No significance.
     self.example_size = example_size
 
+  @property
+  def mlir_ods_predicate(self):
+    return "ATenAnyTensor"
+
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
 
@@ -122,6 +130,10 @@ class TensorOutRef(ValueSpec):
       example_size = (2, 3, 7)  # No significance.
     self.example_size = example_size
 
+  @property
+  def mlir_ods_predicate(self):
+    return "ATenAnyRefTensor"
+
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
 
@@ -133,13 +145,22 @@ class ScalarValue(ValueSpec):
     super().__init__(name=name)
     self.value = value
 
+  @property
+  def mlir_ods_predicate(self):
+    return "ATenAnyScalar"
+
   def generate_example(self, index=0):
     if self.value is not None:
       return self.value
     return 1.0 + index  # Generates a stable value.
 
 
-class SimpleOpMapping:
+class OpMapping:
+  """Base class for things purporting to map an operation."""
+  pass
+
+
+class SimpleOpMapping(OpMapping):
   """Maps a PyTorch invocation to its MLIR representation."""
 
   def __init__(self, op_f, *op_args, **op_kwargs):
@@ -228,6 +249,10 @@ class SimpleOpMapping:
 
   def _set_default_mlir_operation_name(self):
     op_ns, op_name = self.op_kind.split("::", maxsplit=1)
+    # Since these are emitted into the "aten" dialect namespace, alias them
+    # to a prefix of "builtin" to distinguish from custom ops and others.
+    if op_ns == "aten":
+      op_ns = "builtin"
     default_name = op_ns + "." + op_name
 
     if self.is_outref_form:
@@ -352,8 +377,12 @@ class OpRegistry:
     return m
 
   @property
-  def mappings(self):
-    """Returns the list of SimpleOpMappings."""
+  def mappings(self) -> Sequence[OpMapping]:
+    """Returns the list of OpMapping.
+
+    Returns:
+      Sequence of OpMapping concrete classes (most commonly SimpleOpMapping).
+    """
     self._finalize_pending()
     return self._mappings
 
