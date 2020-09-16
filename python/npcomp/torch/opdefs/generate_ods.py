@@ -21,8 +21,8 @@ _INDENT = "  "
 class OdsEmitter:
   ods_prefix = "ATen_"
   ods_suffix = "Op"
-  ods_value_template = "ATenImmutableTensorOp"
-  ods_ref_template = "ATenRefTensorOp"
+  ods_value_template = "ATen_ImmutableTensorOp"
+  ods_ref_template = "ATen_RefTensorOp"
   op_prefix = ""
 
   def __init__(self, r: OpRegistry, out: TextIO):
@@ -46,7 +46,7 @@ class OdsEmitter:
 
     if op_m.is_outref_form:
       template_name = self.ods_ref_template
-      summary = "See variant of op that does not take an out= ref tensor."
+      summary = "See non-inplace op variant."
       description = ""
     else:
       template_name = self.ods_value_template
@@ -74,16 +74,19 @@ class OdsEmitter:
                      end="\n" if is_last else ",\n")
       self.print(");")
 
-    # Results.
+    # Results (omitted if an outref/inplace form).
     with self.indent():
-      self.print("let results = (outs")
-      with self.indent():
-        result_len = len(op_m.result_map)
-        for index, (_, value_spec) in enumerate(op_m.result_map):
-          is_last = index == result_len - 1
-          self.print(f"{value_spec.mlir_ods_predicate}:${value_spec.name}",
-                     end="\n" if is_last else ",\n")
-      self.print(");")
+      if op_m.is_outref_form:
+        self.print("let results = (outs);")
+      else:
+        self.print("let results = (outs")
+        with self.indent():
+          result_len = len(op_m.result_map)
+          for index, (_, value_spec) in enumerate(op_m.result_map):
+            is_last = index == result_len - 1
+            self.print(f"{value_spec.mlir_ods_predicate}:${value_spec.name}",
+                       end="\n" if is_last else ",\n")
+        self.print(");")
 
     # Description and extra class declarations.
     with self.indent():
@@ -101,8 +104,8 @@ class OdsEmitter:
     self.indent_level -= level
     assert self.indent_level >= 0, "Unbalanced indentation"
 
-  def print(self, s, end="\n"):
-    if self.indent_level:
+  def print(self, s, *, end="\n", indent=True):
+    if indent and self.indent_level:
       self.out.write(_INDENT * self.indent_level)
     self.out.write(s)
     self.out.write(end)
@@ -118,11 +121,15 @@ def _quote(s: str):
 
 
 def _quote_multiline_docstring(s: str, indent_level: int = 0):
+  # TODO: Possibly find a python module to markdown the docstring for better
+  # document generation.
   # Unlikely to contain the delimitter and since just a docstring, be safe.
   s = s.replace("}]", "")
+  # Strip each line.
+  s = "\n".join([l.rstrip() for l in s.splitlines()])
   indent = _INDENT * indent_level
   s = textwrap.indent(s, indent + _INDENT)
-  return "[{\n" + s + indent + "\n" + indent + "}]"
+  return "[{\n" + s + "\n" + indent + "}]"
 
 
 def _split_docstring(docstring: str):
@@ -151,7 +158,7 @@ def main(args):
 
   # Write file header.
   module_name = sys.modules["__main__"].__loader__.name
-  out.write("\n".join([
+  banner_lines = [
       "//===-------------------------------------------------------*- tablegen -*-===//",
       "//",
       "// This file is licensed under the Apache License v2.0 with LLVM Exceptions.",
@@ -168,7 +175,9 @@ def main(args):
       "//===----------------------------------------------------------------------===//",
       "",
       "",
-  ]))
+  ]
+  banner_lines = [l.strip() for l in banner_lines]
+  out.write("\n".join(banner_lines))
 
   emitter = OdsEmitter(r, out=out)
   emitter.emit_ods()

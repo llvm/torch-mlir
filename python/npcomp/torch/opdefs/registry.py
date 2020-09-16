@@ -115,7 +115,7 @@ class TensorValue(ValueSpec):
 
   @property
   def mlir_ods_predicate(self):
-    return "ATenAnyTensor"
+    return "ATen_AnyTensor"
 
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
@@ -132,7 +132,7 @@ class TensorOutRef(ValueSpec):
 
   @property
   def mlir_ods_predicate(self):
-    return "ATenAnyRefTensor"
+    return "ATen_AnyRefTensor"
 
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
@@ -147,7 +147,7 @@ class ScalarValue(ValueSpec):
 
   @property
   def mlir_ods_predicate(self):
-    return "ATenAnyScalar"
+    return "ATen_AnyScalar"
 
   def generate_example(self, index=0):
     if self.value is not None:
@@ -250,13 +250,16 @@ class SimpleOpMapping(OpMapping):
   def _set_default_mlir_operation_name(self):
     op_ns, op_name = self.op_kind.split("::", maxsplit=1)
     # Since these are emitted into the "aten" dialect namespace, alias them
-    # to a prefix of "builtin" to distinguish from custom ops and others.
+    # to omit the prefix to distinguish from custom ops and others (which will
+    # have a prefix).
+    default_name = op_name if op_ns == "aten" else op_ns + "." + op_name
     if op_ns == "aten":
-      op_ns = "builtin"
-    default_name = op_ns + "." + op_name
+      default_name = op_name
+    else:
+      default_name = op_ns + "." + op_name
 
     if self.is_outref_form:
-      default_name += "_outref"
+      default_name += ".inplace"
     self.mlir_operation_name = default_name
 
   def _configure_from_example(self):
