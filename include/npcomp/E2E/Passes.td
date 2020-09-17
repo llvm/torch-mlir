@@ -11,49 +11,65 @@
 
 include "mlir/Pass/PassBase.td"
 
-def LowerLinalgOnTensorToLinalgOnMemref :
-    Pass<"lower-linalg-tensor-to-memref", "FuncOp"> {
-  let summary = "Lowers linalg on tensors to linalg on memrefs";
-  let constructor = "mlir::NPCOMP::createLowerLinalgOnTensorToLinalgOnMemrefPass()";
+def BypassShapes : Pass<"bypass-shapes", "FuncOp"> {
+  let summary = "Bypass shape calculations around ops";
+  let constructor = "mlir::NPCOMP::createBypassShapesPass()";
 }
 
-def LowerBroadcastToToLoops :
-    Pass<"lower-broadcast-to-to-loops", "FuncOp"> {
-  let summary = "Lower tcp::BroadcastTo to loops.";
-  let constructor = "mlir::NPCOMP::createLowerBroadcastToToLoopsPass()";
+def LowerShapeConstraints : Pass<"lower-shape-constraints", "FuncOp"> {
+  let summary = "Lower shape dialect constructs related to constraints";
+  let constructor = "mlir::NPCOMP::createLowerShapeConstraintsPass()";
 }
 
-def LowerConstantTensorsToMemrefs :
-    Pass<"lower-constant-tensors-to-memrefs", "ModuleOp"> {
-  let summary = "Lower std.constant of tensor type to hybrid tensor/memref.";
+def LowerShapedResultsToMemref : Pass<"lower-shaped-results-to-memref", "FuncOp"> {
+  let summary = "Lower tcp.shaped_results regions";
+  let constructor = "mlir::NPCOMP::createLowerShapedResultsToMemrefPass()";
+}
+
+def LowerStdToMemref : Pass<"lower-std-to-memref", "FuncOp"> {
+  let summary = "Lower std ops to memref";
+  let constructor = "mlir::NPCOMP::createLowerStdToMemrefPass()";
+}
+
+def LowerConstantTensorsToMemref :
+    Pass<"lower-constant-tensors-to-memref", "ModuleOp"> {
+  let summary = "Lower std.constant of tensor type to memref";
   let description = [{
-    This has to be a module pass since it involves creating tcp.global ops.
+    This must be a module pass since it involves creating tcp.global ops.
   }];
-  let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefsPass()";
+  let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefPass()";
 }
 
-def ResolveShapeOfOps : Pass<"resolve-shape-of-ops", "FuncOp"> {
-  let summary = "Resolve shape.shape_of ops to other shapes.";
-  let constructor = "mlir::NPCOMP::createResolveShapeOfOpsPass()";
-}
+def LowerStructuralToMemref :
+    Pass<"lower-structural-to-memref", "FuncOp"> {
+  let summary = "Lower structural IR constructs to memref";
+  let description = [{
+    Structural constructs include:
+      - control flow ops (both CFG and SCF)
+      - function signatures
+      - TODO: calls
+    An op is "structural" if it doesn't really care about the types it operates
+    on, but the types just have to converted to be consistent.
 
-def ResolveTensorLoadStoreOps : Pass<"resolve-tensor-load-store-ops", "FuncOp"> {
-  let summary = "Resolve tensor_load/tensor_store ops";
-  let constructor = "mlir::NPCOMP::createResolveTensorLoadStoreOpsPass()";
-}
-
-def LowerLinalgLoopDimOps : Pass<"lower-linalg-loop-dim-ops", "FuncOp"> {
-  let summary = "Lower dim ops introduced by linalg to loops lowering";
-  let constructor = "mlir::NPCOMP::createLowerLinalgLoopDimOpsPass();";
-}
-
-def LowerRankedShapes : Pass<"lower-ranked-shapes", "FuncOp"> {
-  let summary = "Lower ranked !shape.shape types to SSA values";
-  let constructor = "mlir::NPCOMP::createLowerRankedShapesPass()";
+    This pass also cleans up any previous memref<->tensor materializations,
+    finalizing the conversion from tensor to memref.
+  }];
+  let constructor = "mlir::NPCOMP::createLowerStructuralToMemrefPass()";
 }
 
 def LowerToNpcomprtABI : Pass<"lower-to-npcomprt-abi", "ModuleOp"> {
-  let summary = "Lower tensors at ABI boundaries to npcomprt dialect";
+  let summary = "Lower constructs requiring runtime support to `npcomprt`";
+  let description = [{
+    We have a specialized dialect `npcomprt` which models our runtime's data
+    structures, and function signatures (and presumably eventually, other
+    ABI boundaries like external calls if we ever support it) will be
+    converted.
+
+    The constructs requiring runtime support are:
+    - function signatures / module metadata
+    - globals
+    - error handling
+  }];
   let constructor = "mlir::NPCOMP::createLowerToNpcomprtABIPass()";
 }
 

@@ -150,6 +150,59 @@ public:
 };
 } // namespace
 
+static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
+                                         OpBuilder &builder, Location loc) {
+  // TODO: Deduplicate strings.
+  auto arrayTy = LLVMType::getArrayTy(LLVMType::getInt8Ty(module.getContext()),
+                                      msg.getValue().size());
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(module.getBody());
+  // To get a unique symbol name, use a suffix derived from the current number
+  // of ops in the module.
+  // We can't use the SymbolTable's logic for this because the module
+  // transiently contains a `func` and `llvm.func` with the same name during
+  // conversion, preventing us from instantiating a SymbolTable.
+  std::string symbolName =
+      (Twine("__npcomp_string_") +
+       Twine(llvm::size(llvm::to_vector<6>(module.getOps<LLVM::GlobalOp>()))))
+          .str();
+  auto globalOp =
+      builder.create<LLVM::GlobalOp>(loc, arrayTy, /*isConstant=*/true,
+                                     LLVM::Linkage::Internal, symbolName, msg);
+  return globalOp;
+}
+
+namespace {
+class AbortIfOpCompilerRuntimeLowering
+    : public OpConversionPattern<npcomprt::AbortIfOp> {
+public:
+  AbortIfOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
+      : OpConversionPattern<npcomprt::AbortIfOp>(backingFunc.getContext()),
+        backingFunc(backingFunc) {}
+  LogicalResult
+  matchAndRewrite(npcomprt::AbortIfOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    npcomprt::AbortIfOp::Adaptor adaptor(operands);
+    auto *context = op.getContext();
+
+    // Create the global string, take its address, and gep to get an `i8*`.
+    auto globalOp = createGlobalString(op.getParentOfType<ModuleOp>(),
+                                       op.msgAttr(), rewriter, op.getLoc());
+    auto msgArray = rewriter.create<LLVM::AddressOfOp>(op.getLoc(), globalOp);
+    auto c0 = rewriter.create<LLVM::ConstantOp>(
+        op.getLoc(), LLVMType::getIntNTy(context, 32),
+        rewriter.getI32IntegerAttr(0));
+    auto msg = rewriter.create<LLVM::GEPOp>(op.getLoc(),
+                                            LLVMType::getInt8PtrTy(context),
+                                            msgArray, ValueRange({c0, c0}));
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
+        op, backingFunc, ValueRange({adaptor.pred(), msg}));
+    return success();
+  }
+  LLVM::LLVMFuncOp backingFunc;
+};
+} // namespace
+
 // Create the LLVM runtime function backing the npcomprt op with name `name`
 // and requiring `type`.
 static LLVMFuncOp createCompilerRuntimeFuncDecl(StringRef name, LLVMType type,
@@ -168,24 +221,13 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
   OpBuilder builder(module.getBodyRegion());
 
   {
-    auto abortIfFuncTy = LLVMType::getFunctionTy(LLVMType::getVoidTy(context),
-                                                 {LLVMType::getInt1Ty(context)},
-                                                 /*isVarArg=*/false);
+    auto abortIfFuncTy = LLVMType::getFunctionTy(
+        LLVMType::getVoidTy(context),
+        {LLVMType::getInt1Ty(context), LLVMType::getInt8PtrTy(context)},
+        /*isVarArg=*/false);
     LLVMFuncOp abortIfFunc = createCompilerRuntimeFuncDecl(
         "abort_if", abortIfFuncTy, builder, module.getLoc());
-    patterns.insert<TrivialCompilerRuntimeLowering<npcomprt::AbortIfOp>>(
-        abortIfFunc);
-  }
-
-  {
-    auto getExtentFuncTy = LLVMType::getFunctionTy(
-        typeConverter.convertType(builder.getIndexType()).cast<LLVMType>(),
-        {LLVMType::getInt8PtrTy(context), LLVMType::getIntNTy(context, 32)},
-        /*isVarArg=*/false);
-    LLVMFuncOp getExtentFunc = createCompilerRuntimeFuncDecl(
-        "get_extent", getExtentFuncTy, builder, module.getLoc());
-    patterns.insert<TrivialCompilerRuntimeLowering<npcomprt::GetExtentOp>>(
-        getExtentFunc);
+    patterns.insert<AbortIfOpCompilerRuntimeLowering>(abortIfFunc);
   }
 
   auto convertFunctionType = [&](FunctionType type) {

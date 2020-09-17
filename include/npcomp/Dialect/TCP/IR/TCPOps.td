@@ -13,6 +13,7 @@ include "npcomp/Dialect/TCP/IR/TCPBase.td"
 include "mlir/Dialect/Shape/IR/ShapeBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 class TCP_Op<string mnemonic, list<OpTrait> traits = []>
@@ -43,22 +44,6 @@ It is undefined behavior if such a broadcast is not legal.
   let results = (outs AnyRankedTensor:$result);
 }
 
-//===----------------------------------------------------------------------===//
-// Ops that need to be factored to a proper home.
-//===----------------------------------------------------------------------===//
-// TODO: Find a home for these.
-
-// TODO: This probably doesn't belong in the tcp dialect.
-def TCP_AllocMemRefOp : TCP_Op<"alloc_memref", []> {
-  let summary = "Allocates a memref of the given shape.";
-  let description = [{
-Allocates a memref of the given shape.
-  }];
-  let arguments = (ins Shape_ExtentTensorType:$shape);
-  let results = (outs AnyMemRef:$memref);
-  let assemblyFormat = "$shape attr-dict `:`  type($memref)";
-}
-
 def TCP_GlobalOp : TCP_Op<"global", [Symbol]> {
   let summary = "Represents a global variable";
   let description = [{
@@ -74,6 +59,50 @@ def TCP_GlobalOp : TCP_Op<"global", [Symbol]> {
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
+//===----------------------------------------------------------------------===//
+// Ops related to tensor->memref conversion.
+//===----------------------------------------------------------------------===//
+// TODO: These ops probably belong in a "TCP on memrefs" dialect analogous
+// to `lmhlo`
+
+// TODO: Use TypesMatchWith to verify this better.
+def TCP_TensorToMemrefOp : TCP_Op<"tensor_to_memref", [NoSideEffect]> {
+  let summary = "Converts a tensor to a memref";
+  let description = [{
+    This op is used to materialize conversions to allow incremental lowering of
+    tensors to memrefs.
+  }];
+  let arguments = (ins AnyRankedTensor:$tensor);
+  let results = (outs AnyMemRef:$memref);
+  let assemblyFormat = "attr-dict $tensor `:` type($tensor) `->` type($memref)";
+  let hasFolder = 1;
+}
+
+// TODO: Use TypesMatchWith to verify this better.
+def TCP_MemrefToTensorOp : TCP_Op<"memref_to_tensor", [NoSideEffect]> {
+  let summary = "Converts a memref to a tensor";
+  let description = [{
+    This op is used to materialize conversions to allow incremental lowering of
+    tensors to memrefs.
+  }];
+  let arguments = (ins AnyMemRef:$memref);
+  let results = (outs AnyRankedTensor:$tensor);
+  let assemblyFormat = "attr-dict $memref `:` type($memref) `->` type($tensor)";
+}
+
+def TCP_AllocMemRefOp : TCP_Op<"alloc_memref", []> {
+  let summary = "Allocates a memref of the given shape.";
+  let description = [{
+    Allocates a memref of the given shape.
+
+    This op is a convenience for creating a bunch of
+    shape.get_extent + std.alloc ops.
+  }];
+  let arguments = (ins Shape_ExtentTensorType:$shape);
+  let results = (outs AnyMemRef:$memref);
+  let assemblyFormat = "$shape attr-dict `:`  type($memref)";
+}
+
 def TCP_GetGlobalMemrefOp : TCP_Op<"get_global_memref"> {
   let summary = "Obtain a memref pointing at the given global";
   let description = [{
@@ -85,27 +114,64 @@ def TCP_GetGlobalMemrefOp : TCP_Op<"get_global_memref"> {
   let verifier = "return ::verify$cppClass(*this);";
 }
 
-// TODO: Change to a more principled error handling mechanism.
-// This op probably doesn't need to exist eventually.
-// This op is also not correctly modeled right now, since it itself doesn't
-// produce the error in practice. The ops like shape.broadcast itself, when
-// lowered, immediately produce errors.
-// TODO: This should eventually be moved to a shape dialect.
-def TCP_ShapeObserveErrorOp : TCP_Op<"shape_observe_error", []> {
-  let summary = "Observes the fact that a shape might be an error.";
-  let description = [{
-    This op is a structural placeholder that captures a shape such that it
-    is not erased. This will keep around shape computations that are later
-    lowered into eager error handling code.
+//===----------------------------------------------------------------------===//
+// Ops related to shapes.
+//===----------------------------------------------------------------------===//
+// TODO: These belong in a shape-related dialect.
 
-    The interaction of this op, especially with control flow and side
-    effecting ops, is not very well-defined, and needs to be worked
-    on/redesigned.
+def TCP_ShapedResultsOp : TCP_Op<"shaped_results", [
+  DeclareOpInterfaceMethods<RegionBranchOpInterface>,
+  SingleBlockImplicitTerminator<"YieldOp">,
+  RecursiveSideEffects,
+  NoRegionArguments
+]> {
+  let summary = "Result shape annotation";
+  let description = [{
+    Represents a computation whose outputs have a precomputed shape.
+    The i-th result has the shape described by the i-th operand.
+
+    This op is not isolated from above, so if the region needs any inputs,
+    they can simply be captured. Hence, this op is a
+    "this tensor has this shape" annotation with a slightly different set of
+    tradeoffs than the so-called "tie shape" kinds of operations.
+    In particular, this region-based formulation has the opportunity to
+    capture structural invariants.
+
+    Example:
+    ```mlir
+    // sincos is an elementwise operation, so it doesn't change the shape.
+    %x = ...
+    %xShape = ...
+    %sin, %cos = tcp.shaped_results %xShape, %xShape {
+      %sin, cos = "some.sincos"(%x)
+          : tensor<?xf32> -> (tensor<?xf32>, tensor<?xf32>)
+      tcp.yield %sin, %cos : tensor<?xf32>, tensor<?xf32>
+    }
+    ```
   }];
-  let arguments = (ins Shape_ShapeOrExtentTensorType:$shape);
-  // TODO: ODS seems to create redeclared class members if we remove this,
-  // resulting in C++ compilation errors.
-  let results = (outs NoneType:$dummy);
+  let arguments = (ins
+    Variadic<Shape_ExtentTensorType>:$resultShapes
+  );
+  let results = (outs Variadic<AnyTensor>:$results);
+  let regions = (region SizedRegion<1>:$body);
+
+  let builders = [
+    OpBuilder<
+        "OpBuilder &builder, OperationState &result, TypeRange resultTypes, "
+        "ValueRange resultShapes">
+  ];
+
+  let printer = [{ return ::print$cppClass(p, *this); }];
+  let verifier = [{ return ::verify$cppClass(*this); }];
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+}
+
+def TCP_YieldOp : TCP_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+                               ParentOneOf<["ShapedResultsOp"]>]> {
+  let summary = "Yield-like terminator for TCP dialect";
+  let description = "See scf.yield";
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
 
 #endif // TCP_OPS

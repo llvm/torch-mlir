@@ -14,8 +14,7 @@
 // CHECK:           llvm.store %[[VAL_6]], %[[VAL_9]] : !llvm.ptr<ptr<i8>>
 // CHECK:           llvm.return
 // CHECK:         }
-// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1)
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_extent(!llvm.ptr<i8>, !llvm.i32) -> !llvm.i64
+// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
@@ -112,8 +111,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           llvm.call @inputs1results0(%[[VAL_5]]) : (!llvm.ptr<i8>) -> ()
 // CHECK:           llvm.return
 // CHECK:         }
-// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1)
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_extent(!llvm.ptr<i8>, !llvm.i32) -> !llvm.i64
+// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
@@ -213,32 +211,23 @@ func @inputs1results2(%arg0: !npcomprt.tensor) -> (!npcomprt.tensor, !npcomprt.t
 
 // Test emission of compiler runtime functions.
 
-// CHECK-LABEL:   llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1)
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_extent(!llvm.ptr<i8>, !llvm.i32) -> !llvm.i64
+// CHECK:         llvm.mlir.global internal constant @[[STRSYM:.*]]("msg")
+// CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
 
 // CHECK-LABEL:   llvm.func @calls_abort_if(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.i1) {
-// CHECK:           llvm.call @__npcomp_compiler_rt_abort_if(%[[VAL_0]]) : (!llvm.i1) -> ()
-// CHECK:           llvm.return
-// CHECK:         }
-func @calls_abort_if(%arg0: i1) {
-  npcomprt.abort_if %arg0
-  return
-}
+// CHECK:         %[[VAL_0:.*]] = llvm.mlir.addressof @[[STRSYM]] : !llvm.ptr<array<3 x i8>>
+// CHECK:         %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
+// CHECK:         %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<3 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
+// CHECK:         llvm.call @__npcomp_compiler_rt_abort_if(%[[VAL_3:.*]], %[[VAL_2]]) : (!llvm.i1, !llvm.ptr<i8>) -> ()
+// CHECK:         llvm.return
 
-// CHECK-LABEL:   llvm.func @calls_get_extent(
-// CHECK-SAME:                                %[[VAL_0:.*]]: !llvm.ptr<i8>) -> !llvm.i64 {
-// CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : !llvm.i32
-// CHECK:           %[[VAL_2:.*]] = llvm.call @__npcomp_compiler_rt_get_extent(%[[VAL_0]], %[[VAL_1]]) : (!llvm.ptr<i8>, !llvm.i32) -> !llvm.i64
-// CHECK:           llvm.return %[[VAL_2]] : !llvm.i64
-// CHECK:         }
-func @calls_get_extent(%arg0: !npcomprt.tensor) -> index {
-  %c1 = constant 1 : i32
-  %0 = npcomprt.get_extent %arg0, %c1
-  return %0 : index
+func @calls_abort_if(%arg0: i1) {
+  npcomprt.abort_if %arg0, "msg"
+  return
 }
 
 // CHECK-LABEL:   llvm.func @calls_to_memref(

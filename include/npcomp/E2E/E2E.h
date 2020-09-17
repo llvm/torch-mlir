@@ -23,29 +23,24 @@ void registerE2EPasses();
 //
 // Pass summaries are in Passes.td.
 
-std::unique_ptr<OperationPass<FuncOp>> createLowerBroadcastToToLoopsPass();
+std::unique_ptr<OperationPass<FuncOp>> createBypassShapesPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLowerLinalgOnTensorToLinalgOnMemrefPass();
+std::unique_ptr<OperationPass<FuncOp>> createLowerShapeConstraintsPass();
+
+std::unique_ptr<OperationPass<FuncOp>> createLowerShapedResultsToMemrefPass();
+
+std::unique_ptr<OperationPass<FuncOp>> createLowerStdToMemrefPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
-createLowerConstantTensorsToMemrefsPass();
+createLowerConstantTensorsToMemrefPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createResolveShapeOfOpsPass();
-
-std::unique_ptr<OperationPass<FuncOp>> createResolveTensorLoadStoreOpsPass();
-
-std::unique_ptr<OperationPass<FuncOp>> createLowerLinalgLoopDimOpsPass();
-
-std::unique_ptr<OperationPass<FuncOp>> createLowerRankedShapesPass();
+std::unique_ptr<OperationPass<FuncOp>> createLowerStructuralToMemrefPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createLowerToNpcomprtABIPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
-
-void createLowerToHybridTensorMemRefPipeline(OpPassManager &pm);
 
 struct E2ELoweringPipelineOptions
     : public PassPipelineOptions<E2ELoweringPipelineOptions> {
