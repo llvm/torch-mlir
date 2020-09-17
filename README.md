@@ -130,8 +130,17 @@ versions, but these are not yet functional (see below).
 Docker container setup:
 
 ```shell
-# Build the docker image
-docker build docker/pytorch-1.3 --tag npcomp-pytorch-1.3:1.0
+# One of the maintainers does periodically push new images. To use one of these,
+# skip the build step and use:
+#   BUILD_IMAGE_TAG="stellaraccident/npcomp:build-pytorch-1.3"
+# Since we are not planning to support this branch long term, this process is
+# entirely ad-hoc at present and geared for project maintainers and build bots
+# to be able to make progress.
+# See https://hub.docker.com/repository/docker/stellaraccident/npcomp
+BUILD_IMAGE_TAG="local/npcomp:build-pytorch-1.3"
+
+# Build the docker image (rebuilds PyTorch, so takes quite some time).
+docker build docker/pytorch-1.3 --tag $BUILD_IMAGE_TAG
 
 # Docker workflow (or use your own preferences).
 # Create a volume for npcomp build artifacts.
@@ -145,7 +154,7 @@ docker volume create npcomp-pytorch-1.3-build
 docker run \
   --mount type=bind,source=$HOME/src/mlir-npcomp,target=/npcomp,readonly \
   --mount source=npcomp-pytorch-1.3-build,target=/build \
-  --rm -it npcomp-pytorch-1.3:1.0 /bin/bash
+  --rm -it $BUILD_IMAGE_TAG /bin/bash
 ```
 
 ```shell
