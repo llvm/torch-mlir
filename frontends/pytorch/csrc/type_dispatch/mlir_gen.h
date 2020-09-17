@@ -17,7 +17,7 @@ namespace torch_mlir {
 class MLIRGen {
 
 public:
-  MLIRGen(mlir::MLIRContext &context) : context(context){};
+  MLIRGen(mlir::MLIRContext &context);
 
   // Generate an MLIR model that computes the given outputs.
   std::tuple<mlir::OwningModuleRef, std::vector<at::Tensor>>

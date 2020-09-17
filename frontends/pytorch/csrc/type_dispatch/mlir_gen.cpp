@@ -17,6 +17,8 @@
 
 #include "llvm/Support/Debug.h"
 
+#include "npcomp/Dialect/ATen/ATenDialect.h"
+
 #include "ATen/ArrayRef.h"
 namespace at {
 template <typename T> using ArrayRef = c10::ArrayRef<T>;
@@ -32,6 +34,11 @@ template <typename T> using ArrayRef = c10::ArrayRef<T>;
 #define DEBUG_TYPE "torch_mlir"
 
 namespace torch_mlir {
+
+MLIRGen::MLIRGen(mlir::MLIRContext &context) : context(context) {
+  context.getOrLoadDialect<mlir::NPCOMP::aten::ATenDialect>();
+  context.getOrLoadDialect<mlir::StandardOpsDialect>();
+}
 
 std::tuple<mlir::OwningModuleRef, std::vector<at::Tensor>>
 MLIRGen::genModule(std::vector<ir::Value> &v) {
