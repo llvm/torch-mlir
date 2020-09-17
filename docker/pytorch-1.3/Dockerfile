@@ -37,6 +37,9 @@ WORKDIR /workspace
 RUN apt-get install clang-10 lld-10 --assume-yes
 RUN conda install -c gaiar nnpack
 
+# Make it possible to symbolize stack traces in crashes.
+RUN ln -s /usr/bin/llvm-symbolizer-10 /usr/bin/llvm-symbolizer
+
 # Additional env for building npcomp and running tests.
 ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/cuda-10.1/compat/lib.real"
 ENV CC=clang-10
