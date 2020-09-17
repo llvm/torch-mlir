@@ -7,7 +7,7 @@ set -e
 td="$(realpath $(dirname $0)/..)"
 build_dir="$td/build"
 install_mlir="$td/install-mlir"
-build_mlir="$td/build-mlir"
+build_mlir="$td/external/llvm-project/build"
 
 lit_exe="$build_mlir/bin/llvm-lit"
 if ! [ -f "$lit_exe" ]; then
@@ -33,5 +33,5 @@ done
 
 set -x
 cd $build_dir
-ninja npcomp-opt npcomp-run-mlir NPCOMPCompilerRuntimeShlib
+ninja npcomp-opt npcomp-run-mlir NPCOMPCompilerRuntimeShlib NPCOMPNativePyExt
 cd test && python3 "$lit_exe" ${lit_args[@]}
