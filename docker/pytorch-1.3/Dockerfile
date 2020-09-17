@@ -40,5 +40,5 @@ RUN conda install -c gaiar nnpack
 # Additional env for building npcomp.
 ENV CC=clang-10
 ENV CXX=clang++-10
-ENV CPPFLAGS "-I/opt/conda/include"
+ENV CXXFLAGS "-I/opt/conda/include"
 ENV LDFLAGS "-fuse-ld=/usr/bin/ld.lld-10 -L/opt/conda/lib"
