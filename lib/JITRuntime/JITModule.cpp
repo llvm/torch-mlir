@@ -52,7 +52,7 @@ JITModule::fromCompiledModule(mlir::ModuleOp module,
     return expectedAddress.takeError();
   ret->descriptor =
       reinterpret_cast<npcomprt::ModuleDescriptor *>(*expectedAddress);
-  return ret;
+  return std::move(ret);
 }
 
 // Converter for bridging to npcomprt llvm-lookalike data structures.

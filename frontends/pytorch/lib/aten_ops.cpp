@@ -19,7 +19,7 @@
 #include <ATen/ATen.h>
 #include <torch/torch.h>
 
-#include "nnpack.h"
+#include <nnpack.h>
 #include <ATen/CPUType.h>
 
 namespace {
