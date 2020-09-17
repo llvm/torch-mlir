@@ -37,7 +37,8 @@ WORKDIR /workspace
 RUN apt-get install clang-10 lld-10 --assume-yes
 RUN conda install -c gaiar nnpack
 
-# Additional env for building npcomp.
+# Additional env for building npcomp and running tests.
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/cuda-10.1/compat/lib.real"
 ENV CC=clang-10
 ENV CXX=clang++-10
 ENV CXXFLAGS "-I/opt/conda/include"
