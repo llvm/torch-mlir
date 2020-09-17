@@ -19,7 +19,6 @@ RUN /opt/conda/bin/conda install matplotlib pybind11
 #torchvision
 
 ENV LD_LIBRARY_PATH "${LD_LIBRARY_PATH}:/opt/conda/lib"
-
 # Rebuild pytorch
 
 WORKDIR /opt/pytorch/pytorch
@@ -34,3 +33,12 @@ RUN TORCH_CUDA_ARCH_LIST="5.2 6.0 6.1 7.0 7.5+PTX" \
 
 WORKDIR /workspace
 
+# Additional packages for building npcomp
+RUN apt-get install clang-10 lld-10 --assume-yes
+RUN conda install -c gaiar nnpack
+
+# Additional env for building npcomp.
+ENV CC=clang-10
+ENV CXX=clang++-10
+ENV CPPFLAGS "-I/opt/conda/include"
+ENV LDFLAGS "-fuse-ld=/usr/bin/ld.lld-10 -L/opt/conda/lib"

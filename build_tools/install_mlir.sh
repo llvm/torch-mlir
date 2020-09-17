@@ -1,6 +1,11 @@
 #!/bin/bash
+# Usage (for in-tree build/ directory):
+#   ./build_tools/install_mlir.sh
+# Usage (for aribtrary build/ directory):
+#   BUILD_DIR=/build ./build_tools/install_mlir.sh
 set -e
 td="$(realpath $(dirname $0)/..)"
+build_dir="$(realpath "${BUILD_DIR:-$td/build}")"
 
 # Find LLVM source (assumes it is adjacent to this directory).
 LLVM_SRC_DIR="$(realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
@@ -10,10 +15,10 @@ if ! [ -f "$LLVM_SRC_DIR/llvm/CMakeLists.txt" ]; then
   exit 1
 fi
 echo "Using LLVM source dir: $LLVM_SRC_DIR"
-
+echo "Build directory: $build_dir"
 # Setup directories.
-build_mlir="$td/build-mlir"
-install_mlir="$td/install-mlir"
+build_mlir="$build_dir/build-mlir"
+install_mlir="$build_dir/install-mlir"
 echo "Building MLIR in $build_mlir"
 echo "Install MLIR to $install_mlir"
 mkdir -p "$build_mlir"

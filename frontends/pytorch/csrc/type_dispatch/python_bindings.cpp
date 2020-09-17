@@ -18,6 +18,8 @@
 // In this case t2_cpu contains the result of the computation, and t2_mlir
 // contains the mlir description of the computation.
 
+#include <pybind11/pybind11.h>
+
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -36,7 +38,7 @@
 #include "npcomp/Dialect/ATen/ATenPasses.h"
 #include "npcomp/Dialect/ATen/LivenessReport.h"
 
-#include "torch/csrc/jit/pybind.h"
+namespace py = pybind11;
 
 // Then ATen headers with workarounds
 #include "ATen/ArrayRef.h"

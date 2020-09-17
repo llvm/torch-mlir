@@ -1,11 +1,19 @@
 #!/bin/bash
+# Configures the project with default options.
+# LLVM/MLIR should be installed into the build directory first by running
+# ./build_tools/install_mlir.sh.
+#
+# Usage (for in-tree build/ directory):
+#   ./build_tools/cmake_configure.sh [ARGS...]
+# Usage (for arbitrary build/ directory):
+#   BUILD_DIR=/build ./build_tools/cmake_configure.sh [ARGS...]
 set -e
 
 # Setup directories.
 td="$(realpath $(dirname $0)/..)"
-build_dir="$td/build"
-install_mlir="$td/install-mlir"
-build_mlir="$td/build-mlir"
+build_dir="$(realpath "${BUILD_DIR:-$td/build}")"
+install_mlir="$build_dir/install-mlir"
+build_mlir="$build_dir/build-mlir"
 declare -a extra_opts
 
 if ! [ -d "$install_mlir/include/mlir" ]; then
@@ -72,9 +80,15 @@ fi
 echo "Using llvm-lit: $LLVM_LIT"
 
 # Write a .env file for python tooling.
-echo "Updating $td/.env file"
-echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python"):$(realpath "$build_dir/iree/bindings/python")\"" > "$td/.env"
-echo "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION=1" >> "$td/.env"
+function write_env_file() {
+  echo "Updating $build_dir/.env file"
+  echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python")\"" > "$build_dir/.env"
+  echo "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION=1" >> "$build_dir/.env"
+  if ! cp "$build_dir/.env" "$td/.env"; then
+    echo "WARNING: Failed to write $td/.env"
+  fi
+}
+write_env_file
 
 set -x
 cmake -GNinja \

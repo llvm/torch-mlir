@@ -48,30 +48,6 @@ The project is roughly split into the following areas of code:
     each backend
 * [tools](tools): Scripts and binaries (npcomp-opt, npcomp-run-mlir, etc)
 
-## Quick start
-
-```
-git submodule init
-git submodule update
-
-LLVM_VERSION=10
-export CC=clang-$LLVM_VERSION
-export CXX=clang++-$LLVM_VERSION
-export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
-
-./build_tools/install_mlir.sh
-./build_tools/cmake_configure.sh
-
-# Build and run tests
-# ./build_tools/test_all.sh runs all of these commands.
-cd build
-ninja
-ninja check-npcomp
-
-# Setup PYTHONPATH for interactive use
-export PYTHONPATH="$(realpath build/python):$(realpath build/iree/bindings/python)"
-```
-
 ## Interactive Use
 
 The cmake configuration populates symlinks in the `build/python` directory
@@ -104,3 +80,90 @@ and running `npcomp-opt`.
 ```
 source $WHERE_YOU_CHECKED_OUT_NPCOMP/tools/bash_helpers.sh
 ```
+
+## Build Instructions
+
+### Common prep
+
+```shell
+# From checkout directory.
+git submodule init
+git submodule update
+
+# Use clang and lld to build (optional but recommended).
+LLVM_VERSION=10
+export CC=clang-$LLVM_VERSION
+export CXX=clang++-$LLVM_VERSION
+export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
+
+# Build and install LLVM/MLIR into the ./install-mlir directory
+./build_tools/install_mlir.sh
+```
+
+### Vanilla - numpy-only, no pytorch
+
+```shell
+# Follow common prep above.
+./build_tools/cmake_configure.sh
+
+# Build and run tests
+# ./build_tools/test_all.sh runs all of these commands.
+cd build
+ninja
+ninja check-npcomp
+
+# Setup PYTHONPATH for interactive use
+export PYTHONPATH="$(realpath python):$(realpath build/python)"
+```
+
+### PyTorch 1.3 - ATen pseudo-device type dispatch
+
+The currently functional approach to PyTorch integration uses an ATen pseudo
+device for program capture. It is activated by including the PyTorch cmake
+path and settind `-DNPCOMP_ENABLE_TORCH_TYPE_DISPATCH=ON`. This approach has a
+very fragile dependency on a specific PyTorch revisions in the ~1.3 era and
+currently must be built via the docker image in `docker/pytorch-1.3`.
+
+We are migrating to newer approaches that build with more recent PyTorch
+versions, but these are not yet functional (see below).
+
+Docker container setup:
+
+```shell
+# Build the docker image
+docker build docker/pytorch-1.3 --tag npcomp-pytorch-1.3:1.0
+
+# Docker workflow (or use your own preferences).
+# Create a volume for npcomp build artifacts.
+docker volume create npcomp-pytorch-1.3-build
+
+# Run the container, mounting /npcomp to the source directory and the volume
+# above to the /build directory. The source directory is mounted read-only to
+# avoid the container putting root owned files there.
+# Replace `$HOME/src/mlir-npcomp` with an appropriate path to where the project
+# is checked out.
+docker run \
+  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/npcomp,readonly \
+  --mount source=npcomp-pytorch-1.3-build,target=/build \
+  --rm -it npcomp-pytorch-1.3:1.0 /bin/bash
+```
+
+```shell
+# From within the docker image.
+# Install MLIR and configure project.
+cd /npcomp
+BUILD_DIR=/build ./build_tools/install_mlir.sh
+BUILD_DIR=/build ./build_tools/cmake_configure.sh \
+  -DCMAKE_PREFIX_PATH=/opt/conda/lib/python3.6/site-packages/torch/share/cmake \
+  -DNPCOMP_ENABLE_TORCH_TYPE_DISPATCH=ON
+
+# Build.
+cd /build
+ninja
+ninja check-npcomp
+ninja check-frontends-pytorch
+```
+
+### PyTorch 1.7+ - Graph API <-> MLIR
+
+TODO
