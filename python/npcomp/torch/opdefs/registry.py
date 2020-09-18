@@ -26,12 +26,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import logging
 import random
+import textwrap
 import torch
 
 __all__ = [
     "SimpleOpMapping",
     "OpRegistry",
-    "ScalarValue",
+    "LiteralValue",
     "TensorOutRef",
     "TensorValue",
 ]
@@ -82,19 +83,25 @@ def _extract_immediate(node):
     raise ValueError("Unrecognized immediate input node: {!r}".format(node))
 
 
+def _read_attr_callback(instance, attr_name):
+
+  def f():
+    return getattr(instance, attr_name)
+
+  f.__doc__ = getattr(type(instance), attr_name).__doc__
+  return f
+
+
 class ValueSpec:
   """Base class for inputs to operations.
 
   This binds information about how the input is mapped to the MLIR operation.
   """
 
-  def __init__(self, name=None):
+  def __init__(self, name=None, mlir_ods_predicate: str = "AnyType"):
     super().__init__()
     self.name = name
-
-  @property
-  def mlir_ods_predicate(self):
-    return "AnyType"
+    self.mlir_ods_predicate = mlir_ods_predicate
 
   def generate_example(self, index=0):
     """Generates an example value."""
@@ -107,15 +114,16 @@ class ValueSpec:
 class TensorValue(ValueSpec):
   """An input that is a tensor."""
 
-  def __init__(self, name=None, *, example_size=None):
-    super().__init__(name=name)
+  def __init__(self,
+               name=None,
+               *,
+               example_size=None,
+               mlir_ods_predicate="ATen_AnyTensor",
+               **kwargs):
+    super().__init__(name=name, mlir_ods_predicate=mlir_ods_predicate, **kwargs)
     if example_size is None:
       example_size = (2, 3, 7)  # No significance.
     self.example_size = example_size
-
-  @property
-  def mlir_ods_predicate(self):
-    return "ATen_AnyTensor"
 
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
@@ -124,30 +132,31 @@ class TensorValue(ValueSpec):
 class TensorOutRef(ValueSpec):
   """A tensor that is passed by ref as an out parameter."""
 
-  def __init__(self, name=None, *, example_size=None):
-    super().__init__(name=name)
+  def __init__(self,
+               name=None,
+               *,
+               example_size=None,
+               mlir_ods_predicate="ATen_AnyRefTensor",
+               **kwargs):
+    super().__init__(name=name, mlir_ods_predicate=mlir_ods_predicate, **kwargs)
     if example_size is None:
       example_size = (2, 3, 7)  # No significance.
     self.example_size = example_size
-
-  @property
-  def mlir_ods_predicate(self):
-    return "ATen_AnyRefTensor"
 
   def generate_example(self, index=0):
     return torch.rand(*self.example_size)
 
 
-class ScalarValue(ValueSpec):
-  """An input that is a scalar."""
+class LiteralValue(ValueSpec):
+  """An input that is a literal value."""
 
-  def __init__(self, name=None, value=None):
-    super().__init__(name=name)
+  def __init__(self,
+               name=None,
+               value=None,
+               mlir_ods_predicate="ATen_AnyScalar",
+               **kwargs):
+    super().__init__(name=name, mlir_ods_predicate=mlir_ods_predicate, **kwargs)
     self.value = value
-
-  @property
-  def mlir_ods_predicate(self):
-    return "ATen_AnyScalar"
 
   def generate_example(self, index=0):
     if self.value is not None:
@@ -157,18 +166,35 @@ class ScalarValue(ValueSpec):
 
 class OpMapping:
   """Base class for things purporting to map an operation."""
-  pass
+  __slots__ = []
 
 
 class SimpleOpMapping(OpMapping):
   """Maps a PyTorch invocation to its MLIR representation."""
+  __slots__ = [
+      "append_description",
+      "mlir_operation_name",
+      "operand_map",
+      "op_args",
+      "op_arity",
+      "op_f",
+      "op_kind",
+      "op_kwargs",
+      "op_self",
+      "op_self_value_spec",
+      "outref_variant_value",
+      "result_map",
+  ]
 
   def __init__(self, op_f, *op_args, **op_kwargs):
     super().__init__()
     self.op_f = op_f
+    self.op_self = None
+    self.op_self_value_spec = None
     self.op_args = op_args
     self.op_kwargs = op_kwargs
     self.outref_variant_value = None  # type: Optional[TensorOutRef]
+    self.append_description = ""
 
     # Set after finalize.
     self.op_kind = None  # type: Optional[str]
@@ -176,6 +202,18 @@ class SimpleOpMapping(OpMapping):
     self.operand_map = None  # type: Optional[List[Tuple[int, ValueSpec]]]
     self.result_map = None  # type: Optional[List[Tuple[int, ValueSpec]]]
     self.mlir_operation_name = None  # type: Optional[str]
+
+    # Fixup self-calls.
+    # These are specified as tuples of (ValueSpec, "method_name")
+    if isinstance(self.op_f, tuple):
+      assert len(self.op_f) == 2, "Self-calls must be a 2-tuple"
+      self.op_self_value_spec, method_name = self.op_f
+      self.op_self = self.op_self_value_spec.generate_example(index=-1)
+      if method_name.startswith("@"):
+        # Create a pseudo-function to resolve the attribute.
+        self.op_f = _read_attr_callback(self.op_self, method_name[1:])
+      else:
+        self.op_f = getattr(self.op_self, method_name)
 
   def __repr__(self):
     return ("SimpleOp({kind!r}[{arity}] -> {name!s}, operands={operands!r}, "
@@ -194,7 +232,7 @@ class SimpleOpMapping(OpMapping):
       setattr(copy, name, getattr(self, name))
     return copy
 
-  def with_outref_variant(self, value=None):
+  def with_outref_variant(self, value=None) -> "SimpleOpMapping":
     """Instructs the registry to also generate an outref variant.
 
     This is done by cloning the op prior to finalizing and adding an out=
@@ -203,15 +241,56 @@ class SimpleOpMapping(OpMapping):
     self.outref_variant_value = TensorOutRef() if value is None else value
     return self
 
+  def with_torch_op_kind(self, op_kind: str) -> "SimpleOpMapping":
+    """Uses a manually specified op kind (i.e. "aten::some_op")."""
+    self.op_kind = op_kind
+    return self
+
+  def with_operand_map(self, *mlir_operand_names):
+    """Manually maps torch IR operands to mlir operand names."""
+    operand_map = []
+    for i, name_or_value_spec in enumerate(mlir_operand_names):
+      if isinstance(name_or_value_spec, ValueSpec):
+        value_spec = name_or_value_spec
+      else:
+        value_spec = self.find_value_spec_by_name(name_or_value_spec)
+      operand_map.append((i, value_spec))
+    self.operand_map = operand_map
+    return self
+
+  def with_append_description(self, description) -> "SimpleOpMapping":
+    """Appends a description to the ODS."""
+    self.append_description += textwrap.dedent(description)
+    return self
+
   @property
   def all_arg_values(self) -> List[ValueSpec]:
     """Returns all arg values (either positional or kw)."""
-    return list(self.op_args) + list(self.op_kwargs.values())
+    args = list(self.op_args) + list(self.op_kwargs.values())
+    if self.op_self_value_spec:
+      args = [self.op_self_value_spec] + args
+    return args
 
   @property
   def is_outref_form(self) -> bool:
     """Whether the op contains an out parameter that aliases to the result."""
     return any(isinstance(a, TensorOutRef) for a in self.all_arg_values)
+
+  def find_value_spec_by_name(self, name) -> ValueSpec:
+    """Finds an argument ValueSpec by name.
+
+    Raises:
+      ValueError if not found.
+    """
+    if self.op_self_value_spec and self.op_self_value_spec.name == name:
+      return self.op_self_value_spec
+    value_spec = self.op_kwargs.get(name)
+    if value_spec:
+      return value_spec
+    for value_spec in self.op_args:
+      if value_spec.name == name:
+        return value_spec
+    raise ValueError(f"Unknown value spec: {name}")
 
   def generate_example(self) -> Tuple[Tuple, Dict]:
     """Generates an example signature for invoking the op.
@@ -275,6 +354,8 @@ class SimpleOpMapping(OpMapping):
     example_args, example_kwargs = self.generate_example()
 
     def forward():
+      # logging.debug(
+      #     f"Invoke {self.op_f} with *{example_args}, **{example_kwargs}")
       return self.op_f(*example_args, **example_kwargs)
 
     trace = torch.jit.trace(forward, tuple())
@@ -337,6 +418,8 @@ class SimpleOpMapping(OpMapping):
     assert example_kwargs.keys() == self.op_kwargs.keys()
 
     def find_arg(value):
+      if self.op_self is not None and _is_same_value(self.op_self, value):
+        return self.op_self_value_spec
       for i, arg in enumerate(example_args):
         if _is_same_value(arg, value):
           return self.op_args[i]

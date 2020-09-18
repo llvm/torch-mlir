@@ -1261,6 +1261,16 @@ def ATen_TruncInplaceOp: ATen_RefTensorOp<"trunc.inplace", []> {
   let results = (outs);
 }
 
+def ATen_ReluOp: ATen_ImmutableTensorOp<"relu", [NoSideEffect]> {
+  let summary = "";
+  let arguments = (ins
+    ATen_AnyTensor:$input
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+}
+
 def ATen_AddOp: ATen_ImmutableTensorOp<"add", [NoSideEffect]> {
   let summary = "add(input, other, out=None)";
   let arguments = (ins
@@ -1754,6 +1764,221 @@ def ATen_CumsumInplaceOp: ATen_RefTensorOp<"cumsum.inplace", []> {
   let results = (outs);
 }
 
+def ATen_MeanOp: ATen_ImmutableTensorOp<"mean", [NoSideEffect]> {
+  let summary = "mean(input) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$dim,
+    ATen_BoolScalar:$keep_dim
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Returns the mean value of all elements in the :attr:`input` tensor.
+
+    Args:
+        input (Tensor): the input tensor.
+
+    Example::
+
+        >>> a = torch.randn(1, 3)
+        >>> a
+        tensor([[ 0.2294, -0.5481,  1.3288]])
+        >>> torch.mean(a)
+        tensor(0.3367)
+
+    .. function:: mean(input, dim, keepdim=False, out=None) -> Tensor
+
+    Returns the mean value of each row of the :attr:`input` tensor in the given
+    dimension :attr:`dim`. If :attr:`dim` is a list of dimensions,
+    reduce over all of them.
+
+
+    If :attr:`keepdim` is ``True``, the output tensor is of the same size
+    as :attr:`input` except in the dimension(s) :attr:`dim` where it is of size 1.
+    Otherwise, :attr:`dim` is squeezed (see :func:`torch.squeeze`), resulting in the
+    output tensor having 1 (or ``len(dim)``) fewer dimension(s).
+
+
+    Args:
+        input (Tensor): the input tensor.
+        dim (int or tuple of ints): the dimension or dimensions to reduce.
+        keepdim (bool): whether the output tensor has :attr:`dim` retained or not.
+        out (Tensor, optional): the output tensor.
+
+    Example::
+
+        >>> a = torch.randn(4, 4)
+        >>> a
+        tensor([[-0.3841,  0.6320,  0.4254, -0.7384],
+                [-0.9644,  1.0131, -0.6549, -1.4279],
+                [-0.2951, -1.3350, -0.7694,  0.5600],
+                [ 1.0842, -0.9580,  0.3623,  0.2343]])
+        >>> torch.mean(a, 1)
+        tensor([-0.0163, -0.5085, -0.4599,  0.1807])
+        >>> torch.mean(a, 1, True)
+        tensor([[-0.0163],
+                [-0.5085],
+                [-0.4599],
+                [ 0.1807]])
+  }];
+}
+
+def ATen_MeanInplaceOp: ATen_RefTensorOp<"mean.inplace", []> {
+  let summary = "See non-inplace op variant.";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$dim,
+    ATen_BoolScalar:$keep_dim,
+    ATen_AnyRefTensor:$out
+  );
+  let results = (outs);
+}
+
+def ATen_SumOp: ATen_ImmutableTensorOp<"sum", [NoSideEffect]> {
+  let summary = "sum(input, dtype=None) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$dim,
+    ATen_BoolScalar:$keep_dim
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Returns the sum of all elements in the :attr:`input` tensor.
+
+    Args:
+        input (Tensor): the input tensor.
+        dtype (:class:`torch.dtype`, optional): the desired data type of returned tensor.
+            If specified, the input tensor is casted to :attr:`dtype` before the operation
+            is performed. This is useful for preventing data type overflows. Default: None.
+
+    Example::
+
+        >>> a = torch.randn(1, 3)
+        >>> a
+        tensor([[ 0.1133, -0.9567,  0.2958]])
+        >>> torch.sum(a)
+        tensor(-0.5475)
+
+    .. function:: sum(input, dim, keepdim=False, dtype=None) -> Tensor
+
+    Returns the sum of each row of the :attr:`input` tensor in the given
+    dimension :attr:`dim`. If :attr:`dim` is a list of dimensions,
+    reduce over all of them.
+
+
+    If :attr:`keepdim` is ``True``, the output tensor is of the same size
+    as :attr:`input` except in the dimension(s) :attr:`dim` where it is of size 1.
+    Otherwise, :attr:`dim` is squeezed (see :func:`torch.squeeze`), resulting in the
+    output tensor having 1 (or ``len(dim)``) fewer dimension(s).
+
+
+    Args:
+        input (Tensor): the input tensor.
+        dim (int or tuple of ints): the dimension or dimensions to reduce.
+        keepdim (bool): whether the output tensor has :attr:`dim` retained or not.
+        dtype (:class:`torch.dtype`, optional): the desired data type of returned tensor.
+            If specified, the input tensor is casted to :attr:`dtype` before the operation
+            is performed. This is useful for preventing data type overflows. Default: None.
+
+    Example::
+
+        >>> a = torch.randn(4, 4)
+        >>> a
+        tensor([[ 0.0569, -0.2475,  0.0737, -0.3429],
+                [-0.2993,  0.9138,  0.9337, -1.6864],
+                [ 0.1132,  0.7892, -0.1003,  0.5688],
+                [ 0.3637, -0.9906, -0.4752, -1.5197]])
+        >>> torch.sum(a, 1)
+        tensor([-0.4598, -0.1381,  1.3708, -2.6217])
+        >>> b = torch.arange(4 * 5 * 6).view(4, 5, 6)
+        >>> torch.sum(b, (2, 1))
+        tensor([  435.,  1335.,  2235.,  3135.])
+  }];
+}
+
+def ATen_SumInplaceOp: ATen_RefTensorOp<"sum.inplace", []> {
+  let summary = "See non-inplace op variant.";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$dim,
+    ATen_BoolScalar:$keep_dim,
+    ATen_AnyRefTensor:$out
+  );
+  let results = (outs);
+}
+
+def ATen_GatherOp: ATen_ImmutableTensorOp<"gather", [NoSideEffect]> {
+  let summary = "gather(input, dim, index, out=None, sparse_grad=False) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntScalar:$dim,
+    ATen_AnyTensor:$index,
+    ATen_BoolScalar:$sparse_grad
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Gathers values along an axis specified by `dim`.
+
+    For a 3-D tensor the output is specified by::
+
+        out[i][j][k] = input[index[i][j][k]][j][k]  # if dim == 0
+        out[i][j][k] = input[i][index[i][j][k]][k]  # if dim == 1
+        out[i][j][k] = input[i][j][index[i][j][k]]  # if dim == 2
+
+    If :attr:`input` is an n-dimensional tensor with size
+    :math:`(x_0, x_1..., x_{i-1}, x_i, x_{i+1}, ..., x_{n-1})`
+    and ``dim = i``, then :attr:`index` must be an :math:`n`-dimensional tensor with
+    size :math:`(x_0, x_1, ..., x_{i-1}, y, x_{i+1}, ..., x_{n-1})` where :math:`y \geq 1`
+    and :attr:`out` will have the same size as :attr:`index`.
+
+    Args:
+        input (Tensor): the source tensor
+        dim (int): the axis along which to index
+        index (LongTensor): the indices of elements to gather
+        out (Tensor, optional): the destination tensor
+        sparse_grad(bool,optional): If ``True``, gradient w.r.t. :attr:`input` will be a sparse tensor.
+
+    Example::
+
+        >>> t = torch.tensor([[1,2],[3,4]])
+        >>> torch.gather(t, 1, torch.tensor([[0,0],[1,0]]))
+        tensor([[ 1,  1],
+                [ 4,  3]])
+  }];
+}
+
+def ATen_GatherInplaceOp: ATen_RefTensorOp<"gather.inplace", []> {
+  let summary = "See non-inplace op variant.";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntScalar:$dim,
+    ATen_AnyTensor:$index,
+    ATen_BoolScalar:$sparse_grad,
+    ATen_AnyRefTensor:$out
+  );
+  let results = (outs);
+}
+
+def ATen_NumpyTOp: ATen_ImmutableTensorOp<"numpy_T", [NoSideEffect]> {
+  let summary = "Is this Tensor with its dimensions reversed.";
+  let arguments = (ins
+    ATen_AnyTensor:$input
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    If ``n`` is the number of dimensions in ``x``,
+    ``x.T`` is equivalent to ``x.permute(n-1, n-2, ..., 0)``.
+  }];
+}
+
 def ATen_AddmmOp: ATen_ImmutableTensorOp<"addmm", [NoSideEffect]> {
   let summary = "addmm(input, mat1, mat2, *, beta=1, alpha=1, out=None) -> Tensor";
   let arguments = (ins
@@ -1960,15 +2185,32 @@ def ATen_MmInplaceOp: ATen_RefTensorOp<"mm.inplace", []> {
   let results = (outs);
 }
 
+def ATen_HardtanhOp: ATen_ImmutableTensorOp<"hardtanh", [NoSideEffect]> {
+  let summary = "    hardtanh(input, min_val=-1., max_val=1., inplace=False) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_FloatScalar:$min_val,
+    ATen_FloatScalar:$max_val
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+        Applies the HardTanh function element-wise. See :class:`~torch.nn.Hardtanh` for more
+        details.
+
+  }];
+}
+
 def ATen_AvgPool1dOp: ATen_ImmutableTensorOp<"avg_pool1d", [NoSideEffect]> {
   let summary = "avg_pool1d(input, kernel_size, stride=None, padding=0, ceil_mode=False, count_include_pad=True) -> Tensor";
   let arguments = (ins
     ATen_AnyTensor:$input,
-    ATen_AnyScalar:$kernel_size,
-    ATen_AnyScalar:$stride,
-    ATen_AnyScalar:$padding,
-    ATen_AnyScalar:$ceil_mode,
-    ATen_AnyScalar:$count_include_pad
+    ATen_IntList:$kernel_size,
+    ATen_IntList:$stride,
+    ATen_IntList:$padding,
+    ATen_BoolScalar:$ceil_mode,
+    ATen_BoolScalar:$count_include_pad
   );
   let results = (outs
     ATen_AnyTensor:$result
@@ -2005,11 +2247,11 @@ def ATen_MaxPool1dOp: ATen_ImmutableTensorOp<"max_pool1d", [NoSideEffect]> {
   let summary = "Applies a 1D max pooling over an input signal composed of several input";
   let arguments = (ins
     ATen_AnyTensor:$input,
-    ATen_AnyScalar:$kernel_size,
-    ATen_AnyScalar:$stride,
-    ATen_AnyScalar:$padding,
-    ATen_AnyScalar:$padding,
-    ATen_AnyScalar:$ceil_mode
+    ATen_IntList:$kernel_size,
+    ATen_IntList:$stride,
+    ATen_IntList:$padding,
+    ATen_IntList:$dilation,
+    ATen_BoolScalar:$ceil_mode
   );
   let results = (outs
     ATen_AnyTensor:$result
@@ -2018,6 +2260,242 @@ def ATen_MaxPool1dOp: ATen_ImmutableTensorOp<"max_pool1d", [NoSideEffect]> {
 
         See :class:`~torch.nn.MaxPool1d` for details.
 
+  }];
+}
+
+def ATen_AsStridedOp: ATen_ImmutableTensorOp<"as_strided", [NoSideEffect]> {
+  let summary = "as_strided(input, size, stride, storage_offset=0) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$size,
+    ATen_IntList:$stride,
+    ATen_IntScalar:$storage_offset
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Create a view of an existing `torch.Tensor` :attr:`input` with specified
+    :attr:`size`, :attr:`stride` and :attr:`storage_offset`.
+
+    .. warning::
+        More than one element of a created tensor may refer to a single memory
+        location. As a result, in-place operations (especially ones that are
+        vectorized) may result in incorrect behavior. If you need to write to
+        the tensors, please clone them first.
+
+        Many PyTorch functions, which return a view of a tensor, are internally
+        implemented with this function. Those functions, like
+        :meth:`torch.Tensor.expand`, are easier to read and are therefore more
+        advisable to use.
+
+
+    Args:
+        input (Tensor): the input tensor.
+        size (tuple or ints): the shape of the output tensor
+        stride (tuple or ints): the stride of the output tensor
+        storage_offset (int, optional): the offset in the underlying storage of the output tensor
+
+    Example::
+
+        >>> x = torch.randn(3, 3)
+        >>> x
+        tensor([[ 0.9039,  0.6291,  1.0795],
+                [ 0.1586,  2.1939, -0.4900],
+                [-0.1909, -0.7503,  1.9355]])
+        >>> t = torch.as_strided(x, (2, 2), (1, 2))
+        >>> t
+        tensor([[0.9039, 1.0795],
+                [0.6291, 0.1586]])
+        >>> t = torch.as_strided(x, (2, 2), (1, 2), 1)
+        tensor([[0.6291, 0.1586],
+                [1.0795, 2.1939]])
+
+    MLIR Specific Notes
+    -------------------
+    In PyTorch proper, this op creates a view that may internally alias. And
+    have explicit warnings about avoiding inplace updates on such a
+    view (without first cloning). For the moment, this op is formulated with
+    value semantics that imply a copy instead of a view, and it is expected
+    that any sharing can be recovered later by the compiler. The warning
+    about not in-place updating of such a result should be treated as UB
+    when compiled.
+  }];
+}
+
+def ATen_ExpandOp: ATen_ImmutableTensorOp<"expand", [NoSideEffect]> {
+  let summary = "expand(*sizes) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_AnyScalar:$sizes,
+    ATen_BoolScalar:$implicit
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Returns a new view of the :attr:`self` tensor with singleton dimensions expanded
+    to a larger size.
+
+    Passing -1 as the size for a dimension means not changing the size of
+    that dimension.
+
+    Tensor can be also expanded to a larger number of dimensions, and the
+    new ones will be appended at the front. For the new dimensions, the
+    size cannot be set to -1.
+
+    Expanding a tensor does not allocate new memory, but only creates a
+    new view on the existing tensor where a dimension of size one is
+    expanded to a larger size by setting the ``stride`` to 0. Any dimension
+    of size 1 can be expanded to an arbitrary value without allocating new
+    memory.
+
+    Args:
+        *sizes (torch.Size or int...): the desired expanded size
+
+    .. warning::
+
+        More than one element of an expanded tensor may refer to a single
+        memory location. As a result, in-place operations (especially ones that
+        are vectorized) may result in incorrect behavior. If you need to write
+        to the tensors, please clone them first.
+
+    Example::
+
+        >>> x = torch.tensor([[1], [2], [3]])
+        >>> x.size()
+        torch.Size([3, 1])
+        >>> x.expand(3, 4)
+        tensor([[ 1,  1,  1,  1],
+                [ 2,  2,  2,  2],
+                [ 3,  3,  3,  3]])
+        >>> x.expand(-1, 4)   # -1 means not changing the size of that dimension
+        tensor([[ 1,  1,  1,  1],
+                [ 2,  2,  2,  2],
+                [ 3,  3,  3,  3]])
+
+    MLIR Specific Notes
+    -------------------
+    See notes for the 'as_strided' op.
+  }];
+}
+
+def ATen_SqueezeOp: ATen_ImmutableTensorOp<"squeeze", [NoSideEffect]> {
+  let summary = "squeeze(input, dim=None, out=None) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntScalar:$dim
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Returns a tensor with all the dimensions of :attr:`input` of size `1` removed.
+
+    For example, if `input` is of shape:
+    :math:`(A \times 1 \times B \times C \times 1 \times D)` then the `out` tensor
+    will be of shape: :math:`(A \times B \times C \times D)`.
+
+    When :attr:`dim` is given, a squeeze operation is done only in the given
+    dimension. If `input` is of shape: :math:`(A \times 1 \times B)`,
+    ``squeeze(input, 0)`` leaves the tensor unchanged, but ``squeeze(input, 1)``
+    will squeeze the tensor to the shape :math:`(A \times B)`.
+
+    .. note:: The returned tensor shares the storage with the input tensor,
+              so changing the contents of one will change the contents of the other.
+
+    .. warning:: If the tensor has a batch dimension of size 1, then `squeeze(input)`
+              will also remove the batch dimension, which can lead to unexpected
+              errors.
+
+    Args:
+        input (Tensor): the input tensor.
+        dim (int, optional): if given, the input will be squeezed only in
+               this dimension
+        out (Tensor, optional): the output tensor.
+
+    Example::
+
+        >>> x = torch.zeros(2, 1, 2, 1, 2)
+        >>> x.size()
+        torch.Size([2, 1, 2, 1, 2])
+        >>> y = torch.squeeze(x)
+        >>> y.size()
+        torch.Size([2, 2, 2])
+        >>> y = torch.squeeze(x, 0)
+        >>> y.size()
+        torch.Size([2, 1, 2, 1, 2])
+        >>> y = torch.squeeze(x, 1)
+        >>> y.size()
+        torch.Size([2, 2, 1, 2])
+
+    MLIR Specific Notes
+    -------------------
+    See notes for the 'as_strided' op.
+  }];
+}
+
+def ATen_ViewOp: ATen_ImmutableTensorOp<"view", [NoSideEffect]> {
+  let summary = "view(*shape) -> Tensor";
+  let arguments = (ins
+    ATen_AnyTensor:$input,
+    ATen_IntList:$size
+  );
+  let results = (outs
+    ATen_AnyTensor:$result
+  );
+  let description = [{
+    Returns a new tensor with the same data as the :attr:`self` tensor but of a
+    different :attr:`shape`.
+
+    The returned tensor shares the same data and must have the same number
+    of elements, but may have a different size. For a tensor to be viewed, the new
+    view size must be compatible with its original size and stride, i.e., each new
+    view dimension must either be a subspace of an original dimension, or only span
+    across original dimensions :math:`d, d+1, \dots, d+k` that satisfy the following
+    contiguity-like condition that :math:`\forall i = d, \dots, d+k-1`,
+
+    .. math::
+
+      \text{stride}[i] = \text{stride}[i+1] \times \text{size}[i+1]
+
+    Otherwise, it will not be possible to view :attr:`self` tensor as :attr:`shape`
+    without copying it (e.g., via :meth:`contiguous`). When it is unclear whether a
+    :meth:`view` can be performed, it is advisable to use :meth:`reshape`, which
+    returns a view if the shapes are compatible, and copies (equivalent to calling
+    :meth:`contiguous`) otherwise.
+
+    Args:
+        shape (torch.Size or int...): the desired size
+
+    Example::
+
+        >>> x = torch.randn(4, 4)
+        >>> x.size()
+        torch.Size([4, 4])
+        >>> y = x.view(16)
+        >>> y.size()
+        torch.Size([16])
+        >>> z = x.view(-1, 8)  # the size -1 is inferred from other dimensions
+        >>> z.size()
+        torch.Size([2, 8])
+
+        >>> a = torch.randn(1, 2, 3, 4)
+        >>> a.size()
+        torch.Size([1, 2, 3, 4])
+        >>> b = a.transpose(1, 2)  # Swaps 2nd and 3rd dimension
+        >>> b.size()
+        torch.Size([1, 3, 2, 4])
+        >>> c = a.view(1, 3, 2, 4)  # Does not change tensor layout in memory
+        >>> c.size()
+        torch.Size([1, 3, 2, 4])
+        >>> torch.equal(b, c)
+        False
+
+
+    MLIR Specific Notes
+    -------------------
+    See notes for the 'as_strided' op.
   }];
 }
 

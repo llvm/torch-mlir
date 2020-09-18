@@ -92,7 +92,8 @@ class OdsEmitter:
     with self.indent():
       if description:
         quoted_description = _quote_multiline_docstring(
-            description, indent_level=self.indent_level)
+            description + op_m.append_description,
+            indent_level=self.indent_level)
         self.print(f"let description = {quoted_description};")
 
     self.print("}\n")
@@ -134,14 +135,19 @@ def _quote_multiline_docstring(s: str, indent_level: int = 0):
 
 def _split_docstring(docstring: str):
   """Splits the docstring into a summary and description."""
+  if not docstring:
+    docstring = ""
   lines = docstring.splitlines()
+  if not lines:
+    return "", ""
+
   # Skip leading blank lines.
   while lines and not lines[0]:
     lines = lines[1:]
   if len(lines) > 2:
     return lines[0], "\n".join(lines[2:])
   else:
-    return lines[0]
+    return lines[0], ""
 
 
 def main(args):
