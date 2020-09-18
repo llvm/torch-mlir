@@ -20,9 +20,7 @@ class TCP_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<TCP_Dialect, mnemonic, traits> {
 }
 
-// TODO: clarify allowed tensor element types.
-// TODO: HasParent is too restrictive? can't have an island with loop.for with
-// further ops inside it?
+// TODO: Clarify allowed tensor element types.
 def TCP_AddOp
     : TCP_Op<"add", []> {
   let summary = "Adds two tensors.";
@@ -31,6 +29,33 @@ Adds two tensors.
   }];
   let arguments = (ins AnyRankedTensor:$lhs, AnyRankedTensor:$rhs);
   let results = (outs AnyRankedTensor:$result);
+}
+
+// TODO: Generalize this op appropriately and add more verification.
+// For example, should we have a single primitive that does multidimensional
+// contractions? + batching as well in the same op? In fact, if we want to
+// get really general, we can include convolution as well; matmul is the 1x1
+// image and 1x1 kernel special case.
+// It still lowers trivially into linalg.generic even with such generalization
+// -- the main question is what transforms we want to do at the TCP level that
+// would be affected by those design choices.
+def TCP_MatmulOp : TCP_Op<"matmul"> {
+  let summary = "Performs a matrix multiplication";
+  let description = [{
+    Performs a matrix multiplication.
+
+    The tensors have dimensions:
+    - lhs: [M, K]
+    - rhs: [K, N]
+    - result: [M, N]
+
+    If the `K` dimension mismatches between operands, this op has
+    undefined behavior.
+  }];
+  let arguments = (ins 2DTensorOf<[F32]>:$lhs, 2DTensorOf<[F32]>:$rhs);
+  let results = (outs 2DTensorOf<[F32]>:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
 def TCP_BroadcastToOp : TCP_Op<"broadcast_to"> {

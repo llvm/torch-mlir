@@ -26,12 +26,33 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-static Value allocMemRefForTensor(OpBuilder &builder, Value tensor, Value shape,
-                                  Location loc) {
-  auto tensorType = tensor.getType().cast<RankedTensorType>();
-  auto memrefType =
-      MemRefType::get(tensorType.getShape(), tensorType.getElementType());
-  return builder.create<tcp::AllocMemRefOp>(loc, memrefType, shape);
+static FailureOr<SmallVector<Value, 6>>
+allocateResults(Operation *op, ConversionPatternRewriter &rewriter,
+                Location loc,
+                SmallVectorImpl<Value> *resultShapesOut = nullptr) {
+  // TODO: This is really fragile. Can we have a better story?
+  auto shapedResults = dyn_cast<tcp::ShapedResultsOp>(op->getParentOp());
+  if (!shapedResults)
+    return rewriter.notifyMatchFailure(op, "parent not tcp.shaped_results");
+  if (op->getResults() !=
+      shapedResults.getBody()->getTerminator()->getOperands())
+    return rewriter.notifyMatchFailure(
+        op, "only limited forms of tcp.shaped_results allowed");
+  auto resultShapes = shapedResults.resultShapes();
+  SmallVector<Value, 6> results;
+  for (auto t : llvm::zip(op->getResults(), resultShapes)) {
+    auto result = std::get<0>(t);
+    auto resultShape = std::get<1>(t);
+    auto tensorType = result.getType().cast<RankedTensorType>();
+    auto memrefType =
+        MemRefType::get(tensorType.getShape(), tensorType.getElementType());
+    auto memref =
+        rewriter.create<tcp::AllocMemRefOp>(loc, memrefType, resultShape);
+    results.push_back(memref);
+  }
+  if (resultShapesOut)
+    resultShapesOut->append(resultShapes.begin(), resultShapes.end());
+  return results;
 }
 
 namespace {
@@ -46,17 +67,13 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto resultType = op.getType().cast<RankedTensorType>();
     auto inputType = op.operand().getType().cast<RankedTensorType>();
-
-    auto shapedResults = dyn_cast<tcp::ShapedResultsOp>(op.getParentOp());
-    if (!shapedResults)
-      return rewriter.notifyMatchFailure(op, "parent not tcp.shaped_results");
-    if (op.getOperation()->getResults() !=
-        shapedResults.getBody()->getTerminator()->getOperands())
-      return rewriter.notifyMatchFailure(
-          op, "only limited forms of tcp.shaped_results allowed");
-    auto resultShape = shapedResults.resultShapes()[0];
-    Value resultMemref =
-        allocMemRefForTensor(rewriter, op.result(), resultShape, op.getLoc());
+    SmallVector<Value, 6> resultShapes;
+    auto resultsOrFailure =
+        allocateResults(op, rewriter, op.getLoc(), &resultShapes);
+    if (failed(resultsOrFailure))
+      return failure();
+    Value resultMemref = (*resultsOrFailure)[0];
+    auto resultShape = resultShapes[0];
     Value inputMemref = operands[0];
 
     SmallVector<Value, 6> outputExtents;
@@ -152,38 +169,41 @@ public:
     }
 
     SmallVector<Value, 6> memrefs(operands.begin(), operands.end());
-    SmallVector<Value, 6> resultMemrefs;
-    SmallVector<Value, 6> operandShapes;
 
-    auto shapedResults = dyn_cast<tcp::ShapedResultsOp>(op.getParentOp());
-    if (!shapedResults)
-      return rewriter.notifyMatchFailure(op, "parent not tcp.shaped_results");
-    // TODO: What if there are multiple ops in the tcp.shaped_results region?
-    // The IREE solution is "they have to be fused and create no allocations
-    // ultimately". The non-IREE solution is to just not bypass shapes in the
-    // first place.
-    if (op.getResults() !=
-        shapedResults.getBody()->getTerminator()->getOperands())
-      return rewriter.notifyMatchFailure(
-          op, "only limited forms of tcp.shaped_results allowed");
+    auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
+    if (failed(resultsOrFailure))
+      return failure();
+    auto results = *resultsOrFailure;
+    memrefs.append(results.begin(), results.end());
 
-    for (auto t : llvm::zip(op.getResults(), shapedResults.resultShapes())) {
-      auto tensor = std::get<0>(t);
-      auto shape = std::get<1>(t);
-      auto memref = allocMemRefForTensor(rewriter, tensor, shape, op.getLoc());
-      memrefs.push_back(memref);
-      resultMemrefs.push_back(memref);
-    }
     auto newGeneric = rewriter.create<linalg::GenericOp>(
         op.getLoc(), llvm::None, ValueRange(memrefs), op.getAttrs());
     newGeneric.region().getBlocks().clear();
     BlockAndValueMapping mapper;
     op.region().cloneInto(&newGeneric.region(), mapper);
-    for (auto memref : resultMemrefs) {
+    for (auto memref : results) {
       newGeneric.region().front().addArgument(
           memref.getType().cast<MemRefType>().getElementType());
     }
-    rewriter.replaceOp(op, resultMemrefs);
+    rewriter.replaceOp(op, results);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class LowerTcpMatmulOp : public OpConversionPattern<tcp::MatmulOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(tcp::MatmulOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
+    if (failed(resultsOrFailure))
+      return failure();
+    auto results = *resultsOrFailure;
+    rewriter.create<linalg::MatmulOp>(op.getLoc(), operands, results);
+    rewriter.replaceOp(op, results);
     return success();
   }
 };
@@ -292,6 +312,10 @@ class LowerShapedResultsToMemref
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
+    patterns.insert<LowerTcpMatmulOp>(typeConverter, context);
+    target.addIllegalOp<tcp::MatmulOp>();
+
+    target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalOp<shape::GetExtentOp>();

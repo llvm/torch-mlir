@@ -47,3 +47,12 @@ func @assuming(%arg0: tensor<?xindex>, %arg1: tensor<?xindex>) -> tensor<2xf32> 
   // CHECK: return %[[CST]]
   return %0 : tensor<2xf32>
 }
+
+// CHECK-LABEL: func @cstr_require
+func @cstr_require(%arg0: i1) -> !shape.witness {
+  // CHECK: %[[RET:.*]] = shape.const_witness true
+  // CHECK: assert %arg0, "msg"
+  // CHECK: return %[[RET]]
+  %witness = shape.cstr_require %arg0, "msg"
+  return %witness : !shape.witness
+}

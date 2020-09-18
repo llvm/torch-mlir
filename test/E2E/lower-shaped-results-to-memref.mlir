@@ -35,3 +35,24 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
   } : tensor<?xindex> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }
+
+// -----
+
+// CHECK-LABEL:   func @tcp_matmul(
+// CHECK-SAME:                     %arg0: tensor<?x?xf32>,
+// CHECK-SAME:                     %arg1: tensor<?x?xf32>,
+// CHECK-SAME:                     %[[SHAPE:.*]]: tensor<?xindex>) -> tensor<?x?xf32> {
+// CHECK:           %[[LHS:.*]] = tcp.tensor_to_memref %arg0 : tensor<?x?xf32> -> memref<?x?xf32>
+// CHECK:           %[[RHS:.*]] = tcp.tensor_to_memref %arg1 : tensor<?x?xf32> -> memref<?x?xf32>
+// CHECK:           %[[RESULT:.*]] = tcp.alloc_memref %[[SHAPE]] : memref<?x?xf32>
+// CHECK:           linalg.matmul ins(%[[LHS]], %[[RHS]] : memref<?x?xf32>, memref<?x?xf32>) outs(%[[RESULT]] : memref<?x?xf32>)
+// CHECK:           %[[RET:.*]] = tcp.memref_to_tensor %[[RESULT]] : memref<?x?xf32> -> tensor<?x?xf32>
+// CHECK:           return %[[RET]] : tensor<?x?xf32>
+// CHECK:         }
+func @tcp_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %shape: tensor<?xindex>) -> tensor<?x?xf32> {
+  %0 = tcp.shaped_results %shape {
+    %matmul = tcp.matmul %arg0, %arg1 : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+    tcp.yield %matmul : tensor<?x?xf32>
+  } : tensor<?xindex> -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
