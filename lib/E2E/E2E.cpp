@@ -27,7 +27,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
@@ -125,14 +124,6 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   //
   // TCP does not. So we need to reify the broadcasting and error checking.
   pm.addPass(createConvertTCFToTCPPass());
-
-  // Convert tcp ops to Linalg where possible, as we want generic linalg
-  // tensor->memref to do most of the mechanical work of rewriting ops in
-  // terms of tensors to ops in terms of memrefs (since it is easy on that
-  // representation).
-  // TODO: Does this make sense? Should we instead go to an "TCP on buffers" and
-  // only lower to linalg at the buffer level?
-  pm.addPass(createConvertTCPToLinalgPass());
 
   // For operations with a shape transfer function, explicitly bypass their
   // shape computations with tcp.shaped_results ops.

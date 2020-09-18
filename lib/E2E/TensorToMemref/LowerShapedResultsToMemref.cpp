@@ -19,7 +19,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
@@ -134,57 +133,45 @@ public:
 } // namespace
 
 namespace {
-class LowerLinalgGenericTensorToMemRef
-    : public OpConversionPattern<linalg::GenericOp> {
+class LowerTcpAddOp : public OpConversionPattern<tcp::AddOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(linalg::GenericOp op, ArrayRef<Value> operands,
+  matchAndRewrite(tcp::AddOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-
-    // TODO: Replace this with more generic code operating on named
-    // structured ops too.
-
-    // These checks mirror those in BypassShapes.
-    if (!llvm::all_of(op.getOperandTypes(),
-                      [](Type type) { return type.isa<RankedTensorType>(); })) {
-      return rewriter.notifyMatchFailure(op, "all operands must be tensors");
-    }
-    if (!llvm::all_of(op.getResultTypes(),
-                      [](Type type) { return type.isa<RankedTensorType>(); })) {
-      return rewriter.notifyMatchFailure(op, "all results must be tensors");
-    }
-    if (!llvm::all_of(op.indexing_maps(), [](Attribute map) {
-          return map.cast<AffineMapAttr>().getValue().isIdentity();
-        })) {
-      return rewriter.notifyMatchFailure(
-          op, "all indexing maps must be identity maps");
-    }
-    if (!llvm::all_of(op.iterator_types(), [](Attribute str) {
-          return str.cast<StringAttr>().getValue() ==
-                 getParallelIteratorTypeName();
-        })) {
-      return rewriter.notifyMatchFailure(
-          op, "all iterator types must be 'parallel'");
-    }
-
-    SmallVector<Value, 6> memrefs(operands.begin(), operands.end());
-
     auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
     if (failed(resultsOrFailure))
       return failure();
     auto results = *resultsOrFailure;
-    memrefs.append(results.begin(), results.end());
 
-    auto newGeneric = rewriter.create<linalg::GenericOp>(
-        op.getLoc(), llvm::None, ValueRange(memrefs), op.getAttrs());
-    newGeneric.region().getBlocks().clear();
-    BlockAndValueMapping mapper;
-    op.region().cloneInto(&newGeneric.region(), mapper);
-    for (auto memref : results) {
-      newGeneric.region().front().addArgument(
-          memref.getType().cast<MemRefType>().getElementType());
-    }
+    SmallVector<Value, 6> args;
+    args.append(operands.begin(), operands.end());
+    args.append(results.begin(), results.end());
+
+    size_t rank = op.getType().cast<RankedTensorType>().getRank();
+    SmallVector<StringRef, 6> iterators(rank, getParallelIteratorTypeName());
+    // TODO: Generalize this to other elementwise ops.
+    // All we need to do is to have a mapping of tcp.foo to scalar.foo.
+    // TODO: Should we just use linalg named ops for most of TCP?
+    // Doing so would make tcp very consistent, but also it would, at this early
+    // stage, make most non-trivial changes also require co-design with the
+    // linalg ODS generator, which would be a very slow process.
+    auto argsIn = operands.size();
+    auto argsOut = results.size();
+    SmallVector<AffineMap, 3> accesses(argsIn + argsOut,
+                                       rewriter.getMultiDimIdentityMap(rank));
+    rewriter.create<linalg::GenericOp>(
+        op.getLoc(), /*resultTypes=*/llvm::None,
+        /*args=*/args,
+        /*args_in=*/argsIn,
+        /*args_out=*/argsOut,
+        /*indexing_maps=*/accesses,
+        /*iterator_types=*/iterators,
+        /*bodyBuilder=*/
+        [](OpBuilder &builder, Location loc, ValueRange regionArgs) {
+          auto add = builder.create<AddFOp>(loc, regionArgs[0], regionArgs[1]);
+          builder.create<linalg::YieldOp>(loc, ValueRange({add}));
+        });
     rewriter.replaceOp(op, results);
     return success();
   }
@@ -295,23 +282,10 @@ class LowerShapedResultsToMemref
     target.addLegalOp<tcp::MemrefToTensorOp>();
     target.addLegalOp<tcp::TensorToMemrefOp>();
 
-    patterns.insert<LowerLinalgGenericTensorToMemRef>(typeConverter, context);
-    target.addDynamicallyLegalOp<linalg::GenericOp>([](linalg::GenericOp op) {
-      if (llvm::any_of(op.getOperandTypes(), [](Type type) {
-            return type.isa<RankedTensorType>();
-          })) {
-        return false;
-      }
-      if (llvm::any_of(op.getResultTypes(), [](Type type) {
-            return type.isa<RankedTensorType>();
-          })) {
-        return false;
-      }
-      return true;
-    });
-
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
+    patterns.insert<LowerTcpAddOp>(typeConverter, context);
+    target.addIllegalOp<tcp::AddOp>();
     patterns.insert<LowerTcpMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
 
