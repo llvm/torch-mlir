@@ -156,6 +156,19 @@ public:
 } // namespace
 
 namespace {
+class LowerCstrRequireOp : public OpRewritePattern<shape::CstrRequireOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(shape::CstrRequireOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.create<AssertOp>(op.getLoc(), op.pred(), op.msgAttr());
+    rewriter.replaceOpWithNewOp<shape::ConstWitnessOp>(op, true);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // This pass eliminates shape constraints from the program.
 //
 // After this pass finishes, there are no !shape.witness types in the program,
@@ -170,6 +183,7 @@ class LowerShapeConstraints
 
     OwningRewritePatternList patterns;
     patterns.insert<LowerCstrBroadcastableOp>(context);
+    patterns.insert<LowerCstrRequireOp>(context);
     // Add in the canonicalization patterns for shape.assuming so that it gets
     // inlined when its witness becomes a true constant witness.
     shape::AssumingOp::getCanonicalizationPatterns(patterns, context);

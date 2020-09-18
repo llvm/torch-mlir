@@ -10,6 +10,12 @@ func @f(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>, %arg2: i32) {
   return
 }
 
+func @matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
+  // CHECK: tcp.matmul %arg0, %arg1 : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+  %0 = tcp.matmul %arg0, %arg1 : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+  return %0 : tensor<?x?xf32>
+}
+
 // CHECK-LABEL:      func @g
 // CHECK-NEXT:   %[[RET:.*]] = tcp.shaped_results %arg1 {
 // CHECK-NEXT:     %[[VAL:.*]] =

@@ -29,43 +29,26 @@ Add two tensors.
   let results = (outs AnyTensor:$result);
 }
 
-def TCF_BatchMatmulOp : TCF_Op<"batch_matmul"> {
-  let summary = "Performs a batch of matrix multiplications.";
+// TODO: Generalize this op appropriately and add more verification.
+// For example, an unranked operand probably should be allowed and verified
+// dynamically in TCF->TCP lowering if needed.
+def TCF_MatmulOp : TCF_Op<"matmul"> {
+  let summary = "Performs a matrix multiplication";
   let description = [{
-This op, in its simplest case, performs a matrix multiplication between the two operands.
-Let the input shapes of the operands have shape:
-- `lhs`: `[BLHS..., LHSROWS, LHSCOLS]`
-- `rhs`: `[BRHS..., RHSROWS, RHSCOLS]`
-Then `result` will have shape `[broadcast(BLHS, BRHS),LHSROWS,RHSCOLS]`.
+    Performs a matrix multiplication.
 
-This op encounters an error if `LHSCOLS != RHSROWS` or if
-`broadcast(BLHS, BRHS)` is not possible.
+    The tensors have dimensions:
+    - lhs: [M, K]
+    - rhs: [K, N]
+    - result: [M, N]
 
+    If the `K` dimension mismatches between the operands, this op aborts the
+    program.
   }];
-  let arguments = (ins AnyTensor:$lhs, AnyTensor:$rhs);
-  let results = (outs AnyTensor:$result);
-}
+  let arguments = (ins 2DTensorOf<[F32]>:$lhs, 2DTensorOf<[F32]>:$rhs);
+  let results = (outs 2DTensorOf<[F32]>:$result);
 
-// TODO: represent more general convolutions (via more parameters and also more ops)
-// torch.nn.functional has a good summary of frontend needs: https://pytorch.org/docs/stable/nn.functional.html#conv2d
-// TODO: describe error conditions
-def TCF_Conv2DOp : TCF_Op<"conv_2d"> {
-  let summary = "Perform a 2D convolution.";
-  let description = [{
-This op performs a 2D convolution in the sense typical in deep learning
-contexts.
-
-The inputs have the following rank structure:
-- `input`: `[BATCH, Zin, IN0, IN1]`
-- `kernel`: `[Zout, Zin, K0, K1]`
-  }];
-  let arguments = (ins
-    AnyTensor:$input,
-    AnyTensor:$kernel
-  );
-  let results = (outs
-    AnyTensor:$result
-  );
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
 #endif // #ifndef TCF_OPS

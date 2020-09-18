@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 #include "npcomp/E2E/E2E.h"
 
@@ -68,6 +69,14 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
 
   if (auto broadcastTo = dyn_cast<tcp::BroadcastToOp>(op)) {
     return {broadcastTo.shape()};
+  }
+
+  if (auto matmul = dyn_cast<tcp::MatmulOp>(op)) {
+    auto lhsRows = builder.create<DimOp>(op.getLoc(), matmul.lhs(), 0);
+    auto rhsCols = builder.create<DimOp>(op.getLoc(), matmul.rhs(), 1);
+    auto shape = builder.create<TensorFromElementsOp>(
+        op.getLoc(), ValueRange({lhsRows, rhsCols}));
+    return {shape};
   }
 
   // No shape transfer function.
