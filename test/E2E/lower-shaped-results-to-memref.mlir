@@ -9,7 +9,7 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
   // CHECK: scf.for
   // CHECK-NOT: tcp.shaped_results
   %0 = tcp.shaped_results %arg1 {
-    %0 = "tcp.broadcast_to"(%arg0, %arg1) : (tensor<?xf32>, tensor<?xindex>) -> tensor<?x?xf32>
+    %0 = tcp.broadcast_to %arg0, %arg1 : (tensor<?xf32>, tensor<?xindex>) -> tensor<?x?xf32>
     tcp.yield %0 : tensor<?x?xf32>
   } : tensor<?xindex> -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
@@ -34,7 +34,7 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
 func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
   %0 = shape.shape_of %arg0 : tensor<?xf32> -> tensor<?xindex>
   %1 = tcp.shaped_results %0 {
-    %2 = "tcp.add"(%arg0, %arg1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+    %2 = tcp.add %arg0, %arg1 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
     tcp.yield %2 : tensor<?xf32>
   } : tensor<?xindex> -> tensor<?xf32>
   return %1 : tensor<?xf32>

@@ -7,6 +7,6 @@
 // CHECK: output #0: dense<2.000000e+00> : tensor<1xf32>
 // CHECK: output #1: dense<2.000000e+00> : tensor<1xf32>
 func @multi_output(%arg0: tensor<?xf32>) -> (tensor<?xf32>, tensor<?xf32>) {
-  %0 = "tcf.add"(%arg0, %arg0) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+  %0 = tcf.add %arg0, %arg0 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
   return %0, %0 : tensor<?xf32>, tensor<?xf32>
 }

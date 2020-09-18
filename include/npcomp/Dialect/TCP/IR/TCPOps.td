@@ -29,6 +29,8 @@ Adds two tensors.
   }];
   let arguments = (ins AnyRankedTensor:$lhs, AnyRankedTensor:$rhs);
   let results = (outs AnyRankedTensor:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
 // TODO: Generalize this op appropriately and add more verification.
@@ -67,6 +69,8 @@ It is undefined behavior if such a broadcast is not legal.
   }];
   let arguments = (ins AnyRankedTensor:$operand, Shape_ExtentTensorType:$shape);
   let results = (outs AnyRankedTensor:$result);
+
+  let assemblyFormat = "$operand `,` $shape attr-dict `:` functional-type(operands, results)";
 }
 
 def TCP_GlobalOp : TCP_Op<"global", [Symbol]> {
