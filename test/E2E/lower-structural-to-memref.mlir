@@ -42,6 +42,19 @@ func @if(%pred: i1, %true_val: tensor<?xf32>, %false_val: tensor<?xf32>) -> tens
   return %0 : tensor<?xf32>
 }
 
+// CHECK-LABEL: func @for(%arg0: memref<f32>, %arg1: index, %arg2: index, %arg3: index) -> memref<f32> {
+// CHECK-NEXT:    %[[RET:.*]] = scf.for %arg4 = %arg1 to %arg2 step %arg3 iter_args(%arg5 = %arg0) -> (memref<f32>) {
+// CHECK-NEXT:      scf.yield %arg5 : memref<f32>
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return %[[RET]] : memref<f32>
+// CHECK-NEXT:  }
+func @for(%arg0: tensor<f32>, %lb: index, %ub: index, %step: index) -> tensor<f32> {
+  %ret = scf.for %iv = %lb to %ub step %step iter_args(%iter = %arg0) -> tensor<f32> {
+    scf.yield %iter : tensor<f32>
+  }
+  return %ret : tensor<f32>
+}
+
 
 // Test the interactions with materializations.
 // Note: this pass never actually expects IR with memref argument types.
