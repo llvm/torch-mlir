@@ -12,6 +12,6 @@
 // CHECK: output #0: dense<[
 // CHECK-SAME: [4.000000e+00, 5.000000e+00], [1.300000e+01, 1.400000e+01]]> : tensor<2x2xf32>
 func @broadcast(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
-  %0 = "tcf.add"(%arg0, %arg1) : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+  %0 = tcf.add %arg0, %arg1 : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }

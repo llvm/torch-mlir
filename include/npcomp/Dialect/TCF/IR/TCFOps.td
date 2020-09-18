@@ -27,6 +27,8 @@ Add two tensors.
   }];
   let arguments = (ins AnyTensor:$lhs, AnyTensor:$rhs);
   let results = (outs AnyTensor:$result);
+
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
 // TODO: Generalize this op appropriately and add more verification.

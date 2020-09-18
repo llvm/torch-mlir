@@ -8,6 +8,6 @@
 // CHECK: output #0: dense<[
 // CHECK-SAME: [2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00]]> : tensor<2x2xf32>
 func @mixed_rank(%arg0: tensor<?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
-  %0 = "tcf.add"(%arg0, %arg1) : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+  %0 = tcf.add %arg0, %arg1 : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
 }

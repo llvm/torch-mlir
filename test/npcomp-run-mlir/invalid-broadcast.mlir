@@ -7,6 +7,6 @@
 
 // CHECK: NPCOMP: aborting: invalid broadcast
 func @invalid_broadcast(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
-  %0 = "tcf.add"(%arg0, %arg1) : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+  %0 = tcf.add %arg0, %arg1 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
   return %0 : tensor<?xf32>
 }

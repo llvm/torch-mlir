@@ -19,7 +19,7 @@ func @illagalTernary(%arg0: tensor<?xf32>, %arg1: tensor<?x?xf32>) -> tensor<*xf
 
 // CHECK-LABEL: func @numpyAdd
 func @numpyAdd(%arg0: tensor<?xf32>, %arg1: tensor<?x?xf32>) -> tensor<*xf32> {
-  // CHECK: "tcf.add"(%arg0, %arg1) : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<*xf32>
+  // CHECK: tcf.add %arg0, %arg1 : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<*xf32>
   %0 = numpy.builtin_ufunc_call<"numpy.add"> (%arg0, %arg1) : (tensor<?xf32>, tensor<?x?xf32>) -> tensor<*xf32>
   return %0 : tensor<*xf32>
 }

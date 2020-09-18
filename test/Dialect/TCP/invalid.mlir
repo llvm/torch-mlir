@@ -35,7 +35,7 @@ func @f() {
 func @g(%arg0: tensor<?x?xf32>, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
   // expected-error @+1 {{number of operands must equal number of results}}
   %add = tcp.shaped_results %arg1, %arg1 {
-    %0 = "tcp.add"(%arg0, %arg0) : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+    %0 = tcp.add %arg0, %arg0 : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
     tcp.yield %0 : tensor<?x?xf32>
   } : tensor<?xindex>, tensor<?xindex> -> tensor<?x?xf32>
   return %add : tensor<?x?xf32>
