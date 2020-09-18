@@ -18,7 +18,6 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 

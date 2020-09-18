@@ -1,7 +1,6 @@
 add_subdirectory(BasicpyToStd)
 add_subdirectory(NumpyToTCF)
 add_subdirectory(TCFToTCP)
-add_subdirectory(TCPToLinalg)
 
 if(NPCOMP_ENABLE_IREE)
 add_subdirectory(BasicpyToIREEVM)
@@ -20,5 +19,4 @@ add_mlir_library(NPCOMPConversionPasses
   NPCOMPBasicpyToSTD
   NPCOMPNumpyToTCF
   NPCOMPTCFToTCP
-  NPCOMPTCPToLinalg
 )

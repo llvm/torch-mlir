@@ -21,15 +21,6 @@ def ConvertTCFToTCP : Pass<"convert-tcf-to-tcp", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
-// TCPToLinalg
-//===----------------------------------------------------------------------===//
-
-def ConvertTCPToLinalg : Pass<"convert-tcp-to-linalg", "ModuleOp"> {
-  let summary = "Convert TCP to Linalg";
-  let constructor = "mlir::NPCOMP::createConvertTCPToLinalgPass()";
-}
-
-//===----------------------------------------------------------------------===//
 // Basicpy conversions
 //===----------------------------------------------------------------------===//
 

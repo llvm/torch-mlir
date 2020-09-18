@@ -16,59 +16,16 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-static bool isSimpleElementwiseLinalgGeneric(linalg::GenericOp op) {
-  // Only handle generic ops where all operands and results are tensors.
-  if (!llvm::all_of(op.getOperandTypes(),
-                    [](Type type) { return type.isa<RankedTensorType>(); })) {
-    return false;
-  }
-  if (!llvm::all_of(op.getResultTypes(),
-                    [](Type type) { return type.isa<RankedTensorType>(); })) {
-    return false;
-  }
-
-  // TODO: Loosen restrictions on indexing maps.
-  // This will require more principled handling of shape reification
-  // earlier in the compilation stack, as in general output shapes of a
-  // linalg.generic cannot be inferred easily.
-  // See:
-  // https://llvm.discourse.group/t/computing-output-shapes-of-structured-ops-on-tensors/866
-  if (!llvm::all_of(op.indexing_maps(), [](Attribute map) {
-        return map.cast<AffineMapAttr>().getValue().isIdentity();
-      })) {
-    return false;
-  }
-  if (!llvm::all_of(op.iterator_types(), [](Attribute str) {
-        return str.cast<StringAttr>().getValue() ==
-               getParallelIteratorTypeName();
-      })) {
-    return false;
-  }
-
-  return true;
-}
-
 // TODO: Don't just open-code all shape transfer functions here.
-// Note: for now, we can't just rely on an OpInterface, since OpInterfaces
-// cannot be "externally applied". E.g. we can't change the definition of
-// linalg::GenericOp.
 static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
   OpBuilder builder(&op);
-  if (auto linalgGeneric = dyn_cast<linalg::GenericOp>(op)) {
-    // TODO: Avoid this excessive restriction.
-    // This will require more principled handling of the lowering to
-    // linalg.generic -- it should generally happen after this pass, becaue in
-    // general output shapes of a linalg.generic cannot be inferred easily. See:
-    // https://llvm.discourse.group/t/computing-output-shapes-of-structured-ops-on-tensors/866
-    if (!isSimpleElementwiseLinalgGeneric(linalgGeneric))
-      return {};
-    // All shapes of all operands and results are the same for now. So
-    // arbitrarily pick the first operand.
-    return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
-  }
 
   if (auto broadcastTo = dyn_cast<tcp::BroadcastToOp>(op)) {
     return {broadcastTo.shape()};
+  }
+
+  if (auto add = dyn_cast<tcp::AddOp>(op)) {
+    return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
   }
 
   if (auto matmul = dyn_cast<tcp::MatmulOp>(op)) {

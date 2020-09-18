@@ -11,7 +11,6 @@
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
 #include "npcomp/Conversion/NumpyToTCF/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Conversion/TCPToLinalg/TCPToLinalg.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration
