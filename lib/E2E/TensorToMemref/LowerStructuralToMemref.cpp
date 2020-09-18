@@ -52,6 +52,33 @@ public:
 
 namespace {
 // This is a type conversion similar to CallOpSignatureConversion.
+class LowerForOpTypes : public OpConversionPattern<scf::ForOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(scf::ForOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<Type, 6> newResultTypes;
+    for (auto type : op.getResultTypes()) {
+      Type newType = typeConverter->convertType(type);
+      if (!newType)
+        return rewriter.notifyMatchFailure(op, "not a 1:1 type conversion");
+      newResultTypes.push_back(newType);
+    }
+    rewriter.updateRootInPlace(op, [&] {
+      for (auto t : llvm::zip(op.getResults(), newResultTypes))
+        std::get<0>(t).setType(std::get<1>(t));
+      auto bodyArgs = op.getBody()->getArguments();
+      for (auto t : llvm::zip(llvm::drop_begin(bodyArgs, 1), newResultTypes))
+        std::get<0>(t).setType(std::get<1>(t));
+    });
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// This is a type conversion similar to CallOpSignatureConversion.
 class LowerSelectOpTypes : public OpConversionPattern<SelectOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -151,6 +178,7 @@ class LowerStructuralToMemref
 
     patterns.insert<LowerSelectOpTypes>(typeConverter, context);
     patterns.insert<LowerIfOpTypes>(typeConverter, context);
+    patterns.insert<LowerForOpTypes>(typeConverter, context);
     patterns.insert<LowerTensorToMemrefOp>(typeConverter, context);
     patterns.insert<LowerMemrefToTensorOp>(typeConverter, context);
     target.addIllegalOp<tcp::TensorToMemrefOp>();
