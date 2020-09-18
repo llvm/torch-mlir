@@ -153,10 +153,13 @@ public:
 static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
                                          OpBuilder &builder, Location loc) {
   // TODO: Deduplicate strings.
+  std::string msgNulTerminated = msg.getValue().str();
+  msgNulTerminated.push_back('\0');
   auto arrayTy = LLVMType::getArrayTy(LLVMType::getInt8Ty(module.getContext()),
-                                      msg.getValue().size());
+                                      msgNulTerminated.size());
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(module.getBody());
+
   // To get a unique symbol name, use a suffix derived from the current number
   // of ops in the module.
   // We can't use the SymbolTable's logic for this because the module
@@ -166,9 +169,9 @@ static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
       (Twine("__npcomp_string_") +
        Twine(llvm::size(llvm::to_vector<6>(module.getOps<LLVM::GlobalOp>()))))
           .str();
-  auto globalOp =
-      builder.create<LLVM::GlobalOp>(loc, arrayTy, /*isConstant=*/true,
-                                     LLVM::Linkage::Internal, symbolName, msg);
+  auto globalOp = builder.create<LLVM::GlobalOp>(
+      loc, arrayTy, /*isConstant=*/true, LLVM::Linkage::Internal, symbolName,
+      builder.getStringAttr(msgNulTerminated));
   return globalOp;
 }
 

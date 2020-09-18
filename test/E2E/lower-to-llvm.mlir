@@ -211,7 +211,7 @@ func @inputs1results2(%arg0: !npcomprt.tensor) -> (!npcomprt.tensor, !npcomprt.t
 
 // Test emission of compiler runtime functions.
 
-// CHECK:         llvm.mlir.global internal constant @[[STRSYM:.*]]("msg")
+// CHECK:         llvm.mlir.global internal constant @[[STRSYM:.*]]("msg\00")
 // CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
@@ -219,9 +219,9 @@ func @inputs1results2(%arg0: !npcomprt.tensor) -> (!npcomprt.tensor, !npcomprt.t
 
 // CHECK-LABEL:   llvm.func @calls_abort_if(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.i1) {
-// CHECK:         %[[VAL_0:.*]] = llvm.mlir.addressof @[[STRSYM]] : !llvm.ptr<array<3 x i8>>
+// CHECK:         %[[VAL_0:.*]] = llvm.mlir.addressof @[[STRSYM]] : !llvm.ptr<array<4 x i8>>
 // CHECK:         %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
-// CHECK:         %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<3 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
+// CHECK:         %[[VAL_2:.*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<4 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
 // CHECK:         llvm.call @__npcomp_compiler_rt_abort_if(%[[VAL_3:.*]], %[[VAL_2]]) : (!llvm.i1, !llvm.ptr<i8>) -> ()
 // CHECK:         llvm.return
 
