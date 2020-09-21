@@ -242,7 +242,15 @@ namespace {
 // TODO: Don't hardcode the lowering for every op in this one pass.
 class LowerShapedResultsToMemref
     : public LowerShapedResultsToMemrefBase<LowerShapedResultsToMemref> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    // clang-format off
+    registry.insert<linalg::LinalgDialect,
+                    scf::SCFDialect,
+                    shape::ShapeDialect>();
+    // clang-format on
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 

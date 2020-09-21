@@ -177,7 +177,11 @@ namespace {
 // TODO: This should move to upstream ShapeToStandard conversions.
 class LowerShapeConstraints
     : public LowerShapeConstraintsBase<LowerShapeConstraints> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<scf::SCFDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 

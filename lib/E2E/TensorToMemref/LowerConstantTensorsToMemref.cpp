@@ -81,7 +81,11 @@ GlobalCreator::GlobalCreator(ModuleOp module) {
 namespace {
 class LowerConstantTensorsToMemref
     : public LowerConstantTensorsToMemrefBase<LowerConstantTensorsToMemref> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<tcp::TCPDialect>();
+  }
+
+  void runOnOperation () override {
     auto module = getOperation();
     GlobalCreator globals(module);
 
