@@ -87,7 +87,11 @@ public:
 namespace {
 // TODO: Upstream this.
 class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<tcp::TCPDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
 

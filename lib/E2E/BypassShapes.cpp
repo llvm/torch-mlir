@@ -45,7 +45,11 @@ namespace {
 // Any op that is wrapped in tcp.shaped_results here needs to be known how to be
 // lowered by LowerShapedResults.
 class BypassShapes : public BypassShapesBase<BypassShapes> {
-  void runOnOperation() {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<shape::ShapeDialect>();
+  }
+
+  void runOnOperation() override {
     auto func = getOperation();
     func.walk([&](Operation *opPtr) {
       Operation &op = *opPtr;
