@@ -132,48 +132,78 @@ public:
 };
 } // namespace
 
+static Value createLinalgBodyCalculationForBinaryElementwise(Operation *op,
+                                                             Value lhsBodyArg,
+                                                             Value rhsBodyArg,
+                                                             OpBuilder &builder,
+                                                             Location loc) {
+  if (isa<tcp::AddOp>(op))
+    return builder.create<AddFOp>(loc, lhsBodyArg, rhsBodyArg);
+
+  if (isa<tcp::MaxOp>(op)) {
+    auto greater =
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, lhsBodyArg, rhsBodyArg);
+    return builder.create<SelectOp>(loc, greater, lhsBodyArg, rhsBodyArg);
+  }
+
+  op->dump();
+  llvm::report_fatal_error(
+      "unhandled op (see dump above) when lowering binary elementwise ops");
+}
+
+static LogicalResult
+matchAndRewriteBinaryElementwiseOp(Operation *op, ArrayRef<Value> operands,
+                                   ConversionPatternRewriter &rewriter) {
+  Location loc = op->getLoc();
+  Value result = op->getResult(0);
+
+  auto resultsOrFailure = allocateResults(op, rewriter, loc);
+  if (failed(resultsOrFailure))
+    return failure();
+  auto results = *resultsOrFailure;
+
+  SmallVector<Value, 6> args;
+  args.append(operands.begin(), operands.end());
+  args.append(results.begin(), results.end());
+
+  size_t rank = result.getType().cast<RankedTensorType>().getRank();
+  SmallVector<StringRef, 6> iterators(rank, getParallelIteratorTypeName());
+  // TODO: Generalize this to other elementwise ops.
+  // All we need to do is to have a mapping of tcp.foo to scalar.foo.
+  // TODO: Should we just use linalg named ops for most of TCP?
+  // Doing so would make tcp very consistent, but also it would, at this early
+  // stage, make most non-trivial changes also require co-design with the
+  // linalg ODS generator, which would be a very slow process.
+  auto argsIn = operands.size();
+  auto argsOut = results.size();
+  SmallVector<AffineMap, 3> accesses(argsIn + argsOut,
+                                     rewriter.getMultiDimIdentityMap(rank));
+  rewriter.create<linalg::GenericOp>(
+      loc, /*resultTypes=*/llvm::None,
+      /*args=*/args,
+      /*args_in=*/argsIn,
+      /*args_out=*/argsOut,
+      /*indexing_maps=*/accesses,
+      /*iterator_types=*/iterators,
+      /*bodyBuilder=*/
+      [&](OpBuilder &builder, Location loc, ValueRange regionArgs) {
+        auto scalarResult = createLinalgBodyCalculationForBinaryElementwise(
+            op, regionArgs[0], regionArgs[1], builder, loc);
+        builder.create<linalg::YieldOp>(loc, ValueRange({scalarResult}));
+      });
+  rewriter.replaceOp(op, results);
+  return success();
+}
+
 namespace {
-class LowerTcpAddOp : public OpConversionPattern<tcp::AddOp> {
+template <typename SourceOp>
+class LowerBinaryElementwiseOp : public OpConversionPattern<SourceOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<SourceOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tcp::AddOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
-    if (failed(resultsOrFailure))
-      return failure();
-    auto results = *resultsOrFailure;
-
-    SmallVector<Value, 6> args;
-    args.append(operands.begin(), operands.end());
-    args.append(results.begin(), results.end());
-
-    size_t rank = op.getType().cast<RankedTensorType>().getRank();
-    SmallVector<StringRef, 6> iterators(rank, getParallelIteratorTypeName());
-    // TODO: Generalize this to other elementwise ops.
-    // All we need to do is to have a mapping of tcp.foo to scalar.foo.
-    // TODO: Should we just use linalg named ops for most of TCP?
-    // Doing so would make tcp very consistent, but also it would, at this early
-    // stage, make most non-trivial changes also require co-design with the
-    // linalg ODS generator, which would be a very slow process.
-    auto argsIn = operands.size();
-    auto argsOut = results.size();
-    SmallVector<AffineMap, 3> accesses(argsIn + argsOut,
-                                       rewriter.getMultiDimIdentityMap(rank));
-    rewriter.create<linalg::GenericOp>(
-        op.getLoc(), /*resultTypes=*/llvm::None,
-        /*args=*/args,
-        /*args_in=*/argsIn,
-        /*args_out=*/argsOut,
-        /*indexing_maps=*/accesses,
-        /*iterator_types=*/iterators,
-        /*bodyBuilder=*/
-        [](OpBuilder &builder, Location loc, ValueRange regionArgs) {
-          auto add = builder.create<AddFOp>(loc, regionArgs[0], regionArgs[1]);
-          builder.create<linalg::YieldOp>(loc, ValueRange({add}));
-        });
-    rewriter.replaceOp(op, results);
-    return success();
+    return matchAndRewriteBinaryElementwiseOp(op, operands, rewriter);
   }
 };
 } // namespace
@@ -284,8 +314,10 @@ class LowerShapedResultsToMemref
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<LowerTcpAddOp>(typeConverter, context);
-    target.addIllegalOp<tcp::AddOp>();
+    patterns.insert<LowerBinaryElementwiseOp<tcp::AddOp>,
+                    LowerBinaryElementwiseOp<tcp::MaxOp>>(typeConverter,
+                                                          context);
+    target.addIllegalOp<tcp::AddOp, tcp::MaxOp>();
     patterns.insert<LowerTcpMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
 

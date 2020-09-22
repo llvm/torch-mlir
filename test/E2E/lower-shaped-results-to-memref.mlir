@@ -41,6 +41,22 @@ func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 }
 
 // -----
+// Check just the linalg body. The code is otherwise shared with tcp.add.
+// CHECK-LABEL: func @tcp_max
+// CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %[[DST:.*]]: f32):
+// CHECK:             %[[GREATER:.*]] = cmpf "ogt", %[[LHS]], %[[RHS]] : f32
+// CHECK:             %[[MAX:.*]] = select %[[GREATER]], %[[LHS]], %[[RHS]] : f32
+// CHECK:             linalg.yield %[[MAX]] : f32
+func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
+  %0 = shape.shape_of %arg0 : tensor<?xf32> -> tensor<?xindex>
+  %1 = tcp.shaped_results %0 {
+    %2 = tcp.max %arg0, %arg1 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+    tcp.yield %2 : tensor<?xf32>
+  } : tensor<?xindex> -> tensor<?xf32>
+  return %1 : tensor<?xf32>
+}
+
+// -----
 
 // CHECK-LABEL:   func @tcp_matmul(
 // CHECK-SAME:                     %arg0: tensor<?x?xf32>,

@@ -20,57 +20,75 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-namespace {
-
-RankedTensorType getExtentTensorType(Builder &builder) {
+static RankedTensorType getExtentTensorType(Builder &builder) {
   return RankedTensorType::get({ShapedType::kDynamicSize},
                                builder.getIndexType());
 }
 
-class ConvertAdd : public OpRewritePattern<tcf::AddOp> {
+// Non-templated version of the body of ConvertBinaryElementwise to keep things
+// simple.
+static LogicalResult
+matchAndRewriteBinaryElementwise(Operation *op, PatternRewriter &rewriter) {
+  Value lhs = op->getOperand(0);
+  Value rhs = op->getOperand(1);
+  Location loc = op->getLoc();
+  Value result = op->getResult(0);
+
+  auto lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+  auto rhsType = rhs.getType().dyn_cast<RankedTensorType>();
+  if (!lhsType || !rhsType)
+    return rewriter.notifyMatchFailure(op, "requires ranked tensors");
+
+  Value lhsShape = rewriter.create<shape::ShapeOfOp>(loc, lhs);
+  Value rhsShape = rewriter.create<shape::ShapeOfOp>(loc, rhs);
+
+  // Create the constraints, and the assuming region.
+  Value witness =
+      rewriter.create<shape::CstrBroadcastableOp>(loc, lhsShape, rhsShape);
+  auto assuming = rewriter.create<shape::AssumingOp>(
+      loc, ArrayRef<Type>{result.getType()}, witness);
+
+  // Start building the region body.
+  rewriter.createBlock(&assuming.doRegion());
+  Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
+      loc, getExtentTensorType(rewriter), lhsShape, rhsShape,
+      /*error=*/nullptr);
+
+  // TODO: It's annoying to do the dynamic broadcast above then
+  // do the static transfer function here. Would be nice if they could
+  // somehow be unified.
+  SmallVector<int64_t, 6> broadcastedStaticShape;
+  OpTrait::util::getBroadcastedShape(lhsType.getShape(), rhsType.getShape(),
+                                     broadcastedStaticShape);
+  auto resultType =
+      RankedTensorType::get(broadcastedStaticShape, lhsType.getElementType());
+  Value lhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
+      loc, resultType, lhs, broadcastedShape);
+  Value rhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
+      loc, resultType, rhs, broadcastedShape);
+  Value binaryOpResult;
+  if (isa<tcf::AddOp>(op)) {
+    binaryOpResult = rewriter.create<tcp::AddOp>(
+        loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+  } else if (isa<tcf::MaxOp>(op)) {
+    binaryOpResult = rewriter.create<tcp::MaxOp>(
+        loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+  }
+  rewriter.create<shape::AssumingYieldOp>(loc, binaryOpResult);
+
+  // Finally, replace with the results of the shape.assuming
+  rewriter.replaceOp(op, assuming.getResults());
+  return success();
+}
+
+namespace {
+template <typename SourceOp>
+class ConvertBinaryElementwise : public OpRewritePattern<SourceOp> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(tcf::AddOp op,
+  using OpRewritePattern<SourceOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(SourceOp op,
                                 PatternRewriter &rewriter) const override {
-    auto lhsType = op.lhs().getType().dyn_cast<RankedTensorType>();
-    auto rhsType = op.rhs().getType().dyn_cast<RankedTensorType>();
-    if (!lhsType || !rhsType) {
-      return rewriter.notifyMatchFailure(op, "requires ranked tensors");
-    }
-    Value lhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.lhs());
-    Value rhsShape = rewriter.create<shape::ShapeOfOp>(op.getLoc(), op.rhs());
-
-    // Create the constraints, and the assuming region.
-    Value witness = rewriter.create<shape::CstrBroadcastableOp>(
-        op.getLoc(), lhsShape, rhsShape);
-    auto assuming = rewriter.create<shape::AssumingOp>(
-        op.getLoc(), ArrayRef<Type>{op.getType()}, witness);
-
-    // Start building the region body.
-    rewriter.createBlock(&assuming.doRegion());
-    Value broadcastedShape = rewriter.create<shape::BroadcastOp>(
-        op.getLoc(), getExtentTensorType(rewriter), lhsShape, rhsShape,
-        /*error=*/nullptr);
-
-    // TODO: It's annoying to do the dynamic broadcast above then
-    // do the static transfer function here. Would be nice if they could
-    // somehow be unified.
-    SmallVector<int64_t, 6> broadcastedStaticShape;
-    OpTrait::util::getBroadcastedShape(lhsType.getShape(), rhsType.getShape(),
-                                       broadcastedStaticShape);
-    auto resultType =
-        RankedTensorType::get(broadcastedStaticShape, lhsType.getElementType());
-    Value lhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.lhs(), broadcastedShape);
-    Value rhsBroadcasted = rewriter.create<tcp::BroadcastToOp>(
-        op.getLoc(), resultType, op.rhs(), broadcastedShape);
-    Value add = rewriter.create<tcp::AddOp>(op.getLoc(), op.getType(),
-                                            lhsBroadcasted, rhsBroadcasted);
-    rewriter.create<shape::AssumingYieldOp>(op.getLoc(), add);
-
-    // Finally, replace with the results of the shape.assuming
-    rewriter.replaceOp(op, assuming.getResults());
-    return success();
+    return matchAndRewriteBinaryElementwise(op, rewriter);
   }
 };
 } // namespace
@@ -116,7 +134,8 @@ public:
     MLIRContext *context = &getContext();
 
     OwningRewritePatternList patterns;
-    patterns.insert<ConvertAdd>(context);
+    patterns.insert<ConvertBinaryElementwise<tcf::AddOp>,
+                    ConvertBinaryElementwise<tcf::MaxOp>>(context);
     patterns.insert<ConvertMatmul>(context);
     (void)applyPatternsAndFoldGreedily(module, patterns);
   }

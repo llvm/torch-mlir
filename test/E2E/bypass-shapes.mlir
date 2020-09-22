@@ -19,6 +19,18 @@ func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
   return %0 : tensor<?xf32>
 }
 
+// TODO: Don't create too many duplicate tests for binary elementwise ops.
+// CHECK-LABEL:   func @tcp_max(
+// CHECK-SAME:                  %[[LHS:.*]]: tensor<?xf32>,
+// CHECK-SAME:                  %[[RHS:.*]]: tensor<?xf32>) -> tensor<?xf32> {
+// CHECK:           %[[LHSSHAPE:.*]] = shape.shape_of %[[LHS]]
+// CHECK:           %[[RET:.*]] = tcp.shaped_results %[[LHSSHAPE]]
+// CHECK:           return %[[RET:.*]] : tensor<?xf32>
+// CHECK:         }
+func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
+  %0 = tcp.max %arg0, %arg1 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+  return %0 : tensor<?xf32>
+}
 
 // CHECK-LABEL:   func @tcp_matmul(
 // CHECK-SAME:                 %[[LHS:.*]]: tensor<?x?xf32>,
