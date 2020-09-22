@@ -18,17 +18,29 @@ class TCF_Op<string mnemonic, list<OpTrait> traits = []>
 // TODO: investigate effects framework for defining error semantics
 // TODO: define in a general way across the dialect what "encounters an error" means.
 
-// TODO: verify same dtype?
-// TODO: what are the allowable dtypes?
-def TCF_AddOp : TCF_Op<"add"> {
-  let summary = "Add two tensors.";
-  let description = [{
-Add two tensors.
-  }];
+class BinaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
+  TCF_Op<mnemonic, traits> {
   let arguments = (ins AnyTensor:$lhs, AnyTensor:$rhs);
   let results = (outs AnyTensor:$result);
-
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
+}
+
+def TCF_AddOp : BinaryArithmeticOp<"add"> {
+  let summary = "Addition of two tensors.";
+  let description = [{
+    Addition of two tensors.
+
+    Numpy-style broadcasting is allowed.
+  }];
+}
+
+def TCF_MaxOp : BinaryArithmeticOp<"max"> {
+  let summary = "Maximum of two tensors.";
+  let description = [{
+    Maximum of two tensors.
+
+    Numpy-style broadcasting is allowed.
+  }];
 }
 
 // TODO: Generalize this op appropriately and add more verification.

@@ -21,16 +21,25 @@ class TCP_Op<string mnemonic, list<OpTrait> traits = []>
 }
 
 // TODO: Clarify allowed tensor element types.
-def TCP_AddOp
-    : TCP_Op<"add", []> {
-  let summary = "Adds two tensors.";
-  let description = [{
-Adds two tensors.
-  }];
+class BinaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
+  TCP_Op<mnemonic, traits> {
   let arguments = (ins AnyRankedTensor:$lhs, AnyRankedTensor:$rhs);
   let results = (outs AnyRankedTensor:$result);
-
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
+}
+
+def TCP_AddOp : BinaryArithmeticOp<"add"> {
+  let summary = "Addition of two tensors";
+  let description = [{
+    Addition of two tensors.
+  }];
+}
+
+def TCP_MaxOp : BinaryArithmeticOp<"max"> {
+  let summary = "Maximum of two tensors";
+  let description = [{
+    Maximum of two tensors.
+  }];
 }
 
 // TODO: Generalize this op appropriately and add more verification.
