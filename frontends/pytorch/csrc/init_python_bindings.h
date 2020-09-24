@@ -19,6 +19,10 @@ void InitBindings(pybind11::module &m);
 // Only defined if NPCOMP_ENABLE_TORCH_TYPE_DISPATCH (optional feature).
 void InitTypeDispatchBindings(pybind11::module &m);
 
+// Adds bindings related to the c10-dispatch program capture mechanism.
+// Only defined if !NPCOMP_ENABLE_TORCH_TYPE_DISPATCH (default).
+void InitC10DispatchBindings(pybind11::module &m);
+
 } // namespace torch_mlir
 
 #endif

@@ -13,6 +13,10 @@ if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
   list(APPEND torch_mlir_optional_libraries
     npcomp_torch_type_dispatch_bindings
     )
+else()
+  list(APPEND torch_mlir_optional_libraries
+    npcomp_torch_c10_dispatch_bindings
+  )
 endif()
 
 add_library(_torch_mlir SHARED
@@ -31,4 +35,6 @@ target_link_libraries(_torch_mlir
 
 if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
   add_subdirectory(type_dispatch)
+else()
+  add_subdirectory(c10_dispatch)
 endif()
