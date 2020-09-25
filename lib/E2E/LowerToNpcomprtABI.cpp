@@ -181,7 +181,6 @@ public:
   LogicalResult
   matchAndRewrite(ReturnOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    op.getParentOfType<FuncOp>().dump();
     rewriter.replaceOpWithNewOp<ReturnOp>(op, operands);
     return success();
   }
