@@ -184,12 +184,9 @@ matchAndRewriteElementwiseOp(Operation *op, ArrayRef<Value> operands,
   SmallVector<AffineMap, 3> accesses(argsIn + argsOut,
                                      rewriter.getMultiDimIdentityMap(rank));
   rewriter.create<linalg::GenericOp>(
-      loc, /*resultTypes=*/llvm::None,
-      /*args=*/args,
-      /*args_in=*/argsIn,
-      /*args_out=*/argsOut,
-      /*indexing_maps=*/accesses,
-      /*iterator_types=*/iterators,
+      loc, /*inputs=*/operands, /*outputBuffers=*/results,
+      /*indexingMaps=*/accesses,
+      /*iteratorTypes=*/iterators,
       /*bodyBuilder=*/
       [&](OpBuilder &builder, Location loc, ValueRange regionArgs) {
         auto scalarResult = createLinalgBodyCalculationForElementwiseOp(

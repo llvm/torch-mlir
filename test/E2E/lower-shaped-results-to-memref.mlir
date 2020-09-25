@@ -23,11 +23,11 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
 // CHECK:           %[[LHS:.*]] = tcp.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
 // CHECK:           %[[RHS:.*]] = tcp.tensor_to_memref %arg1 : tensor<?xf32> -> memref<?xf32>
 // CHECK:           %[[RESULT:.*]] = tcp.alloc_memref %[[LHSSHAPE]] : memref<?xf32>
-// CHECK:           linalg.generic {args_in = 2 : i64, args_out = 1 : i64, {{.*}}} %[[LHS]], %[[RHS]], %[[RESULT]] {
+// CHECK:           linalg.generic {{.*}} ins(%[[LHS]], %[[RHS]] {{.*}}) outs(%[[RESULT]] {{.*}}) {
 // CHECK:           ^bb0(%[[VAL_6:.*]]: f32, %[[VAL_7:.*]]: f32, %[[VAL_8:.*]]: f32):
 // CHECK:             %[[VAL_9:.*]] = addf %[[VAL_6]], %[[VAL_7]] : f32
 // CHECK:             linalg.yield %[[VAL_9]] : f32
-// CHECK:           }: memref<?xf32>, memref<?xf32>, memref<?xf32>
+// CHECK:           }
 // CHECK:           %[[RET:.*]] = tcp.memref_to_tensor %[[RESULT]] : memref<?xf32> -> tensor<?xf32>
 // CHECK:           return %[[RET]] : tensor<?xf32>
 // CHECK:         }
