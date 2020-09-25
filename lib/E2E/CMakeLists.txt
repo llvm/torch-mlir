@@ -1,7 +1,6 @@
 add_mlir_library(NPCOMPE2E
   BypassShapes.cpp
   E2E.cpp
-  LowerShapeConstraints.cpp
   LowerToLLVM.cpp
   LowerToNpcomprtABI.cpp
   TensorToMemref/LowerConstantTensorsToMemref.cpp

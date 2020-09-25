@@ -108,6 +108,58 @@ mlir::NPCOMP::createLowerAllocMemRefOpsPass() {
 }
 
 //===----------------------------------------------------------------------===//
+// RestrictedCanonicalizer
+//===----------------------------------------------------------------------===//
+
+
+namespace {
+struct RestrictedCanonicalizer
+    : public RestrictedCanonicalizerBase<RestrictedCanonicalizer> {
+  void runOnOperation() override {
+    auto *context = &getContext();
+
+    // Find the dialects from their names.
+    DenseSet<StringRef> neededDialects;
+    for (const std::string &dialectName : includedDialects)
+      neededDialects.insert(dialectName);
+    DenseSet<Dialect *> dialectsToCanonicalize;
+    for (Dialect *dialect : context->getLoadedDialects()) {
+      if (neededDialects.count(dialect->getNamespace())) {
+        dialectsToCanonicalize.insert(dialect);
+        // Erase the dialect so that we can report an error below for any
+        // dialect names that are not loaded.
+        neededDialects.erase(dialect->getNamespace());
+      }
+    }
+
+    // Report a helpful error if a dialect is not found.
+    auto missingDialects = llvm::to_vector<6>(neededDialects);
+    if (!missingDialects.empty()) {
+      llvm::sort(missingDialects);
+      std::string buf;
+      llvm::raw_string_ostream os(buf);
+      llvm::interleaveComma(missingDialects, os);
+      llvm::report_fatal_error("restricted-canonicalize: unknown dialects: " +
+                               os.str());
+    }
+
+    // Collect all canonicalization patterns from ops in the included dialects.
+    OwningRewritePatternList patterns;
+    for (AbstractOperation *op : context->getRegisteredOperations())
+      if (dialectsToCanonicalize.count(&op->dialect))
+        op->getCanonicalizationPatterns(patterns, context);
+
+    Operation *op = getOperation();
+    applyPatternsAndFoldGreedily(op->getRegions(), patterns);
+  }
+};
+} // end anonymous namespace
+
+std::unique_ptr<Pass> mlir::NPCOMP::createRestrictedCanonicalizerPass() {
+  return std::make_unique<RestrictedCanonicalizer>();
+}
+
+//===----------------------------------------------------------------------===//
 // createE2ELoweringPipeline
 //===----------------------------------------------------------------------===//
 
@@ -148,9 +200,19 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   pm.addPass(createBypassShapesPass());
 
   // Lower shape constraints before we enter tensor->memref conversion.
-  // That is, we expand witnesses + shape.assuming + shape.cstr_* ops to
-  // eager error handling code that doesn't have witnesses or shape.assuming.
-  pm.addPass(createLowerShapeConstraintsPass());
+  // That is, we expand shape.cstr_* ops to eager error handling code.
+  pm.addPass(createConvertShapeConstraintsPass());
+  // Run shape canonicalizations. In particular, this erases shape.assuming,
+  // now that we have converted shape constraints.
+  // TODO: This is kind of ugly. Either we use pass options or a constructor
+  // that takes C++ data structures. The former makes the pass usable on the
+  // command line (including reproducers), the latter makes the pass more
+  // convenient.
+  std::unique_ptr<Pass> shapeCanonicalizer =
+      createRestrictedCanonicalizerPass();
+  if (failed(shapeCanonicalizer->initializeOptions("included-dialects=shape")))
+    llvm::report_fatal_error("couldn't initialize restricted-canonicalize");
+  pm.addPass(std::move(shapeCanonicalizer));
 
   // --------------------------------------------------------------------------
   // Lower the `tensor` type to `memref`.
