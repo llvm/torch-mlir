@@ -173,6 +173,36 @@ ninja check-npcomp
 ninja check-frontends-pytorch
 ```
 
-### PyTorch 1.7+ - Graph API <-> MLIR
+### PyTorch 1.6+ - Graph API <-> MLIR
 
-TODO
+Note: This variant is not yet complete in any useful way.
+
+Create docker image (or follow your own preferences):
+
+* Map the source directory to `/npcomp`
+* Map the `/build` directory appropriately for your case.
+
+```shell
+BUILD_IMAGE_TAG="local/npcomp:build-pytorch-1.6"
+docker build docker/pytorch-1.6 --tag $BUILD_IMAGE_TAG
+docker volume create npcomp-pytorch-1.6-build
+```
+
+Shell into docker image:
+
+```shell
+docker run \
+  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/npcomp,readonly \
+  --mount source=npcomp-pytorch-1.6-build,target=/build \
+  --rm -it $BUILD_IMAGE_TAG /bin/bash
+```
+
+Build/test npcomp (from within docker image):
+
+```shell
+# From within the docker image.
+cd /npcomp
+./build_tools/install_mlir.sh
+./build_tools/cmake_configure.sh
+cmake --build /build --target check-npcomp check-frontends-pytorch
+```
