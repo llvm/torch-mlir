@@ -29,13 +29,6 @@ OpFoldResult TensorToMemrefOp::fold(ArrayRef<Attribute> operands) {
 // ShapedResultsOp
 //===----------------------------------------------------------------------===//
 
-void ShapedResultsOp::build(OpBuilder &builder, OperationState &result,
-                            TypeRange resultTypes, ValueRange resultShapes) {
-  result.addOperands(resultShapes);
-  result.addTypes(resultTypes);
-  (void)result.addRegion();
-}
-
 static LogicalResult verifyShapedResultsOp(ShapedResultsOp op) {
   if (op.getNumOperands() != op.getNumResults())
     return op.emitError() << "number of operands must equal number of results";

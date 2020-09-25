@@ -216,12 +216,6 @@ def TCP_ShapedResultsOp : TCP_Op<"shaped_results", [
   let results = (outs Variadic<AnyTensor>:$results);
   let regions = (region SizedRegion<1>:$body);
 
-  let builders = [
-    OpBuilder<
-        "OpBuilder &builder, OperationState &result, TypeRange resultTypes, "
-        "ValueRange resultShapes">
-  ];
-
   let printer = [{ return ::print$cppClass(p, *this); }];
   let verifier = [{ return ::verify$cppClass(*this); }];
   let parser = [{ return ::parse$cppClass(parser, result); }];
