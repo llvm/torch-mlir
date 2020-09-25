@@ -42,6 +42,29 @@ def TCP_MaxOp : BinaryArithmeticOp<"max"> {
   }];
 }
 
+class UnaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
+  TCP_Op<mnemonic,
+        !listconcat(traits, [AllTypesMatch<["operand", "result"]>])>,
+  AllTypesMatch<["operand", "result"]> {
+  let arguments = (ins AnyTensor:$operand);
+  let results = (outs AnyTensor:$result);
+  let assemblyFormat = "$operand attr-dict `:` type($operand)";
+}
+
+def TCP_ExpOp : UnaryArithmeticOp<"exp"> {
+  let summary = "base-e exponential";
+  let description = [{
+    See std.exp for more details.
+  }];
+}
+
+def TCP_TanhOp : UnaryArithmeticOp<"tanh"> {
+  let summary = "hyperbolic tangent";
+  let description = [{
+    See std.tanh for more details.
+  }];
+}
+
 // TODO: Generalize this op appropriately and add more verification.
 // For example, should we have a single primitive that does multidimensional
 // contractions? + batching as well in the same op? In fact, if we want to
