@@ -132,27 +132,32 @@ public:
 };
 } // namespace
 
-static Value createLinalgBodyCalculationForBinaryElementwise(Operation *op,
-                                                             Value lhsBodyArg,
-                                                             Value rhsBodyArg,
-                                                             OpBuilder &builder,
-                                                             Location loc) {
+static Value createLinalgBodyCalculationForElementwiseOp(Operation *op,
+                                                         ValueRange bodyArgs,
+                                                         OpBuilder &builder,
+                                                         Location loc) {
   if (isa<tcp::AddOp>(op))
-    return builder.create<AddFOp>(loc, lhsBodyArg, rhsBodyArg);
+    return builder.create<AddFOp>(loc, bodyArgs[0], bodyArgs[1]);
 
   if (isa<tcp::MaxOp>(op)) {
     auto greater =
-        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, lhsBodyArg, rhsBodyArg);
-    return builder.create<SelectOp>(loc, greater, lhsBodyArg, rhsBodyArg);
+        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, bodyArgs[0], bodyArgs[1]);
+    return builder.create<SelectOp>(loc, greater, bodyArgs[0], bodyArgs[1]);
   }
 
+  if (isa<tcp::ExpOp>(op))
+    return builder.create<ExpOp>(loc, bodyArgs[0]);
+
+  if (isa<tcp::TanhOp>(op))
+    return builder.create<TanhOp>(loc, bodyArgs[0]);
+
   op->dump();
-  llvm::report_fatal_error(
-      "unhandled op (see dump above) when lowering binary elementwise ops");
+  llvm::report_fatal_error("unhandled op (see dump above): linalg body "
+                           "calculation for elementwise op");
 }
 
 static LogicalResult
-matchAndRewriteBinaryElementwiseOp(Operation *op, ArrayRef<Value> operands,
+matchAndRewriteElementwiseOp(Operation *op, ArrayRef<Value> operands,
                                    ConversionPatternRewriter &rewriter) {
   Location loc = op->getLoc();
   Value result = op->getResult(0);
@@ -187,8 +192,8 @@ matchAndRewriteBinaryElementwiseOp(Operation *op, ArrayRef<Value> operands,
       /*iterator_types=*/iterators,
       /*bodyBuilder=*/
       [&](OpBuilder &builder, Location loc, ValueRange regionArgs) {
-        auto scalarResult = createLinalgBodyCalculationForBinaryElementwise(
-            op, regionArgs[0], regionArgs[1], builder, loc);
+        auto scalarResult = createLinalgBodyCalculationForElementwiseOp(
+            op, regionArgs, builder, loc);
         builder.create<linalg::YieldOp>(loc, ValueRange({scalarResult}));
       });
   rewriter.replaceOp(op, results);
@@ -197,13 +202,13 @@ matchAndRewriteBinaryElementwiseOp(Operation *op, ArrayRef<Value> operands,
 
 namespace {
 template <typename SourceOp>
-class LowerBinaryElementwiseOp : public OpConversionPattern<SourceOp> {
+class LowerElementwiseOp : public OpConversionPattern<SourceOp> {
 public:
   using OpConversionPattern<SourceOp>::OpConversionPattern;
   LogicalResult
   matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return matchAndRewriteBinaryElementwiseOp(op, operands, rewriter);
+    return matchAndRewriteElementwiseOp(op, operands, rewriter);
   }
 };
 } // namespace
@@ -322,9 +327,10 @@ class LowerShapedResultsToMemref
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<LowerBinaryElementwiseOp<tcp::AddOp>,
-                    LowerBinaryElementwiseOp<tcp::MaxOp>>(typeConverter,
-                                                          context);
+    patterns
+        .insert<LowerElementwiseOp<tcp::AddOp>, LowerElementwiseOp<tcp::MaxOp>,
+                LowerElementwiseOp<tcp::ExpOp>,
+                LowerElementwiseOp<tcp::TanhOp>>(typeConverter, context);
     target.addIllegalOp<tcp::AddOp, tcp::MaxOp>();
     patterns.insert<LowerTcpMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();

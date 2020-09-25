@@ -24,8 +24,8 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
     return {broadcastTo.shape()};
   }
 
-  // Binary elementwise ops.
-  if (isa<tcp::AddOp, tcp::MaxOp>(op)) {
+  // Elementwise ops.
+  if (isa<tcp::AddOp, tcp::MaxOp, tcp::ExpOp, tcp::TanhOp>(op)) {
     return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
   }
 

@@ -73,6 +73,10 @@ matchAndRewriteBinaryElementwise(Operation *op, PatternRewriter &rewriter) {
   } else if (isa<tcf::MaxOp>(op)) {
     binaryOpResult = rewriter.create<tcp::MaxOp>(
         loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+  } else {
+    op->dump();
+    llvm::report_fatal_error(
+        "unhandled op (see dump above): TCF->TCP binary elementwise");
   }
   rewriter.create<shape::AssumingYieldOp>(loc, binaryOpResult);
 
@@ -89,6 +93,33 @@ public:
   LogicalResult matchAndRewrite(SourceOp op,
                                 PatternRewriter &rewriter) const override {
     return matchAndRewriteBinaryElementwise(op, rewriter);
+  }
+};
+} // namespace
+
+static LogicalResult
+matchAndRewriteUnaryElementwise(Operation *op, PatternRewriter &rewriter) {
+  if (isa<tcf::ExpOp>(op)) {
+    rewriter.replaceOpWithNewOp<tcp::ExpOp>(op, op->getOperand(0));
+  } else if (isa<tcf::TanhOp>(op)) {
+    rewriter.replaceOpWithNewOp<tcp::TanhOp>(op, op->getOperand(0));
+  } else {
+    op->dump();
+    llvm::report_fatal_error(
+        "unhandled op (see dump above): TCF->TCP unary elementwise");
+  }
+  return success();
+
+}
+
+namespace {
+template <typename SourceOp>
+class ConvertUnaryElementwise : public OpRewritePattern<SourceOp> {
+public:
+  using OpRewritePattern<SourceOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(SourceOp op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteUnaryElementwise(op, rewriter);
   }
 };
 } // namespace
@@ -134,6 +165,8 @@ public:
     MLIRContext *context = &getContext();
 
     OwningRewritePatternList patterns;
+    patterns.insert<ConvertUnaryElementwise<tcf::ExpOp>,
+                    ConvertUnaryElementwise<tcf::TanhOp>>(context);
     patterns.insert<ConvertBinaryElementwise<tcf::AddOp>,
                     ConvertBinaryElementwise<tcf::MaxOp>>(context);
     patterns.insert<ConvertMatmul>(context);

@@ -43,6 +43,29 @@ def TCF_MaxOp : BinaryArithmeticOp<"max"> {
   }];
 }
 
+class UnaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
+  TCF_Op<mnemonic,
+        !listconcat(traits, [AllTypesMatch<["operand", "result"]>])>,
+  AllTypesMatch<["operand", "result"]> {
+  let arguments = (ins AnyTensor:$operand);
+  let results = (outs AnyTensor:$result);
+  let assemblyFormat = "$operand attr-dict `:` type($operand)";
+}
+
+def TCF_ExpOp : UnaryArithmeticOp<"exp"> {
+  let summary = "base-e exponential";
+  let description = [{
+    See std.exp for more details.
+  }];
+}
+
+def TCF_TanhOp : UnaryArithmeticOp<"tanh"> {
+  let summary = "hyperbolic tangent";
+  let description = [{
+    See std.tanh for more details.
+  }];
+}
+
 // TODO: Generalize this op appropriately and add more verification.
 // For example, an unranked operand probably should be allowed and verified
 // dynamically in TCF->TCP lowering if needed.

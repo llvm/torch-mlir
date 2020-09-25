@@ -1,5 +1,15 @@
 // RUN: npcomp-opt <%s -convert-tcf-to-tcp | FileCheck %s --dump-input=fail
 
+// CHECK-LABEL:   func @unary_ops(
+// CHECK-SAME:                    %[[ARG:.*]]: tensor<?xf32>) -> tensor<?xf32> {
+// CHECK:           %[[RET:.*]] = tcp.exp %[[ARG]] : tensor<?xf32>
+// CHECK:           return %[[RET]] : tensor<?xf32>
+// CHECK:         }
+func @unary_ops(%arg0: tensor<?xf32>) -> tensor<?xf32> {
+  %0 = tcf.exp %arg0 : tensor<?xf32>
+  return %0 : tensor<?xf32>
+}
+
 // CHECK-LABEL:   func @tcf_add(
 // CHECK-SAME:            %[[LHS:.*]]: tensor<?xf32>,
 // CHECK-SAME:            %[[RHS:.*]]: tensor<?xf32>) -> tensor<?xf32> {

@@ -12,6 +12,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
@@ -706,6 +707,10 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     populateStdToLLVMConversionPatterns(converter, patterns);
     patterns.insert<LowerModuleMetadata>(context);
     patterns.insert<LowerNpcomprtGlobalOp>(converter);
+
+    // TODO: Move these "std to std" legalizations to their own pass if we grow
+    // lots of these patterns.
+    populateExpandTanhPattern(patterns, context);
 
     if (failed(applyFullConversion(module, target, patterns))) {
       return signalPassFailure();
