@@ -25,8 +25,6 @@ void registerE2EPasses();
 
 std::unique_ptr<OperationPass<FuncOp>> createBypassShapesPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createLowerShapeConstraintsPass();
-
 std::unique_ptr<OperationPass<FuncOp>> createLowerShapedResultsToMemrefPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerStdToMemrefPass();
@@ -41,6 +39,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createLowerToNpcomprtABIPass();
 std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
+
+std::unique_ptr<Pass> createRestrictedCanonicalizerPass();
 
 struct E2ELoweringPipelineOptions
     : public PassPipelineOptions<E2ELoweringPipelineOptions> {

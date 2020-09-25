@@ -16,11 +16,6 @@ def BypassShapes : Pass<"bypass-shapes", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createBypassShapesPass()";
 }
 
-def LowerShapeConstraints : Pass<"lower-shape-constraints", "FuncOp"> {
-  let summary = "Lower shape dialect constructs related to constraints";
-  let constructor = "mlir::NPCOMP::createLowerShapeConstraintsPass()";
-}
-
 def LowerShapedResultsToMemref : Pass<"lower-shaped-results-to-memref", "FuncOp"> {
   let summary = "Lower tcp.shaped_results regions";
   let constructor = "mlir::NPCOMP::createLowerShapedResultsToMemrefPass()";
@@ -81,6 +76,35 @@ def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {
 def LowerToLLVM : Pass<"e2e-lower-to-llvm", "ModuleOp"> {
   let summary = "Lower everything to LLVM";
   let constructor = "mlir::NPCOMP::createLowerToLLVMPass();";
+}
+
+// TODO: Move this pass to upstream.
+// TODO: This pass will still do "folding" on all ops.
+// The applyPatternsAndFoldGreedily driver will need to be changed to restrict
+// folding to the specified dialects as well.
+// Perhaps a better design is having a pass that uses the conversion framework.
+// The the pass constructor would take a set of op names, and it would
+// set up a conversion target that makes all those ops illegal, and uses
+// the canonicalization patterns from those ops to legalize them.
+def RestrictedCanonicalizer : Pass<"restricted-canonicalize"> {
+  let summary = "Canonicalize operations";
+  let description = [{
+    This pass is the same as the regular `canonicalize` pass, but it only
+    applies a restricted set of patterns.
+
+    This is useful when a particular canonicalization is actually needed for
+    correctness of a lowering flow. For such cases, running a restricted set of
+    canonicalizations makes it clearer which passes are needed for correctness
+    and which passes are "just optimizations". This helps when debugging
+    miscompiles and other situations where the compiler is not behaving as
+    expected.
+  }];
+  let constructor = "mlir::NPCOMP::createRestrictedCanonicalizerPass()";
+  let options = [
+    ListOption<"includedDialects", "included-dialects", "std::string",
+               "Which dialects should be canonicalized",
+               "llvm::cl::MiscFlags::CommaSeparated">
+  ];
 }
 
 #endif // NPCOMP_E2E_PASSES
