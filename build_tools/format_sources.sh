@@ -14,7 +14,7 @@ set -o xtrace
 clang-format -i \
   $(find_cc_sources include) \
   $(find_cc_sources lib) \
-  $(find_cc_sources python_native)
+  $(find_cc_sources frontends/pytorch/csrc)
 
 # Python sources.
 yapf --recursive -i "$td/python" "$td/pytest"

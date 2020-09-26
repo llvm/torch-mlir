@@ -5,12 +5,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../init_python_bindings.h"
-
-#include <pybind11/pybind11.h>
-
 #include <ATen/core/dispatch/Dispatcher.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
+#include "../init_python_bindings.h"
+#include "acap_dispatch.h"
+
+using namespace torch_mlir;
 namespace py = pybind11;
 
 namespace {
@@ -123,6 +125,12 @@ py::list GetRegisteredOps() {
 }
 
 void InitModuleBindings(py::module &m) {
+  py::class_<AcapController, std::shared_ptr<AcapController>>(m,
+                                                              "AcapController")
+      .def(py::init<>())
+      .def("__enter__", &AcapController::contextEnter)
+      .def("__exit__", &AcapController::contextExit)
+      .def("get_debug_log", &AcapController::getDebugLog);
   m.def("get_registered_ops", &GetRegisteredOps, kGetRegisteredOpsDocstring);
 }
 

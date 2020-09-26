@@ -23,7 +23,6 @@ set(PYBIND_SOURCES
   MlirIr.cpp
   MlirPass.cpp
   NpcompDialect.cpp
-  PybindUtils.cpp
   CoreDialects.cpp
 )
 

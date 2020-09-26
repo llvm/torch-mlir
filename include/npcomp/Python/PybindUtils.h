@@ -33,8 +33,11 @@ namespace pybind11 {
 /// Raises a python exception with the given message.
 /// Correct usage:
 //   throw RaiseValueError(PyExc_ValueError, "Foobar'd");
-pybind11::error_already_set raisePyError(PyObject *exc_class,
-                                         const char *message);
+inline pybind11::error_already_set raisePyError(PyObject *exc_class,
+                                                const char *message) {
+  PyErr_SetString(exc_class, message);
+  return pybind11::error_already_set();
+}
 
 /// Raises a value error with the given message.
 /// Correct usage:
