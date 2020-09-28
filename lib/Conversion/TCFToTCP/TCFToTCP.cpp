@@ -109,7 +109,6 @@ matchAndRewriteUnaryElementwise(Operation *op, PatternRewriter &rewriter) {
         "unhandled op (see dump above): TCF->TCP unary elementwise");
   }
   return success();
-
 }
 
 namespace {

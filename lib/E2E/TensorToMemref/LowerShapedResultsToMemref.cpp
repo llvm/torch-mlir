@@ -140,8 +140,8 @@ static Value createLinalgBodyCalculationForElementwiseOp(Operation *op,
     return builder.create<AddFOp>(loc, bodyArgs[0], bodyArgs[1]);
 
   if (isa<tcp::MaxOp>(op)) {
-    auto greater =
-        builder.create<CmpFOp>(loc, CmpFPredicate::OGT, bodyArgs[0], bodyArgs[1]);
+    auto greater = builder.create<CmpFOp>(loc, CmpFPredicate::OGT, bodyArgs[0],
+                                          bodyArgs[1]);
     return builder.create<SelectOp>(loc, greater, bodyArgs[0], bodyArgs[1]);
   }
 
@@ -158,7 +158,7 @@ static Value createLinalgBodyCalculationForElementwiseOp(Operation *op,
 
 static LogicalResult
 matchAndRewriteElementwiseOp(Operation *op, ArrayRef<Value> operands,
-                                   ConversionPatternRewriter &rewriter) {
+                             ConversionPatternRewriter &rewriter) {
   Location loc = op->getLoc();
   Value result = op->getResult(0);
 

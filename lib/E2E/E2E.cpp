@@ -111,7 +111,6 @@ mlir::NPCOMP::createLowerAllocMemRefOpsPass() {
 // RestrictedCanonicalizer
 //===----------------------------------------------------------------------===//
 
-
 namespace {
 struct RestrictedCanonicalizer
     : public RestrictedCanonicalizerBase<RestrictedCanonicalizer> {

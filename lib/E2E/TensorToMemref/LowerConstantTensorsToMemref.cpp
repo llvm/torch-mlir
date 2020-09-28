@@ -85,7 +85,7 @@ class LowerConstantTensorsToMemref
     registry.insert<tcp::TCPDialect>();
   }
 
-  void runOnOperation () override {
+  void runOnOperation() override {
     auto module = getOperation();
     GlobalCreator globals(module);
 
