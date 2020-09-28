@@ -18,6 +18,7 @@
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCF/Transforms/Passes.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
+#include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 
 #include "npcomp/Conversion/Passes.h"
@@ -73,7 +74,8 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
                   Numpy::NumpyDialect,
                   npcomprt::NpcomprtDialect,
                   tcf::TCFDialect,
-                  tcp::TCPDialect>();
+                  tcp::TCPDialect,
+                  mlir::NPCOMP::Torch::TorchDialect>();
   // clang-format on
   registerDependencyDialects(registry);
 }

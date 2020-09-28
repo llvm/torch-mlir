@@ -42,6 +42,7 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPE2E
   NPCOMPTCP
   NPCOMPTCF
+  NPCOMPTorchDialect
   NPCOMPNpcomprt
   NPCOMPATenDialect
   NPCOMPBasicpyDialect
