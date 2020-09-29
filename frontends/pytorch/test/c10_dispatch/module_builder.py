@@ -9,16 +9,15 @@ import _torch_mlir as m
 t0 = torch.randn((4,4))
 t1 = torch.randn((4,4))
 
-with m.c10.AcapController() as c:
+mb = m.ModuleBuilder()
+with mb.capture_function("foobar") as c:
   result = t0 + t1
 
-result = result * t0
-
-# NOTE: Ops involved with printing throw RuntimeError about calling a kernel
-# from an unboxed API.
-print(result)
+# CHECK: module {
+# CHECK:   func @foobar() {
+# CHECK:   }
+# CHECK: }
+print(mb)
 
 # CHECK: CAPTURE: aten::add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> (Tensor)
-# CHECK-NOT: CAPTURE: aten::mul
-log = c.get_debug_log()
-for line in log: print(line)
+for line in c.get_debug_log(): print(line)

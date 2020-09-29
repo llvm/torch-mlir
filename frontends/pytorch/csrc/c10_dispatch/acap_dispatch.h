@@ -11,10 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_ACAP_DISPATCH_H
+#define NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_ACAP_DISPATCH_H
+
 #include <list>
 #include <memory>
 
 #include <pybind11/pybind11.h>
+
+#include "mlir-c/IR.h"
 
 #include <ATen/core/dispatch/Dispatcher.h>
 #include <c10/core/impl/LocalDispatchKeySet.h>
@@ -24,7 +29,10 @@ namespace torch_mlir {
 /// Main entry point for managing device capture.
 class AcapController : public std::enable_shared_from_this<AcapController> {
 public:
-  AcapController() = default;
+  AcapController(MlirOperation funcOp) : funcOp(funcOp) {
+    // TODO: Remove once used (suppresses warning).
+    (void)this->funcOp;
+  }
 
   // Enter and exit the context manager.
   pybind11::object contextEnter();
@@ -54,7 +62,11 @@ private:
   };
   // Gets the thread local stack of active acap controllers.
   static std::list<Activation> &getThreadLocalActiveStack();
+
+  MlirOperation funcOp;
   std::vector<std::string> captureLog;
 };
 
 } // namespace torch_mlir
+
+#endif // NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_ACAP_DISPATCH_H

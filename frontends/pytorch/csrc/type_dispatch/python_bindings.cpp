@@ -134,4 +134,4 @@ void InitModuleBindings(py::module &m) {
 
 void InitTypeDispatchBindings(py::module &m) { InitModuleBindings(m); }
 
-} // namespace
+} // namespace torch_mlir

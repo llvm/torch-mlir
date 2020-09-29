@@ -153,9 +153,7 @@ void InitBindings(py::module &m) {
 #if defined(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
   InitTypeDispatchBindings(m);
 #else
-  auto c10_m = m.def_submodule(
-      "c10", "Experimental support for c10 dispatch integration");
-  InitC10DispatchBindings(c10_m);
+  InitC10DispatchBindings(m);
 #endif
 }
 

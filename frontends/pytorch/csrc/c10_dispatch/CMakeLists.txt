@@ -9,14 +9,15 @@ include_directories(
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 add_library(npcomp_torch_c10_dispatch_bindings
   acap_dispatch.cpp
+  module_builder.cpp
   python_bindings.cpp
 )
 
 get_property(mlir_libs GLOBAL PROPERTY MLIR_ALL_LIBS)
 target_link_libraries(npcomp_torch_c10_dispatch_bindings
-  NPCOMPATenDialect
+  NPCOMPCAPIRegistration
   ${TORCH_LIBRARIES}
-  ${mlir_libs}
   ${PYTHON_LIBRARIES}
+  ${mlir_libs}
   torch_python
   )
