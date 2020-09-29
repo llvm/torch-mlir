@@ -10,6 +10,8 @@
 #define TORCH_BASE
 
 include "mlir/IR/OpBase.td"
+include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.td"
+include "npcomp/Dialect/Numpy/IR/NumpyDialect.td"
 
 def Torch_Dialect : Dialect {
   let name = "torch";
@@ -37,5 +39,61 @@ def Torch_Dialect : Dialect {
     modeling the open op-system that PyTorch reasons about natively.
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// Type predicates
+//===----------------------------------------------------------------------===//
+
+// Torch has a fairly advanced and featureful Tensor type, and some of the
+// semantics are important to preserve in a compilation context. In the future,
+// a dedicated TorchTensor type may be introduced, but also, subsets of cases
+// and interop are well served by existing tensor-like types, which are
+// specifically permitted. Typically, on import, constraints are fairly loose
+// and based on how the program is captured. Settling on and refining to
+// specific types is done as part of lowering.
+//
+// While lowering it is useful to be able to distinguish between mutable and
+// immutable tensors:
+//   - Mutable tensors can alias.
+//   - Mutable tensors can be a view over another mutable tensor.
+//   - Mutable tensors act as if reference counted and exist for the lifetime
+//     of any reference or derived view.
+// Conversely, immutable tensors:
+//   - Are normal SSA values representing the contents of the tensor.
+//   - Cannot alias.
+//   - Cannot be a view of any mutable value.
+//   - Have undefined lifetimes.
+//
+// At the Torch dialect level, most things are modeled as an AnyTorchTensor;
+// however, when lowering to specific ops, further constraints are introduced,
+// necessitating copies, loads, and stores to be inserted to bridge worlds.
+def AnyTorchImmutableTensor : AnyTypeOf<[
+    // Normal MLIR immutable tensors.
+    AnyTensor,
+  ], "allowable torch immutable tensor">;
+
+def AnyTorchMutableTensor : AnyTypeOf<[
+    // "Numpy-style" mutable NDArray. While not offering the full generality
+    // of a Torch tensor, it models the same access patterns and implies the
+    // same aliasing as Torch tensors.
+    Numpy_NdArrayType,
+  ], "allowable torch mutable tensor">;
+
+def AnyTorchTensorType : AnyTypeOf<[
+    AnyTorchImmutableTensor,
+    AnyTorchMutableTensor,
+  ], "Any tensor type legal to pass to a Torch kernel">;
+
+def AnyScalar : AnyTypeOf<[
+    AnySignedInteger,
+    Basicpy_BoolType,
+    Basicpy_StrType,
+    Basicpy_NoneType,
+  ], "Any primitive type suitable to be passed as a Torch Scalar">;
+
+def AnyTorchType : AnyTypeOf<[
+    AnyScalar,
+    AnyTorchTensorType,
+  ], "Any type that is legal to pass to a Torch kernel">;
 
 #endif // TORCH_BASE

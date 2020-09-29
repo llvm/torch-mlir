@@ -14,4 +14,6 @@ add_mlir_dialect_library(NPCOMPTorchDialect
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRSupport
+  NPCOMPBasicpyDialect
+  NPCOMPNumpyDialect
 )
