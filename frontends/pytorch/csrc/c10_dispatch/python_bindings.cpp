@@ -5,9 +5,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../pybind.h"
+
 #include <ATen/core/dispatch/Dispatcher.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 
 #include "../init_python_bindings.h"
 #include "acap_dispatch.h"

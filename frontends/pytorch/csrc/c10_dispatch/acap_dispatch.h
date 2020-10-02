@@ -17,7 +17,9 @@
 #include <list>
 #include <memory>
 
-#include <pybind11/pybind11.h>
+#include "../pybind.h"
+
+#include "func_builder.h"
 
 #include "mlir-c/IR.h"
 
@@ -29,10 +31,8 @@ namespace torch_mlir {
 /// Main entry point for managing device capture.
 class AcapController : public std::enable_shared_from_this<AcapController> {
 public:
-  AcapController(MlirOperation funcOp) : funcOp(funcOp) {
-    // TODO: Remove once used (suppresses warning).
-    (void)this->funcOp;
-  }
+  AcapController(std::unique_ptr<FuncBuilder> funcBuilder)
+      : funcBuilder(std::move(funcBuilder)) {}
 
   // Enter and exit the context manager.
   pybind11::object contextEnter();
@@ -63,7 +63,7 @@ private:
   // Gets the thread local stack of active acap controllers.
   static std::list<Activation> &getThreadLocalActiveStack();
 
-  MlirOperation funcOp;
+  std::unique_ptr<FuncBuilder> funcBuilder;
   std::vector<std::string> captureLog;
 };
 

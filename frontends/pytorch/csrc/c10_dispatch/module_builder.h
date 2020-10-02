@@ -8,12 +8,15 @@
 #ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
 #define NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
 
-#include <pybind11/pybind11.h>
+// TODO: Remove this dep once the getAsm() method is removed.
+#include "../pybind.h"
 
 #include "acap_dispatch.h"
 
 #include "mlir-c/IR.h"
 #include "llvm/ADT/SmallVector.h"
+
+#include <ATen/Tensor.h>
 
 namespace torch_mlir {
 
@@ -32,17 +35,18 @@ public:
 
   // Starts a device-capture based function.
   // TODO: Add inputs.
-  std::shared_ptr<AcapController> startCaptureFunction(std::string &name);
+  std::shared_ptr<AcapController>
+  startCaptureFunction(std::string &name, std::vector<at::Tensor> args);
 
 private:
-  // Creates a new top-level function and returns its operation.
-  MlirOperation createFunction(std::string &name,
-                               llvm::SmallVectorImpl<MlirType> &inputTypes,
-                               llvm::SmallVectorImpl<MlirType> &resultTypes);
+  MlirBlock getBodyBlock();
 
   MlirContext context;
   MlirLocation unknownLoc;
   MlirModule module;
+  MlirOperation terminator;
+
+  TypeMapper typeMapper;
 };
 
 } // namespace torch_mlir

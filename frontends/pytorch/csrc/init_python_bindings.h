@@ -8,7 +8,7 @@
 #ifndef INIT_PYTHON_BINDINGS_H
 #define INIT_PYTHON_BINDINGS_H
 
-#include <pybind11/pybind11.h>
+#include "pybind.h"
 
 namespace torch_mlir {
 

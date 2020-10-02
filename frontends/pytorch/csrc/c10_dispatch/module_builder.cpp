@@ -46,11 +46,14 @@ ModuleBuilder::ModuleBuilder()
     // semantics and interop). Until then, they are just scoped to this instance
     // and must not escape.
     : context(mlirContextCreate()), unknownLoc(mlirLocationUnknownGet(context)),
-      module(mlirModuleCreateEmpty(unknownLoc)) {
+      module(mlirModuleCreateEmpty(unknownLoc)), typeMapper(context) {
   // TODO: Rework this once dialect registration C-APIs are in place.
   // https://reviews.llvm.org/D88162
   mlirRegisterAllDialects(context);
   npcompRegisterAllDialects(context);
+
+  // Terminator will always be the first op of an empty module.
+  terminator = mlirBlockGetFirstOperation(getBodyBlock());
 }
 
 ModuleBuilder::~ModuleBuilder() {
@@ -67,47 +70,35 @@ py::str ModuleBuilder::getAsm() {
 }
 
 std::shared_ptr<AcapController>
-ModuleBuilder::startCaptureFunction(std::string &name) {
-  // TODO: Populate input/result types.
+ModuleBuilder::startCaptureFunction(std::string &name,
+                                    std::vector<at::Tensor> args) {
+  // TODO: Verify that arguments do not alias each other.
   llvm::SmallVector<MlirType, 4> inputTypes;
-  llvm::SmallVector<MlirType, 4> resultTypes;
-  MlirOperation funcOp = createFunction(name, inputTypes, resultTypes);
-  return std::make_shared<AcapController>(funcOp);
-}
-
-// TODO: Implement an mlir-c API for creating a function and avoid the danger
-// of getting the below wrong.
-MlirOperation
-ModuleBuilder::createFunction(std::string &name,
-                              llvm::SmallVectorImpl<MlirType> &inputTypes,
-                              llvm::SmallVectorImpl<MlirType> &resultTypes) {
-  MlirOperation moduleOp = mlirModuleGetOperation(module);
-  MlirBlock moduleBlock =
-      mlirRegionGetFirstBlock(mlirOperationGetRegion(moduleOp, 0));
-
-  llvm::SmallVector<MlirNamedAttribute, 4> funcAttrs;
-  funcAttrs.push_back(mlirNamedAttributeGet(
-      "type", mlirTypeAttrGet(mlirFunctionTypeGet(
-                  context, inputTypes.size(), inputTypes.data(),
-                  resultTypes.size(), resultTypes.data()))));
-  funcAttrs.push_back(mlirNamedAttributeGet(
-      "sym_name", mlirStringAttrGet(context, name.size(), name.data())));
-
-  // TODO: Extract current traceback and use it for location.
-  MlirOperationState state = mlirOperationStateGet("func", unknownLoc);
-  mlirOperationStateAddAttributes(&state, funcAttrs.size(), funcAttrs.data());
-  {
-    // Don't access these once ownership transferred.
-    MlirRegion bodyRegion = mlirRegionCreate();
-    MlirBlock entryBlock =
-        mlirBlockCreate(inputTypes.size(), inputTypes.data());
-    mlirRegionInsertOwnedBlockAfter(bodyRegion, {nullptr}, entryBlock);
-    mlirOperationStateAddOwnedRegions(&state, 1, &bodyRegion);
+  for (auto &arg : args) {
+    inputTypes.push_back(typeMapper.forwardTensorToType(arg));
   }
 
-  MlirOperation funcOp = mlirOperationCreate(&state);
-  mlirBlockInsertOwnedOperationAfter(moduleBlock, {nullptr}, funcOp);
-  return funcOp;
+  // TODO: Extract a traceback and use in place of unknownLoc.
+  auto funcBuilder =
+      FuncBuilder::createFunction(context, unknownLoc, name, inputTypes);
+  mlirBlockInsertOwnedOperationBefore(getBodyBlock(), terminator,
+                                      funcBuilder->getFuncOp());
+
+  // Map block arguments.
+  MlirBlock entryBlock = funcBuilder->getEntryBlock();
+  assert(mlirBlockGetNumArguments(entryBlock) ==
+             static_cast<intptr_t>(args.size()) &&
+         "entry block incorrect arg arity");
+  for (auto it : llvm::enumerate(args)) {
+    funcBuilder->mapTensor(it.value(),
+                           mlirBlockGetArgument(entryBlock, it.index()));
+  }
+  return std::make_shared<AcapController>(std::move(funcBuilder));
+}
+
+MlirBlock ModuleBuilder::getBodyBlock() {
+  MlirOperation moduleOp = mlirModuleGetOperation(module);
+  return mlirRegionGetFirstBlock(mlirOperationGetRegion(moduleOp, 0));
 }
 
 void ModuleBuilder::bind(py::module &m) {

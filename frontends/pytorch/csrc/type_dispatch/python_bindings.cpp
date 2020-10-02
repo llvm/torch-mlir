@@ -18,7 +18,7 @@
 // In this case t2_cpu contains the result of the computation, and t2_mlir
 // contains the mlir description of the computation.
 
-#include <pybind11/pybind11.h>
+#include "../pybind.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MemoryBuffer.h"
