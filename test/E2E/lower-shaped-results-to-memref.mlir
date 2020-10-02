@@ -65,6 +65,8 @@ func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[LHS:.*]] = tcp.tensor_to_memref %arg0 : tensor<?x?xf32> -> memref<?x?xf32>
 // CHECK:           %[[RHS:.*]] = tcp.tensor_to_memref %arg1 : tensor<?x?xf32> -> memref<?x?xf32>
 // CHECK:           %[[RESULT:.*]] = tcp.alloc_memref %[[SHAPE]] : memref<?x?xf32>
+// CHECK:           %[[C0:.*]] = constant 0.000000e+00 : f32
+// CHECK:           linalg.fill(%2, %[[C0]]) : memref<?x?xf32>, f32
 // CHECK:           linalg.matmul ins(%[[LHS]], %[[RHS]] : memref<?x?xf32>, memref<?x?xf32>) outs(%[[RESULT]] : memref<?x?xf32>)
 // CHECK:           %[[RET:.*]] = tcp.memref_to_tensor %[[RESULT]] : memref<?x?xf32> -> tensor<?x?xf32>
 // CHECK:           return %[[RET]] : tensor<?x?xf32>
