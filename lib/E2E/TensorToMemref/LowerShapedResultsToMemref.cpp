@@ -221,6 +221,9 @@ public:
     if (failed(resultsOrFailure))
       return failure();
     auto results = *resultsOrFailure;
+    auto c0 =
+        rewriter.create<ConstantOp>(op.getLoc(), rewriter.getF32FloatAttr(0.0));
+    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], c0);
     rewriter.create<linalg::MatmulOp>(op.getLoc(), operands, results);
     rewriter.replaceOp(op, results);
     return success();
