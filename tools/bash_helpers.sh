@@ -28,6 +28,19 @@ npcomp-run-mlir() {
     -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
 }
 
+mnist-playground() {
+  # Helper for building and invoking mnist-playground
+  #
+  # This also automatically builds and adds the npcomp runtime shared
+  # library.
+  #
+  # Usage:
+  # $ mnist-playground <regular mnist-playground options>
+  ninja -C "$build_dir" mnist-playground NPCOMPCompilerRuntimeShlib 1>&2 || return 1
+  $build_dir/tools/mnist-playground/mnist-playground \
+    -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
+}
+
 # Go to the root of your npcomp checkout.
 alias npd="cd $td"
 # Handy so that `npctest -v` runs lit with -v and thus prints out errors,
