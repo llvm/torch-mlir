@@ -14,5 +14,5 @@ add_mlir_conversion_library(NPCOMPTCFPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  NPCOMPTCF
+  NPCOMPTCFDialect
 )

@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPTCP
+add_mlir_dialect_library(NPCOMPTCPDialect
   TCPDialect.cpp
   TCPOps.cpp
 

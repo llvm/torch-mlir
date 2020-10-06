@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPNpcomprt
+add_mlir_dialect_library(NPCOMPNpcomprtDialect
   NpcomprtDialect.cpp
   NpcomprtOps.cpp
 
