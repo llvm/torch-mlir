@@ -1,4 +1,4 @@
-// RUN: npcomp-opt -e2e-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt -refback-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
 
 // CHECK-LABEL:   llvm.func @malloc(!llvm.i64) -> !llvm.ptr<i8>
 // CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
@@ -56,4 +56,3 @@ func @calls_get_global() -> memref<*xf32> {
 // CHECK: llvm.mlir.global internal constant @__npcomprt_global_data_buffer_g(dense<7.000000e+00> : tensor<f32>) : !llvm.array<1 x float>
 // CHECK: llvm.mlir.global internal constant @__npcomprt_global_extents_g(dense<0> : tensor<1xi32>) : !llvm.array<1 x i32>
 npcomprt.global @g dense<7.0> : tensor<f32>
-

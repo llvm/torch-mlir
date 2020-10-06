@@ -1,6 +1,6 @@
-add_mlir_library(NPCOMPE2E
+add_mlir_library(NPCOMPRefBackend
   BypassShapes.cpp
-  E2E.cpp
+  RefBackend.cpp
   LowerToLLVM.cpp
   LowerToNpcomprtABI.cpp
   TensorToMemref/LowerConstantTensorsToMemref.cpp
@@ -9,10 +9,10 @@ add_mlir_library(NPCOMPE2E
   TensorToMemref/LowerStructuralToMemref.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SRC_DIR}/include/npcomp/E2E
+  ${PROJECT_SRC_DIR}/include/npcomp/RefBackend
 
   DEPENDS
-  NPCOMPE2EPassIncGen
+  NPCOMPRefBackendPassIncGen
 
   LINK_COMPONENTS
   Core
@@ -27,4 +27,4 @@ add_mlir_library(NPCOMPE2E
   MLIRStandardToLLVM
   )
 
-mlir_check_all_link_libraries(NPCOMPE2E)
+mlir_check_all_link_libraries(NPCOMPRefBackend)

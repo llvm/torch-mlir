@@ -1,5 +1,5 @@
-// RUN: npcomp-opt <%s -pass-pipeline=e2e-lowering-pipeline | FileCheck %s --dump-input=fail
-// RUN: npcomp-opt <%s -pass-pipeline=e2e-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
 
 // CHECK-LABEL: func @rank1
 func @rank1(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {

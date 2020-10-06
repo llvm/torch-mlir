@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_E2E_PASSES
-#define NPCOMP_E2E_PASSES
+#ifndef NPCOMP_REFBACKEND_PASSES
+#define NPCOMP_REFBACKEND_PASSES
 
 include "mlir/Pass/PassBase.td"
 
@@ -73,7 +73,7 @@ def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createLowerAllocMemRefOpsPass()";
 }
 
-def LowerToLLVM : Pass<"e2e-lower-to-llvm", "ModuleOp"> {
+def LowerToLLVM : Pass<"refback-lower-to-llvm", "ModuleOp"> {
   let summary = "Lower everything to LLVM";
   let constructor = "mlir::NPCOMP::createLowerToLLVMPass();";
 }
@@ -107,4 +107,4 @@ def RestrictedCanonicalizer : Pass<"restricted-canonicalize"> {
   ];
 }
 
-#endif // NPCOMP_E2E_PASSES
+#endif // NPCOMP_REFBACKEND_PASSES

@@ -173,7 +173,7 @@ struct Options {
                                    cl::desc("Libraries to link dynamically")};
   cl::opt<bool> optimize{
       "optimize", cl::Optional,
-      cl::desc("whether the e2e pass pipeline should run optimizations"),
+      cl::desc("whether the refback pass pipeline should run optimizations"),
       cl::init(false)};
 };
 } // namespace

@@ -1,4 +1,4 @@
-//===- PassDetail.h - E2E Pass class details --------------------*- C++ -*-===//
+//===- PassDetail.h - RefBackend Pass class details -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef E2E_PASSDETAIL_H
-#define E2E_PASSDETAIL_H
+#ifndef REFBACKEND_PASSDETAIL_H
+#define REFBACKEND_PASSDETAIL_H
 
 #include "mlir/Pass/Pass.h"
 
@@ -15,9 +15,9 @@ namespace mlir {
 namespace NPCOMP {
 
 #define GEN_PASS_CLASSES
-#include "npcomp/E2E/Passes.h.inc"
+#include "npcomp/RefBackend/Passes.h.inc"
 
 } // namespace NPCOMP
 } // end namespace mlir
 
-#endif // E2E_PASSDETAIL_H
+#endif // REFBACKEND_PASSDETAIL_H
