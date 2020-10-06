@@ -9,8 +9,8 @@ add_mlir_library(NPCOMPJITRuntime
 
   LINK_LIBS PUBLIC
   NPCOMPRuntime
-  NPCOMPE2E
+  NPCOMPRefBackend
   MLIRExecutionEngine
   )
 
-mlir_check_all_link_libraries(NPCOMPE2E)
+mlir_check_all_link_libraries(NPCOMPRefBackend)

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/RefBackend/RefBackend.h"
 #include "PassDetail.h"
 
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
@@ -40,15 +40,15 @@ using namespace mlir::NPCOMP;
 
 namespace {
 #define GEN_PASS_REGISTRATION
-#include "npcomp/E2E/Passes.h.inc"
+#include "npcomp/RefBackend/Passes.h.inc"
 } // end namespace
 
-void mlir::NPCOMP::registerE2EPasses() {
+void mlir::NPCOMP::registerRefBackendPasses() {
   ::registerPasses();
 
-  mlir::PassPipelineRegistration<E2ELoweringPipelineOptions>(
-      "e2e-lowering-pipeline", "E2E lowering pipeline.",
-      mlir::NPCOMP::createE2ELoweringPipeline);
+  mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
+      "refback-lowering-pipeline", "RefBackend lowering pipeline.",
+      mlir::NPCOMP::createRefBackendLoweringPipeline);
 }
 
 //===----------------------------------------------------------------------===//
@@ -160,11 +160,11 @@ std::unique_ptr<Pass> mlir::NPCOMP::createRestrictedCanonicalizerPass() {
 }
 
 //===----------------------------------------------------------------------===//
-// createE2ELoweringPipeline
+// createRefBackendLoweringPipeline
 //===----------------------------------------------------------------------===//
 
-void mlir::NPCOMP::createE2ELoweringPipeline(
-    OpPassManager &pm, const E2ELoweringPipelineOptions &options) {
+void mlir::NPCOMP::createRefBackendLoweringPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
   // This "end to end" lowering pipline loewrings from approximately the "numpy"
   // level of abstraction (which is a dialect we call "TCF", or "Tensor Compute
   // Frontend") all the way down to LLVM IR.

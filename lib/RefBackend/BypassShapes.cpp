@@ -13,7 +13,7 @@
 #include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
 #include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/RefBackend/RefBackend.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

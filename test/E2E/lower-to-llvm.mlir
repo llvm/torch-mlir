@@ -1,4 +1,4 @@
-// RUN: npcomp-opt -e2e-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt -refback-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
 
 // CHECK-LABEL:   llvm.func @__npcomprt_wrapper_identity(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !llvm.ptr<ptr<i8>>,

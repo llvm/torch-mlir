@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../PassDetail.h"
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/RefBackend/RefBackend.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"

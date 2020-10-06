@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_E2E_E2E_H
-#define NPCOMP_E2E_E2E_H
+#ifndef NPCOMP_REFBACKEND_REFBACKEND_H
+#define NPCOMP_REFBACKEND_REFBACKEND_H
 
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -15,10 +15,10 @@
 namespace mlir {
 namespace NPCOMP {
 
-/// Registers all E2E passes.
-void registerE2EPasses();
+/// Registers all RefBackend passes.
+void registerRefBackendPasses();
 
-// Look in createE2ELoweringPipeline for more information about how these
+// Look in createRefBackendLoweringPipeline for more information about how these
 // passes fit together.
 //
 // Pass summaries are in Passes.td.
@@ -42,19 +42,19 @@ std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
 
 std::unique_ptr<Pass> createRestrictedCanonicalizerPass();
 
-struct E2ELoweringPipelineOptions
-    : public PassPipelineOptions<E2ELoweringPipelineOptions> {
+struct RefBackendLoweringPipelineOptions
+    : public PassPipelineOptions<RefBackendLoweringPipelineOptions> {
   // If this option is true, then perform optimizations.
   // If this option is false, only do the bare minimum for correctness.
   Option<bool> optimize{*this, "optimize", llvm::cl::desc("Do optimizations."),
                         llvm::cl::init(false)};
 };
 
-// The main pipeline that encapsulates the full E2E lowering.
-void createE2ELoweringPipeline(OpPassManager &pm,
-                               const E2ELoweringPipelineOptions &options);
+// The main pipeline that encapsulates the full RefBackend lowering.
+void createRefBackendLoweringPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options);
 
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_E2E_E2E_H
+#endif // NPCOMP_REFBACKEND_REFBACKEND_H

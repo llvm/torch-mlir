@@ -1,7 +1,7 @@
 add_subdirectory(CAPI)
 add_subdirectory(Conversion)
 add_subdirectory(Dialect)
-add_subdirectory(E2E)
+add_subdirectory(RefBackend)
 add_subdirectory(JITRuntime)
 add_subdirectory(Python)
 add_subdirectory(Typing)
@@ -40,7 +40,7 @@ add_mlir_library(NPCOMPInitAll
 
   PUBLIC
   # Local depends
-  NPCOMPE2E
+  NPCOMPRefBackend
   NPCOMPRefBackendDialect
   NPCOMPTCPDialect
   NPCOMPTCFDialect

@@ -23,7 +23,7 @@
 #include "npcomp/Typing/Transforms/Passes.h"
 
 #include "npcomp/Conversion/Passes.h"
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/RefBackend/RefBackend.h"
 
 #ifdef NPCOMP_ENABLE_IREE
 #include "iree/tools/init_compiler_modules.h"
@@ -84,7 +84,7 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
 
 void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::aten::registerATenPasses();
-  mlir::NPCOMP::registerE2EPasses();
+  mlir::NPCOMP::registerRefBackendPasses();
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerBasicpyPasses();
   mlir::NPCOMP::registerNumpyPasses();

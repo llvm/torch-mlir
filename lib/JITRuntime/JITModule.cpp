@@ -9,7 +9,7 @@
 #include "npcomp/JITRuntime/JITModule.h"
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "npcomp/E2E/E2E.h"
+#include "npcomp/RefBackend/RefBackend.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -30,9 +30,9 @@ JITModule::JITModule() {}
 
 void JITModule::buildBackendCompilationPipeline(PassManager &pm,
                                                 bool optimize) {
-  NPCOMP::E2ELoweringPipelineOptions options;
+  NPCOMP::RefBackendLoweringPipelineOptions options;
   options.optimize = optimize;
-  NPCOMP::createE2ELoweringPipeline(pm, options);
+  NPCOMP::createRefBackendLoweringPipeline(pm, options);
 }
 
 llvm::Expected<std::unique_ptr<JITModule>>

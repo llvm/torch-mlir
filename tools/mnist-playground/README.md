@@ -35,8 +35,8 @@ Example command line (the .mlir file and `-invoke` are similar to npcomp-run-mli
 ```
 $ mnist-playground tools/mnist-playground/fc.mlir -invoke fc
 PyTorch: numRuns: 16384 nsPerRun: 3.947563e+05
-RefE2E: numRuns: 256 nsPerRun: 2.471073e+07
-Ratio (RefE2E / PyTorch): 62.5974
+RefBackend: numRuns: 256 nsPerRun: 2.471073e+07
+Ratio (RefBackend / PyTorch): 62.5974
 ```
 
 There is currently a fragile dependency between hardcoded `at::` function calls in the .cpp file and the TCF code in the `.mlir` file. A correctness check is done to make sure they agree. Once we have a PyTorch frontend and/or ATen roundrip ATen backend oneline, we can avoid this fragility.

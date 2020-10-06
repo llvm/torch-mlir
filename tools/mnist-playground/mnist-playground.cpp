@@ -89,8 +89,8 @@ invokeJITModuleWithATenTensors(npcomp::JITModule &jitModule,
         npcomprt::ElementType::F32, data));
   }
 
-  // Invoke the RefE2E function.
-  // TODO: The mishmash of terminology "npcomprt", "refe2e", "npcomp" in this
+  // Invoke the RefBackend function.
+  // TODO: The mishmash of terminology "npcomprt", "refback", "npcomp" in this
   // file is getting out of hand.
   auto expectedOutputs = jitModule.invoke(invokeFunction, npcomprtInputs);
   if (!expectedOutputs)
@@ -148,7 +148,7 @@ Expected<BenchmarkResult> benchmark(std::function<Error()> f) {
   return make_string_error("too short running to benchmark!");
 }
 
-static Error doIt(InvocationFunction ptFunc, InvocationFunction refE2EFunc,
+static Error doIt(InvocationFunction ptFunc, InvocationFunction refBackendFunc,
                   bool doBenchmark, int numCorrectnessTests) {
 
   torch::manual_seed(42);
@@ -163,19 +163,19 @@ static Error doIt(InvocationFunction ptFunc, InvocationFunction refE2EFunc,
   for (int correctnessTest = 0; correctnessTest < numCorrectnessTests;
        correctnessTest++) {
     auto expectedPt = ptFunc(args);
-    auto expectedRefE2E = refE2EFunc(args);
+    auto expectedRefBackend = refBackendFunc(args);
     if (!expectedPt)
       return expectedPt.takeError();
-    if (!expectedRefE2E)
-      return expectedRefE2E.takeError();
+    if (!expectedRefBackend)
+      return expectedRefBackend.takeError();
     auto pt = std::move(*expectedPt);
-    auto refE2E = std::move(*expectedRefE2E);
-    if (pt.size() != refE2E.size())
+    auto refBackend = std::move(*expectedRefBackend);
+    if (pt.size() != refBackend.size())
       return make_string_error("mismatch in result arity!");
     for (int i = 0, e = pt.size(); i < e; i++) {
-      if (!at::allclose(pt[i], refE2E[i])) {
+      if (!at::allclose(pt[i], refBackend[i])) {
         std::cout << "PyTorch:\n" << pt[i] << "\n";
-        std::cout << "RefE2E:\n" << refE2E[i] << "\n";
+        std::cout << "RefBackend:\n" << refBackend[i] << "\n";
         return make_string_error(Twine("mismatch in result contents ") +
                                  Twine(i) + Twine(" on correctness test #") +
                                  Twine(correctnessTest));
@@ -187,7 +187,7 @@ static Error doIt(InvocationFunction ptFunc, InvocationFunction refE2EFunc,
 
   // Benchmark the two against each other.
   BenchmarkResult ptBenchmarkResult;
-  BenchmarkResult refE2EBenchmarkResult;
+  BenchmarkResult refBackendBenchmarkResult;
   {
     auto expectedResult =
         benchmark([&]() -> Error { return ptFunc(args).takeError(); });
@@ -198,15 +198,15 @@ static Error doIt(InvocationFunction ptFunc, InvocationFunction refE2EFunc,
 
   {
     auto expectedResult =
-        benchmark([&]() -> Error { return refE2EFunc(args).takeError(); });
+        benchmark([&]() -> Error { return refBackendFunc(args).takeError(); });
     if (!expectedResult)
       return expectedResult.takeError();
-    refE2EBenchmarkResult = std::move(*expectedResult);
+    refBackendBenchmarkResult = std::move(*expectedResult);
   }
   std::cout << "PyTorch: " << ptBenchmarkResult << "\n";
-  std::cout << "RefE2E: " << refE2EBenchmarkResult << "\n";
-  std::cout << "Ratio (RefE2E / PyTorch): "
-            << refE2EBenchmarkResult.nsPerRun / ptBenchmarkResult.nsPerRun
+  std::cout << "RefBackend: " << refBackendBenchmarkResult << "\n";
+  std::cout << "Ratio (RefBackend / PyTorch): "
+            << refBackendBenchmarkResult.nsPerRun / ptBenchmarkResult.nsPerRun
             << "\n";
 
   // TODO: Check for memory leaks?
@@ -231,7 +231,7 @@ struct Options {
                                    cl::desc("Libraries to link dynamically")};
   cl::opt<bool> optimize{
       "optimize", cl::Optional,
-      cl::desc("whether the e2e pass pipeline should run optimizations"),
+      cl::desc("whether the refback pass pipeline should run optimizations"),
       cl::init(false)};
 
   cl::opt<bool> benchmark{"benchmark", cl::Optional,
