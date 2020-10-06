@@ -93,7 +93,7 @@ ModuleBuilder::startCaptureFunction(std::string &name,
     funcBuilder->mapTensor(it.value(),
                            mlirBlockGetArgument(entryBlock, it.index()));
   }
-  return std::make_shared<AcapController>(std::move(funcBuilder));
+  return std::make_shared<AcapController>(typeMapper, std::move(funcBuilder));
 }
 
 MlirBlock ModuleBuilder::getBodyBlock() {

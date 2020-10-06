@@ -24,6 +24,7 @@
 #include "mlir-c/IR.h"
 
 #include <ATen/core/dispatch/Dispatcher.h>
+#include <ATen/core/ivalue.h>
 #include <c10/core/impl/LocalDispatchKeySet.h>
 
 namespace torch_mlir {
@@ -31,13 +32,17 @@ namespace torch_mlir {
 /// Main entry point for managing device capture.
 class AcapController : public std::enable_shared_from_this<AcapController> {
 public:
-  AcapController(std::unique_ptr<FuncBuilder> funcBuilder)
-      : funcBuilder(std::move(funcBuilder)) {}
+  AcapController(TypeMapper &typeMapper,
+                 std::unique_ptr<FuncBuilder> funcBuilder)
+      : typeMapper(typeMapper), funcBuilder(std::move(funcBuilder)) {}
 
   // Enter and exit the context manager.
   pybind11::object contextEnter();
   void contextExit(pybind11::object exc_type, pybind11::object exc_val,
                    pybind11::object exc_tb);
+
+  // Terminates capture and returns tensors from the function.
+  void returns(std::vector<at::Tensor> tensors);
 
   // Gets and clears the current debug log.
   std::vector<std::string> getDebugLog();
@@ -51,6 +56,12 @@ public:
                              c10::Stack *stack);
 
 private:
+  void redispatch(const c10::OperatorHandle &opHandle, c10::Stack *stack);
+  void fallbackKernelImpl(const c10::OperatorHandle &opHandle,
+                          c10::Stack *stack);
+  MlirValue mapIValueToMlirValue(MlirLocation loc, c10::IValue &ival);
+  MlirType mapIValueToMlirType(MlirLocation loc, c10::IValue &ival);
+  void verifyHasNotReturned();
   struct Activation {
     Activation(std::shared_ptr<AcapController> controller)
         : controller(std::move(controller)) {}
@@ -63,8 +74,10 @@ private:
   // Gets the thread local stack of active acap controllers.
   static std::list<Activation> &getThreadLocalActiveStack();
 
+  TypeMapper &typeMapper;
   std::unique_ptr<FuncBuilder> funcBuilder;
   std::vector<std::string> captureLog;
+  bool hasReturned = false;
 };
 
 } // namespace torch_mlir

@@ -21,9 +21,6 @@ def Torch_KernelCall : Torch_Op<"kernel_call"> {
     Torch kernel calls are matched by the runtime based on signature, including
     the fully qualified kernel name (i.e. "namespace::name") and the tuple of
     argument types. This op models such an invocation.
-
-    Caveat: When interacting with the PyTorch boxed interpreter stack, the
-    arguments follow a convention that the top of stack is the first argument.
   }];
 
   let arguments = (ins

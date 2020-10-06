@@ -16,6 +16,33 @@
 
 namespace torch_mlir {
 
+/// Wraps an MlirOperationState, deallocating it on destruction unless if
+/// it has been consumed.
+class OperationStateHolder {
+public:
+  OperationStateHolder(const char *name, MlirLocation loc)
+      : state(mlirOperationStateGet(name, loc)) {}
+  OperationStateHolder(const OperationStateHolder &) = delete;
+  OperationStateHolder(OperationStateHolder &&other) = delete;
+  ~OperationStateHolder() {
+    if (owned) {
+      // TODO: Upstream a mlirOperationStateDestroy() function.
+      mlirOperationDestroy(createOperation());
+    }
+  }
+
+  MlirOperation createOperation() {
+    assert(owned && "cannot createOperation on unowned state");
+    owned = false;
+    return mlirOperationCreate(&state);
+  }
+
+  MlirOperationState state;
+
+private:
+  bool owned = true;
+};
+
 /// Maps various runtime types to MlirType.
 class TypeMapper {
 public:
@@ -47,6 +74,11 @@ public:
   MlirOperation getTerminator() { return terminator; }
   bool getIsReturnTerminator() { return isReturn; }
 
+  /// Inserts an owned operation before the terminator.
+  void insertBeforeTerminator(MlirOperation op) {
+    mlirBlockInsertOwnedOperationBefore(block, terminator, op);
+  }
+
 private:
   MlirBlock block;
   MlirOperation terminator;
@@ -65,10 +97,16 @@ public:
                  llvm::StringRef name,
                  llvm::SmallVectorImpl<MlirType> &inputTypes);
 
+  MlirContext getContext() { return context; }
   MlirOperation getFuncOp() { return funcOp; }
 
   /// Gets the function's entry block.
   MlirBlock getEntryBlock() { return entryBlock.getBlock(); }
+  BlockBuilder &getEntryBlockBuilder() { return entryBlock; }
+
+  /// Rewrites the function's signature to return the given types. It is
+  /// assumed that a compatible terminator has been added.
+  void rewriteFuncReturnTypes(llvm::SmallVectorImpl<MlirType> &resultTypes);
 
   /// Maps a live Tensor to an MlirValue.
   void mapTensor(at::Tensor tensor, MlirValue value) {
@@ -79,12 +117,20 @@ public:
   /// value if not found.
   MlirValue lookupTensor(at::Tensor tensor);
 
+  /// Gets a scalar constant value.
+  MlirValue getScalarConstant(MlirLocation loc, at::Scalar s);
+
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,
               BlockBuilder entryBlock)
       : context(context), funcOp(funcOp), entryBlock(std::move(entryBlock)) {
     (void)this->context;
   }
+
+  /// Inserts a constant op into the function, returning its first result.
+  /// The function maintains a constant area at the top where these are
+  /// inserted.
+  MlirValue insertConstantOp(MlirOperation op);
 
   MlirContext context;
 
@@ -94,10 +140,15 @@ private:
   /// Block builder for the entry block.
   BlockBuilder entryBlock;
 
+  /// Previously inserted constant op or null.
+  MlirOperation prevConstantOp = {nullptr};
+
   /// Maps tensors to MlirValue. Unfortunately, this needs to be a linear scan
   /// because the impl pointer for the Tensor is not accessible. To make this
   /// slightly better, we add to the back and lookup in reverse under the idea
   /// that tensors may be mapped and accessed in proximity.
+  /// TODO: Tensors referenced via an IValue support hash code lookup and
+  /// identity checks. Switch to this instead of a linear scan.
   llvm::SmallVector<std::pair<at::Tensor, MlirValue>, 16> tensorValueMap;
 };
 
