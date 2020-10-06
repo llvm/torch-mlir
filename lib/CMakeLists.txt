@@ -42,10 +42,10 @@ add_mlir_library(NPCOMPInitAll
   # Local depends
   NPCOMPE2E
   NPCOMPRefBackendDialect
-  NPCOMPTCP
-  NPCOMPTCF
+  NPCOMPTCPDialect
+  NPCOMPTCFDialect
   NPCOMPTorchDialect
-  NPCOMPNpcomprt
+  NPCOMPNpcomprtDialect
   NPCOMPATenDialect
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
