@@ -13,8 +13,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
-#include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -88,7 +88,7 @@ namespace {
 // TODO: Upstream this.
 class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<tcp::TCPDialect>();
+    registry.insert<refback::RefBackendDialect>();
   }
 
   void runOnOperation() override {
@@ -105,14 +105,16 @@ class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
                                               ValueRange inputs, Location loc) {
       assert(inputs.size() == 1);
       assert(inputs[0].getType().isa<MemRefType>());
-      return (Value)builder.create<tcp::MemrefToTensorOp>(loc, type, inputs[0]);
+      return (Value)builder.create<refback::MemrefToTensorOp>(loc, type,
+                                                              inputs[0]);
     });
     typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                               MemRefType type,
                                               ValueRange inputs, Location loc) {
       assert(inputs.size() == 1);
       assert(inputs[0].getType().isa<RankedTensorType>());
-      return (Value)builder.create<tcp::TensorToMemrefOp>(loc, type, inputs[0]);
+      return (Value)builder.create<refback::TensorToMemrefOp>(loc, type,
+                                                              inputs[0]);
     });
 
     OwningRewritePatternList patterns;
@@ -123,8 +125,8 @@ class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
 
     // The casting ops are introduced by the type converter, so they must be
     // legal.
-    target.addLegalOp<tcp::MemrefToTensorOp>();
-    target.addLegalOp<tcp::TensorToMemrefOp>();
+    target.addLegalOp<refback::MemrefToTensorOp>();
+    target.addLegalOp<refback::TensorToMemrefOp>();
 
     patterns.insert<LowerExtractElementOp>(typeConverter, context);
     target.addIllegalOp<ExtractElementOp>();

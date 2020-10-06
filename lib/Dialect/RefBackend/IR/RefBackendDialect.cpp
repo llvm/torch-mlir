@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
-using namespace mlir::NPCOMP::tcp;
+using namespace mlir::NPCOMP::refback;
 
 //===----------------------------------------------------------------------===//
-// TCPDialect Dialect Interfaces
+// RefBackendDialect Dialect Interfaces
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct TCPInlinerInterface : public DialectInlinerInterface {
+struct RefBackendInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
   bool isLegalToInline(Region *dest, Region *src,
                        BlockAndValueMapping &valueMapping) const final {
@@ -28,13 +28,23 @@ struct TCPInlinerInterface : public DialectInlinerInterface {
                        BlockAndValueMapping &) const final {
     return true;
   }
+  void handleTerminator(Operation *op,
+                        ArrayRef<Value> valuesToRepl) const final {
+    auto retValOp = dyn_cast<YieldOp>(op);
+    if (!retValOp)
+      return;
+
+    for (auto retValue : llvm::zip(valuesToRepl, retValOp.getOperands())) {
+      std::get<0>(retValue).replaceAllUsesWith(std::get<1>(retValue));
+    }
+  }
 };
 } // end anonymous namespace
 
-void TCPDialect::initialize() {
+void RefBackendDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/TCP/IR/TCPOps.cpp.inc"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.cpp.inc"
       >();
-  addInterfaces<TCPInlinerInterface>();
+  addInterfaces<RefBackendInlinerInterface>();
 }

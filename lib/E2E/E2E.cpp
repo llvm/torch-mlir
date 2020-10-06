@@ -27,6 +27,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
@@ -55,10 +56,10 @@ void mlir::NPCOMP::registerE2EPasses() {
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerAllocMemRefOp : public OpRewritePattern<tcp::AllocMemRefOp> {
+class LowerAllocMemRefOp : public OpRewritePattern<refback::AllocMemRefOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(tcp::AllocMemRefOp op,
+  LogicalResult matchAndRewrite(refback::AllocMemRefOp op,
                                 PatternRewriter &rewriter) const override {
     auto memrefType = op.getType().cast<MemRefType>();
     auto shape = op.getOperand();
@@ -91,7 +92,7 @@ class LowerAllocMemRefOps
     OwningRewritePatternList patterns;
     patterns.insert<LowerAllocMemRefOp>(context);
     ConversionTarget target(*context);
-    target.addIllegalOp<tcp::AllocMemRefOp>();
+    target.addIllegalOp<refback::AllocMemRefOp>();
     target.addLegalOp<shape::GetExtentOp>();
     target.addLegalOp<AllocOp>();
     target.addLegalOp<ConstantOp>();
@@ -177,7 +178,7 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   pm.addPass(createConvertTCFToTCPPass());
 
   // For operations with a shape transfer function, explicitly bypass their
-  // shape computations with tcp.shaped_results ops.
+  // shape computations with refback.shaped_results ops.
   //
   // Right now, our lowering flow depends heavily on descriptors, so technically
   // we don't need to bypass shapes -- we can just splat out the shape
@@ -220,9 +221,9 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   // rather than a single mega dialect conversion pass.
   //
   // This means that intermediate steps have source/target materializations
-  // (tcp.memref_to_tensor / tcp.tensor_to_memref) in the IR.
+  // (refback.memref_to_tensor / refback.tensor_to_memref) in the IR.
 
-  // Lower ops enclosed in tcp.shaped_results regions.
+  // Lower ops enclosed in refback.shaped_results regions.
   // For now, this is covering the "tensor compute" ops like tcp.add /
   // tcp.broadcast_to (the former being handled via a special subset of
   // linalg.generic) -- we only handle those two, so having an isolated pass
@@ -230,10 +231,10 @@ void mlir::NPCOMP::createE2ELoweringPipeline(
   // more pluggable. The exact interface for this pluggability depends on
   // what design we want to settle on for bypassing shape computations.
   pm.addPass(createLowerShapedResultsToMemrefPass());
-  // Lower tensor-valued constants to tcp.global.
+  // Lower tensor-valued constants to refback.global.
   pm.addPass(createLowerConstantTensorsToMemrefPass());
-  // tcp::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument. We
-  // need to resolve this to std.alloc which takes individual extents.
+  // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
+  // We need to resolve this to std.alloc which takes individual extents.
   pm.addPass(createLowerAllocMemRefOpsPass());
   // Lower shape ops to std.
   // TODO: This should in principle be moved before tensor->memref conversion.

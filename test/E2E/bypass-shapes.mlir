@@ -2,7 +2,7 @@
 
 // CHECK-LABEL: func @tcp_broadcast_to
 func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) {
-  // CHECK: %0 = tcp.shaped_results %arg1
+  // CHECK: %0 = refback.shaped_results %arg1
   %0 = tcp.broadcast_to %arg0, %arg1 : (tensor<?xf32>, tensor<?xindex>) -> tensor<?x?xf32>
   return
 }
@@ -11,7 +11,7 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) {
 // CHECK-SAME:                  %[[LHS:.*]]: tensor<?xf32>,
 // CHECK-SAME:                  %[[RHS:.*]]: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[LHSSHAPE:.*]] = shape.shape_of %[[LHS]]
-// CHECK:           %[[RET:.*]] = tcp.shaped_results %[[LHSSHAPE]]
+// CHECK:           %[[RET:.*]] = refback.shaped_results %[[LHSSHAPE]]
 // CHECK:           return %[[RET:.*]] : tensor<?xf32>
 // CHECK:         }
 func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
@@ -24,7 +24,7 @@ func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK-SAME:                  %[[LHS:.*]]: tensor<?xf32>,
 // CHECK-SAME:                  %[[RHS:.*]]: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[LHSSHAPE:.*]] = shape.shape_of %[[LHS]]
-// CHECK:           %[[RET:.*]] = tcp.shaped_results %[[LHSSHAPE]]
+// CHECK:           %[[RET:.*]] = refback.shaped_results %[[LHSSHAPE]]
 // CHECK:           return %[[RET:.*]] : tensor<?xf32>
 // CHECK:         }
 func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
@@ -40,7 +40,7 @@ func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[C1:.*]] = constant 1 : index
 // CHECK:           %[[RHSROWS:.*]] = dim %[[RHS]], %[[C1]]
 // CHECK:           %[[RESULTSHAPE:.*]] = tensor_from_elements %[[LHSCOLS]], %[[RHSROWS]]
-// CHECK:           %[[RET:.*]] = tcp.shaped_results %[[RESULTSHAPE]] {
+// CHECK:           %[[RET:.*]] = refback.shaped_results %[[RESULTSHAPE]] {
 // CHECK:           return %[[RET:.*]] : tensor<?x?xf32>
 // CHECK:         }
 func @tcp_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {

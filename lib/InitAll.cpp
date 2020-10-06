@@ -15,6 +15,7 @@
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCF/Transforms/Passes.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -73,6 +74,7 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
                   Basicpy::BasicpyDialect,
                   Numpy::NumpyDialect,
                   npcomprt::NpcomprtDialect,
+                  refback::RefBackendDialect,
                   tcf::TCFDialect,
                   tcp::TCPDialect,
                   mlir::NPCOMP::Torch::TorchDialect>();
