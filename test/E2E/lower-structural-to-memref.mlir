@@ -63,8 +63,8 @@ func @for(%arg0: tensor<f32>, %lb: index, %ub: index, %step: index) -> tensor<f3
 // CHECK-LABEL: func @identity_materializations(%arg0: memref<?xf32>) -> memref<?xf32> {
 // CHECK-NEXT:    return %arg0 : memref<?xf32>
 func @identity_materializations(%arg0: tensor<?xf32>) -> tensor<?xf32> {
-  %0 = tcp.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
-  %1 = tcp.memref_to_tensor %0 : memref<?xf32> -> tensor<?xf32>
+  %0 = refback.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
+  %1 = refback.memref_to_tensor %0 : memref<?xf32> -> tensor<?xf32>
   return %1 : tensor<?xf32>
 }
 
@@ -76,7 +76,7 @@ func @identity_materializations(%arg0: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %[[RET]] : memref<?xf32>
 func @if_materializations(%pred: i1, %true_val_memref: memref<?xf32>, %false_val: tensor<?xf32>) -> tensor<?xf32> {
-  %true_val = tcp.memref_to_tensor %true_val_memref : memref<?xf32> -> tensor<?xf32>
+  %true_val = refback.memref_to_tensor %true_val_memref : memref<?xf32> -> tensor<?xf32>
   %0 = scf.if %pred -> (tensor<?xf32>) {
     scf.yield %true_val : tensor<?xf32>
   } else {
@@ -88,13 +88,13 @@ func @if_materializations(%pred: i1, %true_val_memref: memref<?xf32>, %false_val
 // CHECK-LABEL: func @elide_memref_to_tensor(%arg0: memref<?xf32>) -> memref<?xf32> {
 // CHECK-NEXT:    return %arg0 : memref<?xf32>
 func @elide_memref_to_tensor(%arg0: memref<?xf32>) -> tensor<?xf32> {
-  %0 = tcp.memref_to_tensor %arg0 : memref<?xf32> -> tensor<?xf32>
+  %0 = refback.memref_to_tensor %arg0 : memref<?xf32> -> tensor<?xf32>
   return %0 : tensor<?xf32>
 }
 
 // CHECK-LABEL: func @elide_tensor_to_memref(%arg0: memref<?xf32>) -> memref<?xf32> {
 // CHECK-NEXT:    return %arg0 : memref<?xf32>
 func @elide_tensor_to_memref(%arg0: tensor<?xf32>) -> memref<?xf32> {
-  %0 = tcp.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
+  %0 = refback.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
   return %0 : memref<?xf32>
 }

@@ -10,6 +10,8 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 #include "npcomp/E2E/E2E.h"
 
@@ -43,11 +45,11 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
 
 namespace {
 // TODO: There is a coupling between this pass and LowerShapedResults.
-// Any op that is wrapped in tcp.shaped_results here needs to be known how to be
-// lowered by LowerShapedResults.
+// Any op that is wrapped in refback.shaped_results here needs to be known how
+// to be lowered by LowerShapedResults.
 class BypassShapes : public BypassShapesBase<BypassShapes> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect>();
+    registry.insert<shape::ShapeDialect, refback::RefBackendDialect>();
   }
 
   void runOnOperation() override {
@@ -57,16 +59,16 @@ class BypassShapes : public BypassShapesBase<BypassShapes> {
       SmallVector<Value, 6> resultShapes = bypassResultShapes(op);
       if (resultShapes.empty())
         return;
-      // We have result shapes, so wrap this op in a tcp.shaped_results op.
+      // We have result shapes, so wrap this op in a refback.shaped_results op.
       OpBuilder builder(&op);
-      auto shapedResults = builder.create<tcp::ShapedResultsOp>(
+      auto shapedResults = builder.create<refback::ShapedResultsOp>(
           op.getLoc(), op.getResultTypes(), resultShapes);
       op.replaceAllUsesWith(shapedResults);
 
       // Move the op into the body and yield the results.
       Block *body = builder.createBlock(&shapedResults.body());
       op.moveBefore(body, body->end());
-      builder.create<tcp::YieldOp>(op.getLoc(), op.getResults());
+      builder.create<refback::YieldOp>(op.getLoc(), op.getResults());
     });
   }
 };

@@ -19,6 +19,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 
@@ -30,13 +31,13 @@ allocateResults(Operation *op, ConversionPatternRewriter &rewriter,
                 Location loc,
                 SmallVectorImpl<Value> *resultShapesOut = nullptr) {
   // TODO: This is really fragile. Can we have a better story?
-  auto shapedResults = dyn_cast<tcp::ShapedResultsOp>(op->getParentOp());
+  auto shapedResults = dyn_cast<refback::ShapedResultsOp>(op->getParentOp());
   if (!shapedResults)
-    return rewriter.notifyMatchFailure(op, "parent not tcp.shaped_results");
+    return rewriter.notifyMatchFailure(op, "parent not refback.shaped_results");
   if (op->getResults() !=
       shapedResults.getBody()->getTerminator()->getOperands())
     return rewriter.notifyMatchFailure(
-        op, "only limited forms of tcp.shaped_results allowed");
+        op, "only limited forms of refback.shaped_results allowed");
   auto resultShapes = shapedResults.resultShapes();
   SmallVector<Value, 6> results;
   for (auto t : llvm::zip(op->getResults(), resultShapes)) {
@@ -46,7 +47,7 @@ allocateResults(Operation *op, ConversionPatternRewriter &rewriter,
     auto memrefType =
         MemRefType::get(tensorType.getShape(), tensorType.getElementType());
     auto memref =
-        rewriter.create<tcp::AllocMemRefOp>(loc, memrefType, resultShape);
+        rewriter.create<refback::AllocMemRefOp>(loc, memrefType, resultShape);
     results.push_back(memref);
   }
   if (resultShapesOut)
@@ -251,22 +252,22 @@ public:
 
 namespace {
 // This pass is responsible for lowering regions wrapped by
-// tcp.shaped_results (which operate on tensors) to memrefs.
+// refback.shaped_results (which operate on tensors) to memrefs.
 // This includes any ops potentially contained within them.
 // This is somewhat analogous to IREE's backend compilation of a single dispatch
 // region, except that for now, we only allow a single op in the
-// tcp.shaped_results, and we don't have any notion of "backend" layered at all.
-// Nor is it clear if we really want any of that here.
+// refback.shaped_results, and we don't have any notion of "backend" layered at
+// all. Nor is it clear if we really want any of that here.
 //
-// The tcp.shaped_results ops provide precisely the information needed to
+// The refback.shaped_results ops provide precisely the information needed to
 // allocate output buffers when converting to memref.
-// For now, this process eliminates the original tcp.shaped_results op since we
-// don't have any host/device distinction or other structure that would require
-// retaining that sort of IR structure.
+// For now, this process eliminates the original refback.shaped_results op since
+// we don't have any host/device distinction or other structure that would
+// require retaining that sort of IR structure.
 //
 // TODO: Do "shape_of" resolution while still on tensors.
 // Here we spew out tons of shape_of and rely on dim ops on descriptors to make
-// it work. The key difference is that we need tcp.shaped_results (or its
+// it work. The key difference is that we need refback.shaped_results (or its
 // successor / something it gets lowered to) to not be IsolatedFromAbove, and
 // explicitly capture all input tensors along with their shapes. That allows
 // shape_of ops on inputs to be trivially resolved. Unfortunately, this opens up
@@ -300,14 +301,16 @@ class LowerShapedResultsToMemref
                                               ValueRange inputs, Location loc) {
       assert(inputs.size() == 1);
       assert(inputs[0].getType().isa<MemRefType>());
-      return (Value)builder.create<tcp::MemrefToTensorOp>(loc, type, inputs[0]);
+      return (Value)builder.create<refback::MemrefToTensorOp>(loc, type,
+                                                              inputs[0]);
     });
     typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                               MemRefType type,
                                               ValueRange inputs, Location loc) {
       assert(inputs.size() == 1);
       assert(inputs[0].getType().isa<RankedTensorType>());
-      return (Value)builder.create<tcp::TensorToMemrefOp>(loc, type, inputs[0]);
+      return (Value)builder.create<refback::TensorToMemrefOp>(loc, type,
+                                                              inputs[0]);
     });
 
     OwningRewritePatternList patterns;
@@ -316,14 +319,14 @@ class LowerShapedResultsToMemref
 
     // The shaped results ops themselves. They have to be legal since we delete
     // them later after the conversion process.
-    target.addLegalOp<tcp::ShapedResultsOp>();
-    target.addLegalOp<tcp::YieldOp>();
-    // All lowering to buffers involves tcp.alloc_memref ops.
-    target.addLegalOp<tcp::AllocMemRefOp>();
+    target.addLegalOp<refback::ShapedResultsOp>();
+    target.addLegalOp<refback::YieldOp>();
+    // All lowering to buffers involves refback.alloc_memref ops.
+    target.addLegalOp<refback::AllocMemRefOp>();
     // The casting ops are introduced by the type converter, so we should mark
     // them legal.
-    target.addLegalOp<tcp::MemrefToTensorOp>();
-    target.addLegalOp<tcp::TensorToMemrefOp>();
+    target.addLegalOp<refback::MemrefToTensorOp>();
+    target.addLegalOp<refback::TensorToMemrefOp>();
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
@@ -341,18 +344,19 @@ class LowerShapedResultsToMemref
     target.addLegalOp<shape::GetExtentOp>();
 
     SmallVector<Operation *, 6> shapedResultsOps;
-    func.walk([&](tcp::ShapedResultsOp op) { shapedResultsOps.push_back(op); });
+    func.walk(
+        [&](refback::ShapedResultsOp op) { shapedResultsOps.push_back(op); });
 
     if (failed(applyFullConversion(shapedResultsOps, target, patterns)))
       return signalPassFailure();
 
-    // Now inline the tcp.shaped_results ops.
+    // Now inline the refback.shaped_results ops.
     // This can't be done as part of the conversion since conversion visits
-    // ops in preorder, and we need the tcp.shaped_results ops to be present
+    // ops in preorder, and we need the refback.shaped_results ops to be present
     // so that inner ops can get their shape.
     LocallyOverrideLegalityInlinerInterface interface(context);
     for (Operation *shapedResultsOp : shapedResultsOps) {
-      auto op = cast<tcp::ShapedResultsOp>(shapedResultsOp);
+      auto op = cast<refback::ShapedResultsOp>(shapedResultsOp);
       if (failed(inlineRegion(interface, &op.body(), op, ValueRange({}),
                               op.getResults(), /*inlineLoc=*/llvm::None,
                               /*shouldCloneInlinedRegion=*/false))) {

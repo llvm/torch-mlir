@@ -17,9 +17,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
-#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
-#include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -35,13 +34,13 @@ namespace {
 class GlobalCreator {
 public:
   explicit GlobalCreator(ModuleOp module);
-  tcp::GlobalOp getGlobalFor(Attribute attr) {
+  refback::GlobalOp getGlobalFor(Attribute attr) {
     assert(globals.find(attr) != globals.end() && "unknown constant attr");
     return globals[attr];
   }
 
 private:
-  DenseMap<Attribute, tcp::GlobalOp> globals;
+  DenseMap<Attribute, refback::GlobalOp> globals;
 };
 
 GlobalCreator::GlobalCreator(ModuleOp module) {
@@ -66,7 +65,7 @@ GlobalCreator::GlobalCreator(ModuleOp module) {
     interleave(type.getShape(), os, "x");
     os << "x" << type.getElementType();
 
-    auto global = globalBuilder.create<tcp::GlobalOp>(
+    auto global = globalBuilder.create<refback::GlobalOp>(
         op.getLoc(), (Twine("__constant_") + os.str()).str(),
         op.getValue().cast<ElementsAttr>());
     symbolTable.insert(global);
@@ -82,7 +81,7 @@ namespace {
 class LowerConstantTensorsToMemref
     : public LowerConstantTensorsToMemrefBase<LowerConstantTensorsToMemref> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<tcp::TCPDialect>();
+    registry.insert<refback::RefBackendDialect>();
   }
 
   void runOnOperation() override {
@@ -98,10 +97,10 @@ class LowerConstantTensorsToMemref
       auto global = globals.getGlobalFor(op.getValue());
       OpBuilder builder(op);
       auto memrefType = MemRefType::get(type.getShape(), type.getElementType());
-      auto memref = builder.create<tcp::GetGlobalMemrefOp>(
+      auto memref = builder.create<refback::GetGlobalMemrefOp>(
           op.getLoc(), memrefType, global.getName());
       Value tensor =
-          builder.create<tcp::MemrefToTensorOp>(op.getLoc(), type, memref);
+          builder.create<refback::MemrefToTensorOp>(op.getLoc(), type, memref);
       op.replaceAllUsesWith(tensor);
       op.erase();
     });

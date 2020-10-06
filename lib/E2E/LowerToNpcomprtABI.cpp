@@ -16,7 +16,7 @@
 
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
 #include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
-#include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -75,11 +75,11 @@ static LogicalResult createModuleMetadata(ModuleOp module) {
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerGlobalOp : public OpConversionPattern<tcp::GlobalOp> {
+class LowerGlobalOp : public OpConversionPattern<refback::GlobalOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tcp::GlobalOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refback::GlobalOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<npcomprt::GlobalOp>(op, op.sym_name(),
                                                     op.value());
@@ -90,11 +90,11 @@ public:
 
 namespace {
 class LowerGetGlobalMemrefOp
-    : public OpConversionPattern<tcp::GetGlobalMemrefOp> {
+    : public OpConversionPattern<refback::GetGlobalMemrefOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tcp::GetGlobalMemrefOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refback::GetGlobalMemrefOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto abiMemref = rewriter.create<npcomprt::GetGlobalOp>(
         op.getLoc(), getABIMemrefType(op.getType()), op.global());
@@ -217,10 +217,10 @@ static LogicalResult doDialectConversion(ModuleOp module) {
       [&](ReturnOp op) { return typeConverter.isLegal(op); });
 
   patterns.insert<LowerGlobalOp>(context);
-  target.addIllegalOp<tcp::GlobalOp>();
+  target.addIllegalOp<refback::GlobalOp>();
 
   patterns.insert<LowerGetGlobalMemrefOp>(context);
-  target.addIllegalOp<tcp::GetGlobalMemrefOp>();
+  target.addIllegalOp<refback::GetGlobalMemrefOp>();
 
   patterns.insert<LowerAssertOp>(context);
   target.addIllegalOp<AssertOp>();

@@ -17,7 +17,7 @@ def BypassShapes : Pass<"bypass-shapes", "FuncOp"> {
 }
 
 def LowerShapedResultsToMemref : Pass<"lower-shaped-results-to-memref", "FuncOp"> {
-  let summary = "Lower tcp.shaped_results regions";
+  let summary = "Lower refback.shaped_results regions";
   let constructor = "mlir::NPCOMP::createLowerShapedResultsToMemrefPass()";
 }
 
@@ -30,7 +30,7 @@ def LowerConstantTensorsToMemref :
     Pass<"lower-constant-tensors-to-memref", "ModuleOp"> {
   let summary = "Lower std.constant of tensor type to memref";
   let description = [{
-    This must be a module pass since it involves creating tcp.global ops.
+    This must be a module pass since it involves creating refback.global ops.
   }];
   let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefPass()";
 }
