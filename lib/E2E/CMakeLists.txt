@@ -19,10 +19,10 @@ add_mlir_library(NPCOMPE2E
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRLinalgOps
+  MLIRLinalg
   MLIRSCFToStandard
   MLIRShapeToStandard
-  MLIRStandardOps
+  MLIRStandard
   MLIRStandardOpsTransforms
   MLIRStandardToLLVM
   )
