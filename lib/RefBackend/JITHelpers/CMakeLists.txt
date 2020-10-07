@@ -1,8 +1,8 @@
-add_mlir_library(NPCOMPJITRuntime
+add_mlir_library(NPCOMPRefBackendJITHelpers
   JITModule.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SRC_DIR}/include/npcomp/JITRuntime
+  ${PROJECT_SRC_DIR}/include/npcomp/RefBackend/JITHelpers
 
   LINK_COMPONENTS
   Core

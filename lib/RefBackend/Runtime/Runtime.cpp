@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/runtime/UserAPI.h"
+#include "npcomp/RefBackend/Runtime/UserAPI.h"
 
 #include <array>
 #include <cassert>

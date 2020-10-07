@@ -14,7 +14,7 @@
 #include "mlir/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "npcomp/InitAll.h"
-#include "npcomp/JITRuntime/JITModule.h"
+#include "npcomp/RefBackend/JITHelpers/JITModule.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 
