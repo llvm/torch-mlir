@@ -122,8 +122,7 @@ void FuncBuilder::rewriteFuncReturnTypes(
       mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
                           resultTypes.size(), resultTypes.data());
   MlirAttribute newFuncTypeAttr = mlirTypeAttrGet(newFuncType);
-  // TODO: FIX ME: Implement mlirOperationSetAttributeByName() upstream.
-  // mlirOperationSetAttributeByName(funcOp, "type", newFuncTypeAttr);
+  mlirOperationSetAttributeByName(funcOp, "type", newFuncTypeAttr);
   (void)newFuncTypeAttr;
 }
 

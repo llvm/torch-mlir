@@ -17,7 +17,7 @@ with mb.capture_function("foobar", [t0, t1]) as f:
   f.returns([result])
 
 # CHECK: module {
-# CHECK:   func @foobar(%arg0: !numpy.ndarray<[1,4]:f32>, %arg1: !numpy.ndarray<[4,1]:f32>) {
+# CHECK:   func @foobar(%arg0: !numpy.ndarray<[1,4]:f32>, %arg1: !numpy.ndarray<[4,1]:f32>) -> !numpy.ndarray<[4,4]:f32> {
 # CHECK:     %c1_i64 = constant 1 : i64
 # CHECK:     %0 = torch.kernel_call "aten::add" %arg0, %arg1, %c1_i64 : (!numpy.ndarray<[1,4]:f32>, !numpy.ndarray<[4,1]:f32>, i64) -> !numpy.ndarray<[4,4]:f32>
 # CHECK:     return %0 : !numpy.ndarray<[4,4]:f32>

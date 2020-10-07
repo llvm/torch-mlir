@@ -41,6 +41,7 @@ cmake -GNinja \
   "-DCMAKE_INSTALL_PREFIX=$install_mlir" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_ENABLE_ASSERTIONS=On \
-  -DLLVM_ENABLE_RTTI=On
+  -DLLVM_ENABLE_RTTI=On \
+  "-DMLIR_BINDINGS_PYTHON_ENABLED=ON"
 
 cmake --build "$build_mlir" --target install

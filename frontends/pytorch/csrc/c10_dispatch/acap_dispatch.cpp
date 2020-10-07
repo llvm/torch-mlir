@@ -68,8 +68,7 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
   llvm::SmallVector<MlirValue, 4> returnsValues;
   for (auto &tensor : tensors) {
     MlirValue v = funcBuilder->lookupTensor(tensor);
-    // TODO: Add mlirValueIsNull()
-    if (!v.ptr) {
+    if (mlirValueIsNull(v)) {
       // Exclude recursive dispatch in order to print tensor.
       c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
       std::stringstream msg;
@@ -167,8 +166,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
   llvm::SmallVector<MlirValue, 4> operands;
   for (auto argIt = stack->end() - argCount; argIt != stack->end(); ++argIt) {
     MlirValue mlirValue = mapIValueToMlirValue(loc, *argIt);
-    // TODO: Add upstream mlirValueIsNull
-    if (!mlirValue.ptr) {
+    if (mlirValueIsNull(mlirValue)) {
       std::stringstream out;
       out << "Unsupported capture value passed to kernel (" << argIt->tagKind()
           << "): " << *argIt;
