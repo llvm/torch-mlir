@@ -21,7 +21,7 @@ target_link_libraries(npcomp-run-mlir PRIVATE
   MLIRTargetLLVMIR
   MLIRSupport
   NPCOMPInitAll
-  NPCOMPJITRuntime
+  NPCOMPRefBackendJITHelpers
   ${conversion_libs}
   ${dialect_libs}
   )

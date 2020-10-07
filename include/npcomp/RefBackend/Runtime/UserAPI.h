@@ -13,15 +13,15 @@
 // even if things superficially look similar, remember that there are no
 // LLVM utilities here, memory allocation should be kept to a minimum, etc.
 //
-// npcomp/runtime/Support.h provides some minimal LLVM-like support code to keep
-// the API familiar.
+// npcomp/RefBackend/Runtime/Support.h provides some minimal LLVM-like support
+// code to keep the API familiar.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef NPCOMP_RUNTIME_USERAPI_H
 #define NPCOMP_RUNTIME_USERAPI_H
 
-#include "npcomp/runtime/Support.h"
+#include "npcomp/RefBackend/Runtime/Support.h"
 #include <atomic>
 #include <cstdlib>
 

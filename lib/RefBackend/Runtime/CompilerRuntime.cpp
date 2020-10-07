@@ -16,7 +16,7 @@
 #include <iostream>
 
 #include "CompilerDataStructures.h"
-#include "npcomp/runtime/UserAPI.h"
+#include "npcomp/RefBackend/Runtime/UserAPI.h"
 
 using namespace npcomprt;
 

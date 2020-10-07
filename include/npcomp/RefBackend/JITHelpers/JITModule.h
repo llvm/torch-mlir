@@ -11,7 +11,7 @@
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
 #include "mlir/IR/Module.h"
-#include "npcomp/runtime/UserAPI.h"
+#include "npcomp/RefBackend/Runtime/UserAPI.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"

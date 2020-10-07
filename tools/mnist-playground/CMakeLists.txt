@@ -34,7 +34,7 @@ target_link_libraries(mnist-playground PRIVATE
   MLIRTargetLLVMIR
   MLIRSupport
   NPCOMPInitAll
-  NPCOMPJITRuntime
+  NPCOMPRefBackendJITHelpers
   ${conversion_libs}
   ${dialect_libs}
   ${TORCH_LIBRARIES}

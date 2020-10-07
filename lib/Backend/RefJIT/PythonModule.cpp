@@ -10,9 +10,9 @@
 
 #include "pybind11/numpy.h"
 
-#include "npcomp/JITRuntime/JITModule.h"
 #include "npcomp/Python/MlirIr.h"
 #include "npcomp/Python/MlirPass.h"
+#include "npcomp/RefBackend/JITHelpers/JITModule.h"
 
 using llvm::SmallVector;
 using llvm::StringRef;

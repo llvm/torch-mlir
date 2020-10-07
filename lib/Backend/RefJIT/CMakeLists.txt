@@ -16,7 +16,7 @@ target_link_libraries(NPCOMPBackendRefJITPythonModule
   MLIRTargetLLVMIR
 
   NPCOMPPythonCommon
-  NPCOMPJITRuntime
+  NPCOMPRefBackendJITHelpers
 )
 
 npcomp_python_target_compile_options(NPCOMPBackendRefJITPythonModule)

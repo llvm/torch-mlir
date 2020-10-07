@@ -1,3 +1,6 @@
+add_subdirectory(Runtime)
+add_subdirectory(JITHelpers)
+
 add_mlir_library(NPCOMPRefBackend
   BypassShapes.cpp
   RefBackend.cpp

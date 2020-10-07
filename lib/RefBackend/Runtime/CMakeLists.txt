@@ -11,9 +11,6 @@ set(LLVM_OPTIONAL_SOURCES
 add_mlir_library(NPCOMPRuntime
   Runtime.cpp
 
-  LINK_LIBS
-  MLIRExecutionEngine
-
   EXCLUDE_FROM_LIBMLIR
 )
 
