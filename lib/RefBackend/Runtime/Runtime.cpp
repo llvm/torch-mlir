@@ -15,7 +15,7 @@
 
 #include "CompilerDataStructures.h"
 
-using namespace npcomprt;
+using namespace refbackrt;
 
 //===----------------------------------------------------------------------===//
 // Tensor
@@ -29,7 +29,7 @@ static std::int32_t totalElements(ArrayRef<std::int32_t> extents) {
   return ret;
 }
 
-std::int32_t npcomprt::getElementTypeByteSize(ElementType type) {
+std::int32_t refbackrt::getElementTypeByteSize(ElementType type) {
   switch (type) {
   case ElementType::F32:
     return 4;
@@ -85,9 +85,9 @@ static FuncDescriptor *getFuncDescriptor(ModuleDescriptor *moduleDescriptor,
   return nullptr;
 }
 
-void npcomprt::invoke(ModuleDescriptor *moduleDescriptor,
-                      StringRef functionName, ArrayRef<Ref<Tensor>> inputs,
-                      MutableArrayRef<Ref<Tensor>> outputs) {
+void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
+                       StringRef functionName, ArrayRef<Ref<Tensor>> inputs,
+                       MutableArrayRef<Ref<Tensor>> outputs) {
   auto *descriptor = getFuncDescriptor(moduleDescriptor, functionName);
   assert(descriptor && "unknown function name");
   assert(inputs.size() < kMaxArity && "number of inputs exceeds kMaxArity");
@@ -104,7 +104,7 @@ void npcomprt::invoke(ModuleDescriptor *moduleDescriptor,
   for (int i = 0, e = outputs.size(); i < e; i++)
     outputTensorPtrs[i] = static_cast<Tensor *>(packedOutputs[i]);
   // TODO: Actually manage refcounts inside the compiler.
-  // Right now, we only pass around npcomprt.tensor's in trivial ways on ABI
+  // Right now, we only pass around refbackrt.tensor's in trivial ways on ABI
   // boundaries, so the following contract of the compiler-generated code works:
   // - input tensors are never retained or released
   // - output tensors always have refcount 0. Hence the next line here is
@@ -113,9 +113,9 @@ void npcomprt::invoke(ModuleDescriptor *moduleDescriptor,
     outputs[i] = Ref<Tensor>(outputTensorPtrs[i]);
 }
 
-LogicalResult npcomprt::getMetadata(ModuleDescriptor *moduleDescriptor,
-                                    StringRef functionName,
-                                    FunctionMetadata &outMetadata) {
+LogicalResult refbackrt::getMetadata(ModuleDescriptor *moduleDescriptor,
+                                     StringRef functionName,
+                                     FunctionMetadata &outMetadata) {
   auto *descriptor = getFuncDescriptor(moduleDescriptor, functionName);
   if (!descriptor)
     return failure();

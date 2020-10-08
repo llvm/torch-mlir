@@ -14,8 +14,8 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
 #include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
@@ -32,10 +32,10 @@ static Type getABIMemrefType(Type type) {
 // Creating module metadata.
 //===----------------------------------------------------------------------===//
 
-// Returns true if the function signature can be expressed with the npcomprt
+// Returns true if the function signature can be expressed with the refbackrt
 // ABI.
-static bool expressibleWithNpcomprtABI(FunctionType type) {
-  // Currently, only memref types can be exposed at npcomprt ABI boundaries.
+static bool expressibleWithRefbackrtABI(FunctionType type) {
+  // Currently, only memref types can be exposed at refbackrt ABI boundaries.
   return llvm::all_of(
       llvm::concat<const Type>(type.getInputs(), type.getResults()),
       [](Type t) { return t.isa<MemRefType>(); });
@@ -44,11 +44,11 @@ static bool expressibleWithNpcomprtABI(FunctionType type) {
 static LogicalResult createModuleMetadata(ModuleOp module) {
   auto moduleMetadata =
       OpBuilder::atBlockBegin(module.getBody())
-          .create<npcomprt::ModuleMetadataOp>(module.getLoc());
+          .create<refbackrt::ModuleMetadataOp>(module.getLoc());
   moduleMetadata.metadatas().push_back(new Block);
   Block &metadatas = moduleMetadata.metadatas().front();
   OpBuilder::atBlockEnd(&metadatas)
-      .create<npcomprt::ModuleMetadataTerminatorOp>(module.getLoc());
+      .create<refbackrt::ModuleMetadataTerminatorOp>(module.getLoc());
 
   SymbolTable symbolTable(module);
   auto builder = OpBuilder::atBlockBegin(&metadatas);
@@ -59,13 +59,13 @@ static LogicalResult createModuleMetadata(ModuleOp module) {
     }
     // TODO: Add richer information here such as expected shapes and element
     // types.
-    builder.create<npcomprt::FuncMetadataOp>(
+    builder.create<refbackrt::FuncMetadataOp>(
         func.getLoc(), builder.getSymbolRefAttr(func.getName()),
         builder.getI32IntegerAttr(func.getNumArguments()),
         builder.getI32IntegerAttr(func.getNumResults()));
 
-    if (!expressibleWithNpcomprtABI(func.getType()))
-      return func.emitError() << "func not expressible with npcomprt ABI";
+    if (!expressibleWithRefbackrtABI(func.getType()))
+      return func.emitError() << "func not expressible with refbackrt ABI";
   }
   return success();
 }
@@ -81,8 +81,8 @@ public:
   LogicalResult
   matchAndRewrite(refback::GlobalOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<npcomprt::GlobalOp>(op, op.sym_name(),
-                                                    op.value());
+    rewriter.replaceOpWithNewOp<refbackrt::GlobalOp>(op, op.sym_name(),
+                                                     op.value());
     return success();
   }
 };
@@ -96,7 +96,7 @@ public:
   LogicalResult
   matchAndRewrite(refback::GetGlobalMemrefOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto abiMemref = rewriter.create<npcomprt::GetGlobalOp>(
+    auto abiMemref = rewriter.create<refbackrt::GetGlobalOp>(
         op.getLoc(), getABIMemrefType(op.getType()), op.global());
     // Cast back to the original type.
     rewriter.replaceOpWithNewOp<MemRefCastOp>(op, abiMemref, op.getType());
@@ -113,22 +113,22 @@ public:
   matchAndRewrite(AssertOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     AssertOp::Adaptor adaptor(operands);
-    // The npcomprt runtime function aborts if the argument is true, rather than
-    // when it is false as an `assert` does. So negate the predicate (by xor'ing
-    // with 1).
+    // The refbackrt runtime function aborts if the argument is true, rather
+    // than when it is false as an `assert` does. So negate the predicate (by
+    // xor'ing with 1).
     auto c1 = rewriter.create<ConstantOp>(
         op.getLoc(), rewriter.getIntegerAttr(rewriter.getI1Type(),
                                              APInt(/*numBits=*/1, /*val=*/1)));
     Value assertFailed = rewriter.create<XOrOp>(op.getLoc(), adaptor.arg(), c1);
-    rewriter.replaceOpWithNewOp<npcomprt::AbortIfOp>(op, assertFailed,
-                                                     op.msgAttr());
+    rewriter.replaceOpWithNewOp<refbackrt::AbortIfOp>(op, assertFailed,
+                                                      op.msgAttr());
     return success();
   }
 };
 } // namespace
 
 namespace {
-// At ABI bondaries, use !npcomprt.tensor instead of memref.
+// At ABI bondaries, use !refbackrt.tensor instead of memref.
 class FuncOpSignatureConversion : public OpConversionPattern<FuncOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -159,7 +159,7 @@ public:
       for (auto newAndOldArg :
            llvm::zip(newEntry.getArguments(), oldEntry.getArguments())) {
         std::tie(newArg, oldArg) = newAndOldArg;
-        auto abiMemref = rewriter.create<npcomprt::ToMemrefOp>(
+        auto abiMemref = rewriter.create<refbackrt::ToMemrefOp>(
             op.getLoc(), getABIMemrefType(oldArg.getType()), newArg);
         auto memref = rewriter.create<MemRefCastOp>(op.getLoc(), abiMemref,
                                                     oldArg.getType());
@@ -172,7 +172,7 @@ public:
 } // namespace
 
 namespace {
-// At the return ABI boundaries, convert to !npcomprt.tensor type.
+// At the return ABI boundaries, convert to !refbackrt.tensor type.
 // This pattern is needed to trigger the type conversion mechanics to do a
 // target materialization.
 class RewriteReturnOp : public OpConversionPattern<ReturnOp> {
@@ -193,20 +193,20 @@ static LogicalResult doDialectConversion(ModuleOp module) {
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
   typeConverter.addConversion([](MemRefType type) {
-    return npcomprt::TensorType::get(type.getContext());
+    return refbackrt::TensorType::get(type.getContext());
   });
   typeConverter.addTargetMaterialization(
-      [](OpBuilder &builder, npcomprt::TensorType type, ValueRange inputs,
+      [](OpBuilder &builder, refbackrt::TensorType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
         auto abiMemref = builder.create<MemRefCastOp>(
             loc, inputs[0], getABIMemrefType(inputs[0].getType()));
-        return builder.create<npcomprt::FromMemrefOp>(loc, type, abiMemref);
+        return builder.create<refbackrt::FromMemrefOp>(loc, type, abiMemref);
       });
 
   OwningRewritePatternList patterns;
   ConversionTarget target(*context);
-  target.addLegalDialect<npcomprt::NpcomprtDialect>();
+  target.addLegalDialect<refbackrt::RefbackrtDialect>();
   target.addLegalDialect<StandardOpsDialect>();
 
   patterns.insert<FuncOpSignatureConversion>(typeConverter, context);
@@ -230,10 +230,11 @@ static LogicalResult doDialectConversion(ModuleOp module) {
 
 namespace {
 // This pass lowers the public ABI of the module to the primitives exposed by
-// the npcomprt dialect.
-class LowerToNpcomprtABI : public LowerToNpcomprtABIBase<LowerToNpcomprtABI> {
+// the refbackrt dialect.
+class LowerToRefbackrtABI
+    : public LowerToRefbackrtABIBase<LowerToRefbackrtABI> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<npcomprt::NpcomprtDialect>();
+    registry.insert<refbackrt::RefbackrtDialect>();
   }
 
   void runOnOperation() override {
@@ -254,6 +255,6 @@ class LowerToNpcomprtABI : public LowerToNpcomprtABIBase<LowerToNpcomprtABI> {
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::NPCOMP::createLowerToNpcomprtABIPass() {
-  return std::make_unique<LowerToNpcomprtABI>();
+mlir::NPCOMP::createLowerToRefbackrtABIPass() {
+  return std::make_unique<LowerToRefbackrtABI>();
 }

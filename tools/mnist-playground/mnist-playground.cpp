@@ -73,32 +73,30 @@ invokeJITModuleWithATenTensors(npcomp::JITModule &jitModule,
   std::vector<at::TensorArg> tensorArgs;
   for (auto arg : llvm::enumerate(args))
     tensorArgs.push_back(at::TensorArg(arg.value(), "arg", arg.index()));
-  at::CheckedFrom c = "converting to npcomprt::Tensor";
+  at::CheckedFrom c = "converting to refbackrt::Tensor";
   for (auto &tensorArg : tensorArgs)
     at::checkScalarType(c, tensorArg, at::ScalarType::Float);
   at::checkAllContiguous(c, tensorArgs);
 
-  SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6> npcomprtInputs;
+  SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6> refbackInputs;
   for (at::Tensor arg : args) {
     SmallVector<int32_t, 6> extents(arg.sizes().begin(), arg.sizes().end());
     float *data = arg.storage().data<float>();
     // This does a deep copy of the data. Let's see if it shows up on the
     // profile.
-    npcomprtInputs.push_back(npcomprt::Tensor::create(
-        npcomprt::ArrayRef<int32_t>(extents.data(), extents.size()),
-        npcomprt::ElementType::F32, data));
+    refbackInputs.push_back(refbackrt::Tensor::create(
+        refbackrt::ArrayRef<int32_t>(extents.data(), extents.size()),
+        refbackrt::ElementType::F32, data));
   }
 
   // Invoke the RefBackend function.
-  // TODO: The mishmash of terminology "npcomprt", "refback", "npcomp" in this
-  // file is getting out of hand.
-  auto expectedOutputs = jitModule.invoke(invokeFunction, npcomprtInputs);
+  auto expectedOutputs = jitModule.invoke(invokeFunction, refbackInputs);
   if (!expectedOutputs)
     return expectedOutputs.takeError();
-  auto npcomprtOutputs = std::move(*expectedOutputs);
+  auto refbackrtOutputs = std::move(*expectedOutputs);
 
   std::vector<at::Tensor> results;
-  for (auto output : npcomprtOutputs) {
+  for (auto output : refbackrtOutputs) {
     std::vector<int64_t> sizes(output->getExtents().data(),
                                output->getExtents().data() +
                                    output->getExtents().size());

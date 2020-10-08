@@ -24,7 +24,7 @@ class PassManager;
 } // namespace mlir
 
 namespace npcomp {
-// Wrapper around npcomprt data structures and a JITted module, facilitating
+// Wrapper around refbackrt data structures and a JITted module, facilitating
 // interaction.
 class JITModule {
 public:
@@ -40,14 +40,14 @@ public:
   fromCompiledModule(mlir::ModuleOp module,
                      llvm::ArrayRef<llvm::StringRef> sharedLibs);
 
-  llvm::Expected<llvm::SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6>>
+  llvm::Expected<llvm::SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6>>
   invoke(llvm::StringRef functionName,
-         llvm::ArrayRef<npcomprt::Ref<npcomprt::Tensor>> inputs);
+         llvm::ArrayRef<refbackrt::Ref<refbackrt::Tensor>> inputs);
 
 private:
   JITModule();
   std::unique_ptr<mlir::ExecutionEngine> engine;
-  npcomprt::ModuleDescriptor *descriptor;
+  refbackrt::ModuleDescriptor *descriptor;
 };
 } // namespace npcomp
 

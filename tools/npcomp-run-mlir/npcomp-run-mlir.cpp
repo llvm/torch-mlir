@@ -35,7 +35,7 @@ static Error make_string_error(const Twine &message) {
                                        llvm::inconvertibleErrorCode());
 }
 
-static Expected<npcomprt::Ref<npcomprt::Tensor>>
+static Expected<refbackrt::Ref<refbackrt::Tensor>>
 convertAttrToTensor(Attribute attr) {
   auto type = attr.getType().dyn_cast<RankedTensorType>();
   if (!type)
@@ -47,18 +47,18 @@ convertAttrToTensor(Attribute attr) {
     if (elementType.isF32()) {
       auto values = llvm::to_vector<100>(llvm::map_range(
           denseFp, [](APFloat f) { return f.convertToFloat(); }));
-      return npcomprt::Tensor::create(
-          npcomprt::ArrayRef<std::int32_t>(extents.data(), extents.size()),
-          npcomprt::ElementType::F32, static_cast<void *>(values.data()));
+      return refbackrt::Tensor::create(
+          refbackrt::ArrayRef<std::int32_t>(extents.data(), extents.size()),
+          refbackrt::ElementType::F32, static_cast<void *>(values.data()));
     }
   }
   return make_string_error("unhandled argument");
 }
 
-static Expected<SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6>>
+static Expected<SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6>>
 createInputs(ArrayRef<StringRef> argValues) {
   MLIRContext context;
-  SmallVector<npcomprt::Ref<npcomprt::Tensor>, 6> ret;
+  SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6> ret;
   for (auto argValue : argValues) {
     auto attr = parseAttribute(argValue, &context);
     if (!attr)
@@ -71,14 +71,14 @@ createInputs(ArrayRef<StringRef> argValues) {
   return ret;
 }
 
-static Type convertToMLIRType(npcomprt::ElementType type, Builder &builder) {
+static Type convertToMLIRType(refbackrt::ElementType type, Builder &builder) {
   switch (type) {
-  case npcomprt::ElementType::F32:
+  case refbackrt::ElementType::F32:
     return builder.getF32Type();
   }
 }
 
-static RankedTensorType getCorrespondingMLIRTensorType(npcomprt::Tensor &tensor,
+static RankedTensorType getCorrespondingMLIRTensorType(refbackrt::Tensor &tensor,
                                                        Builder &builder) {
   auto elementType = convertToMLIRType(tensor.getElementType(), builder);
   SmallVector<int64_t, 6> extents;
@@ -87,11 +87,11 @@ static RankedTensorType getCorrespondingMLIRTensorType(npcomprt::Tensor &tensor,
   return RankedTensorType::get(extents, elementType);
 }
 
-static Attribute convertToMLIRAttribute(npcomprt::Tensor &tensor,
+static Attribute convertToMLIRAttribute(refbackrt::Tensor &tensor,
                                         Builder &builder) {
   RankedTensorType type = getCorrespondingMLIRTensorType(tensor, builder);
   switch (tensor.getElementType()) {
-  case npcomprt::ElementType::F32: {
+  case refbackrt::ElementType::F32: {
     SmallVector<float, 100> values;
     auto *basePtr = tensor.getData<float>();
     for (int i = 0, e = type.getNumElements(); i < e; i++)
@@ -101,14 +101,14 @@ static Attribute convertToMLIRAttribute(npcomprt::Tensor &tensor,
   }
 }
 
-static void printOutput(npcomprt::Tensor &tensor, llvm::raw_ostream &os) {
+static void printOutput(refbackrt::Tensor &tensor, llvm::raw_ostream &os) {
   MLIRContext context;
   Builder builder(&context);
   auto attr = convertToMLIRAttribute(tensor, builder);
   attr.print(os);
 }
 
-static void printOutputs(ArrayRef<npcomprt::Ref<npcomprt::Tensor>> outputs,
+static void printOutputs(ArrayRef<refbackrt::Ref<refbackrt::Tensor>> outputs,
                          llvm::raw_ostream &os) {
   for (auto output : llvm::enumerate(outputs)) {
     os << "output #" << output.index() << ": ";

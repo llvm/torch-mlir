@@ -6,37 +6,37 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMPRT_OPS
-#define NPCOMPRT_OPS
+#ifndef REFBACKRT_OPS
+#define REFBACKRT_OPS
 
-include "npcomp/Dialect/Npcomprt/IR/NpcomprtBase.td"
+include "npcomp/Dialect/Refbackrt/IR/RefbackrtBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 
-class Npcomprt_Op<string mnemonic, list<OpTrait> traits = []>
-    : Op<Npcomprt_Dialect, mnemonic, traits> {
+class Refbackrt_Op<string mnemonic, list<OpTrait> traits = []>
+    : Op<Refbackrt_Dialect, mnemonic, traits> {
 }
 
-def Npcomprt_ToMemrefOp : Npcomprt_Op<"to_memref"> {
+def Refbackrt_ToMemrefOp : Refbackrt_Op<"to_memref"> {
   let summary = "Gets a memref descriptor from a tensor";
   let description = [{
     Gets a memref descriptor from a tensor.
   }];
-  let arguments = (ins Npcomprt_Tensor:$tensor);
+  let arguments = (ins Refbackrt_Tensor:$tensor);
   let results = (outs AnyUnrankedMemRef:$memref);
   let assemblyFormat = "$tensor attr-dict `:` type($memref)";
 }
 
-def Npcomprt_FromMemrefOp : Npcomprt_Op<"from_memref"> {
+def Refbackrt_FromMemrefOp : Refbackrt_Op<"from_memref"> {
   let summary = "Converts a memref descriptor to a tensor";
   let description = [{
     Copies the data from a memref into a new tensor.
   }];
   let arguments = (ins AnyUnrankedMemRef:$memref);
-  let results = (outs Npcomprt_Tensor:$tensor);
+  let results = (outs Refbackrt_Tensor:$tensor);
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 }
 
-def Npcomprt_AbortIfOp : Npcomprt_Op<"abort_if"> {
+def Refbackrt_AbortIfOp : Refbackrt_Op<"abort_if"> {
   let summary = "Aborts if the predicate is true";
   let description = [{
     Aborts if the predicate is true.
@@ -46,7 +46,7 @@ def Npcomprt_AbortIfOp : Npcomprt_Op<"abort_if"> {
   let assemblyFormat = "$pred `,` $msg attr-dict";
 }
 
-def Npcomprt_GlobalOp : Npcomprt_Op<"global", [Symbol]> {
+def Refbackrt_GlobalOp : Refbackrt_Op<"global", [Symbol]> {
   let summary = "Represents a global variable";
   let description = [{
     Represents a global variable.
@@ -61,19 +61,19 @@ def Npcomprt_GlobalOp : Npcomprt_Op<"global", [Symbol]> {
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-def Npcomprt_GetGlobalOp : Npcomprt_Op<"get_global"> {
+def Refbackrt_GetGlobalOp : Refbackrt_Op<"get_global"> {
   let summary = "Obtain a rank-erased memref pointing at the given global";
   let description = [{
     Obtain a rank-erased memref pointing at the given global.
 
     TODO: As we define the runtime layer better, we should have fewer
     entry points that return memrefs, or at least have a clearer separation
-    between the "memref world" and the "npcomprt world".
+    between the "memref world" and the "refbackrt world".
     Something like forming IREE dispatch regions seems to be the missing thing:
     - Everything inside the dispatch regions gets things marshaled from the
-      runtime (flow/hal/npcomprt) layer to/from memrefs in a clear way.
+      runtime (flow/hal/refbackrt) layer to/from memrefs in a clear way.
     - Everything outside the dispatch regions purely uses the runtime
-      (flow/hal/npcomprt) data structures.
+      (flow/hal/refbackrt) data structures.
     Globals should be one of the things that are purely runtime data structures,
     rather than using memrefs. For now, using memrefs is simpler though.
   }];
@@ -83,12 +83,12 @@ def Npcomprt_GetGlobalOp : Npcomprt_Op<"get_global"> {
   let verifier = "return ::verify$cppClass(*this);";
 }
 
-def Npcomprt_ModuleMetadataOp : Npcomprt_Op<"module_metadata", [
+def Refbackrt_ModuleMetadataOp : Refbackrt_Op<"module_metadata", [
   SingleBlockImplicitTerminator<"ModuleMetadataTerminatorOp">
 ]> {
   let summary = "Global metadata for the module";
   let description = [{
-    This op contains a region containing npcomprt.func_metadata ops,
+    This op contains a region containing refbackrt.func_metadata ops,
     which give information about the functions in the module. This allows
     the module to be introspected when it is loaded, such as looking up
     functions.
@@ -110,8 +110,8 @@ def Npcomprt_ModuleMetadataOp : Npcomprt_Op<"module_metadata", [
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-def Npcomprt_ModuleMetadataTerminatorOp
-    : Npcomprt_Op<"module_metadata_terminator",
+def Refbackrt_ModuleMetadataTerminatorOp
+    : Refbackrt_Op<"module_metadata_terminator",
                   [Terminator, HasParent<"ModuleMetadataOp">]> {
   let summary = "Implicit terminator for ModuleMetadataOp's region";
   let arguments = (ins);
@@ -119,8 +119,8 @@ def Npcomprt_ModuleMetadataTerminatorOp
   let assemblyFormat = "attr-dict";
 }
 
-def Npcomprt_FuncMetadataOp
-    : Npcomprt_Op<"func_metadata", [HasParent<"ModuleMetadataOp">]> {
+def Refbackrt_FuncMetadataOp
+    : Refbackrt_Op<"func_metadata", [HasParent<"ModuleMetadataOp">]> {
   let summary = "Runtime metadata for a single func";
   let description = [{
     Runtime metadata for a single func.
@@ -138,4 +138,4 @@ def Npcomprt_FuncMetadataOp
   let verifier = [{ return ::verify(*this); }];
 }
 
-#endif // #ifndef NPCOMPRT_OPS
+#endif // #ifndef REFBACKRT_OPS

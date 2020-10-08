@@ -25,7 +25,7 @@
 #include <atomic>
 #include <cstdlib>
 
-namespace npcomprt {
+namespace refbackrt {
 
 // Reference-counted handle to a type with a `refCount` member.
 template <typename T> class Ref {
@@ -178,6 +178,6 @@ LogicalResult getMetadata(ModuleDescriptor *moduleDescriptor,
                           StringRef functionName,
                           FunctionMetadata &outMetadata);
 
-} // namespace npcomprt
+} // namespace refbackrt
 
 #endif // NPCOMP_RUNTIME_USERAPI_H
