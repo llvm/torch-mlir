@@ -11,9 +11,9 @@ set -e
 
 # Setup directories.
 td="$(realpath $(dirname $0)/..)"
-build_dir="$(realpath "${BUILD_DIR:-$td/build}")"
-install_mlir="$build_dir/install-mlir"
-build_mlir="$build_dir/build-mlir"
+build_dir="$(realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
+build_mlir="${LLVM_BUILD_DIR-$build_dir/build-mlir}"
+install_mlir="${LLVM_INSTALL_DIR-$build_dir/install-mlir}"
 declare -a extra_opts
 
 if ! [ -d "$install_mlir/include/mlir" ]; then

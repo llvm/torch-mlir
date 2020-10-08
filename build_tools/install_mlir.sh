@@ -5,7 +5,9 @@
 #   BUILD_DIR=/build ./build_tools/install_mlir.sh
 set -e
 td="$(realpath $(dirname $0)/..)"
-build_dir="$(realpath "${BUILD_DIR:-$td/build}")"
+build_dir="$(realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
+build_mlir="${LLVM_BUILD_DIR-$build_dir/build-mlir}"
+install_mlir="${LLVM_INSTALL_DIR-$build_dir/install-mlir}"
 
 # Find LLVM source (assumes it is adjacent to this directory).
 LLVM_SRC_DIR="$(realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
@@ -15,10 +17,7 @@ if ! [ -f "$LLVM_SRC_DIR/llvm/CMakeLists.txt" ]; then
   exit 1
 fi
 echo "Using LLVM source dir: $LLVM_SRC_DIR"
-echo "Build directory: $build_dir"
 # Setup directories.
-build_mlir="$build_dir/build-mlir"
-install_mlir="$build_dir/install-mlir"
 echo "Building MLIR in $build_mlir"
 echo "Install MLIR to $install_mlir"
 mkdir -p "$build_mlir"
@@ -32,16 +31,15 @@ set -x
 cmake -GNinja \
   "-H$LLVM_SRC_DIR/llvm" \
   "-B$build_mlir" \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
   -DLLVM_INSTALL_UTILS=ON \
   -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_TARGETS_TO_BUILD="X86;AArch64;ARM" \
+  -DLLVM_TARGETS_TO_BUILD="X86" \
   -DLLVM_INCLUDE_TOOLS=ON \
-  -DLLVM_BUILD_TOOLS=OFF \
-  -DLLVM_INCLUDE_TESTS=OFF \
   "-DCMAKE_INSTALL_PREFIX=$install_mlir" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_ENABLE_ASSERTIONS=On \
   -DLLVM_ENABLE_RTTI=On \
-  "-DMLIR_BINDINGS_PYTHON_ENABLED=ON"
+  -DMLIR_BINDINGS_PYTHON_ENABLED=ON
 
 cmake --build "$build_mlir" --target install

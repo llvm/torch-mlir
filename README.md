@@ -116,93 +116,95 @@ ninja check-npcomp
 export PYTHONPATH="$(realpath python):$(realpath build/python)"
 ```
 
-### PyTorch 1.3 - ATen pseudo-device type dispatch
-
-The currently functional approach to PyTorch integration uses an ATen pseudo
-device for program capture. It is activated by including the PyTorch cmake
-path and settind `-DNPCOMP_ENABLE_TORCH_TYPE_DISPATCH=ON`. This approach has a
-very fragile dependency on a specific PyTorch revisions in the ~1.3 era and
-currently must be built via the docker image in `docker/pytorch-1.3`.
-
-We are migrating to newer approaches that build with more recent PyTorch
-versions, but these are not yet functional (see below).
-
-Docker container setup:
-
-```shell
-# One of the maintainers does periodically push new images. To use one of these,
-# skip the build step and use:
-#   BUILD_IMAGE_TAG="stellaraccident/npcomp:build-pytorch-1.3"
-# Since we are not planning to support this branch long term, this process is
-# entirely ad-hoc at present and geared for project maintainers and build bots
-# to be able to make progress.
-# See https://hub.docker.com/repository/docker/stellaraccident/npcomp
-BUILD_IMAGE_TAG="local/npcomp:build-pytorch-1.3"
-
-# Build the docker image (rebuilds PyTorch, so takes quite some time).
-docker build docker/pytorch-1.3 --tag $BUILD_IMAGE_TAG
-
-# Docker workflow (or use your own preferences).
-# Create a volume for npcomp build artifacts.
-docker volume create npcomp-pytorch-1.3-build
-
-# Run the container, mounting /npcomp to the source directory and the volume
-# above to the /build directory. The source directory is mounted read-only to
-# avoid the container putting root owned files there.
-# Replace `$HOME/src/mlir-npcomp` with an appropriate path to where the project
-# is checked out.
-docker run \
-  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/npcomp,readonly \
-  --mount source=npcomp-pytorch-1.3-build,target=/build \
-  --rm -it $BUILD_IMAGE_TAG /bin/bash
-```
-
-```shell
-# From within the docker image.
-# Install MLIR and configure project.
-cd /npcomp
-BUILD_DIR=/build ./build_tools/install_mlir.sh
-BUILD_DIR=/build ./build_tools/cmake_configure.sh \
-  -DCMAKE_PREFIX_PATH=/opt/conda/lib/python3.6/site-packages/torch/share/cmake \
-  -DNPCOMP_ENABLE_TORCH_TYPE_DISPATCH=ON
-
-# Build.
-cd /build
-ninja
-ninja check-npcomp
-ninja check-frontends-pytorch
-```
-
-### PyTorch 1.6+ - Graph API <-> MLIR
-
-Note: This variant is not yet complete in any useful way.
+### PyTorch Frontend Build (manual docker instructions)
 
 Create docker image (or follow your own preferences):
 
-* Map the source directory to `/npcomp`
-* Map the `/build` directory appropriately for your case.
+* Mount the (host) source directory to `/src/mlir-npcomp` (in the container).
+* Mount the `/build` directory (in the container) appropriately for your case.
 
 ```shell
-BUILD_IMAGE_TAG="local/npcomp:build-pytorch-1.6"
-docker build docker/pytorch-1.6 --tag $BUILD_IMAGE_TAG
-docker volume create npcomp-pytorch-1.6-build
+docker build docker/pytorch-1.6 --tag local/npcomp:build-pytorch-1.6
+docker volume create npcomp-build
 ```
 
 Shell into docker image:
 
 ```shell
 docker run \
-  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/npcomp,readonly \
-  --mount source=npcomp-pytorch-1.6-build,target=/build \
-  --rm -it $BUILD_IMAGE_TAG /bin/bash
+  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/src/mlir-npcomp \
+  --mount source=npcomp-build,target=/build \
+  --rm -it local/npcomp:build-pytorch-1.6 /bin/bash
 ```
 
 Build/test npcomp (from within docker image):
 
 ```shell
 # From within the docker image.
-cd /npcomp
+cd /src/mlir-npcomp
 ./build_tools/install_mlir.sh
 ./build_tools/cmake_configure.sh
-cmake --build /build --target check-npcomp check-frontends-pytorch
+cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 ```
+
+### VSCode with a Docker Dev Image
+
+#### Start a docker dev container based on our image
+
+Assumes that mlir-npcomp is checked out locally under `~/src/mlir-npcomp`.
+See `docker_shell_funcs.sh` for commands to modify if different.
+
+```shell
+# Build/start the container.
+source ./build_tools/docker_shell_funcs.sh
+npcomp_docker_build  # Only needed first time/on updates to docker files.
+npcomp_docker_start
+```
+
+```shell
+# Get an interactive shell to the container and initial build.
+npcomp_docker_login
+```
+
+```shell
+# Stop the container (when done).
+npcomp_docker_stop
+```
+
+### Configure VSCode:
+
+Attach to your running container by opening the Docker extension tab (left panel), right clicking on the container name, and selecting "Attach Visual Studio code".
+
+Install extensions in container:
+  * CMake Tools
+  * C/C++
+  * C++ Intellisense
+
+#### Add workspace folders:
+
+* `mlir-npcomp` source folder
+* `external/llvm-project` source folder
+
+#### Configure general settings:
+
+`Ctrl-Shift-P` > `Preferences: Open Settings (UI)`
+
+* For `mlir-npcomp` folder:
+  * `Cmake: Build directory`: `/build/npcomp`
+  * Uncheck `Cmake: Configure On Edit` and `Cmake: Configure on Open`
+* For `llvm-project` folder:
+  * `Cmake: Build directory`: `/build/llvm-build`
+  * Uncheck `Cmake: Configure On Edit` and `Cmake: Configure on Open`
+
+#### Configure Intellisense:
+
+`Ctrl-Shift-P` > `C/C++: Edit Configurations (UI)`
+
+* Open C/C++ config (for each project folder):
+  * Under Advanced, Compile Commands:
+    * set `/build/npcomp/compile_commands.json` for mlir-npcomp
+  	* set `/build/llvm-build/compile_commands.json` for llvm-project
+* Open a C++ file, give it a few seconds and see if you get code completion
+  (press CTRL-Space).
+
+Make sure to save your workspace (prefer a local folder with the "Use Local" button)!

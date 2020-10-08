@@ -17,11 +17,9 @@ RUN ln -s /usr/bin/llvm-symbolizer-10 /usr/bin/llvm-symbolizer
 RUN pip3 install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 RUN ln -s /usr/local/lib/python3.8/dist-packages/torch /pytorch
 
-# Other dev tools here (avoids forking large images when changed).
-RUN apt install -y byobu
-
 # Build configuration
 RUN mkdir /ccache && ln -s /usr/bin/ccache /ccache/clang && ln -s /usr/bin/ccache /ccache/clang++
+RUN mkdir /build && chmod a+rw /build /ccache
 ENV PATH "/ccache:${PATH}"
 ENV CC clang
 ENV CXX clang++
@@ -29,4 +27,6 @@ ENV CXX clang++
 ENV CXXFLAGS "-D_GLIBCXX_USE_CXX11_ABI=0"
 ENV LDFLAGS "-fuse-ld=/usr/bin/ld.lld"
 ENV CMAKE_PREFIX_PATH /pytorch/share/cmake
-ENV BUILD_DIR /build
+ENV LLVM_BUILD_DIR /build/llvm-build
+ENV LLVM_INSTALL_DIR /build/llvm-install
+ENV NPCOMP_BUILD_DIR /build/npcomp
