@@ -22,8 +22,8 @@ using llvm::Twine;
 using mlir::PyModuleOp;
 using mlir::PyPassManager;
 using npcomp::JITModule;
-using npcomprt::Ref;
-using npcomprt::Tensor;
+using refbackrt::Ref;
+using refbackrt::Tensor;
 
 template <typename T>
 static T checkError(llvm::Expected<T> &&expected, Twine banner = {}) {
@@ -37,10 +37,10 @@ static T checkError(llvm::Expected<T> &&expected, Twine banner = {}) {
   throw py::raisePyError(PyExc_RuntimeError, errorMessage.c_str());
 }
 
-static npcomprt::ElementType
+static refbackrt::ElementType
 mapBufferFormatToElementType(const std::string &format, py::ssize_t itemSize) {
   if (format == "f")
-    return npcomprt::ElementType::F32;
+    return refbackrt::ElementType::F32;
 
   std::string message("unsupported buffer format: ");
   message.append(format);
@@ -61,7 +61,7 @@ static Ref<Tensor> copyBufferToTensor(py::buffer buffer) {
   // TODO: Switch Tensor extents to ssize_t for efficiency.
   SmallVector<std::int32_t, 4> extents(info.shape.begin(), info.shape.end());
   return Tensor::create(
-      npcomprt::ArrayRef<std::int32_t>(extents.data(), extents.size()),
+      refbackrt::ArrayRef<std::int32_t>(extents.data(), extents.size()),
       elementType, info.ptr);
 }
 
@@ -73,7 +73,7 @@ py::array wrapTensorAsArray(Ref<Tensor> tensor) {
 
   const char *format;
   switch (tensor->getElementType()) {
-  case npcomprt::ElementType::F32:
+  case refbackrt::ElementType::F32:
     format = "f";
     break;
   default:

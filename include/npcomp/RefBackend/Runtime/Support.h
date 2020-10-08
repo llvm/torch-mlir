@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace npcomprt {
+namespace refbackrt {
 class StringRef {
 public:
   StringRef(const char *ptr, std::size_t length) : ptr(ptr), length(length){};
@@ -94,6 +94,6 @@ inline bool failed(LogicalResult result) {
   return result.value == LogicalResult::Failure;
 }
 
-} // namespace npcomprt
+} // namespace refbackrt
 
 #endif // NPCOMP_RUNTIME_SUPPORT_H

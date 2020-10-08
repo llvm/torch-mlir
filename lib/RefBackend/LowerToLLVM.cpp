@@ -15,8 +15,8 @@
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -29,7 +29,7 @@ using mlir::LLVM::LLVMType;
 // These correspond to the types in CompilerDataStructures.h
 //===----------------------------------------------------------------------===//
 
-// Get the LLVMType for npcomprt::FuncDescriptor.
+// Get the LLVMType for refbackrt::FuncDescriptor.
 static LLVMType getFuncDescriptorTy(MLIRContext *context) {
   return LLVMType::getStructTy(context, {
                                             // Name length.
@@ -45,7 +45,7 @@ static LLVMType getFuncDescriptorTy(MLIRContext *context) {
                                         });
 }
 
-// Get the LLVMType for npcomprt::ModuleDescriptor.
+// Get the LLVMType for refbackrt::ModuleDescriptor.
 static LLVMType getModuleDescriptorTy(MLIRContext *context) {
   return LLVMType::getStructTy(context,
                                {
@@ -56,7 +56,7 @@ static LLVMType getModuleDescriptorTy(MLIRContext *context) {
                                });
 }
 
-// Get the LLVMType for npcomprt::GlobalDescriptor.
+// Get the LLVMType for refbackrt::GlobalDescriptor.
 static LLVMType getGlobalDescriptorTy(MLIRContext *context) {
   return LLVMType::getStructTy(
       // std::int32_t numExtents;
@@ -97,13 +97,13 @@ namespace {
 // FromMemrefOp requires special handling so that the unranked memref descriptor
 // gets passed as two separate arguments instead of as a struct.
 class FromMemrefOpCompilerRuntimeLowering
-    : public OpConversionPattern<npcomprt::FromMemrefOp> {
+    : public OpConversionPattern<refbackrt::FromMemrefOp> {
 public:
   FromMemrefOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
-      : OpConversionPattern<npcomprt::FromMemrefOp>(backingFunc.getContext()),
+      : OpConversionPattern<refbackrt::FromMemrefOp>(backingFunc.getContext()),
         backingFunc(backingFunc) {}
   LogicalResult
-  matchAndRewrite(npcomprt::FromMemrefOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refbackrt::FromMemrefOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto structVal = operands[0];
     Value rank = rewriter.create<LLVM::ExtractValueOp>(
@@ -124,17 +124,17 @@ public:
 
 namespace {
 class GetGlobalOpCompilerRuntimeLowering
-    : public OpConversionPattern<npcomprt::GetGlobalOp> {
+    : public OpConversionPattern<refbackrt::GetGlobalOp> {
 public:
   GetGlobalOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
-      : OpConversionPattern<npcomprt::GetGlobalOp>(backingFunc.getContext()),
+      : OpConversionPattern<refbackrt::GetGlobalOp>(backingFunc.getContext()),
         backingFunc(backingFunc) {}
   LogicalResult
-  matchAndRewrite(npcomprt::GetGlobalOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refbackrt::GetGlobalOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     // It would be nice if we could use the constructor here that takes just the
     // global, but keeping track of the converted llvm.mlir.global op that gets
-    // created from the npcomprt.global while conversion is going on is a
+    // created from the refbackrt.global while conversion is going on is a
     // headache.
     //
     // Instead, we rely on the symbol name being the same and the result type
@@ -178,15 +178,15 @@ static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
 
 namespace {
 class AbortIfOpCompilerRuntimeLowering
-    : public OpConversionPattern<npcomprt::AbortIfOp> {
+    : public OpConversionPattern<refbackrt::AbortIfOp> {
 public:
   AbortIfOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
-      : OpConversionPattern<npcomprt::AbortIfOp>(backingFunc.getContext()),
+      : OpConversionPattern<refbackrt::AbortIfOp>(backingFunc.getContext()),
         backingFunc(backingFunc) {}
   LogicalResult
-  matchAndRewrite(npcomprt::AbortIfOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refbackrt::AbortIfOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    npcomprt::AbortIfOp::Adaptor adaptor(operands);
+    refbackrt::AbortIfOp::Adaptor adaptor(operands);
     auto *context = op.getContext();
 
     // Create the global string, take its address, and gep to get an `i8*`.
@@ -207,7 +207,7 @@ public:
 };
 } // namespace
 
-// Create the LLVM runtime function backing the npcomprt op with name `name`
+// Create the LLVM runtime function backing the refbackrt op with name `name`
 // and requiring `type`.
 static LLVMFuncOp createCompilerRuntimeFuncDecl(StringRef name, LLVMType type,
                                                 OpBuilder &builder,
@@ -242,12 +242,12 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
 
   {
     auto mlirFunctionType = builder.getFunctionType(
-        {builder.getType<npcomprt::TensorType>()},
+        {builder.getType<refbackrt::TensorType>()},
         {UnrankedMemRefType::get(builder.getF32Type(), /*memorySpace=*/0)});
     LLVMType funcTy = convertFunctionType(mlirFunctionType);
     LLVMFuncOp toMemrefFunc = createCompilerRuntimeFuncDecl(
         "to_memref", funcTy, builder, module.getLoc());
-    patterns.insert<TrivialCompilerRuntimeLowering<npcomprt::ToMemrefOp>>(
+    patterns.insert<TrivialCompilerRuntimeLowering<refbackrt::ToMemrefOp>>(
         toMemrefFunc);
   }
 
@@ -256,7 +256,7 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
     // doesn't know its own dtype.
     auto mlirFunctionType = builder.getFunctionType(
         {UnrankedMemRefType::get(builder.getF32Type(), /*memorySpace=*/0)},
-        {builder.getType<npcomprt::TensorType>()});
+        {builder.getType<refbackrt::TensorType>()});
     LLVMType funcTy = convertFunctionType(mlirFunctionType);
     LLVMFuncOp fromMemrefFunc = createCompilerRuntimeFuncDecl(
         "from_memref", funcTy, builder, module.getLoc());
@@ -277,24 +277,24 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
 }
 
 //===----------------------------------------------------------------------===//
-// Lowering for npcomprt.global
+// Lowering for refbackrt.global
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerNpcomprtGlobalOp : public OpConversionPattern<npcomprt::GlobalOp> {
+class LowerRefbackrtGlobalOp : public OpConversionPattern<refbackrt::GlobalOp> {
 public:
-  explicit LowerNpcomprtGlobalOp(LLVMTypeConverter &typeConverter)
-      : OpConversionPattern<npcomprt::GlobalOp>(&typeConverter.getContext()),
+  explicit LowerRefbackrtGlobalOp(LLVMTypeConverter &typeConverter)
+      : OpConversionPattern<refbackrt::GlobalOp>(&typeConverter.getContext()),
         typeConverter(typeConverter) {}
   LogicalResult
-  matchAndRewrite(npcomprt::GlobalOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refbackrt::GlobalOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto *context = rewriter.getContext();
     auto globalDescriptorTy = getGlobalDescriptorTy(context);
 
     // Create the data buffer.
     auto dataBuffer = createGlobalForDenseElementsAttr(
-        (Twine("__npcomprt_global_data_buffer_") + op.sym_name()).str(),
+        (Twine("__refbackrt_global_data_buffer_") + op.sym_name()).str(),
         op.value().cast<DenseElementsAttr>(), op, rewriter);
 
     // Create the extents buffer.
@@ -302,8 +302,8 @@ public:
         llvm::map_range(op.value().getType().cast<ShapedType>().getShape(),
                         [](int64_t i) -> int32_t { return i; })));
     auto extentsBuffer = createGlobalForDenseElementsAttr(
-        (Twine("__npcomprt_global_extents_") + op.sym_name()).str(), extentsI32,
-        op, rewriter);
+        (Twine("__refbackrt_global_extents_") + op.sym_name()).str(),
+        extentsI32, op, rewriter);
 
     // Create the GlobalDescriptor.
     auto globalDescriptorGlobal = rewriter.create<LLVM::GlobalOp>(
@@ -352,7 +352,7 @@ public:
 private:
   // TODO: It feels like MLIR core should have better utilities for this.
   LLVM::GlobalOp createGlobalForDenseElementsAttr(
-      StringRef symbolName, DenseElementsAttr elements, npcomprt::GlobalOp op,
+      StringRef symbolName, DenseElementsAttr elements, refbackrt::GlobalOp op,
       ConversionPatternRewriter &rewriter) const {
     auto type = elements.getType().cast<ShapedType>();
 
@@ -384,7 +384,7 @@ private:
         /*isConstant=*/true, LLVM::Linkage::Internal, symbolName, elements);
   }
 
-  LLVMType getLLVMTypeForShapedType(ShapedType type, npcomprt::GlobalOp op,
+  LLVMType getLLVMTypeForShapedType(ShapedType type, refbackrt::GlobalOp op,
                                     ConversionPatternRewriter &rewriter) const {
     auto llvmType =
         typeConverter.convertType(type.getElementType()).cast<LLVMType>();
@@ -425,7 +425,7 @@ private:
 //===----------------------------------------------------------------------===//
 
 static LLVM::GlobalOp
-createFuncDescriptorArray(ArrayRef<npcomprt::FuncMetadataOp> funcMetadatas,
+createFuncDescriptorArray(ArrayRef<refbackrt::FuncMetadataOp> funcMetadatas,
                           OpBuilder &builder, Location loc) {
   auto llvmI32Ty = LLVMType::getIntNTy(builder.getContext(), 32);
 
@@ -556,14 +556,14 @@ LLVM::GlobalOp createModuleDescriptor(LLVM::GlobalOp funcDescriptorArray,
 
 namespace {
 class LowerModuleMetadata
-    : public OpConversionPattern<npcomprt::ModuleMetadataOp> {
+    : public OpConversionPattern<refbackrt::ModuleMetadataOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(npcomprt::ModuleMetadataOp op, ArrayRef<Value> operands,
+  matchAndRewrite(refbackrt::ModuleMetadataOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto funcMetadatas =
-        llvm::to_vector<6>(op.metadatas().getOps<npcomprt::FuncMetadataOp>());
+        llvm::to_vector<6>(op.metadatas().getOps<refbackrt::FuncMetadataOp>());
     auto funcDescriptorArray =
         createFuncDescriptorArray(funcMetadatas, rewriter, op.getLoc());
     auto moduleDescriptor =
@@ -646,7 +646,7 @@ static void storeWrapperResults(LLVM::CallOp callToWrapped, Value resultsPtrPtr,
 // Construct a wrapper function.
 // For an externally visible function f(T1, T2) -> T3, T4, we create a
 // wrapper
-// __npcomprt_wrapper_f(void **inputs, void ** outputs) {
+// __refbackrt_wrapper_f(void **inputs, void ** outputs) {
 //  T3 t3;
 //  T4 t4;
 //  (t3, t4) = f(*cast<T1*>(inputs[0]), *cast<T2*>(inputs[1]));
@@ -664,8 +664,8 @@ static LLVMFuncOp createWrapperFunc(LLVMFuncOp func) {
   auto wrapperTy = LLVMType::getFunctionTy(LLVMType::getVoidTy(context),
                                            {voidStarStarTy, voidStarStarTy},
                                            /*isVarArg=*/false);
-  constexpr char kNpcomprtWrapperPrefix[] = "__npcomprt_wrapper_";
-  auto wrapperName = (Twine(kNpcomprtWrapperPrefix) + func.getName()).str();
+  constexpr char kRefbackrtWrapperPrefix[] = "__refbackrt_wrapper_";
+  auto wrapperName = (Twine(kRefbackrtWrapperPrefix) + func.getName()).str();
   OpBuilder moduleBuilder(func.getParentRegion());
   LLVMFuncOp wrapper = moduleBuilder.create<LLVMFuncOp>(
       func.getLoc(), wrapperName, wrapperTy, LLVM::Linkage::External);
@@ -693,8 +693,8 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
 
     LLVMTypeConverter converter(context);
 
-    // npcomprt::TensorType is passed as a `void*` in the ABI.
-    converter.addConversion([&](npcomprt::TensorType type) {
+    // refbackrt::TensorType is passed as a `void*` in the ABI.
+    converter.addConversion([&](refbackrt::TensorType type) {
       return LLVMType::getInt8PtrTy(context);
     });
 
@@ -706,7 +706,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
     patterns.insert<LowerModuleMetadata>(context);
-    patterns.insert<LowerNpcomprtGlobalOp>(converter);
+    patterns.insert<LowerRefbackrtGlobalOp>(converter);
 
     // TODO: Move these "std to std" legalizations to their own pass if we grow
     // lots of these patterns.

@@ -18,7 +18,7 @@
 #include "CompilerDataStructures.h"
 #include "npcomp/RefBackend/Runtime/UserAPI.h"
 
-using namespace npcomprt;
+using namespace refbackrt;
 
 extern "C" void __npcomp_compiler_rt_abort_if(bool b, const char *msg) {
   if (b) {

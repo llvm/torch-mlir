@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTDIALECT_H
-#define NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTDIALECT_H
+#ifndef NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTDIALECT_H
+#define NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
 namespace mlir {
 namespace NPCOMP {
-namespace npcomprt {
+namespace refbackrt {
 
 class TensorType : public Type::TypeBase<TensorType, Type, TypeStorage> {
 public:
@@ -22,10 +22,10 @@ public:
   static TensorType get(MLIRContext *context) { return Base::get(context); }
 };
 
-} // namespace npcomprt
+} // namespace refbackrt
 } // namespace NPCOMP
 } // namespace mlir
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOpsDialect.h.inc"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOpsDialect.h.inc"
 
-#endif // NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTDIALECT_H
+#endif // NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTDIALECT_H

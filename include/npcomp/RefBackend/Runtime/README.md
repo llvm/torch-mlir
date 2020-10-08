@@ -1,4 +1,4 @@
-RefBackendRt (namespace `refbackrt`) is the runtime support library for the
+Refbackrt (namespace `refbackrt`) is the runtime support library for the
 RefBackend backend.  It is best practice to keep compiler and runtime code
 totally firewalled.
 

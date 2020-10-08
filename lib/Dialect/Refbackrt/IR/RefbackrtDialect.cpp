@@ -6,23 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
-using namespace mlir::NPCOMP::npcomprt;
+using namespace mlir::NPCOMP::refbackrt;
 
-void NpcomprtDialect::initialize() {
+void RefbackrtDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.cpp.inc"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.cpp.inc"
       >();
   addTypes<TensorType>();
 }
 
-Type NpcomprtDialect::parseType(DialectAsmParser &parser) const {
+Type RefbackrtDialect::parseType(DialectAsmParser &parser) const {
   StringRef keyword;
   if (parser.parseKeyword(&keyword))
     return Type();
@@ -30,14 +30,14 @@ Type NpcomprtDialect::parseType(DialectAsmParser &parser) const {
   if (keyword == "tensor")
     return TensorType::get(getContext());
 
-  parser.emitError(parser.getNameLoc(), "unknown type in 'npcomprt' dialect: ")
+  parser.emitError(parser.getNameLoc(), "unknown type in 'refbackrt' dialect: ")
       << keyword;
   return Type();
 }
 
-void NpcomprtDialect::printType(Type type, DialectAsmPrinter &os) const {
+void RefbackrtDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
-      .Case<NPCOMP::npcomprt::TensorType>([&](Type) { os << "tensor"; })
+      .Case<NPCOMP::refbackrt::TensorType>([&](Type) { os << "tensor"; })
       .Default(
-          [&](Type) { llvm_unreachable("unexpected 'npcomprt' type kind"); });
+          [&](Type) { llvm_unreachable("unexpected 'refbackrt' type kind"); });
 }

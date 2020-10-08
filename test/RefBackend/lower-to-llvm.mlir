@@ -1,6 +1,6 @@
 // RUN: npcomp-opt -refback-lower-to-llvm -split-input-file <%s | FileCheck %s --dump-input=fail
 
-// CHECK-LABEL:   llvm.func @__npcomprt_wrapper_identity(
+// CHECK-LABEL:   llvm.func @__refbackrt_wrapper_identity(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !llvm.ptr<ptr<i8>>,
 // CHECK-SAME:                                           %[[VAL_1:.*]]: !llvm.ptr<ptr<i8>>) {
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
@@ -28,7 +28,7 @@
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.addressof @__npcomp_internal_constant_identity : !llvm.ptr<array<8 x i8>>
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_4]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<8 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_5]], %[[VAL_3]][0 : i32, 1 : i32] : !llvm.array<1 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
-// CHECK:           %[[VAL_7:.*]] = llvm.mlir.addressof @__npcomprt_wrapper_identity : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
+// CHECK:           %[[VAL_7:.*]] = llvm.mlir.addressof @__refbackrt_wrapper_identity : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
 // CHECK:           %[[VAL_8:.*]] = llvm.bitcast %[[VAL_7]] : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>> to !llvm.ptr<i8>
 // CHECK:           %[[VAL_9:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_6]][0 : i32, 2 : i32] : !llvm.array<1 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.constant(1 : i32) : !llvm.i32
@@ -48,8 +48,8 @@
 // CHECK:           llvm.return %[[VAL_5]] : !llvm.struct<(i32, ptr<struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>)>
 // CHECK:         }
 
-npcomprt.module_metadata {
-  npcomprt.func_metadata {funcName = @identity, numInputs = 1 : i32, numOutputs = 1 : i32}
+refbackrt.module_metadata {
+  refbackrt.func_metadata {funcName = @identity, numInputs = 1 : i32, numOutputs = 1 : i32}
 }
 
 
@@ -57,15 +57,15 @@ npcomprt.module_metadata {
 // CHECK-SAME:                        %[[VAL_0:.*]]: !llvm.ptr<i8>) -> !llvm.ptr<i8> {
 // CHECK:           llvm.return %[[VAL_0]] : !llvm.ptr<i8>
 // CHECK:         }
-func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
-  return %arg0 : !npcomprt.tensor
+func @identity(%arg0: !refbackrt.tensor) -> !refbackrt.tensor {
+  return %arg0 : !refbackrt.tensor
 }
 
 // -----
 
 // Test input/output arg marshaling.
 
-// CHECK-LABEL:   llvm.func @__npcomprt_wrapper_inputs1results2(
+// CHECK-LABEL:   llvm.func @__refbackrt_wrapper_inputs1results2(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !llvm.ptr<ptr<i8>>,
 // CHECK-SAME:                                                  %[[VAL_1:.*]]: !llvm.ptr<ptr<i8>>) {
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
@@ -86,7 +86,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           llvm.return
 // CHECK:         }
 
-// CHECK-LABEL:   llvm.func @__npcomprt_wrapper_inputs1results1(
+// CHECK-LABEL:   llvm.func @__refbackrt_wrapper_inputs1results1(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !llvm.ptr<ptr<i8>>,
 // CHECK-SAME:                                                  %[[VAL_1:.*]]: !llvm.ptr<ptr<i8>>) {
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
@@ -101,7 +101,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           llvm.return
 // CHECK:         }
 
-// CHECK-LABEL:   llvm.func @__npcomprt_wrapper_inputs1results0(
+// CHECK-LABEL:   llvm.func @__refbackrt_wrapper_inputs1results0(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !llvm.ptr<ptr<i8>>,
 // CHECK-SAME:                                                  %[[VAL_1:.*]]: !llvm.ptr<ptr<i8>>) {
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : i32) : !llvm.i32
@@ -127,7 +127,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           %[[VAL_4:.*]] = llvm.mlir.addressof @__npcomp_internal_constant_inputs1results0 : !llvm.ptr<array<15 x i8>>
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr %[[VAL_4]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<15 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_5]], %[[VAL_3]][0 : i32, 1 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
-// CHECK:           %[[VAL_7:.*]] = llvm.mlir.addressof @__npcomprt_wrapper_inputs1results0 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
+// CHECK:           %[[VAL_7:.*]] = llvm.mlir.addressof @__refbackrt_wrapper_inputs1results0 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
 // CHECK:           %[[VAL_8:.*]] = llvm.bitcast %[[VAL_7]] : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>> to !llvm.ptr<i8>
 // CHECK:           %[[VAL_9:.*]] = llvm.insertvalue %[[VAL_8]], %[[VAL_6]][0 : i32, 2 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.constant(1 : i32) : !llvm.i32
@@ -139,7 +139,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           %[[VAL_16:.*]] = llvm.mlir.addressof @__npcomp_internal_constant_inputs1results1 : !llvm.ptr<array<15 x i8>>
 // CHECK:           %[[VAL_17:.*]] = llvm.getelementptr %[[VAL_16]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<15 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_18:.*]] = llvm.insertvalue %[[VAL_17]], %[[VAL_15]][1 : i32, 1 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
-// CHECK:           %[[VAL_19:.*]] = llvm.mlir.addressof @__npcomprt_wrapper_inputs1results1 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
+// CHECK:           %[[VAL_19:.*]] = llvm.mlir.addressof @__refbackrt_wrapper_inputs1results1 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
 // CHECK:           %[[VAL_20:.*]] = llvm.bitcast %[[VAL_19]] : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>> to !llvm.ptr<i8>
 // CHECK:           %[[VAL_21:.*]] = llvm.insertvalue %[[VAL_20]], %[[VAL_18]][1 : i32, 2 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
 // CHECK:           %[[VAL_22:.*]] = llvm.mlir.constant(1 : i32) : !llvm.i32
@@ -151,7 +151,7 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           %[[VAL_28:.*]] = llvm.mlir.addressof @__npcomp_internal_constant_inputs1results2 : !llvm.ptr<array<15 x i8>>
 // CHECK:           %[[VAL_29:.*]] = llvm.getelementptr %[[VAL_28]]{{\[}}%[[VAL_1]], %[[VAL_1]]] : (!llvm.ptr<array<15 x i8>>, !llvm.i32, !llvm.i32) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_30:.*]] = llvm.insertvalue %[[VAL_29]], %[[VAL_27]][2 : i32, 1 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
-// CHECK:           %[[VAL_31:.*]] = llvm.mlir.addressof @__npcomprt_wrapper_inputs1results2 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
+// CHECK:           %[[VAL_31:.*]] = llvm.mlir.addressof @__refbackrt_wrapper_inputs1results2 : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>>
 // CHECK:           %[[VAL_32:.*]] = llvm.bitcast %[[VAL_31]] : !llvm.ptr<func<void (ptr<ptr<i8>>, ptr<ptr<i8>>)>> to !llvm.ptr<i8>
 // CHECK:           %[[VAL_33:.*]] = llvm.insertvalue %[[VAL_32]], %[[VAL_30]][2 : i32, 2 : i32] : !llvm.array<3 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>
 // CHECK:           %[[VAL_34:.*]] = llvm.mlir.constant(1 : i32) : !llvm.i32
@@ -171,10 +171,10 @@ func @identity(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           llvm.return %[[VAL_5]] : !llvm.struct<(i32, ptr<struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>>)>
 // CHECK:         }
 
-npcomprt.module_metadata {
-  npcomprt.func_metadata {funcName = @inputs1results0, numInputs = 1 : i32, numOutputs = 0 : i32}
-  npcomprt.func_metadata {funcName = @inputs1results1, numInputs = 1 : i32, numOutputs = 1 : i32}
-  npcomprt.func_metadata {funcName = @inputs1results2, numInputs = 1 : i32, numOutputs = 2 : i32}
+refbackrt.module_metadata {
+  refbackrt.func_metadata {funcName = @inputs1results0, numInputs = 1 : i32, numOutputs = 0 : i32}
+  refbackrt.func_metadata {funcName = @inputs1results1, numInputs = 1 : i32, numOutputs = 1 : i32}
+  refbackrt.func_metadata {funcName = @inputs1results2, numInputs = 1 : i32, numOutputs = 2 : i32}
 }
 
 
@@ -183,7 +183,7 @@ npcomprt.module_metadata {
 // CHECK-SAME:                               %[[VAL_0:.*]]: !llvm.ptr<i8>) {
 // CHECK:           llvm.return
 // CHECK:         }
-func @inputs1results0(%arg0: !npcomprt.tensor) {
+func @inputs1results0(%arg0: !refbackrt.tensor) {
   return
 }
 
@@ -191,8 +191,8 @@ func @inputs1results0(%arg0: !npcomprt.tensor) {
 // CHECK-SAME:                               %[[VAL_0:.*]]: !llvm.ptr<i8>) -> !llvm.ptr<i8> {
 // CHECK:           llvm.return %[[VAL_0]] : !llvm.ptr<i8>
 // CHECK:         }
-func @inputs1results1(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
-  return %arg0 : !npcomprt.tensor
+func @inputs1results1(%arg0: !refbackrt.tensor) -> !refbackrt.tensor {
+  return %arg0 : !refbackrt.tensor
 }
 
 // CHECK-LABEL:   llvm.func @inputs1results2(
@@ -202,8 +202,8 @@ func @inputs1results1(%arg0: !npcomprt.tensor) -> !npcomprt.tensor {
 // CHECK:           %[[VAL_3:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_2]][1] : !llvm.struct<(ptr<i8>, ptr<i8>)>
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.struct<(ptr<i8>, ptr<i8>)>
 // CHECK:         }
-func @inputs1results2(%arg0: !npcomprt.tensor) -> (!npcomprt.tensor, !npcomprt.tensor) {
-  return %arg0, %arg0 : !npcomprt.tensor, !npcomprt.tensor
+func @inputs1results2(%arg0: !refbackrt.tensor) -> (!refbackrt.tensor, !refbackrt.tensor) {
+  return %arg0, %arg0 : !refbackrt.tensor, !refbackrt.tensor
 }
 
 
@@ -226,7 +226,7 @@ func @inputs1results2(%arg0: !npcomprt.tensor) -> (!npcomprt.tensor, !npcomprt.t
 // CHECK:         llvm.return
 
 func @calls_abort_if(%arg0: i1) {
-  npcomprt.abort_if %arg0, "msg"
+  refbackrt.abort_if %arg0, "msg"
   return
 }
 
@@ -235,8 +235,8 @@ func @calls_abort_if(%arg0: i1) {
 // CHECK:           %[[VAL_1:.*]] = llvm.call @__npcomp_compiler_rt_to_memref(%[[VAL_0]]) : (!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:           llvm.return
 // CHECK:         }
-func @calls_to_memref(%arg0: !npcomprt.tensor) {
-  %0 = npcomprt.to_memref %arg0 : memref<*xf32>
+func @calls_to_memref(%arg0: !refbackrt.tensor) {
+  %0 = refbackrt.to_memref %arg0 : memref<*xf32>
   return
 }
 
@@ -251,7 +251,7 @@ func @calls_to_memref(%arg0: !npcomprt.tensor) {
 // CHECK:           %[[VAL_7:.*]] = llvm.call @__npcomp_compiler_rt_from_memref(%[[VAL_5]], %[[VAL_6]]) : (!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK:           llvm.return %[[VAL_7]] : !llvm.ptr<i8>
 // CHECK:         }
-func @calls_from_memref(%arg0: memref<*xf32>) -> !npcomprt.tensor {
-  %0 = npcomprt.from_memref %arg0 : memref<*xf32>
-  return %0 : !npcomprt.tensor
+func @calls_from_memref(%arg0: memref<*xf32>) -> !refbackrt.tensor {
+  %0 = refbackrt.from_memref %arg0 : memref<*xf32>
+  return %0 : !refbackrt.tensor
 }

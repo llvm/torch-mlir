@@ -292,12 +292,12 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addPass(createLowerToCFGPass());
 
   // Convert functions signatures and other constructs that interface with the
-  // runtime to the `npcomprt` dialect.
-  pm.addPass(createLowerToNpcomprtABIPass());
+  // runtime to the `refbackrt` dialect.
+  pm.addPass(createLowerToRefbackrtABIPass());
 
   // Finally, convert to LLVM dialect using our custom LowerToLLVM pass
   // which reuses the upstream patterns and gives us a place to add our own
-  // patterns for our own custom ops like the npcomprt ops.
+  // patterns for our own custom ops like the refbackrt ops.
   pm.addPass(createLowerToLLVMPass());
 
   // Although LLVM will clean everything up eventually, for the sake of IR

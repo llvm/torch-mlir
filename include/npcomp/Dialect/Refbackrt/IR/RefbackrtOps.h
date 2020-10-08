@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTOPS_H
-#define NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTOPS_H
+#ifndef NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTOPS_H
+#define NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTOPS_H
 
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
@@ -15,6 +15,6 @@
 #include "mlir/IR/SymbolTable.h"
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h.inc"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h.inc"
 
-#endif // NPCOMP_DIALECT_NPCOMPRT_IR_NPCOMPRTOPS_H
+#endif // NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTOPS_H

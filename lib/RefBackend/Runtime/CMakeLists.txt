@@ -7,7 +7,7 @@ set(LLVM_OPTIONAL_SOURCES
 )
 
 # The library that users link against, defining basic interactions with an
-# npcomprt module and the relevant data structures.
+# refbackrt module and the relevant data structures.
 add_mlir_library(NPCOMPRuntime
   Runtime.cpp
 

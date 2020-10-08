@@ -34,7 +34,7 @@ createLowerConstantTensorsToMemrefPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerStructuralToMemrefPass();
 
-std::unique_ptr<OperationPass<ModuleOp>> createLowerToNpcomprtABIPass();
+std::unique_ptr<OperationPass<ModuleOp>> createLowerToRefbackrtABIPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLowerAllocMemRefOpsPass();
 

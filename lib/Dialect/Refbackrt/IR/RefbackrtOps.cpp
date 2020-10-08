@@ -6,22 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 
 using namespace mlir;
-using namespace mlir::NPCOMP::npcomprt;
+using namespace mlir::NPCOMP::refbackrt;
 
 //===----------------------------------------------------------------------===//
 // GlobalOp
 //===----------------------------------------------------------------------===//
 
 static void printGlobalOp(OpAsmPrinter &p, GlobalOp &op) {
-  p << "npcomprt.global ";
+  p << "refbackrt.global ";
   p.printSymbolName(op.sym_name());
   p << ' ';
   p.printOptionalAttrDictWithKeyword(op.getAttrs(),
@@ -49,7 +49,7 @@ static ParseResult parseGlobalOp(OpAsmParser &parser, OperationState &result) {
 static LogicalResult verifyGetGlobalOp(GetGlobalOp op) {
   auto global = SymbolTable::lookupNearestSymbolFrom<GlobalOp>(op, op.global());
   if (!global)
-    return op.emitError() << "must reference a valid npcomprt.global";
+    return op.emitError() << "must reference a valid refbackrt.global";
   auto globalType = global.value().getType();
   auto resultType = op.getType().cast<ShapedType>();
   if (globalType.getElementType() != resultType.getElementType())
@@ -62,7 +62,7 @@ static LogicalResult verifyGetGlobalOp(GetGlobalOp op) {
 //===----------------------------------------------------------------------===//
 
 static void printModuleMetadataOp(OpAsmPrinter &p, ModuleMetadataOp &op) {
-  p << "npcomprt.module_metadata";
+  p << "refbackrt.module_metadata";
   p.printOptionalAttrDictWithKeyword(op.getAttrs());
   p.printRegion(op.metadatas(), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
@@ -99,4 +99,4 @@ static LogicalResult verify(FuncMetadataOp op) {
 }
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtOps.cpp.inc"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.cpp.inc"

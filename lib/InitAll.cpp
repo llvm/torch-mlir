@@ -12,7 +12,7 @@
 #include "npcomp/Dialect/ATen/ATenPasses.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
-#include "npcomp/Dialect/Npcomprt/IR/NpcomprtDialect.h"
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 #include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
@@ -73,7 +73,7 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::NPCOMP::aten::ATenDialect,
                   Basicpy::BasicpyDialect,
                   Numpy::NumpyDialect,
-                  npcomprt::NpcomprtDialect,
+                  refbackrt::RefbackrtDialect,
                   refback::RefBackendDialect,
                   tcf::TCFDialect,
                   tcp::TCPDialect,

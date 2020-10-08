@@ -5,7 +5,7 @@ add_mlir_library(NPCOMPRefBackend
   BypassShapes.cpp
   RefBackend.cpp
   LowerToLLVM.cpp
-  LowerToNpcomprtABI.cpp
+  LowerToRefbackrtABI.cpp
   TensorToMemref/LowerConstantTensorsToMemref.cpp
   TensorToMemref/LowerShapedResultsToMemref.cpp
   TensorToMemref/LowerStdToMemref.cpp

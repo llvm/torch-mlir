@@ -52,10 +52,10 @@ def LowerStructuralToMemref :
   let constructor = "mlir::NPCOMP::createLowerStructuralToMemrefPass()";
 }
 
-def LowerToNpcomprtABI : Pass<"lower-to-npcomprt-abi", "ModuleOp"> {
-  let summary = "Lower constructs requiring runtime support to `npcomprt`";
+def LowerToRefbackrtABI : Pass<"lower-to-refbackrt-abi", "ModuleOp"> {
+  let summary = "Lower constructs requiring runtime support to `refbackrt`";
   let description = [{
-    We have a specialized dialect `npcomprt` which models our runtime's data
+    We have a specialized dialect `refbackrt` which models our runtime's data
     structures, and function signatures (and presumably eventually, other
     ABI boundaries like external calls if we ever support it) will be
     converted.
@@ -65,7 +65,7 @@ def LowerToNpcomprtABI : Pass<"lower-to-npcomprt-abi", "ModuleOp"> {
     - globals
     - error handling
   }];
-  let constructor = "mlir::NPCOMP::createLowerToNpcomprtABIPass()";
+  let constructor = "mlir::NPCOMP::createLowerToRefbackrtABIPass()";
 }
 
 def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {

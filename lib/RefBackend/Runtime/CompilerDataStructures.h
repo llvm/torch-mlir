@@ -17,7 +17,7 @@
 
 #include <cstdint>
 
-namespace npcomprt {
+namespace refbackrt {
 
 // All arguments are packed into this type-erased form for being invoked. See
 // LowerToLLVM.cpp for more details.
@@ -55,6 +55,6 @@ struct GlobalDescriptor {
   void *data;
 };
 
-} // namespace npcomprt
+} // namespace refbackrt
 
 #endif // NPCOMP_LIB_RUNTIME_COMPILERDATASTRUCTURES_H
