@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/STLExtras.h"
@@ -123,4 +123,4 @@ static LogicalResult verifyGetGlobalMemrefOp(GetGlobalMemrefOp op) {
 }
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.cpp.inc"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.cpp.inc"

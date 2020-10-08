@@ -13,8 +13,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
+#include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -88,7 +88,7 @@ namespace {
 // TODO: Upstream this.
 class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<refback::RefBackendDialect>();
+    registry.insert<refback::RefbackDialect>();
   }
 
   void runOnOperation() override {

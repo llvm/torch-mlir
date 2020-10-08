@@ -6,19 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
+#include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::refback;
 
 //===----------------------------------------------------------------------===//
-// RefBackendDialect Dialect Interfaces
+// RefbackDialect Dialect Interfaces
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct RefBackendInlinerInterface : public DialectInlinerInterface {
+struct RefbackInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
   bool isLegalToInline(Region *dest, Region *src,
                        BlockAndValueMapping &valueMapping) const final {
@@ -41,10 +41,10 @@ struct RefBackendInlinerInterface : public DialectInlinerInterface {
 };
 } // end anonymous namespace
 
-void RefBackendDialect::initialize() {
+void RefbackDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.cpp.inc"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.cpp.inc"
       >();
-  addInterfaces<RefBackendInlinerInterface>();
+  addInterfaces<RefbackInlinerInterface>();
 }

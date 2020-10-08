@@ -1,7 +1,7 @@
 add_subdirectory(ATen)
 add_subdirectory(Basicpy)
 add_subdirectory(Numpy)
-add_subdirectory(RefBackend)
+add_subdirectory(Refback)
 add_subdirectory(Refbackrt)
 add_subdirectory(TCF)
 add_subdirectory(TCP)

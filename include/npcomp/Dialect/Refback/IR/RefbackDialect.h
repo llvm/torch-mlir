@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDDIALECT_H
-#define NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDDIALECT_H
+#ifndef NPCOMP_DIALECT_REFBACK_IR_REFBACKDIALECT_H
+#define NPCOMP_DIALECT_REFBACK_IR_REFBACKDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOpsDialect.h.inc"
+#include "npcomp/Dialect/Refback/IR/RefbackOpsDialect.h.inc"
 
-#endif // NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDDIALECT_H
+#endif // NPCOMP_DIALECT_REFBACK_IR_REFBACKDIALECT_H
