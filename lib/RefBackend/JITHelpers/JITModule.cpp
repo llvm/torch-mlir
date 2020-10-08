@@ -13,7 +13,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/TargetSelect.h"
 
-using namespace npcomp;
+using namespace refback;
 using namespace mlir;
 using llvm::Error;
 using llvm::Expected;
