@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef REFBACKEND_BASE
-#define REFBACKEND_BASE
+#ifndef REFBACK_BASE
+#define REFBACK_BASE
 
 include "mlir/IR/OpBase.td"
 
-def RefBackend_Dialect : Dialect {
+def Refback_Dialect : Dialect {
   let name = "refback";
   let cppNamespace = "::mlir::NPCOMP::refback";
   let description = [{
@@ -20,4 +20,4 @@ def RefBackend_Dialect : Dialect {
 }
 
 
-#endif // REFBACKEND_BASE
+#endif // REFBACK_BASE

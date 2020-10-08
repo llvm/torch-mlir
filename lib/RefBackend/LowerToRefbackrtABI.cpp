@@ -14,9 +14,9 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDOPS_H
-#define NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDOPS_H
+#ifndef NPCOMP_DIALECT_REFBACK_IR_REFBACKOPS_H
+#define NPCOMP_DIALECT_REFBACK_IR_REFBACKOPS_H
 
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/IR/OpDefinition.h"
@@ -17,6 +17,6 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h.inc"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h.inc"
 
-#endif // NPCOMP_DIALECT_REFBACKEND_IR_REFBACKENDOPS_H
+#endif // NPCOMP_DIALECT_REFBACK_IR_REFBACKOPS_H

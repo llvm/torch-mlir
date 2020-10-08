@@ -6,21 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef REFBACKEND_OPS
-#define REFBACKEND_OPS
+#ifndef REFBACK_OPS
+#define REFBACK_OPS
 
-include "npcomp/Dialect/RefBackend/IR/RefBackendBase.td"
+include "npcomp/Dialect/Refback/IR/RefbackBase.td"
 include "mlir/Dialect/Shape/IR/ShapeBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
-class RefBackend_Op<string mnemonic, list<OpTrait> traits = []>
-    : Op<RefBackend_Dialect, mnemonic, traits> {
+class Refback_Op<string mnemonic, list<OpTrait> traits = []>
+    : Op<Refback_Dialect, mnemonic, traits> {
 }
 
-def RefBackend_GlobalOp : RefBackend_Op<"global", [Symbol]> {
+def Refback_GlobalOp : Refback_Op<"global", [Symbol]> {
   let summary = "Represents a global variable";
   let description = [{
     Represents a global variable.
@@ -38,11 +38,11 @@ def RefBackend_GlobalOp : RefBackend_Op<"global", [Symbol]> {
 //===----------------------------------------------------------------------===//
 // Ops related to tensor->memref conversion.
 //===----------------------------------------------------------------------===//
-// TODO: These ops probably belong in a "RefBackend on memrefs" dialect analogous
+// TODO: These ops probably belong in a "Refback on memrefs" dialect analogous
 // to `lmhlo`
 
 // TODO: Use TypesMatchWith to verify this better.
-def RefBackend_TensorToMemrefOp : RefBackend_Op<"tensor_to_memref", [NoSideEffect]> {
+def Refback_TensorToMemrefOp : Refback_Op<"tensor_to_memref", [NoSideEffect]> {
   let summary = "Converts a tensor to a memref";
   let description = [{
     This op is used to materialize conversions to allow incremental lowering of
@@ -55,7 +55,7 @@ def RefBackend_TensorToMemrefOp : RefBackend_Op<"tensor_to_memref", [NoSideEffec
 }
 
 // TODO: Use TypesMatchWith to verify this better.
-def RefBackend_MemrefToTensorOp : RefBackend_Op<"memref_to_tensor", [NoSideEffect]> {
+def Refback_MemrefToTensorOp : Refback_Op<"memref_to_tensor", [NoSideEffect]> {
   let summary = "Converts a memref to a tensor";
   let description = [{
     This op is used to materialize conversions to allow incremental lowering of
@@ -66,7 +66,7 @@ def RefBackend_MemrefToTensorOp : RefBackend_Op<"memref_to_tensor", [NoSideEffec
   let assemblyFormat = "attr-dict $memref `:` type($memref) `->` type($tensor)";
 }
 
-def RefBackend_AllocMemRefOp : RefBackend_Op<"alloc_memref", []> {
+def Refback_AllocMemRefOp : Refback_Op<"alloc_memref", []> {
   let summary = "Allocates a memref of the given shape.";
   let description = [{
     Allocates a memref of the given shape.
@@ -79,7 +79,7 @@ def RefBackend_AllocMemRefOp : RefBackend_Op<"alloc_memref", []> {
   let assemblyFormat = "$shape attr-dict `:`  type($memref)";
 }
 
-def RefBackend_GetGlobalMemrefOp : RefBackend_Op<"get_global_memref"> {
+def Refback_GetGlobalMemrefOp : Refback_Op<"get_global_memref"> {
   let summary = "Obtain a memref pointing at the given global";
   let description = [{
     Obtain a memref pointing at the given global.
@@ -95,7 +95,7 @@ def RefBackend_GetGlobalMemrefOp : RefBackend_Op<"get_global_memref"> {
 //===----------------------------------------------------------------------===//
 // TODO: These belong in a shape-related dialect.
 
-def RefBackend_ShapedResultsOp : RefBackend_Op<"shaped_results", [
+def Refback_ShapedResultsOp : Refback_Op<"shaped_results", [
   DeclareOpInterfaceMethods<RegionBranchOpInterface>,
   SingleBlockImplicitTerminator<"YieldOp">,
   RecursiveSideEffects,
@@ -136,12 +136,12 @@ def RefBackend_ShapedResultsOp : RefBackend_Op<"shaped_results", [
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-def RefBackend_YieldOp : RefBackend_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
+def Refback_YieldOp : Refback_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
                                ParentOneOf<["ShapedResultsOp"]>]> {
-  let summary = "Yield-like terminator for RefBackend dialect";
+  let summary = "Yield-like terminator for Refback dialect";
   let description = "See scf.yield";
   let arguments = (ins Variadic<AnyType>:$operands);
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
 }
 
-#endif // REFBACKEND_OPS
+#endif // REFBACK_OPS

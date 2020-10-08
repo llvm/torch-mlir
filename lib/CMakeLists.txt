@@ -39,7 +39,7 @@ add_mlir_library(NPCOMPInitAll
   PUBLIC
   # Local depends
   NPCOMPRefBackend
-  NPCOMPRefBackendDialect
+  NPCOMPRefbackDialect
   NPCOMPTCPDialect
   NPCOMPTCFDialect
   NPCOMPTorchDialect

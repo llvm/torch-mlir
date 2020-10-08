@@ -14,7 +14,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

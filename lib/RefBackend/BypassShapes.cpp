@@ -10,8 +10,8 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendDialect.h"
-#include "npcomp/Dialect/RefBackend/IR/RefBackendOps.h"
+#include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
+#include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
@@ -49,7 +49,7 @@ namespace {
 // to be lowered by LowerShapedResults.
 class BypassShapes : public BypassShapesBase<BypassShapes> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect, refback::RefBackendDialect>();
+    registry.insert<shape::ShapeDialect, refback::RefbackDialect>();
   }
 
   void runOnOperation() override {
