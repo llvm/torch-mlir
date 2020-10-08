@@ -23,7 +23,7 @@ namespace mlir {
 class PassManager;
 } // namespace mlir
 
-namespace npcomp {
+namespace refback {
 // Wrapper around refbackrt data structures and a JITted module, facilitating
 // interaction.
 class JITModule {
@@ -49,6 +49,6 @@ private:
   std::unique_ptr<mlir::ExecutionEngine> engine;
   refbackrt::ModuleDescriptor *descriptor;
 };
-} // namespace npcomp
+} // namespace refback
 
 #endif // NPCOMP_JITRUNTIME_JITMODULE_H

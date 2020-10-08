@@ -39,7 +39,7 @@ static Error make_string_error(const Twine &message) {
                                        llvm::inconvertibleErrorCode());
 }
 
-Expected<std::unique_ptr<npcomp::JITModule>>
+Expected<std::unique_ptr<refback::JITModule>>
 createJITModule(std::string mlirFile, mlir::DialectRegistry &registry,
                 ArrayRef<StringRef> sharedLibs, bool optimize) {
   MLIRContext context;
@@ -53,11 +53,11 @@ createJITModule(std::string mlirFile, mlir::DialectRegistry &registry,
   // Compile.
   PassManager pm(module.getContext(), /*verifyPasses=*/true);
   applyPassManagerCLOptions(pm);
-  npcomp::JITModule::buildBackendCompilationPipeline(pm, optimize);
+  refback::JITModule::buildBackendCompilationPipeline(pm, optimize);
   if (failed(pm.run(module)))
     return make_string_error(Twine("error compiling to jit backend"));
 
-  return npcomp::JITModule::fromCompiledModule(module, sharedLibs);
+  return refback::JITModule::fromCompiledModule(module, sharedLibs);
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,7 +65,7 @@ createJITModule(std::string mlirFile, mlir::DialectRegistry &registry,
 //===----------------------------------------------------------------------===//
 
 static Expected<std::vector<at::Tensor>>
-invokeJITModuleWithATenTensors(npcomp::JITModule &jitModule,
+invokeJITModuleWithATenTensors(refback::JITModule &jitModule,
                                StringRef invokeFunction,
                                std::vector<at::Tensor> &args) {
 

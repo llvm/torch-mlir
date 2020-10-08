@@ -131,13 +131,13 @@ Error compileAndRun(std::string mlirFile, mlir::DialectRegistry &registry,
   // Compile.
   PassManager pm(module.getContext(), /*verifyPasses=*/true);
   applyPassManagerCLOptions(pm);
-  npcomp::JITModule::buildBackendCompilationPipeline(pm, optimize);
+  refback::JITModule::buildBackendCompilationPipeline(pm, optimize);
   if (failed(pm.run(module))) {
     return make_string_error(Twine("error compiling to jit backend"));
   }
 
   auto expectedJitModule =
-      npcomp::JITModule::fromCompiledModule(module, sharedLibs);
+      refback::JITModule::fromCompiledModule(module, sharedLibs);
   if (!expectedJitModule)
     return expectedJitModule.takeError();
   auto jitModule = std::move(*expectedJitModule);

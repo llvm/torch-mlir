@@ -21,7 +21,7 @@ using llvm::Twine;
 // Make namespaces consistent.
 using mlir::PyModuleOp;
 using mlir::PyPassManager;
-using npcomp::JITModule;
+using refback::JITModule;
 using refbackrt::Ref;
 using refbackrt::Tensor;
 
