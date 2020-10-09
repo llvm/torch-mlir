@@ -156,6 +156,8 @@ See `docker_shell_funcs.sh` for commands to modify if different.
 
 ```shell
 # Build/start the container.
+# Follow instructions here to allow running `docker` without `sudo`:
+# https://docs.docker.com/engine/install/linux-postinstall/
 source ./build_tools/docker_shell_funcs.sh
 npcomp_docker_build  # Only needed first time/on updates to docker files.
 npcomp_docker_start
@@ -173,7 +175,16 @@ npcomp_docker_stop
 
 ### Configure VSCode:
 
-Attach to your running container by opening the Docker extension tab (left panel), right clicking on the container name, and selecting "Attach Visual Studio code".
+First, install the [VSCode Docker
+extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker) and [VSCode Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension.
+Follow instructions here to allow running `docker` without `sudo`,
+otherwise VSCode won't be able to use docker
+https://docs.docker.com/engine/install/linux-postinstall/
+(Note that VSCode has some daemons that you will need to kill/restart for
+the instructions there to take effect; consider just rebooting your
+machine)
+
+Attach to your running container by opening the Docker extension tab (left panel), right clicking on the container name, and selecting "Attach Visual Studio code". The container name if you are using docker_shell_funcs.sh is `npcomp`.
 
 Install extensions in container:
   * CMake Tools
