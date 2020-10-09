@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import StepLR
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 class Net(nn.Module):
     def __init__(self):
@@ -28,20 +28,20 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return F.log_softmax(self.fc3(x), dim=1)
-    
+
 def main():
     device = torch_mlir.mlir_device()
     model = Net()
     tensor = torch.randn((64, 1, 28, 28),requires_grad=True)
     # CHECK: PASS! fwd check
     fwd_path = test.check_ref(model, tensor)
-    
+
     target = torch.ones((64), dtype=torch.long)
     loss = F.nll_loss
-        
+
     # CHECK: PASS! back check
     test.check_back(fwd_path, target, loss)
-    
+
     # CHECK: PASS! fc1_weight_grad check
     test.compare(model.fc1.weight.grad, fwd_path[0].fc1.weight.grad, "fc1_weight_grad")
 

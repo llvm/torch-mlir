@@ -5,7 +5,7 @@
 import torch
 import npcomp.frontends.pytorch as torch_mlir
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 dev = torch_mlir.mlir_device()
 

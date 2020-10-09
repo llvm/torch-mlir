@@ -55,9 +55,10 @@ config.npcomp_runtime_shlib = os.path.join(
 
 # Tweak the PATH and PYTHONPATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
-llvm_config.with_environment('PYTHONPATH',
-                             [os.path.join(config.npcomp_obj_root, "python")],
-                             append_path=True)
+llvm_config.with_environment('PYTHONPATH', [
+    os.path.join(config.llvm_obj_root, "python"),
+    os.path.join(config.npcomp_obj_root, "python")],
+    append_path=True)
 
 tool_dirs = [
     os.path.join(config.npcomp_bin_dir),

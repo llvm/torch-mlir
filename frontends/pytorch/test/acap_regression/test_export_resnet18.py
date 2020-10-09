@@ -6,7 +6,7 @@ import torch
 import npcomp.frontends.pytorch as torch_mlir
 import torchvision.models as models
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 dev = torch_mlir.mlir_device()
 

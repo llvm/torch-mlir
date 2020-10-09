@@ -1,7 +1,7 @@
 # -*- Python -*-
 # This file is licensed under a pytorch-style license
 # See frontends/pytorch/LICENSE for license information.
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 import _torch_mlir
 

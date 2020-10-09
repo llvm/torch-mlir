@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 dev = torch_mlir.mlir_device()
 

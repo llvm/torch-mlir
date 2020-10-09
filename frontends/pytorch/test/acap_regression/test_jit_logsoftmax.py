@@ -6,7 +6,7 @@ import torch
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 model = torch.nn.LogSoftmax(dim=0)
 tensor = torch.ones(1,2,3,4)

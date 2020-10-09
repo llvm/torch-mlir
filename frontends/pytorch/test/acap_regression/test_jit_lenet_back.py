@@ -10,7 +10,7 @@ import torch.optim as optim
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 class Net(nn.Module):
     def __init__(self):

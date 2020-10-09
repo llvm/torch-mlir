@@ -6,7 +6,7 @@ import torch
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 model = torch.nn.MaxPool2d(kernel_size=(3,3), stride=(2,2), padding=(1,1),
                            dilation=1, return_indices=False, ceil_mode=False)

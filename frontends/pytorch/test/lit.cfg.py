@@ -21,7 +21,6 @@ from lit.llvm.subst import FindTool
 config.name = 'FRONTENDS_PYTORCH'
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
-config.environment['PYTHONPATH'] = os.path.join(config.npcomp_obj_root, "python")
 if 'TEST_SRC_PATH' in os.environ:
    config.environment['TEST_SRC_PATH'] = os.environ['TEST_SRC_PATH']
 
@@ -39,6 +38,7 @@ config.test_exec_root = os.path.join(config.npcomp_obj_root, 'test')
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
+config.substitutions.append(('%PYTHON', config.python_executable))
 
 llvm_config.with_system_environment(
     ['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
@@ -59,6 +59,11 @@ config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
+llvm_config.with_environment('PYTHONPATH', [
+    os.path.join(config.llvm_obj_root, "python"),
+    os.path.join(config.npcomp_obj_root, "python")],
+    append_path=True)
+
 
 tool_dirs = [config.npcomp_tools_dir, config.llvm_tools_dir]
 tools = [

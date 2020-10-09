@@ -2,7 +2,6 @@
 # This file is licensed under a pytorch-style license
 # See frontends/pytorch/LICENSE for license information.
 
-from __future__ import print_function
 import argparse
 import torch
 import torch.nn as nn
@@ -14,7 +13,7 @@ from torch.optim.lr_scheduler import StepLR
 import npcomp.frontends.pytorch as torch_mlir
 import json
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 class Net(nn.Module):
     def __init__(self):

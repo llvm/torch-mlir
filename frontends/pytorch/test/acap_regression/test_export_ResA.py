@@ -13,7 +13,7 @@ import npcomp.frontends.pytorch as torch_mlir
 
 import inspect
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 class ResA(nn.Module):
     def __init__(self, channels):

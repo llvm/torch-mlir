@@ -6,7 +6,7 @@ import torch
 import npcomp.frontends.pytorch as torch_mlir
 import npcomp.frontends.pytorch.test as test
 
-# RUN: python %s | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 dev = torch_mlir.mlir_device()
 t0 = torch.randn((1,2,3,4), device=dev)
