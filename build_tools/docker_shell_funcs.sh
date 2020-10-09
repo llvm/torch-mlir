@@ -1,3 +1,11 @@
+# No shebang, please `source` this file!
+# For example, add this to your `.bashrc`:
+# ```
+# source $WHERE_YOU_CHECKED_OUT_NPCOMP/build_tools/docker_shell_funcs.sh
+# ```
+
+td="$(realpath $(dirname "${BASH_SOURCE[0]}")/..)"
+
 # Build the docker images for npcomp:
 #   npcomp:build-pytorch-1.6
 #   me/npcomp:build-pytorch-1.6  (additional dev packages and current user)
@@ -14,14 +22,14 @@ function npcomp_docker_build() {
 # Start a container named "npcomp" in the background with the current-user
 # dev image built above.
 function npcomp_docker_start() {
-  local host_src_dir="${1-$HOME/src/mlir-npcomp}"
+  local host_src_dir="${1-$td}"
   if ! [ -d "$host_src_dir" ]; then
     echo "mlir-npcomp source directory not found:"
     echo "Pass path to host source directory as argument (default=$host_src_dir)."
     return 1
   fi
   docker volume create npcomp-build
-  docker run -d --rm --name "$container" \
+  docker run -d --rm --name "npcomp" \
     --mount source=npcomp-build,target=/build \
     --mount type=bind,source=$host_src_dir,target=/src/mlir-npcomp \
     me/npcomp:build-pytorch-1.6 tail -f /dev/null
@@ -34,7 +42,7 @@ function npcomp_docker_stop() {
 
 # Get an interactive bash shell to the "npcomp" container.
 function npcomp_docker_login() {
-  docker_execme -it npcomp /bin/bash
+  docker exec --user $USER -it npcomp /bin/bash
 }
 
 ### Implementation helpers below.
