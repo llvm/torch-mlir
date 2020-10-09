@@ -1,13 +1,12 @@
-add_library(NPCOMPTypingCPA
+add_npcomp_library(NPCOMPTypingCPA
   Algorithm.cpp
   Interfaces.cpp
   Types.cpp
-)
 
-target_link_libraries(NPCOMPTypingCPA
-  MLIRIR
-)
-
-add_dependencies(NPCOMPTypingCPA
+  DEPENDS
   NPCOMPTypingCPAInterfacesIncGen
+
+  LINK_LIBS
+  PUBLIC
+  MLIRIR
 )

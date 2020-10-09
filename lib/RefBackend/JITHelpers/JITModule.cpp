@@ -10,8 +10,6 @@
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "npcomp/RefBackend/RefBackend.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/TargetSelect.h"
 
 using namespace refback;
 using namespace mlir;

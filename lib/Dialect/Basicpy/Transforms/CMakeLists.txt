@@ -1,4 +1,4 @@
-add_mlir_conversion_library(NPCOMPBasicpyPasses
+add_npcomp_conversion_library(NPCOMPBasicpyPasses
   Passes.cpp
   TypeInference.cpp
 

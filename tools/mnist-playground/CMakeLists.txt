@@ -17,13 +17,17 @@ set(LLVM_LINK_COMPONENTS
   nativecodegen
   )
 
-add_llvm_tool(mnist-playground
+add_npcomp_executable(mnist-playground
   mnist-playground.cpp
   )
 llvm_update_compile_flags(mnist-playground)
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 target_link_libraries(mnist-playground PRIVATE
+  # Shared library deps first ensure we get most of what we need from libraries.
+  NPCOMP
+  MLIR
+
   MLIRAnalysis
   MLIREDSC
   MLIRExecutionEngine

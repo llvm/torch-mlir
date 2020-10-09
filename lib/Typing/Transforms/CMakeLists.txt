@@ -1,4 +1,4 @@
-add_mlir_conversion_library(NPCOMPTypingPasses
+add_npcomp_conversion_library(NPCOMPTypingPasses
   Passes.cpp
   CPATypeInference.cpp
 

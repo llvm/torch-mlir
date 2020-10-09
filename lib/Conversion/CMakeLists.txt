@@ -6,7 +6,7 @@ if(NPCOMP_ENABLE_IREE)
 add_subdirectory(BasicpyToIREEVM)
 endif()
 
-add_mlir_library(NPCOMPConversionPasses
+add_npcomp_library(NPCOMPConversionPasses
   Passes.cpp
 
   DEPENDS

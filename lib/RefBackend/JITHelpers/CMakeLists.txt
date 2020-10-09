@@ -1,4 +1,4 @@
-add_mlir_library(NPCOMPRefBackendJITHelpers
+add_npcomp_library(NPCOMPRefBackendJITHelpers
   JITModule.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -1,4 +1,4 @@
-add_mlir_conversion_library(NPCOMPNumpyToTCF
+add_npcomp_conversion_library(NPCOMPNumpyToTCF
   Passes.cpp
 
   DEPENDS

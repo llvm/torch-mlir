@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPATenDialect
+add_npcomp_dialect_library(NPCOMPATenDialect
   ATenDialect.cpp
   ATenDialectOpStats.cpp
   ATenPasses.cpp

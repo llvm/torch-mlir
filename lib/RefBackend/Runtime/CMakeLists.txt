@@ -8,10 +8,8 @@ set(LLVM_OPTIONAL_SOURCES
 
 # The library that users link against, defining basic interactions with an
 # refbackrt module and the relevant data structures.
-add_mlir_library(NPCOMPRuntime
+add_npcomp_library(NPCOMPRuntime
   Runtime.cpp
-
-  EXCLUDE_FROM_LIBMLIR
 )
 
 mlir_check_all_link_libraries(NPCOMPRuntime)
@@ -25,11 +23,11 @@ mlir_check_all_link_libraries(NPCOMPRuntime)
 # This is currently done as a shared library to make it suitable for being
 # loaded by mlir::ExecutionEngine. In e.g. an embedded scenario, we would
 # need to create a static library and link that into the binary.
-add_mlir_library(NPCOMPCompilerRuntimeShlib
+add_npcomp_library(NPCOMPCompilerRuntimeShlib
   SHARED
   CompilerRuntime.cpp
 
-  EXCLUDE_FROM_LIBMLIR
+  EXCLUDE_FROM_LIBNPCOMP
 )
 target_link_libraries(NPCOMPCompilerRuntimeShlib PRIVATE NPCOMPRuntime)
 set_target_properties(NPCOMPCompilerRuntimeShlib PROPERTIES LINK_FLAGS

@@ -28,10 +28,16 @@ if(NPCOMP_ENABLE_IREE)
   )
 endif()
 
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+get_property(mlir_dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(mlir_conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-add_mlir_library(NPCOMPInitAll
+get_property(npcomp_dialect_libs GLOBAL PROPERTY NPCOMP_DIALECT_LIBS)
+get_property(npcomp_conversion_libs GLOBAL PROPERTY NPCOMP_CONVERSION_LIBS)
+
+message(STATUS "NPCOMP Dialect libs: ${npcomp_dialect_libs}")
+message(STATUS "NPCOMP Conversion libs: ${npcomp_conversion_libs}")
+
+add_npcomp_library(NPCOMPInitAll
   InitAll.cpp
 
   LINK_LIBS
@@ -53,7 +59,9 @@ add_mlir_library(NPCOMPInitAll
   NPCOMPTCFPasses
   NPCOMPTypingPasses
 
-  ${dialect_libs}
-  ${conversion_libs}
+  ${npcomp_dialect_libs}
+  ${npcomp_conversion_libs}
+  ${mlir_dialect_libs}
+  ${mlir_conversion_libs}
   ${ALL_DEPENDS}
 )

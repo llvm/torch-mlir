@@ -14,11 +14,8 @@ add_library(npcomp_torch_c10_dispatch_bindings
   python_bindings.cpp
 )
 
-get_property(mlir_libs GLOBAL PROPERTY MLIR_ALL_LIBS)
 target_link_libraries(npcomp_torch_c10_dispatch_bindings
-  NPCOMPCAPIIR
   ${TORCH_LIBRARIES}
   ${PYTHON_LIBRARIES}
-  ${mlir_libs}
   torch_python
   )

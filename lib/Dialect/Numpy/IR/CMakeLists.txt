@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPNumpyDialect
+add_npcomp_dialect_library(NPCOMPNumpyDialect
   NumpyDialect.cpp
   NumpyOps.cpp
 

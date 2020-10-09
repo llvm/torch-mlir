@@ -1,4 +1,4 @@
-add_mlir_conversion_library(BasicpyToIREEVM
+add_npcomp_conversion_library(BasicpyToIREEVM
   Passes.cpp
 
   DEPENDS

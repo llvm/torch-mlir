@@ -28,6 +28,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
+option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
 set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
 #-------------------------------------------------------------------------------
@@ -66,6 +67,7 @@ list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 include(TableGen)
 include(AddLLVM)
 include(AddMLIR)
+include(AddNPCOMP)
 include(HandleLLVMOptions)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
@@ -148,7 +150,10 @@ add_dependencies(check-all check-npcomp)
 
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
-add_subdirectory(tools)
 add_subdirectory(python)
 add_subdirectory(test)
 add_subdirectory(frontends)
+
+# Tools needs to come late to ensure that NPCOMP_ALL_LIBS is populated.
+# Generally things after this point may depend on NPCOMP_ALL_LIBS or libNPCOMP.so.
+add_subdirectory(tools)

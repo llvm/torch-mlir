@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPRefbackDialect
+add_npcomp_dialect_library(NPCOMPRefbackDialect
   RefbackDialect.cpp
   RefbackOps.cpp
 

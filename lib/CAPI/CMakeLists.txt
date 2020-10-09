@@ -1,9 +1,18 @@
-add_mlir_library(NPCOMPCAPIIR
+set(LLVM_LINK_COMPONENTS
+  Core
+  Support
+  nativecodegen
+  )
+
+add_npcomp_library(NPCOMPCAPI
+  InitLLVM.cpp
   Registration.cpp
   Types.cpp
-  EXCLUDE_FROM_LIBMLIR
 
   LINK_LIBS PUBLIC
+  MLIRExecutionEngine
+  MLIRLLVMIR
+  MLIRTargetLLVMIR
   NPCOMPInitAll
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect

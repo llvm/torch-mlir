@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPTorchDialect
+add_npcomp_dialect_library(NPCOMPTorchDialect
   TorchDialect.cpp
   TorchOps.cpp
 

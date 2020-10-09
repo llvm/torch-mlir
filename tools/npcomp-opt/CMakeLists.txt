@@ -1,14 +1,11 @@
-get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
-get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
-set(LIBS
-        MLIROptLib
-        NPCOMPInitAll
-        ${conversion_libs}
-        ${dialect_libs}
-)
-add_llvm_executable(npcomp-opt npcomp-opt.cpp)
+# npcomp-opt is always linked dynamically as we want to distribute the
+# binaries with the python packages for hacking/debugging.
+add_npcomp_executable(npcomp-opt npcomp-opt.cpp)
 
-llvm_update_compile_flags(npcomp-opt)
-target_link_libraries(npcomp-opt PRIVATE ${LIBS})
+target_link_libraries(npcomp-opt PRIVATE
+  # Shared library deps first ensure we get most of what we need from libraries.
+  NPCOMP
+  MLIR
+)
 
 mlir_check_all_link_libraries(npcomp-opt)

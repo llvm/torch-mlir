@@ -11,7 +11,7 @@ configure_lit_site_cfg(
 
 set(TEST_DEPENDS
   FileCheck count not
-  _torch_mlir
+  NPCOMPTorchMLIRExt
   )
 
 

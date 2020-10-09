@@ -1,4 +1,4 @@
-add_mlir_dialect_library(NPCOMPBasicpyDialect
+add_npcomp_dialect_library(NPCOMPBasicpyDialect
   BasicpyDialect.cpp
   BasicpyOps.cpp
 

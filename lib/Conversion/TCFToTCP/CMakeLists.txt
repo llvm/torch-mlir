@@ -1,4 +1,4 @@
-add_mlir_conversion_library(NPCOMPTCFToTCP
+add_npcomp_conversion_library(NPCOMPTCFToTCP
   TCFToTCP.cpp
 
   ADDITIONAL_HEADER_DIRS

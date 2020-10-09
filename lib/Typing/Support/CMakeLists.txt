@@ -1,8 +1,8 @@
-add_library(NPCOMPTypingCPASupport
+add_npcomp_library(NPCOMPTypingCPASupport
   CPAIrHelpers.cpp
-)
 
-target_link_libraries(NPCOMPTypingCPASupport
+  LINK_LIBS
+  PUBLIC
   MLIRIR
   NPCOMPTypingCPA
   NPCOMPBasicpyDialect

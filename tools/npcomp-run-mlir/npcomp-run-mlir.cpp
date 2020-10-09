@@ -11,17 +11,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Support/InitLLVM.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "npcomp-c/InitLLVM.h"
 #include "npcomp/InitAll.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/TargetSelect.h"
 
 using namespace mlir;
 using llvm::Error;
@@ -186,9 +185,7 @@ int main(int argc, char **argv) {
   mlir::NPCOMP::registerAllPasses();
 
   llvm::InitLLVM y(argc, argv);
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  mlir::initializeLLVMPasses();
+  npcompInitializeLLVMCodegen();
 
   mlir::registerAsmPrinterCLOptions();
   mlir::registerPassManagerCLOptions();

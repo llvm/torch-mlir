@@ -14,6 +14,7 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "npcomp-c/InitLLVM.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/InitAll.h"
@@ -41,10 +42,8 @@ bool mlir::npcomp::python::npcompMlirInitialize() {
   ::mlir::registerAllPasses();
   ::mlir::NPCOMP::registerAllPasses();
 
-  // LLVM codegen initialization.
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  mlir::initializeLLVMPasses();
+  // Initialize code generation.
+  npcompInitializeLLVMCodegen();
 
   return true;
 }

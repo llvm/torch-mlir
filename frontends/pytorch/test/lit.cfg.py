@@ -21,11 +21,7 @@ from lit.llvm.subst import FindTool
 config.name = 'FRONTENDS_PYTORCH'
 
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
-config.environment['PYTHONPATH'] = "{}:{}".format(
-   os.path.join(config.npcomp_obj_root, "python"),
-   # path to our python hooks
-   os.path.join(config.npcomp_obj_root, "frontends", "pytorch", "csrc"))
-
+config.environment['PYTHONPATH'] = os.path.join(config.npcomp_obj_root, "python")
 if 'TEST_SRC_PATH' in os.environ:
    config.environment['TEST_SRC_PATH'] = os.environ['TEST_SRC_PATH']
 

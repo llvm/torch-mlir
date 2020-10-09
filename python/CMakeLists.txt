@@ -92,64 +92,36 @@ if(NPCOMP_ENABLE_REFJIT)
   )
 endif()
 
-# When building the extension, distinguish between those sources that use
-# pybind (and need rtti/exceptions) and those that only use LLVM/MLIR.
-# Some of the low-level components do not support mixing RTTI modes and are
-# compiled separately for now.
-set(extension_target NPCOMPNativePyExt)
-set(extension_llvm_sources
-)
-set(extension_pybind_sources
+add_library(NPCOMPNativePyExt ${NPCOMP_PYEXT_LINK_MODE}
   NpcompModule.cpp
 )
-add_library(${extension_target} ${NPCOMP_PYEXT_LINK_MODE}
-  ${extension_pybind_sources}
-  ${extension_llvm_sources}
-)
 
-set_target_properties(${extension_target} PROPERTIES LIBRARY_OUTPUT_DIRECTORY
+set_target_properties(NPCOMPNativePyExt PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                       "${CMAKE_CURRENT_BINARY_DIR}")
-set_target_properties(${extension_target} PROPERTIES OUTPUT_NAME _npcomp)
-set_target_properties(${extension_target} PROPERTIES PREFIX
+set_target_properties(NPCOMPNativePyExt PROPERTIES OUTPUT_NAME _npcomp)
+set_target_properties(NPCOMPNativePyExt PROPERTIES PREFIX
                       "${PYTHON_MODULE_PREFIX}")
-set_target_properties(${extension_target} PROPERTIES SUFFIX
+set_target_properties(NPCOMPNativePyExt PROPERTIES SUFFIX
                       "${PYTHON_MODULE_EXTENSION}")
 
 # pybind requires binding code to be compiled with -fvisibility=hidden
 # Better code can be generated if the entire project compiles that way, but
-# that is not enforced here. Instead, include a linker script that explicitly
-# hides anything but the PyInit_* symbols, allowing gc to take place.
-# TODO(laurenzo): Windows needs a .def file and different flags.
-set_target_properties(${extension_target} PROPERTIES CXX_VISIBILITY_PRESET "hidden")
-set_target_properties(${extension_target} PROPERTIES LINK_FLAGS
-  "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/unix_version.script")
+# that is not enforced here.
+set_target_properties(NPCOMPNativePyExt PROPERTIES CXX_VISIBILITY_PRESET "hidden")
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-target_link_libraries(${extension_target}
+target_link_libraries(NPCOMPNativePyExt
   PRIVATE
-    NPCOMPPythonCommon
+    # Transitive dep on the shared library links most things from there.
+    NPCOMP
+
     NPCOMPInitAll
-
-    ${conversion_libs}
-    ${dialect_libs}
-
-    # Upstream depends
-    MLIRAffineToStandard
-    MLIRAffineTransforms
-    MLIRDialect
-    MLIREDSC
-    MLIRIR
-    MLIRSCFToStandard
-    MLIRLLVMIR
-    MLIRPass
-    MLIRTargetLLVMIR
-    MLIRTransforms
-
+    NPCOMPPythonCommon
     ${NPCOMP_PYEXT_LIBADD}
 )
 
-npcomp_python_target_compile_options(${extension_target})
+npcomp_python_target_compile_options(NPCOMPNativePyExt)
 
-mlir_check_all_link_libraries(${extension_target})
+mlir_check_all_link_libraries(NPCOMPNativePyExt)
