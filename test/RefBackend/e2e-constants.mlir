@@ -1,5 +1,5 @@
-// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline | FileCheck %s --dump-input=fail
-// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=tcf-refback-lowering-pipeline | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=tcf-refback-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
 
 // -----
 // CHECK-LABEL: func @global_add
