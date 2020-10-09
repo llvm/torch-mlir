@@ -6,9 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the base file for our "end-to-end" npcomp lowering pipeline.
-// At the moment, the first "end" is TCF ops and the second "end" is `llvm`
-// dialect suitable for jitting.
+// This is the base file for npcomp's "reference backend".
+//
+// The input to this backend is a layer that we call "TCP" + a mix of scalar
+// ops. TCP is currently a concrete dialect, but more generally it refers to a
+// layer of the compilation stack consisting of named ops on entire tensors,
+// with their preconditions checked. For example, a "matmul" op that assumes
+// that the contracting ("k") dimensions of both operands are equal. Earlier
+// code in the compilation stack should ensure that these preconditions are met
+// (such as during TCF->TCP lowering).
+//
+// The output of this backend is LLVM IR suitable for JITing.
+//
+// We expect that other backends will appear that have a similar kind of
+// interface (TCP + scalar ops ---> LLVM IR / other "executable").
 //
 //===----------------------------------------------------------------------===//
 
@@ -49,6 +60,10 @@ void mlir::NPCOMP::registerRefBackendPasses() {
   mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
       "refback-lowering-pipeline", "RefBackend lowering pipeline.",
       mlir::NPCOMP::createRefBackendLoweringPipeline);
+  mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
+      "tcf-refback-lowering-pipeline",
+      "RefBackend lowering pipeline, starting from TCF.",
+      mlir::NPCOMP::createTCFRefBackendLoweringPipeline);
 }
 
 //===----------------------------------------------------------------------===//
@@ -165,18 +180,6 @@ std::unique_ptr<Pass> mlir::NPCOMP::createRestrictedCanonicalizerPass() {
 
 void mlir::NPCOMP::createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
-  // This "end to end" lowering pipline loewrings from approximately the "numpy"
-  // level of abstraction (which is a dialect we call "TCF", or "Tensor Compute
-  // Frontend") all the way down to LLVM IR.
-
-  // Convert from TCF to TCP.
-  //
-  // TCF has implicit broadcasting, and issues errors "inside the ops" in the
-  // case of invalid broadcasts.
-  //
-  // TCP does not. So we need to reify the broadcasting and error checking.
-  pm.addPass(createConvertTCFToTCPPass());
-
   // For operations with a shape transfer function, explicitly bypass their
   // shape computations with refback.shaped_results ops.
   //
@@ -306,4 +309,17 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
     pm.addPass(createCanonicalizerPass());
     pm.addPass(createCSEPass());
   }
+}
+
+void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
+  // Convert from TCF to TCP.
+  //
+  // TCF has implicit broadcasting, and issues errors "inside the ops" in the
+  // case of invalid broadcasts.
+  //
+  // TCP does not. So we need to reify the broadcasting and error checking.
+  pm.addPass(createConvertTCFToTCPPass());
+
+  createRefBackendLoweringPipeline(pm, options);
 }

@@ -1,5 +1,5 @@
-// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline | FileCheck %s --dump-input=fail
-// RUN: npcomp-opt <%s -pass-pipeline=refback-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=tcf-refback-lowering-pipeline | FileCheck %s --dump-input=fail
+// RUN: npcomp-opt <%s -pass-pipeline=tcf-refback-lowering-pipeline{optimize} | FileCheck %s --dump-input=fail
 
 // This is the simplest case, which is easy to stare at for debugging
 // purposes.

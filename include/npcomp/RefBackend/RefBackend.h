@@ -54,6 +54,15 @@ struct RefBackendLoweringPipelineOptions
 void createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options);
 
+// Helper pipeline that runs TCF->TCP lowering before invoking
+// RefBackendLoweringPipeline.
+// For now, just piggy-back on the same set of options since this is such a
+// thin wrapper.
+// Longer-term, the reference backend should fit into some sort of
+// "target interface" and this helper won't be needed.
+void createTCFRefBackendLoweringPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options);
+
 } // namespace NPCOMP
 } // namespace mlir
 
