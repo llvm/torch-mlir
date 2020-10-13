@@ -67,6 +67,7 @@ llvm_config.with_environment('PYTHONPATH', [
 
 tool_dirs = [config.npcomp_tools_dir, config.llvm_tools_dir]
 tools = [
+    'npcomp-opt',
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
