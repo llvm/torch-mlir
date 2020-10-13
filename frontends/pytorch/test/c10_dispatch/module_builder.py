@@ -6,12 +6,12 @@
 # TODO: Once stabilized, expand tests to include all argument dtypes.
 
 import torch
-import _torch_mlir as m
+import torch_mlir
 
 t0 = torch.randn((1,4))
 t1 = torch.randn((4,1))
 
-mb = m.ModuleBuilder()
+mb = torch_mlir.ModuleBuilder()
 with mb.capture_function("foobar", [t0, t1]) as f:
   result = t0 + t1
   f.returns([result])
@@ -23,7 +23,7 @@ with mb.capture_function("foobar", [t0, t1]) as f:
 # CHECK:     return %0 : !numpy.ndarray<[4,4]:f32>
 # CHECK:   }
 # CHECK: }
-print(mb)
+print(mb.module)
 
 # CHECK: CAPTURE: aten::add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> (Tensor)
 for line in f.get_debug_log(): print(line)

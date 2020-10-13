@@ -20,4 +20,5 @@ if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
 endif()
 
 add_subdirectory(csrc)
+add_subdirectory(python)
 add_subdirectory(test)
