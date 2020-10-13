@@ -8,7 +8,6 @@
 #ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
 #define NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
 
-// TODO: Remove this dep once the getAsm() method is removed.
 #include "../pybind.h"
 
 #include "acap_dispatch.h"
@@ -24,14 +23,13 @@ namespace torch_mlir {
 /// of PyTorch programs/execution.
 class ModuleBuilder {
 public:
-  ModuleBuilder();
-  ~ModuleBuilder();
+  ModuleBuilder(pybind11::object contextObj);
 
   /// Creates Python bindings for the class.
   static void bind(pybind11::module &m);
 
-  // TODO: Remove this once the MLIR Python objects are exposed directly.
-  pybind11::str getAsm();
+  pybind11::object getContextObj() { return contextObj; }
+  pybind11::object getModuleObj() { return moduleObj; }
 
   // Starts a device-capture based function.
   // TODO: Add inputs.
@@ -41,10 +39,15 @@ public:
 private:
   MlirBlock getBodyBlock();
 
+  // Capture references to the python-owned context and module. Ownership
+  // is delegated to python for these, and the C-API types are extracted via
+  // the capsule API.
+  pybind11::object contextObj;
   MlirContext context;
-  MlirLocation unknownLoc;
   MlirModule module;
+  pybind11::object moduleObj;
   MlirOperation terminator;
+  MlirLocation unknownLoc;
 
   TypeMapper typeMapper;
 };

@@ -7,6 +7,7 @@
 
 #include "module_builder.h"
 
+#include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/Registration.h"
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
@@ -15,38 +16,49 @@
 namespace py = pybind11;
 using namespace torch_mlir;
 
-namespace {
-/// Accumulates into a python string from a method that accepts an
-/// MlirStringCallback.
-/// TODO: Remove this once the MLIR Python objects are exposed directly.
-struct PyPrintAccumulator {
-  py::list parts;
+static py::object getMlirIrClass(const char *className) {
+  // Note that the "mlir" module may be a loader which internally sets up
+  // the child modules, so it must be resolved incrementally (vs "mlir.ir").
+  return py::module::import("mlir").attr("ir").attr(className);
+}
 
-  void *getUserData() { return this; }
-
-  MlirStringCallback getCallback() {
-    return [](const char *part, intptr_t size, void *userData) {
-      PyPrintAccumulator *printAccum =
-          static_cast<PyPrintAccumulator *>(userData);
-      py::str pyPart(part, size); // Decodes as UTF-8 by default.
-      printAccum->parts.append(std::move(pyPart));
-    };
+static py::object createPythonContextIfNone(py::object contextObj) {
+  if (contextObj.is_none()) {
+    contextObj = getMlirIrClass("Context")();
   }
+  return contextObj;
+}
 
-  py::str join() {
-    py::str delim("", 0);
-    return delim.attr("join")(parts);
+static MlirContext castPythonObjectToMlirContext(py::object &contextObj) {
+  assert(!contextObj.is_none() && "context cannot be None");
+  auto contextCapsule = contextObj.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+  MlirContext context = mlirPythonCapsuleToContext(contextCapsule.ptr());
+  if (mlirContextIsNull(context)) {
+    // An error will have already been set by the above.
+    throw py::error_already_set();
   }
-};
-} // namespace
+  return context;
+}
 
-ModuleBuilder::ModuleBuilder()
-    // TODO: Once the MLIR C/Python capsule API is in place, these should be
-    // derived from Python level objects (which will provide better lifetime
-    // semantics and interop). Until then, they are just scoped to this instance
-    // and must not escape.
-    : context(mlirContextCreate()), unknownLoc(mlirLocationUnknownGet(context)),
-      module(mlirModuleCreateEmpty(unknownLoc)), typeMapper(context) {
+static py::object castMlirModuleToPythonObject(MlirModule module) {
+  auto moduleClass = getMlirIrClass("Module");
+  auto moduleCapsule =
+      py::reinterpret_steal<py::object>(mlirPythonModuleToCapsule(module));
+  return moduleClass.attr(MLIR_PYTHON_CAPI_FACTORY_ATTR)(moduleCapsule);
+}
+
+static MlirModule createEmptyModule(MlirContext context) {
+  // TODO: Extract location from backtrace.
+  MlirLocation loc = mlirLocationUnknownGet(context);
+  return mlirModuleCreateEmpty(loc);
+}
+
+ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
+    : contextObj(createPythonContextIfNone(std::move(contextObj))),
+      context(castPythonObjectToMlirContext(this->contextObj)),
+      module(createEmptyModule(this->context)),
+      moduleObj(castMlirModuleToPythonObject(module)),
+      unknownLoc(mlirLocationUnknownGet(context)), typeMapper(this->context) {
   // TODO: Rework this once dialect registration C-APIs are in place.
   // https://reviews.llvm.org/D88162
   mlirRegisterAllDialects(context);
@@ -54,19 +66,6 @@ ModuleBuilder::ModuleBuilder()
 
   // Terminator will always be the first op of an empty module.
   terminator = mlirBlockGetFirstOperation(getBodyBlock());
-}
-
-ModuleBuilder::~ModuleBuilder() {
-  mlirModuleDestroy(module);
-  mlirContextDestroy(context);
-}
-
-py::str ModuleBuilder::getAsm() {
-  MlirOperation operation = mlirModuleGetOperation(module);
-  PyPrintAccumulator printAccum;
-  mlirOperationPrint(operation, printAccum.getCallback(),
-                     printAccum.getUserData());
-  return printAccum.join();
 }
 
 std::shared_ptr<AcapController>
@@ -103,8 +102,9 @@ MlirBlock ModuleBuilder::getBodyBlock() {
 
 void ModuleBuilder::bind(py::module &m) {
   py::class_<ModuleBuilder>(m, "ModuleBuilder")
-      .def(py::init<>())
-      .def("__str__", &ModuleBuilder::getAsm)
+      .def(py::init<py::object>(), py::arg("context") = py::none())
+      .def_property_readonly("context", &ModuleBuilder::getContextObj)
+      .def_property_readonly("module", &ModuleBuilder::getModuleObj)
       .def("capture_function", &ModuleBuilder::startCaptureFunction,
            py::keep_alive<0, 1>());
 }
