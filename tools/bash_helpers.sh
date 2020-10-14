@@ -12,7 +12,7 @@ npcomp-opt() {
   # Usage:
   # $ npcomp-opt <regular npcomp-opt options>
   ninja -C "$build_dir" npcomp-opt 1>&2 || return 1
-  "${build_dir}/tools/npcomp-opt/npcomp-opt" "$@"
+  "${build_dir}/bin/npcomp-opt" "$@"
 }
 
 npcomp-run-mlir() {
@@ -24,7 +24,7 @@ npcomp-run-mlir() {
   # Usage:
   # $ npcomp-run-mlir <regular npcomp-run-mlir options>
   ninja -C "$build_dir" npcomp-run-mlir NPCOMPCompilerRuntimeShlib 1>&2 || return 1
-  $build_dir/tools/npcomp-run-mlir/npcomp-run-mlir \
+  "$build_dir/bin/npcomp-run-mlir" \
     -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
 }
 
@@ -37,7 +37,7 @@ mnist-playground() {
   # Usage:
   # $ mnist-playground <regular mnist-playground options>
   ninja -C "$build_dir" mnist-playground NPCOMPCompilerRuntimeShlib 1>&2 || return 1
-  $build_dir/tools/mnist-playground/mnist-playground \
+  "$build_dir/bin/mnist-playground" \
     -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
 }
 
@@ -59,6 +59,3 @@ npctall() {
 # https://stackoverflow.com/a/34272881
 # https://superuser.com/q/253068
 export FIGNORE=$FIGNORE:nstall-mlir
-
-export PYTHONPATH="$(realpath ${build_dir}/python):$(realpath ${build_dir}/python_native):$(realpath ${build_dir}/iree/bindings/python)"
-
