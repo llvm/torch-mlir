@@ -1,45 +1,59 @@
-//===----------------------------------------------------------------------===//
+//===- Bufferize.cpp - Bufferization for TCP dialect -------------*- C++-*-===//
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
-#include "../PassDetail.h"
-#include "npcomp/RefBackend/RefBackend.h"
+#include "PassDetail.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
-#include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Pass/PassRegistry.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Module.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/InliningUtils.h"
-#include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
+#include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/TCP/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
+
+// TODO: Don't just open-code all shape transfer functions here.
+static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
+  OpBuilder builder(&op);
+
+  if (auto broadcastTo = dyn_cast<tcp::BroadcastToOp>(op)) {
+    return {broadcastTo.shape()};
+  }
+
+  // Elementwise ops.
+  if (isa<tcp::AddOp, tcp::MaxOp, tcp::ExpOp, tcp::TanhOp>(op)) {
+    return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
+  }
+
+  if (auto matmul = dyn_cast<tcp::MatmulOp>(op)) {
+    auto lhsRows = builder.create<DimOp>(op.getLoc(), matmul.lhs(), 0);
+    auto rhsCols = builder.create<DimOp>(op.getLoc(), matmul.rhs(), 1);
+    auto shape = builder.create<TensorFromElementsOp>(
+        op.getLoc(), ValueRange({lhsRows, rhsCols}));
+    return {shape};
+  }
+
+  // No shape transfer function.
+  return {};
+}
 
 static FailureOr<SmallVector<Value, 6>>
 allocateResults(Operation *op, ConversionPatternRewriter &rewriter,
                 Location loc,
                 SmallVectorImpl<Value> *resultShapesOut = nullptr) {
-  // TODO: This is really fragile. Can we have a better story?
-  auto shapedResults = dyn_cast<refback::ShapedResultsOp>(op->getParentOp());
-  if (!shapedResults)
-    return rewriter.notifyMatchFailure(op, "parent not refback.shaped_results");
-  if (op->getResults() !=
-      shapedResults.getBody()->getTerminator()->getOperands())
-    return rewriter.notifyMatchFailure(
-        op, "only limited forms of refback.shaped_results allowed");
-  auto resultShapes = shapedResults.resultShapes();
+  auto resultShapes = bypassResultShapes(*op);
   SmallVector<Value, 6> results;
   for (auto t : llvm::zip(op->getResults(), resultShapes)) {
     auto result = std::get<0>(t);
@@ -201,7 +215,7 @@ matchAndRewriteElementwiseOp(Operation *op, ArrayRef<Value> operands,
 
 namespace {
 template <typename SourceOp>
-class LowerElementwiseOp : public OpConversionPattern<SourceOp> {
+class BufferizeElementwiseOp : public OpConversionPattern<SourceOp> {
 public:
   using OpConversionPattern<SourceOp>::OpConversionPattern;
   LogicalResult
@@ -213,7 +227,7 @@ public:
 } // namespace
 
 namespace {
-class LowerTcpMatmulOp : public OpConversionPattern<tcp::MatmulOp> {
+class BufferizeMatmulOp : public OpConversionPattern<tcp::MatmulOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
@@ -234,57 +248,12 @@ public:
 } // namespace
 
 namespace {
-// TODO: Linalg and shape don't implement the inliner interface, which blocks us
-// from using mlir::inlineRegion. Locally override it here.
-class LocallyOverrideLegalityInlinerInterface : public InlinerInterface {
-public:
-  using InlinerInterface::InlinerInterface;
-  bool isLegalToInline(Operation *op, Region *dest,
-                       BlockAndValueMapping &valueMapping) const final {
-    return true;
-  }
-
-  bool isLegalToInline(Region *dest, Region *src,
-                       BlockAndValueMapping &valueMapping) const final {
-    return true;
-  }
-};
-} // namespace
-
-namespace {
-// This pass is responsible for lowering regions wrapped by
-// refback.shaped_results (which operate on tensors) to memrefs.
-// This includes any ops potentially contained within them.
-// This is somewhat analogous to IREE's backend compilation of a single dispatch
-// region, except that for now, we only allow a single op in the
-// refback.shaped_results, and we don't have any notion of "backend" layered at
-// all. Nor is it clear if we really want any of that here.
-//
-// The refback.shaped_results ops provide precisely the information needed to
-// allocate output buffers when converting to memref.
-// For now, this process eliminates the original refback.shaped_results op since
-// we don't have any host/device distinction or other structure that would
-// require retaining that sort of IR structure.
-//
-// TODO: Do "shape_of" resolution while still on tensors.
-// Here we spew out tons of shape_of and rely on dim ops on descriptors to make
-// it work. The key difference is that we need refback.shaped_results (or its
-// successor / something it gets lowered to) to not be IsolatedFromAbove, and
-// explicitly capture all input tensors along with their shapes. That allows
-// shape_of ops on inputs to be trivially resolved. Unfortunately, this opens up
-// the whole "dispatch region formation" can of worms like exists in IREE --
-// once you have multiple ops inside a "dispatch region", you need to somehow
-// lower them without allocating intermediate buffers.
-//
-// TODO: Don't hardcode the lowering for every op in this one pass.
-class LowerShapedResultsToMemref
-    : public LowerShapedResultsToMemrefBase<LowerShapedResultsToMemref> {
-  void getDependentDialects(DialectRegistry &registry) const override {
-    // clang-format off
-    registry.insert<linalg::LinalgDialect,
-                    scf::SCFDialect,
-                    shape::ShapeDialect>();
-    // clang-format on
+class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
+  void getDependentDialects(::mlir::DialectRegistry &registry) const override {
+    registry.insert<refback::RefbackDialect>();
+    registry.insert<linalg::LinalgDialect>();
+    registry.insert<scf::SCFDialect>();
+    registry.insert<shape::ShapeDialect>();
   }
 
   void runOnOperation() override {
@@ -297,21 +266,20 @@ class LowerShapedResultsToMemref
 
     ConversionTarget target(*context);
 
-    // The shaped results ops themselves. They have to be legal since we delete
-    // them later after the conversion process.
-    target.addLegalOp<refback::ShapedResultsOp>();
-    target.addLegalOp<refback::YieldOp>();
     // All lowering to buffers involves refback.alloc_memref ops.
+    // TODO: This makes the tests cleaner, but otherwise isn't too essential as
+    // we can just open-code the extents for the alloc.
     target.addLegalOp<refback::AllocMemRefOp>();
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns
-        .insert<LowerElementwiseOp<tcp::AddOp>, LowerElementwiseOp<tcp::MaxOp>,
-                LowerElementwiseOp<tcp::ExpOp>,
-                LowerElementwiseOp<tcp::TanhOp>>(typeConverter, context);
+    patterns.insert<BufferizeElementwiseOp<tcp::AddOp>,
+                    BufferizeElementwiseOp<tcp::MaxOp>,
+                    BufferizeElementwiseOp<tcp::ExpOp>,
+                    BufferizeElementwiseOp<tcp::TanhOp>>(typeConverter,
+                                                         context);
     target.addIllegalOp<tcp::AddOp, tcp::MaxOp>();
-    patterns.insert<LowerTcpMatmulOp>(typeConverter, context);
+    patterns.insert<BufferizeMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
 
     target.addLegalDialect<linalg::LinalgDialect>();
@@ -319,33 +287,12 @@ class LowerShapedResultsToMemref
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalOp<shape::GetExtentOp>();
 
-    SmallVector<Operation *, 6> shapedResultsOps;
-    func.walk(
-        [&](refback::ShapedResultsOp op) { shapedResultsOps.push_back(op); });
-
-    if (failed(applyFullConversion(shapedResultsOps, target, patterns)))
+    if (failed(applyPartialConversion(func, target, patterns)))
       return signalPassFailure();
-
-    // Now inline the refback.shaped_results ops.
-    // This can't be done as part of the conversion since conversion visits
-    // ops in preorder, and we need the refback.shaped_results ops to be present
-    // so that inner ops can get their shape.
-    LocallyOverrideLegalityInlinerInterface interface(context);
-    for (Operation *shapedResultsOp : shapedResultsOps) {
-      auto op = cast<refback::ShapedResultsOp>(shapedResultsOp);
-      if (failed(inlineRegion(interface, &op.body(), op, ValueRange({}),
-                              op.getResults(), /*inlineLoc=*/llvm::None,
-                              /*shouldCloneInlinedRegion=*/false))) {
-        op.emitError() << "could not inline body";
-        return signalPassFailure();
-      }
-      op.erase();
-    }
   }
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::NPCOMP::createLowerShapedResultsToMemrefPass() {
-  return std::make_unique<LowerShapedResultsToMemref>();
+std::unique_ptr<OperationPass<FuncOp>> mlir::NPCOMP::createTCPBufferizePass() {
+  return std::make_unique<TCPBufferizePass>();
 }

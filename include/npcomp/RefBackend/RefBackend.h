@@ -23,10 +23,6 @@ void registerRefBackendPasses();
 //
 // Pass summaries are in Passes.td.
 
-std::unique_ptr<OperationPass<FuncOp>> createBypassShapesPass();
-
-std::unique_ptr<OperationPass<FuncOp>> createLowerShapedResultsToMemrefPass();
-
 std::unique_ptr<OperationPass<FuncOp>> createLowerStdToMemrefPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>

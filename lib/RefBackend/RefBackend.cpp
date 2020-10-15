@@ -41,6 +41,7 @@
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
+#include "npcomp/Dialect/TCP/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -180,28 +181,6 @@ std::unique_ptr<Pass> mlir::NPCOMP::createRestrictedCanonicalizerPass() {
 
 void mlir::NPCOMP::createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
-  // For operations with a shape transfer function, explicitly bypass their
-  // shape computations with refback.shaped_results ops.
-  //
-  // Right now, our lowering flow depends heavily on descriptors, so technically
-  // we don't need to bypass shapes -- we can just splat out the shape
-  // calculations when lowering the ops themselves. However, this design keeps
-  // the door open to various future directions, and is an interesting example
-  // in its own right.
-  //
-  // For example, if we want to lower to command-buffer style API's like Vulkan,
-  // then we need (for correctness) to bypass the shapes (actually,
-  // something more sophisticated than just that) if we want to do command
-  // buffer formation while we are still on tensors (e.g. to record workgroup
-  // sizes). We might not care about pursuing that direction here though. So
-  // consider this pass as purely advisory now.
-  //
-  // One case where we might still be interested in this is dealing with
-  // linalg.generic ops and other types of "fusions" that have shape transfer
-  // functions that are not easily reconstructible and thus we have to capture
-  // the shape transfer functions earlier in the pipeline.
-  pm.addPass(createBypassShapesPass());
-
   // Lower shape constraints before we enter tensor->memref conversion.
   // That is, we expand shape.cstr_* ops to eager error handling code.
   pm.addPass(createConvertShapeConstraintsPass());
@@ -226,14 +205,8 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // This means that intermediate steps have source/target materializations
   // (tensor_load / tensor_to_memref) in the IR.
 
-  // Lower ops enclosed in refback.shaped_results regions.
-  // For now, this is covering the "tensor compute" ops like tcp.add /
-  // tcp.broadcast_to (the former being handled via a special subset of
-  // linalg.generic) -- we only handle those two, so having an isolated pass
-  // that hardcodes all of them is fine -- eventually we might want something
-  // more pluggable. The exact interface for this pluggability depends on
-  // what design we want to settle on for bypassing shape computations.
-  pm.addPass(createLowerShapedResultsToMemrefPass());
+  // Bufferize the TCP dialect.
+  pm.addPass(createTCPBufferizePass());
   // Lower tensor-valued constants to refback.global.
   pm.addPass(createLowerConstantTensorsToMemrefPass());
   // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
