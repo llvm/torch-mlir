@@ -2,12 +2,10 @@ add_subdirectory(Runtime)
 add_subdirectory(JITHelpers)
 
 add_npcomp_library(NPCOMPRefBackend
-  BypassShapes.cpp
   RefBackend.cpp
   LowerToLLVM.cpp
   LowerToRefbackrtABI.cpp
   TensorToMemref/LowerConstantTensorsToMemref.cpp
-  TensorToMemref/LowerShapedResultsToMemref.cpp
   TensorToMemref/LowerStdToMemref.cpp
   TensorToMemref/LowerStructuralToMemref.cpp
 

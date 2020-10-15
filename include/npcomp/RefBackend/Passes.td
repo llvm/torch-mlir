@@ -11,16 +11,6 @@
 
 include "mlir/Pass/PassBase.td"
 
-def BypassShapes : Pass<"bypass-shapes", "FuncOp"> {
-  let summary = "Bypass shape calculations around ops";
-  let constructor = "mlir::NPCOMP::createBypassShapesPass()";
-}
-
-def LowerShapedResultsToMemref : Pass<"lower-shaped-results-to-memref", "FuncOp"> {
-  let summary = "Lower refback.shaped_results regions";
-  let constructor = "mlir::NPCOMP::createLowerShapedResultsToMemrefPass()";
-}
-
 def LowerStdToMemref : Pass<"lower-std-to-memref", "FuncOp"> {
   let summary = "Lower std ops to memref";
   let constructor = "mlir::NPCOMP::createLowerStdToMemrefPass()";

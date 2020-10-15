@@ -16,59 +16,6 @@ using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::refback;
 
 //===----------------------------------------------------------------------===//
-// ShapedResultsOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verifyShapedResultsOp(ShapedResultsOp op) {
-  if (op.getNumOperands() != op.getNumResults())
-    return op.emitError() << "number of operands must equal number of results";
-  if (op.getNumOperands() == 0)
-    return op.emitError() << "must have at least one operand/result";
-  return RegionBranchOpInterface::verifyTypes(op);
-}
-
-static void printShapedResultsOp(OpAsmPrinter &p, ShapedResultsOp &op) {
-  p << "refback.shaped_results ";
-  p.printOptionalAttrDictWithKeyword(op.getAttrs());
-  p.printOperands(op.getOperands());
-  p.printRegion(op.body(), /*printEntryBlockArgs=*/false);
-  p << " : ";
-  interleaveComma(op.getOperandTypes(), p);
-  p << " -> ";
-  interleaveComma(op.getResultTypes(), p);
-}
-
-static ParseResult parseShapedResultsOp(OpAsmParser &parser,
-                                        OperationState &result) {
-  if (parser.parseOptionalAttrDictWithKeyword(result.attributes))
-    return failure();
-  SmallVector<OpAsmParser::OperandType, 6> operands;
-  if (parser.parseOperandList(operands))
-    return failure();
-  auto *body = result.addRegion();
-  if (parser.parseRegion(*body, llvm::None, llvm::None))
-    return failure();
-  SmallVector<Type, 6> inputTypes;
-  if (parser.parseColonTypeList(inputTypes))
-    return failure();
-  if (parser.resolveOperands(operands, inputTypes, parser.getNameLoc(),
-                             result.operands))
-    return failure();
-  if (parser.parseArrowTypeList(result.types))
-    return failure();
-  return success();
-}
-
-void ShapedResultsOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  if (index.hasValue())
-    regions.push_back(RegionSuccessor(getResults()));
-  else
-    regions.push_back(RegionSuccessor(&body()));
-}
-
-//===----------------------------------------------------------------------===//
 // GlobalOp
 //===----------------------------------------------------------------------===//
 

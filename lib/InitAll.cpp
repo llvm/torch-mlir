@@ -19,6 +19,7 @@
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCF/Transforms/Passes.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
+#include "npcomp/Dialect/TCP/Transforms/Passes.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 
@@ -89,6 +90,7 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerBasicpyPasses();
   mlir::NPCOMP::registerNumpyPasses();
   mlir::NPCOMP::registerTCFPasses();
+  mlir::NPCOMP::registerTCPPasses();
   mlir::NPCOMP::registerTypingPasses();
   registerDependencyPasses();
 }

@@ -28,16 +28,6 @@ struct RefbackInlinerInterface : public DialectInlinerInterface {
                        BlockAndValueMapping &) const final {
     return true;
   }
-  void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
-    auto retValOp = dyn_cast<YieldOp>(op);
-    if (!retValOp)
-      return;
-
-    for (auto retValue : llvm::zip(valuesToRepl, retValOp.getOperands())) {
-      std::get<0>(retValue).replaceAllUsesWith(std::get<1>(retValue));
-    }
-  }
 };
 } // end anonymous namespace
 
