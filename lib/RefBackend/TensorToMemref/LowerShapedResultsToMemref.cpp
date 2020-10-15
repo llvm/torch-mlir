@@ -16,6 +16,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
@@ -290,28 +291,7 @@ class LowerShapedResultsToMemref
     auto func = getOperation();
     auto *context = &getContext();
 
-    TypeConverter typeConverter;
-    typeConverter.addConversion([](Type type) { return type; });
-    typeConverter.addConversion([](RankedTensorType type) -> Type {
-      return MemRefType::get(type.getShape(), type.getElementType());
-    });
-
-    typeConverter.addSourceMaterialization([](OpBuilder &builder,
-                                              RankedTensorType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<MemRefType>());
-      return (Value)builder.create<refback::MemrefToTensorOp>(loc, type,
-                                                              inputs[0]);
-    });
-    typeConverter.addTargetMaterialization([](OpBuilder &builder,
-                                              MemRefType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<RankedTensorType>());
-      return (Value)builder.create<refback::TensorToMemrefOp>(loc, type,
-                                                              inputs[0]);
-    });
+    BufferizeTypeConverter typeConverter;
 
     OwningRewritePatternList patterns;
 
@@ -323,10 +303,6 @@ class LowerShapedResultsToMemref
     target.addLegalOp<refback::YieldOp>();
     // All lowering to buffers involves refback.alloc_memref ops.
     target.addLegalOp<refback::AllocMemRefOp>();
-    // The casting ops are introduced by the type converter, so we should mark
-    // them legal.
-    target.addLegalOp<refback::MemrefToTensorOp>();
-    target.addLegalOp<refback::TensorToMemrefOp>();
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();

@@ -20,15 +20,15 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
 // CHECK-SAME:                  %arg0: tensor<?xf32>,
 // CHECK-SAME:                  %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[LHSSHAPE:.*]] = shape.shape_of %arg0 : tensor<?xf32> -> tensor<?xindex>
-// CHECK:           %[[LHS:.*]] = refback.tensor_to_memref %arg0 : tensor<?xf32> -> memref<?xf32>
-// CHECK:           %[[RHS:.*]] = refback.tensor_to_memref %arg1 : tensor<?xf32> -> memref<?xf32>
+// CHECK:           %[[LHS:.*]] = tensor_to_memref %arg0 : memref<?xf32>
+// CHECK:           %[[RHS:.*]] = tensor_to_memref %arg1 : memref<?xf32>
 // CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[LHSSHAPE]] : memref<?xf32>
 // CHECK:           linalg.generic {{.*}} ins(%[[LHS]], %[[RHS]] {{.*}}) outs(%[[RESULT]] {{.*}}) {
 // CHECK:           ^bb0(%[[VAL_6:.*]]: f32, %[[VAL_7:.*]]: f32, %[[VAL_8:.*]]: f32):
 // CHECK:             %[[VAL_9:.*]] = addf %[[VAL_6]], %[[VAL_7]] : f32
 // CHECK:             linalg.yield %[[VAL_9]] : f32
 // CHECK:           }
-// CHECK:           %[[RET:.*]] = refback.memref_to_tensor %[[RESULT]] : memref<?xf32> -> tensor<?xf32>
+// CHECK:           %[[RET:.*]] = tensor_load %[[RESULT]] : memref<?xf32>
 // CHECK:           return %[[RET]] : tensor<?xf32>
 // CHECK:         }
 func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
@@ -62,13 +62,13 @@ func @tcp_max(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK-SAME:                     %arg0: tensor<?x?xf32>,
 // CHECK-SAME:                     %arg1: tensor<?x?xf32>,
 // CHECK-SAME:                     %[[SHAPE:.*]]: tensor<?xindex>) -> tensor<?x?xf32> {
-// CHECK:           %[[LHS:.*]] = refback.tensor_to_memref %arg0 : tensor<?x?xf32> -> memref<?x?xf32>
-// CHECK:           %[[RHS:.*]] = refback.tensor_to_memref %arg1 : tensor<?x?xf32> -> memref<?x?xf32>
+// CHECK:           %[[LHS:.*]] = tensor_to_memref %arg0 : memref<?x?xf32>
+// CHECK:           %[[RHS:.*]] = tensor_to_memref %arg1 : memref<?x?xf32>
 // CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[SHAPE]] : memref<?x?xf32>
 // CHECK:           %[[C0:.*]] = constant 0.000000e+00 : f32
 // CHECK:           linalg.fill(%2, %[[C0]]) : memref<?x?xf32>, f32
 // CHECK:           linalg.matmul ins(%[[LHS]], %[[RHS]] : memref<?x?xf32>, memref<?x?xf32>) outs(%[[RESULT]] : memref<?x?xf32>)
-// CHECK:           %[[RET:.*]] = refback.memref_to_tensor %[[RESULT]] : memref<?x?xf32> -> tensor<?x?xf32>
+// CHECK:           %[[RET:.*]] = tensor_load %[[RESULT]] : memref<?x?xf32>
 // CHECK:           return %[[RET]] : tensor<?x?xf32>
 // CHECK:         }
 func @tcp_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>, %shape: tensor<?xindex>) -> tensor<?x?xf32> {

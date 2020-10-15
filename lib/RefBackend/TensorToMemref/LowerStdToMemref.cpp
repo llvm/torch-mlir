@@ -12,6 +12,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
@@ -72,19 +73,6 @@ public:
 } // namespace
 
 namespace {
-class LowerTensorLoadOp : public OpConversionPattern<TensorLoadOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, operands[0]);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 // TODO: Upstream this.
 class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -95,27 +83,7 @@ class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
     auto func = getOperation();
     auto *context = &getContext();
 
-    TypeConverter typeConverter;
-    typeConverter.addConversion([](Type type) { return type; });
-    typeConverter.addConversion([](RankedTensorType type) -> Type {
-      return MemRefType::get(type.getShape(), type.getElementType());
-    });
-    typeConverter.addSourceMaterialization([](OpBuilder &builder,
-                                              RankedTensorType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<MemRefType>());
-      return (Value)builder.create<refback::MemrefToTensorOp>(loc, type,
-                                                              inputs[0]);
-    });
-    typeConverter.addTargetMaterialization([](OpBuilder &builder,
-                                              MemRefType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<RankedTensorType>());
-      return (Value)builder.create<refback::TensorToMemrefOp>(loc, type,
-                                                              inputs[0]);
-    });
+    BufferizeTypeConverter typeConverter;
 
     OwningRewritePatternList patterns;
 
@@ -123,19 +91,12 @@ class LowerStdToMemref : public LowerStdToMemrefBase<LowerStdToMemref> {
 
     target.addLegalDialect<StandardOpsDialect>();
 
-    // The casting ops are introduced by the type converter, so they must be
-    // legal.
-    target.addLegalOp<refback::MemrefToTensorOp>();
-    target.addLegalOp<refback::TensorToMemrefOp>();
-
     patterns.insert<LowerExtractElementOp>(typeConverter, context);
     target.addIllegalOp<ExtractElementOp>();
     patterns.insert<LowerTensorFromElementsOp>(typeConverter, context);
     target.addIllegalOp<TensorFromElementsOp>();
     patterns.insert<LowerTensorCastOp>(typeConverter, context);
     target.addIllegalOp<TensorCastOp>();
-    patterns.insert<LowerTensorLoadOp>(typeConverter, context);
-    target.addIllegalOp<TensorLoadOp>();
 
     if (failed(applyPartialConversion(func, target, patterns)))
       return signalPassFailure();

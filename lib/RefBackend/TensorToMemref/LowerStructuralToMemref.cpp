@@ -13,6 +13,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
+#include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 
@@ -99,13 +100,13 @@ public:
 
 namespace {
 class LowerTensorToMemrefOp
-    : public OpConversionPattern<refback::TensorToMemrefOp> {
+    : public OpConversionPattern<TensorToMemrefOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(refback::TensorToMemrefOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TensorToMemrefOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    refback::TensorToMemrefOp::Adaptor adaptor(operands);
+    TensorToMemrefOp::Adaptor adaptor(operands);
     rewriter.replaceOp(op, adaptor.tensor());
     return success();
   }
@@ -113,15 +114,14 @@ public:
 } // namespace
 
 namespace {
-class LowerMemrefToTensorOp
-    : public OpConversionPattern<refback::MemrefToTensorOp> {
+class LowerTensorLoadOp : public OpConversionPattern<TensorLoadOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(refback::MemrefToTensorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TensorLoadOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    refback::MemrefToTensorOp::Adaptor adaptor(operands);
-    rewriter.replaceOp(op, op.memref());
+    TensorLoadOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.memref());
     return success();
   }
 };
@@ -138,29 +138,7 @@ class LowerStructuralToMemref
     auto func = getOperation();
     auto *context = &getContext();
 
-    // TODO: move these common type conversions to somewhere common.
-    TypeConverter typeConverter;
-    typeConverter.addConversion([](Type type) { return type; });
-    typeConverter.addConversion([](RankedTensorType type) -> Type {
-      return MemRefType::get(type.getShape(), type.getElementType());
-    });
-
-    typeConverter.addSourceMaterialization([](OpBuilder &builder,
-                                              RankedTensorType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<MemRefType>());
-      return (Value)builder.create<refback::MemrefToTensorOp>(loc, type,
-                                                              inputs[0]);
-    });
-    typeConverter.addTargetMaterialization([](OpBuilder &builder,
-                                              MemRefType type,
-                                              ValueRange inputs, Location loc) {
-      assert(inputs.size() == 1);
-      assert(inputs[0].getType().isa<RankedTensorType>());
-      return (Value)builder.create<refback::TensorToMemrefOp>(loc, type,
-                                                              inputs[0]);
-    });
+    BufferizeTypeConverter typeConverter;
 
     OwningRewritePatternList patterns;
 
@@ -182,8 +160,8 @@ class LowerStructuralToMemref
     patterns.insert<LowerIfOpTypes>(typeConverter, context);
     patterns.insert<LowerForOpTypes>(typeConverter, context);
     patterns.insert<LowerTensorToMemrefOp>(typeConverter, context);
-    patterns.insert<LowerMemrefToTensorOp>(typeConverter, context);
-    target.addIllegalOp<refback::TensorToMemrefOp>();
+    patterns.insert<LowerTensorLoadOp>(typeConverter, context);
+    target.addIllegalOp<TensorToMemrefOp>();
 
     if (failed(applyFullConversion(func, target, patterns)))
       return signalPassFailure();

@@ -36,35 +36,8 @@ def Refback_GlobalOp : Refback_Op<"global", [Symbol]> {
 }
 
 //===----------------------------------------------------------------------===//
-// Ops related to tensor->memref conversion.
+// Ops related to bufferization.
 //===----------------------------------------------------------------------===//
-// TODO: These ops probably belong in a "Refback on memrefs" dialect analogous
-// to `lmhlo`
-
-// TODO: Use TypesMatchWith to verify this better.
-def Refback_TensorToMemrefOp : Refback_Op<"tensor_to_memref", [NoSideEffect]> {
-  let summary = "Converts a tensor to a memref";
-  let description = [{
-    This op is used to materialize conversions to allow incremental lowering of
-    tensors to memrefs.
-  }];
-  let arguments = (ins AnyRankedTensor:$tensor);
-  let results = (outs AnyMemRef:$memref);
-  let assemblyFormat = "attr-dict $tensor `:` type($tensor) `->` type($memref)";
-  let hasFolder = 1;
-}
-
-// TODO: Use TypesMatchWith to verify this better.
-def Refback_MemrefToTensorOp : Refback_Op<"memref_to_tensor", [NoSideEffect]> {
-  let summary = "Converts a memref to a tensor";
-  let description = [{
-    This op is used to materialize conversions to allow incremental lowering of
-    tensors to memrefs.
-  }];
-  let arguments = (ins AnyMemRef:$memref);
-  let results = (outs AnyRankedTensor:$tensor);
-  let assemblyFormat = "attr-dict $memref `:` type($memref) `->` type($tensor)";
-}
 
 def Refback_AllocMemRefOp : Refback_Op<"alloc_memref", []> {
   let summary = "Allocates a memref of the given shape.";

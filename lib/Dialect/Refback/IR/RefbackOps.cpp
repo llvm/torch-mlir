@@ -16,16 +16,6 @@ using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::refback;
 
 //===----------------------------------------------------------------------===//
-// TensorToMemrefOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult TensorToMemrefOp::fold(ArrayRef<Attribute> operands) {
-  if (auto memrefToTensor = tensor().getDefiningOp<refback::MemrefToTensorOp>())
-    return memrefToTensor.memref();
-  return nullptr;
-}
-
-//===----------------------------------------------------------------------===//
 // ShapedResultsOp
 //===----------------------------------------------------------------------===//
 
