@@ -99,8 +99,7 @@ class LowerConstantTensorsToMemref
       auto memrefType = MemRefType::get(type.getShape(), type.getElementType());
       auto memref = builder.create<refback::GetGlobalMemrefOp>(
           op.getLoc(), memrefType, global.getName());
-      Value tensor =
-          builder.create<refback::MemrefToTensorOp>(op.getLoc(), type, memref);
+      Value tensor = builder.create<TensorLoadOp>(op.getLoc(), type, memref);
       op.replaceAllUsesWith(tensor);
       op.erase();
     });

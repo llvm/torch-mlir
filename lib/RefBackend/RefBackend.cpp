@@ -224,7 +224,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // rather than a single mega dialect conversion pass.
   //
   // This means that intermediate steps have source/target materializations
-  // (refback.memref_to_tensor / refback.tensor_to_memref) in the IR.
+  // (tensor_load / tensor_to_memref) in the IR.
 
   // Lower ops enclosed in refback.shaped_results regions.
   // For now, this is covering the "tensor compute" ops like tcp.add /

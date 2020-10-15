@@ -5,7 +5,7 @@
 // that to make the test actually check what happens in practice.
 
 // CHECK-LABEL:   func @extract_element
-// CHECK:           %[[MEMREF:.*]] = refback.tensor_to_memref %arg0
+// CHECK:           %[[MEMREF:.*]] = tensor_to_memref %arg0
 // CHECK:           %[[RET:.*]] = load %[[MEMREF]][%arg1] : memref<?xf32>
 // CHECK:           return %[[RET]] : f32
 func @extract_element(%arg0: tensor<?xf32>, %arg1: index) -> f32 {
@@ -20,7 +20,7 @@ func @extract_element(%arg0: tensor<?xf32>, %arg1: index) -> f32 {
 // CHECK:           store %[[ARG0]], %[[MEMREF]][%[[C0]]]
 // CHECK:           %[[C1:.*]] = constant 1 : index
 // CHECK:           store %[[ARG1]], %[[MEMREF]][%[[C1]]]
-// CHECK:           %[[RET:.*]] = refback.memref_to_tensor %[[MEMREF]]
+// CHECK:           %[[RET:.*]] = tensor_load %[[MEMREF]]
 // CHECK:           return %[[RET]] : tensor<2xindex>
 func @tensor_from_elements(%arg0: index, %arg1: index) -> tensor<2xindex> {
   %0 = tensor_from_elements %arg0, %arg1 : tensor<2xindex>
@@ -30,9 +30,9 @@ func @tensor_from_elements(%arg0: index, %arg1: index) -> tensor<2xindex> {
 
 // CHECK-LABEL:   func @tensor_cast(
 // CHECK-SAME:                      %[[ARG0:.*]]: tensor<?xindex>) -> tensor<2xindex> {
-// CHECK:           %[[MEMREF:.*]] = refback.tensor_to_memref %[[ARG0]] : tensor<?xindex> -> memref<?xindex>
+// CHECK:           %[[MEMREF:.*]] = tensor_to_memref %[[ARG0]]
 // CHECK:           %[[CASTED:.*]] = memref_cast %[[MEMREF]] : memref<?xindex> to memref<2xindex>
-// CHECK:           %[[RET:.*]] = refback.memref_to_tensor %[[CASTED]] : memref<2xindex> -> tensor<2xindex>
+// CHECK:           %[[RET:.*]] = tensor_load %[[CASTED]]
 // CHECK:           return %[[RET]] : tensor<2xindex>
 func @tensor_cast(%arg0: tensor<?xindex>) -> tensor<2xindex> {
   %0 = tensor_cast %arg0 : tensor<?xindex> to tensor<2xindex>
@@ -41,7 +41,7 @@ func @tensor_cast(%arg0: tensor<?xindex>) -> tensor<2xindex> {
 
 // CHECK-LABEL:   func @tensor_load(
 // CHECK-SAME:                      %[[ARG0:.*]]: memref<?xindex>) -> tensor<?xindex> {
-// CHECK:           %[[RET:.*]] = refback.memref_to_tensor %[[ARG0]] : memref<?xindex> -> tensor<?xindex>
+// CHECK:           %[[RET:.*]] = tensor_load %[[ARG0]]
 // CHECK:           return %[[RET]] : tensor<?xindex>
 func @tensor_load(%arg0: memref<?xindex>) -> tensor<?xindex> {
   %0 = tensor_load %arg0 : memref<?xindex>
