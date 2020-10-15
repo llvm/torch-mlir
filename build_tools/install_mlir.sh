@@ -26,12 +26,40 @@ mkdir -p "$install_mlir"
 echo "Beginning build (commands will echo)"
 set -x
 
+function probe_python() {
+  local python_exe="$1"
+  local found
+  local command
+  command="import sys
+if sys.version_info.major >= 3: print(sys.executable)"
+  set +e
+  found="$("$python_exe" -c "$command")"
+  if ! [ -z "$found" ]; then
+    echo "$found"
+  fi
+}
+
+python_exe=""
+for python_candidate in python3 python; do
+  python_exe="$(probe_python "$python_candidate")"
+  if ! [ -z "$python_exe" ]; then
+    break
+  fi
+done
+
+echo "Using python: $python_exe"
+if [ -z "$python_exe" ]; then
+  echo "Could not find python3"
+  exit 1
+fi
+
 # TODO: Make it possible to build without an RTTI compiled LLVM. There are
 # a handful of vague linkage issues that need to be fixed upstream.
 cmake -GNinja \
   "-H$LLVM_SRC_DIR/llvm" \
   "-B$build_mlir" \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
+  "-DPYTHON_EXECUTABLE=$python_exe" \
   -DLLVM_BUILD_LLVM_DYLIB=ON \
   -DLLVM_INSTALL_UTILS=ON \
   -DLLVM_ENABLE_PROJECTS=mlir \
