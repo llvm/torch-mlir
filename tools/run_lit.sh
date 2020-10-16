@@ -33,5 +33,5 @@ done
 
 set -x
 cd $build_dir
-ninja npcomp-opt npcomp-run-mlir NPCOMPCompilerRuntimeShlib NPCOMPNativePyExt
+ninja
 cd test && python3 "$lit_exe" ${lit_args[@]}
