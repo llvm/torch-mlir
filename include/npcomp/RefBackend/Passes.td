@@ -11,11 +11,6 @@
 
 include "mlir/Pass/PassBase.td"
 
-def LowerStdToMemref : Pass<"lower-std-to-memref", "FuncOp"> {
-  let summary = "Lower std ops to memref";
-  let constructor = "mlir::NPCOMP::createLowerStdToMemrefPass()";
-}
-
 def LowerConstantTensorsToMemref :
     Pass<"lower-constant-tensors-to-memref", "ModuleOp"> {
   let summary = "Lower std.constant of tensor type to memref";

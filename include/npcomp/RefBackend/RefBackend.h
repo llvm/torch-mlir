@@ -23,8 +23,6 @@ void registerRefBackendPasses();
 //
 // Pass summaries are in Passes.td.
 
-std::unique_ptr<OperationPass<FuncOp>> createLowerStdToMemrefPass();
-
 std::unique_ptr<OperationPass<ModuleOp>>
 createLowerConstantTensorsToMemrefPass();
 
