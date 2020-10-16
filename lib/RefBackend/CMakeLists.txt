@@ -22,6 +22,7 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRIR
   MLIRLinalg
   MLIRSCFToStandard
+  MLIRSCFTransforms
   MLIRShapeToStandard
   MLIRStandard
   MLIRStandardOpsTransforms
