@@ -11,6 +11,7 @@ configure_lit_site_cfg(
 
 set(TEST_DEPENDS
   FileCheck count not
+  npcomp-opt
   NPCOMPTorchMLIRExt
   )
 

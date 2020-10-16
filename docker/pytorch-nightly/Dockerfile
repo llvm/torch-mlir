@@ -14,7 +14,8 @@ RUN ln -s /usr/bin/llvm-symbolizer-10 /usr/bin/llvm-symbolizer
 
 # Install PyTorch
 # Installs under: /usr/local/lib/python3.8/dist-packages/torch
-RUN pip3 install torch==1.6.0+cpu torchvision==0.7.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip3 install numpy
+RUN pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 RUN ln -s /usr/local/lib/python3.8/dist-packages/torch /pytorch
 
 # Build configuration

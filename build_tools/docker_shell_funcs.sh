@@ -4,25 +4,25 @@
 # source $WHERE_YOU_CHECKED_OUT_NPCOMP/build_tools/docker_shell_funcs.sh
 # ```
 
-td="$(realpath $(dirname "${BASH_SOURCE[0]}")/..)"
+__npcomp_dir="$(realpath $(dirname "${BASH_SOURCE[0]}")/..)"
 
 # Build the docker images for npcomp:
-#   npcomp:build-pytorch-1.6
-#   me/npcomp:build-pytorch-1.6  (additional dev packages and current user)
+#   npcomp:build-pytorch-nightly
+#   me/npcomp:build-pytorch-nightly  (additional dev packages and current user)
 function npcomp_docker_build() {
-  if ! [ -f "docker/pytorch-1.6/Dockerfile" ]; then
+  if ! [ -f "docker/pytorch-nightly/Dockerfile" ]; then
     echo "Please run out of mlir-npcomp/ source directory..."
     return 1
   fi
   echo "Building out of $(pwd)..."
-  docker build docker/pytorch-1.6 --tag npcomp:build-pytorch-1.6
-  npcomp_docker_build_for_me npcomp:build-pytorch-1.6
+  docker build docker/pytorch-nightly --tag npcomp:build-pytorch-nightly
+  npcomp_docker_build_for_me npcomp:build-pytorch-nightly
 }
 
 # Start a container named "npcomp" in the background with the current-user
 # dev image built above.
 function npcomp_docker_start() {
-  local host_src_dir="${1-$td}"
+  local host_src_dir="${1-$__npcomp_dir}"
   if ! [ -d "$host_src_dir" ]; then
     echo "mlir-npcomp source directory not found:"
     echo "Pass path to host source directory as argument (default=$host_src_dir)."
@@ -32,7 +32,7 @@ function npcomp_docker_start() {
   docker run -d --rm --name "npcomp" \
     --mount source=npcomp-build,target=/build \
     --mount type=bind,source=$host_src_dir,target=/src/mlir-npcomp \
-    me/npcomp:build-pytorch-1.6 tail -f /dev/null
+    me/npcomp:build-pytorch-nightly tail -f /dev/null
 }
 
 # Stop the container named "npcomp".

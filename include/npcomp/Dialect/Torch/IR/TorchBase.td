@@ -86,6 +86,7 @@ def AnyTorchTensorType : AnyTypeOf<[
 
 def AnyScalar : AnyTypeOf<[
     AnySignedInteger,
+    AnyFloat,
     Basicpy_BoolType,
     Basicpy_StrType,
     Basicpy_NoneType,

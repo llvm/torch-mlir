@@ -195,6 +195,13 @@ NdArrayType NdArrayType::get(Type dtype,
   return Base::get(dtype.getContext(), dtype, shape);
 }
 
+NdArrayType NdArrayType::getFromShapedType(ShapedType shapedType) {
+  llvm::Optional<ArrayRef<int64_t>> shape;
+  if (shapedType.hasRank())
+    shape = shapedType.getShape();
+  return get(shapedType.getElementType(), shape);
+}
+
 bool NdArrayType::hasKnownDtype() {
   return getDtype() != Basicpy::UnknownType::get(getContext());
 }

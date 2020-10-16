@@ -40,6 +40,9 @@ public:
   static NdArrayType get(Type dtype,
                          llvm::Optional<ArrayRef<int64_t>> shape = llvm::None);
 
+  /// Helper that gets an equivalent NdArrayType from a ShapedType.
+  static NdArrayType getFromShapedType(ShapedType shapedType);
+
   /// Returns whether the dtype is a concrete type (versus
   /// !basicpy.UnknownType).
   bool hasKnownDtype();

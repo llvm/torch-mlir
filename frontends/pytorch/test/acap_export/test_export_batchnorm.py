@@ -5,23 +5,21 @@
 import torch
 import torch_mlir
 
-# See bug references below and remove XFAIL when resolved.
-# XFAIL: *
 # RUN: %PYTHON %s | npcomp-opt | FileCheck %s
 
 mb = torch_mlir.ModuleBuilder()
 
-# TODO: Both of these fail with the "unsupported from an unboxed API yet" error.
-# The corresponding ops need to be manually coded. Then these can be moved into
-# the capture. https://github.com/llvm/mlir-npcomp/issues/78
-# TODO: These also create constant tensors (needs implementation of import of
-# DenseElements constants). https://github.com/llvm/mlir-npcomp/issues/79
-model = torch.nn.BatchNorm2d(123)
 ones = torch.ones(42,123,4,5)
 
-with mb.capture_function("bn2d", []) as f:
+with mb.capture_function("bn2d", [ones]) as f:
+  model = torch.nn.BatchNorm2d(123)
   result = model(ones)
   f.returns([result])
 
+# TODO: This test exercises promotion of const to arrays, inplace zero_ and
+# add, all of which should be checked individually because they have specific
+# behavior.
 # CHECK-LABEL: @bn2d
+# CHECK: %[[RESULT:.*]]:3 = torch.kernel_call "aten::native_batch_norm" %arg0
+# CHECK: return %[[RESULT]]#0 : !numpy.ndarray<[42,123,4,5]:f32>
 print(mb.module)

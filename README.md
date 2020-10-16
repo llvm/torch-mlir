@@ -124,7 +124,7 @@ Create docker image (or follow your own preferences):
 * Mount the `/build` directory (in the container) appropriately for your case.
 
 ```shell
-docker build docker/pytorch-1.6 --tag local/npcomp:build-pytorch-1.6
+docker build docker/pytorch-nightly --tag local/npcomp:build-pytorch-nightly
 docker volume create npcomp-build
 ```
 
@@ -134,7 +134,7 @@ Shell into docker image:
 docker run \
   --mount type=bind,source=$HOME/src/mlir-npcomp,target=/src/mlir-npcomp \
   --mount source=npcomp-build,target=/build \
-  --rm -it local/npcomp:build-pytorch-1.6 /bin/bash
+  --rm -it local/npcomp:build-pytorch-nightly /bin/bash
 ```
 
 Build/test npcomp (from within docker image):

@@ -149,18 +149,31 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
     // TODO: Switch to a basicpy.constant that works properly with signed
     // integers and then switch this to a signed integer.
     MlirType t = mlirIntegerTypeGet(context, 64);
-    MlirOperation op =
-        createStandardConstant(loc, t, mlirIntegerAttrGet(t, s.to<int64_t>()));
-    return insertConstantOp(op);
+    MlirAttribute value = mlirIntegerAttrGet(t, s.to<int64_t>());
+    return getGeneralConstant(loc, value);
   }
   if (s.isFloatingPoint()) {
     MlirType t = mlirF64TypeGet(context);
-    MlirOperation op = createStandardConstant(
-        loc, t, mlirFloatAttrDoubleGet(context, t, s.to<double>()));
-    return insertConstantOp(op);
+    MlirAttribute value = mlirFloatAttrDoubleGet(context, t, s.to<double>());
+    return getGeneralConstant(loc, value);
   }
-  // TODO: s.isBoolean()
+  if (s.isBoolean()) {
+    return getBoolConstant(loc, s.to<bool>());
+  }
   // TODO: s.isComplex()
 
   throw std::invalid_argument("TODO: Scalar of unknown kind");
+}
+
+MlirValue FuncBuilder::getBoolConstant(MlirLocation loc, bool v) {
+  MlirAttribute value = mlirBoolAttrGet(context, v);
+  return getGeneralConstant(loc, value);
+}
+
+MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
+                                          MlirAttribute value) {
+  MlirType valueType = mlirAttributeGetType(value);
+  MlirOperation constOp = createStandardConstant(loc, valueType, value);
+  MlirValue constValue = insertConstantOp(constOp);
+  return constValue;
 }

@@ -56,11 +56,14 @@ public:
                              c10::Stack *stack);
 
 private:
+  MlirLocation getCurrentLocation();
   void redispatch(const c10::OperatorHandle &opHandle, c10::Stack *stack);
   void fallbackKernelImpl(const c10::OperatorHandle &opHandle,
                           c10::Stack *stack);
   MlirValue mapIValueToMlirValue(MlirLocation loc, c10::IValue &ival);
   MlirType mapIValueToMlirType(MlirLocation loc, c10::IValue &ival);
+  /// Imports a tensor by value (as a constant), remembering the association.
+  MlirValue importTensorByValue(at::Tensor tensor);
   void verifyHasNotReturned();
   struct Activation {
     Activation(std::shared_ptr<AcapController> controller)

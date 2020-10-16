@@ -9,9 +9,11 @@
 #include "npcomp-c/Types.h"
 
 #include "mlir/CAPI/IR.h"
+#include "mlir/IR/StandardTypes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
+using namespace mlir;
 using namespace mlir::NPCOMP::Basicpy;
 using namespace mlir::NPCOMP::Numpy;
 
@@ -45,4 +47,9 @@ MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
                                     MlirType elementType) {
   llvm::ArrayRef<int64_t> shapeArray(shape, rank);
   return wrap(NdArrayType::get(unwrap(elementType), shapeArray));
+}
+
+MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType) {
+  return wrap(
+      NdArrayType::getFromShapedType(unwrap(shapedType).cast<ShapedType>()));
 }

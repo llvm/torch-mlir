@@ -8,6 +8,8 @@
 #include "acap_dispatch.h"
 
 #include "mlir-c/StandardAttributes.h"
+#include "mlir-c/StandardTypes.h"
+#include "npcomp-c/Types.h"
 #include "npcomp/Python/PybindUtils.h"
 
 #include <ATen/core/function_schema.h>
@@ -81,8 +83,7 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
     returnsValues.push_back(v);
   }
 
-  // TODO: Get location from traceback.
-  MlirLocation loc = mlirLocationUnknownGet(funcBuilder->getContext());
+  MlirLocation loc = getCurrentLocation();
   OperationStateHolder s("std.return", loc);
   mlirOperationStateAddOperands(&s.state, returnsValues.size(),
                                 returnsValues.data());
@@ -121,6 +122,10 @@ void AcapController::fallbackKernel(const OperatorHandle &opHandle,
     return;
   }
   current->fallbackKernelImpl(opHandle, stack);
+}
+
+MlirLocation AcapController::getCurrentLocation() {
+  return mlirLocationUnknownGet(funcBuilder->getContext());
 }
 
 void AcapController::redispatch(const c10::OperatorHandle &opHandle,
@@ -168,8 +173,8 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
     MlirValue mlirValue = mapIValueToMlirValue(loc, *argIt);
     if (mlirValueIsNull(mlirValue)) {
       std::stringstream out;
-      out << "Unsupported capture value passed to kernel (" << argIt->tagKind()
-          << "): " << *argIt;
+      out << "Unsupported capture value returned from kernel '" << kernelName
+          << "' (" << argIt->tagKind() << "): " << *argIt;
       throw std::invalid_argument(out.str());
     }
     operands.push_back(mlirValue);
@@ -191,8 +196,8 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
     MlirType resultType = mapIValueToMlirType(loc, *returnIt);
     if (mlirTypeIsNull(resultType)) {
       std::stringstream out;
-      out << "Unsupported capture value returned from kernel ("
-          << returnIt->tagKind() << "): " << *returnIt;
+      out << "Unsupported capture value returned from kernel '" << kernelName
+          << "' (" << returnIt->tagKind() << "): " << *returnIt;
       throw std::invalid_argument(out.str());
     }
     resultTypes.push_back(resultType);
@@ -227,13 +232,17 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
   if (ival.isTensor()) {
     // Is it an already mapped tensor?
     MlirValue mappedValue = funcBuilder->lookupTensor(ival.toTensor());
-    // TODO: Add mlirValueIsNull()
-    if (mappedValue.ptr) {
+    if (!mlirValueIsNull(mappedValue)) {
       return mappedValue;
     }
 
-    throw std::invalid_argument(
-        "TODO: implement tensor import for non-arg tensors");
+    mappedValue = importTensorByValue(ival.toTensor());
+    assert(mappedValue.ptr);
+    return mappedValue;
+  }
+  if (ival.isBool()) {
+    // TODO: Switch to the numpy.bool type as that is a closer domain match.
+    return funcBuilder->getBoolConstant(loc, ival.toBool());
   }
   return {nullptr};
   // TODO: Implement mappings for the whole set (relevant to this use case):
@@ -241,7 +250,6 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
   // _(Tensor)
   // _(Double)
   // _(Int)
-  // _(Bool)
   // _(Tuple)
   // _(String)
   // _(Blob)
@@ -265,7 +273,84 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
   if (ival.isTensor()) {
     return typeMapper.forwardTensorToType(ival.toTensor());
   }
+  if (ival.isBool()) {
+    // TODO: Switch to the numpy.bool type as that is a closer domain match.
+    return mlirIntegerTypeGet(funcBuilder->getContext(), 1);
+  }
   return {nullptr};
+}
+
+MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
+  using at::ScalarType;
+
+  auto throwUnsupportedTensorError = [&]() {
+    std::stringstream msg;
+    msg << "Unsupported import tensor type: " << tensor;
+    throw std::invalid_argument(msg.str());
+  };
+
+  // Get a C-contiguous form as we can bulk-load that into a DenseElementsAttr.
+  if (!tensor.is_contiguous())
+    tensor = tensor.contiguous();
+
+  // The flat number of bytes throws an exception for tensors that are not
+  // dense and accessible as such.
+  at::checkLayout(at::CheckedFrom("accessing contiguous"), tensor,
+                  c10::Layout::Strided);
+
+  // Construct the ShapedType.
+  auto loc = getCurrentLocation();
+  MlirType elementType = typeMapper.mapScalarType(tensor.scalar_type());
+  llvm::SmallVector<int64_t, 4> shape(tensor.sizes().begin(),
+                                      tensor.sizes().end());
+  MlirType shapedType = mlirRankedTensorTypeGetChecked(
+      shape.size(), shape.data(), elementType, loc);
+  if (mlirTypeIsNull(shapedType)) {
+    throwUnsupportedTensorError();
+  }
+
+  // Import DenseElementsAttr data.
+  // TODO: Support bool tensors.
+  // TODO: More import formats in C-API.
+  MlirAttribute valueAttribute;
+  auto numElements = tensor.numel();
+  auto tensorData = tensor.data_ptr();
+  switch (tensor.scalar_type()) {
+  case ScalarType::Int:
+    valueAttribute = mlirDenseElementsAttrInt32Get(
+        shapedType, numElements, static_cast<const int32_t *>(tensorData));
+    break;
+  case ScalarType::Long:
+    valueAttribute = mlirDenseElementsAttrInt64Get(
+        shapedType, numElements, static_cast<const int64_t *>(tensorData));
+    break;
+  case ScalarType::Float:
+    valueAttribute = mlirDenseElementsAttrFloatGet(
+        shapedType, numElements, static_cast<const float *>(tensorData));
+    break;
+  case ScalarType::Double:
+    valueAttribute = mlirDenseElementsAttrDoubleGet(
+        shapedType, numElements, static_cast<const double *>(tensorData));
+    break;
+  default:
+    throwUnsupportedTensorError();
+  }
+  MlirValue constTensorValue =
+      funcBuilder->getGeneralConstant(loc, valueAttribute);
+
+  // Create an array from the tensor constant via the
+  // numpy.create_array_from_tensor op.
+  MlirType constArrayType = npcompNdArrayTypeGetFromShaped(shapedType);
+  MlirOperationState state =
+      mlirOperationStateGet("numpy.create_array_from_tensor", loc);
+  mlirOperationStateAddOperands(&state, 1, &constTensorValue);
+  mlirOperationStateAddResults(&state, 1, &constArrayType);
+  MlirOperation constArrayOp = mlirOperationCreate(&state);
+
+  funcBuilder->getEntryBlockBuilder().insertBeforeTerminator(constArrayOp);
+  MlirValue constArrayValue = mlirOperationGetResult(constArrayOp, 0);
+  funcBuilder->mapTensor(tensor, constArrayValue);
+  return constArrayValue;
 }
 
 TORCH_LIBRARY_IMPL(_, ACAP_DISPATCH_KEY, m) {

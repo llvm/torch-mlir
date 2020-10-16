@@ -120,6 +120,13 @@ public:
   /// Gets a scalar constant value.
   MlirValue getScalarConstant(MlirLocation loc, at::Scalar s);
 
+  /// Gets a bool constant value.
+  MlirValue getBoolConstant(MlirLocation loc, bool v);
+
+  /// Gets a general constant value representing the given value
+  /// attribute.
+  MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
+
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,
               BlockBuilder entryBlock)

@@ -49,6 +49,9 @@ int npcompTypeIsANdArray(MlirType t);
 MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
                                     MlirType elementType);
 
+/// Helper that gets an equivalent NdArrayType from a ShapedType.
+MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType);
+
 #ifdef __cplusplus
 }
 #endif
