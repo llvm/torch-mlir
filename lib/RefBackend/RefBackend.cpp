@@ -33,6 +33,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -220,7 +221,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addPass(createConvertShapeToStandardPass());
   // Lower std ops to memref.
   // This includes ops like extract_element.
-  pm.addPass(createLowerStdToMemrefPass());
+  pm.addPass(createStdBufferizePass());
   // Lower control flow and other "structural" ops.
   //
   // These ops are generally not sensitive to the types that they operate on
