@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Configure Environment
-      run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
+      run: echo "$GITHUB_WORKSPACE/${LLVM}/install/bin" >> $GITHUB_PATH
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Configure Environment
-      run: echo "::add-path::$GITHUB_WORKSPACE/${LLVM}/install/bin"
+      run: echo "$GITHUB_WORKSPACE/${LLVM}/install/bin" >> $GITHUB_PATH
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
