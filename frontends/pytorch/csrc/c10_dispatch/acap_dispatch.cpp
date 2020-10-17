@@ -31,7 +31,11 @@ using c10::Stack;
 // that the TORCH_LIBRARY_* macros expand this by name and other APIs use its
 // enum value, so we define both. We can get rid of both once we have our
 // own key.
-#define ACAP_DISPATCH_KEY PrivateUse1
+// TODO: Ask the PT devs why conv is special and only shows up if dispatching
+// through the autograd keys.
+// https://github.com/llvm/mlir-npcomp/issues/86
+// #define ACAP_DISPATCH_KEY AutogradPrivateUse3
+#define ACAP_DISPATCH_KEY PrivateUse3
 static c10::DispatchKey kAcapDispatchKey = c10::DispatchKey::ACAP_DISPATCH_KEY;
 
 std::list<AcapController::Activation> &
@@ -74,8 +78,8 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
       // Exclude recursive dispatch in order to print tensor.
       c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
       std::stringstream msg;
-      msg << "Cannot return a tensor that is not from the capture context: ";
-      msg << tensor;
+      msg << "Cannot return a tensor that is not from the capture context: "
+          << tensor;
       throw std::invalid_argument(msg.str());
     }
 
@@ -85,8 +89,7 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
 
   MlirLocation loc = getCurrentLocation();
   OperationStateHolder s("std.return", loc);
-  mlirOperationStateAddOperands(&s.state, returnsValues.size(),
-                                returnsValues.data());
+  mlirOperationStateAddOperands(s, returnsValues.size(), returnsValues.data());
   funcBuilder->getEntryBlockBuilder().insertBeforeTerminator(
       s.createOperation());
   funcBuilder->rewriteFuncReturnTypes(returnsTypes);
@@ -161,7 +164,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
   MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
       "kernel_name",
       mlirStringAttrGet(context, kernelName.size(), kernelName.data()));
-  mlirOperationStateAddAttributes(&stateHolder.state, 1, &kernelNameAttr);
+  mlirOperationStateAddAttributes(stateHolder, 1, &kernelNameAttr);
 
   // Map arguments to operands.
   // This must be accumulated into the OperationState prior to re-dispatch
@@ -179,8 +182,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
     }
     operands.push_back(mlirValue);
   }
-  mlirOperationStateAddOperands(&stateHolder.state, operands.size(),
-                                operands.data());
+  mlirOperationStateAddOperands(stateHolder, operands.size(), operands.data());
 
   // Invoke the original kernel.
   redispatch(opHandle, stack);
@@ -205,7 +207,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
       resultIndexToTensorMap.emplace_back(resultIndex, returnIt->toTensor());
     }
   }
-  mlirOperationStateAddResults(&stateHolder.state, resultTypes.size(),
+  mlirOperationStateAddResults(stateHolder, resultTypes.size(),
                                resultTypes.data());
 
   // Create operation.
@@ -244,9 +246,19 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
     // TODO: Switch to the numpy.bool type as that is a closer domain match.
     return funcBuilder->getBoolConstant(loc, ival.toBool());
   }
+  if (ival.isList()) {
+    auto list = ival.toList();
+    llvm::SmallVector<MlirValue, 4> elements;
+    for (c10::IValue element : list) {
+      elements.push_back(mapIValueToMlirValue(loc, element));
+    }
+    return funcBuilder->buildConstantList(loc, elements);
+  }
+  if (ival.isNone()) {
+    return funcBuilder->getNoneConstant(loc);
+  }
   return {nullptr};
   // TODO: Implement mappings for the whole set (relevant to this use case):
-  // _(None)
   // _(Tensor)
   // _(Double)
   // _(Int)
@@ -276,6 +288,12 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
   if (ival.isBool()) {
     // TODO: Switch to the numpy.bool type as that is a closer domain match.
     return mlirIntegerTypeGet(funcBuilder->getContext(), 1);
+  }
+  if (ival.isList()) {
+    return npcompListTypeGet(funcBuilder->getContext());
+  }
+  if (ival.isNone()) {
+    return npcompNoneTypeGet(funcBuilder->getContext());
   }
   return {nullptr};
 }
@@ -356,4 +374,9 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
 TORCH_LIBRARY_IMPL(_, ACAP_DISPATCH_KEY, m) {
   m.fallback(torch::CppFunction::makeFromBoxedFunction<
              &AcapController::fallbackKernel>());
+}
+
+TORCH_LIBRARY_IMPL(aten, ACAP_DISPATCH_KEY, m) {
+  m.impl("conv2d", torch::CppFunction::makeFromBoxedFunction<
+                       &AcapController::fallbackKernel>());
 }

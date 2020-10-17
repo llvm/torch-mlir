@@ -6,8 +6,8 @@ import torch
 import torch_mlir
 import torchvision.models as models
 
-# TODO: Fix https://github.com/llvm/mlir-npcomp/issues/80
 # XFAIL: *
+# TODO: https://github.com/llvm/mlir-npcomp/issues/86
 # RUN: %PYTHON %s | npcomp-opt | FileCheck %s
 
 model = models.vgg11_bn()
@@ -23,4 +23,6 @@ with mb.capture_function("vgg11", [inputs]) as f:
 
 # CHECK-LABEL: func @vgg11
 # TODO: Add checks once passing this far.
-print(mb.module)
+# TODO: Enable printing once large elements can be elided (crashes lit).
+# https://github.com/llvm/mlir-npcomp/issues/87
+# print(mb.module)

@@ -14,42 +14,96 @@
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
 using namespace mlir;
-using namespace mlir::NPCOMP::Basicpy;
-using namespace mlir::NPCOMP::Numpy;
-
-/*============================================================================*/
-/* Bool type.                                                                 */
-/*============================================================================*/
-
-int npcompTypeIsABool(MlirType t) { return unwrap(t).isa<BoolType>(); }
-
-MlirType npcompBoolTypeGet(MlirContext context) {
-  return wrap(BoolType::get(unwrap(context)));
-}
+using namespace mlir::NPCOMP;
 
 /*============================================================================*/
 /* Any dtype type.                                                            */
 /*============================================================================*/
 
-int npcompTypeIsAAnyDtype(MlirType t) { return unwrap(t).isa<AnyDtypeType>(); }
+int npcompTypeIsAAnyDtype(MlirType t) {
+  return unwrap(t).isa<Numpy::AnyDtypeType>();
+}
 
 MlirType npcompAnyDtypeTypeGet(MlirContext context) {
-  return wrap(AnyDtypeType::get(unwrap(context)));
+  return wrap(Numpy::AnyDtypeType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* Bool type.                                                                 */
+/*============================================================================*/
+
+int npcompTypeIsABool(MlirType t) { return unwrap(t).isa<Basicpy::BoolType>(); }
+
+MlirType npcompBoolTypeGet(MlirContext context) {
+  return wrap(Basicpy::BoolType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* Dict type.                                                                 */
+/*============================================================================*/
+
+/** Checks whether the given type is the Python "dict" type. */
+int npcompTypeIsADict(MlirType t) { return unwrap(t).isa<Basicpy::DictType>(); }
+
+/** Gets the generic Python "dict" type. */
+MlirType npcompDictTypeGet(MlirContext context) {
+  return wrap(Basicpy::DictType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* List type.                                                                 */
+/*============================================================================*/
+
+/** Checks whether the given type is the Python "list" type. */
+int npcompTypeIsAList(MlirType t) { return unwrap(t).isa<Basicpy::ListType>(); }
+
+/** Gets the generic Python "dict" type. */
+MlirType npcompListTypeGet(MlirContext context) {
+  return wrap(Basicpy::ListType::get(unwrap(context)));
 }
 
 /*============================================================================*/
 /* NDArray type.                                                              */
 /*============================================================================*/
 
-int npcompTypeIsANdArray(MlirType t) { return unwrap(t).isa<NdArrayType>(); }
+int npcompTypeIsANdArray(MlirType t) {
+  return unwrap(t).isa<Numpy::NdArrayType>();
+}
 
 MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
                                     MlirType elementType) {
   llvm::ArrayRef<int64_t> shapeArray(shape, rank);
-  return wrap(NdArrayType::get(unwrap(elementType), shapeArray));
+  return wrap(Numpy::NdArrayType::get(unwrap(elementType), shapeArray));
 }
 
 MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType) {
-  return wrap(
-      NdArrayType::getFromShapedType(unwrap(shapedType).cast<ShapedType>()));
+  return wrap(Numpy::NdArrayType::getFromShapedType(
+      unwrap(shapedType).cast<ShapedType>()));
+}
+
+/*============================================================================*/
+/* None type.                                                                 */
+/*============================================================================*/
+
+/** Checks whether the given type is the type of the singleton 'None' value. */
+int npcompTypeIsANone(MlirType t) { return unwrap(t).isa<Basicpy::NoneType>(); }
+
+/** Gets the type of the singleton 'None'. */
+MlirType npcompNoneTypeGet(MlirContext context) {
+  return wrap(Basicpy::NoneType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* Tuple type.                                                                */
+/*============================================================================*/
+
+/** Checks whether the given type is the special "any dtype" type that is used
+ * to signal an NDArray or tensor of unknown type. */
+int npcompTypeIsATuple(MlirType t) {
+  return unwrap(t).isa<Basicpy::TupleType>();
+}
+
+/** Gets the "any dtype" type. */
+MlirType npcompTupleTypeGet(MlirContext context) {
+  return wrap(Basicpy::TupleType::get(unwrap(context)));
 }

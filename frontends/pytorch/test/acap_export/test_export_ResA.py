@@ -11,8 +11,8 @@ import torch.nn.functional as F
 
 import torch_mlir
 
-# TODO: Fix https://github.com/llvm/mlir-npcomp/issues/79
 # XFAIL: *
+# TODO: https://github.com/llvm/mlir-npcomp/issues/86
 # RUN: %PYTHON %s | npcomp-opt | FileCheck %s
 
 class ResA(nn.Module):
@@ -54,4 +54,6 @@ with mb.capture_function("resa", [inputs]) as f:
 #   CHECK: [[V7:%[a-zA-Z0-9]+]] = "aten.relu"([[V6]]) {layer_name = "L7-relu-2"}
 #   CHECK: [[V8:%[a-zA-Z0-9]+]] = "aten.convolution_overrideable"([[V7]],{{.*}}) {layer_name = "L8-convolution_overrideable-2"}
 #   CHECK: {{.*}} = "aten.add"(%arg0, [[V8]], {{.*}}) {layer_name = "L9-add-0"}
-print(mb.module)
+# TODO: Enable printing once large elements can be elided (crashes lit).
+# https://github.com/llvm/mlir-npcomp/issues/87
+# print(mb.module)

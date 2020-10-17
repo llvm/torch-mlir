@@ -17,6 +17,17 @@ extern "C" {
 #endif
 
 /*============================================================================*/
+/* Any dtype type.                                                            */
+/*============================================================================*/
+
+/** Checks whether the given type is the special "any dtype" type that is used
+ * to signal an NDArray or tensor of unknown type. */
+int npcompTypeIsAAnyDtype(MlirType t);
+
+/** Gets the "any dtype" type. */
+MlirType npcompAnyDtypeTypeGet(MlirContext context);
+
+/*============================================================================*/
 /* Bool type.                                                                 */
 /*============================================================================*/
 
@@ -27,15 +38,24 @@ int npcompTypeIsABool(MlirType t);
 MlirType npcompBoolTypeGet(MlirContext context);
 
 /*============================================================================*/
-/* Any dtype type.                                                            */
+/* Dict type.                                                                 */
 /*============================================================================*/
 
-/** Checks whether the given type is the special "any dtype" type that is used
- * to signal an NDArray or tensor of unknown type. */
-int npcompTypeIsAAnyDtype(MlirType t);
+/** Checks whether the given type is the Python "dict" type. */
+int npcompTypeIsADict(MlirType t);
 
-/** Gets the "any dtype" type. */
-MlirType npcompAnyDtypeTypeGet(MlirContext context);
+/** Gets the generic Python "dict" type. */
+MlirType npcompDictTypeGet(MlirContext context);
+
+/*============================================================================*/
+/* List type.                                                                 */
+/*============================================================================*/
+
+/** Checks whether the given type is the Python "list" type. */
+int npcompTypeIsAList(MlirType t);
+
+/** Gets the generic Python "list" type. */
+MlirType npcompListTypeGet(MlirContext context);
 
 /*============================================================================*/
 /* NDArray type.                                                              */
@@ -51,6 +71,27 @@ MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
 
 /// Helper that gets an equivalent NdArrayType from a ShapedType.
 MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType);
+
+/*============================================================================*/
+/* None type.                                                                 */
+/*============================================================================*/
+
+/** Checks whether the given type is the type of the singleton 'None' value. */
+int npcompTypeIsANone(MlirType t);
+
+/** Gets the type of the singleton 'None'. */
+MlirType npcompNoneTypeGet(MlirContext context);
+
+/*============================================================================*/
+/* Tuple type.                                                                */
+/*============================================================================*/
+
+/** Checks whether the given type is the special "any dtype" type that is used
+ * to signal an NDArray or tensor of unknown type. */
+int npcompTypeIsATuple(MlirType t);
+
+/** Gets the generic Python "tuple" type. */
+MlirType npcompTupleTypeGet(MlirContext context);
 
 #ifdef __cplusplus
 }

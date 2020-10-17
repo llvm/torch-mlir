@@ -19,7 +19,7 @@ def Basicpy_Dialect : Dialect {
   let name = "basicpy";
   let summary = "Basic Python dialect";
   let description = [{
-    Core types and ops 
+    Core types and ops
   }];
   let cppNamespace = "::mlir::NPCOMP::Basicpy";
 }
@@ -31,7 +31,7 @@ def Basicpy_Dialect : Dialect {
 class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
         Op<Basicpy_Dialect, mnemonic, traits> {
   let parser = [{ return parse$cppClass(parser, &result); }];
-  let printer = [{ return print$cppClass(p, *this); }];  
+  let printer = [{ return print$cppClass(p, *this); }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -71,7 +71,7 @@ def Basicpy_NoneType : DialectType<Basicpy_Dialect,
 }
 
 def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">, 
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">,
     "Slot object"> {
   let typeDescription = [{
     Type for built-in objects which have a fixed number of slots and a type
@@ -96,6 +96,47 @@ def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
   }];
 }
 
+def Basicpy_ListType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::ListType>()">,
+    "List type"> {
+  let typeDescription = [{
+    A Python list type. In the non-parameterized case, there are limited
+    constraints on the element type or length; however, it can be refined to
+    include such constraints.
+
+    As in Python, this list type represents a mutable, reference counted
+    object in a corresponding runtime layer.
+  }];
+}
+
+def Basicpy_TupleType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::TupleType>()">,
+    "Tuple type"> {
+  let typeDescription = [{
+    A Python tuple type. In the non-parameterized case, there are limited
+    constraints on the element type or length; however, it can be refined to
+    include such constraints.
+
+    As in Python, post-construction tuple's are immutable, reference counted
+    objects in a corresponding runtime layer. However, since they are
+    immutable, they can also serve as value-typed entities if their elements
+    are immutable.
+  }];
+}
+
+def Basicpy_DictType : DialectType<Basicpy_Dialect,
+    CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::DictType>()">,
+    "Dict type"> {
+  let typeDescription = [{
+    A Python dict type. In the non-parameterized case, there are limited
+    constraints on the key or value types; however, it can be refined to
+    include such constraints.
+
+    As in Python, this list type represents a mutable, reference counted
+    object in a corresponding runtime layer.
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
@@ -117,7 +158,7 @@ class Basicpy_SlotObjectOfClassArity<string className, int arity> :
 
 // Type representing a 'slice' object, which mirrors the Python built-in
 // slice class.
-def Basicpy_SliceSlotObjectType : 
+def Basicpy_SliceSlotObjectType :
   Type<Basicpy_SlotObjectOfClassArity<"slice", 3>>;
 
 #endif // NPCOMP_DIALECT_BASICPY_IR_BASICPY_DIALECT

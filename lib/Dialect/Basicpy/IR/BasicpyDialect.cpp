@@ -20,8 +20,8 @@ void BasicpyDialect::initialize() {
 #define GET_OP_LIST
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"
       >();
-  addTypes<BoolType, BytesType, EllipsisType, NoneType, SlotObjectType, StrType,
-           UnknownType>();
+  addTypes<BoolType, BytesType, DictType, EllipsisType, ListType, NoneType,
+           SlotObjectType, StrType, TupleType, UnknownType>();
 
   // TODO: Make real ops for everything we need.
   allowUnknownOperations();
@@ -36,8 +36,12 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
     return BoolType::get(getContext());
   if (keyword == "BytesType")
     return BytesType::get(getContext());
+  if (keyword == "DictType")
+    return DictType::get(getContext());
   if (keyword == "EllipsisType")
     return EllipsisType::get(getContext());
+  if (keyword == "ListType")
+    return ListType::get(getContext());
   if (keyword == "NoneType")
     return NoneType::get(getContext());
   if (keyword == "SlotObject") {
@@ -60,6 +64,8 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
   }
   if (keyword == "StrType")
     return StrType::get(getContext());
+  if (keyword == "TupleType")
+    return TupleType::get(getContext());
   if (keyword == "UnknownType")
     return UnknownType::get(getContext());
 
@@ -71,7 +77,9 @@ void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
       .Case<BoolType>([&](Type) { os << "BoolType"; })
       .Case<BytesType>([&](Type) { os << "BytesType"; })
+      .Case<DictType>([&](Type) { os << "DictType"; })
       .Case<EllipsisType>([&](Type) { os << "EllipsisType"; })
+      .Case<ListType>([&](Type) { os << "ListType"; })
       .Case<NoneType>([&](Type) { os << "NoneType"; })
       .Case<SlotObjectType>([&](SlotObjectType slotObject) {
         auto slotTypes = slotObject.getSlotTypes();
@@ -84,6 +92,7 @@ void BasicpyDialect::printType(Type type, DialectAsmPrinter &os) const {
         os << ">";
       })
       .Case<StrType>([&](Type) { os << "StrType"; })
+      .Case<TupleType>([&](Type) { os << "TupleType"; })
       .Case<UnknownType>([&](Type) { os << "UnknownType"; })
       .Default(
           [&](Type) { llvm_unreachable("unexpected 'basicpy' type kind"); });

@@ -90,7 +90,7 @@ def CompareOperationAttr : StrEnumAttr<
 }
 
 //===----------------------------------------------------------------------===//
-// Ops
+// Operations
 //===----------------------------------------------------------------------===//
 
 def Basicpy_BinaryCompareOp : Basicpy_Op<"binary_compare", []> {
@@ -152,6 +152,66 @@ def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
   );
   let assemblyFormat = "$value attr-dict";
   let hasFolder = 1;
+}
+
+// TODO: Implement ConstantLike op trait.
+def Basicpy_BuildDictOp : Basicpy_Op<"build_dict", [NoSideEffect]> {
+  let summary = "Builds an empty dict";
+  let description = [{
+    This op mirrors the CPython BUILD_MAP op (note naming difference).
+
+    Note that as with CPython, this op only builds an empty dict; however,
+    it is reserved in the future for it to take variadic operands to construct
+    with a list of key/value pairs.
+  }];
+  let arguments = (ins
+  );
+  let results = (outs
+    Basicpy_DictType:$result
+  );
+  let assemblyFormat = "attr-dict `:` functional-type(operands, results)";
+}
+
+// TODO: Implement ConstantLike op trait.
+def Basicpy_BuildListOp : Basicpy_Op<"build_list", [NoSideEffect]> {
+  let summary = "Builds a list from operands";
+  let description = [{
+    Constructs a new list object from its operands.
+
+    TODO: Any allowable type can be expressed in lists; however, this should be
+    revisited once more of the dialect infrastructure is in place and tightened
+    up accordingly. At that time, appropriate constraints should be added that
+    both allow correct program representation and support transformations to
+    lower levels (i.e. allowing a wider set of types as useful for conversions).
+  }];
+  let arguments = (ins
+    Variadic<AnyType>:$elements
+  );
+  let results = (outs
+    Basicpy_ListType:$result
+  );
+  let assemblyFormat = "operands attr-dict `:` functional-type(operands, results)";
+}
+
+// TODO: Implement ConstantLike op trait.
+def Basicpy_BuildTupleOp : Basicpy_Op<"build_tuple", [NoSideEffect]> {
+  let summary = "Builds a tuple from operands";
+  let description = [{
+    Constructs a new tuple object from its operands.
+
+    TODO: Any allowable type can be expressed in lists; however, this should be
+    revisited once more of the dialect infrastructure is in place and tightened
+    up accordingly. At that time, appropriate constraints should be added that
+    both allow correct program representation and support transformations to
+    lower levels (i.e. allowing a wider set of types as useful for conversions).
+  }];
+  let arguments = (ins
+    Variadic<AnyType>:$elements
+  );
+  let results = (outs
+    Basicpy_TupleType:$result
+  );
+  let assemblyFormat = "operands attr-dict `:` functional-type(operands, results)";
 }
 
 def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [

@@ -37,11 +37,25 @@ public:
   static BytesType get(MLIRContext *context) { return Base::get(context); }
 };
 
+/// Python 'dict' type.
+class DictType : public Type::TypeBase<DictType, Type, TypeStorage> {
+public:
+  using Base::Base;
+  static DictType get(MLIRContext *context) { return Base::get(context); }
+};
+
 /// The type of the Python `Ellipsis` value.
 class EllipsisType : public Type::TypeBase<EllipsisType, Type, TypeStorage> {
 public:
   using Base::Base;
   static EllipsisType get(MLIRContext *context) { return Base::get(context); }
+};
+
+/// Python 'list' type.
+class ListType : public Type::TypeBase<ListType, Type, TypeStorage> {
+public:
+  using Base::Base;
+  static ListType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// The type of the Python `None` value.
@@ -72,6 +86,13 @@ class StrType : public Type::TypeBase<StrType, Type, TypeStorage> {
 public:
   using Base::Base;
   static StrType get(MLIRContext *context) { return Base::get(context); }
+};
+
+/// Python 'tuple' type.
+class TupleType : public Type::TypeBase<TupleType, Type, TypeStorage> {
+public:
+  using Base::Base;
+  static TupleType get(MLIRContext *context) { return Base::get(context); }
 };
 
 /// An unknown type that could be any supported python type.

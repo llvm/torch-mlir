@@ -31,15 +31,16 @@ public:
     }
   }
 
+  operator MlirOperationState *() { return &state; }
+
   MlirOperation createOperation() {
     assert(owned && "cannot createOperation on unowned state");
     owned = false;
     return mlirOperationCreate(&state);
   }
 
-  MlirOperationState state;
-
 private:
+  MlirOperationState state;
   bool owned = true;
 };
 
@@ -123,9 +124,18 @@ public:
   /// Gets a bool constant value.
   MlirValue getBoolConstant(MlirLocation loc, bool v);
 
+  /// Gets a None constant value.
+  MlirValue getNoneConstant(MlirLocation loc);
+
   /// Gets a general constant value representing the given value
   /// attribute.
   MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
+
+  /// Builds a list with the given elements (derived from constants).
+  /// The resulting list is inserted into the "constant section" of the
+  /// function.
+  MlirValue buildConstantList(MlirLocation loc,
+                              llvm::SmallVectorImpl<MlirValue> &elements);
 
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,

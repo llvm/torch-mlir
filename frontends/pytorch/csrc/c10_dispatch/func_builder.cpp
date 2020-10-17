@@ -17,8 +17,8 @@ static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
                                             MlirAttribute value) {
   OperationStateHolder s("std.constant", loc);
   MlirNamedAttribute valueAttr = mlirNamedAttributeGet("value", value);
-  mlirOperationStateAddResults(&s.state, 1, &type);
-  mlirOperationStateAddAttributes(&s.state, 1, &valueAttr);
+  mlirOperationStateAddResults(s, 1, &type);
+  mlirOperationStateAddAttributes(s, 1, &valueAttr);
   return s.createOperation();
 }
 
@@ -170,10 +170,29 @@ MlirValue FuncBuilder::getBoolConstant(MlirLocation loc, bool v) {
   return getGeneralConstant(loc, value);
 }
 
+MlirValue FuncBuilder::getNoneConstant(MlirLocation loc) {
+  OperationStateHolder state{"basicpy.singleton", loc};
+  MlirType noneType = npcompNoneTypeGet(context);
+  mlirOperationStateAddResults(state, 1, &noneType);
+  MlirOperation op = state.createOperation();
+  return insertConstantOp(op);
+}
+
 MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
                                           MlirAttribute value) {
   MlirType valueType = mlirAttributeGetType(value);
   MlirOperation constOp = createStandardConstant(loc, valueType, value);
   MlirValue constValue = insertConstantOp(constOp);
   return constValue;
+}
+
+MlirValue
+FuncBuilder::buildConstantList(MlirLocation loc,
+                               llvm::SmallVectorImpl<MlirValue> &elements) {
+  MlirType resultType = npcompListTypeGet(context);
+  OperationStateHolder state{"basicpy.build_list", loc};
+  mlirOperationStateAddResults(state, 1, &resultType);
+  mlirOperationStateAddOperands(state, elements.size(), elements.data());
+  MlirOperation op = state.createOperation();
+  return insertConstantOp(op);
 }
