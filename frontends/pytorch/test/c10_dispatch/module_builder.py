@@ -25,5 +25,5 @@ with mb.capture_function("foobar", [t0, t1]) as f:
 # CHECK: }
 print(mb.module)
 
-# CHECK: CAPTURE: aten::add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> (Tensor)
+# CHECK: CAPTURE: aten::add
 for line in f.get_debug_log(): print(line)

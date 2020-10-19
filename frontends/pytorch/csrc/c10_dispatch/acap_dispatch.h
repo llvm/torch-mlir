@@ -48,20 +48,47 @@ public:
   std::vector<std::string> getDebugLog();
 
   // Returns the current AcapController (if it has been activated on this
-  // thread. Returns nullptr if none.
-  static std::shared_ptr<AcapController> getCurrent();
+  // thread. Returns nullptr if none (not active on the current thread).
+  static std::shared_ptr<AcapController> getCurrentThreadAcapController();
 
   // The fallback boxed kernel that we route captured dispatches through.
   static void fallbackKernel(const c10::OperatorHandle &opHandle,
                              c10::Stack *stack);
 
+  // Kernel implementation for the boxing-incompatible convolution kernel.
+  static at::Tensor
+  convolutionKernel(const at::Tensor &input, const at::Tensor &weight,
+                    const c10::optional<at::Tensor> &bias,
+                    const at::IntArrayRef stride, const at::IntArrayRef padding,
+                    const at::IntArrayRef dilation, const bool transposed,
+                    const at::IntArrayRef output_padding, const int64_t groups);
+
 private:
+  /// Builds a kernel call step by step.
+  class KernelCallBuilder {
+  public:
+    KernelCallBuilder(AcapController &parent, MlirContext context,
+                      MlirLocation loc, std::string &kernelName);
+    void addOperand(const c10::IValue &value);
+    void addResult(const c10::IValue &result);
+    MlirOperation create();
+
+  private:
+    AcapController &parent;
+    MlirContext context;
+    MlirLocation loc;
+    std::string &kernelName;
+    OperationStateHolder state;
+    int resultCount = 0;
+    llvm::SmallVector<std::pair<size_t, at::Tensor>, 4> resultIndexToTensorMap;
+  };
+
   MlirLocation getCurrentLocation();
   void redispatch(const c10::OperatorHandle &opHandle, c10::Stack *stack);
   void fallbackKernelImpl(const c10::OperatorHandle &opHandle,
                           c10::Stack *stack);
-  MlirValue mapIValueToMlirValue(MlirLocation loc, c10::IValue &ival);
-  MlirType mapIValueToMlirType(MlirLocation loc, c10::IValue &ival);
+  MlirValue mapIValueToMlirValue(MlirLocation loc, const c10::IValue &ival);
+  MlirType mapIValueToMlirType(MlirLocation loc, const c10::IValue &ival);
   /// Imports a tensor by value (as a constant), remembering the association.
   MlirValue importTensorByValue(at::Tensor tensor);
   void verifyHasNotReturned();
@@ -72,7 +99,8 @@ private:
     // The RAII dispatch key guard is not movable, so heap allocate it. This is
     // a bit outside of its intended design, but since this is thread local as
     // well, it should be fine.
-    std::unique_ptr<c10::impl::IncludeDispatchKeyGuard> dispatchGuard;
+    std::unique_ptr<c10::impl::IncludeDispatchKeyGuard> includeGuard;
+    std::unique_ptr<c10::impl::ExcludeDispatchKeyGuard> excludeGuard;
   };
   // Gets the thread local stack of active acap controllers.
   static std::list<Activation> &getThreadLocalActiveStack();

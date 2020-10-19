@@ -98,6 +98,8 @@ def AnyScalar : AnyTypeOf<[
 def AnyTorchType : AnyTypeOf<[
     AnyScalar,
     AnyTorchTensorType,
+    Basicpy_ListType,
+    Basicpy_NoneType,
   ], "Any type that is legal to pass to a Torch kernel">;
 
 #endif // TORCH_BASE
