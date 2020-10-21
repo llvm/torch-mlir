@@ -99,8 +99,7 @@ public:
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerTensorToMemrefOp
-    : public OpConversionPattern<TensorToMemrefOp> {
+class LowerTensorToMemrefOp : public OpConversionPattern<TensorToMemrefOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
