@@ -49,4 +49,4 @@ with mb.capture_function("resa", [inputs]) as f:
 # CHECK:           %[[VAL_119:.*]] = torch.kernel_call "aten::add" %{{.*}}, %[[VAL_118]], %{{.*}} : (!numpy.ndarray<[1,16,128,128]:f32>, !numpy.ndarray<[1,16,128,128]:f32>, i64) -> !numpy.ndarray<[1,16,128,128]:f32>
 # CHECK:           return %[[VAL_119]] : !numpy.ndarray<[1,16,128,128]:f32>
 # CHECK:         }
-print(mb.module)
+mb.module.operation.print(large_elements_limit=2)
