@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ReturnEliminationPass.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ReturnEliminationPass.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -78,8 +78,8 @@ public:
         newCallArgs.push_back(valueMap[v]);
       }
 
-      auto newCallOp = builder->create<CallOp>(op->getLoc(), newFnName,
-                                               ArrayRef<Type>{}, newCallArgs);
+      builder->create<CallOp>(op->getLoc(), newFnName, ArrayRef<Type>{},
+                              newCallArgs);
       erasedOps.insert(op);
       auto fn = module.lookupSymbol<FuncOp>(callOp.callee());
       if (fn && fn.use_empty())
@@ -105,7 +105,6 @@ public:
   void runOnOperation() override {
 
     auto module = getOperation();
-    auto context = module.getContext();
 
     // check that a function called "graph" exists
     auto graph = module.lookupSymbol<mlir::FuncOp>("graph");

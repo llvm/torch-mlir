@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenToStd.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenToStd.h"
+
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
 namespace {
 // import patterns
-#include "npcomp/Dialect/ATen/ATenToStd.cpp.inc"
+#include "npcomp/Dialect/ATen/Transforms/ATenToStd.cpp.inc"
 } // namespace
 
 namespace mlir {

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenLoweringPass.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
-#include "npcomp/Dialect/ATen/ATenToStd.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenLoweringPass.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenToStd.h"
 
 #include "mlir/Dialect/Affine/EDSC/Builders.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -70,7 +70,7 @@ static Value typeCast(PatternRewriter &builder, Value val, Type destTy) {
 /// unknown shape.
 static MemRefType getShapeErasedMemRefType(MemRefType type) {
   std::vector<int64_t> shape = type.getShape();
-  for (int i = 0; i < shape.size(); i++) {
+  for (size_t i = 0, e = shape.size(); i < e; i++) {
     shape[i] = -1;
   }
   return MemRefType::get(shape, type.getElementType(), type.getAffineMaps(),
@@ -118,27 +118,6 @@ static std::string getFullyMangledType(const Type ty) {
     assert(0 && "unhandled type in getFullyMangledType");
   }
   return ret.str();
-}
-
-// Mangle the argument shapes into the function name.  This is impractical for
-// a library-based implementation, since each different shape has to be
-// implemented by a different function. The function name is constructed
-// from the prefix, the mangled result types, the mangled operand types.
-// Types are mangled in a way that encodes the full shape information.
-static std::string getFullyMangledFuncName(std::string prefix,
-                                           FunctionType fnTy) {
-  std::string sep = "_";
-
-  ArrayRef<Type> resultTy = fnTy.getResults();
-  ArrayRef<Type> operTy = fnTy.getInputs();
-
-  std::string ret = prefix + "_AtenAcapOp_";
-  for (const Type t : resultTy)
-    ret = ret + sep + getFullyMangledType(t);
-  for (const Type t : operTy)
-    ret = ret + sep + getFullyMangledType(t);
-
-  return ret;
 }
 
 // Mangle the argument ranks into the function name.
@@ -191,15 +170,6 @@ static std::string getSimplyMangledFuncName(std::string prefix,
   ret += "_out";
 
   return ret;
-}
-static std::string getSimplyMangledFuncName(std::string prefix,
-                                            FunctionType fnTy) {
-
-  return getSimplyMangledFuncName(prefix, fnTy.getInputs(), fnTy.getResults());
-}
-
-std::string getMangledFuncName(std::string prefix, FunctionType fnTy) {
-  return getSimplyMangledFuncName(prefix, fnTy);
 }
 
 std::string getMangledFuncName(std::string prefix, ArrayRef<Type> opTys,
@@ -254,13 +224,10 @@ public:
     Value result = rewriter.create<AllocOp>(loc, memRefResultTy);
     Value lhs = memRefTypeCast(rewriter, operands[0]);
     Value rhs = memRefTypeCast(rewriter, operands[1]);
-    auto indexType = IndexType::get(op->getContext());
-
     using namespace edsc;
 
     ScopedContext scope(rewriter, loc);
     Value zero = intrinsics::std_constant_index(0);
-    Value one = intrinsics::std_constant_index(1);
     MemRefBoundsCapture vRes(result), vLHS(lhs), vRHS(rhs);
     StdIndexedValue iRes(result), iLHS(lhs), iRHS(rhs);
     Value M(vRes.ub(0));
@@ -345,8 +312,6 @@ LogicalResult rewriteWithVoidFunctionCallExplicit(
       TensorType tensorResultTy = t.cast<TensorType>();
       MemRefType memRefResultTy = mlir::MemRefType::get(
           tensorResultTy.getShape(), tensorResultTy.getElementType(), {}, 0);
-      MemRefType erasedMemRefResultTy =
-          getShapeErasedMemRefType(memRefResultTy);
       retTys.push_back(memRefResultTy);
 
       // assume memRefResultTy has known shape, so we don't need any
@@ -367,8 +332,7 @@ LogicalResult rewriteWithVoidFunctionCallExplicit(
   FuncOp funcOp = getATenFn(op->getParentOfType<ModuleOp>(),
                             mangledFunctionName, newOps, empty);
 
-  auto new_call =
-      callOperation(empty, rewriter.getSymbolRefAttr(funcOp), newOps);
+  callOperation(empty, rewriter.getSymbolRefAttr(funcOp), newOps);
 
   rewriter.replaceOp(op, newResults);
   return success();
@@ -441,8 +405,6 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     edsc::ScopedContext scope(rewriter, loc);
-
-    auto constOp = cast<mlir::NPCOMP::aten::ConstantOp>(op);
 
     Value result = op->getResult(0);
     Type t = result.getType();

@@ -9,10 +9,10 @@
 #ifndef NPCOMP_DIALECT_ATEN_PASSES_H
 #define NPCOMP_DIALECT_ATEN_PASSES_H
 
-#include "npcomp/Dialect/ATen/ATenLayerNamePass.h"
-#include "npcomp/Dialect/ATen/ATenLoweringPass.h"
-#include "npcomp/Dialect/ATen/ATenOpReport.h"
-#include "npcomp/Dialect/ATen/ReturnEliminationPass.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenLayerNamePass.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenLoweringPass.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenOpReport.h"
+#include "npcomp/Dialect/ATen/Transforms/ReturnEliminationPass.h"
 
 namespace mlir {
 namespace NPCOMP {

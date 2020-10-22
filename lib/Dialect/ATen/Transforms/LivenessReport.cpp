@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/LivenessReport.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -15,8 +16,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/JSON.h"
 
-#include "npcomp/Dialect/ATen/LivenessReport.h"
-
 #include <iostream>
 #include <sstream>
 #include <vector>
@@ -24,28 +23,6 @@
 #define DEBUG_TYPE "liveness-report"
 
 using namespace mlir;
-
-namespace {
-
-uint64_t getTensorVolume(const ShapedType ty) {
-
-  if (!ty.hasRank())
-    return 1;
-
-  uint64_t volume = 1;
-  for (auto &d : ty.getShape())
-    volume *= d;
-  return volume;
-}
-
-uint64_t getTensorVolume(const Type ty) {
-  if (auto t = ty.dyn_cast<ShapedType>()) {
-    return getTensorVolume(t);
-  } else {
-    return 1;
-  }
-}
-} // namespace
 
 namespace mlir {
 namespace NPCOMP {
@@ -72,9 +49,6 @@ std::string LivenessReport::generateTextReport() {
 std::string LivenessReport::emitJSONReport() {
   resolveLiveness();
   llvm::json::Object top;
-  auto context = module.getContext();
-  auto loc = mlir::UnknownLoc::get(context);
-
   auto graph = module.lookupSymbol<mlir::FuncOp>("graph");
 
   std::map<Operation *, std::vector<Value>> liveAt;
@@ -117,7 +91,6 @@ std::string LivenessReport::emitJSONReport() {
       if (v.getDefiningOp()) {
         if (auto a =
                 v.getDefiningOp()->getAttrOfType<StringAttr>("layer_name")) {
-          auto definingOp = v.getDefiningOp();
           auto ld = layerDetail.getInteger(a.getValue().str());
           if (ld)
             layerDetail[a.getValue().str()] = *ld + vol;

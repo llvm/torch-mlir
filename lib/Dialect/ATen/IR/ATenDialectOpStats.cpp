@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
-#include "npcomp/Dialect/ATen/ATenOpStatisticsUtils.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/IR/ATenOpStatisticsUtils.h"
 
 #include "llvm/Support/Debug.h"
 

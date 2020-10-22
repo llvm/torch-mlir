@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_ATEN_OPSTATISTICSUTILS_H
-#define NPCOMP_DIALECT_ATEN_OPSTATISTICSUTILS_H
+#ifndef NPCOMP_DIALECT_ATEN_IR_OPSTATISTICSUTILS_H
+#define NPCOMP_DIALECT_ATEN_IR_OPSTATISTICSUTILS_H
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
@@ -36,7 +36,6 @@ std::map<std::string, uint64_t> getConv2dStatistics(T *o, uint64_t groups) {
   TensorType biasTy = o->bias().getType().template cast<TensorType>();
 
   uint64_t ofm_volume = getTensorVolume(resultTy);
-  uint64_t ofm_depth = resultTy.getShape()[1];
 
   uint64_t ifm_depth = inputTy.getShape()[1];
   uint64_t kernel_height = weightTy.getShape()[2];
@@ -142,27 +141,20 @@ uint64_t getConv2dOperandTransferVolume(T *o, unsigned int idx, bool read) {
   float filter_height = weightTy.getShape()[3];
 
   float batch_sw = inputTy.getShape()[0];
-  float ifm_depth_sw = inputTy.getShape()[1];
   float ih = inputTy.getShape()[2];
-  float iw = inputTy.getShape()[3];
 
   float ofm_depth_sw = resultTy.getShape()[1];
 
   const float batch_hw = 4;
-  const float ifm_depth_hw = 32;
   const float ofm_depth_hw = 32;
 
   const float ifm_tile_height = 4;
-  const float ifm_tile_width = 4;
-  const float ofm_tile_height = 4;
-  const float ofm_tile_width = 4;
 
   float ifm_aperture = ifm_tile_height - ceilf(filter_height / 2.0f);
   float ifm_overlap = ceilf(filter_height / 2.0f);
 
   float bl = ceilf(batch_sw / batch_hw);
   float ol = ceilf(ofm_depth_sw / ofm_depth_hw);
-  float il = ceilf(ifm_depth_sw / ifm_depth_hw);
 
   float ifm_overhead = 1.0f;
   float weight_overhead = 1.0f;
@@ -274,4 +266,4 @@ std::map<std::string, uint64_t> getReLUOpStatistics(T op) {
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif
+#endif // NPCOMP_DIALECT_ATEN_IR_OPSTATISTICSUTILS_H

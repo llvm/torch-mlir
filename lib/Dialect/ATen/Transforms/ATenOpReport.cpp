@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenOpReport.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenOpReport.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -15,6 +14,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "mlir/Pass/Pass.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 #include <iostream>
 #include <vector>
@@ -24,10 +24,6 @@
 using namespace mlir;
 
 namespace {
-
-std::string getAsString(std::map<std::string, uint64_t> &m, std::string &e) {
-  return m.count(e) ? std::to_string(m[e]) : " ";
-}
 
 /// Query operations through the StatisticsOpInterface and print the result
 /// in a human-readable way.  This replicates the functionality in various

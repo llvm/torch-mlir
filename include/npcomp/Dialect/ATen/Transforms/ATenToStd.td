@@ -6,19 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef MLIR_ATEN_TO_STD_TD
-#else
+#ifndef MLIR_ATEN_TO_STD_TD
 #define MLIR_ATEN_TO_STD_TD
 
-#ifdef STANDARD_OPS
-#else
 include "mlir/Dialect/StandardOps/IR/Ops.td"
-#endif // STANDARD_OPS
-
-#ifdef ATEN_OPS
-#else
-include "ATen.td"
-#endif
+include "npcomp/Dialect/ATen/IR/ATenOps.td"
 
 // The pytorch convolution operator has 9 arguments, but we only have a jit
 // library that supports the first six at the moment.

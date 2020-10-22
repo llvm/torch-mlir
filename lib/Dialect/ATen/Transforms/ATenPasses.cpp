@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenPasses.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenPasses.h"
 
 using namespace mlir::NPCOMP::aten;
 

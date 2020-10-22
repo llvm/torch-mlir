@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "mlir/IR/DialectImplementation.h"
 
 using namespace mlir;
@@ -56,8 +56,6 @@ mlir::Type ATenListType::getElementType() {
 }
 
 mlir::Type ATenDialect::parseType(DialectAsmParser &parser) const {
-  Location loc = parser.getEncodedSourceLoc(parser.getNameLoc());
-
   // All types start with an identifier that we switch on.
   StringRef typeNameSpelling;
   if (failed(parser.parseKeyword(&typeNameSpelling)))
@@ -99,11 +97,11 @@ void ATenDialect::initialize() {
   addTypes<ATenListType>();
   addOperations<
 #define GET_OP_LIST
-#include "npcomp/Dialect/ATen/ATen.cpp.inc"
+#include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
       >();
 }
 
 #define GET_OP_CLASSES
-#include "npcomp/Dialect/ATen/ATen.cpp.inc"
+#include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
 
-#include "npcomp/Dialect/ATen/ATenOpInterfaces.cpp.inc"
+#include "npcomp/Dialect/ATen/IR/ATenOpInterfaces.cpp.inc"

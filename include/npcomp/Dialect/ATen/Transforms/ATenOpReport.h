@@ -11,6 +11,8 @@
 
 #include <memory>
 
+#include "mlir/Pass/Pass.h"
+
 namespace mlir {
 class Pass;
 } // namespace mlir

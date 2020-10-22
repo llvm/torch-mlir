@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_ATEN_OPINTERFACES_H
-#define NPCOMP_DIALECT_ATEN_OPINTERFACES_H
+#ifndef NPCOMP_DIALECT_ATEN_IR_OPINTERFACES_H
+#define NPCOMP_DIALECT_ATEN_IR_OPINTERFACES_H
 
 #include "mlir/IR/Types.h"
 
 namespace mlir {
 namespace NPCOMP {
-#include "npcomp/Dialect/ATen/ATenOpInterfaces.h.inc"
+#include "npcomp/Dialect/ATen/IR/ATenOpInterfaces.h.inc"
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif
+#endif // NPCOMP_DIALECT_ATEN_IR_OPINTERFACES_H

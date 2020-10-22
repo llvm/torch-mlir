@@ -11,6 +11,9 @@
 
 #include <string>
 
+#include "mlir/IR/Module.h"
+#include "llvm/ADT/DenseMap.h"
+
 namespace mlir {
 namespace NPCOMP {
 namespace aten {

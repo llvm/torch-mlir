@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef ATEN_OP_DEFS
-#define ATEN_OP_DEFS
+#ifndef NPCOMP_DIALECT_ATEN_IR_GENERATED_ATEN_OPS
+#define NPCOMP_DIALECT_ATEN_IR_GENERATED_ATEN_OPS
 
 def aten_AddOp: aten_Op<"add", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
@@ -730,4 +730,4 @@ def aten_MaxPool2dWithIndicesBackwardOp: aten_Op<"max_pool2d_with_indices_backwa
   }];
 }
 
-#endif
+#endif // NPCOMP_DIALECT_ATEN_IR_GENERATED_ATEN_OPS

@@ -8,8 +8,8 @@
 
 include "mlir/IR/OpBase.td"
 
-#ifndef ATEN_OP_INTERFACES
-#define ATEN_OP_INTERFACES
+#ifndef NPCOMP_DIALECT_ATEN_IR_ATEN_OP_INTERFACES
+#define NPCOMP_DIALECT_ATEN_IR_ATEN_OP_INTERFACES
 
 def StatisticsOpInterface : OpInterface<"StatisticsOpInterface"> {
   let description = [{
@@ -67,4 +67,4 @@ def AnyScalar : TypeConstraint<Or<[AnySignlessInteger.predicate,
                                  "scalar">;
 
 
-#endif
+#endif // NPCOMP_DIALECT_ATEN_IR_ATEN_OP_INTERFACES

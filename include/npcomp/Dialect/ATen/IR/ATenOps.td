@@ -6,39 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-include "mlir/IR/OpBase.td"
+#ifndef NPCOMP_DIALECT_ATEN_IR_ATEN_OPS
+#define NPCOMP_DIALECT_ATEN_IR_ATEN_OPS
 
-#ifndef ATEN_OPS
-#define ATEN_OPS
+include "npcomp/Dialect/ATen/IR/ATenDialect.td"
+include "npcomp/Dialect/ATen/IR/ATenOpInterface.td"
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "npcomp/Dialect/ATen/ATenOpInterface.td"
-
-//===----------------------------------------------------------------------===//
-// Dialect definition
-//===----------------------------------------------------------------------===//
-
-/// The ATenDialect models 'A Tensor library' from Pytorch.  The intention
-/// is to provide an abstraction which is isomorphic with datastructures
-/// returned from the pytorch jit, enabling integration with Pytorch models.
-/// Most of the actual operation definitions in tablegen are themselves
-/// generated from C APIs exported by Pytorch.
-def ATen_Dialect : Dialect {
-  let name = "aten";
-  let cppNamespace = "::mlir::NPCOMP::aten";
-}
-
-//===----------------------------------------------------------------------===//
-// Dialect types
-//===----------------------------------------------------------------------===//
-
-def ATen_ListType : DialectType<ATen_Dialect,
-    CPred<"$_self.isa<::mlir::NPCOMP::aten::ATenListType>()">, "ATen List">,
-    BuildableType<"$_builder.getType<::mlir::NPCOMP::aten::ATenListType()"> {
-  let typeDescription = [{
-    A variadic list of arguments in ATen.
-  }];
-}
 
 // TODO: convert to "let results =" style
 // TODO: Rename prefix from "aten" to "ATen" for consistency.
@@ -48,7 +22,7 @@ class aten_Op<string mnemonic, list<OpTrait> traits = [StatisticsOpInterface]> :
 
 
 // Most ops are automatically generated from pytorch specs.
-include "npcomp/Dialect/ATen/ATenOps.td"
+include "npcomp/Dialect/ATen/IR/GeneratedATenOps.td"
 
 
 def aten_BatchNormOp: aten_Op<"batch_norm", [NoSideEffect, StatisticsOpInterface]>,
@@ -179,4 +153,4 @@ def aten_TypeCastOp : aten_Op<"type_cast", [NoSideEffect]>,
   );
 }
 
-#endif
+#endif // NPCOMP_DIALECT_ATEN_IR_ATEN_OPS

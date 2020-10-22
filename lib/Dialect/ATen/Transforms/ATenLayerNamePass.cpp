@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/ATenLayerNamePass.h"
-#include "npcomp/Dialect/ATen/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenLayerNamePass.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"

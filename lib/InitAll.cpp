@@ -8,8 +8,8 @@
 
 #include "npcomp/InitAll.h"
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
-#include "npcomp/Dialect/ATen/ATenPasses.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenPasses.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"

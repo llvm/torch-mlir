@@ -25,10 +25,10 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
-#include "npcomp/Dialect/ATen/ATenDialect.h"
-#include "npcomp/Dialect/ATen/ATenOpReport.h"
-#include "npcomp/Dialect/ATen/ATenPasses.h"
-#include "npcomp/Dialect/ATen/LivenessReport.h"
+#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenOpReport.h"
+#include "npcomp/Dialect/ATen/Transforms/ATenPasses.h"
+#include "npcomp/Dialect/ATen/Transforms/LivenessReport.h"
 
 #include "init_python_bindings.h"
 

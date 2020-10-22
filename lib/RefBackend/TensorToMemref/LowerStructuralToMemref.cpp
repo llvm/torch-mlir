@@ -28,8 +28,6 @@ using namespace mlir::NPCOMP;
 // conversion about them.
 //===----------------------------------------------------------------------===//
 
-
-
 namespace {
 // This is a type conversion similar to CallOpSignatureConversion.
 class LowerSelectOpTypes : public OpConversionPattern<SelectOp> {
