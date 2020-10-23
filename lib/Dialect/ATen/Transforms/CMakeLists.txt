@@ -1,5 +1,5 @@
 add_npcomp_conversion_library(NPCOMPATenPasses
-  ATenPasses.cpp
+  Passes.cpp
   ATenLayerNamePass.cpp
   ATenLoweringPass.cpp
   ATenOpReport.cpp
@@ -9,4 +9,9 @@ add_npcomp_conversion_library(NPCOMPATenPasses
 
   DEPENDS
   MLIRATenToStdIncGen
+  NPCOMPATenPassIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRPass
 )

@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/ReturnEliminationPass.h"
+#include "PassDetail.h"
+
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -22,6 +24,7 @@
 #define DEBUG_TYPE "return-elimination"
 
 using namespace mlir;
+using namespace mlir::NPCOMP::aten;
 
 namespace {
 
@@ -33,8 +36,7 @@ namespace {
 /// library, we convert the signature of function calls (particularly the
 /// toplevel) to pass return values by reference.
 class ReturnEliminationPass
-    : public PassWrapper<ReturnEliminationPass, OperationPass<ModuleOp>> {
-
+    : public ATenReturnEliminationBase<ReturnEliminationPass> {
 public:
   ReturnEliminationPass() {}
 
@@ -174,11 +176,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> mlir::NPCOMP::aten::createReturnEliminationPass() {
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::NPCOMP::aten::createReturnEliminationPass() {
   return std::make_unique<ReturnEliminationPass>();
-}
-
-void mlir::NPCOMP::aten::registerReturnEliminationPass() {
-  PassRegistration<ReturnEliminationPass>("return-elimination",
-                                          "eliminate returns");
 }

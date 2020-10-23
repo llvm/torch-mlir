@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/ATenToStd.h"
-
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

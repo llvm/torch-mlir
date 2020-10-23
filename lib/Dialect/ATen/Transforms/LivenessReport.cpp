@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/LivenessReport.h"
+#include "PassDetail.h"
+
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/LivenessReport.h"
 
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"

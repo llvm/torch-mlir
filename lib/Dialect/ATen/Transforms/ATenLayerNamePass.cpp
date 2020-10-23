@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/ATenLayerNamePass.h"
+#include "PassDetail.h"
+
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -21,12 +23,11 @@
 #define DEBUG_TYPE "aten-layer-name"
 
 using namespace mlir;
+using namespace mlir::NPCOMP::aten;
 
 namespace {
 
-struct ATenLayerNamePass
-    : public PassWrapper<ATenLayerNamePass, OperationPass<ModuleOp>> {
-
+struct ATenLayerNamePass : public ATenLayerNameBase<ATenLayerNamePass> {
 private:
   std::map<Operation *, std::string> opToName;
 
@@ -88,11 +89,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> mlir::NPCOMP::aten::createATenLayerNamePass() {
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::NPCOMP::aten::createATenLayerNamePass() {
   return std::make_unique<ATenLayerNamePass>();
-}
-
-void mlir::NPCOMP::aten::registerATenLayerNamePass() {
-  PassRegistration<ATenLayerNamePass>("aten-layer-name",
-                                      "Generate layer names for ATen Dialect");
 }

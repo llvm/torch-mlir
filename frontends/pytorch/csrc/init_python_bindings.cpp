@@ -26,9 +26,8 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
-#include "npcomp/Dialect/ATen/Transforms/ATenOpReport.h"
-#include "npcomp/Dialect/ATen/Transforms/ATenPasses.h"
 #include "npcomp/Dialect/ATen/Transforms/LivenessReport.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 #include "init_python_bindings.h"
 

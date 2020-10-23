@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/ATenOpReport.h"
+#include "PassDetail.h"
 
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -15,6 +15,7 @@
 
 #include "mlir/Pass/Pass.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 #include <iostream>
 #include <vector>
@@ -22,6 +23,7 @@
 #define DEBUG_TYPE "aten-op-stats"
 
 using namespace mlir;
+using namespace mlir::NPCOMP::aten;
 
 namespace {
 
@@ -29,9 +31,7 @@ namespace {
 /// in a human-readable way.  This replicates the functionality in various
 /// network analysis tools and is a stepping stone toward using the information
 /// as an analysis to drive optimization.
-struct ATenOpReportPass
-    : public PassWrapper<ATenOpReportPass, OperationPass<ModuleOp>> {
-
+struct ATenOpReportPass : public ATenOpReportBase<ATenOpReportPass> {
 private:
   std::string *output;
   std::vector<std::string> tableFields;
@@ -129,16 +129,12 @@ public:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> mlir::NPCOMP::aten::createATenOpReportPass() {
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::NPCOMP::aten::createATenOpReportPass() {
   return std::make_unique<ATenOpReportPass>();
 }
 
-std::unique_ptr<mlir::Pass>
+std::unique_ptr<OperationPass<ModuleOp>>
 mlir::NPCOMP::aten::createATenOpReportPass(std::string &report) {
   return std::make_unique<ATenOpReportPass>(&report);
-}
-
-void mlir::NPCOMP::aten::registerATenOpReportPass() {
-  PassRegistration<ATenOpReportPass>("aten-op-report",
-                                     "Generate ATen operation report");
 }

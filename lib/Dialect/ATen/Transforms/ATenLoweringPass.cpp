@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "npcomp/Dialect/ATen/Transforms/ATenLoweringPass.h"
+#include "PassDetail.h"
+
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "npcomp/Dialect/ATen/Transforms/ATenToStd.h"
+#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 
 #include "mlir/Dialect/Affine/EDSC/Builders.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -43,8 +45,8 @@
 #include <sstream>
 
 using namespace mlir;
-using namespace edsc::intrinsics;
 using namespace mlir::NPCOMP::aten;
+using namespace edsc::intrinsics;
 
 using callOperation = edsc::OperationBuilder<mlir::CallOp>;
 using call = edsc::ValueBuilder<mlir::CallOp>;
@@ -850,9 +852,7 @@ MemRefType convertTensorType(TensorType tensor) {
 /// external library and linked into the resulting code.  In the future, the
 /// expectation is that the preferred lowering path would go through TCP.
 /// FIXME: Audit this for completeness
-struct ATenLoweringPass
-    : public PassWrapper<ATenLoweringPass, OperationPass<ModuleOp>> {
-
+struct ATenLoweringPass : public ATenLoweringBase<ATenLoweringPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<LLVM::LLVMDialect, StandardOpsDialect>();
   }
@@ -922,15 +922,10 @@ namespace mlir {
 namespace NPCOMP {
 namespace aten {
 
-std::unique_ptr<mlir::Pass> createATenLoweringPass() {
+std::unique_ptr<OperationPass<ModuleOp>> createATenLoweringPass() {
   return std::make_unique<ATenLoweringPass>();
 }
 
 } // namespace aten
 } // namespace NPCOMP
 } // namespace mlir
-
-void mlir::NPCOMP::aten::registerATenLoweringPass() {
-  PassRegistration<ATenLoweringPass>("aten-to-std",
-                                     "ATen dialect lowering to function calls");
-}
