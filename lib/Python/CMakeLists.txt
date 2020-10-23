@@ -37,6 +37,7 @@ add_library(NPCOMPPythonCommon
 target_link_libraries(NPCOMPPythonCommon
   pybind11::module
   NPCOMPInitAll
+  NPCOMPCAPI
 
   # Core dialects
   MLIRSCF
