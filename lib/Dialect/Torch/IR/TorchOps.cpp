@@ -16,9 +16,29 @@
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Basicpy;
-using namespace mlir::NPCOMP::Numpy;
-using namespace mlir::NPCOMP::Torch;
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"
+
+static SmallVector<StringRef, 4> strArrayAttrToVector(ArrayAttr array) {
+  SmallVector<StringRef, 4> strings;
+  strings.reserve(array.size());
+  for (auto stringAttr : array) {
+    strings.push_back(stringAttr.cast<StringAttr>().getValue());
+  }
+  return strings;
+}
+
+// -----------------------------------------------------------------------------
+// KernelCall op
+// -----------------------------------------------------------------------------
+
+Torch::KernelMetadata Torch::KernelCallOp::getTorchKernelMetadata() {
+  return Torch::KernelMetadata{
+      .kernelName = kernelName(),
+      .isVararg = sigIsVararg(),
+      .isVarret = sigIsVarret(),
+      .argTypes = strArrayAttrToVector(sigArgTypes()),
+      .returnTypes = strArrayAttrToVector(sigRetTypes()),
+  };
+}

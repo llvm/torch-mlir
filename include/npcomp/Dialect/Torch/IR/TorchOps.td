@@ -10,12 +10,17 @@
 #define TORCH_OPS
 
 include "npcomp/Dialect/Torch/IR/TorchBase.td"
+include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 
 class Torch_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Torch_Dialect, mnemonic, traits> {
 }
 
-def Torch_KernelCall : Torch_Op<"kernel_call"> {
+// TODO: Add alias mapping from the signature and use it to implement the
+// effects interface (since whether the kernel_call has side effects is
+// dependent on its metadata).
+def Torch_KernelCallOp : Torch_Op<"kernel_call", [
+    DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
   let summary = "Calls a Torch custom kernel";
   let description = [{
     Torch kernel calls are matched by the runtime based on signature, including
@@ -24,15 +29,21 @@ def Torch_KernelCall : Torch_Op<"kernel_call"> {
   }];
 
   let arguments = (ins
-    StrAttr:$kernel_name,
-    Variadic<AnyTorchType>:$args
+    StrAttr:$kernelName,
+    Variadic<AnyTorchType>:$args,
+    StrArrayAttr:$sigArgTypes,
+    StrArrayAttr:$sigRetTypes,
+    BoolAttr:$sigIsVararg,
+    BoolAttr:$sigIsVarret,
+    BoolAttr:$sigIsMutable
+    // TODO: Add alias mapping.
   );
   let results = (outs
     Variadic<AnyTorchType>:$results
   );
 
   let assemblyFormat = [{
-    $kernel_name $args attr-dict `:` functional-type($args, results)
+    $kernelName $args `:` functional-type($args, results) attr-dict
   }];
 }
 

@@ -18,3 +18,5 @@ void TorchDialect::initialize() {
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"
       >();
 }
+
+#include "npcomp/Dialect/Torch/IR/OpInterfaces.h"

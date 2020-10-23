@@ -10,23 +10,6 @@
 #ifndef NPCOMP_DIALECT_ATEN_IR_GENERATED_ATEN_OPS
 #define NPCOMP_DIALECT_ATEN_IR_GENERATED_ATEN_OPS
 
-def aten_AddOp: aten_Op<"add", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyTensor:$other,
-      AnyScalar:$alpha
-  );
-  let summary = "aten add operator";
-  let description = [{
-    AddOp
-    aten add operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_AddUnderOp: aten_Op<"add_", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
   let arguments = (

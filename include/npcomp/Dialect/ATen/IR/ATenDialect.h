@@ -18,6 +18,7 @@
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
 
 #include <map>
 

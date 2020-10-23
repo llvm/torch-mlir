@@ -41,23 +41,65 @@ static c10::DispatchKey kAcapDispatchKey = c10::DispatchKey::ACAP_DISPATCH_KEY;
 static c10::DispatchKey kAcapGradDispatchKey =
     c10::DispatchKey::ACAP_GRAD_DISPATCH_KEY;
 
-AcapController::KernelCallBuilder::KernelCallBuilder(AcapController &parent,
-                                                     MlirContext context,
-                                                     MlirLocation loc,
-                                                     std::string &kernelName)
-    : parent(parent), context(context), loc(loc), kernelName(kernelName),
+AcapController::KernelCallBuilder::KernelCallBuilder(
+    AcapController &parent, MlirContext context, MlirLocation loc,
+    const c10::OperatorHandle &opHandle)
+    : parent(parent), context(context), loc(loc), opHandle(opHandle),
       state("torch.kernel_call", loc) {
   (void)this->context; // Preserve for future.
+  const std::string &kernelName = opHandle.operator_name().name;
   MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
-      "kernel_name",
+      "kernelName",
       mlirStringAttrGet(context, kernelName.size(), kernelName.data()));
   mlirOperationStateAddAttributes(state, 1, &kernelNameAttr);
+  addSchemaAttrs();
+}
+
+void AcapController::KernelCallBuilder::addSchemaAttrs() {
+  // Map the op schema to the kernel_call attributes:
+  //   sigArgTypes
+  //   sigRetTypes
+  //   sigIsVararg
+  //   sigIsVarret
+  //   sigIsMutable
+  const c10::FunctionSchema &schema = opHandle.schema();
+  llvm::SmallVector<MlirNamedAttribute, 8> attrs;
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsMutable", mlirBoolAttrGet(context, schema.is_mutable())));
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsVararg", mlirBoolAttrGet(context, schema.is_vararg())));
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsVarret", mlirBoolAttrGet(context, schema.is_varret())));
+
+  // Arg types.
+  llvm::SmallVector<MlirAttribute, 4> args;
+  for (auto &arg : schema.arguments()) {
+    const std::string &typeStr = arg.type()->str();
+    args.push_back(mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
+  }
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigArgTypes", mlirArrayAttrGet(context, args.size(), args.data())));
+
+  // Return types.
+  llvm::SmallVector<MlirAttribute, 4> returns;
+  for (auto &ret : schema.returns()) {
+    const std::string &typeStr = ret.type()->str();
+    returns.push_back(
+        mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
+  }
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigRetTypes",
+      mlirArrayAttrGet(context, returns.size(), returns.data())));
+
+  // Add attrs to op.
+  mlirOperationStateAddAttributes(state, attrs.size(), attrs.data());
 }
 
 void AcapController::KernelCallBuilder::addOperand(const IValue &value) {
   MlirValue mlirValue = parent.mapIValueToMlirValue(loc, value);
   if (mlirValueIsNull(mlirValue)) {
     std::stringstream out;
+    const std::string &kernelName = opHandle.operator_name().name;
     out << "Unsupported capture value returned from kernel '" << kernelName
         << "' (" << value.tagKind() << "): " << value;
     throw std::invalid_argument(out.str());
@@ -69,6 +111,7 @@ void AcapController::KernelCallBuilder::addResult(const IValue &value) {
   MlirType resultType = parent.mapIValueToMlirType(loc, value);
   if (mlirTypeIsNull(resultType)) {
     std::stringstream out;
+    const std::string &kernelName = opHandle.operator_name().name;
     out << "Unsupported capture value returned from kernel '" << kernelName
         << "' (" << value.tagKind() << "): " << value;
     throw std::invalid_argument(out.str());
@@ -92,7 +135,7 @@ MlirOperation AcapController::KernelCallBuilder::create() {
 
   // Add to debug log.
   std::stringstream sout;
-  sout << "CAPTURE: " << kernelName << "\n";
+  sout << "CAPTURE: " << opHandle.operator_name().name << "\n";
   parent.captureLog.push_back(sout.str());
   return op;
 }
@@ -218,7 +261,7 @@ at::Tensor AcapController::convolutionKernel(
   MlirContext context = current->funcBuilder->getContext();
   MlirLocation loc = current->getCurrentLocation();
   std::string kernelName{"aten::convolution"};
-  KernelCallBuilder callBuilder{*current, context, loc, kernelName};
+  KernelCallBuilder callBuilder{*current, context, loc, *opHandle};
 
   callBuilder.addOperand(IValue(input));
   callBuilder.addOperand(IValue(weight));
@@ -278,7 +321,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
   MlirContext context = funcBuilder->getContext();
   MlirLocation loc = getCurrentLocation();
   auto kernelName = schema.name();
-  KernelCallBuilder callBuilder{*this, context, loc, kernelName};
+  KernelCallBuilder callBuilder{*this, context, loc, opHandle};
 
   // Map arguments to operands.
   // This must be accumulated into the OperationState prior to re-dispatch

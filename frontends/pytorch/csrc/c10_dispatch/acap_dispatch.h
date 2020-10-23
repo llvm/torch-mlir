@@ -68,16 +68,17 @@ private:
   class KernelCallBuilder {
   public:
     KernelCallBuilder(AcapController &parent, MlirContext context,
-                      MlirLocation loc, std::string &kernelName);
+                      MlirLocation loc, const c10::OperatorHandle &opHandle);
     void addOperand(const c10::IValue &value);
     void addResult(const c10::IValue &result);
     MlirOperation create();
 
   private:
+    void addSchemaAttrs();
     AcapController &parent;
     MlirContext context;
     MlirLocation loc;
-    std::string &kernelName;
+    const c10::OperatorHandle &opHandle;
     OperationStateHolder state;
     int resultCount = 0;
     llvm::SmallVector<std::pair<size_t, at::Tensor>, 4> resultIndexToTensorMap;

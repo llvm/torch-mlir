@@ -19,7 +19,7 @@ with mb.capture_function("add3", [t0, t1, t2]) as f:
 # CHECK-LABEL: func @add3
 # CHECK:   %[[CST_1A:.*]] = constant 1 : i64
 # CHECK:   %[[CST_1B:.*]] = constant 1 : i64
-# CHECK:   %[[ADD0:.*]] = torch.kernel_call "aten::add" %arg0, %arg1, %[[CST_1A]]
-# CHECK:   %[[ADD1:.*]] = torch.kernel_call "aten::add" %[[ADD0]], %arg2, %[[CST_1B]]
+# CHECK:   %[[ADD0:.*]] = torch.kernel_call "aten::add" %arg0, %arg1, %[[CST_1A]] : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64) -> !numpy.ndarray<[1,2,3,4]:f32> {sigArgTypes = ["Tensor", "Tensor", "Scalar"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+# CHECK:   %[[ADD1:.*]] = torch.kernel_call "aten::add" %[[ADD0]], %arg2, %[[CST_1B]] : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64) -> !numpy.ndarray<[1,2,3,4]:f32> {sigArgTypes = ["Tensor", "Tensor", "Scalar"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
 # CHECK:   return %[[ADD1]]
 print(mb.module)

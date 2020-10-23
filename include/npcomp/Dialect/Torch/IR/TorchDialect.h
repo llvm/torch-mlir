@@ -11,6 +11,6 @@
 
 #include "mlir/IR/Dialect.h"
 
-#include "npcomp/Dialect/Torch/IR/TorchOpsDialect.h.inc"
+#include "npcomp/Dialect/Torch/IR/TorchDialect.h.inc"
 
 #endif // NPCOMP_DIALECT_TORCH_IR_TORCHDIALECT_H

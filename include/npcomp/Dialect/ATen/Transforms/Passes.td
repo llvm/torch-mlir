@@ -11,6 +11,11 @@
 
 include "mlir/Pass/PassBase.td"
 
+def ATenRecognizeKernels : Pass<"aten-recognize-kernels", "FuncOp"> {
+  let summary = "Recognizes ATen named kernels from torch.kernel_call ops.";
+  let constructor = "mlir::NPCOMP::aten::createRecognizeKernelsPass()";
+}
+
 def ATenLayerName : Pass<"aten-layer-name", "ModuleOp"> {
   let summary = "Generate layer names for ATen Dialect.";
   let constructor = "mlir::NPCOMP::aten::createATenLayerNamePass()";

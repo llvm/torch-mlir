@@ -84,7 +84,7 @@ def AnyTorchTensorType : AnyTypeOf<[
     AnyTorchMutableTensor,
   ], "Any tensor type legal to pass to a Torch kernel">;
 
-def AnyScalar : AnyTypeOf<[
+def AnyTorchScalarType : AnyTypeOf<[
     AnySignedInteger,
     AnyFloat,
     Basicpy_BoolType,
@@ -96,7 +96,7 @@ def AnyScalar : AnyTypeOf<[
   ], "Any primitive type suitable to be passed as a Torch Scalar">;
 
 def AnyTorchType : AnyTypeOf<[
-    AnyScalar,
+    AnyTorchScalarType,
     AnyTorchTensorType,
     Basicpy_ListType,
     Basicpy_NoneType,

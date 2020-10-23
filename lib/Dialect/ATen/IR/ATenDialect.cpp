@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+
 #include "mlir/IR/DialectImplementation.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
