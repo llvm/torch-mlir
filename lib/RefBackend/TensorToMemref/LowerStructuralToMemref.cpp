@@ -105,8 +105,6 @@ class LowerStructuralToMemref
              typeConverter.isLegal(&op.getBody());
     });
 
-    scf::populateSCFStructuralTypeConversionsAndLegality(context, typeConverter,
-                                                         patterns, target);
     patterns.insert<LowerSelectOpTypes>(typeConverter, context);
     patterns.insert<LowerTensorToMemrefOp>(typeConverter, context);
     patterns.insert<LowerTensorLoadOp>(typeConverter, context);
