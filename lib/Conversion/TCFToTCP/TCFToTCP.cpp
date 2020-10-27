@@ -73,6 +73,9 @@ matchAndRewriteBinaryElementwise(Operation *op, PatternRewriter &rewriter) {
   } else if (isa<tcf::MaxOp>(op)) {
     binaryOpResult = rewriter.create<tcp::MaxOp>(
         loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+  } else if (isa<tcf::MulOp>(op)) {
+    binaryOpResult = rewriter.create<tcp::MulOp>(
+        loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
   } else {
     op->dump();
     llvm::report_fatal_error(
@@ -167,7 +170,8 @@ public:
     patterns.insert<ConvertUnaryElementwise<tcf::ExpOp>,
                     ConvertUnaryElementwise<tcf::TanhOp>>(context);
     patterns.insert<ConvertBinaryElementwise<tcf::AddOp>,
-                    ConvertBinaryElementwise<tcf::MaxOp>>(context);
+                    ConvertBinaryElementwise<tcf::MaxOp>,
+                    ConvertBinaryElementwise<tcf::MulOp>>(context);
     patterns.insert<ConvertMatmul>(context);
     (void)applyPatternsAndFoldGreedily(module, patterns);
   }
