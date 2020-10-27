@@ -221,25 +221,14 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // example, when lowering a broadcast, we need to get an extent from its shape
   // operand to allocate the output.
   pm.addPass(createConvertShapeToStandardPass());
-  // Lower std ops to memref.
-  // This includes ops like extract_element.
+
+  // Run some upstream bufferization passes to finish bufferization.
   pm.addPass(createStdBufferizePass());
   pm.addPass(createSCFBufferizePass());
-  // Lower control flow and other "structural" ops.
-  //
-  // These ops are generally not sensitive to the types that they operate on
-  // (e.g. the types of block operands, function arguments, etc.). But they all
-  // need to be converted consistently. So it makes sense to do this as the
-  // final step of conversion, which also finalizes the elimination of all
-  // stray source/target materializations introduced by the incremental
-  // tensor->memref lowering.
-  //
-  // This completes conversion to memref. There are no `tensor`'s after
-  // this point.
-  pm.addPass(createLowerStructuralToMemrefPass());
+  pm.addPass(createFuncBufferizePass());
 
-  // TODO: Do buffer assignment. We should be able to just drop in the upstream
-  // pass?
+  // TODO: Do buffer deallocation. We should be able to just drop in the
+  // upstream pass?
 
   // At this point, we have lots of loose stuff floating around from lowering,
   // so it's a good time to do some general cleanups.
