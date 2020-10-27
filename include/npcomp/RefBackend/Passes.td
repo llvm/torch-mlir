@@ -20,23 +20,6 @@ def LowerConstantTensorsToMemref :
   let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefPass()";
 }
 
-def LowerStructuralToMemref :
-    Pass<"lower-structural-to-memref", "FuncOp"> {
-  let summary = "Lower structural IR constructs to memref";
-  let description = [{
-    Structural constructs include:
-      - control flow ops (both CFG and SCF)
-      - function signatures
-      - TODO: calls
-    An op is "structural" if it doesn't really care about the types it operates
-    on, but the types just have to converted to be consistent.
-
-    This pass also cleans up any previous memref<->tensor materializations,
-    finalizing the conversion from tensor to memref.
-  }];
-  let constructor = "mlir::NPCOMP::createLowerStructuralToMemrefPass()";
-}
-
 def LowerToRefbackrtABI : Pass<"lower-to-refbackrt-abi", "ModuleOp"> {
   let summary = "Lower constructs requiring runtime support to `refbackrt`";
   let description = [{
