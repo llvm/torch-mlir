@@ -33,7 +33,7 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
   }
 
   // Elementwise ops.
-  if (isa<tcp::AddOp, tcp::MaxOp, tcp::ExpOp, tcp::TanhOp>(op)) {
+  if (isa<tcp::AddOp, tcp::MaxOp, tcp::MulOp, tcp::ExpOp, tcp::TanhOp>(op)) {
     return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
   }
 
@@ -161,6 +161,10 @@ static Value createLinalgBodyCalculationForElementwiseOp(Operation *op,
     return builder.create<SelectOp>(loc, greater, bodyArgs[0], bodyArgs[1]);
   }
 
+  if (isa<tcp::MulOp>(op)) {
+    return builder.create<MulFOp>(loc, bodyArgs[0], bodyArgs[1]);
+  }
+
   if (isa<tcp::ExpOp>(op))
     return builder.create<ExpOp>(loc, bodyArgs[0]);
 
@@ -275,10 +279,11 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     target.addIllegalOp<tcp::BroadcastToOp>();
     patterns.insert<BufferizeElementwiseOp<tcp::AddOp>,
                     BufferizeElementwiseOp<tcp::MaxOp>,
+                    BufferizeElementwiseOp<tcp::MulOp>,
                     BufferizeElementwiseOp<tcp::ExpOp>,
                     BufferizeElementwiseOp<tcp::TanhOp>>(typeConverter,
                                                          context);
-    target.addIllegalOp<tcp::AddOp, tcp::MaxOp>();
+    target.addIllegalOp<tcp::AddOp, tcp::MaxOp, tcp::MulOp>();
     patterns.insert<BufferizeMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
 
