@@ -47,6 +47,7 @@ convertTorchArgType(StringRef sourceTorchType, StringRef targetTorchType,
 
   // Immutable tensor conversion.
   if (flag & KVC::kImmutableTensor) {
+    // TODO: Support the kPromoteScalar flag.
     if (sourceTorchType != "Tensor" || targetTorchType != "Tensor")
       return None;
 

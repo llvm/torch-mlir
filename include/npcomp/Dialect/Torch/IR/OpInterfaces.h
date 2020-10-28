@@ -28,7 +28,11 @@ enum BitMask {
   // Coerce/require a mutable tensor value.
   kMutableTensor = 4,
 
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ kMutableTensor)
+  // If the source is a Scalar and the target is a Tensor, promotes
+  // to a 0d tensor.
+  kPromoteScalar = 8,
+
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ kPromoteScalar)
 };
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 } // namespace KernelValueConversion
