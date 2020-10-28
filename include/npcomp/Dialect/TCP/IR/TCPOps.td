@@ -42,7 +42,7 @@ def TCP_MaxOp : BinaryArithmeticOp<"max"> {
   }];
 }
 
-def TCF_MulOp : BinaryArithmeticOp<"mul"> {
+def TCP_MulOp : BinaryArithmeticOp<"mul"> {
   let summary = "Multiply an input tensor by a scalar tensor.";
   let description = [{
     Multiplies each element of the input `input` with the scalar `other` and returns a new resulting tensor. The tensor types must match and shapes must be broadcastable.
