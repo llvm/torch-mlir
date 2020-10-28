@@ -108,3 +108,5 @@ void ATenDialect::initialize() {
 #include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
 
 #include "npcomp/Dialect/ATen/IR/ATenOpInterfaces.cpp.inc"
+
+#include "npcomp/Dialect/ATen/IR/GeneratedATenOps.cpp.inc"

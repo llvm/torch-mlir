@@ -55,33 +55,6 @@ std::map<std::string, uint64_t> AdaptiveAvgPool2dBackwardOp::getStatistics() {
   return toReturn;
 }
 
-// add
-std::map<std::string, uint64_t> AddOp::getStatistics() {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = getResult().getType().cast<TensorType>();
-  TensorType aType = getOperand(0).getType().cast<TensorType>();
-  Type bType = getOperand(1).getType();
-
-  uint64_t ofm_volume = getTensorVolume(resultTy);
-
-  toReturn["ops:+"] = ofm_volume;
-  toReturn["result:0:activation_out"] = ofm_volume;
-
-  // Find the size of the A and B operands
-  uint64_t a_volume = getTensorVolume(aType);
-  uint64_t b_volume = getTensorVolume(bType);
-
-  toReturn["operand:0:activation_in"] = a_volume;
-  toReturn["operand:1:activation_in"] = b_volume;
-
-  toReturn["reads"] = a_volume + b_volume;
-  toReturn["writes"] = ofm_volume;
-
-  return toReturn;
-}
-
 // add_
 std::map<std::string, uint64_t> AddUnderOp::getStatistics() {
 
@@ -229,33 +202,6 @@ ConvolutionBackwardOverrideableOp::getStatistics() {
   uint64_t groups = ia.getValue().getZExtValue();
 
   return getConv2dBackwardStatistics(*this, groups);
-}
-
-// div
-std::map<std::string, uint64_t> DivOp::getStatistics() {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = getResult().getType().cast<TensorType>();
-  TensorType aType = getOperand(0).getType().cast<TensorType>();
-  Type bType = getOperand(1).getType();
-
-  uint64_t ofm_volume = getTensorVolume(resultTy);
-  toReturn["ops:/"] = ofm_volume;
-
-  toReturn["result:0:activation_out"] = ofm_volume;
-
-  // Find the size of the A and B operands
-  uint64_t a_volume = getTensorVolume(aType);
-  uint64_t b_volume = getTensorVolume(bType);
-
-  toReturn["operand:0:activation_in"] = a_volume;
-  toReturn["operand:1:activation_in"] = b_volume;
-
-  toReturn["reads"] = a_volume + b_volume;
-  toReturn["writes"] = ofm_volume;
-
-  return toReturn;
 }
 
 // div_
@@ -467,32 +413,6 @@ std::map<std::string, uint64_t> MmOp::getStatistics() {
   return getMMOpStatistics(*this);
 }
 
-// mul
-std::map<std::string, uint64_t> MulOp::getStatistics() {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = getResult().getType().cast<TensorType>();
-  TensorType aType = getOperand(0).getType().cast<TensorType>();
-  Type bType = getOperand(1).getType();
-
-  uint64_t ofm_volume = getTensorVolume(resultTy);
-  toReturn["ops:*"] = ofm_volume;
-  toReturn["result:0:activation_out"] = ofm_volume;
-
-  // Find the size of the A and B operands
-  uint64_t a_volume = getTensorVolume(aType);
-  uint64_t b_volume = getTensorVolume(bType);
-
-  toReturn["operand:0:activation_in"] = a_volume;
-  toReturn["operand:1:activation_in"] = b_volume;
-
-  toReturn["reads"] = a_volume + b_volume;
-  toReturn["writes"] = ofm_volume;
-
-  return toReturn;
-}
-
 // mul_
 std::map<std::string, uint64_t> MulUnderOp::getStatistics() {
 
@@ -668,23 +588,6 @@ std::map<std::string, uint64_t> NllLoss2dBackwardOp::getStatistics() {
   return toReturn;
 }
 
-// neg op
-std::map<std::string, uint64_t> NegOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  auto insize = getTensorVolume(getOperand().getType());
-  auto outsize = getTensorVolume(getResult().getType());
-  toReturn["reads"] = toReturn["operand:0:activation_in"] = insize;
-  toReturn["writes"] = toReturn["result:0:activation_out"] = outsize;
-  return toReturn;
-}
-
-// relu
-// std::map<std::string, uint64_t> ReLUOp::getStatistics() {
-//   return getReLUOpStatistics(*this);
-// }
-std::map<std::string, uint64_t> ReluOp::getStatistics() {
-  return getReLUOpStatistics(*this);
-}
 // std::map<std::string, uint64_t> ReLUUnderOp::getStatistics() {
 //   return getReLUOpStatistics(*this);
 // }

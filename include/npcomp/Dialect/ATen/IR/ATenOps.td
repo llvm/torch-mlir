@@ -25,44 +25,7 @@ class aten_Op<string mnemonic, list<OpTrait> traits = [StatisticsOpInterface]> :
 
 // Most ops are automatically generated from pytorch specs.
 include "npcomp/Dialect/ATen/IR/GeneratedATenOps.td"
-
-def aten_AddOp: aten_Op<"add", [
-      NoSideEffect, TorchBuildableKernelOpInterface, TorchKernelOpInterface,
-      StatisticsOpInterface]> {
-  let arguments = (
-  ins AnyTorchImmutableTensor:$self,
-      AnyTorchImmutableTensor:$other,
-      AnyTorchScalarType:$alpha
-  );
-  let results = (outs AnyTorchImmutableTensor);
-  let summary = "aten add operator";
-  let description = [{
-    AddOp
-    aten add operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-
-    Torch::KernelMetadata getTorchKernelMetadata() {
-      return getTorchBuildKernelMetadata();
-    }
-
-    static const Torch::BuildKernelMetadata &getTorchBuildKernelMetadata() {
-      using KVC = Torch::KernelValueConversion::BitMask;
-      static Torch::BuildKernelMetadata metadata = ([]() {
-        Torch::BuildKernelMetadata m;
-        m.kernelName = "aten::add";
-        m.promoteTrailingOutTensor = true;
-        m.addArgTypes({"Tensor", "Tensor", "Scalar"});
-        m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone});
-        m.addReturnTypes({"Tensor"});
-        m.addReturnConversions({KVC::kImmutableTensor});
-        return m;
-      })();
-      return metadata;
-    }
-  }];
-}
+include "npcomp/Dialect/ATen/IR/LegacyGeneratedATenOps.td"
 
 def aten_BatchNormOp: aten_Op<"batch_norm", [NoSideEffect, StatisticsOpInterface]>,
                       Results<(outs AnyTensor:$output, AnyTensor:$save_mean, AnyTensor:$save_invstd)> {
