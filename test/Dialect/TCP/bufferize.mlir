@@ -34,6 +34,26 @@ func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
   return %0 : tensor<?xf32>
 }
 
+// CHECK-LABEL:   func @tcp_mul(
+// CHECK-SAME:                  %[[LHS_TENSOR:.*]]: tensor<?xf32>,
+// CHECK-SAME:                  %[[RHS_TENSOR:.*]]: tensor<?xf32>) -> tensor<?xf32> {
+// CHECK:           %[[LHS:.*]] = tensor_to_memref %[[LHS_TENSOR]] : memref<?xf32>
+// CHECK:           %[[RHS:.*]] = tensor_to_memref %[[RHS_TENSOR]] : memref<?xf32>
+// CHECK:           %[[SHAPE:.*]] = shape.shape_of %[[LHS_TENSOR]] : tensor<?xf32> -> tensor<?xindex>
+// CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[SHAPE]] : memref<?xf32>
+// CHECK:           linalg.generic {indexing_maps = [#map0, #map0, #map0], iterator_types = ["parallel"]} ins(%[[LHS]], %[[RHS]] : memref<?xf32>, memref<?xf32>) outs(%[[RESULT]] : memref<?xf32>) {
+// CHECK:           ^bb0(%[[LHS_SCALR:.*]]: f32, %[[RHS_SCALAR:.*]]: f32, %{{.*}}: f32):
+// CHECK:             %[[RESULT_SCALAR:.*]] = mulf %[[LHS_SCALR]], %[[RHS_SCALAR]] : f32
+// CHECK:             linalg.yield %[[RESULT_SCALAR]] : f32
+// CHECK:           }
+// CHECK:           %[[RESULT_TENSOR:.*]] = tensor_load %[[RESULT]] : memref<?xf32>
+// CHECK:           return %[[RESULT_TENSOR]] : tensor<?xf32>
+// CHECK:         }
+func @tcp_mul(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
+  %0 = tcp.mul %arg0, %arg1 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
+  return %0 : tensor<?xf32>
+}
+
 // CHECK-LABEL:   func @tcp_matmul(
 // CHECK-SAME:                     %[[LHS_TENSOR:.*]]: tensor<?x?xf32>,
 // CHECK-SAME:                     %[[RHS_TENSOR:.*]]: tensor<?x?xf32>) -> tensor<?x?xf32> {
