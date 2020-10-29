@@ -20,11 +20,11 @@ using namespace mlir::NPCOMP::tcp;
 namespace {
 struct TCPInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
-  bool isLegalToInline(Region *dest, Region *src,
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
                        BlockAndValueMapping &valueMapping) const final {
     return true;
   }
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
                        BlockAndValueMapping &) const final {
     return true;
   }

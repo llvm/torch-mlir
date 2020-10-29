@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "npcomp/Dialect/ATen/Transforms/Passes.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
@@ -366,9 +367,9 @@ class ATenRecognizeKernelsPass
 
     OwningRewritePatternList patterns;
     patterns.insert<RecognizeOpPattern>(&context, transformer);
-    if (failed(mlir::applyPatternsAndFoldGreedily(getOperation(), patterns))) {
+    if (failed(
+            applyPatternsAndFoldGreedily(getOperation(), std::move(patterns))))
       signalPassFailure();
-    }
   }
 };
 

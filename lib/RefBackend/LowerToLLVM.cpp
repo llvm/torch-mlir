@@ -14,6 +14,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
@@ -712,7 +713,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     // lots of these patterns.
     populateExpandTanhPattern(patterns, context);
 
-    if (failed(applyFullConversion(module, target, patterns))) {
+    if (failed(applyFullConversion(module, target, std::move(patterns)))) {
       return signalPassFailure();
     }
     // Rewrite llvm.mlir.addressof ops that reference the original exported

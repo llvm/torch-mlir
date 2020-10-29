@@ -20,11 +20,11 @@ using namespace mlir::NPCOMP::refback;
 namespace {
 struct RefbackInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
-  bool isLegalToInline(Region *dest, Region *src,
+  bool isLegalToInline(Region *dest, Region *src, bool shouldBeCloned,
                        BlockAndValueMapping &valueMapping) const final {
     return true;
   }
-  bool isLegalToInline(Operation *, Region *,
+  bool isLegalToInline(Operation *, Region *, bool shouldBeCloned,
                        BlockAndValueMapping &) const final {
     return true;
   }

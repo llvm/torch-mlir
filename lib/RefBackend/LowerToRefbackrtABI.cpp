@@ -225,7 +225,7 @@ static LogicalResult doDialectConversion(ModuleOp module) {
   patterns.insert<LowerAssertOp>(context);
   target.addIllegalOp<AssertOp>();
 
-  return applyPartialConversion(module, target, patterns);
+  return applyPartialConversion(module, target, std::move(patterns));
 }
 
 namespace {

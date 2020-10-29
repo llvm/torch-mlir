@@ -37,6 +37,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
@@ -113,7 +114,7 @@ class LowerAllocMemRefOps
     target.addLegalOp<shape::GetExtentOp>();
     target.addLegalOp<AllocOp>();
     target.addLegalOp<ConstantOp>();
-    if (failed(applyPartialConversion(func, target, patterns))) {
+    if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
       return signalPassFailure();
     }
   }
@@ -167,7 +168,7 @@ struct RestrictedCanonicalizer
         op->getCanonicalizationPatterns(patterns, context);
 
     Operation *op = getOperation();
-    applyPatternsAndFoldGreedily(op->getRegions(), patterns);
+    applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns));
   }
 };
 } // end anonymous namespace

@@ -112,7 +112,7 @@ class LowerStructuralToMemref
     patterns.insert<LowerTensorLoadOp>(typeConverter, context);
     target.addIllegalOp<TensorToMemrefOp>();
 
-    if (failed(applyFullConversion(func, target, patterns)))
+    if (failed(applyFullConversion(func, target, std::move(patterns))))
       return signalPassFailure();
   }
 };

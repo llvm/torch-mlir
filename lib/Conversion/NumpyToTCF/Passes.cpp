@@ -9,7 +9,7 @@
 #include "npcomp/Conversion/NumpyToTCF/Passes.h"
 
 #include "../PassDetail.h"
-#include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFOps.h"
@@ -55,7 +55,7 @@ class ConvertNumpyToTCF : public ConvertNumpyToTCFBase<ConvertNumpyToTCF> {
     OwningRewritePatternList patterns;
     patterns.insert<ConvertBinaryBuiltinUfuncCallOp<tcf::AddOp>>(context,
                                                                  "numpy.add");
-    (void)applyPatternsAndFoldGreedily(func, patterns);
+    (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };
 } // namespace

@@ -37,7 +37,8 @@ llvm::Expected<std::unique_ptr<JITModule>>
 JITModule::fromCompiledModule(mlir::ModuleOp module,
                               llvm::ArrayRef<llvm::StringRef> sharedLibs) {
   auto expectedEngine = ExecutionEngine::create(
-      module, [](llvm::Module *) { return Error::success(); },
+      module, /*llvmModuleBuilder=*/nullptr,
+      /*transformer=*/[](llvm::Module *) { return Error::success(); },
       /*jitCodeGenOptLevel=*/llvm::None, llvm::to_vector<6>(sharedLibs));
   if (!expectedEngine)
     return expectedEngine.takeError();

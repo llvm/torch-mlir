@@ -13,6 +13,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/TCF/IR/TCFOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/IR/TCPOps.h"
@@ -164,8 +165,11 @@ public:
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
-    MLIRContext *context = &getContext();
+    (void)applyPatternsAndFoldGreedily(module, getPatterns());
+  }
 
+  FrozenRewritePatternList getPatterns() {
+    MLIRContext *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<ConvertUnaryElementwise<tcf::ExpOp>,
                     ConvertUnaryElementwise<tcf::TanhOp>>(context);
@@ -173,7 +177,7 @@ public:
                     ConvertBinaryElementwise<tcf::MaxOp>,
                     ConvertBinaryElementwise<tcf::MulOp>>(context);
     patterns.insert<ConvertMatmul>(context);
-    (void)applyPatternsAndFoldGreedily(module, patterns);
+    return std::move(patterns);
   }
 };
 } // namespace

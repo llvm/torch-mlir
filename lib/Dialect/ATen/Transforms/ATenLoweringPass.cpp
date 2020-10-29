@@ -28,6 +28,7 @@
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
@@ -898,7 +899,8 @@ struct ATenLoweringPass : public ATenLoweringBase<ATenLoweringPass> {
       return typeConverter.isSignatureLegal(op.getType());
     });
 
-    if (failed(applyPartialConversion(module, target, acapPatterns))) {
+    if (failed(
+            applyPartialConversion(module, target, std::move(acapPatterns)))) {
       emitError(UnknownLoc::get(context), "error lowering ATen\n");
       signalPassFailure();
     }

@@ -11,7 +11,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Traits.h"
-#include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -23,11 +23,14 @@ class ConvertBasicpyToStd
 public:
   void runOnOperation() {
     FuncOp func = getOperation();
-    MLIRContext *context = &getContext();
+    (void)applyPatternsAndFoldGreedily(func, getPatterns());
+  }
 
+  FrozenRewritePatternList getPatterns() {
+    auto *context = &getContext();
     OwningRewritePatternList patterns;
     populateBasicpyToStdPrimitiveOpPatterns(context, patterns);
-    (void)applyPatternsAndFoldGreedily(func, patterns);
+    return std::move(patterns);
   }
 };
 

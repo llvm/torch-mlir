@@ -15,6 +15,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -277,12 +278,10 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<BufferizeElementwiseOp<tcp::AddOp>,
-                    BufferizeElementwiseOp<tcp::MaxOp>,
-                    BufferizeElementwiseOp<tcp::MulOp>,
-                    BufferizeElementwiseOp<tcp::ExpOp>,
-                    BufferizeElementwiseOp<tcp::TanhOp>>(typeConverter,
-                                                         context);
+    patterns.insert<
+        BufferizeElementwiseOp<tcp::AddOp>, BufferizeElementwiseOp<tcp::MaxOp>,
+        BufferizeElementwiseOp<tcp::MulOp>, BufferizeElementwiseOp<tcp::ExpOp>,
+        BufferizeElementwiseOp<tcp::TanhOp>>(typeConverter, context);
     target.addIllegalOp<tcp::AddOp, tcp::MaxOp, tcp::MulOp>();
     patterns.insert<BufferizeMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
@@ -292,7 +291,7 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalOp<shape::GetExtentOp>();
 
-    if (failed(applyPartialConversion(func, target, patterns)))
+    if (failed(applyPartialConversion(func, target, std::move(patterns))))
       return signalPassFailure();
   }
 };
