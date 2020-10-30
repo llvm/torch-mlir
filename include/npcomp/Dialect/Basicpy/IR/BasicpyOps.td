@@ -242,7 +242,7 @@ def Basicpy_ExecOp : Basicpy_Op<"exec", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result">,
+    OpBuilderDAG<(ins)>,
   ];
   let extraClassDeclaration = [{
     OpBuilder getBodyBuilder() {
@@ -291,7 +291,7 @@ def Basicpy_FuncTemplateCallOp : Basicpy_Op<"func_template_call", []> {
   let verifier = [{ return verifyBasicpyOp(*this); }];
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result">,
+    OpBuilderDAG<(ins)>,
   ];
 }
 
@@ -364,7 +364,7 @@ def Basicpy_FuncTemplateOp : Basicpy_Op<"func_template", [
 
   let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<"OpBuilder &builder, OperationState &result">,
+    OpBuilderDAG<(ins)>,
   ];
   let extraClassDeclaration = [{
     OpBuilder getBodyBuilder() {
