@@ -44,9 +44,6 @@ public:
   // Terminates capture and returns tensors from the function.
   void returns(std::vector<at::Tensor> tensors);
 
-  // Gets and clears the current debug log.
-  std::vector<std::string> getDebugLog();
-
   // Returns the current AcapController (if it has been activated on this
   // thread. Returns nullptr if none (not active on the current thread).
   static std::shared_ptr<AcapController> getCurrentThreadAcapController();
@@ -108,7 +105,6 @@ private:
 
   TypeMapper &typeMapper;
   std::unique_ptr<FuncBuilder> funcBuilder;
-  std::vector<std::string> captureLog;
   bool hasReturned = false;
 };
 

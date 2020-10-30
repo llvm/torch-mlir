@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../pybind.h"
+#include "debug.h"
 
 #include <ATen/core/dispatch/Dispatcher.h>
 
@@ -126,12 +127,13 @@ py::list GetRegisteredOps() {
 }
 
 void InitModuleBindings(py::module &m) {
+  m.def("debug_trace_to_stderr", &enableDebugTraceToStderr);
+
   py::class_<AcapController, std::shared_ptr<AcapController>>(m,
                                                               "AcapController")
       .def("__enter__", &AcapController::contextEnter)
       .def("__exit__", &AcapController::contextExit)
-      .def("returns", &AcapController::returns)
-      .def("get_debug_log", &AcapController::getDebugLog);
+      .def("returns", &AcapController::returns);
   m.def("get_registered_ops", &GetRegisteredOps, kGetRegisteredOpsDocstring);
 
   ModuleBuilder::bind(m);

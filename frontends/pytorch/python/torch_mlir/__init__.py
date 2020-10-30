@@ -6,9 +6,10 @@
 # and binds names locally. It exists to allow for customization of behavior
 # prior to loading shared objects.
 
-from _torch_mlir import ModuleBuilder
+from _torch_mlir import *
 
 
 __all__ = [
+  "debug_trace_to_stderr",
   "ModuleBuilder",
 ]
