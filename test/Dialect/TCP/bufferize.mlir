@@ -21,7 +21,7 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
 // CHECK:           %[[RHS:.*]] = tensor_to_memref %[[RHS_TENSOR]] : memref<?xf32>
 // CHECK:           %[[SHAPE:.*]] = shape.shape_of %[[LHS_TENSOR]] : tensor<?xf32> -> tensor<?xindex>
 // CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[SHAPE]] : memref<?xf32>
-// CHECK:           linalg.generic {indexing_maps = [#map0, #map0, #map0], iterator_types = ["parallel"]} ins(%[[LHS]], %[[RHS]] : memref<?xf32>, memref<?xf32>) outs(%[[RESULT]] : memref<?xf32>) {
+// CHECK:           linalg.generic {indexing_maps = [#map, #map, #map], iterator_types = ["parallel"]} ins(%[[LHS]], %[[RHS]] : memref<?xf32>, memref<?xf32>) outs(%[[RESULT]] : memref<?xf32>) {
 // CHECK:           ^bb0(%[[LHS_SCALR:.*]]: f32, %[[RHS_SCALAR:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[RESULT_SCALAR:.*]] = addf %[[LHS_SCALR]], %[[RHS_SCALAR]] : f32
 // CHECK:             linalg.yield %[[RESULT_SCALAR]] : f32
@@ -41,7 +41,7 @@ func @tcp_add(%arg0: tensor<?xf32>, %arg1: tensor<?xf32>) -> tensor<?xf32> {
 // CHECK:           %[[RHS:.*]] = tensor_to_memref %[[RHS_TENSOR]] : memref<?xf32>
 // CHECK:           %[[SHAPE:.*]] = shape.shape_of %[[LHS_TENSOR]] : tensor<?xf32> -> tensor<?xindex>
 // CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[SHAPE]] : memref<?xf32>
-// CHECK:           linalg.generic {indexing_maps = [#map0, #map0, #map0], iterator_types = ["parallel"]} ins(%[[LHS]], %[[RHS]] : memref<?xf32>, memref<?xf32>) outs(%[[RESULT]] : memref<?xf32>) {
+// CHECK:           linalg.generic {indexing_maps = [#map, #map, #map], iterator_types = ["parallel"]} ins(%[[LHS]], %[[RHS]] : memref<?xf32>, memref<?xf32>) outs(%[[RESULT]] : memref<?xf32>) {
 // CHECK:           ^bb0(%[[LHS_SCALR:.*]]: f32, %[[RHS_SCALAR:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[RESULT_SCALAR:.*]] = mulf %[[LHS_SCALR]], %[[RHS_SCALAR]] : f32
 // CHECK:             linalg.yield %[[RESULT_SCALAR]] : f32
