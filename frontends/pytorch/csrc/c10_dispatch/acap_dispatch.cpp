@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "acap_dispatch.h"
+#include "debug.h"
 
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
@@ -100,8 +101,8 @@ void AcapController::KernelCallBuilder::addOperand(const IValue &value) {
   if (mlirValueIsNull(mlirValue)) {
     std::stringstream out;
     const std::string &kernelName = opHandle.operator_name().name;
-    out << "Unsupported capture value returned from kernel '" << kernelName
-        << "' (" << value.tagKind() << "): " << value;
+    out << "Unsupported capture value passed to kernel '" << kernelName << "' ("
+        << value.tagKind() << "): " << value;
     throw std::invalid_argument(out.str());
   }
   mlirOperationStateAddOperands(state, 1, &mlirValue);
@@ -132,11 +133,6 @@ MlirOperation AcapController::KernelCallBuilder::create() {
     MlirValue result = mlirOperationGetResult(op, it.first);
     parent.funcBuilder->mapTensor(it.second, result);
   }
-
-  // Add to debug log.
-  std::stringstream sout;
-  sout << "CAPTURE: " << opHandle.operator_name().name << "\n";
-  parent.captureLog.push_back(sout.str());
   return op;
 }
 
@@ -178,11 +174,13 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
   for (auto &tensor : tensors) {
     MlirValue v = funcBuilder->lookupTensor(tensor);
     if (mlirValueIsNull(v)) {
+      // Mark returned so that everything that goes into printing an error
+      // message does not capture.
+      hasReturned = true;
       // Exclude recursive dispatch in order to print tensor.
       c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
       std::stringstream msg;
-      msg << "Cannot return a tensor that is not from the capture context: "
-          << tensor;
+      msg << "Cannot return a tensor that is not from the capture context";
       throw std::invalid_argument(msg.str());
     }
 
@@ -197,12 +195,6 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
       s.createOperation());
   funcBuilder->rewriteFuncReturnTypes(returnsTypes);
   hasReturned = true;
-}
-
-std::vector<std::string> AcapController::getDebugLog() {
-  std::vector<std::string> copy;
-  captureLog.swap(copy);
-  return copy;
 }
 
 std::shared_ptr<AcapController>
@@ -241,6 +233,12 @@ at::Tensor AcapController::convolutionKernel(
   auto &dispatcher = c10::Dispatcher::singleton();
   auto opHandle = dispatcher.findOp(opName);
   assert(opHandle && "could not find convolution op");
+  if (isDebugTraceEnabled()) {
+    std::stringstream s;
+    s << "Convolution (unboxed) dispatch: " << opHandle->schema();
+    debugTrace(s.str());
+  }
+
   auto opTyped = opHandle->typed<at::Tensor(
       const at::Tensor &, const at::Tensor &, const c10::optional<at::Tensor> &,
       const at::IntArrayRef, const at::IntArrayRef, const at::IntArrayRef,
@@ -307,6 +305,12 @@ void AcapController::redispatch(const c10::OperatorHandle &opHandle,
 void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
                                         Stack *stack) {
   verifyHasNotReturned();
+  if (isDebugTraceEnabled()) {
+    std::stringstream s;
+    s << "Fallback (boxed) dispatch: " << opHandle.schema();
+    debugTrace(s.str());
+  }
+
   // Exclude recursive dispatch to this kernel.
   c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
 
@@ -352,6 +356,13 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
     return funcBuilder->getScalarConstant(loc, ival.toScalar());
   }
   if (ival.isTensor()) {
+    auto tensor = ival.toTensor();
+    if (!tensor.defined()) {
+      // Optional tensors ("Tensor?" type) are represented as Tensor ivals
+      // that are undefined.
+      return funcBuilder->getNoneConstant(loc);
+    }
+
     // Is it an already mapped tensor?
     MlirValue mappedValue = funcBuilder->lookupTensor(ival.toTensor());
     if (!mlirValueIsNull(mappedValue)) {
@@ -375,6 +386,11 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
     return funcBuilder->buildConstantList(loc, elements);
   }
   if (ival.isNone()) {
+    return funcBuilder->getNoneConstant(loc);
+  }
+  if (ival.isDevice()) {
+    // TODO: Do we need to model/preserve device? Currently, just None'ing
+    // it out.
     return funcBuilder->getNoneConstant(loc);
   }
   return {nullptr};
@@ -415,6 +431,9 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
   if (ival.isNone()) {
     return npcompNoneTypeGet(funcBuilder->getContext());
   }
+  if (ival.isDevice()) {
+    return npcompNoneTypeGet(funcBuilder->getContext());
+  }
   return {nullptr};
 }
 
@@ -438,7 +457,15 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
 
   // Construct the ShapedType.
   auto loc = getCurrentLocation();
-  MlirType elementType = typeMapper.mapScalarType(tensor.scalar_type());
+  MlirType elementType;
+  if (tensor.scalar_type() == ScalarType::Bool) {
+    // Bool is a special case. When used as an element type, it must be i1.
+    // The generalized (non-Tensor) conversion, assumes that Bool is the
+    // Basicpy bool type.
+    elementType = mlirIntegerTypeGet(funcBuilder->getContext(), 1);
+  } else {
+    elementType = typeMapper.mapScalarType(tensor.scalar_type());
+  }
   llvm::SmallVector<int64_t, 4> shape(tensor.sizes().begin(),
                                       tensor.sizes().end());
   MlirType shapedType = mlirRankedTensorTypeGetChecked(
@@ -469,6 +496,11 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   case ScalarType::Double:
     valueAttribute = mlirDenseElementsAttrDoubleGet(
         shapedType, numElements, static_cast<const double *>(tensorData));
+    break;
+  case ScalarType::Bool:
+    // TODO: Cast of tensorData to int* is almost certainly not correct.
+    valueAttribute = mlirDenseElementsAttrBoolGet(
+        shapedType, numElements, static_cast<const int *>(tensorData));
     break;
   default:
     throwUnsupportedTensorError();

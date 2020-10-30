@@ -9,6 +9,7 @@ include_directories(
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 add_library(npcomp_torch_c10_dispatch_bindings
   acap_dispatch.cpp
+  debug.cpp
   func_builder.cpp
   module_builder.cpp
   python_bindings.cpp
