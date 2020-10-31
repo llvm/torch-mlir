@@ -44,11 +44,13 @@ static c10::DispatchKey kAcapGradDispatchKey =
 
 AcapController::KernelCallBuilder::KernelCallBuilder(
     AcapController &parent, MlirContext context, MlirLocation loc,
-    const c10::OperatorHandle &opHandle)
+    const c10::OperatorHandle &opHandle,
+    llvm::Optional<std::string> overrideKernelName)
     : parent(parent), context(context), loc(loc), opHandle(opHandle),
       state("torch.kernel_call", loc) {
   (void)this->context; // Preserve for future.
-  const std::string &kernelName = opHandle.operator_name().name;
+  const std::string &kernelName =
+      overrideKernelName ? *overrideKernelName : opHandle.operator_name().name;
   MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
       "kernelName",
       mlirStringAttrGet(context, kernelName.size(), kernelName.data()));
@@ -284,6 +286,121 @@ at::Tensor AcapController::convolutionKernel(
   auto result = opTyped.callWithDispatchKey(
       c10::DispatchKey::AutogradOther, input, weight, bias, stride, padding,
       dilation, transposed, output_padding, groups);
+  callBuilder.addResult(result);
+  callBuilder.create();
+  return result;
+}
+
+std::tuple<at::Tensor, at::Tensor, at::Tensor>
+AcapController::mklConvolutionBackward(
+    const at::Tensor &input, const at::Tensor &grad_output,
+    const at::Tensor &weight, const at::IntArrayRef padding,
+    const at::IntArrayRef stride, const at::IntArrayRef dilation,
+    const int64_t groups, std::array<bool, 3> output_mask) {
+  static c10::OperatorName opName{"aten::mkldnn_convolution_backward", ""};
+  auto &dispatcher = c10::Dispatcher::singleton();
+  auto opHandle = dispatcher.findOp(opName);
+  assert(opHandle && "could not find mkldnn_convolution_backward op");
+  if (isDebugTraceEnabled()) {
+    std::stringstream s;
+    s << "mkldnn_convolution_backward dispatch: " << opHandle->schema();
+    debugTrace(s.str());
+  }
+
+  auto opTyped = opHandle->typed<std::tuple<at::Tensor, at::Tensor, at::Tensor>(
+      const at::Tensor &input, const at::Tensor &grad_output,
+      const at::Tensor &weight, const at::IntArrayRef padding,
+      const at::IntArrayRef stride, const at::IntArrayRef dilation,
+      const int64_t groups, std::array<bool, 3> output_mask)>();
+
+  // Exclude recursive calls: convolution is completely emitted by this
+  // kernel.
+  c10::DispatchKeySet keySet{kAcapDispatchKey, kAcapGradDispatchKey};
+  c10::impl::ExcludeDispatchKeyGuard exclusion(keySet);
+
+  auto current = getCurrentThreadAcapController();
+  if (!current) {
+    return opTyped.callWithDispatchKey(c10::DispatchKey::AutogradOther, input,
+                                       grad_output, weight, padding, stride,
+                                       dilation, groups, output_mask);
+  }
+
+  // Emit the call as if to aten::convolution_overridable, the generic, full
+  // parameterized versions that backends are supposed to implement.
+  // Requires some parameter swizzling.
+  // It has the signature:
+  // convolution_backward_overrideable(Tensor grad_output, Tensor input,
+  //   Tensor weight, int[] stride, int[] padding, int[] dilation,
+  //   bool transposed, int[] output_padding, int groups,
+  //   bool[3] output_mask) ->
+  //     (Tensor grad_input, Tensor grad_weight, Tensor grad_bias)
+  MlirContext context = current->funcBuilder->getContext();
+  MlirLocation loc = current->getCurrentLocation();
+  std::string kernelName{"aten::convolution_backward"};
+  static c10::OperatorName emitOpName{"aten::convolution_backward_overrideable",
+                                      ""};
+  auto emitOpHandle = dispatcher.findOp(emitOpName);
+  assert(emitOpHandle && "could not find convolution_backward_overrideable op");
+  KernelCallBuilder callBuilder{*current, context, loc, *emitOpHandle,
+                                kernelName};
+
+  callBuilder.addOperand(IValue(grad_output));
+  callBuilder.addOperand(IValue(input));
+  callBuilder.addOperand(IValue(weight));
+  callBuilder.addOperand(IValue(stride));
+  callBuilder.addOperand(IValue(padding));
+  callBuilder.addOperand(IValue(dilation));
+  callBuilder.addOperand(IValue(false));
+  std::vector<int64_t> output_padding(padding.size()); // Not provided.
+  callBuilder.addOperand(IValue(at::IntArrayRef(output_padding)));
+  callBuilder.addOperand(IValue(groups));
+  callBuilder.addOperand(IValue(output_mask));
+
+  auto results = opTyped.callWithDispatchKey(
+      c10::DispatchKey::AutogradCPU, input, grad_output, weight, padding,
+      stride, dilation, groups, output_mask);
+
+  callBuilder.addResult(std::get<0>(results));
+  callBuilder.addResult(std::get<1>(results));
+  callBuilder.addResult(std::get<2>(results));
+  callBuilder.create();
+  return results;
+}
+
+at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
+                                            const at::Tensor &src,
+                                            bool non_blocking) {
+  static c10::OperatorName opName{"aten::copy_", ""};
+  auto &dispatcher = c10::Dispatcher::singleton();
+  auto opHandle = dispatcher.findOp(opName);
+  assert(opHandle && "could not find copy_ op");
+  if (isDebugTraceEnabled()) {
+    std::stringstream s;
+    s << "copy_ dispatch: " << opHandle->schema();
+    debugTrace(s.str());
+  }
+
+  auto opTyped = opHandle->typed<at::Tensor &(
+      at::Tensor & self, const at::Tensor &src, bool non_blocking)>();
+
+  // Exclude recursive calls.
+  c10::DispatchKeySet keySet{kAcapDispatchKey, kAcapGradDispatchKey};
+  c10::impl::ExcludeDispatchKeyGuard exclusion(keySet);
+
+  auto current = getCurrentThreadAcapController();
+  if (!current) {
+    return opTyped.callWithDispatchKey(c10::DispatchKey::AutogradOther, self,
+                                       src, non_blocking);
+  }
+
+  MlirContext context = current->funcBuilder->getContext();
+  MlirLocation loc = current->getCurrentLocation();
+  KernelCallBuilder callBuilder{*current, context, loc, *opHandle};
+
+  callBuilder.addOperand(IValue(self));
+  callBuilder.addOperand(IValue(src));
+  auto &result = opTyped.callWithDispatchKey(c10::DispatchKey::CPU, self, src,
+                                             non_blocking);
   callBuilder.addResult(result);
   callBuilder.create();
   return result;
@@ -530,6 +647,10 @@ TORCH_LIBRARY_IMPL(_, ACAP_DISPATCH_KEY, m) {
              &AcapController::fallbackKernel>());
 }
 
+TORCH_LIBRARY_IMPL(aten, ACAP_DISPATCH_KEY, m) {
+  m.impl("copy_", &AcapController::copyUnderKernel);
+}
+
 TORCH_LIBRARY_IMPL(aten, ACAP_GRAD_DISPATCH_KEY, m) {
   // The at::convolution op is special in several ways. First, it presently
   // does not support boxing, so all of the usual fanciness does not apply
@@ -550,4 +671,18 @@ TORCH_LIBRARY_IMPL(aten, ACAP_GRAD_DISPATCH_KEY, m) {
   // in a more appropriate way, but as the core of what the framework is,
   // perhaps people are reticent to touch it. Maybe someday, this can go away.
   m.impl_UNBOXED("convolution", &AcapController::convolutionKernel);
+
+  // Sadly, there is no easy intercept point for the backwards convolution
+  // kernel which allows for chaining to an existing backend. And convolution
+  // is exceptionally special cased in this way, moreso than other ops.
+  // The "solution" is to intercept the backend specific backward convolution
+  // ops, emit it with the signature of the more generic
+  // "convolution_backward_overrideable" op, which is available for generic
+  // backends, and twiddle the parameters needed to get back to that form.
+  // For MKL, which is effectively the CPU implementation, this just means that
+  // some parameters are swapped and the full generality is not supported.
+  // The "right" answer at some point is probably just to implement a
+  // convolution kernel that fully does what is needed and delegates to an
+  // appropriate implementation behind the scenes.
+  m.impl("mkldnn_convolution_backward", AcapController::mklConvolutionBackward);
 }

@@ -60,12 +60,25 @@ public:
                     const at::IntArrayRef dilation, const bool transposed,
                     const at::IntArrayRef output_padding, const int64_t groups);
 
+  // Kernel implementation for the boxing-incompatible convolution kernel.
+  static std::tuple<at::Tensor, at::Tensor, at::Tensor> mklConvolutionBackward(
+      const at::Tensor &input, const at::Tensor &grad_output,
+      const at::Tensor &weight, const at::IntArrayRef padding,
+      const at::IntArrayRef stride, const at::IntArrayRef dilation,
+      const int64_t groups, std::array<bool, 3> output_mask);
+
+  // Implementation for the aten::copy_ kernel.
+  static at::Tensor &copyUnderKernel(at::Tensor &self, const at::Tensor &src,
+                                     bool non_blocking);
+
 private:
   /// Builds a kernel call step by step.
   class KernelCallBuilder {
   public:
-    KernelCallBuilder(AcapController &parent, MlirContext context,
-                      MlirLocation loc, const c10::OperatorHandle &opHandle);
+    KernelCallBuilder(
+        AcapController &parent, MlirContext context, MlirLocation loc,
+        const c10::OperatorHandle &opHandle,
+        llvm::Optional<std::string> overrideKernelName = llvm::None);
     void addOperand(const c10::IValue &value);
     void addResult(const c10::IValue &result);
     MlirOperation create();

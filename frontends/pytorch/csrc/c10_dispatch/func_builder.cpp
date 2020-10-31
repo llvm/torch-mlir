@@ -58,8 +58,11 @@ MlirType TypeMapper::mapScalarType(c10::ScalarType scalarType) {
 }
 
 MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
-  if (!tensor.defined())
-    throw std::invalid_argument("Tensor is not defined");
+  if (!tensor.defined()) {
+    // Undefined tensors are equivalent to None.
+    // This may need to be re-evaluated at some point.
+    return npcompNoneTypeGet(context);
+  }
 
   MlirType elementType = mapScalarType(tensor.scalar_type());
   // TODO: Decide when it is necessary to take strides into account. Right now,
