@@ -14,7 +14,6 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"

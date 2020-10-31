@@ -15,7 +15,6 @@
 #include "mlir/IR/Module.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
