@@ -131,11 +131,9 @@ public:
   /// attribute.
   MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
 
-  /// Builds a list with the given elements (derived from constants).
-  /// The resulting list is inserted into the "constant section" of the
-  /// function.
-  MlirValue buildConstantList(MlirLocation loc,
-                              llvm::SmallVectorImpl<MlirValue> &elements);
+  /// Builds a list with the given elements
+  MlirValue buildList(MlirLocation loc,
+                      llvm::SmallVectorImpl<MlirValue> &elements);
 
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,

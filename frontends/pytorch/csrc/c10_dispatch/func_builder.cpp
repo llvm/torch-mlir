@@ -190,12 +190,13 @@ MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
 }
 
 MlirValue
-FuncBuilder::buildConstantList(MlirLocation loc,
-                               llvm::SmallVectorImpl<MlirValue> &elements) {
+FuncBuilder::buildList(MlirLocation loc,
+                       llvm::SmallVectorImpl<MlirValue> &elements) {
   MlirType resultType = npcompListTypeGet(context);
   OperationStateHolder state{"basicpy.build_list", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
   mlirOperationStateAddOperands(state, elements.size(), elements.data());
   MlirOperation op = state.createOperation();
-  return insertConstantOp(op);
+  entryBlock.insertBeforeTerminator(op);
+  return mlirOperationGetResult(op, 0);
 }

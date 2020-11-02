@@ -500,7 +500,7 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
     for (IValue element : list) {
       elements.push_back(mapIValueToMlirValue(loc, element));
     }
-    return funcBuilder->buildConstantList(loc, elements);
+    return funcBuilder->buildList(loc, elements);
   }
   if (ival.isNone()) {
     return funcBuilder->getNoneConstant(loc);
