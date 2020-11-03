@@ -95,6 +95,7 @@ cmake -GNinja \
   "-H$td" \
   "-B$build_dir" \
   "-DCMAKE_BUILD_TYPE=Debug" \
+  "-DNPCOMP_USE_SPLIT_DWARF=ON" \
   "-DCMAKE_CXX_FLAGS_DEBUG=$DEBUG_FLAGS" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \

@@ -94,6 +94,10 @@ git submodule update
 LLVM_VERSION=10
 export CC=clang-$LLVM_VERSION
 export CXX=clang++-$LLVM_VERSION
+# If compiling on a new OS that defaults to the CXX11 ABI (i.e. Ubuntu >= 20.04)
+# and looking to use binary installs from the PyTorch website, you must build
+# without the CXX11 ABI.
+export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
 export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 
 # Build and install LLVM/MLIR into the ./install-mlir directory
@@ -116,7 +120,16 @@ ninja check-npcomp
 export PYTHONPATH="$(realpath python):$(realpath build/python)"
 ```
 
-### PyTorch Frontend Build (manual docker instructions)
+### PyTorch Frontend (with PyTorch installed via conda)
+
+```shell
+# See note above about -D_GLIBCXX_USE_CXX11_ABI=0
+./build_tools/cmake_configure.sh \
+  -DCMAKE_PREFIX_PATH=$CONDA_PREFIX/lib/python3.8/site-packages/torch/share/cmake/Torch
+cmake --build build --target check-npcomp check-frontends-pytorch
+```
+
+### PyTorch Frontend (via docker container)
 
 Create docker image (or follow your own preferences):
 

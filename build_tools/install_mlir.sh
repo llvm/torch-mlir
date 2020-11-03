@@ -32,7 +32,6 @@ function probe_python() {
   local command
   command="import sys
 if sys.version_info.major >= 3: print(sys.executable)"
-  set +e
   found="$("$python_exe" -c "$command")"
   if ! [ -z "$found" ]; then
     echo "$found"
@@ -67,6 +66,7 @@ cmake -GNinja \
   -DLLVM_INCLUDE_TOOLS=ON \
   "-DCMAKE_INSTALL_PREFIX=$install_mlir" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DLLVM_USE_SPLIT_DWARF=ON \
   -DLLVM_ENABLE_ASSERTIONS=On \
   -DLLVM_ENABLE_RTTI=On \
   -DMLIR_BINDINGS_PYTHON_ENABLED=ON

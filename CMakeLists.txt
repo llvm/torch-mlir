@@ -31,6 +31,17 @@ option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
 set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
+# Turn on -gsplit-dwarf if requested in debug builds.
+if (NPCOMP_USE_SPLIT_DWARF AND
+    ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR
+     (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
+  # Limit to clang and gcc so far. Add compilers supporting this option.
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
+      CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-gsplit-dwarf)
+  endif()
+endif()
+
 #-------------------------------------------------------------------------------
 # MSVC defaults
 #-------------------------------------------------------------------------------
