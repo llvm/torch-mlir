@@ -170,40 +170,6 @@ std::map<std::string, uint64_t> BatchNormOp::getStatistics() {
   return toReturn;
 }
 
-// _convolution
-std::map<std::string, uint64_t> ConvolutionOp::getStatistics() {
-  return getConv2dStatistics(this, /*groups*/ 1);
-}
-std::map<std::string, uint64_t> ConvolutionOverrideableOp::getStatistics() {
-  // FIXME
-  auto co = cast<mlir::NPCOMP::aten::ConstantOp>(groups().getDefiningOp());
-  auto ia = co.template getAttrOfType<IntegerAttr>("value");
-  uint64_t groups = ia.getValue().getZExtValue();
-
-  return getConv2dStatistics(this, groups);
-}
-
-uint64_t ConvolutionOp::getOperandTransferVolume(unsigned int idx, bool read) {
-  return getConv2dOperandTransferVolume<ConvolutionOp>(this, idx, read);
-}
-
-uint64_t ConvolutionOp::getResultTransferVolume(unsigned int idx, bool write) {
-  return getConv2dResultTransferVolume<ConvolutionOp>(this, idx, write);
-}
-
-// _convolution_backward
-std::map<std::string, uint64_t> ConvolutionBackwardOp::getStatistics() {
-  return getConv2dBackwardStatistics(*this, 1);
-}
-std::map<std::string, uint64_t>
-ConvolutionBackwardOverrideableOp::getStatistics() {
-  auto co = cast<mlir::NPCOMP::aten::ConstantOp>(groups().getDefiningOp());
-  auto ia = co.template getAttrOfType<IntegerAttr>("value");
-  uint64_t groups = ia.getValue().getZExtValue();
-
-  return getConv2dBackwardStatistics(*this, groups);
-}
-
 // div_
 std::map<std::string, uint64_t> DivUnderOp::getStatistics() {
 
@@ -556,35 +522,6 @@ std::map<std::string, uint64_t> NativeBatchNormBackwardOp::getStatistics() {
   toReturn["reads"] = reads;
   toReturn["writes"] = writes;
 
-  return toReturn;
-}
-
-std::map<std::string, uint64_t> NllLossForwardOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  // FIXME: unimplemented
-  toReturn["reads"] = -1;
-  toReturn["writes"] = -1;
-  return toReturn;
-}
-std::map<std::string, uint64_t> NllLossBackwardOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  // FIXME: unimplemented
-  toReturn["reads"] = -1;
-  toReturn["writes"] = -1;
-  return toReturn;
-}
-std::map<std::string, uint64_t> NllLoss2dForwardOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  // FIXME: unimplemented
-  toReturn["reads"] = -1;
-  toReturn["writes"] = -1;
-  return toReturn;
-}
-std::map<std::string, uint64_t> NllLoss2dBackwardOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  // FIXME: unimplemented
-  toReturn["reads"] = -1;
-  toReturn["writes"] = -1;
   return toReturn;
 }
 

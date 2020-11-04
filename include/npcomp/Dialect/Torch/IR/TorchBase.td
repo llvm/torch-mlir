@@ -72,6 +72,11 @@ def AnyTorchImmutableTensor : AnyTypeOf<[
     AnyTensor,
   ], "allowable torch immutable tensor">;
 
+def AnyTorchOptionalImmutableTensor : AnyTypeOf<[
+  AnyTorchImmutableTensor,
+  Basicpy_NoneType,
+], "allowable torch immutable tensor (or None)">;
+
 def AnyTorchMutableTensor : AnyTypeOf<[
     // "Numpy-style" mutable NDArray. While not offering the full generality
     // of a Torch tensor, it models the same access patterns and implies the
@@ -95,7 +100,28 @@ def AnyTorchScalarType : AnyTypeOf<[
     AnySignlessInteger,
   ], "Any primitive type suitable to be passed as a Torch Scalar">;
 
+def AnyTorchBoolType : AnyTypeOf<[
+    I1,
+    Basicpy_BoolType,
+], "Any permissible bool type">;
+
+def AnyTorchBoolListType : AnyTypeOf<[
+    Basicpy_ListType,
+    // TODO: Support typed list when available.
+], "Any bool list type (bool[])">;
+
+def AnyTorchIntType : AnyTypeOf<[
+    AnySignedInteger,
+    AnySignlessInteger,
+], "Any primitive integer type suitable to be passed as a Torch 'int'">;
+
+def AnyTorchIntListType : AnyTypeOf<[
+    Basicpy_ListType,
+    // TODO: Support typed list when available.
+], "Any int list type (int[])">;
+
 def AnyTorchType : AnyTypeOf<[
+    AnyTorchBoolType,
     AnyTorchScalarType,
     AnyTorchTensorType,
     Basicpy_ListType,

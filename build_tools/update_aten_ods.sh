@@ -11,4 +11,5 @@ export PYTHONPATH="${build_dir}/python"
 
 python -m torch_mlir_utils.codegen.torch_signature_ods_gen \
   --ods_td_file="${aten_dir}/GeneratedATenOps.td" \
-  --ods_impl_file="${aten_dir}/GeneratedATenOps.cpp.inc"
+  --ods_impl_file="${aten_dir}/GeneratedATenOps.cpp.inc" \
+  --debug_op_reg_file="${aten_dir}/ATenOpRegistrations.txt"

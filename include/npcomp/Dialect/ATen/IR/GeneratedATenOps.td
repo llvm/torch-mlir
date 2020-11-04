@@ -450,3 +450,147 @@ def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
+// -----------------------------------------------------------------------------
+// NN ops
+// -----------------------------------------------------------------------------
+
+def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::convolution_overrideable";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$input,
+    AnyTorchImmutableTensor:$weight,
+    AnyTorchOptionalImmutableTensor:$bias,
+    AnyTorchIntListType:$stride,
+    AnyTorchIntListType:$padding,
+    AnyTorchIntListType:$dilation,
+    AnyTorchBoolType:$transposed,
+    AnyTorchIntListType:$output_padding,
+    AnyTorchIntType:$groups
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_ConvolutionBackwardOp: aten_Op<"convolution_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::convolution_backward_overrideable";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$grad_output,
+    AnyTorchImmutableTensor:$input,
+    AnyTorchImmutableTensor:$weight,
+    AnyTorchIntListType:$stride,
+    AnyTorchIntListType:$padding,
+    AnyTorchIntListType:$dilation,
+    AnyTorchBoolType:$transposed,
+    AnyTorchIntListType:$output_padding,
+    AnyTorchIntType:$groups,
+    AnyTorchBoolListType:$output_mask
+  );
+  let results = (outs
+    AnyTorchOptionalImmutableTensor:$grad_input,
+    AnyTorchOptionalImmutableTensor:$grad_weight,
+    AnyTorchOptionalImmutableTensor:$grad_bias
+  );
+}
+
+def aten_LogSoftmaxOp: aten_Op<"log_softmax", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::_log_softmax";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchIntType:$dim,
+    AnyTorchBoolType:$half_to_float
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_LogSoftmaxBackwardDataOp: aten_Op<"log_softmax_backward_data", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::_log_softmax_backward_data";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$grad_output,
+    AnyTorchImmutableTensor:$output,
+    AnyTorchIntType:$dim,
+    AnyTorchImmutableTensor:$self
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Loss function ops
+// -----------------------------------------------------------------------------
+
+def aten_NllLossForwardOp: aten_Op<"nll_loss_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::nll_loss_forward";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$target,
+    AnyTorchOptionalImmutableTensor:$weight,
+    AnyTorchIntType:$reduction,
+    AnyTorchIntType:$ignore_index
+  );
+  let results = (outs
+    AnyTorchImmutableTensor:$output,
+    AnyTorchImmutableTensor:$total_weight
+  );
+}
+
+def aten_NllLossBackwardOp: aten_Op<"nll_loss_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::nll_loss_backward";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$grad_output,
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$target,
+    AnyTorchOptionalImmutableTensor:$weight,
+    AnyTorchIntType:$reduction,
+    AnyTorchIntType:$ignore_index,
+    AnyTorchImmutableTensor:$total_weight
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_NllLoss2dForwardOp: aten_Op<"nll_loss2d_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::nll_loss2d_forward";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$target,
+    AnyTorchOptionalImmutableTensor:$weight,
+    AnyTorchIntType:$reduction,
+    AnyTorchIntType:$ignore_index
+  );
+  let results = (outs
+    AnyTorchImmutableTensor:$output,
+    AnyTorchImmutableTensor:$total_weight
+  );
+}
+
+def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::nll_loss2d_backward";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$grad_output,
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$target,
+    AnyTorchOptionalImmutableTensor:$weight,
+    AnyTorchIntType:$reduction,
+    AnyTorchIntType:$ignore_index,
+    AnyTorchImmutableTensor:$total_weight
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::copy_";
+  let arguments = (ins
+    AnyTorchMutableTensor:$self,
+    AnyTorchImmutableTensor:$src
+  );
+  let results = (outs
+  );
+}
+

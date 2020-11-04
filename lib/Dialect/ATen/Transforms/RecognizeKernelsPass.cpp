@@ -12,6 +12,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "npcomp/Dialect/ATen/Transforms/Passes.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
@@ -27,6 +28,14 @@ using namespace mlir::NPCOMP::aten;
 using namespace mlir::NPCOMP::Torch;
 
 namespace {
+
+bool isTorchTensorType(StringRef torchType) {
+  return torchType == "Tensor" || torchType == "Tensor?";
+}
+
+bool isTorchOptionalType(StringRef torchType) {
+  return torchType.endswith("?");
+}
 
 struct TypeConversion {
   Type targetType;
@@ -49,8 +58,14 @@ convertTorchArgType(StringRef sourceTorchType, StringRef targetTorchType,
   // Immutable tensor conversion.
   if (flag & KVC::kImmutableTensor) {
     // TODO: Support the kPromoteScalar flag.
-    if (sourceTorchType != "Tensor" || targetTorchType != "Tensor")
+    if (!isTorchTensorType(sourceTorchType) ||
+        !isTorchTensorType(targetTorchType))
       return None;
+
+    // If the target is optional and the type is NoneType, passthrough.
+    if (isTorchOptionalType(targetTorchType) &&
+        sourceMlirType.isa<Basicpy::NoneType>())
+      return TypeConversion{sourceMlirType, nullptr};
 
     // Already immutable.
     if (sourceMlirType.isa<TensorType>())
@@ -86,30 +101,51 @@ convertTorchReturnType(StringRef sourceTorchType, StringRef targetTorchType,
                        Type sourceMlirType) {
   using KVC = KernelValueConversion::BitMask;
   // Default trivial case.
-  if (sourceTorchType == targetTorchType && flag == 0)
+  if (sourceTorchType == targetTorchType && flag == 0) {
+    LLVM_DEBUG(llvm::dbgs() << "      * Return types already match\n");
     return TypeConversion{sourceMlirType, nullptr};
+  }
 
   // Immutable tensor conversion.
   if (flag & KVC::kImmutableTensor) {
-    if (sourceTorchType != "Tensor" || targetTorchType != "Tensor")
+    LLVM_DEBUG(llvm::dbgs()
+               << "      * Return conversion flag kImmutableTensor\n");
+    if (!isTorchTensorType(sourceTorchType) ||
+        !isTorchTensorType(targetTorchType)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "      * Source or target not a Tensor type\n");
       return None;
+    }
 
     // Already immutable.
-    if (sourceMlirType.isa<TensorType>())
+    if (sourceMlirType.isa<TensorType>()) {
+      LLVM_DEBUG(llvm::dbgs() << "      * Source is already immutable\n");
       return TypeConversion{sourceMlirType, nullptr};
+    }
 
     // Convert NdArray type.
-    if (auto ndArrayType = sourceMlirType.dyn_cast<Numpy::NdArrayType>()) {
+    if (sourceMlirType.isa<Basicpy::NoneType>() &&
+        isTorchOptionalType(targetTorchType)) {
+      LLVM_DEBUG(llvm::dbgs() << "      * None Tensor type passthrough\n");
+      return TypeConversion{sourceMlirType, nullptr};
+    } else if (auto ndArrayType =
+                   sourceMlirType.dyn_cast<Numpy::NdArrayType>()) {
       auto tensorType = ndArrayType.toTensorType();
       auto callback = [=](Location loc, Value newOpResultValue,
                           PatternRewriter &rewriter) -> Value {
         return rewriter.create<Numpy::CreateArrayFromTensorOp>(
             loc, ndArrayType, newOpResultValue);
       };
+      LLVM_DEBUG(llvm::dbgs() << "      * Convert return type\n");
       return TypeConversion{tensorType, callback};
+    } else {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "      * Return type is not a supported tensor type\n");
+      return None;
     }
   }
 
+  LLVM_DEBUG(llvm::dbgs() << "      * Return type conversion fallthrough\n");
   return None;
 }
 
@@ -142,9 +178,16 @@ public:
                              const BuildKernelMetadata &buildMetadata) {
     LLVM_DEBUG(llvm::dbgs()
                << "Register kernel call translation for: " << opName << "\n");
-    CandidateTransformList &candidates =
-        kernelTransforms[buildMetadata.kernelName];
-    candidates.emplace_back(opName, buildMetadata);
+    {
+      CandidateTransformList &candidates =
+          kernelTransforms[buildMetadata.kernelName];
+      candidates.emplace_back(opName, buildMetadata);
+    }
+
+    for (StringRef aliasKernelName : buildMetadata.aliasKernelNames) {
+      CandidateTransformList &candidates = kernelTransforms[aliasKernelName];
+      candidates.emplace_back(opName, buildMetadata);
+    }
   }
 
   LogicalResult transformKernelCall(KernelCallOp kernelCall,
@@ -229,6 +272,8 @@ public:
              "arg arity mismatch");
 
     // Convert fixed return types.
+    using PostConversionCallback = std::function<void()>;
+    SmallVector<PostConversionCallback, 4> postConversionCallbacks;
     struct ConversionInfo {
       Value originalValue;
       TypeConversion conversion;
@@ -241,25 +286,49 @@ public:
       KVC flag = candidate.buildMetadata.getReturnConversion(i);
       Value sourceValue = kernelCall.getResult(i);
       Type sourceMlirType = kernelCall.getResultTypes()[i];
-      auto conversion = convertTorchReturnType(sourceTorchType, targetTorchType,
-                                               flag, sourceMlirType);
-      if (!conversion) {
-        LLVM_DEBUG(llvm::dbgs() << "    - Return type[" << i
-                                << "] incompatible: source=" << sourceTorchType
-                                << ", target=" << targetTorchType
-                                << ", flag=" << flag << "\n");
-        return failure();
+      if (flag & KVC::kDropReturnAndAliasArg0) {
+        // Reduce result arity and alias any uses to arg0.
+        if (kernelCall.args().empty()) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "    - Cannot alias arg0 (no arguments)\n");
+          return failure();
+        }
+        Value arg0 = kernelCall.args()[0];
+        postConversionCallbacks.push_back(
+            [sourceValue, arg0]() { sourceValue.replaceAllUsesWith(arg0); });
+      } else {
+        // General, arity-preserving type conversion.
+        auto conversion = convertTorchReturnType(
+            sourceTorchType, targetTorchType, flag, sourceMlirType);
+        if (!conversion) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << "    - Return type[" << i << "] incompatible: source="
+                     << sourceTorchType << ", target=" << targetTorchType
+                     << ", flag=" << flag << "\n");
+          return failure();
+        }
+        resultTypes.push_back(conversion->targetType);
+        resultConversions.push_back({sourceValue, std::move(*conversion)});
       }
-      resultTypes.push_back(conversion->targetType);
-      resultConversions.push_back({sourceValue, std::move(*conversion)});
     }
 
     // Convert fixed arg types.
     SmallVector<ConversionInfo, 4> operandInfos;
-    for (size_t i = 0; i < fixedArgArity; ++i) {
+    for (size_t i = 0, operandIndex = 0; i < fixedArgArity; ++i) {
+      // Drop this arg?
+      if (candidate.buildMetadata.argConversions[i] & KVC::kDrop)
+        continue;
+      if (kernelCall.getNumOperands() <= operandIndex) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "    - Arg operand " << i
+                   << " does not exist in kernel call (missing default?)\n");
+        return failure();
+      }
+
+      // Normal type conversion of the operand.
       operandInfos.emplace_back();
       ConversionInfo &info = operandInfos.back();
-      info.originalValue = kernelCall.getOperand(i);
+      info.originalValue = kernelCall.getOperand(operandIndex++);
       Type sourceMlirType = info.originalValue.getType();
       auto conversion = convertTorchArgType(
           /*sourceTorchType=*/sourceMetadata.argTypes[i],
@@ -311,6 +380,10 @@ public:
       }
       origOpResultValue.replaceAllUsesWith(convertedValue);
     }
+
+    // Post conversion callbacks.
+    for (auto &callback : postConversionCallbacks)
+      callback();
 
     // Done.
     rewriter.eraseOp(kernelCall);

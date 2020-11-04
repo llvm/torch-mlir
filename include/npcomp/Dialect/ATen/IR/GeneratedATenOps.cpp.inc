@@ -37,6 +37,7 @@ const Torch::BuildKernelMetadata &AddOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata Atan2Op::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -55,6 +56,7 @@ const Torch::BuildKernelMetadata &Atan2Op::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata DivOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -73,6 +75,7 @@ const Torch::BuildKernelMetadata &DivOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata FloorDivideOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -91,6 +94,7 @@ const Torch::BuildKernelMetadata &FloorDivideOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata MulOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -109,6 +113,7 @@ const Torch::BuildKernelMetadata &MulOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata RemainderOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -127,6 +132,7 @@ const Torch::BuildKernelMetadata &RemainderOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata TrueDivideOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -145,6 +151,7 @@ const Torch::BuildKernelMetadata &TrueDivideOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 // -----------------------------------------------------------------------------
 // Unary arithmetic ops
 // -----------------------------------------------------------------------------
@@ -167,6 +174,7 @@ const Torch::BuildKernelMetadata &AbsOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata AcosOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -185,6 +193,7 @@ const Torch::BuildKernelMetadata &AcosOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata AngleOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -203,6 +212,7 @@ const Torch::BuildKernelMetadata &AngleOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata AsinOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -221,6 +231,7 @@ const Torch::BuildKernelMetadata &AsinOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata AtanOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -239,6 +250,7 @@ const Torch::BuildKernelMetadata &AtanOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata CeilOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -257,6 +269,7 @@ const Torch::BuildKernelMetadata &CeilOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ConjOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -275,6 +288,7 @@ const Torch::BuildKernelMetadata &ConjOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata CosOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -293,6 +307,7 @@ const Torch::BuildKernelMetadata &CosOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata CoshOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -311,6 +326,7 @@ const Torch::BuildKernelMetadata &CoshOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata DigammaOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -329,6 +345,7 @@ const Torch::BuildKernelMetadata &DigammaOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ErfOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -347,6 +364,7 @@ const Torch::BuildKernelMetadata &ErfOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ErfcOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -365,6 +383,7 @@ const Torch::BuildKernelMetadata &ErfcOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ErfinvOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -383,6 +402,7 @@ const Torch::BuildKernelMetadata &ErfinvOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ExpOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -401,6 +421,7 @@ const Torch::BuildKernelMetadata &ExpOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata Expm1Op::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -419,6 +440,7 @@ const Torch::BuildKernelMetadata &Expm1Op::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata FloorOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -437,6 +459,7 @@ const Torch::BuildKernelMetadata &FloorOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata FracOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -455,6 +478,7 @@ const Torch::BuildKernelMetadata &FracOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata LgammaOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -473,6 +497,7 @@ const Torch::BuildKernelMetadata &LgammaOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata LogOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -491,6 +516,7 @@ const Torch::BuildKernelMetadata &LogOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata Log10Op::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -509,6 +535,7 @@ const Torch::BuildKernelMetadata &Log10Op::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata Log1pOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -527,6 +554,7 @@ const Torch::BuildKernelMetadata &Log1pOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata Log2Op::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -545,6 +573,7 @@ const Torch::BuildKernelMetadata &Log2Op::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata NegOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -563,6 +592,7 @@ const Torch::BuildKernelMetadata &NegOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ReluOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -581,6 +611,7 @@ const Torch::BuildKernelMetadata &ReluOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata ReciprocalOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -599,6 +630,7 @@ const Torch::BuildKernelMetadata &ReciprocalOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata RoundOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -617,6 +649,7 @@ const Torch::BuildKernelMetadata &RoundOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata RsqrtOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -635,6 +668,7 @@ const Torch::BuildKernelMetadata &RsqrtOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata SigmoidOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -653,6 +687,7 @@ const Torch::BuildKernelMetadata &SigmoidOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata SignOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -671,6 +706,7 @@ const Torch::BuildKernelMetadata &SignOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata SinOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -689,6 +725,7 @@ const Torch::BuildKernelMetadata &SinOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata SinhOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -707,6 +744,7 @@ const Torch::BuildKernelMetadata &SinhOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata SqrtOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -725,6 +763,7 @@ const Torch::BuildKernelMetadata &SqrtOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata TanOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -743,6 +782,7 @@ const Torch::BuildKernelMetadata &TanOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata TanhOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -761,6 +801,7 @@ const Torch::BuildKernelMetadata &TanhOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
 Torch::KernelMetadata TruncOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }
@@ -779,3 +820,184 @@ const Torch::BuildKernelMetadata &TruncOp::getTorchBuildKernelMetadata() {
   })();
   return metadata;
 }
+
+// -----------------------------------------------------------------------------
+// NN ops
+// -----------------------------------------------------------------------------
+
+Torch::KernelMetadata ConvolutionOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &ConvolutionOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::convolution_overrideable";
+    m.aliasKernelNames.push_back("aten::convolution");
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor?", "int[]", "int[]", "int[]", "bool", "int[]", "int"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata ConvolutionBackwardOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &ConvolutionBackwardOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::convolution_backward_overrideable";
+    m.aliasKernelNames.push_back("aten::convolution_backward");
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor", "int[]", "int[]", "int[]", "bool", "int[]", "int", "bool[]"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor?", "Tensor?", "Tensor?"});
+    m.addReturnConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata LogSoftmaxOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &LogSoftmaxOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::_log_softmax";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "int", "bool"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata LogSoftmaxBackwardDataOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &LogSoftmaxBackwardDataOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::_log_softmax_backward_data";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "int", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+// -----------------------------------------------------------------------------
+// Loss function ops
+// -----------------------------------------------------------------------------
+
+Torch::KernelMetadata NllLossForwardOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &NllLossForwardOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::nll_loss_forward";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor?", "int", "int"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor", "Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor, KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata NllLossBackwardOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &NllLossBackwardOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::nll_loss_backward";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor", "Tensor?", "int", "int", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata NllLoss2dForwardOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &NllLoss2dForwardOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::nll_loss2d_forward";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor?", "int", "int"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor", "Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor, KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata NllLoss2dBackwardOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &NllLoss2dBackwardOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::nll_loss2d_backward";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor", "Tensor?", "int", "int", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata CopyInplaceOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &CopyInplaceOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::copy_";
+    m.addArgTypes({"Tensor", "Tensor", "bool"});
+    m.addArgConversions({KVC::kNone, KVC::kImmutableTensor, KVC::kDrop});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kDropReturnAndAliasArg0});
+    return m;
+  })();
+  return metadata;
+}
+

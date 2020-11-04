@@ -61,55 +61,6 @@ def aten_ConstantOp: aten_Op<"constant", [NoSideEffect]>,
 
 }
 
-// Our jit library only supports 6 argument convolutions, rather than 9
-// arguments supported by pytorch.  This operation allows us to represent this
-// limitation temporarily.
-def aten_ConvolutionOp: aten_Op<"_convolution", [NoSideEffect, StatisticsOpInterface]>,
-                        Results<(outs AnyTensor)> {
-  let arguments = (
-    ins AnyTensor:$input,
-        AnyTensor:$weight,
-        AnyTensor:$bias,
-        AnyType:$stride,
-        AnyType:$padding,
-        AnyType:$dilation
-  );
-
-  let summary = "Convolution operator";
-  let description = [{
-    Convolution operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-    uint64_t getOperandTransferVolume(unsigned int idx, bool read);
-    uint64_t getResultTransferVolume(unsigned int idx, bool read);
-	}];
-}
-
-// Our jit library only supports 6 argument convolutions, rather than 9
-// arguments supported by pytorch.  This operation allows us to represent this
-// limitation temporarily.
-def aten_ConvolutionBackwardOp: aten_Op<"_convolution_backward", [NoSideEffect, StatisticsOpInterface]>,
-                                Results<(outs AnyTensor:$dx, AnyTensor:$dw, AnyTensor:$db)> {
-  let arguments = (
-  ins AnyTensor:$grad_output,
-      AnyTensor:$input,
-      AnyTensor:$weight,
-      AnyType:$stride,
-      AnyType:$padding,
-      AnyType:$dilation
-  );
-
-  let summary = "ConvolutionBackward operator";
-  let description = [{
-    ConvolutionBackward operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-	}];
-}
-
-
 def aten_FlattenOp: aten_Op<"flatten", [NoSideEffect, StatisticsOpInterface]>,
                     Results<(outs AnyTensor)> {
   let arguments = (

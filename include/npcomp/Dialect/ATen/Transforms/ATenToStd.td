@@ -12,15 +12,4 @@
 include "mlir/Dialect/StandardOps/IR/Ops.td"
 include "npcomp/Dialect/ATen/IR/ATenOps.td"
 
-// The pytorch convolution operator has 9 arguments, but we only have a jit
-// library that supports the first six at the moment.
-def : Pat<(aten_ConvolutionOverrideableOp $a1, $a2, $a3, $a4, $a5, $a6,
-													   $a7, $a8, $a9),
-		 (aten_ConvolutionOp $a1, $a2, $a3, $a4, $a5, $a6)>;
-
-def : Pat<(aten_ConvolutionBackwardOverrideableOp $a1, $a2, $a3, $a4, $a5, $a6,
-													   $a7, $a8, $a9),
-		 (aten_ConvolutionBackwardOp $a1, $a2, $a3, $a4, $a5, $a6)>;
-
-
 #endif

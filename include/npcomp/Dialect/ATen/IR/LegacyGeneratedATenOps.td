@@ -44,52 +44,6 @@ def aten_AsStridedOp: aten_Op<"as_strided", [NoSideEffect, StatisticsOpInterface
   }];
 }
 
-def aten_ConvolutionOverrideableOp: aten_Op<"convolution_overrideable", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$input,
-      AnyTensor:$weight,
-      AnyTensor:$bias,
-      AnyType:$stride,
-      AnyType:$padding,
-      AnyType:$dilation,
-      AnyScalar:$transposed,
-      AnyType:$output_padding,
-      AnyScalar:$groups
-  );
-  let summary = "aten convolution_overrideable operator";
-  let description = [{
-    ConvolutionOverrideableOp
-    aten convolution_overrideable operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_ConvolutionBackwardOverrideableOp: aten_Op<"convolution_backward_overrideable", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor, AnyTensor, AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$grad_output,
-      AnyTensor:$input,
-      AnyTensor:$weight,
-      AnyType:$stride,
-      AnyType:$padding,
-      AnyType:$dilation,
-      AnyScalar:$transposed,
-      AnyType:$output_padding,
-      AnyScalar:$groups
-  );
-  let summary = "aten convolution_backward_overrideable operator";
-  let description = [{
-    ConvolutionBackwardOverrideableOp
-    aten convolution_backward_overrideable operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_DivUnderOp: aten_Op<"div_", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
   let arguments = (
@@ -120,35 +74,6 @@ def aten_ExpandOp: aten_Op<"expand", [NoSideEffect, StatisticsOpInterface]>,
   }];
   let extraClassDeclaration = [{
     std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_LogSoftmaxOp: aten_Op<"_log_softmax", [NoSideEffect]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyScalar:$dim,
-      AnyScalar:$half_to_float
-  );
-  let summary = "aten _log_softmax operator";
-  let description = [{
-    LogSoftmaxOp
-    aten _log_softmax operator
-  }];
-}
-
-def aten_LogSoftmaxBackwardDataOp: aten_Op<"_log_softmax_backward_data", [NoSideEffect]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$grad_output,
-      AnyTensor:$output,
-      AnyScalar:$dim,
-      AnyTensor:$self
-  );
-  let summary = "aten _log_softmax_backward_data operator";
-  let description = [{
-    LogSoftmaxBackwardDataOp
-    aten _log_softmax_backward_data operator
   }];
 }
 
@@ -439,86 +364,6 @@ def aten_GatherOp: aten_Op<"gather", [NoSideEffect, StatisticsOpInterface]>,
   let description = [{
     GatherOp
     aten gather operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_NllLossForwardOp: aten_Op<"nll_loss_forward", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor, AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyTensor:$target,
-      AnyTensor:$weight,
-      AnyScalar:$reduction,
-      AnyScalar:$ignore_index
-  );
-  let summary = "aten nll_loss_forward operator";
-  let description = [{
-    NllLossForwardOp
-    aten nll_loss_forward operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_NllLossBackwardOp: aten_Op<"nll_loss_backward", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$grad_output,
-      AnyTensor:$self,
-      AnyTensor:$target,
-      AnyTensor:$weight,
-      AnyScalar:$reduction,
-      AnyScalar:$ignore_index,
-      AnyTensor:$total_weight
-  );
-  let summary = "aten nll_loss_backward operator";
-  let description = [{
-    NllLossBackwardOp
-    aten nll_loss_backward operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_NllLoss2dForwardOp: aten_Op<"nll_loss2d_forward", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor, AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyTensor:$target,
-      AnyTensor:$weight,
-      AnyScalar:$reduction,
-      AnyScalar:$ignore_index
-  );
-  let summary = "aten nll_loss2d_forward operator";
-  let description = [{
-    NllLoss2dForwardOp
-    aten nll_loss2d_forward operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
-def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$grad_output,
-      AnyTensor:$self,
-      AnyTensor:$target,
-      AnyTensor:$weight,
-      AnyScalar:$reduction,
-      AnyScalar:$ignore_index,
-      AnyTensor:$total_weight
-  );
-  let summary = "aten nll_loss2d_backward operator";
-  let description = [{
-    NllLoss2dBackwardOp
-    aten nll_loss2d_backward operator
   }];
   let extraClassDeclaration = [{
     std::map<std::string, uint64_t> getStatistics();

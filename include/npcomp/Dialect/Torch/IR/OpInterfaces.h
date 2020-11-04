@@ -18,7 +18,7 @@ namespace Torch {
 
 /// Conversion rule to apply to a value (argument or return).
 namespace KernelValueConversion {
-enum BitMask {
+enum BitMask : uint32_t {
   // No coercion.
   kNone = 0,
 
@@ -32,7 +32,16 @@ enum BitMask {
   // to a 0d tensor.
   kPromoteScalar = 8,
 
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ kPromoteScalar)
+  // Drops the return value and aliases to argument 0.
+  // TODO: Remove this in favor of general alias metadata processing (note that
+  // the vast majority are this one case so it isn't so bad to have a special
+  // case for it if necessary).
+  kDropReturnAndAliasArg0 = 16,
+
+  // Drops the argument/return.
+  kDrop = 32,
+
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ kDrop)
 };
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 } // namespace KernelValueConversion
@@ -73,6 +82,9 @@ struct BuildKernelMetadata : public KernelMetadata {
 
   SmallVector<KernelValueConversion::BitMask, 4> argConversions;
   SmallVector<KernelValueConversion::BitMask, 4> returnConversions;
+
+  /// Additional alias kernel names to match.
+  SmallVector<StringRef, 1> aliasKernelNames;
 
   void addArgConversions(
       std::initializer_list<KernelValueConversion::BitMask> ilist) {

@@ -189,9 +189,8 @@ MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
   return constValue;
 }
 
-MlirValue
-FuncBuilder::buildList(MlirLocation loc,
-                       llvm::SmallVectorImpl<MlirValue> &elements) {
+MlirValue FuncBuilder::buildList(MlirLocation loc,
+                                 llvm::SmallVectorImpl<MlirValue> &elements) {
   MlirType resultType = npcompListTypeGet(context);
   OperationStateHolder state{"basicpy.build_list", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
