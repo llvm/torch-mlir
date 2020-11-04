@@ -128,7 +128,7 @@ Error compileAndRun(std::string mlirFile, mlir::DialectRegistry &registry,
   ModuleOp module = *moduleRef;
 
   // Compile.
-  PassManager pm(module.getContext(), /*verifyPasses=*/true);
+  PassManager pm(module.getContext(), OpPassManager::Nesting::Implicit);
   applyPassManagerCLOptions(pm);
   refback::JITModule::buildBackendCompilationPipeline(pm, optimize);
   if (failed(pm.run(module))) {
