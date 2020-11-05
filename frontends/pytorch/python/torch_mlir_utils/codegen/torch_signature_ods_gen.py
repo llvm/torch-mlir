@@ -64,6 +64,9 @@ def generate_ops(g: "OpGenerator"):
   g.ordinary_binary_op("aten::true_divide(Tensor,Tensor)", "TrueDivideOp",
                        "true_divide")
 
+  g.ordinary_binary_op("aten::maximum(Tensor,Tensor)", "MaximumOp", "maximum")
+  g.ordinary_binary_op("aten::minimum(Tensor,Tensor)", "MinimumOp", "minimum")
+
   # Unary-ops. These are all the same so just name munge them.
   g.print_banner("Unary arithmetic ops")
   for uname in [

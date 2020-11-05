@@ -96,6 +96,28 @@ def aten_TrueDivideOp: aten_Op<"true_divide", [NoSideEffect, DeclareOpInterfaceM
   );
 }
 
+def aten_MaximumOp: aten_Op<"maximum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::maximum";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$other
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_MinimumOp: aten_Op<"minimum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::minimum";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$other
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Unary arithmetic ops
 // -----------------------------------------------------------------------------

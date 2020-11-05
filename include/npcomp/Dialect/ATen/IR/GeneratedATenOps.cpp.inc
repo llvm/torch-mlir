@@ -152,6 +152,44 @@ const Torch::BuildKernelMetadata &TrueDivideOp::getTorchBuildKernelMetadata() {
   return metadata;
 }
 
+Torch::KernelMetadata MaximumOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &MaximumOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::maximum";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata MinimumOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &MinimumOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::minimum";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
 // -----------------------------------------------------------------------------
 // Unary arithmetic ops
 // -----------------------------------------------------------------------------

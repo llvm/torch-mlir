@@ -12,12 +12,12 @@
 include "mlir/Pass/PassBase.td"
 
 //===----------------------------------------------------------------------===//
-// TCFToTCP
+// ATen conversions
 //===----------------------------------------------------------------------===//
 
-def ConvertTCFToTCP : Pass<"convert-tcf-to-tcp", "ModuleOp"> {
-  let summary = "Convert TCF to TCP";
-  let constructor = "mlir::NPCOMP::createConvertTCFToTCPPass()";
+def ConvertATenToTCF : Pass<"convert-aten-to-tcf", "FuncOp"> {
+  let summary = "Convert recognized ATen to TCF ops";
+  let constructor = "mlir::NPCOMP::createConvertATenToTCFPass()";
 }
 
 //===----------------------------------------------------------------------===//
@@ -36,6 +36,15 @@ def ConvertBasicpyToStd : Pass<"convert-basicpy-to-std", "FuncOp"> {
 def ConvertNumpyToTCF : Pass<"convert-numpy-to-tcf", "FuncOp"> {
   let summary = "Convert the numpy dialect to supported TCF ops";
   let constructor = "mlir::NPCOMP::createConvertNumpyToTCFPass()";
+}
+
+//===----------------------------------------------------------------------===//
+// TCFToTCP
+//===----------------------------------------------------------------------===//
+
+def ConvertTCFToTCP : Pass<"convert-tcf-to-tcp", "ModuleOp"> {
+  let summary = "Convert TCF to TCP";
+  let constructor = "mlir::NPCOMP::createConvertTCFToTCPPass()";
 }
 
 //===----------------------------------------------------------------------===//
