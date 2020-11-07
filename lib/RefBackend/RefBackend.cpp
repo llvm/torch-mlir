@@ -40,6 +40,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
@@ -184,6 +185,22 @@ std::unique_ptr<Pass> mlir::NPCOMP::createRestrictedCanonicalizerPass() {
 
 void mlir::NPCOMP::createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
+
+  // Convert all elementwise ops to linalg.
+  //
+  // Considering correctness, this lets us reuse the linalg bufferization, which
+  // applies uniformly to all linalg structured ops.
+  //
+  // Also, converting to linalg herevopens up a lot of optimization
+  // opportunities.
+  pm.addPass(createConvertElementwiseToLinalgPass());
+
+  if (options.optimize) {
+    pm.addPass(createLinalgFusionOfTensorOpsPass());
+    pm.addPass(createCanonicalizerPass());
+    pm.addPass(createCSEPass());
+  }
+
   // Lower shape constraints before we enter tensor->memref conversion.
   // That is, we expand shape.cstr_* ops to eager error handling code.
   pm.addPass(createConvertShapeConstraintsPass());
@@ -225,6 +242,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // Run some upstream bufferization passes to finish bufferization.
   pm.addPass(createStdBufferizePass());
   pm.addPass(createSCFBufferizePass());
+  pm.addPass(createLinalgBufferizePass());
   pm.addPass(createFuncBufferizePass());
 
   // TODO: Do buffer deallocation. We should be able to just drop in the
@@ -279,12 +297,14 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
 
 void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
+
   // Convert from TCF to TCP.
   //
   // TCF has implicit broadcasting, and issues errors "inside the ops" in the
   // case of invalid broadcasts.
   //
   // TCP does not. So we need to reify the broadcasting and error checking.
+  pm.addPass(createConvertTCFToStdPass());
   pm.addPass(createConvertTCFToTCPPass());
 
   createRefBackendLoweringPipeline(pm, options);

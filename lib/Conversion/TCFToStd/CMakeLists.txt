@@ -1,8 +1,8 @@
-add_npcomp_conversion_library(NPCOMPTCFToTCP
-  TCFToTCP.cpp
+add_npcomp_conversion_library(NPCOMPTCFToStd
+  TCFToStd.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SOURCE_DIR}/include/npcomp/Conversion/TCFToTCP
+  ${PROJECT_SOURCE_DIR}/include/npcomp/Conversion/TCFToStd
 
   DEPENDS
   NPCOMPConversionPassIncGen
@@ -15,5 +15,7 @@ add_npcomp_conversion_library(NPCOMPTCFToTCP
   MLIRPass
   MLIRTransforms
   MLIRShape
+  MLIRStandard
+  MLIRLinalg
   NPCOMPTCFDialect
 )
