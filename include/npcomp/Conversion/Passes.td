@@ -39,6 +39,15 @@ def ConvertNumpyToTCF : Pass<"convert-numpy-to-tcf", "FuncOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// TCFToStd
+//===----------------------------------------------------------------------===//
+
+def ConvertTCFToStd : Pass<"convert-tcf-to-std", "ModuleOp"> {
+  let summary = "Convert TCF to Std";
+  let constructor = "mlir::NPCOMP::createConvertTCFToStdPass()";
+}
+
+//===----------------------------------------------------------------------===//
 // TCFToTCP
 //===----------------------------------------------------------------------===//
 

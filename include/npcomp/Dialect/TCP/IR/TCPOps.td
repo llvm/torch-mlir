@@ -20,58 +20,6 @@ class TCP_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<TCP_Dialect, mnemonic, traits> {
 }
 
-// TODO: Clarify allowed tensor element types.
-class BinaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
-  TCP_Op<mnemonic, traits> {
-  let arguments = (ins AnyRankedTensor:$lhs, AnyRankedTensor:$rhs);
-  let results = (outs AnyRankedTensor:$result);
-  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
-}
-
-def TCP_AddOp : BinaryArithmeticOp<"add"> {
-  let summary = "Addition of two tensors";
-  let description = [{
-    Addition of two tensors.
-  }];
-}
-
-def TCP_MaxOp : BinaryArithmeticOp<"max"> {
-  let summary = "Maximum of two tensors";
-  let description = [{
-    Maximum of two tensors.
-  }];
-}
-
-def TCP_MulOp : BinaryArithmeticOp<"mul"> {
-  let summary = "Multiply an input tensor by a scalar tensor.";
-  let description = [{
-    Multiplies each element of the input `input` with the scalar `other` and returns a new resulting tensor. The tensor types must match and shapes must be broadcastable.
-  }];
-}
-
-class UnaryArithmeticOp<string mnemonic, list<OpTrait> traits = []> :
-  TCP_Op<mnemonic,
-        !listconcat(traits, [AllTypesMatch<["operand", "result"]>])>,
-  AllTypesMatch<["operand", "result"]> {
-  let arguments = (ins AnyTensor:$operand);
-  let results = (outs AnyTensor:$result);
-  let assemblyFormat = "$operand attr-dict `:` type($operand)";
-}
-
-def TCP_ExpOp : UnaryArithmeticOp<"exp"> {
-  let summary = "base-e exponential";
-  let description = [{
-    See std.exp for more details.
-  }];
-}
-
-def TCP_TanhOp : UnaryArithmeticOp<"tanh"> {
-  let summary = "hyperbolic tangent";
-  let description = [{
-    See std.tanh for more details.
-  }];
-}
-
 // TODO: Generalize this op appropriately and add more verification.
 // For example, should we have a single primitive that does multidimensional
 // contractions? + batching as well in the same op? In fact, if we want to

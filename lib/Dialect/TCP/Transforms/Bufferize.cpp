@@ -32,11 +32,6 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
     return {broadcastTo.shape()};
   }
 
-  // Elementwise ops.
-  if (isa<tcp::AddOp, tcp::MaxOp, tcp::MulOp, tcp::ExpOp, tcp::TanhOp>(op)) {
-    return {builder.create<shape::ShapeOfOp>(op.getLoc(), op.getOperand(0))};
-  }
-
   if (auto matmul = dyn_cast<tcp::MatmulOp>(op)) {
     auto lhsRows = builder.create<DimOp>(op.getLoc(), matmul.lhs(), 0);
     auto rhsCols = builder.create<DimOp>(op.getLoc(), matmul.rhs(), 1);
@@ -148,88 +143,6 @@ public:
 };
 } // namespace
 
-static Value createLinalgBodyCalculationForElementwiseOp(Operation *op,
-                                                         ValueRange bodyArgs,
-                                                         OpBuilder &builder,
-                                                         Location loc) {
-  if (isa<tcp::AddOp>(op))
-    return builder.create<AddFOp>(loc, bodyArgs[0], bodyArgs[1]);
-
-  if (isa<tcp::MaxOp>(op)) {
-    auto greater = builder.create<CmpFOp>(loc, CmpFPredicate::OGT, bodyArgs[0],
-                                          bodyArgs[1]);
-    return builder.create<SelectOp>(loc, greater, bodyArgs[0], bodyArgs[1]);
-  }
-
-  if (isa<tcp::MulOp>(op)) {
-    return builder.create<MulFOp>(loc, bodyArgs[0], bodyArgs[1]);
-  }
-
-  if (isa<tcp::ExpOp>(op))
-    return builder.create<ExpOp>(loc, bodyArgs[0]);
-
-  if (isa<tcp::TanhOp>(op))
-    return builder.create<TanhOp>(loc, bodyArgs[0]);
-
-  op->dump();
-  llvm::report_fatal_error("unhandled op (see dump above): linalg body "
-                           "calculation for elementwise op");
-}
-
-static LogicalResult
-matchAndRewriteElementwiseOp(Operation *op, ArrayRef<Value> operands,
-                             ConversionPatternRewriter &rewriter) {
-  Location loc = op->getLoc();
-  Value result = op->getResult(0);
-
-  auto resultsOrFailure = allocateResults(op, rewriter, loc);
-  if (failed(resultsOrFailure))
-    return failure();
-  auto results = *resultsOrFailure;
-
-  SmallVector<Value, 6> args;
-  args.append(operands.begin(), operands.end());
-  args.append(results.begin(), results.end());
-
-  size_t rank = result.getType().cast<RankedTensorType>().getRank();
-  SmallVector<StringRef, 6> iterators(rank, getParallelIteratorTypeName());
-  // TODO: Generalize this to other elementwise ops.
-  // All we need to do is to have a mapping of tcp.foo to scalar.foo.
-  // TODO: Should we just use linalg named ops for most of TCP?
-  // Doing so would make tcp very consistent, but also it would, at this early
-  // stage, make most non-trivial changes also require co-design with the
-  // linalg ODS generator, which would be a very slow process.
-  auto argsIn = operands.size();
-  auto argsOut = results.size();
-  SmallVector<AffineMap, 3> accesses(argsIn + argsOut,
-                                     rewriter.getMultiDimIdentityMap(rank));
-  rewriter.create<linalg::GenericOp>(
-      loc, /*inputs=*/operands, /*outputBuffers=*/results,
-      /*indexingMaps=*/accesses,
-      /*iteratorTypes=*/iterators,
-      /*bodyBuilder=*/
-      [&](OpBuilder &builder, Location loc, ValueRange regionArgs) {
-        auto scalarResult = createLinalgBodyCalculationForElementwiseOp(
-            op, regionArgs, builder, loc);
-        builder.create<linalg::YieldOp>(loc, ValueRange({scalarResult}));
-      });
-  rewriter.replaceOp(op, results);
-  return success();
-}
-
-namespace {
-template <typename SourceOp>
-class BufferizeElementwiseOp : public OpConversionPattern<SourceOp> {
-public:
-  using OpConversionPattern<SourceOp>::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    return matchAndRewriteElementwiseOp(op, operands, rewriter);
-  }
-};
-} // namespace
-
 namespace {
 class BufferizeMatmulOp : public OpConversionPattern<tcp::MatmulOp> {
 public:
@@ -277,11 +190,6 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<
-        BufferizeElementwiseOp<tcp::AddOp>, BufferizeElementwiseOp<tcp::MaxOp>,
-        BufferizeElementwiseOp<tcp::MulOp>, BufferizeElementwiseOp<tcp::ExpOp>,
-        BufferizeElementwiseOp<tcp::TanhOp>>(typeConverter, context);
-    target.addIllegalOp<tcp::AddOp, tcp::MaxOp, tcp::MulOp>();
     patterns.insert<BufferizeMatmulOp>(typeConverter, context);
     target.addIllegalOp<tcp::MatmulOp>();
 

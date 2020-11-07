@@ -11,6 +11,7 @@
 #include "npcomp/Conversion/ATenToTCF/Passes.h"
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
 #include "npcomp/Conversion/NumpyToTCF/Passes.h"
+#include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 
 //===----------------------------------------------------------------------===//
