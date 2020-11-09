@@ -39,6 +39,21 @@ def ConvertNumpyToTCF : Pass<"convert-numpy-to-tcf", "FuncOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// TCFToTCP
+//===----------------------------------------------------------------------===//
+
+def ConvertTCFToLinalg : Pass<"convert-tcf-to-linalg", "ModuleOp"> {
+  let summary = "Convert TCF to Linalg";
+  let description = [{
+    The intention is for this pass to convert mainly to linalg named ops.
+
+    Because linalg is at the "TCP" layer of abstraction, this pass has to
+    concern itself with generating guards for error cases.
+  }];
+  let constructor = "mlir::NPCOMP::createConvertTCFToLinalgPass()";
+}
+
+//===----------------------------------------------------------------------===//
 // TCFToStd
 //===----------------------------------------------------------------------===//
 

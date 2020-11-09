@@ -22,35 +22,6 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 
 namespace {
-class ConvertMatmul : public OpRewritePattern<tcf::MatmulOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(tcf::MatmulOp op,
-                                PatternRewriter &rewriter) const override {
-    // Create the constraints, and the assuming region.
-    Value lhsK = rewriter.create<DimOp>(op.getLoc(), op.lhs(), 1);
-    Value rhsK = rewriter.create<DimOp>(op.getLoc(), op.rhs(), 0);
-    Value matchingK =
-        rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, lhsK, rhsK);
-    Value witness = rewriter.create<shape::CstrRequireOp>(
-        op.getLoc(), matchingK, "mismatching contracting dimension for matmul");
-    auto assuming = rewriter.create<shape::AssumingOp>(
-        op.getLoc(), ArrayRef<Type>{op.getType()}, witness);
-
-    // Build the region body.
-    rewriter.createBlock(&assuming.doRegion());
-    Value matmul = rewriter.create<tcp::MatmulOp>(op.getLoc(), op.getType(),
-                                                  op.lhs(), op.rhs());
-    rewriter.create<shape::AssumingYieldOp>(op.getLoc(), matmul);
-
-    // Finally, replace with the results of the shape.assuming
-    rewriter.replaceOp(op, assuming.getResults());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class ConvertTCFToTCP : public ConvertTCFToTCPBase<ConvertTCFToTCP> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -63,9 +34,10 @@ public:
   }
 
   FrozenRewritePatternList getPatterns() {
-    MLIRContext *context = &getContext();
+    // NOTE: We are keeping this pass around, even though it currently does
+    // nothing, in order to avoid having to reintroduce the same
+    // boilerplate.
     OwningRewritePatternList patterns;
-    patterns.insert<ConvertMatmul>(context);
     return std::move(patterns);
   }
 };
