@@ -32,12 +32,8 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
     return {broadcastTo.shape()};
   }
 
-  if (auto matmul = dyn_cast<tcp::MatmulOp>(op)) {
-    auto lhsRows = builder.create<DimOp>(op.getLoc(), matmul.lhs(), 0);
-    auto rhsCols = builder.create<DimOp>(op.getLoc(), matmul.rhs(), 1);
-    auto shape = builder.create<TensorFromElementsOp>(
-        op.getLoc(), ValueRange({lhsRows, rhsCols}));
-    return {shape};
+  if (auto splatted = dyn_cast<tcp::SplattedOp>(op)) {
+    return {splatted.shape()};
   }
 
   // No shape transfer function.
@@ -144,20 +140,17 @@ public:
 } // namespace
 
 namespace {
-class BufferizeMatmulOp : public OpConversionPattern<tcp::MatmulOp> {
+class BufferizeSplattedOp : public OpConversionPattern<tcp::SplattedOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tcp::MatmulOp op, ArrayRef<Value> operands,
+  matchAndRewrite(tcp::SplattedOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
     if (failed(resultsOrFailure))
       return failure();
     auto results = *resultsOrFailure;
-    auto c0 =
-        rewriter.create<ConstantOp>(op.getLoc(), rewriter.getF32FloatAttr(0.0));
-    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], c0);
-    rewriter.create<linalg::MatmulOp>(op.getLoc(), operands, results);
+    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], op.splatVal());
     rewriter.replaceOp(op, results);
     return success();
   }
@@ -190,8 +183,8 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
 
     patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<BufferizeMatmulOp>(typeConverter, context);
-    target.addIllegalOp<tcp::MatmulOp>();
+    patterns.insert<BufferizeSplattedOp>(typeConverter, context);
+    target.addIllegalOp<tcp::SplattedOp>();
 
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();

@@ -40,6 +40,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include "npcomp/Conversion/TCFToLinalg/TCFToLinalg.h"
 #include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
@@ -305,6 +306,7 @@ void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
   //
   // TCP does not. So we need to reify the broadcasting and error checking.
   pm.addPass(createConvertTCFToStdPass());
+  pm.addPass(createConvertTCFToLinalgPass());
   pm.addPass(createConvertTCFToTCPPass());
 
   createRefBackendLoweringPipeline(pm, options);
