@@ -41,7 +41,8 @@ llvm_add_library(
   npcomp-shlib.cpp
   ${_OBJECTS}
   LINK_LIBS PUBLIC
-  # Public dependencies on the MLIR shared lib.
+  # Public dependencies on the MLIR public API and impl shared libraries.
+  MLIRPublicAPI
   MLIR
   ${_DEPS}
 )
