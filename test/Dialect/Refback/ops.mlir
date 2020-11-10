@@ -1,11 +1,8 @@
 // RUN: npcomp-opt <%s | npcomp-opt | FileCheck %s
 
-// CHECK-LABEL: refback.global @foo dense<0.0{{.*}}> : tensor<10xf32>
-refback.global @foo dense<0.0> : tensor<10xf32>
-
-// CHECK-LABEL: func @global
-func @global() {
-  // CHECK: refback.get_global_memref @foo : memref<10xf32>
-  %0 = refback.get_global_memref @foo : memref<10xf32>
+// CHECK-LABEL: @alloc_memref
+func @alloc_memref(%arg0: tensor<?xindex>) {
+  // CHECK: refback.alloc_memref
+  %0 = refback.alloc_memref %arg0 : memref<?xf32>
   return
 }

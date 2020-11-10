@@ -17,7 +17,6 @@
 // CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.mlir.global internal constant @__npcomp_internal_constant_identity("identity")
 
 // CHECK-LABEL:   llvm.mlir.global internal constant @__npcomp_func_descriptors() : !llvm.array<1 x struct<(i32, ptr<i8>, ptr<i8>, i32, i32)>> {
@@ -114,7 +113,6 @@ func @identity(%arg0: !refbackrt.tensor) -> !refbackrt.tensor {
 // CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.mlir.global internal constant @__npcomp_internal_constant_inputs1results0("inputs1results0")
 // CHECK:         llvm.mlir.global internal constant @__npcomp_internal_constant_inputs1results1("inputs1results1")
 // CHECK:         llvm.mlir.global internal constant @__npcomp_internal_constant_inputs1results2("inputs1results2")
@@ -215,7 +213,6 @@ func @inputs1results2(%arg0: !refbackrt.tensor) -> (!refbackrt.tensor, !refbackr
 // CHECK:         llvm.func @__npcomp_compiler_rt_abort_if(!llvm.i1, !llvm.ptr<i8>)
 // CHECK:         llvm.func @__npcomp_compiler_rt_to_memref(!llvm.ptr<i8>) -> !llvm.struct<(i64, ptr<i8>)>
 // CHECK:         llvm.func @__npcomp_compiler_rt_from_memref(!llvm.i64, !llvm.ptr<i8>) -> !llvm.ptr<i8>
-// CHECK:         llvm.func @__npcomp_compiler_rt_get_global(!llvm.ptr<struct<(i32, ptr<i32>, ptr<i8>)>>) -> !llvm.struct<(i64, ptr<i8>)>
 
 // CHECK-LABEL:   llvm.func @calls_abort_if(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.i1) {

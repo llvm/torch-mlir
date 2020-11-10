@@ -75,37 +75,6 @@ static LogicalResult createModuleMetadata(ModuleOp module) {
 //===----------------------------------------------------------------------===//
 
 namespace {
-class LowerGlobalOp : public OpConversionPattern<refback::GlobalOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(refback::GlobalOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<refbackrt::GlobalOp>(op, op.sym_name(),
-                                                     op.value());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class LowerGetGlobalMemrefOp
-    : public OpConversionPattern<refback::GetGlobalMemrefOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(refback::GetGlobalMemrefOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto abiMemref = rewriter.create<refbackrt::GetGlobalOp>(
-        op.getLoc(), getABIMemrefType(op.getType()), op.global());
-    // Cast back to the original type.
-    rewriter.replaceOpWithNewOp<MemRefCastOp>(op, abiMemref, op.getType());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class LowerAssertOp : public OpConversionPattern<AssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -215,12 +184,6 @@ static LogicalResult doDialectConversion(ModuleOp module) {
   patterns.insert<RewriteReturnOp>(typeConverter, context);
   target.addDynamicallyLegalOp<ReturnOp>(
       [&](ReturnOp op) { return typeConverter.isLegal(op); });
-
-  patterns.insert<LowerGlobalOp>(context);
-  target.addIllegalOp<refback::GlobalOp>();
-
-  patterns.insert<LowerGetGlobalMemrefOp>(context);
-  target.addIllegalOp<refback::GetGlobalMemrefOp>();
 
   patterns.insert<LowerAssertOp>(context);
   target.addIllegalOp<AssertOp>();

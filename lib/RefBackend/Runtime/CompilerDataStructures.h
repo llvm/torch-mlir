@@ -48,13 +48,6 @@ struct ModuleDescriptor {
   FuncDescriptor *functionDescriptors;
 };
 
-// Static data representing a global variable (together with its shape).
-struct GlobalDescriptor {
-  std::int32_t numExtents;
-  std::int32_t *extents;
-  void *data;
-};
-
 } // namespace refbackrt
 
 #endif // NPCOMP_LIB_RUNTIME_COMPILERDATASTRUCTURES_H

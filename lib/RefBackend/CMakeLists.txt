@@ -5,7 +5,6 @@ add_npcomp_library(NPCOMPRefBackend
   RefBackend.cpp
   LowerToLLVM.cpp
   LowerToRefbackrtABI.cpp
-  TensorToMemref/LowerConstantTensorsToMemref.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SRC_DIR}/include/npcomp/RefBackend

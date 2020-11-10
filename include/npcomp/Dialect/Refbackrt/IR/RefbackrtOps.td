@@ -46,43 +46,6 @@ def Refbackrt_AbortIfOp : Refbackrt_Op<"abort_if"> {
   let assemblyFormat = "$pred `,` $msg attr-dict";
 }
 
-def Refbackrt_GlobalOp : Refbackrt_Op<"global", [Symbol]> {
-  let summary = "Represents a global variable";
-  let description = [{
-    Represents a global variable.
-
-    Currently, only constant tensors are supported, and they are not
-    considered to be exported.
-  }];
-  let arguments = (ins StrAttr:$sym_name, ElementsAttr:$value);
-  let results = (outs);
-
-  let printer = [{ return ::print$cppClass(p, *this); }];
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-}
-
-def Refbackrt_GetGlobalOp : Refbackrt_Op<"get_global"> {
-  let summary = "Obtain a rank-erased memref pointing at the given global";
-  let description = [{
-    Obtain a rank-erased memref pointing at the given global.
-
-    TODO: As we define the runtime layer better, we should have fewer
-    entry points that return memrefs, or at least have a clearer separation
-    between the "memref world" and the "refbackrt world".
-    Something like forming IREE dispatch regions seems to be the missing thing:
-    - Everything inside the dispatch regions gets things marshaled from the
-      runtime (flow/hal/refbackrt) layer to/from memrefs in a clear way.
-    - Everything outside the dispatch regions purely uses the runtime
-      (flow/hal/refbackrt) data structures.
-    Globals should be one of the things that are purely runtime data structures,
-    rather than using memrefs. For now, using memrefs is simpler though.
-  }];
-  let arguments = (ins FlatSymbolRefAttr:$global);
-  let results = (outs AnyUnrankedMemRef:$memref);
-  let assemblyFormat = "$global attr-dict `:` type($memref)";
-  let verifier = "return ::verify$cppClass(*this);";
-}
-
 def Refbackrt_ModuleMetadataOp : Refbackrt_Op<"module_metadata", [
   SingleBlockImplicitTerminator<"ModuleMetadataTerminatorOp">
 ]> {

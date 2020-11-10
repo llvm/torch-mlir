@@ -228,8 +228,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
 
   // Bufferize the TCP dialect.
   pm.addNestedPass<FuncOp>(createTCPBufferizePass());
-  // Lower tensor-valued constants to refback.global.
-  pm.addPass(createLowerConstantTensorsToMemrefPass());
+  pm.addPass(createTensorConstantBufferizePass());
   // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
   // We need to resolve this to std.alloc which takes individual extents.
   pm.addNestedPass<FuncOp>(createLowerAllocMemRefOpsPass());

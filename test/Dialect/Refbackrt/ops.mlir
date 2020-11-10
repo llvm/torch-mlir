@@ -11,10 +11,3 @@ refbackrt.module_metadata {
 func @f(%arg0: !refbackrt.tensor) {
   return
 }
-
-// CHECK-LABEL: refbackrt.global @g dense<0.0{{.*}}> : tensor<10xf32>
-refbackrt.global @g dense<0.0> : tensor<10xf32>
-func @uses_global() {
-  refbackrt.get_global @g : memref<*xf32>
-  return
-}

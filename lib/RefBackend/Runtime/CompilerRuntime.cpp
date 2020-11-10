@@ -114,11 +114,3 @@ __npcomp_compiler_rt_from_memref(std::int64_t rank,
   return Tensor::createRaw(ArrayRef<std::int32_t>(extents32Buf.data(), rank),
                            elementType, data);
 }
-
-extern "C" UnrankedMemref
-__npcomp_compiler_rt_get_global(GlobalDescriptor *global) {
-  auto *descriptor = MemrefDescriptor::create(
-      ArrayRef<std::int32_t>(global->extents, global->numExtents),
-      global->data);
-  return UnrankedMemref{global->numExtents, descriptor};
-}
