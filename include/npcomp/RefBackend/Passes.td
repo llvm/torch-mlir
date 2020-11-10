@@ -11,15 +11,6 @@
 
 include "mlir/Pass/PassBase.td"
 
-def LowerConstantTensorsToMemref :
-    Pass<"lower-constant-tensors-to-memref", "ModuleOp"> {
-  let summary = "Lower std.constant of tensor type to memref";
-  let description = [{
-    This must be a module pass since it involves creating refback.global ops.
-  }];
-  let constructor = "mlir::NPCOMP::createLowerConstantTensorsToMemrefPass()";
-}
-
 def LowerToRefbackrtABI : Pass<"lower-to-refbackrt-abi", "ModuleOp"> {
   let summary = "Lower constructs requiring runtime support to `refbackrt`";
   let description = [{
@@ -30,7 +21,6 @@ def LowerToRefbackrtABI : Pass<"lower-to-refbackrt-abi", "ModuleOp"> {
 
     The constructs requiring runtime support are:
     - function signatures / module metadata
-    - globals
     - error handling
   }];
   let constructor = "mlir::NPCOMP::createLowerToRefbackrtABIPass()";
