@@ -21,7 +21,7 @@ module @parseSuccess {
   }
 }
 """)
-# CHECK: func @notUsed
+# CHECK: func private @notUsed
 # CHECK: func @f
 print(m.to_asm())
 
