@@ -12,6 +12,7 @@
 #include "npcomp/Python/MlirInit.h"
 #include "npcomp/Python/NpcompModule.h"
 #include "npcomp/Python/PybindUtils.h"
+#include "npcomp-c/Registration.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifdef NPCOMP_ENABLE_REFJIT
@@ -26,7 +27,7 @@ namespace mlir {
 namespace npcomp {
 namespace python {
 
-void defineLLVMModule(pybind11::module m) {
+static void defineLLVMModule(pybind11::module m) {
   m.def("print_help_message", []() { llvm::cl::PrintHelpMessage(); });
   m.def("add_option",
         [](std::string name, llvm::Optional<std::string> value) {
@@ -56,6 +57,12 @@ void defineLLVMModule(pybind11::module m) {
         py::arg("name"));
 }
 
+static void defineGlobals(py::module &m) {
+  m.def("register_dialects", [](MlirContext context) {
+    npcompRegisterAllDialects(context);
+  });
+}
+
 PYBIND11_MODULE(_npcomp, m) {
   // Guard the once init to happen once per process (vs module, which in
   // mondo builds can happen multiple times).
@@ -64,6 +71,8 @@ PYBIND11_MODULE(_npcomp, m) {
 
   m.doc() = "Npcomp native python bindings";
 
+  // TODO: Retire the llvm, mlir, passes, and dialect modules in favor of
+  // upstream Python bindings.
   auto llvm_m = m.def_submodule("llvm", "LLVM interop");
   defineLLVMModule(llvm_m);
 
@@ -80,6 +89,9 @@ PYBIND11_MODULE(_npcomp, m) {
   // Outer "_npcomp" module
   auto npcomp_dialect = m.def_submodule("dialect", "NPComp custom dialects");
   defineNpcompDialect(npcomp_dialect);
+
+  // Globals.
+  defineGlobals(m);
 
   // Optional backend modules.
   auto backend_m = m.def_submodule("backend", "Backend support");

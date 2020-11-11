@@ -10,6 +10,8 @@
 
 #include "pybind11/numpy.h"
 
+#include "mlir/CAPI/IR.h"
+#include "mlir/CAPI/Pass.h"
 #include "npcomp/Python/MlirIr.h"
 #include "npcomp/Python/MlirPass.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
@@ -84,20 +86,22 @@ py::array wrapTensorAsArray(Ref<Tensor> tensor) {
                    /*base=*/std::move(pyTensor));
 }
 
-void npcomp::python::defineBackendRefJitModule(py::module m) {
-  m.def("build_backend_compilation_pipeline", [](PyPassManager &pm) {
-    JITModule::buildBackendCompilationPipeline(pm.passManager);
+void npcomp::python::defineBackendRefJitModule(py::module &m) {
+  m.def("build_backend_compilation_pipeline", [](MlirPassManager capiPm) {
+    mlir::PassManager *pm = unwrap(capiPm);
+    JITModule::buildBackendCompilationPipeline(*pm);
   });
   py::class_<JITModule>(m, "JITModule")
       .def_static(
           "from_compiled_module",
-          [](PyModuleOp module, std::vector<std::string> pySharedLibs)
+          [](MlirModule capiModule, std::vector<std::string> pySharedLibs)
               -> std::unique_ptr<JITModule> {
             SmallVector<StringRef, 4> sharedLibs(pySharedLibs.begin(),
                                                  pySharedLibs.end());
-            auto jitModule = checkError(
-                JITModule::fromCompiledModule(module.moduleOp, sharedLibs),
-                "error creating JITModule: ");
+            auto module = unwrap(capiModule);
+            auto jitModule =
+                checkError(JITModule::fromCompiledModule(module, sharedLibs),
+                           "error creating JITModule: ");
             return jitModule;
           },
           py::arg("module"), py::arg("shared_libs"))

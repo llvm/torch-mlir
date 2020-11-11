@@ -194,17 +194,17 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   //
   // Also, converting to linalg herevopens up a lot of optimization
   // opportunities.
-  pm.addPass(createConvertElementwiseToLinalgPass());
+  pm.addNestedPass<FuncOp>(createConvertElementwiseToLinalgPass());
 
   if (options.optimize) {
-    pm.addPass(createLinalgFusionOfTensorOpsPass());
-    pm.addPass(createCanonicalizerPass());
-    pm.addPass(createCSEPass());
+    pm.addNestedPass<FuncOp>(createLinalgFusionOfTensorOpsPass());
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
   // Lower shape constraints before we enter tensor->memref conversion.
   // That is, we expand shape.cstr_* ops to eager error handling code.
-  pm.addPass(createConvertShapeConstraintsPass());
+  pm.addNestedPass<FuncOp>(createConvertShapeConstraintsPass());
   // Run shape canonicalizations. In particular, this erases shape.assuming,
   // now that we have converted shape constraints.
   // TODO: This is kind of ugly. Either we use pass options or a constructor
@@ -227,12 +227,12 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // (tensor_load / tensor_to_memref) in the IR.
 
   // Bufferize the TCP dialect.
-  pm.addPass(createTCPBufferizePass());
+  pm.addNestedPass<FuncOp>(createTCPBufferizePass());
   // Lower tensor-valued constants to refback.global.
   pm.addPass(createLowerConstantTensorsToMemrefPass());
   // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
   // We need to resolve this to std.alloc which takes individual extents.
-  pm.addPass(createLowerAllocMemRefOpsPass());
+  pm.addNestedPass<FuncOp>(createLowerAllocMemRefOpsPass());
   // Lower shape ops to std.
   // TODO: This should in principle be moved before tensor->memref conversion.
   // But some of the tensor->memref lowerings above use shape.get_extent. For
@@ -241,8 +241,8 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addPass(createConvertShapeToStandardPass());
 
   // Run some upstream bufferization passes to finish bufferization.
-  pm.addPass(createStdBufferizePass());
-  pm.addPass(createSCFBufferizePass());
+  pm.addNestedPass<FuncOp>(createStdBufferizePass());
+  pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addPass(createLinalgBufferizePass());
   pm.addPass(createFuncBufferizePass());
 
@@ -252,8 +252,8 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // At this point, we have lots of loose stuff floating around from lowering,
   // so it's a good time to do some general cleanups.
   if (options.optimize) {
-    pm.addPass(createCanonicalizerPass());
-    pm.addPass(createCSEPass());
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
   // --------------------------------------------------------------------------
@@ -264,12 +264,12 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
 
   // Lower linalg ops to loops.
   // TODO: Do some linalg optimizations like tiling here.
-  pm.addPass(createConvertLinalgToLoopsPass());
+  pm.addNestedPass<FuncOp>(createConvertLinalgToLoopsPass());
 
   // Run a some cleanups.
   if (options.optimize) {
-    pm.addPass(createCanonicalizerPass());
-    pm.addPass(createCSEPass());
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
   // --------------------------------------------------------------------------
@@ -277,7 +277,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // --------------------------------------------------------------------------
 
   // Convert scf to std control flow in preparation for going to LLVM.
-  pm.addPass(createLowerToCFGPass());
+  pm.addNestedPass<FuncOp>(createLowerToCFGPass());
 
   // Convert functions signatures and other constructs that interface with the
   // runtime to the `refbackrt` dialect.
@@ -291,8 +291,8 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // Although LLVM will clean everything up eventually, for the sake of IR
   // clarity while still in MLIR, run some cleanups.
   if (options.optimize) {
-    pm.addPass(createCanonicalizerPass());
-    pm.addPass(createCSEPass());
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<FuncOp>(createCSEPass());
   }
 }
 
@@ -305,6 +305,7 @@ void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
   // case of invalid broadcasts.
   //
   // TCP does not. So we need to reify the broadcasting and error checking.
+  // These all run at the module level.
   pm.addPass(createConvertTCFToStdPass());
   pm.addPass(createConvertTCFToLinalgPass());
   pm.addPass(createConvertTCFToTCPPass());

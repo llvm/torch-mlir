@@ -69,8 +69,8 @@ matchAndRewriteBinaryElementwise(Operation *op, PatternRewriter &rewriter) {
       loc, resultType, rhs, broadcastedShape);
   Value binaryOpResult;
   if (isa<tcf::AddOp>(op)) {
-    binaryOpResult = rewriter.create<AddFOp>(
-        loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+    binaryOpResult = rewriter.create<AddFOp>(loc, result.getType(),
+                                             lhsBroadcasted, rhsBroadcasted);
   } else if (isa<tcf::MaxOp>(op)) {
     // XXX: remove TCP dep
     // XXX: remove TCP ops from TCP
@@ -79,8 +79,8 @@ matchAndRewriteBinaryElementwise(Operation *op, PatternRewriter &rewriter) {
     binaryOpResult =
         rewriter.create<SelectOp>(loc, pred, lhsBroadcasted, rhsBroadcasted);
   } else if (isa<tcf::MulOp>(op)) {
-    binaryOpResult = rewriter.create<MulFOp>(
-        loc, result.getType(), lhsBroadcasted, rhsBroadcasted);
+    binaryOpResult = rewriter.create<MulFOp>(loc, result.getType(),
+                                             lhsBroadcasted, rhsBroadcasted);
   } else {
     op->dump();
     llvm::report_fatal_error(

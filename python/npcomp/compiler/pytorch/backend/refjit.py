@@ -6,8 +6,6 @@ import os
 
 from mlir.ir import *
 from mlir.passmanager import *
-from _npcomp import register_dialects
-from _npcomp import mlir as legacy_mlir
 from npcomp.compiler.generic.backend import refjit as refjit_backend
 from npcomp.compiler.utils import logging
 
@@ -16,14 +14,8 @@ __all__ = [
     "CompilerBackend",
 ]
 
-FRONTEND_PASSES = (
-    "func(npcomp-cpa-type-inference)",
-    "numpy-public-functions-to-tensor",
-    "func(convert-numpy-to-tcf)",
-    "func(convert-scf-to-std)",
-    "func(canonicalize)",
-    "func(tcf-shape-refinement)",
-)
+FRONTEND_PASSES = ("func(aten-recognize-kernels)", "func(convert-aten-to-tcf)",
+                   "numpy-public-functions-to-tensor", "canonicalize")
 
 # Re-export.
 is_enabled = refjit_backend.is_enabled
@@ -37,12 +29,12 @@ class CompilerBackend:
     self._refjit = refjit_backend.get_refjit()
     self._debug = logging.debug_enabled()
 
-  def compile(self, legacy_imported_ir_module: legacy_mlir.ir.ModuleOp):
+  def compile(self, imported_module: Module):
     """Compiles an imported module.
 
     Args:
-      legacy_imported_ir_module: The MLIR module as imported from the
-        ImportFrontend.
+      imported_module: The MLIR module consisting of funcs in the torch
+        dialect.
     Returns:
       An opaque, backend specific module object that can be passed to load.
       The object may actually be something more specific to the backend (i.e.
@@ -51,8 +43,6 @@ class CompilerBackend:
     """
     # TODO: Once transitioned to new Python API, don't reparse the module.
     with Context() as context:
-      register_dialects(context)
-      imported_module = Module.parse(legacy_imported_ir_module.to_asm())
       # Frontend.
       pm = PassManager.parse(",".join(FRONTEND_PASSES))
       pm.run(imported_module)

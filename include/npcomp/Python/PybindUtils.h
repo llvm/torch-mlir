@@ -15,6 +15,9 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
+#include "mlir-c/Bindings/Python/Interop.h"
+#include "mlir-c/IR.h"
+#include "mlir-c/Pass.h"
 #include "llvm/ADT/Optional.h"
 
 namespace py = pybind11;
@@ -24,6 +27,45 @@ namespace detail {
 
 template <typename T>
 struct type_caster<llvm::Optional<T>> : optional_caster<llvm::Optional<T>> {};
+
+/// Casts object -> MlirContext.
+template <> struct type_caster<MlirContext> {
+  PYBIND11_TYPE_CASTER(MlirContext, _("MlirContext"));
+  bool load(handle src, bool) {
+    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    value = mlirPythonCapsuleToContext(capsule.ptr());
+    if (mlirContextIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
+
+/// Casts object -> MlirModule.
+template <> struct type_caster<MlirModule> {
+  PYBIND11_TYPE_CASTER(MlirModule, _("MlirModule"));
+  bool load(handle src, bool) {
+    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    value = mlirPythonCapsuleToModule(capsule.ptr());
+    if (mlirModuleIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
+
+/// Casts object -> MlirPassManager.
+template <> struct type_caster<MlirPassManager> {
+  PYBIND11_TYPE_CASTER(MlirPassManager, _("MlirPassManager"));
+  bool load(handle src, bool) {
+    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    value = mlirPythonCapsuleToPassManager(capsule.ptr());
+    if (mlirPassManagerIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
 
 } // namespace detail
 } // namespace pybind11

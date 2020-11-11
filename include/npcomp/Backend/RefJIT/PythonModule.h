@@ -15,7 +15,7 @@ namespace npcomp {
 namespace python {
 
 /// Defines an "refjit" module with backend support definitions.
-void defineBackendRefJitModule(py::module m);
+void defineBackendRefJitModule(py::module &m);
 
 } // namespace python
 } // namespace npcomp
