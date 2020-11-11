@@ -1,7 +1,7 @@
 # RUN: %PYTHON %s | npcomp-opt -split-input-file | FileCheck %s --dump-input=fail
 
 import math
-from npcomp.compiler import test_config
+from npcomp.compiler.numpy import test_config
 
 import_global = test_config.create_import_dump_decorator()
 

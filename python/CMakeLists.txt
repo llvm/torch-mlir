@@ -9,7 +9,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy
         # TODO: Make the runtime library work for windows.
         ${CMAKE_BINARY_DIR}/lib/libNPCOMPCompilerRuntimeShlib.so
-        ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/backend/refjit_resources/libNPCOMPCompilerRuntimeShlib.so
+        ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/_refjit_resources/libNPCOMPCompilerRuntimeShlib.so
 )
 add_dependencies(NPCOMPPythonResources
   NPCOMPCompilerRuntimeShlib

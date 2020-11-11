@@ -8,7 +8,7 @@ from typing import Union
 
 from _npcomp.mlir import ir
 
-from ... import logging
+from ....utils import logging
 from ...interfaces import *
 
 __all__ = [

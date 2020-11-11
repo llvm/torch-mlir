@@ -10,7 +10,7 @@ import numpy as np
 
 from _npcomp.mlir import ir
 
-from ... import logging
+from ....utils import logging
 from ...interfaces import *
 from ...partial_eval_base import *
 

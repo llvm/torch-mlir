@@ -5,7 +5,7 @@
 import os
 
 from _npcomp import mlir
-from npcomp.compiler import logging
+from npcomp.compiler.utils import logging
 
 __all__ = [
     "is_enabled",
@@ -48,7 +48,9 @@ def is_enabled() -> bool:
 
 
 def get_runtime_libs():
-  resources_dir = os.path.join(os.path.dirname(__file__), "refjit_resources")
+  # The _refjit_resources directory is at the npcomp.compiler level.
+  resources_dir = os.path.join(os.path.dirname(__file__), "..", "..",
+                               "_refjit_resources")
   return [os.path.join(resources_dir, "libNPCOMPCompilerRuntimeShlib.so")]
 
 

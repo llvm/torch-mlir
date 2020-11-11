@@ -7,7 +7,7 @@ from typing import Any, Callable, Union
 
 from .interfaces import *
 from .py_value_utils import *
-from . import logging
+from ..utils import logging
 
 __all__ = [
     "MappedPartialEvalHook",
