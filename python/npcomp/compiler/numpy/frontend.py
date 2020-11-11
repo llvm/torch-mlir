@@ -14,7 +14,7 @@ from _npcomp.mlir import ir
 from _npcomp.mlir.dialect import ScfDialectHelper
 from npcomp.dialect import Numpy
 
-from . import logging
+from ..utils import logging
 from .importer import *
 from .interfaces import *
 from .name_resolver_base import *

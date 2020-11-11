@@ -6,7 +6,7 @@
 import ast
 import functools
 
-from . import logging
+from ..utils import logging
 from .frontend import *
 from .interfaces import *
 from .partial_eval_base import *

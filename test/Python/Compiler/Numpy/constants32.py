@@ -2,8 +2,8 @@
 
 # Subset of constant tests which verify against a GenericTarget32.
 
-from npcomp.compiler import test_config
-from npcomp.compiler.target import *
+from npcomp.compiler.numpy import test_config
+from npcomp.compiler.numpy.target import *
 
 import_global = test_config.create_import_dump_decorator(
     target_factory=GenericTarget32)

@@ -3,7 +3,7 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from _npcomp import mlir
-from npcomp.compiler import logging
+from npcomp.compiler.utils import logging
 
 __all__ = [
     "is_enabled",

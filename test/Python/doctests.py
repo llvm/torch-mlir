@@ -23,7 +23,7 @@ def run_doctest(mod):
 
 
 TEST_MODULES = (
-    "npcomp.compiler.py_value_utils",
+    "npcomp.compiler.numpy.py_value_utils",
     "npcomp.dialect.Basicpy",
     "npcomp.dialect.Numpy",
     "npcomp.tracing.context",
