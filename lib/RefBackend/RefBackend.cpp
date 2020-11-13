@@ -243,7 +243,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // Run some upstream bufferization passes to finish bufferization.
   pm.addNestedPass<FuncOp>(createStdBufferizePass());
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
-  pm.addPass(createLinalgBufferizePass());
+  pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
   pm.addPass(createFuncBufferizePass());
 
   // TODO: Do buffer deallocation. We should be able to just drop in the
@@ -306,9 +306,9 @@ void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
   //
   // TCP does not. So we need to reify the broadcasting and error checking.
   // These all run at the module level.
-  pm.addPass(createConvertTCFToStdPass());
-  pm.addPass(createConvertTCFToLinalgPass());
-  pm.addPass(createConvertTCFToTCPPass());
+  pm.addNestedPass<FuncOp>(createConvertTCFToStdPass());
+  pm.addNestedPass<FuncOp>(createConvertTCFToLinalgPass());
+  pm.addNestedPass<FuncOp>(createConvertTCFToTCPPass());
 
   createRefBackendLoweringPipeline(pm, options);
 }

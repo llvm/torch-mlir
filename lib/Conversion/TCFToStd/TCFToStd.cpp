@@ -139,8 +139,7 @@ public:
   }
 
   void runOnOperation() override {
-    ModuleOp module = getOperation();
-    (void)applyPatternsAndFoldGreedily(module, getPatterns());
+    (void)applyPatternsAndFoldGreedily(getOperation(), getPatterns());
   }
 
   FrozenRewritePatternList getPatterns() {
@@ -156,7 +155,7 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
+std::unique_ptr<OperationPass<FuncOp>>
 mlir::NPCOMP::createConvertTCFToStdPass() {
   return std::make_unique<ConvertTCFToStd>();
 }

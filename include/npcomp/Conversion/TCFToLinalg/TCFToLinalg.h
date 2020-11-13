@@ -14,7 +14,7 @@
 
 namespace mlir {
 namespace NPCOMP {
-std::unique_ptr<OperationPass<ModuleOp>> createConvertTCFToLinalgPass();
+std::unique_ptr<OperationPass<FuncOp>> createConvertTCFToLinalgPass();
 }
 } // namespace mlir
 
