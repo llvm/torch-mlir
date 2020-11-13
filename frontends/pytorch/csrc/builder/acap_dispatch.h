@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_ACAP_DISPATCH_H
-#define NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_ACAP_DISPATCH_H
+#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_ACAP_DISPATCH_H
+#define NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_ACAP_DISPATCH_H
 
 #include <list>
 #include <memory>

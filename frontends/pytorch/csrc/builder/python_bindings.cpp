@@ -126,7 +126,9 @@ py::list GetRegisteredOps() {
   return results;
 }
 
-void InitModuleBindings(py::module &m) {
+} // namespace
+
+void torch_mlir::InitBuilderBindings(py::module &m) {
   m.def("debug_trace_to_stderr", &enableDebugTraceToStderr);
 
   py::class_<AcapController, std::shared_ptr<AcapController>>(m,
@@ -139,8 +141,3 @@ void InitModuleBindings(py::module &m) {
   ModuleBuilder::bind(m);
 }
 
-} // namespace
-
-void torch_mlir::InitC10DispatchBindings(py::module &m) {
-  InitModuleBindings(m);
-}

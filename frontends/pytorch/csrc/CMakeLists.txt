@@ -1,8 +1,4 @@
-if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
-  add_subdirectory(type_dispatch)
-else()
-  add_subdirectory(c10_dispatch)
-endif()
+add_subdirectory(builder)
 
 include(NpcompPython)
 
@@ -16,25 +12,14 @@ include_directories(
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-set(torch_mlir_optional_libraries)
-if(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
-  list(APPEND torch_mlir_optional_libraries
-    npcomp_torch_type_dispatch_bindings
-    )
-else()
-  list(APPEND torch_mlir_optional_libraries
-    npcomp_torch_c10_dispatch_bindings
-  )
-endif()
-
 add_library(NPCOMPTorchMLIRExt SHARED
   init_python_bindings.cpp
   )
 target_link_libraries(NPCOMPTorchMLIRExt
   ${TORCH_LIBRARIES}
   ${PYTHON_LIBRARIES}
-  ${torch_mlir_optional_libraries}
   torch_python
+  npcomp_torch_builder_bindings
 
   # NPCOMP shared library.
   NPCOMP

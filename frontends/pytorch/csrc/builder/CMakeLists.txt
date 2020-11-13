@@ -7,7 +7,7 @@ include_directories(
   ${PYTHON_INCLUDE_DIRS}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
-add_library(npcomp_torch_c10_dispatch_bindings
+add_library(npcomp_torch_builder_bindings
   acap_dispatch.cpp
   debug.cpp
   func_builder.cpp
@@ -15,7 +15,7 @@ add_library(npcomp_torch_c10_dispatch_bindings
   python_bindings.cpp
 )
 
-target_link_libraries(npcomp_torch_c10_dispatch_bindings
+target_link_libraries(npcomp_torch_builder_bindings
   ${TORCH_LIBRARIES}
   ${PYTHON_LIBRARIES}
   torch_python

@@ -5,6 +5,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_DEBUG_H
+#define NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_DEBUG_H
+
 #include <string>
 
 namespace torch_mlir {
@@ -20,3 +23,5 @@ void debugTrace(const std::string &message);
 void enableDebugTraceToStderr();
 
 } // namespace torch_mlir
+
+#endif // NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_DEBUG_H

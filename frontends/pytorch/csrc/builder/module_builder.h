@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
-#define NPCOMP_FRONTENDS_PYTORCH_CSRC_C10_DISPATCH_MODULE_BUILDER_H
+#ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_H
+#define NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_H
 
 #include "../pybind.h"
 

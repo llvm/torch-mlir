@@ -15,13 +15,8 @@ namespace torch_mlir {
 // Perform top-level initialization for the module.
 void InitBindings(pybind11::module &m);
 
-// Adds bindings related to the type-dispatch program capture mechanism.
-// Only defined if NPCOMP_ENABLE_TORCH_TYPE_DISPATCH (optional feature).
-void InitTypeDispatchBindings(pybind11::module &m);
-
-// Adds bindings related to the c10-dispatch program capture mechanism.
-// Only defined if !NPCOMP_ENABLE_TORCH_TYPE_DISPATCH (default).
-void InitC10DispatchBindings(pybind11::module &m);
+// Adds bindings related to building modules.
+void InitBuilderBindings(pybind11::module &m);
 
 } // namespace torch_mlir
 

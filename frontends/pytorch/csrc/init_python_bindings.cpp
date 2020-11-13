@@ -148,12 +148,7 @@ void InitModuleBindings(py::module &m) {
 
 void InitBindings(py::module &m) {
   InitModuleBindings(m);
-
-#if defined(NPCOMP_ENABLE_TORCH_TYPE_DISPATCH)
-  InitTypeDispatchBindings(m);
-#else
-  InitC10DispatchBindings(m);
-#endif
+  InitBuilderBindings(m);
 }
 
 } // namespace torch_mlir
