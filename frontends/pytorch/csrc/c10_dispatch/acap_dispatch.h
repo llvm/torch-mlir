@@ -71,6 +71,13 @@ public:
   static at::Tensor &copyUnderKernel(at::Tensor &self, const at::Tensor &src,
                                      bool non_blocking);
 
+  // Backend select kernel for arange factory function.
+  static at::Tensor
+  arangeBackendSelectKernel(at::Scalar end, c10::optional<at::ScalarType> dtype,
+                            c10::optional<at::Layout> layout,
+                            c10::optional<at::Device> device,
+                            c10::optional<bool> pin_memory);
+
 private:
   /// Builds a kernel call step by step.
   class KernelCallBuilder {
@@ -97,7 +104,8 @@ private:
   MlirLocation getCurrentLocation();
   void redispatch(const c10::OperatorHandle &opHandle, c10::Stack *stack);
   void fallbackKernelImpl(const c10::OperatorHandle &opHandle,
-                          c10::Stack *stack);
+                          c10::Stack *stack,
+                          std::function<void()> redispatchCallback);
   MlirValue mapIValueToMlirValue(MlirLocation loc, const c10::IValue &ival);
   MlirType mapIValueToMlirType(MlirLocation loc, const c10::IValue &ival);
   /// Imports a tensor by value (as a constant), remembering the association.

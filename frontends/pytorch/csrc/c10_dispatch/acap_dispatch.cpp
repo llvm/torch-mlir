@@ -176,14 +176,9 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
   for (auto &tensor : tensors) {
     MlirValue v = funcBuilder->lookupTensor(tensor);
     if (mlirValueIsNull(v)) {
-      // Finalize this instance so that everything that goes into printing an
-      // error message does not capture.
-      hasReturned = true;
-      // Exclude recursive dispatch in order to print tensor.
-      c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
-      std::stringstream msg;
-      msg << "Cannot return a tensor that is not from the capture context";
-      throw std::invalid_argument(msg.str());
+      debugTrace(
+          "Return of imported-constant tensor (intentional memorization?)");
+      v = importTensorByValue(tensor);
     }
 
     returnsTypes.push_back(mlirValueGetType(v));
@@ -217,12 +212,20 @@ void AcapController::verifyHasNotReturned() {
 /* static */
 void AcapController::fallbackKernel(const OperatorHandle &opHandle,
                                     Stack *stack) {
+  auto redispatchCallback = [&]() {
+    // Exclude recursive dispatch to this kernel.
+    c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
+    // Passthrough.
+    auto &dispatcher = c10::Dispatcher::singleton();
+    dispatcher.callBoxed(opHandle, stack);
+  };
+
   auto current = getCurrentThreadAcapController();
   if (!current) {
-    current->redispatch(opHandle, stack);
+    redispatchCallback();
     return;
   }
-  current->fallbackKernelImpl(opHandle, stack);
+  current->fallbackKernelImpl(opHandle, stack, redispatchCallback);
 }
 
 at::Tensor AcapController::convolutionKernel(
@@ -406,25 +409,42 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
   return result;
 }
 
+at::Tensor AcapController::arangeBackendSelectKernel(
+    at::Scalar end, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+    c10::optional<bool> pin_memory) {
+  static c10::OperatorName opName{"aten::arange", ""};
+  auto &dispatcher = c10::Dispatcher::singleton();
+  auto opHandle = dispatcher.findOp(opName);
+  assert(opHandle && "could not find arange op");
+
+  // Exclude recursive calls.
+  c10::DispatchKeySet keySet{kAcapDispatchKey, kAcapGradDispatchKey};
+  c10::impl::ExcludeDispatchKeyGuard exclusion(keySet);
+
+  // Dispatching in this fashion replicates the exact way that PyTorch
+  // built-in handlers dispatch to BackendSelect kernels.
+  auto targetDk = c10::computeDispatchKey(dtype, layout, device);
+  auto opTyped = opHandle->typed<at::Tensor(
+      at::Scalar end, c10::optional<at::ScalarType> dtype,
+      c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+      c10::optional<bool> pin_memory)>();
+  return opTyped.callWithDispatchKey(targetDk, end, dtype, layout, device,
+                                     pin_memory);
+}
+
 MlirLocation AcapController::getCurrentLocation() {
   return mlirLocationUnknownGet(funcBuilder->getContext());
 }
 
-void AcapController::redispatch(const c10::OperatorHandle &opHandle,
-                                c10::Stack *stack) {
-  // Exclude recursive dispatch to this kernel.
-  c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
-  // Passthrough.
-  auto &dispatcher = c10::Dispatcher::singleton();
-  dispatcher.callBoxed(opHandle, stack);
-}
-
-void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
-                                        Stack *stack) {
+void AcapController::fallbackKernelImpl(
+    const OperatorHandle &opHandle, Stack *stack,
+    std::function<void()> redispatchCallback) {
   verifyHasNotReturned();
   if (isDebugTraceEnabled()) {
     std::stringstream s;
-    s << "Fallback (boxed) dispatch: " << opHandle.schema();
+    s << "Fallback (boxed) dispatch: " << opHandle.schema()
+      << " (stack size=" << stack->size() << ")";
     debugTrace(s.str());
   }
 
@@ -454,7 +474,7 @@ void AcapController::fallbackKernelImpl(const OperatorHandle &opHandle,
   }
 
   // Invoke the original kernel.
-  redispatch(opHandle, stack);
+  redispatchCallback();
 
   // Map returns to results.
   size_t returnCount = schema.returns().size();
@@ -640,6 +660,21 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   MlirValue constArrayValue = mlirOperationGetResult(constArrayOp, 0);
   funcBuilder->mapTensor(tensor, constArrayValue);
   return constArrayValue;
+}
+
+TORCH_LIBRARY_IMPL(aten, BackendSelect, m) {
+  // PyTorch logs a warning when kernels are overriden, which is unavoidable
+  // for factory-function BackendSelect kernels (there is not yet a "safe"
+  // override mechanism). So, just silence it. Any of them here are coded
+  // to be a superset of the default functionality, and there are only a few.
+  auto orig_log_level = FLAGS_caffe2_log_level;
+  FLAGS_caffe2_log_level = c10::GLOG_ERROR;
+
+  // Disable capture of arange: causes it to memorize the resulting tensor.
+  m.impl("arange", &AcapController::arangeBackendSelectKernel);
+
+  // Restore log level.
+  FLAGS_caffe2_log_level = orig_log_level;
 }
 
 TORCH_LIBRARY_IMPL(_, ACAP_DISPATCH_KEY, m) {
