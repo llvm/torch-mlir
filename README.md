@@ -124,8 +124,7 @@ export PYTHONPATH="$(realpath python):$(realpath build/python)"
 
 ```shell
 # See note above about -D_GLIBCXX_USE_CXX11_ABI=0
-./build_tools/cmake_configure.sh \
-  -DCMAKE_PREFIX_PATH=$CONDA_PREFIX/lib/python3.8/site-packages/torch/share/cmake/Torch
+./build_tools/cmake_configure.sh
 cmake --build build --target check-npcomp check-frontends-pytorch
 ```
 
