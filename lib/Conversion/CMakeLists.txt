@@ -5,10 +5,6 @@ add_subdirectory(TCFToLinalg)
 add_subdirectory(TCFToStd)
 add_subdirectory(TCFToTCP)
 
-if(NPCOMP_ENABLE_IREE)
-add_subdirectory(BasicpyToIREEVM)
-endif()
-
 add_npcomp_library(NPCOMPConversionPasses
   Passes.cpp
 

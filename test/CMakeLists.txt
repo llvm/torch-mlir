@@ -19,16 +19,6 @@ set(NPCOMP_TEST_DEPENDS
         NPCOMPNativePyExt
 )
 
-# Optional features.
-if(NPCOMP_ENABLE_IREE)
-  LIST(APPEND NPCOMP_TEST_DEPENDS
-    # TODO: Fix this so it has an IREE prefix
-    bindings_python_pyiree_rt_rt
-    # TODO: Why is this separate?
-    bindings_python_pyiree_rt_system_api
-  )
-endif()
-
 add_lit_testsuite(check-npcomp-lit "Running the npcomp regression tests"
         ${CMAKE_CURRENT_BINARY_DIR}
         DEPENDS ${NPCOMP_TEST_DEPENDS}

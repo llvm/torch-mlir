@@ -1,10 +1,10 @@
 # RUN: %PYTHON %s
 
-from npcomp.compiler.backend import iree
-from npcomp.compiler.frontend import *
-from npcomp.compiler import logging
-from npcomp.compiler import test_config
-from npcomp.compiler.target import *
+from npcomp.compiler.numpy.backend import iree
+from npcomp.compiler.numpy.frontend import *
+from npcomp.compiler.numpy import test_config
+from npcomp.compiler.numpy.target import *
+from npcomp.compiler.utils import logging
 
 # TODO: This should all exist in a high level API somewhere.
 from _npcomp import mlir
