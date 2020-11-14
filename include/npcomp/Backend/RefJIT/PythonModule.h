@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_BACKEND_IREE_PYTHON_MODULE_H
-#define NPCOMP_BACKEND_IREE_PYTHON_MODULE_H
+#ifndef NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H
+#define NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H
 
 #include "npcomp/Python/PybindUtils.h"
 
@@ -20,4 +20,4 @@ void defineBackendRefJitModule(py::module &m);
 } // namespace python
 } // namespace npcomp
 
-#endif // NPCOMP_BACKEND_IREE_PYTHON_MODULE_H
+#endif // NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H

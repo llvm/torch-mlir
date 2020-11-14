@@ -29,7 +29,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
-set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
+set(NPCOMP_IREE_BUILDDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 set(NPCOMP_ENABLE_PYTORCH "OPTIONAL" CACHE STRING "Enables the PyTorch frontend (OFF, OPTIONAL, REQUIRED)")
 
 # Turn on -gsplit-dwarf if requested in debug builds.
@@ -103,30 +103,16 @@ endif()
 # IREE configuration
 #-------------------------------------------------------------------------------
 
-function(npcomp_add_iree_src)
-  # TODO: Find a way to fix this upstream as globally demoting warnings
-  # like this is a really bad thing to be doing. Also, Abseil seems to try
-  # really hard to keep us from touching these so some still get through.
-  add_compile_options(-Wno-sign-compare -Wno-unused-template)
-  add_subdirectory("${NPCOMP_IREE_SRCDIR}" "iree" EXCLUDE_FROM_ALL)
-endfunction()
-
 if(NPCOMP_ENABLE_IREE)
   add_compile_definitions(NPCOMP_ENABLE_IREE)
   string(APPEND NPCOMP_TABLEGEN_ARGS "-DNPCOMP_ENABLE_IREE")
-  if(NPCOMP_IREE_SRCDIR)
-    message(STATUS "Depending on IREE source: ${NPCOMP_IREE_SRCDIR}")
-    set(IREE_BUILD_TESTS OFF CACHE BOOL "Override IREE setting" FORCE)
-    set(IREE_BUILD_SAMPLES OFF CACHE BOOL "Override IREE setting" FORCE)
-    set(IREE_BUILD_PYTHON_BINDINGS ON CACHE BOOL "Override IREE setting" FORCE)
-    set(IREE_MLIR_DEP_MODE "DISABLED" CACHE STRING "Override IREE setting")
-    npcomp_add_iree_src()
+  if(NPCOMP_IREE_BUILDDIR)
+    message(STATUS "Depending on IREE build: ${NPCOMP_IREE_BUILDDIR}")
+    set(IREE_DIR "${NPCOMP_IREE_BUILDDIR}")
+    set(IREE_FOUND 1)
   else()
     find_package(IREE REQUIRED CONFIG)
   endif()
-
-  message(STATUS "IREE INCLUDE DIRS: ${IREE_PUBLIC_INCLUDE_DIRS}")
-  include_directories("${IREE_PUBLIC_INCLUDE_DIRS}")
 endif()
 
 #-------------------------------------------------------------------------------

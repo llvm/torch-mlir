@@ -71,11 +71,4 @@ def ConvertTCFToTCP : Pass<"convert-tcf-to-tcp", "ModuleOp"> {
   let constructor = "mlir::NPCOMP::createConvertTCFToTCPPass()";
 }
 
-//===----------------------------------------------------------------------===//
-// Conditionally compiled IREE backend passes
-//===----------------------------------------------------------------------===//
-
-#ifdef NPCOMP_ENABLE_IREE
-#endif // NPCOMP_ENABLE_IREE
-
 #endif // NPCOMP_CONVERSION_PASSES

@@ -43,10 +43,6 @@ else()
   set(NPCOMP_PYEXT_LIBADD)
 endif()
 
-if(NPCOMP_ENABLE_IREE)
-  list(APPEND NPCOMP_PYEXT_LIBADD NPCOMPBackendIREEPythonModule)
-endif()
-
 if(NPCOMP_ENABLE_REFJIT)
   list(APPEND NPCOMP_PYEXT_LIBADD
     NPCOMPBackendRefJITPythonModule
@@ -81,8 +77,7 @@ target_link_libraries(NPCOMPNativePyExt
     NPCOMPInitAll
     NPCOMPPythonCommon
     ${NPCOMP_PYEXT_LIBADD}
-)
-
+  )
 npcomp_python_target_compile_options(NPCOMPNativePyExt)
 
 mlir_check_all_link_libraries(NPCOMPNativePyExt)
