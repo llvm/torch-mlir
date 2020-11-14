@@ -2,13 +2,17 @@ add_subdirectory(builder)
 
 include(NpcompPython)
 
-include_directories(
+# Sharp edge: Torch extensions need to use the same pybind11 that torch
+# was compiled with, or else there will be issues in cross module exception
+# handling (which will abort instead of raise). We circumvent the possibility
+# by forcing the torch directories first.
+include_directories(BEFORE
   ${TORCH_INCLUDE_DIRS}
   ${TORCH_INSTALL_PREFIX}/include/TH
   ${TORCH_INSTALL_PREFIX}/include/THC/opt/pytorch/pytorch
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${PYTHON_INCLUDE_DIRS}
+  ${Python3_INCLUDE_DIRS}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
@@ -17,7 +21,7 @@ add_library(NPCOMPTorchMLIRExt SHARED
   )
 target_link_libraries(NPCOMPTorchMLIRExt
   ${TORCH_LIBRARIES}
-  ${PYTHON_LIBRARIES}
+  ${Python3_LIBRARIES}
   torch_python
   npcomp_torch_builder_bindings
 

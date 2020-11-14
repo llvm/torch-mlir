@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -30,6 +30,7 @@ option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
 set(NPCOMP_IREE_SRCDIR "" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
+set(NPCOMP_ENABLE_PYTORCH "OPTIONAL" CACHE STRING "Enables the PyTorch frontend (OFF, OPTIONAL, REQUIRED)")
 
 # Turn on -gsplit-dwarf if requested in debug builds.
 if (NPCOMP_USE_SPLIT_DWARF AND
@@ -80,6 +81,7 @@ include(AddLLVM)
 include(AddMLIR)
 include(AddNPCOMP)
 include(HandleLLVMOptions)
+include(ConfigurePyTorch)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -133,20 +135,36 @@ endif()
 
 set(NPCOMP_PYTHON_BINDINGS_VERSION_LOCKED 1 CACHE BOOL
        "Links to specific python libraries, resolving all symbols.")
-
-# TODO(laurenzo): Rationalize with how this is done elsewhere
-find_package(PythonInterp REQUIRED)
-find_package(PythonLibs)
-message(STATUS "Found python include dirs: ${PYTHON_INCLUDE_DIRS}")
-message(STATUS "Found ppython libraries: ${PYTHON_LIBRARIES}")
-find_package(pybind11 CONFIG REQUIRED)
-message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+message(STATUS "Found python include dirs: ${Python3_INCLUDE_DIRS}")
+message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
 
 #-------------------------------------------------------------------------------
 # Pytorch Configuration
 #-------------------------------------------------------------------------------
 
-find_package(Torch)
+if(NPCOMP_ENABLE_PYTORCH)
+  ProbeForPyTorchInstall()
+  if(NPCOMP_ENABLE_PYTORCH EQUAL "OPTIONAL")
+    find_package(Torch)
+  else()
+    find_package(Torch REQUIRED)
+  endif()
+endif()
+
+#-------------------------------------------------------------------------------
+# Pybind11 Configuration
+#-------------------------------------------------------------------------------
+
+find_package(pybind11 CONFIG REQUIRED)
+# TODO: pybind11 v2.6 switched from pybind11_INCLUDE_DIRS (plural) to
+# pybind11_INCLUDE_DIR (singular). A lot has changed in this area since this
+# was written and overall python config and pybind11 should be modernized.
+set(pybind11_INCLUDE_DIR ${pybind11_INCLUDE_DIR} ${pybind11_INCLUDE_DIRS})
+message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIR}")
+message(STATUS "Python prefix = '${PYTHON_MODULE_PREFIX}', "
+               "suffix = '${PYTHON_MODULE_SUFFIX}', "
+               "extension = '${PYTHON_MODULE_EXTENSION}")
 
 #-------------------------------------------------------------------------------
 # Directory setup
