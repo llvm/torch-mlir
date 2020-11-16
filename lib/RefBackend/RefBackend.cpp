@@ -32,7 +32,6 @@
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Pass/Pass.h"
@@ -89,8 +88,9 @@ public:
     SmallVector<Value, 6> dynamicExtents;
     for (int i = 0, e = memrefType.getRank(); i < e; i++) {
       if (memrefType.isDynamicDim(i)) {
-        auto extent =
-            rewriter.create<shape::GetExtentOp>(op.getLoc(), shape, i);
+        auto ci = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
+        auto extent = rewriter.create<ExtractElementOp>(op.getLoc(), shape,
+                                                        ValueRange({ci}));
         dynamicExtents.push_back(extent);
       }
     }
@@ -103,9 +103,6 @@ public:
 namespace {
 class LowerAllocMemRefOps
     : public LowerAllocMemRefOpsBase<LowerAllocMemRefOps> {
-  void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect>();
-  }
 
   void runOnOperation() override {
     auto func = getOperation();
@@ -114,7 +111,7 @@ class LowerAllocMemRefOps
     patterns.insert<LowerAllocMemRefOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<refback::AllocMemRefOp>();
-    target.addLegalOp<shape::GetExtentOp>();
+    target.addLegalOp<ExtractElementOp>();
     target.addLegalOp<AllocOp>();
     target.addLegalOp<ConstantOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
@@ -217,6 +214,9 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
     llvm::report_fatal_error("couldn't initialize restricted-canonicalize");
   pm.addPass(std::move(shapeCanonicalizer));
 
+  // Lower shape ops to std.
+  pm.addPass(createConvertShapeToStandardPass());
+
   // --------------------------------------------------------------------------
   // Lower the `tensor` type to `memref`.
   // --------------------------------------------------------------------------
@@ -226,20 +226,16 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // This means that intermediate steps have source/target materializations
   // (tensor_load / tensor_to_memref) in the IR.
 
-  // Bufferize the TCP dialect.
-  pm.addNestedPass<FuncOp>(createTCPBufferizePass());
+  // Run tensor constant bufferization.
+  // This pass has to run on a module op, and so does the final
+  // FuncBufferizePass. But everything else can run in parallel on functions,
+  // so we try to bracket the entire bufferization pipeline with the module
+  // passes to allow maximum parallelism.
   pm.addPass(createTensorConstantBufferizePass());
+  pm.addNestedPass<FuncOp>(createTCPBufferizePass());
   // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
   // We need to resolve this to std.alloc which takes individual extents.
   pm.addNestedPass<FuncOp>(createLowerAllocMemRefOpsPass());
-  // Lower shape ops to std.
-  // TODO: This should in principle be moved before tensor->memref conversion.
-  // But some of the tensor->memref lowerings above use shape.get_extent. For
-  // example, when lowering a broadcast, we need to get an extent from its shape
-  // operand to allocate the output.
-  pm.addPass(createConvertShapeToStandardPass());
-
-  // Run some upstream bufferization passes to finish bufferization.
   pm.addNestedPass<FuncOp>(createStdBufferizePass());
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());

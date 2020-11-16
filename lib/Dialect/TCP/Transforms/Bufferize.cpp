@@ -85,8 +85,8 @@ public:
     SmallVector<Value, 6> outputExtents;
     for (int i = 0, e = resultType.getRank(); i < e; i++) {
       Value dimIndex = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
-      Value outputExtent = rewriter.create<shape::GetExtentOp>(
-          op.getLoc(), rewriter.getIndexType(), resultShape, dimIndex);
+      Value outputExtent = rewriter.create<ExtractElementOp>(
+          op.getLoc(), resultShape, ValueRange({dimIndex}));
       outputExtents.push_back(outputExtent);
     }
     int rankDiff = resultType.getRank() - inputType.getRank();
@@ -163,7 +163,6 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     registry.insert<refback::RefbackDialect>();
     registry.insert<linalg::LinalgDialect>();
     registry.insert<scf::SCFDialect>();
-    registry.insert<shape::ShapeDialect>();
   }
 
   void runOnOperation() override {
@@ -189,7 +188,6 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<scf::SCFDialect>();
-    target.addLegalOp<shape::GetExtentOp>();
 
     if (failed(applyPartialConversion(func, target, std::move(patterns))))
       return signalPassFailure();
