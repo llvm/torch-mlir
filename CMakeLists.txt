@@ -151,7 +151,7 @@ message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
 
 if(NPCOMP_ENABLE_PYTORCH)
   ProbeForPyTorchInstall()
-  if(NPCOMP_ENABLE_PYTORCH EQUAL "OPTIONAL")
+  if(NPCOMP_ENABLE_PYTORCH STREQUAL "OPTIONAL")
     find_package(Torch)
   else()
     find_package(Torch REQUIRED)
