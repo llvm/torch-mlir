@@ -65,9 +65,17 @@ void mlir::NPCOMP::registerRefBackendPasses() {
   mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
       "refback-lowering-pipeline", "RefBackend lowering pipeline.",
       mlir::NPCOMP::createRefBackendLoweringPipeline);
+  // TODO: Move this out of RefBackend once the TCF->TCP conversions
+  // become more substantial.
+  mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
+      "refback-tcf-to-tcp-pipeline",
+      "RefBackend lowering pipeline converting TCF ops to TCP-level ops (not "
+      "just TCP dialect).",
+      mlir::NPCOMP::createRefBackendTCFToTCPPipeline);
   mlir::PassPipelineRegistration<RefBackendLoweringPipelineOptions>(
       "tcf-refback-lowering-pipeline",
-      "RefBackend lowering pipeline, starting from TCF.",
+      "RefBackend lowering pipeline, starting from TCF. (equivalent to "
+      "refback-tcf-to-tcp-pipeline + refback-lowering-pipeline)",
       mlir::NPCOMP::createTCFRefBackendLoweringPipeline);
 }
 
@@ -291,19 +299,30 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   }
 }
 
-void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
+void mlir::NPCOMP::createRefBackendTCFToTCPPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
-
-  // Convert from TCF to TCP.
+  // Convert from TCF dialect to TCP-level ops.
   //
   // TCF has implicit broadcasting, and issues errors "inside the ops" in the
   // case of invalid broadcasts.
   //
-  // TCP does not. So we need to reify the broadcasting and error checking.
-  // These all run at the module level.
+  // TCP-level ops do not. So we need to reify the broadcasting and error
+  // checking.
+  //
+  // Note that TCP-level ops includes ops outside the TCP dialect itself, such
+  // as std elementwise ops on tensors and linalg ops on tensors.
   pm.addNestedPass<FuncOp>(createConvertTCFToStdPass());
   pm.addNestedPass<FuncOp>(createConvertTCFToLinalgPass());
   pm.addNestedPass<FuncOp>(createConvertTCFToTCPPass());
 
+  if (options.optimize) {
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<FuncOp>(createCSEPass());
+  }
+}
+
+void mlir::NPCOMP::createTCFRefBackendLoweringPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
+  createRefBackendTCFToTCPPipeline(pm, options);
   createRefBackendLoweringPipeline(pm, options);
 }
