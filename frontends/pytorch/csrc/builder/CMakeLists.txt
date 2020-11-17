@@ -4,7 +4,7 @@ include_directories(
   ${TORCH_INSTALL_PREFIX}/include/THC/opt/pytorch/pytorch
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${PYTHON_INCLUDE_DIRS}
+  ${Python3_INCLUDE_DIRS}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 add_library(npcomp_torch_builder_bindings
@@ -17,6 +17,6 @@ add_library(npcomp_torch_builder_bindings
 
 target_link_libraries(npcomp_torch_builder_bindings
   ${TORCH_LIBRARIES}
-  ${PYTHON_LIBRARIES}
+  ${Python3_LIBRARIES}
   torch_python
   )

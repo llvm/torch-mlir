@@ -37,7 +37,7 @@ npcomp_python_create_symlinks(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE
 # TODO(laurenzo): OSX requires allowing undefined (-undefined dynamic_lookup)
 if(NPCOMP_PYTHON_BINDINGS_VERSION_LOCKED)
   set(NPCOMP_PYEXT_LINK_MODE SHARED)
-  set(NPCOMP_PYEXT_LIBADD ${PYTHON_LIBRARIES})
+  set(NPCOMP_PYEXT_LIBADD ${Python3_LIBRARIES})
 else()
   set(NPCOMP_PYEXT_LINK_MODE MODULE)
   set(NPCOMP_PYEXT_LIBADD)
