@@ -45,6 +45,16 @@ struct RefBackendLoweringPipelineOptions
 void createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options);
 
+// Helper pipeline that runs TCF->TCP lowering.
+//
+// For now, just piggy-back on the same set of options since this is such a
+// simple set of passes.
+//
+// TODO: Move this out of RefBackend once the TCF->TCP conversions
+// become more substantial.
+void createRefBackendTCFToTCPPipeline(
+    OpPassManager &pm, const RefBackendLoweringPipelineOptions &options);
+
 // Helper pipeline that runs TCF->TCP lowering before invoking
 // RefBackendLoweringPipeline.
 // For now, just piggy-back on the same set of options since this is such a
