@@ -6,7 +6,7 @@ include_directories(
   ${TORCH_INSTALL_PREFIX}/include/THC/opt/pytorch/pytorch
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${PYTHON_INCLUDE_DIRS}
+  ${Python3_INCLUDE_DIRS}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
