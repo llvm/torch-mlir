@@ -26,6 +26,7 @@
 #include "npcomp/RefBackend/RefBackend.h"
 #include "PassDetail.h"
 
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/ShapeToStandard/ShapeToStandard.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
@@ -279,6 +280,9 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // --------------------------------------------------------------------------
   // Final conversion to an LLVM module.
   // --------------------------------------------------------------------------
+
+  // Convert affine to std control flow in preparation for going to LLVM.
+  pm.addNestedPass<FuncOp>(createLowerAffinePass());
 
   // Convert scf to std control flow in preparation for going to LLVM.
   pm.addNestedPass<FuncOp>(createLowerToCFGPass());

@@ -95,4 +95,24 @@ def TCF_MatmulOp : TCF_Op<"matmul"> {
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
+def TCF_ConvNCHWBiasOp : TCF_Op<"conv_2d_nchw_bias"> {
+  let summary = "2-D convolution with bias";
+  let description = [{
+    Performs 2-D convolution plus bias addition.
+
+    The tensors have dimensions:
+    - in:     [N, C, H, W]
+    - filter: [F, C, KH, KW]
+    - bias:   [N, F, H, W]
+    - result: [N, F, H, W]
+
+    If the `K` dimension mismatches between the operands, this op aborts the
+    program.
+  }];
+  let arguments = (ins 4DTensorOf<[F32]>:$in, 4DTensorOf<[F32]>:$filter, 4DTensorOf<[F32]>:$bias);
+  let results = (outs 4DTensorOf<[F32]>:$result);
+
+  let assemblyFormat = "$in `,` $filter `,` $bias attr-dict `:` functional-type(operands, results)";
+}
+
 #endif // #ifndef TCF_OPS
