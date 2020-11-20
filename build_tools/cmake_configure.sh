@@ -82,7 +82,7 @@ echo "Using llvm-lit: $LLVM_LIT"
 # Write a .env file for python tooling.
 function write_env_file() {
   echo "Updating $build_dir/.env file"
-  echo "PYTHONPATH=\"$(realpath "$build_dir/python_native"):$(realpath "$build_dir/python")\"" > "$build_dir/.env"
+  echo "PYTHONPATH=\"$(realpath "$build_dir/python"):$(realpath "$install_mlir/python")\"" > "$build_dir/.env"
   echo "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION=1" >> "$build_dir/.env"
   if ! cp "$build_dir/.env" "$td/.env"; then
     echo "WARNING: Failed to write $td/.env"
