@@ -371,14 +371,6 @@ std::map<std::string, uint64_t> MeanOp::getStatistics() {
   return toReturn;
 }
 
-// mm
-// std::map<std::string, uint64_t> MMOp::getStatistics() {
-//   getMMOpStatistics(*this);
-// }
-std::map<std::string, uint64_t> MmOp::getStatistics() {
-  return getMMOpStatistics(*this);
-}
-
 // mul_
 std::map<std::string, uint64_t> MulUnderOp::getStatistics() {
 

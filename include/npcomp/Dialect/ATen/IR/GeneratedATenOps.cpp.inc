@@ -941,6 +941,25 @@ const Torch::BuildKernelMetadata &LogSoftmaxBackwardDataOp::getTorchBuildKernelM
   return metadata;
 }
 
+Torch::KernelMetadata MmOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &MmOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::mm";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
 // -----------------------------------------------------------------------------
 // Loss function ops
 // -----------------------------------------------------------------------------

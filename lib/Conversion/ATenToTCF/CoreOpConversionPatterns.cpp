@@ -74,4 +74,5 @@ void mlir::NPCOMP::populateCoreATenToTCFPatterns(
   patterns.insert<ConvertBinaryElementwise<aten::MulOp, tcf::MulOp>>(context);
   patterns.insert<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(
       context);
+  patterns.insert<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
 }

@@ -215,32 +215,6 @@ uint64_t getConv2dResultTransferVolume(T *o, unsigned int idx, bool write) {
   }
 }
 
-// Return the op statistics for matrixmultiply-like operations.
-template <typename T> std::map<std::string, uint64_t> getMMOpStatistics(T op) {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = op.getResult().getType().template cast<TensorType>();
-  uint64_t ofm_volume = getTensorVolume(resultTy);
-
-  // Use the weight tensor to find the number of input neurons
-  TensorType lossTy = op.getOperand(0).getType().template cast<TensorType>();
-  TensorType weightTy = op.getOperand(1).getType().template cast<TensorType>();
-  uint64_t num_input_neurons = weightTy.getShape()[0];
-  uint64_t total_MACs = ofm_volume * num_input_neurons;
-  toReturn["ops:MAC"] = total_MACs;
-
-  uint64_t loss_in_volume = getTensorVolume(lossTy);
-  uint64_t weight_volume = getTensorVolume(weightTy);
-  toReturn["reads"] = loss_in_volume + weight_volume;
-  toReturn["writes"] = ofm_volume;
-
-  toReturn["operand:0:activation_in"] = loss_in_volume;
-  toReturn["operand:1:activation_in"] = weight_volume;
-  toReturn["result:0:activation_out"] = ofm_volume;
-  return toReturn;
-}
-
 // Return the op statistics for ReLU-like operations.
 template <typename T>
 std::map<std::string, uint64_t> getReLUOpStatistics(T op) {

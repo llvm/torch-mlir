@@ -102,6 +102,7 @@ def generate_ops(g: "OpGenerator"):
   g.ordinary_immutable_op(
       "aten::_log_softmax_backward_data(Tensor,Tensor,int,Tensor)",
       "LogSoftmaxBackwardDataOp", "log_softmax_backward_data")
+  g.ordinary_immutable_op("aten::mm(Tensor,Tensor)", "MmOp", "mm")
 
   # Loss functions.
   g.print_banner("Loss function ops")
