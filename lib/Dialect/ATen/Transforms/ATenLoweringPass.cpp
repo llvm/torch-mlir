@@ -200,7 +200,6 @@ static FuncOp getATenFn(ModuleOp module, std::string mangledFunctionName,
 
   if (!fn) {
     fn = FuncOp::create(builder.getUnknownLoc(), mangledFunctionName, fnTy);
-    fn.setVisibility(SymbolTable::Visibility::Private);
     module.push_back(fn);
   }
 
