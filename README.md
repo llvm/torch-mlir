@@ -116,8 +116,9 @@ cd build
 ninja
 ninja check-npcomp
 
-# Setup PYTHONPATH for interactive use
-export PYTHONPATH="$(realpath python):$(realpath build/python)"
+# cmake_configure.sh should emit a .env file with needed
+# PYTHONPATH setup.
+source .env
 ```
 
 ### PyTorch Frontend (with PyTorch installed via conda)
