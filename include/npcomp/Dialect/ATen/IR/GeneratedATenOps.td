@@ -540,6 +540,17 @@ def aten_LogSoftmaxBackwardDataOp: aten_Op<"log_softmax_backward_data", [NoSideE
   );
 }
 
+def aten_MmOp: aten_Op<"mm", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::mm";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchImmutableTensor:$mat2
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Loss function ops
 // -----------------------------------------------------------------------------

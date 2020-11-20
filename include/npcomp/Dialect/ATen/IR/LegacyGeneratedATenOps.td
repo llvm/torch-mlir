@@ -92,22 +92,6 @@ def aten_MeanOp: aten_Op<"mean", [NoSideEffect, StatisticsOpInterface]>,
   }];
 }
 
-def aten_MmOp: aten_Op<"mm", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyTensor:$mat2
-  );
-  let summary = "aten mm operator";
-  let description = [{
-    MmOp
-    aten mm operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_MulUnderOp: aten_Op<"mul_", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
   let arguments = (
