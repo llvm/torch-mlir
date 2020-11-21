@@ -7,6 +7,8 @@
 
 #include "module_builder.h"
 
+#include "graph_importer.h"
+
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/Registration.h"
 #include "mlir-c/StandardAttributes.h"
@@ -78,11 +80,9 @@ ModuleBuilder::startCaptureFunction(std::string &name,
   }
 
   // TODO: Extract a traceback and use in place of unknownLoc.
+  auto inserter = createInserter();
   auto funcBuilder =
-      FuncBuilder::createFunction(context, unknownLoc, name, inputTypes);
-  mlirBlockInsertOwnedOperationBefore(getBodyBlock(), terminator,
-                                      funcBuilder->getFuncOp());
-
+      FuncBuilder::createFunction(inserter, unknownLoc, name, inputTypes);
   // Map block arguments.
   MlirBlock entryBlock = funcBuilder->getEntryBlock();
   assert(mlirBlockGetNumArguments(entryBlock) ==
@@ -93,6 +93,28 @@ ModuleBuilder::startCaptureFunction(std::string &name,
                            mlirBlockGetArgument(entryBlock, it.index()));
   }
   return std::make_shared<AcapController>(typeMapper, std::move(funcBuilder));
+}
+
+void ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
+  auto inserter = createInserter();
+  GraphImporter::MlirMappingOptions mappingOptions{
+      context,
+      llvm::None, // genericFuncName (default to auto)
+      llvm::None, // funcName (default to auto)
+      typeMapper, inserter,
+  };
+  auto graphImporter = GraphImporter::forPythonJitFunc(
+      function.function_, std::move(mappingOptions));
+  graphImporter->initialize();
+  graphImporter->importGenericFunc();
+}
+
+FuncBuilder::Inserter ModuleBuilder::createInserter() {
+  MlirBlock block = getBodyBlock();
+  MlirOperation terminator = this->terminator;
+  return [=](MlirOperation op) {
+    mlirBlockInsertOwnedOperationBefore(block, terminator, op);
+  };
 }
 
 MlirBlock ModuleBuilder::getBodyBlock() {
@@ -106,5 +128,6 @@ void ModuleBuilder::bind(py::module &m) {
       .def_property_readonly("context", &ModuleBuilder::getContextObj)
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
       .def("capture_function", &ModuleBuilder::startCaptureFunction,
-           py::keep_alive<0, 1>());
+           py::keep_alive<0, 1>())
+      .def("import_function", &ModuleBuilder::importFunction);
 }

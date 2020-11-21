@@ -64,6 +64,9 @@ MlirType npcompListTypeGet(MlirContext context);
 /** Checks whether the given type is an NdArray type. */
 int npcompTypeIsANdArray(MlirType t);
 
+/** Gets a numpy.NdArray type that is unranked. */
+MlirType npcompNdArrayTypeGetUnranked(MlirType elementType);
+
 /** Gets a numpy.NdArray type that is ranked. Any dimensions that are -1 are
  * unknown. */
 MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,

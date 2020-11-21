@@ -16,6 +16,8 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <ATen/Tensor.h>
+#include <torch/csrc/jit/api/compilation_unit.h>
+#include <torch/csrc/jit/ir/ir.h>
 
 namespace torch_mlir {
 
@@ -32,11 +34,16 @@ public:
   pybind11::object getModuleObj() { return moduleObj; }
 
   // Starts a device-capture based function.
-  // TODO: Add inputs.
   std::shared_ptr<AcapController>
   startCaptureFunction(std::string &name, std::vector<at::Tensor> args);
 
+  // Imports a traced function. Note that the python type
+  // torch.jit.ScriptFunction is the C++ type torch::jit::StrongFunctionPtr.
+  // Just a bit of naming cruft.
+  void importFunction(torch::jit::StrongFunctionPtr function);
+
 private:
+  FuncBuilder::Inserter createInserter();
   MlirBlock getBodyBlock();
 
   // Capture references to the python-owned context and module. Ownership

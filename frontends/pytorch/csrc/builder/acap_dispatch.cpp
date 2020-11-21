@@ -42,63 +42,17 @@ static c10::DispatchKey kAcapDispatchKey = c10::DispatchKey::ACAP_DISPATCH_KEY;
 static c10::DispatchKey kAcapGradDispatchKey =
     c10::DispatchKey::ACAP_GRAD_DISPATCH_KEY;
 
-AcapController::KernelCallBuilder::KernelCallBuilder(
+AcapController::TracedKernelCallBuilder::TracedKernelCallBuilder(
     AcapController &parent, MlirContext context, MlirLocation loc,
     const c10::OperatorHandle &opHandle,
     llvm::Optional<std::string> overrideKernelName)
-    : parent(parent), context(context), loc(loc), opHandle(opHandle),
-      state("torch.kernel_call", loc) {
-  (void)this->context; // Preserve for future.
-  const std::string &kernelName =
-      overrideKernelName ? *overrideKernelName : opHandle.operator_name().name;
-  MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
-      "kernelName",
-      mlirStringAttrGet(context, kernelName.size(), kernelName.data()));
-  mlirOperationStateAddAttributes(state, 1, &kernelNameAttr);
-  addSchemaAttrs();
-}
+    : KernelCallBuilder(context, loc,
+                        overrideKernelName ? *overrideKernelName
+                                           : opHandle.operator_name().name,
+                        opHandle.schema()),
+      parent(parent), opHandle(opHandle) {}
 
-void AcapController::KernelCallBuilder::addSchemaAttrs() {
-  // Map the op schema to the kernel_call attributes:
-  //   sigArgTypes
-  //   sigRetTypes
-  //   sigIsVararg
-  //   sigIsVarret
-  //   sigIsMutable
-  const c10::FunctionSchema &schema = opHandle.schema();
-  llvm::SmallVector<MlirNamedAttribute, 8> attrs;
-  attrs.push_back(mlirNamedAttributeGet(
-      "sigIsMutable", mlirBoolAttrGet(context, schema.is_mutable())));
-  attrs.push_back(mlirNamedAttributeGet(
-      "sigIsVararg", mlirBoolAttrGet(context, schema.is_vararg())));
-  attrs.push_back(mlirNamedAttributeGet(
-      "sigIsVarret", mlirBoolAttrGet(context, schema.is_varret())));
-
-  // Arg types.
-  llvm::SmallVector<MlirAttribute, 4> args;
-  for (auto &arg : schema.arguments()) {
-    const std::string &typeStr = arg.type()->str();
-    args.push_back(mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
-  }
-  attrs.push_back(mlirNamedAttributeGet(
-      "sigArgTypes", mlirArrayAttrGet(context, args.size(), args.data())));
-
-  // Return types.
-  llvm::SmallVector<MlirAttribute, 4> returns;
-  for (auto &ret : schema.returns()) {
-    const std::string &typeStr = ret.type()->str();
-    returns.push_back(
-        mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
-  }
-  attrs.push_back(mlirNamedAttributeGet(
-      "sigRetTypes",
-      mlirArrayAttrGet(context, returns.size(), returns.data())));
-
-  // Add attrs to op.
-  mlirOperationStateAddAttributes(state, attrs.size(), attrs.data());
-}
-
-void AcapController::KernelCallBuilder::addOperand(const IValue &value) {
+void AcapController::TracedKernelCallBuilder::addOperand(const IValue &value) {
   MlirValue mlirValue = parent.mapIValueToMlirValue(loc, value);
   if (mlirValueIsNull(mlirValue)) {
     std::stringstream out;
@@ -107,10 +61,10 @@ void AcapController::KernelCallBuilder::addOperand(const IValue &value) {
         << value.tagKind() << "): " << value;
     throw std::invalid_argument(out.str());
   }
-  mlirOperationStateAddOperands(state, 1, &mlirValue);
+  KernelCallBuilder::addOperand(mlirValue);
 }
 
-void AcapController::KernelCallBuilder::addResult(const IValue &value) {
+void AcapController::TracedKernelCallBuilder::addResult(const IValue &value) {
   MlirType resultType = parent.mapIValueToMlirType(loc, value);
   if (mlirTypeIsNull(resultType)) {
     std::stringstream out;
@@ -122,12 +76,11 @@ void AcapController::KernelCallBuilder::addResult(const IValue &value) {
   if (value.isTensor()) {
     resultIndexToTensorMap.emplace_back(resultCount++, value.toTensor());
   }
-  mlirOperationStateAddResults(state, 1, &resultType);
+  KernelCallBuilder::addResultType(resultType);
 }
 
-MlirOperation AcapController::KernelCallBuilder::create() {
-  // Create operation.
-  MlirOperation op = state.createOperation();
+MlirOperation AcapController::TracedKernelCallBuilder::create() {
+  MlirOperation op = KernelCallBuilder::create();
   parent.funcBuilder->getEntryBlockBuilder().insertBeforeTerminator(op);
 
   // Map result tensors.
@@ -264,7 +217,7 @@ at::Tensor AcapController::convolutionKernel(
   MlirContext context = current->funcBuilder->getContext();
   MlirLocation loc = current->getCurrentLocation();
   std::string kernelName{"aten::convolution"};
-  KernelCallBuilder callBuilder{*current, context, loc, *opHandle};
+  TracedKernelCallBuilder callBuilder{*current, context, loc, *opHandle};
 
   callBuilder.addOperand(IValue(input));
   callBuilder.addOperand(IValue(weight));
@@ -344,8 +297,8 @@ AcapController::mklConvolutionBackward(
                                       ""};
   auto emitOpHandle = dispatcher.findOp(emitOpName);
   assert(emitOpHandle && "could not find convolution_backward_overrideable op");
-  KernelCallBuilder callBuilder{*current, context, loc, *emitOpHandle,
-                                kernelName};
+  TracedKernelCallBuilder callBuilder{*current, context, loc, *emitOpHandle,
+                                      kernelName};
 
   callBuilder.addOperand(IValue(grad_output));
   callBuilder.addOperand(IValue(input));
@@ -398,7 +351,7 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
 
   MlirContext context = current->funcBuilder->getContext();
   MlirLocation loc = current->getCurrentLocation();
-  KernelCallBuilder callBuilder{*current, context, loc, *opHandle};
+  TracedKernelCallBuilder callBuilder{*current, context, loc, *opHandle};
 
   callBuilder.addOperand(IValue(self));
   callBuilder.addOperand(IValue(src));
@@ -462,7 +415,7 @@ void AcapController::fallbackKernelImpl(
   MlirContext context = funcBuilder->getContext();
   MlirLocation loc = getCurrentLocation();
   auto kernelName = schema.name();
-  KernelCallBuilder callBuilder{*this, context, loc, opHandle};
+  TracedKernelCallBuilder callBuilder{*this, context, loc, opHandle};
 
   // Map arguments to operands.
   // This must be accumulated into the OperationState prior to re-dispatch
@@ -553,7 +506,7 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
 MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
                                              const IValue &ival) {
   if (ival.isScalar()) {
-    return typeMapper.mapScalarType(ival.toScalar().type());
+    return typeMapper.mapFromTorchScalarType(ival.toScalar().type());
   }
   if (ival.isTensor()) {
     return typeMapper.forwardTensorToType(ival.toTensor());
@@ -601,7 +554,7 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
     // Basicpy bool type.
     elementType = mlirIntegerTypeGet(funcBuilder->getContext(), 1);
   } else {
-    elementType = typeMapper.mapScalarType(tensor.scalar_type());
+    elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
   }
   llvm::SmallVector<int64_t, 4> shape(tensor.sizes().begin(),
                                       tensor.sizes().end());

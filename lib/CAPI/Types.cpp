@@ -70,6 +70,10 @@ int npcompTypeIsANdArray(MlirType t) {
   return unwrap(t).isa<Numpy::NdArrayType>();
 }
 
+MlirType npcompNdArrayTypeGetUnranked(MlirType elementType) {
+  return wrap(Numpy::NdArrayType::get(unwrap(elementType)));
+}
+
 MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
                                     MlirType elementType) {
   llvm::ArrayRef<int64_t> shapeArray(shape, rank);

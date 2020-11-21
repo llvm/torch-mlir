@@ -140,4 +140,3 @@ void torch_mlir::InitBuilderBindings(py::module &m) {
 
   ModuleBuilder::bind(m);
 }
-

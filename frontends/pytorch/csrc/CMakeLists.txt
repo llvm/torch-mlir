@@ -13,6 +13,13 @@ include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${Python3_INCLUDE_DIRS}
+  # TODO: Fix implicit ordering. If PyTorch was build against an external
+  # pybind11, then it will not be in the above search path and must be
+  # resolved here, in the hope that it is the same one we were configured
+  # with (which it should be if installed via pip). This is really fragile,
+  # though, causing cast failures at runtime if we get it wrong. Come up with
+  # a way to strengthen this.
+  ${pybind11_INCLUDE_DIR}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
@@ -28,7 +35,11 @@ target_link_libraries(NPCOMPTorchMLIRExt
   # NPCOMP shared library.
   NPCOMP
 )
-
+add_dependencies(NPCOMPTorchMLIRExt
+  # Uses of the torch_mlir extension also require the npcomp extension to
+  # be built.
+  NPCOMPNativePyExt
+)
 set_target_properties(NPCOMPTorchMLIRExt PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/python
   OUTPUT_NAME _torch_mlir

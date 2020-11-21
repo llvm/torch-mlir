@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <ATen/Tensor.h>
+#include <ATen/core/function_schema.h>
 
 namespace torch_mlir {
 
@@ -51,21 +52,30 @@ public:
 
   /// Gets a corresponding MlirType for the Torch ScalarType.
   /// Throws std::invalid_argument on failure.
-  MlirType mapScalarType(c10::ScalarType scalarType);
+  MlirType mapFromTorchScalarType(c10::ScalarType scalarType);
 
   /// Gets a corresponding MlirType for the forward component of a tensor.
   /// Throws std::invalid_argument on failure.
   MlirType forwardTensorToType(at::Tensor tensor);
 
+  /// Gets a corresponding MlirType for the Torch ScalarType.
+  /// Returns a null type on failure and emits a diagnostic.
+  MlirType mapFromTorchScalarType(MlirLocation loc, c10::ScalarType scalarType);
+
+  /// Maps a torch type to a corresponding MlirType. Returns a null type
+  /// on failure and emits a diagnostic.
+  MlirType mapFromTorchType(MlirLocation loc, const c10::TypePtr &torchType);
+
 private:
+  /// Maps from a scalar type and returns null if no match (no other error
+  /// reporting).
+  MlirType rawMapFromTorchScalarType(c10::ScalarType scalarType);
   MlirContext context;
 };
 
 /// Wraps an MlirBlock under construction, primarily tracking the terminator
 /// and supporting manipulation of it. The terminator may be null if it has
-/// not yet been constructed, although, for entry blocks, we always construct
-/// the function with an appropriate return terminator (which can be changed
-/// later).
+/// not yet been constructed.
 class BlockBuilder {
 public:
   BlockBuilder(MlirBlock block, MlirOperation terminator, bool isReturn)
@@ -86,15 +96,39 @@ private:
   bool isReturn;
 };
 
+/// Builds a kernel call step by step.
+class KernelCallBuilder {
+public:
+  KernelCallBuilder(MlirContext context, MlirLocation loc,
+                    llvm::StringRef kernelName,
+                    const c10::FunctionSchema &schema);
+  void addOperand(MlirValue operand);
+  void addResultType(MlirType resultType);
+  MlirOperation create();
+
+protected:
+  MlirContext context;
+  MlirLocation loc;
+
+private:
+  void addSchemaAttrs();
+  OperationStateHolder state;
+  llvm::StringRef kernelName;
+  const c10::FunctionSchema &schema;
+};
+
 /// Wraps a 'func' MlirOperation and provides facilities for constructing
 /// IR from some stream of Torch operations.
 class FuncBuilder {
 public:
+  /// Callback for inserting a function.
+  using Inserter = std::function<void(MlirOperation funcOp)>;
+
   /// Creates a new func op with the given characteristics. The created
   /// operation is not attached. The caller must either destroy it or add it
   /// to a parent.
   static std::unique_ptr<FuncBuilder>
-  createFunction(MlirContext context, MlirLocation location,
+  createFunction(Inserter &inserter, MlirLocation location,
                  llvm::StringRef name,
                  llvm::SmallVectorImpl<MlirType> &inputTypes);
 

@@ -7,6 +7,7 @@
 
 #include "func_builder.h"
 
+#include "mlir-c/Diagnostics.h"
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
 #include "npcomp-c/Types.h"
@@ -22,7 +23,90 @@ static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
   return s.createOperation();
 }
 
-MlirType TypeMapper::mapScalarType(c10::ScalarType scalarType) {
+KernelCallBuilder::KernelCallBuilder(MlirContext context, MlirLocation loc,
+                                     llvm::StringRef kernelName,
+                                     const c10::FunctionSchema &schema)
+    : context(context), loc(loc), state("torch.kernel_call", loc),
+      kernelName(kernelName), schema(schema) {
+  (void)this->context; // Preserve for future.
+  MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
+      "kernelName",
+      mlirStringAttrGet(context, kernelName.size(), kernelName.data()));
+  mlirOperationStateAddAttributes(state, 1, &kernelNameAttr);
+  addSchemaAttrs();
+}
+
+void KernelCallBuilder::addSchemaAttrs() {
+  // Map the op schema to the kernel_call attributes:
+  //   sigArgTypes
+  //   sigRetTypes
+  //   sigIsVararg
+  //   sigIsVarret
+  //   sigIsMutable
+  llvm::SmallVector<MlirNamedAttribute, 8> attrs;
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsMutable", mlirBoolAttrGet(context, schema.is_mutable())));
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsVararg", mlirBoolAttrGet(context, schema.is_vararg())));
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigIsVarret", mlirBoolAttrGet(context, schema.is_varret())));
+
+  // Arg types.
+  llvm::SmallVector<MlirAttribute, 4> args;
+  for (auto &arg : schema.arguments()) {
+    const std::string &typeStr = arg.type()->str();
+    args.push_back(mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
+  }
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigArgTypes", mlirArrayAttrGet(context, args.size(), args.data())));
+
+  // Return types.
+  llvm::SmallVector<MlirAttribute, 4> returns;
+  for (auto &ret : schema.returns()) {
+    const std::string &typeStr = ret.type()->str();
+    returns.push_back(
+        mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
+  }
+  attrs.push_back(mlirNamedAttributeGet(
+      "sigRetTypes",
+      mlirArrayAttrGet(context, returns.size(), returns.data())));
+
+  // Add attrs to op.
+  mlirOperationStateAddAttributes(state, attrs.size(), attrs.data());
+}
+
+void KernelCallBuilder::addOperand(MlirValue operand) {
+  mlirOperationStateAddOperands(state, 1, &operand);
+}
+
+void KernelCallBuilder::addResultType(MlirType resultType) {
+  mlirOperationStateAddResults(state, 1, &resultType);
+}
+
+MlirOperation KernelCallBuilder::create() { return state.createOperation(); }
+
+MlirType TypeMapper::mapFromTorchScalarType(c10::ScalarType scalarType) {
+  auto type = rawMapFromTorchScalarType(scalarType);
+  if (mlirTypeIsNull(type)) {
+    std::stringstream message;
+    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
+    throw std::invalid_argument(message.str());
+  }
+  return type;
+}
+
+MlirType TypeMapper::mapFromTorchScalarType(MlirLocation loc,
+                                            c10::ScalarType scalarType) {
+  auto type = rawMapFromTorchScalarType(scalarType);
+  if (mlirTypeIsNull(type)) {
+    std::stringstream message;
+    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
+    mlirEmitError(loc, message.str().c_str());
+  }
+  return type;
+}
+
+MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
   using c10::ScalarType;
   switch (scalarType) {
   case ScalarType::Byte:
@@ -50,9 +134,48 @@ MlirType TypeMapper::mapScalarType(c10::ScalarType scalarType) {
   case ScalarType::Half:
     return mlirF16TypeGet(context);
   default: {
+    return {nullptr};
+  }
+  }
+}
+
+MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
+                                      const c10::TypePtr &torchType) {
+  using c10::TypeKind;
+  auto kind = torchType->kind();
+  switch (kind) {
+  case TypeKind::TensorType: {
+    auto tensorType = torchType->cast<c10::TensorType>();
+    // Element type.
+    MlirType elementType;
+    if (tensorType->scalarType()) {
+      elementType = mapFromTorchScalarType(loc, *tensorType->scalarType());
+      if (mlirTypeIsNull(elementType))
+        return {nullptr};
+    } else {
+      elementType = npcompAnyDtypeTypeGet(context);
+    }
+    // Sizes.
+    auto &sizes = tensorType->symbolic_sizes();
+    if (!sizes.rank()) {
+      // Unranked.
+      return npcompNdArrayTypeGetUnranked(elementType);
+    }
+    // Ranked with possibly dynamic dims.
+    auto &symbolicShape = tensorType->symbolic_sizes();
+    llvm::SmallVector<int64_t, 4> dims;
+    dims.resize(*sizes.rank());
+    for (size_t i = 0; i < dims.size(); ++i) {
+      auto shapeSymbol = symbolicShape[i];
+      dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size() : -1;
+    }
+    return npcompNdArrayTypeGetRanked(dims.size(), dims.data(), elementType);
+  }
+  default: {
     std::stringstream message;
-    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
-    throw std::invalid_argument(message.str());
+    message << "unable to map Torch type " << torchType << " to MLIR type";
+    mlirEmitError(loc, message.str().c_str());
+    return {nullptr};
   }
   }
 }
@@ -64,7 +187,7 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
     return npcompNoneTypeGet(context);
   }
 
-  MlirType elementType = mapScalarType(tensor.scalar_type());
+  MlirType elementType = mapFromTorchScalarType(tensor.scalar_type());
   // TODO: Decide when it is necessary to take strides into account. Right now,
   // just erase them and let the compiler decide.
 
@@ -73,9 +196,10 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
 }
 
 std::unique_ptr<FuncBuilder>
-FuncBuilder::createFunction(MlirContext context, MlirLocation location,
-                            llvm::StringRef name,
+FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
+                            MlirLocation location, llvm::StringRef name,
                             llvm::SmallVectorImpl<MlirType> &inputTypes) {
+  auto context = mlirLocationGetContext(location);
   // TODO: Create a dedicated API upstream for creating/manipulating func ops.
   // (this is fragile and reveals details that are not guaranteed).
   llvm::SmallVector<MlirNamedAttribute, 4> funcAttrs;
@@ -102,6 +226,7 @@ FuncBuilder::createFunction(MlirContext context, MlirLocation location,
   MlirRegion bodyRegion = mlirOperationGetRegion(funcOp, 0);
   MlirBlock entryBlock = mlirRegionGetFirstBlock(bodyRegion);
 
+  inserter(funcOp);
   return std::unique_ptr<FuncBuilder>(new FuncBuilder(
       context, funcOp, BlockBuilder(entryBlock, /*returnOp=*/{nullptr}, true)));
 }

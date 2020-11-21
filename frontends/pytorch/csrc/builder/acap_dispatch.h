@@ -80,9 +80,9 @@ public:
 
 private:
   /// Builds a kernel call step by step.
-  class KernelCallBuilder {
+  class TracedKernelCallBuilder : private KernelCallBuilder {
   public:
-    KernelCallBuilder(
+    TracedKernelCallBuilder(
         AcapController &parent, MlirContext context, MlirLocation loc,
         const c10::OperatorHandle &opHandle,
         llvm::Optional<std::string> overrideKernelName = llvm::None);
@@ -91,12 +91,8 @@ private:
     MlirOperation create();
 
   private:
-    void addSchemaAttrs();
     AcapController &parent;
-    MlirContext context;
-    MlirLocation loc;
     const c10::OperatorHandle &opHandle;
-    OperationStateHolder state;
     int resultCount = 0;
     llvm::SmallVector<std::pair<size_t, at::Tensor>, 4> resultIndexToTensorMap;
   };
