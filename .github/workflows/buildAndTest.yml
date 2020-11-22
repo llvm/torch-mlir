@@ -17,7 +17,8 @@ jobs:
         submodules: 'true'
     - name: Install python depends
       run: |
-        pip3 install pytest pybind11
+        python3 -m pip install pytest pybind11
+        python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -49,7 +50,7 @@ jobs:
         submodules: 'true'
     - name: Install python depends
       run: |
-        pip3 install pytest pybind11
+        python3 -m pip install pytest pybind11
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
