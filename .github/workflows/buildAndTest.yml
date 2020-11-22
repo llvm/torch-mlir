@@ -35,7 +35,7 @@ jobs:
         mkdir -p ${LLVM}/install
         cd ${LLVM}/build
         # TODO: This should be auto-detecting. Figure out why it isn't (only seems to happen in the CI).
-        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
+        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')")"
         echo "CMAKE_PATH_PREFIX=$CMAKE_PATH_PREFIX"
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
         cmake --build . --target install -- -j$(nproc)
@@ -70,7 +70,7 @@ jobs:
         mkdir ${LLVM}/install
         cd ${LLVM}/build
         # TODO: This should be auto-detecting. Figure out why it isn't (only seems to happen in the CI).
-        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
+        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')")"
         echo "CMAKE_PATH_PREFIX=$CMAKE_PATH_PREFIX"
         cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
         cmake --build . --target install -- -j$(nproc)
@@ -79,7 +79,7 @@ jobs:
         mkdir build_assert
         cd build_assert
         # TODO: This should be auto-detecting. Figure out why it isn't (only seems to happen in the CI).
-        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
+        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')")"
         echo "CMAKE_PATH_PREFIX=$CMAKE_PATH_PREFIX"
         cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
         make check-npcomp -j$(nproc)
@@ -88,7 +88,7 @@ jobs:
         mkdir build_release
         cd build_release
         # TODO: This should be auto-detecting. Figure out why it isn't (only seems to happen in the CI).
-        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
+        export CMAKE_PATH_PREFIX="$(python3 -c "import pybind11;print(pybind11.get_cmake_dir(), end='')")"
         echo "CMAKE_PATH_PREFIX=$CMAKE_PATH_PREFIX"
         cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
         make check-npcomp -j$(nproc)
