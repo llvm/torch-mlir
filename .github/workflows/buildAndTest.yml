@@ -15,12 +15,9 @@ jobs:
       uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Install pytest
+    - name: Install python depends
       run: |
-        pip3 install pytest
-    - name: Install pybind11
-      run: |
-        sudo apt-get install python3-pybind11
+        pip3 install pytest pybind11
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -50,12 +47,9 @@ jobs:
       uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Install pytest
+    - name: Install python depends
       run: |
-        pip3 install pytest
-    - name: Install pybind11
-      run: |
-        sudo apt-get install python3-pybind11
+        pip3 install pytest pybind11
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"

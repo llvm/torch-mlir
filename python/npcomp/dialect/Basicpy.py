@@ -30,7 +30,7 @@ class DialectHelper(_BaseDialectHelper):
     >>> h.builder.insert_block_start(m.first_block)
     >>> _ = h.basicpy_singleton_op(h.basicpy_NoneType)
     >>> m.to_asm().strip()
-    'module {\n  %0 = basicpy.singleton : !basicpy.NoneType\n}'
+    'module  {\n  %0 = basicpy.singleton : !basicpy.NoneType\n}'
 
   slot_object ops:
     >>> m = c.new_module()
@@ -39,7 +39,7 @@ class DialectHelper(_BaseDialectHelper):
     >>> slot_object = h.basicpy_slot_object_make_op("foobar", v0, v0).result
     >>> _ = h.basicpy_slot_object_get_op(slot_object, 0)
     >>> print(m.to_asm().strip())
-    module {
+    module  {
       %0 = basicpy.singleton : !basicpy.NoneType
       %1 = basicpy.slot_object_make(%0, %0) -> !basicpy.SlotObject<foobar, !basicpy.NoneType, !basicpy.NoneType>
       %2 = basicpy.slot_object_get %1[0] : !basicpy.SlotObject<foobar, !basicpy.NoneType, !basicpy.NoneType>

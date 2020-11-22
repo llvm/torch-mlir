@@ -81,6 +81,7 @@ include(AddLLVM)
 include(AddMLIR)
 include(AddNPCOMP)
 include(HandleLLVMOptions)
+include(NpcompDetectPythonEnv)
 include(ConfigurePyTorch)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
@@ -162,11 +163,9 @@ endif()
 # Pybind11 Configuration
 #-------------------------------------------------------------------------------
 
-find_package(pybind11 CONFIG REQUIRED)
-# TODO: pybind11 v2.6 switched from pybind11_INCLUDE_DIRS (plural) to
-# pybind11_INCLUDE_DIR (singular). A lot has changed in this area since this
-# was written and overall python config and pybind11 should be modernized.
-set(pybind11_INCLUDE_DIR ${pybind11_INCLUDE_DIR} ${pybind11_INCLUDE_DIRS})
+npcomp_detect_pybind11_install()
+find_package(pybind11 2.6 CONFIG REQUIRED)
+set(pybind11_INCLUDE_DIR ${pybind11_INCLUDE_DIR})
 message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIR}")
 message(STATUS "Python prefix = '${PYTHON_MODULE_PREFIX}', "
                "suffix = '${PYTHON_MODULE_SUFFIX}', "
