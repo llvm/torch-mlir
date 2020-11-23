@@ -215,11 +215,11 @@ public:
   }
 };
 
-// Converts the to_boolean op for numeric types.
-class NumericToBoolean : public OpRewritePattern<Basicpy::ToBooleanOp> {
+// Converts the as_predicate_value op for numeric types.
+class NumericToPredicateValue : public OpRewritePattern<Basicpy::AsPredicateValueOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(Basicpy::ToBooleanOp op,
+  LogicalResult matchAndRewrite(Basicpy::AsPredicateValueOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto operandType = op.operand().getType();
@@ -245,5 +245,5 @@ void mlir::NPCOMP::populateBasicpyToStdPrimitiveOpPatterns(
     MLIRContext *context, OwningRewritePatternList &patterns) {
   patterns.insert<NumericBinaryExpr>(context);
   patterns.insert<NumericCompare>(context);
-  patterns.insert<NumericToBoolean>(context);
+  patterns.insert<NumericToPredicateValue>(context);
 }

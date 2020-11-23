@@ -90,8 +90,8 @@ class DialectHelper(_BaseDialectHelper):
     attrs = c.dictionary_attr({"value": c.string_attr(value.encode("utf-8"))})
     return self.op("basicpy.str_constant", [self.basicpy_StrType], [], attrs)
 
-  def basicpy_to_boolean_op(self, value):
-    return self.op("basicpy.to_boolean", [self.i1_type], [value])
+  def basicpy_as_predicate_value_op(self, value):
+    return self.op("basicpy.as_predicate_value", [self.i1_type], [value])
 
   def basicpy_unknown_cast_op(self, result_type, operand):
     return self.op("basicpy.unknown_cast", [result_type], [operand])
