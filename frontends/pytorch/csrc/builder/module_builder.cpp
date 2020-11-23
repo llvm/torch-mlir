@@ -95,7 +95,8 @@ ModuleBuilder::startCaptureFunction(std::string &name,
   return std::make_shared<AcapController>(typeMapper, std::move(funcBuilder));
 }
 
-void ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
+torch::jit::StrongFunctionPtr
+ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
   auto inserter = createInserter();
   GraphImporter::MlirMappingOptions mappingOptions{
       context,
@@ -107,6 +108,7 @@ void ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
       function.function_, std::move(mappingOptions));
   graphImporter->initialize();
   graphImporter->importGenericFunc();
+  return function;
 }
 
 FuncBuilder::Inserter ModuleBuilder::createInserter() {
