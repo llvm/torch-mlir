@@ -27,7 +27,7 @@ public:
   OperationStateHolder(OperationStateHolder &&other) = delete;
   ~OperationStateHolder() {
     if (owned) {
-      // TODO: Upstream a mlirOperationStateDestroy() function.
+      // Destroying is done by creating and then destroying the operation.
       mlirOperationDestroy(createOperation());
     }
   }
