@@ -40,7 +40,9 @@ public:
   // Imports a traced function. Note that the python type
   // torch.jit.ScriptFunction is the C++ type torch::jit::StrongFunctionPtr.
   // Just a bit of naming cruft.
-  void importFunction(torch::jit::StrongFunctionPtr function);
+  // Returns the same function, making it suitable as a nested decorator.
+  torch::jit::StrongFunctionPtr
+  importFunction(torch::jit::StrongFunctionPtr function);
 
 private:
   FuncBuilder::Inserter createInserter();
