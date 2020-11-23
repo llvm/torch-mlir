@@ -17,7 +17,7 @@ jobs:
         submodules: 'true'
     - name: Install python depends
       run: |
-        python3 -m pip install pytest pybind11
+        python3 -m pip install pytest pybind11 numpy
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -52,7 +52,7 @@ jobs:
         submodules: 'true'
     - name: Install python depends
       run: |
-        python3 -m pip install pytest pybind11
+        python3 -m pip install pytest pybind11 numpy
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
