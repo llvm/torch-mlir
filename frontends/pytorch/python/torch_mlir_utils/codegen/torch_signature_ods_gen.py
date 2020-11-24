@@ -559,6 +559,21 @@ class EmitterBase:
     self.indent_level -= level
     assert self.indent_level >= 0, "Unbalanced indentation"
 
+  def indent_sequence(
+      self,
+      sequence: Sequence[str],
+      base_indent_level: int = 0,
+      sequence_indent_level: int = 1,
+      brackets: Tuple[str, str] = ("[", "]")
+  ) -> str:
+    base_indent = self._INDENT * base_indent_level
+    sequence_indent = f"{base_indent}{self._INDENT * sequence_indent_level}"
+    return "".join([
+        f"{brackets[0]}\n{sequence_indent}",
+        f",\n{sequence_indent}".join(sequence),
+        f"\n{base_indent}{brackets[1]}",
+    ])
+
   def print(self, s: str, *, end: str = "\n", indent: bool = True):
     if indent and self.indent_level:
       self.out.write(self._INDENT * self.indent_level)
@@ -601,9 +616,10 @@ class OdsEmitter(EmitterBase):
     full_traits.append("DeclareOpInterfaceMethods<TorchKernelOpInterface>")
     identifier = f"{self.ods_def_prefix}{ods_def_name}{self.ods_def_suffix}"
     self.print(f"def {identifier}: {self.ods_template_name}"
-               f"<{self.quote(mnemonic)}, ["
-               f"{', '.join(full_traits)}"
-               f"]> {{")
+               f"<{self.quote(mnemonic)}, "
+               f"{self.indent_sequence(full_traits, base_indent_level=1)}"
+               f"> {{")
+
     with self.indent():
       # Summary.
       if not summary:
