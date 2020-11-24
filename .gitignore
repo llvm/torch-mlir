@@ -6,3 +6,4 @@ build-mlir
 install-mlir
 __pycache__
 
+.pytype
