@@ -8,6 +8,8 @@
 #ifndef NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_FUNC_BUILDER_H
 #define NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_FUNC_BUILDER_H
 
+#include "mlir_utils.h"
+
 #include "mlir-c/IR.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -22,7 +24,8 @@ namespace torch_mlir {
 class OperationStateHolder {
 public:
   OperationStateHolder(const char *name, MlirLocation loc)
-      : state(mlirOperationStateGet(name, loc)) {}
+      : state(
+            mlirOperationStateGet(toMlirStringRef(name), loc)) {}
   OperationStateHolder(const OperationStateHolder &) = delete;
   OperationStateHolder(OperationStateHolder &&other) = delete;
   ~OperationStateHolder() {

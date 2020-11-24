@@ -7,6 +7,7 @@
 
 #include "acap_dispatch.h"
 #include "debug.h"
+#include "mlir_utils.h"
 
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
@@ -603,8 +604,8 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   // Create an array from the tensor constant via the
   // numpy.create_array_from_tensor op.
   MlirType constArrayType = npcompNdArrayTypeGetFromShaped(shapedType);
-  MlirOperationState state =
-      mlirOperationStateGet("numpy.create_array_from_tensor", loc);
+  MlirOperationState state = mlirOperationStateGet(
+      toMlirStringRef("numpy.create_array_from_tensor"), loc);
   mlirOperationStateAddOperands(&state, 1, &constTensorValue);
   mlirOperationStateAddResults(&state, 1, &constArrayType);
   MlirOperation constArrayOp = mlirOperationCreate(&state);

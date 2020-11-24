@@ -7,6 +7,8 @@
 
 #include "graph_importer.h"
 
+#include "mlir_utils.h"
+
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/StandardAttributes.h"
 #include "mlir-c/StandardTypes.h"
@@ -296,7 +298,8 @@ MlirLocation GraphImporter::extractCallstackLoc(torch::jit::Node *node,
     const std::string &file = std::get<0>(*flc);
     int line = std::get<1>(*flc);
     int col = std::get<2>(*flc);
-    return mlirLocationFileLineColGet(context(), file.c_str(), line, col);
+    return mlirLocationFileLineColGet(context(), toMlirStringRef(file), line,
+                                      col);
   }
 
   return useDefault ? defaultLoc : MlirLocation{nullptr};
