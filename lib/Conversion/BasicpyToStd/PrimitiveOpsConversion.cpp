@@ -215,11 +215,11 @@ public:
   }
 };
 
-// Converts the as_predicate_value op for numeric types.
-class NumericToPredicateValue : public OpRewritePattern<Basicpy::AsPredicateValueOp> {
+// Converts the as_i1 op for numeric types.
+class NumericToI1 : public OpRewritePattern<Basicpy::AsI1Op> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(Basicpy::AsPredicateValueOp op,
+  LogicalResult matchAndRewrite(Basicpy::AsI1Op op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto operandType = op.operand().getType();
@@ -245,5 +245,5 @@ void mlir::NPCOMP::populateBasicpyToStdPrimitiveOpPatterns(
     MLIRContext *context, OwningRewritePatternList &patterns) {
   patterns.insert<NumericBinaryExpr>(context);
   patterns.insert<NumericCompare>(context);
-  patterns.insert<NumericToPredicateValue>(context);
+  patterns.insert<NumericToI1>(context);
 }

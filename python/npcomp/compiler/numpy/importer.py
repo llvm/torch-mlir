@@ -255,7 +255,7 @@ class ExpressionImporter(BaseNodeVisitor):
       next_value = self.sub_evaluate(next_node)
       if not next_nodes:
         return next_value
-      condition_value = ir_h.basicpy_as_predicate_value_op(next_value).result
+      condition_value = ir_h.basicpy_as_i1_op(next_value).result
       if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
                                                condition_value, True)
       orig_ip = ir_h.builder.insertion_point
@@ -347,8 +347,7 @@ class ExpressionImporter(BaseNodeVisitor):
 
   def visit_IfExp(self, ast_node):
     ir_h = self.fctx.ir_h
-    test_result = ir_h.basicpy_as_predicate_value_op(self.sub_evaluate(
-        ast_node.test)).result
+    test_result = ir_h.basicpy_as_i1_op(self.sub_evaluate(ast_node.test)).result
     if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
                                              test_result, True)
 
@@ -386,7 +385,7 @@ class ExpressionImporter(BaseNodeVisitor):
     operand_value = self.sub_evaluate(ast_node.operand)
     if isinstance(op, ast.Not):
       # Special handling for logical-not.
-      condition_value = ir_h.basicpy_as_predicate_value_op(operand_value).result
+      condition_value = ir_h.basicpy_as_i1_op(operand_value).result
       true_value = ir_h.basicpy_bool_constant_op(True).result
       false_value = ir_h.basicpy_bool_constant_op(False).result
       self.value = ir_h.select_op(condition_value, false_value,

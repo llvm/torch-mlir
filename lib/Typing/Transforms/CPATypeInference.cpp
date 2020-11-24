@@ -140,7 +140,7 @@ public:
         // addSubtypeConstraint(op.false_value(), op.true_value(), op);
         return WalkResult::advance();
       }
-      if (auto op = dyn_cast<AsPredicateValueOp>(childOp)) {
+      if (auto op = dyn_cast<AsI1Op>(childOp)) {
         // Note that the result is always i1 and not subject to type
         // inference.
         resolveValueType(op.operand());

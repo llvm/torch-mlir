@@ -27,6 +27,37 @@ void BasicpyDialect::initialize() {
   allowUnknownOperations();
 }
 
+Operation *BasicpyDialect::materializeConstant(OpBuilder &builder,
+                                               Attribute value, Type type,
+                                               Location loc) {
+  // NumericConstantOp.
+  // Supports IntegerType (any signedness), FloatType and ComplexType.
+  if (type.isa<IntegerType>() || type.isa<FloatType>() ||
+      type.isa<ComplexType>())
+    return builder.create<NumericConstantOp>(loc, type, value);
+
+  // Bool (i1 -> !basicpy.BoolType).
+  if (type.isa<Basicpy::BoolType>()) {
+    auto i1Value = value.dyn_cast<IntegerAttr>();
+    if (i1Value && i1Value.getType().getIntOrFloatBitWidth() == 1)
+      return builder.create<BoolConstantOp>(loc, type, i1Value);
+  }
+
+  // Bytes.
+  if (type.isa<Basicpy::BytesType>()) {
+    if (auto strValue = value.dyn_cast<StringAttr>())
+      return builder.create<BytesConstantOp>(loc, type, strValue);
+  }
+
+  // Str.
+  if (type.isa<Basicpy::StrType>()) {
+    if (auto strValue = value.dyn_cast<StringAttr>())
+      return builder.create<StrConstantOp>(loc, type, strValue);
+  }
+
+  return nullptr;
+}
+
 Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
   StringRef keyword;
   if (parser.parseKeyword(&keyword))

@@ -13,12 +13,13 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOpsEnums.cpp.inc"
 
-namespace mlir {
-namespace NPCOMP {
-namespace Basicpy {
+using namespace mlir;
+using namespace mlir::NPCOMP::Basicpy;
+
+// Fallback verifier for ops that don't have a dedicated one.
+template <typename T> static LogicalResult verify(T op) { return success(); }
 
 //===----------------------------------------------------------------------===//
 // BoolConstantOp
@@ -28,12 +29,121 @@ OpFoldResult BoolConstantOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
 }
 
+void BoolConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "bool");
+}
+
 //===----------------------------------------------------------------------===//
 // BytesConstantOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult BytesConstantOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
+}
+
+void BytesConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "bytes");
+}
+
+//===----------------------------------------------------------------------===//
+// NumericConstantOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseNumericConstantOp(OpAsmParser &parser,
+                                          OperationState *result) {
+  Attribute valueAttr;
+  if (parser.parseOptionalAttrDict(result->attributes) ||
+      parser.parseAttribute(valueAttr, "value", result->attributes))
+    return failure();
+
+  // If not an Integer or Float attr (which carry the type in the attr),
+  // expect a trailing type.
+  Type type;
+  if (valueAttr.isa<IntegerAttr>() || valueAttr.isa<FloatAttr>())
+    type = valueAttr.getType();
+  else if (parser.parseColonType(type))
+    return failure();
+  return parser.addTypeToList(type, result->types);
+}
+
+static void print(OpAsmPrinter &p, NumericConstantOp op) {
+  p << "basicpy.numeric_constant ";
+  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
+
+  if (op.getAttrs().size() > 1)
+    p << ' ';
+  p << op.value();
+
+  // If not an Integer or Float attr, expect a trailing type.
+  if (!op.value().isa<IntegerAttr>() && !op.value().isa<FloatAttr>())
+    p << " : " << op.getType();
+}
+
+static LogicalResult verify(NumericConstantOp &op) {
+  auto value = op.value();
+  if (!value)
+    return op.emitOpError("requires a 'value' attribute");
+  auto type = op.getType();
+
+  if (type.isa<FloatType>()) {
+    if (!value.isa<FloatAttr>())
+      return op.emitOpError("requires 'value' to be a floating point constant");
+    return success();
+  }
+
+  if (auto intType = type.dyn_cast<IntegerType>()) {
+    if (!value.isa<IntegerAttr>())
+      return op.emitOpError("requires 'value' to be an integer constant");
+    if (intType.getWidth() == 1)
+      return op.emitOpError("cannot have an i1 type");
+    return success();
+  }
+
+  if (type.isa<ComplexType>()) {
+    if (auto complexComps = value.dyn_cast<ArrayAttr>()) {
+      if (complexComps.size() == 2) {
+        auto realValue = complexComps[0].dyn_cast<FloatAttr>();
+        auto imagValue = complexComps[1].dyn_cast<FloatAttr>();
+        if (realValue && imagValue &&
+            realValue.getType() == imagValue.getType())
+          return success();
+      }
+    }
+    return op.emitOpError("requires 'value' to be a two element array of "
+                          "floating point complex number components");
+  }
+
+  return op.emitOpError("unsupported basicpy.numeric_constant type");
+}
+
+OpFoldResult NumericConstantOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.empty() && "numeric_constant has no operands");
+  return value();
+}
+
+void NumericConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  Type type = getType();
+  if (auto intCst = value().dyn_cast<IntegerAttr>()) {
+    IntegerType intTy = type.dyn_cast<IntegerType>();
+    APInt intValue = intCst.getValue();
+
+    // Otherwise, build a complex name with the value and type.
+    SmallString<32> specialNameBuffer;
+    llvm::raw_svector_ostream specialName(specialNameBuffer);
+    specialName << "num";
+    if (intTy.isSigned())
+      specialName << intValue.getSExtValue();
+    else
+      specialName << intValue.getZExtValue();
+    if (intTy)
+      specialName << '_' << type;
+    setNameFn(getResult(), specialName.str());
+  } else {
+    setNameFn(getResult(), "num");
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -54,7 +164,7 @@ static ParseResult parseExecOp(OpAsmParser &parser, OperationState *result) {
   return success();
 }
 
-static void printExecOp(OpAsmPrinter &p, ExecOp op) {
+static void print(OpAsmPrinter &p, ExecOp op) {
   p << op.getOperationName();
   p.printOptionalAttrDictWithKeyword(op.getAttrs());
   p.printRegion(op.body());
@@ -64,7 +174,7 @@ static void printExecOp(OpAsmPrinter &p, ExecOp op) {
 // FuncTemplateCallOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verifyBasicpyOp(FuncTemplateCallOp op) {
+static LogicalResult verify(FuncTemplateCallOp op) {
   auto argNames = op.arg_names();
   if (argNames.size() > op.args().size()) {
     return op.emitOpError() << "expected <= kw arg names vs args";
@@ -108,7 +218,7 @@ static ParseResult parseFuncTemplateOp(OpAsmParser &parser,
   return success();
 }
 
-static void printFuncTemplateOp(OpAsmPrinter &p, FuncTemplateOp op) {
+static void print(OpAsmPrinter &p, FuncTemplateOp op) {
   p << op.getOperationName() << " ";
   p.printSymbolName(op.getName());
   p.printOptionalAttrDictWithKeyword(op.getAttrs(),
@@ -116,7 +226,7 @@ static void printFuncTemplateOp(OpAsmPrinter &p, FuncTemplateOp op) {
   p.printRegion(op.body());
 }
 
-static LogicalResult verifyBasicpyOp(FuncTemplateOp op) {
+static LogicalResult verify(FuncTemplateOp op) {
   Block *body = op.getBody();
   for (auto &childOp : body->getOperations()) {
     if (!llvm::isa<FuncOp>(childOp) &&
@@ -151,7 +261,7 @@ static ParseResult parseSlotObjectMakeOp(OpAsmParser &parser,
                                 parser.getNameLoc(), result->operands);
 }
 
-static void printSlotObjectMakeOp(OpAsmPrinter &p, SlotObjectMakeOp op) {
+static void print(OpAsmPrinter &p, SlotObjectMakeOp op) {
   // If the argument types do not match the result type slots, then
   // print the generic form.
   auto canCustomPrint = ([&]() -> bool {
@@ -218,7 +328,7 @@ static ParseResult parseSlotObjectGetOp(OpAsmParser &parser,
   return success();
 }
 
-static void printSlotObjectGetOp(OpAsmPrinter &p, SlotObjectGetOp op) {
+static void print(OpAsmPrinter &p, SlotObjectGetOp op) {
   // If the argument types do not match the result type slots, then
   // print the generic form.
   auto canCustomPrint = ([&]() -> bool {
@@ -262,6 +372,11 @@ OpFoldResult StrConstantOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
 }
 
+void StrConstantOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "str");
+}
+
 //===----------------------------------------------------------------------===//
 // UnknownCastOp
 //===----------------------------------------------------------------------===//
@@ -286,10 +401,6 @@ void UnknownCastOp::getCanonicalizationPatterns(
     OwningRewritePatternList &patterns, MLIRContext *context) {
   patterns.insert<ElideIdentityUnknownCast>(context);
 }
-
-} // namespace Basicpy
-} // namespace NPCOMP
-} // namespace mlir
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.cpp.inc"

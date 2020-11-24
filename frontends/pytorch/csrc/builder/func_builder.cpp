@@ -17,7 +17,8 @@ using namespace torch_mlir;
 static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
                                             MlirAttribute value) {
   OperationStateHolder s("std.constant", loc);
-  MlirNamedAttribute valueAttr = mlirNamedAttributeGet(toMlirStringRef("value"), value);
+  MlirNamedAttribute valueAttr =
+      mlirNamedAttributeGet(toMlirStringRef("value"), value);
   mlirOperationStateAddResults(s, 1, &type);
   mlirOperationStateAddAttributes(s, 1, &valueAttr);
   return s.createOperation();
@@ -44,12 +45,15 @@ void KernelCallBuilder::addSchemaAttrs() {
   //   sigIsVarret
   //   sigIsMutable
   llvm::SmallVector<MlirNamedAttribute, 8> attrs;
-  attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigIsMutable"), mlirBoolAttrGet(context, schema.is_mutable())));
-  attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigIsVararg"), mlirBoolAttrGet(context, schema.is_vararg())));
-  attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigIsVarret"), mlirBoolAttrGet(context, schema.is_varret())));
+  attrs.push_back(
+      mlirNamedAttributeGet(toMlirStringRef("sigIsMutable"),
+                            mlirBoolAttrGet(context, schema.is_mutable())));
+  attrs.push_back(
+      mlirNamedAttributeGet(toMlirStringRef("sigIsVararg"),
+                            mlirBoolAttrGet(context, schema.is_vararg())));
+  attrs.push_back(
+      mlirNamedAttributeGet(toMlirStringRef("sigIsVarret"),
+                            mlirBoolAttrGet(context, schema.is_varret())));
 
   // Arg types.
   llvm::SmallVector<MlirAttribute, 4> args;
@@ -58,7 +62,8 @@ void KernelCallBuilder::addSchemaAttrs() {
     args.push_back(mlirStringAttrGet(context, typeStr.size(), typeStr.data()));
   }
   attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigArgTypes"), mlirArrayAttrGet(context, args.size(), args.data())));
+      toMlirStringRef("sigArgTypes"),
+      mlirArrayAttrGet(context, args.size(), args.data())));
 
   // Return types.
   llvm::SmallVector<MlirAttribute, 4> returns;
@@ -203,14 +208,17 @@ FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
   // TODO: Create a dedicated API upstream for creating/manipulating func ops.
   // (this is fragile and reveals details that are not guaranteed).
   llvm::SmallVector<MlirNamedAttribute, 4> funcAttrs;
+  funcAttrs.push_back(
+      mlirNamedAttributeGet(toMlirStringRef("type"),
+                            mlirTypeAttrGet(mlirFunctionTypeGet(
+                                context, inputTypes.size(), inputTypes.data(),
+                                /*numResults=*/0, /*results=*/nullptr))));
   funcAttrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("type"), mlirTypeAttrGet(mlirFunctionTypeGet(
-                  context, inputTypes.size(), inputTypes.data(),
-                  /*numResults=*/0, /*results=*/nullptr))));
-  funcAttrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sym_name"), mlirStringAttrGet(context, name.size(), name.data())));
+      toMlirStringRef("sym_name"),
+      mlirStringAttrGet(context, name.size(), name.data())));
 
-  MlirOperationState state = mlirOperationStateGet(toMlirStringRef("func"), location);
+  MlirOperationState state =
+      mlirOperationStateGet(toMlirStringRef("func"), location);
   mlirOperationStateAddAttributes(&state, funcAttrs.size(), funcAttrs.data());
   {
     // Don't access these once ownership transferred.
@@ -234,7 +242,8 @@ FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
 void FuncBuilder::rewriteFuncReturnTypes(
     llvm::SmallVectorImpl<MlirType> &resultTypes) {
   // Get inputs from current function type.
-  MlirAttribute funcTypeAttr = mlirOperationGetAttributeByName(funcOp, toMlirStringRef("type"));
+  MlirAttribute funcTypeAttr =
+      mlirOperationGetAttributeByName(funcOp, toMlirStringRef("type"));
   assert(!mlirAttributeIsNull(funcTypeAttr) &&
          "function missing 'type' attribute");
   assert(mlirAttributeIsAType(funcTypeAttr) &&
@@ -250,7 +259,8 @@ void FuncBuilder::rewriteFuncReturnTypes(
       mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
                           resultTypes.size(), resultTypes.data());
   MlirAttribute newFuncTypeAttr = mlirTypeAttrGet(newFuncType);
-  mlirOperationSetAttributeByName(funcOp, toMlirStringRef("type"), newFuncTypeAttr);
+  mlirOperationSetAttributeByName(funcOp, toMlirStringRef("type"),
+                                  newFuncTypeAttr);
   (void)newFuncTypeAttr;
 }
 

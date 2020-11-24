@@ -14,9 +14,9 @@ def logical_and():
   x = 1
   y = 0
   z = 2
-  # CHECK: %[[XBOOL:.*]] = basicpy.as_predicate_value %[[X]]
+  # CHECK: %[[XBOOL:.*]] = basicpy.as_i1 %[[X]]
   # CHECK: %[[IF0:.*]] = scf.if %[[XBOOL]] -> (!basicpy.UnknownType) {
-  # CHECK:   %[[YBOOL:.*]] = basicpy.as_predicate_value %[[Y]]
+  # CHECK:   %[[YBOOL:.*]] = basicpy.as_i1 %[[Y]]
   # CHECK:   %[[IF1:.*]] = scf.if %[[YBOOL]] -> (!basicpy.UnknownType) {
   # CHECK:     %[[ZCAST:.*]] = basicpy.unknown_cast %[[Z]]
   # CHECK:     scf.yield %[[ZCAST]]
@@ -39,12 +39,12 @@ def logical_or():
   # CHECK: %[[X:.*]] = constant 0
   # CHECK: %[[Y:.*]] = constant 1
   # CHECK: %[[Z:.*]] = constant 2
-  # CHECK: %[[XBOOL:.*]] = basicpy.as_predicate_value %[[X]]
+  # CHECK: %[[XBOOL:.*]] = basicpy.as_i1 %[[X]]
   # CHECK: %[[IF0:.*]] = scf.if %[[XBOOL]] -> (!basicpy.UnknownType) {
   # CHECK:   %[[XCAST:.*]] = basicpy.unknown_cast %[[X]]
   # CHECK:   scf.yield %[[XCAST]]
   # CHECK: } else {
-  # CHECK:   %[[YBOOL:.*]] = basicpy.as_predicate_value %[[Y]]
+  # CHECK:   %[[YBOOL:.*]] = basicpy.as_i1 %[[Y]]
   # CHECK:   %[[IF1:.*]] = scf.if %[[YBOOL]] -> (!basicpy.UnknownType) {
   # CHECK:     %[[YCAST:.*]] = basicpy.unknown_cast %[[Y]]
   # CHECK:     scf.yield %[[YCAST]]
@@ -68,7 +68,7 @@ def logical_not():
   x = 1
   # CHECK-DAG: %[[TRUE:.*]] = basicpy.bool_constant true
   # CHECK-DAG: %[[FALSE:.*]] = basicpy.bool_constant false
-  # CHECK-DAG: %[[CONDITION:.*]] = basicpy.as_predicate_value %[[X]]
+  # CHECK-DAG: %[[CONDITION:.*]] = basicpy.as_i1 %[[X]]
   # CHECK-DAG: %{{.*}} = select %[[CONDITION]], %[[FALSE]], %[[TRUE]] : !basicpy.BoolType
   return not x
 
@@ -78,7 +78,7 @@ def logical_not():
 def conditional():
   # CHECK: %[[X:.*]] = constant 1
   x = 1
-  # CHECK: %[[CONDITION:.*]] = basicpy.as_predicate_value %[[X]]
+  # CHECK: %[[CONDITION:.*]] = basicpy.as_i1 %[[X]]
   # CHECK: %[[IF0:.*]] = scf.if %[[CONDITION]] -> (!basicpy.UnknownType) {
   # CHECK:   %[[TWO:.*]] = constant 2 : i64
   # CHECK:   %[[TWO_CAST:.*]] = basicpy.unknown_cast %[[TWO]]

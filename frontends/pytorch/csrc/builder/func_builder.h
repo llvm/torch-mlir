@@ -24,8 +24,7 @@ namespace torch_mlir {
 class OperationStateHolder {
 public:
   OperationStateHolder(const char *name, MlirLocation loc)
-      : state(
-            mlirOperationStateGet(toMlirStringRef(name), loc)) {}
+      : state(mlirOperationStateGet(toMlirStringRef(name), loc)) {}
   OperationStateHolder(const OperationStateHolder &) = delete;
   OperationStateHolder(OperationStateHolder &&other) = delete;
   ~OperationStateHolder() {

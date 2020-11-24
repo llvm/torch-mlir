@@ -22,6 +22,7 @@ def Basicpy_Dialect : Dialect {
     Core types and ops
   }];
   let cppNamespace = "::mlir::NPCOMP::Basicpy";
+  let hasConstantMaterializer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -30,8 +31,9 @@ def Basicpy_Dialect : Dialect {
 
 class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
         Op<Basicpy_Dialect, mnemonic, traits> {
-  let parser = [{ return parse$cppClass(parser, &result); }];
-  let printer = [{ return print$cppClass(p, *this); }];
+  let parser = [{ return ::parse$cppClass(parser, &result); }];
+  let printer = [{ return ::print(p, *this); }];
+  let verifier = [{ return ::verify(*this); }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -138,7 +140,7 @@ def Basicpy_DictType : DialectType<Basicpy_Dialect,
 }
 
 //===----------------------------------------------------------------------===//
-// Type predicates
+// Type/attribute predicates
 //===----------------------------------------------------------------------===//
 
 def Basicpy_SingletonType : AnyTypeOf<[

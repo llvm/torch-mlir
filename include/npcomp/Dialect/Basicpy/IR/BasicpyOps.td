@@ -13,6 +13,7 @@ include "BasicpyDialect.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 //===----------------------------------------------------------------------===//
@@ -93,8 +94,54 @@ def CompareOperationAttr : StrEnumAttr<
 // Constant and constructor operations
 //===----------------------------------------------------------------------===//
 
+def Basicpy_NumericConstantOp : Basicpy_Op<"numeric_constant", [
+    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "A constant from the Python3 numeric type hierarchy";
+  let description = [{
+    Basicpy re-uses core MLIR types to represent the Python3 numeric type
+    hierarchy with the following mappings:
+
+    * Python3 `int` : In python, this type is signed, arbitrary precision but
+      in typical realizations, it maps to an MLIR `IntegerType` of a fixed
+      bit-width (typically si64 if no further information is known). In the
+      future, there may be a real `Basicpy::IntType` that retains the true
+      arbitrary precision nature, but this is deemed an enhancement that
+      does not obviate the need to infer physical, sized types for many
+      real-world cases. As such, the Basicpy numeric type hierarchy will
+      always include physical `IntegerType`, if only to enable progressive
+      lowering and interop with cases where the precise type is known.
+    * Python3 `float` : This is allowed to map to any legal floating point
+      type on the physical machine and is usually represented as a double (f64).
+      In MLIR, any `FloatType` is allowed, which facilitates progressive
+      lowering and interop with cases where a more precise type is known.
+    * Python3 `complex` : Maps to an MLIR `ComplexType` with a `FloatType`
+      elementType (note: in Python, complex numbers are always defined with
+      floating point components).
+    * `bool` : See `bool_constant` for a constant (i1) -> !basicpy.BoolType
+      constant. This constant op is not used for representing such bool
+      values, even though from the Python perspective, bool is part of the
+      numeric hierarchy (the distinction is really only necessary during
+      promotion).
+
+    ### Integer Signedness
+
+    All `int` values in Python are signed. However, there exist special cases
+    where libraries (i.e. struct packing and numpy arrays) interoperate with
+    unsigned values. As such, when mapping to MLIR, Python integer types
+    are represented as either signed or unsigned `IntegerType` types and can
+    be lowered to signless integers as appropriate (typically during realization
+    of arithmetic expressions where the choice is meaningful). Since it is not
+    known at the outset when in lowering this information is safe to discard
+    this `numeric_constant` op accepts any signedness.
+  }];
+
+  let arguments = (ins AnyAttr:$value);
+  let results = (outs AnyType);
+  let hasFolder = 1;
+}
+
 def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
-    ConstantLike, NoSideEffect]> {
+    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "A boolean constant";
   let description = [{
     A constant of type !basicpy.BoolType that can take either an i1 value
@@ -173,7 +220,7 @@ def Basicpy_BuildTupleOp : Basicpy_Op<"build_tuple", [NoSideEffect]> {
 }
 
 def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
-    ConstantLike, NoSideEffect]> {
+    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "Constant bytes value";
   let description = [{
     A bytes value of BytesType. The value is represented by a StringAttr.
@@ -204,7 +251,7 @@ def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
 }
 
 def Basicpy_StrConstantOp : Basicpy_Op<"str_constant", [
-    ConstantLike, NoSideEffect]> {
+    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "Constant string value";
   let description = [{
     A string value of StrType. The value is represented by a StringAttr
@@ -224,7 +271,7 @@ def Basicpy_StrConstantOp : Basicpy_Op<"str_constant", [
 // Casting and coercion operations
 //===----------------------------------------------------------------------===//
 
-def Basicpy_AsPredicateValueOp : Basicpy_Op<"as_predicate_value",
+def Basicpy_AsI1Op : Basicpy_Op<"as_i1",
     [NoSideEffect]> {
   let summary = "Evaluates an input to an i1 predicate value";
   let description = [{
@@ -355,7 +402,6 @@ def Basicpy_FuncTemplateCallOp : Basicpy_Op<"func_template_call", []> {
     StrArrayAttr:$arg_names);
   let results = (outs AnyType:$result);
   let assemblyFormat = "$callee `(` $args `)` `kw` $arg_names attr-dict `:` functional-type($args, results)";
-  let verifier = [{ return verifyBasicpyOp(*this); }];
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilderDAG<(ins)>,
@@ -426,8 +472,6 @@ def Basicpy_FuncTemplateOp : Basicpy_Op<"func_template", [
   }];
   let arguments = (ins);
   let regions = (region SizedRegion<1>:$body);
-
-  let verifier = [{ return verifyBasicpyOp(*this); }];
 
   let skipDefaultBuilders = 1;
   let builders = [

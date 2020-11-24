@@ -342,7 +342,7 @@ public:
                                           op);
         return WalkResult::advance();
       }
-      if (auto op = dyn_cast<AsPredicateValueOp>(childOp)) {
+      if (auto op = dyn_cast<AsI1Op>(childOp)) {
         // Note that the result is always i1 and not subject to type
         // inference.
         equations.getTypeNode(op.operand());

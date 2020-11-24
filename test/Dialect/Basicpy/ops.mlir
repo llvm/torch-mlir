@@ -24,4 +24,16 @@ func @build_tuple_generic(%arg0 : si32, %arg1 : si32) -> !basicpy.TupleType {
   return %0 : !basicpy.TupleType
 }
 
-
+// -----
+// CHECK-LABEL: @numeric_constant
+func @numeric_constant() {
+  // CHECK: %num-1_si32 = basicpy.numeric_constant -1 : si32
+  %0 = basicpy.numeric_constant -1 : si32
+  // CHECK: %num1_ui32 = basicpy.numeric_constant 1 : ui32
+  %1 = basicpy.numeric_constant 1 : ui32
+  // CHECK: %num = basicpy.numeric_constant 2.000000e+00 : f32
+  %2 = basicpy.numeric_constant 2.0 : f32
+  // CHECK: %num_0 = basicpy.numeric_constant [2.000000e+00 : f32, 3.000000e+00 : f32] : complex<f32>
+  %3 = basicpy.numeric_constant [2.0 : f32, 3.0 : f32] : complex<f32>
+  return
+}
