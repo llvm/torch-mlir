@@ -34,6 +34,7 @@ public:
   // Creates a Ref and increments the refcount by 1.
   // rawPtr must be allocated with std::malloc.
   Ref(T *rawPtr) {
+    assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
     ptr = rawPtr;
     ptr->refCount += 1;
   }
