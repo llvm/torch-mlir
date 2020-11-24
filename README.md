@@ -5,20 +5,28 @@ not part of any official LLVM release.  While incubation status is not
 necessarily a reflection of the completeness or stability of the code, it
 does indicate that the project is not yet endorsed as a component of LLVM.
 
-The NPComp project aims to provide tooling for compiling numerical python programs of various forms to take advantage of MLIR+LLVM code generation and backend runtime systems.
+The NPComp project aims to provide tooling for compiling numerical python
+programs of various forms to take advantage of MLIR+LLVM code generation and
+backend runtime systems.
 
-In addition to providing a bridge to a variety of Python based numerical programming frameworks, NPComp also directly develops components for tracing and compilation of generic Python program fragments.
+In addition to providing a bridge to a variety of Python based numerical
+programming frameworks, NPComp also directly develops components for tracing and
+compilation of generic Python program fragments.
 
 ## Framework integrations
 
 * [PyTorch](frontends/pytorch/README.md) -- Experimental integration for
   extracting programs from PyTorch.
 
-## Python language compiler tookit
+## Python language compiler toolkit
 
-At the core of NPComp are a set of dialects and python support code for tracing (define by run) numerical programs and compiling idiomatic subsets of the Python language. As another interpretation of the name, NPComp also seeks to provide compiler-backed support for Numpy APIs.
+At the core of NPComp are a set of dialects and python support code for tracing
+(define by run) numerical programs and compiling idiomatic subsets of the Python
+language. As another interpretation of the name, NPComp also seeks to provide
+compiler-backed support for Numpy APIs.
 
-See the [features doc](docs/features.md) for a semi-curated status of what is implemented in this area.
+See the [features doc](docs/features.md) for a semi-curated status of what is
+implemented in this area.
 
 ### Architecture
 
@@ -30,9 +38,10 @@ The compiler is separated into:
   [basicpy](include/Dialect/Basicpy/IR/BasicpyOps.td) and
   [numpy](include/Dialect/Numpy/IR/NumpyOps.td) dialects.
 * Backend compiler and runtime: Some effort has been taken to make this
-  pluggable, but right now, only the [IREE Backend](python/npcomp/compiler/backend/iree.py)
-  exists. There is in-tree work to also build a minimal reference backend
-  directly targeting LLVM.
+  pluggable, but right now, only the
+  [IREE Backend](python/npcomp/compiler/backend/iree.py) exists. There is
+  in-tree work to also build a minimal reference backend directly targeting
+  LLVM.
 
 ## Repository Layout
 
@@ -42,8 +51,8 @@ The project is roughly split into the following areas of code:
 * C++ [include](include) and [lib](lib) trees, following LLVM/MLIR conventions
 * LIT testing trees:
   * [test](test): Lit/FileCheck tests covering core MLIR based infra
-  * [test/Python/Compiler](test/Python/Compiler): Lit test suite that drive the compiler
-    infra from Python
+  * [test/Python/Compiler](test/Python/Compiler): Lit test suite that drive the
+    compiler infra from Python
   * [backend_test](backend_test): Lit test suites conditionally enabled for
     each backend
 * [tools](tools): Scripts and binaries (npcomp-opt, npcomp-run-mlir, etc)
@@ -74,32 +83,60 @@ Notes:
 ## Compiler development
 
 For bash users, adding the following to your `.bashrc` defines some aliases
-that are useful during compiler development, such as shortcuts for builing
+that are useful during compiler development, such as shortcuts for building
 and running `npcomp-opt`.
 
-```
-source $WHERE_YOU_CHECKED_OUT_NPCOMP/tools/bash_helpers.sh
+```shell
+source "${WHERE_YOU_CHECKED_OUT_NPCOMP?}/tools/bash_helpers.sh"
 ```
 
 ## Build Instructions
 
 ### Common prep
 
+Note: If using `pyenv` (or an interpreter manager that depends on it like
+`asdf`), you'll need to use
+[`--enable-shared`](https://github.com/pyenv/pyenv/tree/master/plugins/python-build#building-with---enable-shared)
+during interpreter installation.
+
+#### Install dependencies:
+
 ```shell
-# From checkout directory.
+python3 -m pip install pybind11
+```
+
+Optional: if building with `clang` and `lld`:
+
+```shell
+LLVM_VERSION=10
+sudo apt-get install "clang-${LLVM_VERSION?}"
+sudo apt-get install "lld-${LLVM_VERSION?}"
+```
+
+#### Build and install MLIR
+
+```shell
+# Initialize submodules (run from checkout directory).
 git submodule init
 git submodule update
+```
 
+```shell
 # Use clang and lld to build (optional but recommended).
 LLVM_VERSION=10
-export CC=clang-$LLVM_VERSION
-export CXX=clang++-$LLVM_VERSION
+export CC="clang-${LLVM_VERSION?}"
+export CXX="clang++-${LLVM_VERSION?}"
+```
+
+```shell
 # If compiling on a new OS that defaults to the CXX11 ABI (i.e. Ubuntu >= 20.04)
 # and looking to use binary installs from the PyTorch website, you must build
 # without the CXX11 ABI.
 export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
+export LDFLAGS=-fuse-ld=$(which "ld.lld-${LLVM_VERSION?}")
+```
 
+```shell
 # Build and install LLVM/MLIR into the ./install-mlir directory
 ./build_tools/install_mlir.sh
 ```
@@ -121,7 +158,10 @@ ninja check-npcomp
 source .env
 ```
 
-### PyTorch Frontend (with PyTorch installed via conda)
+### PyTorch Frontend
+
+PyTorch can be [installed](https://pytorch.org/) via `pip` or `conda`. (CUDA is
+not required).
 
 ```shell
 # See note above about -D_GLIBCXX_USE_CXX11_ABI=0
@@ -145,7 +185,7 @@ Shell into docker image:
 
 ```shell
 docker run \
-  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/src/mlir-npcomp \
+  --mount type=bind,source="${HOME?}/src/mlir-npcomp",target=/src/mlir-npcomp \
   --mount source=npcomp-build,target=/build \
   --rm -it local/npcomp:build-pytorch-nightly /bin/bash
 ```
@@ -188,16 +228,20 @@ npcomp_docker_stop
 
 ### Configure VSCode:
 
-First, install the [VSCode Docker
-extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker) and [VSCode Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension.
-Follow instructions here to allow running `docker` without `sudo`,
+First, install the
+[VSCode Docker extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
+and
+[VSCode Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+extension. Follow instructions here to allow running `docker` without `sudo`,
 otherwise VSCode won't be able to use docker
 https://docs.docker.com/engine/install/linux-postinstall/
-(Note that VSCode has some daemons that you will need to kill/restart for
-the instructions there to take effect; consider just rebooting your
-machine)
+(Note that VSCode has some daemons that you will need to kill/restart for the
+instructions there to take effect; consider just rebooting your machine).
 
-Attach to your running container by opening the Docker extension tab (left panel), right clicking on the container name, and selecting "Attach Visual Studio code". The container name if you are using docker_shell_funcs.sh is `npcomp`.
+Attach to your running container by opening the Docker extension tab (left
+panel), right clicking on the container name, and selecting "Attach Visual
+Studio code". The container name if you are using docker_shell_funcs.sh is
+`npcomp`.
 
 Install extensions in container:
   * CMake Tools
@@ -231,4 +275,5 @@ Install extensions in container:
 * Open a C++ file, give it a few seconds and see if you get code completion
   (press CTRL-Space).
 
-Make sure to save your workspace (prefer a local folder with the "Use Local" button)!
+Make sure to save your workspace (prefer a local folder with the "Use Local"
+button)!
