@@ -14,16 +14,19 @@ import test_utils
 logging.enable()
 
 torch.manual_seed(0)
-lhs = torch.rand(2, 3)
-rhs = torch.rand(3, 4)
+input = torch.rand(2, 3)
 
 mb = torch_mlir.ModuleBuilder()
-with mb.capture_function("mm", [lhs, rhs]) as f:
-  result = torch.mm(lhs, rhs)
+with mb.capture_function("cos", [input]) as f:
+  result = torch.cos(input)
   f.returns([result])
 
 backend = refjit.CompilerBackend()
 jit_module = backend.load(backend.compile(mb.module))
 
-test_utils.compare_outputs(torch.mm, jit_module.mm, lhs, rhs)
-test_utils.compare_outputs(torch.mm, jit_module.mm, lhs + 1, rhs - 1)
+logging.debug(f"Executing jit_module.cos")
+test_utils.compare_outputs(torch.cos, jit_module.cos, input)
+
+# This fails because ModuleBuilder represents torch.cos with a constant:
+#   https://github.com/llvm/mlir-npcomp/issues/135
+test_utils.compare_outputs(torch.cos, jit_module.cos, input + 1)
