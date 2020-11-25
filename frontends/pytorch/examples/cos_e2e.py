@@ -27,6 +27,6 @@ jit_module = backend.load(backend.compile(mb.module))
 logging.debug(f"Executing jit_module.cos")
 test_utils.compare_outputs(torch.cos, jit_module.cos, input)
 
-# This fails because the "Initial PyTorch IR" hardcodes the input value and
-# ignores %arg0.
+# This fails because ModuleBuilder represents torch.cos with a constant:
+#   https://github.com/llvm/mlir-npcomp/issues/135
 test_utils.compare_outputs(torch.cos, jit_module.cos, input + 1)
