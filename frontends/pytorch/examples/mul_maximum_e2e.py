@@ -33,7 +33,7 @@ with mb.capture_function("mul_maximum", [lhs, rhs, threshold, bias]) as f:
 backend = refjit.CompilerBackend()
 jit_module = backend.load(backend.compile(mb.module))
 
-test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum,
-                           lhs, rhs, threshold, bias,)
-test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum,
-                           lhs + 1, rhs + 2, threshold, bias)
+test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum, lhs, rhs,
+                           threshold, bias)
+test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum, lhs + 1,
+                           rhs + 2, threshold, bias)

@@ -85,8 +85,5 @@ class CompilerBackend:
     return jit_module
 
   def load(self, jit_module) -> TorchJitModuleInvoker:
-    """Loads a compiled artifact into the runtime.
-
-    Since this is a JIT instead of an AOT compiler, TODO: finish this sentence.
-    """
+    """Loads a compiled artifact into the runtime."""
     return TorchJitModuleInvoker(jit_module)
