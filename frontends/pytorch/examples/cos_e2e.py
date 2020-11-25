@@ -3,7 +3,6 @@
 # See frontends/pytorch/LICENSE for license information.
 
 import sys
-import numpy as np
 import torch
 import torch_mlir
 
