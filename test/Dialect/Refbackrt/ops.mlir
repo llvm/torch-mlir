@@ -6,8 +6,6 @@ refbackrt.module_metadata {
   refbackrt.func_metadata {funcName = @f, numInputs = 1 : i32, numOutputs = 0 : i32}
 }
 
-// CHECK-LABEL: func @f
-// CHECK-SAME: !refbackrt.tensor
-func @f(%arg0: !refbackrt.tensor) {
+func @f(%arg0: memref<*xf32>) {
   return
 }

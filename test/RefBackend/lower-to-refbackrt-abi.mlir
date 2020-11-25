@@ -20,34 +20,18 @@ func @f_1input_2outputs(%arg0: memref<?xf32>) -> (memref<?xf32>, memref<?xf32>) 
 
 // Test ABI conversions.
 
-// CHECK-LABEL:   func @identity(%arg0: !refbackrt.tensor) -> !refbackrt.tensor
+// CHECK-LABEL:   func @identity(%arg0: memref<*xf32>) -> memref<*xf32>
 func @identity(%arg0: memref<?xf32>) -> memref<?xf32> {
-  // The argument materialization.
-  // In this test case, these go unused since, as described below, the new
-  // argument value is seen immediately by the return op for some reason.
-  // CHECK-NEXT: %[[INABIMEMREF:.*]] = refbackrt.to_memref %arg0 : memref<*xf32>
-  // CHECK-NEXT: %[[MEMREF:.*]] = memref_cast %[[INABIMEMREF]] : memref<*xf32> to memref<?xf32>
-
-  // TODO: Why do these target materializations not happen in this particular
-  // test?
-  // Somehow, the return op rewrite sees the new argument value immediately,
-  // rather than the result of replaceUsesOfBlockArgument from
-  // FuncOpSignatureConversion
-  // Cxxxx-NEXT: %[[OUTABIMEMREF:.*]] = memref_cast %[[MEMREF]] : memref<?xf32> to memref<*xf32>
-  // Cxxxx-NEXT: %[[RET:.*]] = refbackrt.from_memref %[[OUTABIMEMREF]] : memref<*xf32>
-  // Cxxxx-NEXT: return %[[RET]]
-
-  // CHECK-NEXT: return %arg0
+  // CHECK: return %arg0
   return %arg0 : memref<?xf32>
 }
 
 
 // -----
 
-// CHECK-LABEL: func @use_of_arg(%arg0: !refbackrt.tensor)
+// CHECK-LABEL: func @use_of_arg(%arg0: memref<*xf32>)
 func @use_of_arg(%arg0: memref<?xf32>) {
-  // CHECK-NEXT: %[[INABIMEMREF:.*]] = refbackrt.to_memref %arg0 : memref<*xf32>
-  // CHECK-NEXT: %[[MEMREF:.*]] = memref_cast %[[INABIMEMREF]] : memref<*xf32> to memref<?xf32>
+  // CHECK-NEXT: %[[MEMREF:.*]] = memref_cast %arg0 : memref<*xf32> to memref<?xf32>
   %c0 = constant 0 : index
   %0 = dim %arg0, %c0 : memref<?xf32>
   // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
@@ -57,17 +41,15 @@ func @use_of_arg(%arg0: memref<?xf32>) {
 
 // -----
 
-// CHECK-LABEL: func @multiple_blocks(%arg0: !refbackrt.tensor) -> !refbackrt.tensor
+// CHECK-LABEL: func @multiple_blocks(%arg0: memref<*xf32>) -> memref<*xf32>
 func @multiple_blocks(%arg0: memref<?xf32>) -> memref<?xf32> {
-  // CHECK-NEXT:   %[[INABIMEMREF:.*]] = refbackrt.to_memref %arg0 : memref<*xf32>
-  // CHECK-NEXT:   %[[INMEMREF:.*]] = memref_cast %[[INABIMEMREF]] : memref<*xf32> to memref<?xf32>
+  // CHECK-NEXT:   %[[INMEMREF:.*]] = memref_cast %arg0 : memref<*xf32> to memref<?xf32>
   // CHECK-NEXT:   br ^bb1(%[[INMEMREF]] : memref<?xf32>)
   br ^bb1(%arg0: memref<?xf32>)
   // CHECK-NEXT: ^bb1(%[[BBARG:.*]]: memref<?xf32>):
 ^bb1(%bbarg: memref<?xf32>):
   // CHECK-NEXT:   %[[OUTMEMREF:.*]] = memref_cast %[[BBARG]] : memref<?xf32> to memref<*xf32>
-  // CHECK-NEXT:   %[[OUTABIMEMREF:.*]] = refbackrt.from_memref %[[OUTMEMREF]] : memref<*xf32>
-  // CHECK-NEXT:   return %[[OUTABIMEMREF]] : !refbackrt.tensor
+  // CHECK-NEXT:   return %[[OUTMEMREF]] : memref<*xf32>
   return %bbarg : memref<?xf32>
 }
 

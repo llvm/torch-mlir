@@ -23,14 +23,4 @@ lowered to the llvm dialect.
   }];
 }
 
-def Refbackrt_Tensor
-    : DialectType<
-          Refbackrt_Dialect,
-          CPred<"$_self.isa<::mlir::NPCOMP::refbackrt::TensorType>()">,
-          "refbackrt.tensor">,
-      BuildableType<
-          "$_builder.getType<::mlir::NPCOMP::refbackrt::TensorType>()"> {
-  let typeDescription = [{The runtime type that represents a buffer.}];
-}
-
 #endif // #ifndef REFBACKRT_BASE
