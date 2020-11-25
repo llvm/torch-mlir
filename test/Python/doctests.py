@@ -26,11 +26,11 @@ TEST_MODULES = (
     "npcomp.compiler.numpy.py_value_utils",
     "npcomp.dialect.Basicpy",
     "npcomp.dialect.Numpy",
+    "npcomp.meta.types",
     "npcomp.tracing.context",
     "npcomp.tracing.emitters",
+    "npcomp.tracing.exporter",
     "npcomp.tracing.mlir_trace",
-    "npcomp.types",
-    "npcomp.exporter",
 )
 
 for mname in TEST_MODULES:

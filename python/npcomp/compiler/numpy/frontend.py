@@ -99,7 +99,8 @@ class ImportFrontend:
     f_return_type = self._resolve_signature_annotation(
         target, f_signature.return_annotation)
     ir_f_type = h.function_type(f_input_types, [f_return_type])
-
+    import sys
+    print("--->", ir_f_type, file=sys.stderr)
     h.builder.set_file_line_col(filename_ident, ast_fd.lineno,
                                 ast_fd.col_offset)
     h.builder.insert_before_terminator(ir_m.first_block)

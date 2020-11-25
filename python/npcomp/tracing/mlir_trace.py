@@ -8,11 +8,12 @@ import numpy as np
 
 from _npcomp.mlir import ir
 
-from npcomp.dialect import Numpy
-from npcomp.exporter import *
-from npcomp.types import *
-from npcomp.tracing.context import *
-from npcomp.tracing.emitters import *
+from .exporter import *
+from .context import *
+from .emitters import *
+
+from ..dialect import Numpy
+from ..meta.types import *
 
 
 class ModuleBuilder:

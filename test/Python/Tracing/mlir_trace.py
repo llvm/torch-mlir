@@ -7,8 +7,8 @@
 import os
 os.environ["NUMPY_EXPERIMENTAL_ARRAY_FUNCTION"] = "1"
 
-from npcomp.types import *
-from npcomp.exporter import *
+from npcomp.meta.types import *
+from npcomp.tracing.exporter import *
 from npcomp.tracing.mlir_trace import *
 
 

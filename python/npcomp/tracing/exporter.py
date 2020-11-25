@@ -6,7 +6,7 @@ import inspect
 import numpy as np
 from typing import Optional
 
-from npcomp.types import *
+from ..meta.types import *
 
 __all__ = [
     "Exporter",
@@ -62,11 +62,11 @@ class ExportFunction:
 
 class ExportPyFunction(ExportFunction):
   """Wraps a fully specialized python function that is staged for export.
-  
+
   At different phases of compilation, the wrapped function will be
   treated differently. At the initial phase, it is just a pass-through
   and provides introspection capabilities.
-  
+
   Basic access:
     >>> def simple(a, b): return a + b
     >>> ExportPyFunction(simple)
@@ -77,7 +77,7 @@ class ExportPyFunction(ExportFunction):
     pydef mul(a: NdArray, b: NdArray) -> NdArray
     >>> ExportPyFunction(mul).sig
     (a: NdArray, b: NdArray) -> NdArray
-  
+
   Manipulating the signature:
     >>> f = ExportPyFunction(mul)
     >>> f.sig.args["a"] += Rank(2)
@@ -187,7 +187,7 @@ class _ExpandoNode:
 
 class _Services:
   """Services and support for the Exporter.
-  
+
   Exporters are user objects, so most of the functional components are
   contained in the associated _Services object.
   """
@@ -201,7 +201,7 @@ class _Services:
 
 class Exporter:
   """Top-level UI object for assembling a program for export.
-  
+
   The exporter defines an open namespace of functions to be exported.
   Logically, it can be thought of as a dict-of-dicts that is populated
   by assignment of functions to leaves. The act of assigning a function
@@ -210,16 +210,16 @@ class Exporter:
   refine the compiled form. By default, any calls to such functions will
   delegate to the original function, capturing examples that constrain
   and allow further optimizations on the compiled form.
-  
+
   There are several reserved names that can not have functions bound
   to them with the dot notation, but can still be referenced by subscripting
   if necessary:
     TODO: Reserved names. 'captures', etc.
-    
+
     >>> exp = Exporter()
     >>> exp
     Exporter()
-    
+
   Creating namespaces and functions with attribute access:
     >>> exp = Exporter()
     >>> exp.ns1
@@ -231,7 +231,7 @@ class Exporter:
     Namespace("ns1.ns2")
     >>> exp.ns1.ns2.f
     pydef ns1.ns2.f(x: Any) -> Any
-    
+
   Via index access:
     >>> exp = Exporter()
     >>> exp["ns1"]["f"] = lambda x: x
@@ -239,7 +239,7 @@ class Exporter:
     ['f']
     >>> exp["ns1"]["f"]
     pydef ns1.f(x: Any) -> Any
-    
+
   Illegal access:
     >>> exp = Exporter()
     >>> exp.ns1.ns2.f = lambda x: x
