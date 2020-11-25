@@ -4,6 +4,8 @@
 
 import os
 
+import torch
+
 from mlir.ir import *
 from mlir.passmanager import *
 from npcomp.compiler.generic.backend import refjit as refjit_backend
@@ -23,6 +25,20 @@ TORCH_TO_TCF_PASSES = (
 
 # Re-export.
 is_enabled = refjit_backend.is_enabled
+
+
+class TorchJitModuleInvoker(refjit_backend.JitModuleInvoker):
+  """Allows torch.Tensor inputs to be passed to module invocations."""
+
+  def __getitem__(self, function_name: str):
+    numpy_invoke = super().__getitem__(function_name)
+
+    def invoke(*args):
+      args = tuple(
+          arg.numpy() if isinstance(arg, torch.Tensor) else arg for arg in args)
+      return numpy_invoke(*args)
+
+    return invoke
 
 
 class CompilerBackend:
@@ -68,9 +84,9 @@ class CompilerBackend:
         imported_module, refjit_backend.get_runtime_libs())
     return jit_module
 
-  def load(self, jit_module):
+  def load(self, jit_module) -> TorchJitModuleInvoker:
     """Loads a compiled artifact into the runtime.
 
-    Since this is a JIT instead of an AOT compiler,
+    Since this is a JIT instead of an AOT compiler, TODO: finish this sentence.
     """
-    return refjit_backend.JitModuleInvoker(jit_module)
+    return TorchJitModuleInvoker(jit_module)
