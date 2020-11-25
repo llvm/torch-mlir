@@ -77,35 +77,6 @@ public:
 };
 } // namespace
 
-namespace {
-// FromMemrefOp requires special handling so that the unranked memref descriptor
-// gets passed as two separate arguments instead of as a struct.
-class FromMemrefOpCompilerRuntimeLowering
-    : public OpConversionPattern<refbackrt::FromMemrefOp> {
-public:
-  FromMemrefOpCompilerRuntimeLowering(LLVM::LLVMFuncOp backingFunc)
-      : OpConversionPattern<refbackrt::FromMemrefOp>(backingFunc.getContext()),
-        backingFunc(backingFunc) {}
-  LogicalResult
-  matchAndRewrite(refbackrt::FromMemrefOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto structVal = operands[0];
-    Value rank = rewriter.create<LLVM::ExtractValueOp>(
-        op.getLoc(),
-        structVal.getType().cast<LLVMType>().getStructElementType(0), structVal,
-        rewriter.getI32ArrayAttr({0}));
-    Value descriptorPtr = rewriter.create<LLVM::ExtractValueOp>(
-        op.getLoc(),
-        structVal.getType().cast<LLVMType>().getStructElementType(1), structVal,
-        rewriter.getI32ArrayAttr({1}));
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(
-        op, backingFunc, ValueRange({rank, descriptorPtr}));
-    return success();
-  }
-  LLVM::LLVMFuncOp backingFunc;
-};
-} // namespace
-
 static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
                                          OpBuilder &builder, Location loc) {
   // TODO: Deduplicate strings.
@@ -187,35 +158,6 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
     LLVMFuncOp abortIfFunc = createCompilerRuntimeFuncDecl(
         "abort_if", abortIfFuncTy, builder, module.getLoc());
     patterns.insert<AbortIfOpCompilerRuntimeLowering>(abortIfFunc);
-  }
-
-  auto convertFunctionType = [&](FunctionType type) {
-    TypeConverter::SignatureConversion conversion(type.getNumInputs());
-    return typeConverter.convertFunctionSignature(type, /*isVariadic=*/false,
-                                                  conversion);
-  };
-
-  {
-    auto mlirFunctionType = builder.getFunctionType(
-        {builder.getType<refbackrt::TensorType>()},
-        {UnrankedMemRefType::get(builder.getF32Type(), /*memorySpace=*/0)});
-    LLVMType funcTy = convertFunctionType(mlirFunctionType);
-    LLVMFuncOp toMemrefFunc = createCompilerRuntimeFuncDecl(
-        "to_memref", funcTy, builder, module.getLoc());
-    patterns.insert<TrivialCompilerRuntimeLowering<refbackrt::ToMemrefOp>>(
-        toMemrefFunc);
-  }
-
-  {
-    // TODO: Pass in an element type enum, since the unranked memref descriptor
-    // doesn't know its own dtype.
-    auto mlirFunctionType = builder.getFunctionType(
-        {UnrankedMemRefType::get(builder.getF32Type(), /*memorySpace=*/0)},
-        {builder.getType<refbackrt::TensorType>()});
-    LLVMType funcTy = convertFunctionType(mlirFunctionType);
-    LLVMFuncOp fromMemrefFunc = createCompilerRuntimeFuncDecl(
-        "from_memref", funcTy, builder, module.getLoc());
-    patterns.insert<FromMemrefOpCompilerRuntimeLowering>(fromMemrefFunc);
   }
 }
 
@@ -390,9 +332,12 @@ static Value getTypedAddressFromVoidStarStar(Value voidStarStar, int32_t index,
   Value ci = builder.create<LLVM::ConstantOp>(
       loc, LLVMType::getIntNTy(builder.getContext(), 32),
       builder.getI32IntegerAttr(index));
-  auto inputPtr = builder.create<LLVM::GEPOp>(
-      loc, LLVMType::getInt8PtrTy(builder.getContext()), voidStarStar,
-      ValueRange(ci));
+
+  // Do `voidStarStar[i]` as a gep + load.
+  auto inputPtrAddr = builder.create<LLVM::GEPOp>(
+      loc, LLVMType::getInt8PtrTy(builder.getContext()).getPointerTo(),
+      voidStarStar, ValueRange(ci));
+  auto inputPtr = builder.create<LLVM::LoadOp>(loc, inputPtrAddr);
   return builder.create<LLVM::BitcastOp>(loc, ty.getPointerTo(), inputPtr);
 }
 
@@ -407,6 +352,21 @@ static SmallVector<Value, 6> loadCallArgs(Value inputsPtrPtr, LLVMType funcTy,
     callArgs.push_back(builder.create<LLVM::LoadOp>(loc, addr));
   }
   return callArgs;
+}
+
+static LLVM::LLVMType getUnrankedMemrefDescriptorType(MLIRContext *context) {
+  LLVMTypeConverter converter(context);
+  // LLVMTypeConverter doesn't directly expose the struct type used to represent
+  // unranked memrefs on ABI boundaries. To get that type, we convert
+  // an unranked memref type and see what it produces.
+  //
+  // An unranked memref is just a size_t for the rank and an void* pointer to
+  // descriptor, so the choice of element type here is arbitrary -- it all
+  // converts to the same thing.
+  return converter
+      .convertType(UnrankedMemRefType::get(Float32Type::get(context),
+                                           /*memorySpace=*/0))
+      .cast<LLVM::LLVMType>();
 }
 
 // Writes out the logical results of the wrapper function through the void**
@@ -424,13 +384,15 @@ static void storeWrapperResults(LLVM::CallOp callToWrapped, Value resultsPtrPtr,
   Value result = callToWrapped.getResult(0);
   auto ty = result.getType().cast<LLVMType>();
   // 1 logical result.
-  if (!ty.isStructTy()) {
+  if (ty == getUnrankedMemrefDescriptorType(ty.getContext())) {
     Value addr =
         getTypedAddressFromVoidStarStar(resultsPtrPtr, 0, ty, builder, loc);
     builder.create<LLVM::StoreOp>(loc, result, addr);
     return;
   }
-  // >=2 logical results.
+  assert(ty.isStructTy() && "must be a multi-result packed struct!");
+  // >=2 logical results. The convention linked above will create a struct
+  // wrapping.
   for (int i = 0, e = ty.getStructNumElements(); i < e; i++) {
     auto elementTy = ty.getStructElementType(i);
     Value addr = getTypedAddressFromVoidStarStar(resultsPtrPtr, i, elementTy,
@@ -491,11 +453,6 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     auto *context = &getContext();
 
     LLVMTypeConverter converter(context);
-
-    // refbackrt::TensorType is passed as a `void*` in the ABI.
-    converter.addConversion([&](refbackrt::TensorType type) {
-      return LLVMType::getInt8PtrTy(context);
-    });
 
     OwningRewritePatternList patterns;
     LLVMConversionTarget target(*context);

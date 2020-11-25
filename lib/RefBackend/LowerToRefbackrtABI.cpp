@@ -97,7 +97,8 @@ public:
 } // namespace
 
 namespace {
-// At ABI bondaries, use !refbackrt.tensor instead of memref.
+// At ABI boundaries, convert all memrefs to unranked memrefs so that they have
+// a fixed ABI.
 class FuncOpSignatureConversion : public OpConversionPattern<FuncOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -128,9 +129,7 @@ public:
       for (auto newAndOldArg :
            llvm::zip(newEntry.getArguments(), oldEntry.getArguments())) {
         std::tie(newArg, oldArg) = newAndOldArg;
-        auto abiMemref = rewriter.create<refbackrt::ToMemrefOp>(
-            op.getLoc(), getABIMemrefType(oldArg.getType()), newArg);
-        auto memref = rewriter.create<MemRefCastOp>(op.getLoc(), abiMemref,
+        auto memref = rewriter.create<MemRefCastOp>(op.getLoc(), newArg,
                                                     oldArg.getType());
         rewriter.replaceUsesOfBlockArgument(oldArg, memref);
       }
@@ -141,7 +140,7 @@ public:
 } // namespace
 
 namespace {
-// At the return ABI boundaries, convert to !refbackrt.tensor type.
+// At the return ABI boundaries, convert to the ABI type.
 // This pattern is needed to trigger the type conversion mechanics to do a
 // target materialization.
 class RewriteReturnOp : public OpConversionPattern<ReturnOp> {
@@ -161,16 +160,14 @@ static LogicalResult doDialectConversion(ModuleOp module) {
 
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
-  typeConverter.addConversion([](MemRefType type) {
-    return refbackrt::TensorType::get(type.getContext());
-  });
+  typeConverter.addConversion(
+      [](MemRefType type) { return getABIMemrefType(type); });
   typeConverter.addTargetMaterialization(
-      [](OpBuilder &builder, refbackrt::TensorType type, ValueRange inputs,
+      [](OpBuilder &builder, UnrankedMemRefType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        auto abiMemref = builder.create<MemRefCastOp>(
+        return builder.create<MemRefCastOp>(
             loc, inputs[0], getABIMemrefType(inputs[0].getType()));
-        return builder.create<refbackrt::FromMemrefOp>(loc, type, abiMemref);
       });
 
   OwningRewritePatternList patterns;

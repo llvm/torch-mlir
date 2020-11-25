@@ -18,6 +18,91 @@
 using namespace refbackrt;
 
 //===----------------------------------------------------------------------===//
+// Memref descriptors for interacting with MLIR codegenerated code.
+//===----------------------------------------------------------------------===//
+
+namespace {
+// These definitions are based on the ones in
+// `mlir/ExecutionEngine/CRunnerUtils.h` and the layouts need to be kept in
+// sync.
+//
+// Those definitions are flawed though because they are overly templated.
+struct MemrefDescriptor {
+  void *allocatedPtr;
+  void *dataPtr;
+  std::int64_t offset;
+  // Tail-allocated int64_t sizes followed by strides.
+  MutableArrayRef<std::int64_t> getSizes(int assumedRank) {
+    auto *tail = reinterpret_cast<std::int64_t *>(this + 1);
+    return MutableArrayRef<std::int64_t>(tail, assumedRank);
+  }
+  MutableArrayRef<std::int64_t> getStrides(int assumedRank) {
+    auto *tail = reinterpret_cast<std::int64_t *>(this + 1);
+    return MutableArrayRef<std::int64_t>(tail + assumedRank, assumedRank);
+  }
+
+  // Returns a malloc-allocated MemrefDescriptor with the specified extents and
+  // default striding.
+  static MemrefDescriptor *create(ArrayRef<std::int32_t> extents, void *data);
+
+  // Returns the number of elements in this MemrefDescriptor, assuming this
+  // descriptor has rank `assumedRank`.
+  std::int32_t getNumElements(int assumedRank) {
+    if (assumedRank == 0)
+      return 1;
+    return getSizes(assumedRank)[0] * getStrides(assumedRank)[0];
+  }
+};
+} // namespace
+
+namespace {
+struct UnrankedMemref {
+  int64_t rank;
+  MemrefDescriptor *descriptor;
+};
+} // namespace
+
+MemrefDescriptor *MemrefDescriptor::create(ArrayRef<std::int32_t> extents,
+                                           void *data) {
+  auto rank = extents.size();
+  auto allocSize = sizeof(MemrefDescriptor) + sizeof(std::int64_t) * 2 * rank;
+  auto *descriptor = static_cast<MemrefDescriptor *>(std::malloc(allocSize));
+  descriptor->allocatedPtr = data;
+  descriptor->dataPtr = data;
+  descriptor->offset = 0;
+  // Iterate in reverse, copying the dimension sizes (i.e. extents) and
+  // calculating the strides for a standard dense layout.
+  std::int64_t stride = 1;
+  for (int i = 0, e = rank; i < e; i++) {
+    auto revIdx = e - i - 1;
+    descriptor->getSizes(rank)[revIdx] = extents[revIdx];
+    descriptor->getStrides(rank)[revIdx] = stride;
+    stride *= extents[revIdx];
+  }
+  return descriptor;
+}
+
+static UnrankedMemref convertRefbackrtTensorToUnrankedMemref(Tensor *tensor) {
+  auto byteSize = tensor->getDataByteSize();
+  void *data = std::malloc(byteSize);
+  std::memcpy(data, tensor->getData(), byteSize);
+  auto *descriptor = MemrefDescriptor::create(tensor->getExtents(), data);
+  return UnrankedMemref{tensor->getRank(), descriptor};
+}
+
+static Tensor *convertUnrankedMemrefToRefbackrtTensor(
+    std::int64_t rank, MemrefDescriptor *descriptor, ElementType elementType) {
+  // Launder from std::int64_t to std::int32_t.
+  auto extents64 = descriptor->getSizes(rank);
+  constexpr int kMaxRank = 20;
+  std::array<std::int32_t, kMaxRank> extents32Buf;
+  for (int i = 0, e = extents64.size(); i < e; i++)
+    extents32Buf[i] = extents64[i];
+  return Tensor::createRaw(ArrayRef<std::int32_t>(extents32Buf.data(), rank),
+                           elementType, descriptor->dataPtr);
+}
+
+//===----------------------------------------------------------------------===//
 // Tensor
 //===----------------------------------------------------------------------===//
 
@@ -93,25 +178,71 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   assert(descriptor && "unknown function name");
   assert(inputs.size() < kMaxArity && "number of inputs exceeds kMaxArity");
   assert(outputs.size() < kMaxArity && "number of outputs exceeds kMaxArity");
-  std::array<Tensor *, kMaxArity> inputTensorPtrs;
-  std::array<Tensor *, kMaxArity> outputTensorPtrs;
-  std::array<void *, kMaxArity> packedInputs;
+  std::array<UnrankedMemref, kMaxArity> inputUnrankedMemrefs;
+  std::array<UnrankedMemref, kMaxArity> outputUnrankedMemrefs;
+  std::array<void *, kMaxArity * 2> packedInputs;
   std::array<void *, kMaxArity> packedOutputs;
-  for (int i = 0, e = inputs.size(); i < e; i++)
-    inputTensorPtrs[i] = inputs[i].get();
-  for (int i = 0, e = inputs.size(); i < e; i++)
-    packedInputs[i] = ToVoidPtr(inputTensorPtrs[i]);
+  for (int i = 0, e = inputs.size(); i < e; i++) {
+    inputUnrankedMemrefs[i] =
+        convertRefbackrtTensorToUnrankedMemref(inputs[i].get());
+  }
+  for (int i = 0, e = inputs.size(); i < e; i++) {
+    packedInputs[2 * i] = ToVoidPtr(&inputUnrankedMemrefs[i].rank);
+    packedInputs[2 * i + 1] = ToVoidPtr(&inputUnrankedMemrefs[i].descriptor);
+  }
+  for (int i = 0, e = outputs.size(); i < e; i++) {
+    packedOutputs[i] = ToVoidPtr(&outputUnrankedMemrefs[i]);
+  }
   descriptor->functionPtr(packedInputs.data(), packedOutputs.data());
-  for (int i = 0, e = outputs.size(); i < e; i++)
-    outputTensorPtrs[i] = static_cast<Tensor *>(packedOutputs[i]);
-  // TODO: Actually manage refcounts inside the compiler.
-  // Right now, we only pass around refbackrt.tensor's in trivial ways on ABI
-  // boundaries, so the following contract of the compiler-generated code works:
-  // - input tensors are never retained or released
-  // - output tensors always have refcount 0. Hence the next line here is
-  // actually essential because it increments the refcounts so they are nonzero.
-  for (int i = 0, e = outputs.size(); i < e; i++)
-    outputs[i] = Ref<Tensor>(outputTensorPtrs[i]);
+  for (int i = 0, e = outputs.size(); i < e; i++) {
+    // TODO: Have compiler emit the element type in the metadata.
+    auto elementType = ElementType::F32;
+    Tensor *tensor = convertUnrankedMemrefToRefbackrtTensor(
+        outputUnrankedMemrefs[i].rank, outputUnrankedMemrefs[i].descriptor,
+        elementType);
+    outputs[i] = Ref<Tensor>(tensor);
+  }
+  for (int i = 0, e = outputs.size(); i < e; i++) {
+    void *allocatedPtr = outputUnrankedMemrefs[i].descriptor->allocatedPtr;
+    // Multiple returned memrefs can point into the same underlying
+    // malloc allocation. Do a linear scan to see if any of the previously
+    // deallocated buffers already freed this pointer.
+    bool bufferNeedsFreeing = true;
+    for (int j = 0; j < i; j++) {
+      if (allocatedPtr == outputUnrankedMemrefs[j].descriptor->allocatedPtr)
+        bufferNeedsFreeing = false;
+    }
+    if (!bufferNeedsFreeing)
+      std::free(allocatedPtr);
+  }
+  for (int i = 0, e = inputs.size(); i < e; i++) {
+    void *allocatedPtr = inputUnrankedMemrefs[i].descriptor->allocatedPtr;
+    bool bufferNeedsFreeing = true;
+    for (int j = 0, je = outputs.size(); j < je; j++) {
+      if (allocatedPtr == outputUnrankedMemrefs[j].descriptor->allocatedPtr)
+        bufferNeedsFreeing = false;
+    }
+    // HACK: The returned memref can point into statically allocated memory that
+    // we can't pass to `free`, such as the result of lowering a tensor-valued
+    // `std.constant` to `std.global_memref`. The LLVM lowering of
+    // std.global_memref sets the allocated pointer to the magic value
+    // 0xDEADBEEF, which we sniff for here. This is yet another strong signal
+    // that memref is really not the right abstraction for ABI's.
+    if (reinterpret_cast<std::intptr_t>(allocatedPtr) == 0xDEADBEEF)
+      bufferNeedsFreeing = false;
+    if (!bufferNeedsFreeing)
+      std::free(allocatedPtr);
+  }
+
+  for (int i = 0, e = outputs.size(); i < e; i++) {
+    // The LLVM lowering guarantees that each returned unranked memref
+    // descriptor is separately malloc'ed, so no need to do anything special
+    // like we had to do for the allocatedPtr's.
+    std::free(outputUnrankedMemrefs[i].descriptor);
+  }
+  for (int i = 0, e = inputs.size(); i < e; i++) {
+    std::free(inputUnrankedMemrefs[i].descriptor);
+  }
 }
 
 LogicalResult refbackrt::getMetadata(ModuleDescriptor *moduleDescriptor,

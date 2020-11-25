@@ -70,6 +70,8 @@ public:
     return ret;
   }
 
+  int debugGetRefCount() { return ptr->refCount; }
+
 private:
   static void incref(T *ptr) {
     if (!ptr)

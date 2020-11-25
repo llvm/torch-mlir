@@ -16,26 +16,6 @@ class Refbackrt_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Refbackrt_Dialect, mnemonic, traits> {
 }
 
-def Refbackrt_ToMemrefOp : Refbackrt_Op<"to_memref"> {
-  let summary = "Gets a memref descriptor from a tensor";
-  let description = [{
-    Gets a memref descriptor from a tensor.
-  }];
-  let arguments = (ins Refbackrt_Tensor:$tensor);
-  let results = (outs AnyUnrankedMemRef:$memref);
-  let assemblyFormat = "$tensor attr-dict `:` type($memref)";
-}
-
-def Refbackrt_FromMemrefOp : Refbackrt_Op<"from_memref"> {
-  let summary = "Converts a memref descriptor to a tensor";
-  let description = [{
-    Copies the data from a memref into a new tensor.
-  }];
-  let arguments = (ins AnyUnrankedMemRef:$memref);
-  let results = (outs Refbackrt_Tensor:$tensor);
-  let assemblyFormat = "$memref attr-dict `:` type($memref)";
-}
-
 def Refbackrt_AbortIfOp : Refbackrt_Op<"abort_if"> {
   let summary = "Aborts if the predicate is true";
   let description = [{

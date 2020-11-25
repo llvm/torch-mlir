@@ -21,23 +21,3 @@ void RefbackrtDialect::initialize() {
       >();
   addTypes<TensorType>();
 }
-
-Type RefbackrtDialect::parseType(DialectAsmParser &parser) const {
-  StringRef keyword;
-  if (parser.parseKeyword(&keyword))
-    return Type();
-
-  if (keyword == "tensor")
-    return TensorType::get(getContext());
-
-  parser.emitError(parser.getNameLoc(), "unknown type in 'refbackrt' dialect: ")
-      << keyword;
-  return Type();
-}
-
-void RefbackrtDialect::printType(Type type, DialectAsmPrinter &os) const {
-  TypeSwitch<Type>(type)
-      .Case<NPCOMP::refbackrt::TensorType>([&](Type) { os << "tensor"; })
-      .Default(
-          [&](Type) { llvm_unreachable("unexpected 'refbackrt' type kind"); });
-}
