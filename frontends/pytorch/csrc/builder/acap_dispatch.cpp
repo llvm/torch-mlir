@@ -146,6 +146,8 @@ void AcapController::returns(std::vector<at::Tensor> tensors) {
       s.createOperation());
   funcBuilder->rewriteFuncReturnTypes(returnsTypes);
   hasReturned = true;
+  if (onReturn)
+    onReturn(returnsTypes);
 }
 
 std::shared_ptr<AcapController>

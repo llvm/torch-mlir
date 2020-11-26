@@ -16,6 +16,8 @@
 
 namespace torch_mlir {
 
+namespace py = pybind11;
+
 /// Thrown on failure when details are in MLIR emitted diagnostics.
 class mlir_diagnostic_emitted : public std::runtime_error {
 public:

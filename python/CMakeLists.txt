@@ -51,6 +51,7 @@ endif()
 
 add_library(NPCOMPNativePyExt ${NPCOMP_PYEXT_LINK_MODE}
   NpcompModule.cpp
+  Types.cpp
 )
 
 set_target_properties(NPCOMPNativePyExt PROPERTIES LIBRARY_OUTPUT_DIRECTORY

@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "graph_importer.h"
+#include "../npcomp_py_interop.h"
 
 #include "mlir_utils.h"
 
@@ -223,7 +224,7 @@ std::shared_ptr<GraphImporter> GraphImporter::forPythonJitFunc(
     mappingOptions.genericFuncName = function->name() + "$generic";
   }
   if (!mappingOptions.funcName) {
-    mappingOptions.funcName = function->name() + "$generic";
+    mappingOptions.funcName = function->name();
   }
   return std::make_shared<GraphImporter>(graph, std::move(mappingOptions));
 }
@@ -303,4 +304,53 @@ MlirLocation GraphImporter::extractCallstackLoc(torch::jit::Node *node,
   }
 
   return useDefault ? defaultLoc : MlirLocation{nullptr};
+}
+
+//------------------------------------------------------------------------------
+// GraphMetaExporter implementation.
+//------------------------------------------------------------------------------
+
+void GraphMetaFunctionExporter::exportGenericFunction(py::tuple symbolName) {
+  auto signature = createSignature(importer().genericFuncArgTypes,
+                                   importer().genericFuncReturnTypes);
+  auto genericFunction = createNpcompMetaExportGenericFunction(
+      /*py ir_symbol_name=*/py::str(*importer().mappingOptions.funcName),
+      /*py signature=*/std::move(signature));
+  metaModule.attr("export_symbol")(std::move(symbolName),
+                                   std::move(genericFunction));
+}
+
+py::object GraphMetaFunctionExporter::createSignature(
+    const llvm::SmallVectorImpl<MlirType> &argTypes,
+    const llvm::SmallVectorImpl<MlirType> &returnTypes) {
+  // Effectively:
+  //   signature = npcomp.meta.types.Signature(arity)
+  auto signature = createNpcompMetaSignatureClass(
+      /*py arity=*/argTypes.size());
+
+  // Map arguments.
+  // Effectively:
+  //   arg_value_types = signature.args
+  //   for i, mlir_type in enumerate(importer.genericFuncArgTypes):
+  //     value_type = npcomp.types.map_mlir_type_to_meta_type(mlir_type)
+  //     arg_value_types[i] = value_type
+  py::object argValueTypes = signature.attr("args"); // An npcomp..ValueTypeList
+  for (auto it : llvm::enumerate(argTypes)) {
+    py::object valueType =
+        mapMlirTypeToMetaType(it.value()); // An npcomp..ValueType
+    if (!valueType.is_none())
+      argValueTypes.attr("__setitem__")(it.index(), std::move(valueType));
+  }
+
+  // Map returns.
+  // TODO: Signatures always have one result that either becomes None for no
+  // result or a tuple for multiple results. Map these. Currently they show
+  // as "any".
+  if (returnTypes.size() == 1) {
+    py::object valueType =
+        mapMlirTypeToMetaType(returnTypes[0]); // An npcomp..ValueType
+    signature.attr("result") = std::move(valueType);
+  }
+
+  return signature;
 }

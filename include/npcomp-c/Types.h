@@ -11,6 +11,7 @@
 #define NPCOMP_C_TYPES_H
 
 #include "mlir-c/IR.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,8 +73,21 @@ MlirType npcompNdArrayTypeGetUnranked(MlirType elementType);
 MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
                                     MlirType elementType);
 
-/// Helper that gets an equivalent NdArrayType from a ShapedType.
+/** Helper that gets an equivalent NdArrayType from a ShapedType. */
 MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType);
+
+/** Gets the element type of an NdArray type. */
+MlirType npcompNdArrayTypeGetDType(MlirType t);
+
+/** Checks whether the given shaped type is ranked. */
+int npcompNdArrayTypeHasRank(MlirType t);
+
+/** Returns the rank of the given ranked shaped type. */
+int64_t npcompNdArrayTypeGetRank(MlirType t);
+
+/** Returns the dim-th dimension of the given ranked shaped type.
+ * Returns -1 if dynamic. */
+int64_t npcompNdArrayTypeGetDimSize(MlirType t, intptr_t dim);
 
 /*============================================================================*/
 /* None type.                                                                 */

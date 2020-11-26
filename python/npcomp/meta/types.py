@@ -65,7 +65,7 @@ class _LiterateEnum(Enum):
     Traceback (most recent call last):
     ...
     ValueError: Cannot parse SampleEnum 1.0
-    
+
   """
 
   @classmethod
@@ -111,11 +111,11 @@ class TypeClass(_LiterateEnum):
 
 class ValueType:
   """The type a value can take in the npcomp language.
-  
+
   Types of values in npcomp are always being refined and are therefore
-  mutable. Instances represent the type derived for a single value, not a 
+  mutable. Instances represent the type derived for a single value, not a
   concept of "typeness" generally.
-  
+
     >>> ValueType()
     Any
     >>> ValueType('NdArray')
@@ -166,7 +166,7 @@ class ValueType:
 
 class ValueTypeList:
   """Models a list of ValueTypes.
-  
+
     >>> v3 = ValueTypeList(3)
     >>> v3
     (Any, Any, Any)
@@ -178,7 +178,7 @@ class ValueTypeList:
     >>> v3[2] += Rank(2)
     >>> v3
     (Any, Any, NdArray[Rank(2)])
-    
+
   With names:
     >>> v3 = ValueTypeList(3, [None, "b", None])
     >>> v3[1] = 'NdArray'
@@ -221,11 +221,11 @@ class ValueTypeList:
 
 class Signature:
   """A function signature.
-    
+
     This currently only models a linear list of positional arguments and
     assumes that multiple results will be represented by some form of tuple
     type.
-      
+
       >>> Signature()
       () -> Any
       >>> Signature(2)
@@ -279,7 +279,7 @@ class Signature:
 
 class ArrayParams:
   """Represents parameters defining how to construct an array.
-  
+
     >>> ArrayParams()
     ArrayParams(dtype=Unspec)
     >>> ArrayParams(np.float32)
@@ -309,26 +309,26 @@ class ArrayParams:
   @classmethod
   def from_constraints(cls, constraints):
     """Constructs params for a TypeConstraints list.
-    
+
     Unconstrained:
       >>> ArrayParams.from_constraints(TypeConstraints())
       ArrayParams(dtype=Unspec)
-      
+
     DType constrained:
       >>> ArrayParams.from_constraints(TypeConstraints(DType(np.float32)))
       ArrayParams(dtype=float32)
 
-    Rank constrained:      
+    Rank constrained:
       >>> ArrayParams.from_constraints(TypeConstraints(Rank(2)))
       ArrayParams(dtype=Unspec, shape=(-1, -1))
-      
+
     Shape constrained:
       >>> ArrayParams.from_constraints(TypeConstraints(Shape(1, 2, 3)))
       ArrayParams(dtype=Unspec, shape=(1, 2, 3))
       >>> ArrayParams.from_constraints(TypeConstraints(
       ...   Rank(3), Shape(1, 2, 3)))
       ArrayParams(dtype=Unspec, shape=(1, 2, 3))
-      
+
     Shape constrained with dynamic dim constraint:
       >>> ArrayParams.from_constraints(TypeConstraints(
       ...   Shape(1, 2, 3), DynamicDim(1)))
@@ -336,7 +336,7 @@ class ArrayParams:
       >>> ArrayParams.from_constraints(TypeConstraints(
       ...   Shape(1, 2, 3), DynamicDim((0, 2))))
       ArrayParams(dtype=Unspec, shape=(-1, 2, -1))
-      
+
     Errors:
       >>> ArrayParams.from_constraints(TypeConstraints(
       ...   Rank(4), Shape(1, 2, 3)))
@@ -346,7 +346,7 @@ class ArrayParams:
       >>> ArrayParams.from_constraints(TypeConstraints(
       ...   Shape(1, 2, 3), DynamicDim((0, 5))))
       Traceback (most recent call last):
-      ...      
+      ...
       ValueError: Out of range DimFlag(Dynamic, (0, 5)) for shape [-1, 2, 3]
     """
     # TODO: Should have a 'canonicalize' method on TypeConstraints which
@@ -395,7 +395,7 @@ class ArrayParams:
   @property
   def is_concrete(self):
     """Returns true if the parameters are sufficient to construct an ndarray.
-    
+
       >>> ArrayParams().is_concrete
       False
       >>> ArrayParams(dtype=np.float32).is_concrete
@@ -417,26 +417,26 @@ class ArrayParams:
   def mlir_tensor_type_asm(self):
     """Get a corresponding MLIR tensor type.
 
-    Fully Unspecified:    
+    Fully Unspecified:
       >>> ArrayParams().mlir_tensor_type_asm
       'tensor<*x!numpy.any_dtype>'
-      
+
     Unranked:
       >>> ArrayParams(dtype=np.float32).mlir_tensor_type_asm
       'tensor<*xf32>'
-      
+
     Ranked:
       >>> ArrayParams(dtype=np.float32, rank=3).mlir_tensor_type_asm
       'tensor<?x?x?xf32>'
       >>> ArrayParams(dtype=np.float32, shape=(-1, -1)).mlir_tensor_type_asm
       'tensor<?x?xf32>'
-      
+
     Scalar:
       >>> ArrayParams(dtype=np.float32, rank=0).mlir_tensor_type_asm
       'tensor<f32>'
       >>> ArrayParams(dtype=np.float32, shape=()).mlir_tensor_type_asm
       'tensor<f32>'
-      
+
     Shaped:
       >>> ArrayParams(dtype=np.float32, shape=(2, 3)).mlir_tensor_type_asm
       'tensor<2x3xf32>'
@@ -460,7 +460,7 @@ class ArrayParams:
 
   def new_ndarray(self):
     """Creates a new ndarray from these params.
-    
+
       >>> ArrayParams().new_ndarray()
       Traceback (most recent call last):
       ...
@@ -480,7 +480,7 @@ class TypeConstraint:
 
 class TypeConstraints(list):
   """Collection of type constraints.
-  
+
     >>> TypeConstraints([DynamicDim()])
     TypeConstraints(DimFlag(Dynamic, Unspec))
     >>> TypeConstraints([DynamicDim(), Rank(4)])
@@ -554,9 +554,9 @@ class ArrayConstraint(TypeConstraint):
 
 class DType(ArrayConstraint):
   """A constraint on a dtype.
-  
+
   DType constraints are exclusive with only one permitted in a set.
-  
+
     >>> DType(np.float32)
     DType(float32)
     >>> DType("foobar")
@@ -597,7 +597,7 @@ class Rank(ArrayConstraint):
     Traceback (most recent call last):
     ...
     AssertionError
-    
+
   """
   __slots__ = ["_rank"]
 
@@ -619,9 +619,9 @@ class Rank(ArrayConstraint):
 
 class Shape(ArrayConstraint):
   """Establishes a static shape for an array.
-  
+
   All dimensions must be a non-negative integer or Unspec.
-  
+
     >>> Shape(1, 2, 3)
     Shape(1, 2, 3)
     >>> Shape(Unspec, 1)
@@ -665,9 +665,9 @@ class DimFlagEnum(_LiterateEnum):
 
 class DimFlag(ArrayConstraint):
   """Generic flag applying to one or more dimensions.
-  
+
   If dims is Unspec, the flag applies to all dims.
-  
+
     >>> DimFlag("Dynamic")
     DimFlag(Dynamic, Unspec)
     >>> DimFlag("Dynamic", 1)

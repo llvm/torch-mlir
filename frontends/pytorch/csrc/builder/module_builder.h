@@ -25,17 +25,18 @@ namespace torch_mlir {
 /// of PyTorch programs/execution.
 class ModuleBuilder {
 public:
-  ModuleBuilder(pybind11::object contextObj);
+  ModuleBuilder(py::object contextObj);
 
   /// Creates Python bindings for the class.
-  static void bind(pybind11::module &m);
+  static void bind(py::module &m);
 
-  pybind11::object getContextObj() { return contextObj; }
-  pybind11::object getModuleObj() { return moduleObj; }
+  py::object getContextObj() { return contextObj; }
+  py::object getModuleObj() { return moduleObj; }
+  py::object getMetaModuleObj() { return metaModuleObj; }
 
   // Starts a device-capture based function.
   std::shared_ptr<AcapController>
-  startCaptureFunction(std::string &name, std::vector<at::Tensor> args);
+  startCaptureFunction(std::string name, std::vector<at::Tensor> args);
 
   // Imports a traced function. Note that the python type
   // torch.jit.ScriptFunction is the C++ type torch::jit::StrongFunctionPtr.
@@ -51,10 +52,11 @@ private:
   // Capture references to the python-owned context and module. Ownership
   // is delegated to python for these, and the C-API types are extracted via
   // the capsule API.
-  pybind11::object contextObj;
+  py::object contextObj;
   MlirContext context;
   MlirModule module;
-  pybind11::object moduleObj;
+  py::object moduleObj;
+  py::object metaModuleObj;
   MlirOperation terminator;
   MlirLocation unknownLoc;
 

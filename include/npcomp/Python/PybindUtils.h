@@ -28,11 +28,38 @@ namespace detail {
 template <typename T>
 struct type_caster<llvm::Optional<T>> : optional_caster<llvm::Optional<T>> {};
 
+/// Helper to convert a presumed MLIR API object to a capsule, accepting either
+/// an explicit Capsule (which can happen when two C APIs are communicating
+/// directly via Python) or indirectly by querying the MLIR_PYTHON_CAPI_PTR_ATTR
+/// attribute (through which supported MLIR Python API objects export their
+/// contained API pointer as a capsule). This is intended to be used from
+/// type casters, which are invoked with a raw handle (unowned). The returned
+/// object's lifetime may not extend beyond the apiObject handle without
+/// explicitly having its refcount increased (i.e. on return).
+static py::object mlirApiObjectToCapsule(py::handle apiObject) {
+  if (PyCapsule_CheckExact(apiObject.ptr()))
+    return py::reinterpret_borrow<py::object>(apiObject);
+  return apiObject.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+}
+
+/// Casts object -> MlirAttribute.
+template <> struct type_caster<MlirAttribute> {
+  PYBIND11_TYPE_CASTER(MlirAttribute, _("MlirAttribute"));
+  bool load(handle src, bool) {
+    auto capsule = mlirApiObjectToCapsule(src);
+    value = mlirPythonCapsuleToAttribute(capsule.ptr());
+    if (mlirAttributeIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
+
 /// Casts object -> MlirContext.
 template <> struct type_caster<MlirContext> {
   PYBIND11_TYPE_CASTER(MlirContext, _("MlirContext"));
   bool load(handle src, bool) {
-    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    auto capsule = mlirApiObjectToCapsule(src);
     value = mlirPythonCapsuleToContext(capsule.ptr());
     if (mlirContextIsNull(value)) {
       return false;
@@ -45,9 +72,22 @@ template <> struct type_caster<MlirContext> {
 template <> struct type_caster<MlirModule> {
   PYBIND11_TYPE_CASTER(MlirModule, _("MlirModule"));
   bool load(handle src, bool) {
-    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    auto capsule = mlirApiObjectToCapsule(src);
     value = mlirPythonCapsuleToModule(capsule.ptr());
     if (mlirModuleIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
+
+/// Casts object -> MlirOperation.
+template <> struct type_caster<MlirOperation> {
+  PYBIND11_TYPE_CASTER(MlirOperation, _("MlirOperation"));
+  bool load(handle src, bool) {
+    auto capsule = mlirApiObjectToCapsule(src);
+    value = mlirPythonCapsuleToOperation(capsule.ptr());
+    if (mlirOperationIsNull(value)) {
       return false;
     }
     return true;
@@ -58,9 +98,22 @@ template <> struct type_caster<MlirModule> {
 template <> struct type_caster<MlirPassManager> {
   PYBIND11_TYPE_CASTER(MlirPassManager, _("MlirPassManager"));
   bool load(handle src, bool) {
-    auto capsule = src.attr(MLIR_PYTHON_CAPI_PTR_ATTR);
+    auto capsule = mlirApiObjectToCapsule(src);
     value = mlirPythonCapsuleToPassManager(capsule.ptr());
     if (mlirPassManagerIsNull(value)) {
+      return false;
+    }
+    return true;
+  }
+};
+
+/// Casts object -> MlirType.
+template <> struct type_caster<MlirType> {
+  PYBIND11_TYPE_CASTER(MlirType, _("MlirType"));
+  bool load(handle src, bool) {
+    auto capsule = mlirApiObjectToCapsule(src);
+    value = mlirPythonCapsuleToType(capsule.ptr());
+    if (mlirTypeIsNull(value)) {
       return false;
     }
     return true;

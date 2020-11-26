@@ -32,14 +32,17 @@ namespace torch_mlir {
 /// Main entry point for managing device capture.
 class AcapController : public std::enable_shared_from_this<AcapController> {
 public:
+  using OnReturnCallback =
+      std::function<void(llvm::SmallVectorImpl<MlirType> &)>;
   AcapController(TypeMapper &typeMapper,
-                 std::unique_ptr<FuncBuilder> funcBuilder)
-      : typeMapper(typeMapper), funcBuilder(std::move(funcBuilder)) {}
+                 std::unique_ptr<FuncBuilder> funcBuilder,
+                 OnReturnCallback onReturn)
+      : typeMapper(typeMapper), funcBuilder(std::move(funcBuilder)),
+        onReturn(std::move(onReturn)) {}
 
   // Enter and exit the context manager.
-  pybind11::object contextEnter();
-  void contextExit(pybind11::object exc_type, pybind11::object exc_val,
-                   pybind11::object exc_tb);
+  py::object contextEnter();
+  void contextExit(py::object exc_type, py::object exc_val, py::object exc_tb);
 
   // Terminates capture and returns tensors from the function.
   void returns(std::vector<at::Tensor> tensors);
@@ -123,6 +126,7 @@ private:
   TypeMapper &typeMapper;
   std::unique_ptr<FuncBuilder> funcBuilder;
   bool hasReturned = false;
+  OnReturnCallback onReturn;
 };
 
 } // namespace torch_mlir

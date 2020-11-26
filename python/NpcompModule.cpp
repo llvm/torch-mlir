@@ -1,4 +1,4 @@
-//===- native.cpp - MLIR Python bindings ----------------------------------===//
+//===- NpcompModule.cpp - Top-level _npcomp extension module --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,8 @@
 
 #include <cstddef>
 #include <unordered_map>
+
+#include "Modules.h"
 
 #include "npcomp/Python/MlirInit.h"
 #include "npcomp/Python/NpcompModule.h"
@@ -68,7 +70,8 @@ PYBIND11_MODULE(_npcomp, m) {
   m.doc() = "Npcomp native python bindings";
 
   // TODO: Retire the llvm, mlir, passes, and dialect modules in favor of
-  // upstream Python bindings.
+  // upstream Python bindings. Also rework style of this method to consistently
+  // use LLVM style once those are gone.
   auto llvm_m = m.def_submodule("llvm", "LLVM interop");
   defineLLVMModule(llvm_m);
 
@@ -92,6 +95,9 @@ PYBIND11_MODULE(_npcomp, m) {
   // Optional backend modules.
   auto backend_m = m.def_submodule("backend", "Backend support");
   (void)backend_m;
+
+  auto typesModule = m.def_submodule("types");
+  populateTypesModule(typesModule);
 
 #ifdef NPCOMP_ENABLE_REFJIT
   auto refjit_m =

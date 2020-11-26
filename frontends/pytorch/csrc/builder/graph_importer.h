@@ -34,6 +34,9 @@ namespace torch_mlir {
 /// the generic function with metadata controlling how it is legal to
 /// specialize. This leaves the process of inlining and expanding the
 /// specializations to compiler passes.
+///
+/// This class is pure-C++ and should stay that way in order to facilitate
+/// future creation of a C++-only API.
 class GraphImporter : public std::enable_shared_from_this<GraphImporter> {
 public:
   /// Options for mapping Graph concepts to MLIR. In addition to things like
@@ -63,6 +66,10 @@ public:
   /// that throw go here.
   void initialize();
 
+  /// Gets the effective function name (derived from the graph function name
+  /// or explicitly provided on construction).
+  const std::string &getFuncName() { return *mappingOptions.funcName; }
+
   /// Imports the generic function into the module.
   void importGenericFunc();
 
@@ -84,6 +91,32 @@ private:
   /// Argument and return types for the generic func.
   llvm::SmallVector<MlirType, 4> genericFuncArgTypes;
   llvm::SmallVector<MlirType, 4> genericFuncReturnTypes;
+
+  friend class GraphMetaFunctionExporter;
+};
+
+/// Exports graph functions into the npcomp MetaModules.
+/// Since this interops with pure-python constructs, this is maintained as
+// a separate class to facilitate future separation of a C++ only GraphImporter
+// API.
+class GraphMetaFunctionExporter {
+public:
+  GraphMetaFunctionExporter(py::object metaModule,
+                            std::shared_ptr<GraphImporter> importer)
+      : metaModule(std::move(metaModule)), importerRef(std::move(importer)) {}
+  GraphImporter &importer() { return *importerRef; }
+
+  /// Exports a GenericFunction into the namespace.
+  void exportGenericFunction(py::tuple name);
+
+  /// Creates a signature from the generic import function.
+  static py::object
+  createSignature(const llvm::SmallVectorImpl<MlirType> &argTypes,
+                  const llvm::SmallVectorImpl<MlirType> &returnTypes);
+
+private:
+  py::object metaModule;
+  std::shared_ptr<GraphImporter> importerRef;
 };
 
 } // namespace torch_mlir

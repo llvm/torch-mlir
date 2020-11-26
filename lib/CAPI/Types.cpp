@@ -85,6 +85,25 @@ MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType) {
       unwrap(shapedType).cast<ShapedType>()));
 }
 
+MlirType npcompNdArrayTypeGetDType(MlirType t) {
+  return wrap(unwrap(t).cast<Numpy::NdArrayType>().getDtype());
+}
+
+int npcompNdArrayTypeHasRank(MlirType t) {
+  auto shape = unwrap(t).cast<Numpy::NdArrayType>().getOptionalShape();
+  return static_cast<bool>(shape);
+}
+
+int64_t npcompNdArrayTypeGetRank(MlirType t) {
+  auto shape = unwrap(t).cast<Numpy::NdArrayType>().getOptionalShape();
+  return shape->size();
+}
+
+int64_t npcompNdArrayTypeGetDimSize(MlirType t, intptr_t dim) {
+  auto shape = unwrap(t).cast<Numpy::NdArrayType>().getOptionalShape();
+  return (*shape)[dim];
+}
+
 /*============================================================================*/
 /* None type.                                                                 */
 /*============================================================================*/
