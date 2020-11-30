@@ -248,6 +248,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
   pm.addPass(createFuncBufferizePass());
+  pm.addNestedPass<FuncOp>(createFinalizingBufferizePass());
 
   // TODO: Do buffer deallocation. We should be able to just drop in the
   // upstream pass?
