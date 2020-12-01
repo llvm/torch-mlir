@@ -244,9 +244,9 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // refback::AllocMemRefOp takes a shape (i.e. extent tensor) as an argument.
   // We need to resolve this to std.alloc which takes individual extents.
   pm.addNestedPass<FuncOp>(createLowerAllocMemRefOpsPass());
-  pm.addNestedPass<FuncOp>(createStdBufferizePass());
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
+  pm.addNestedPass<FuncOp>(createStdBufferizePass());
   pm.addPass(createFuncBufferizePass());
   pm.addNestedPass<FuncOp>(createFinalizingBufferizePass());
 
