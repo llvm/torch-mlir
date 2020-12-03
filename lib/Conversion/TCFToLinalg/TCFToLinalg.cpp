@@ -33,11 +33,11 @@ static SmallVector<Value, 6> bypassResultShapes(Operation *op,
     return {shape};
   }
   // TODO: This only supports the NCHW data format. Consider other formats and lower ranks.
-  if (auto conv2dNCHWBias = dyn_cast<tcf::ConvNCHWBiasOp>(op)) {
-    auto batch = builder.create<DimOp>(op->getLoc(), conv2dNCHWBias.in(), 0);
-    auto height = builder.create<DimOp>(op->getLoc(), conv2dNCHWBias.in(), 2);
-    auto width = builder.create<DimOp>(op->getLoc(), conv2dNCHWBias.in(), 3);
-    auto filter = builder.create<DimOp>(op->getLoc(), conv2dNCHWBias.filter(), 0);
+  if (auto conv2dNCHW = dyn_cast<tcf::ConvNCHWOp>(op)) {
+    auto batch = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 0);
+    auto height = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 2);
+    auto width = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 3);
+    auto filter = builder.create<DimOp>(op->getLoc(), conv2dNCHW.filter(), 0);
     auto shape = builder.create<TensorFromElementsOp>(
         op->getLoc(), ValueRange({batch, filter, height, width}));
     return {shape};
@@ -87,10 +87,10 @@ public:
 } // namespace
 
 namespace {
-class ConvertConvNCHWBias : public OpRewritePattern<tcf::ConvNCHWBiasOp> {
+class ConvertConvNCHW : public OpRewritePattern<tcf::ConvNCHWOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(tcf::ConvNCHWBiasOp op,
+  LogicalResult matchAndRewrite(tcf::ConvNCHWOp op,
                                 PatternRewriter &rewriter) const override {
     // TODO: Create the constraints for conv_2d_nchw_bias.
     // Create the constraints, and the assuming region.
@@ -106,7 +106,7 @@ public:
 
     // Build the region body.
     rewriter.createBlock(&assuming.doRegion());
-    // Create the init tensor for the ConvNCHWBias.
+    // Create the init tensor for the ConvNCHW.
     // TODO: Expand supported data types.
     Value c0 =
         rewriter.create<ConstantOp>(op.getLoc(), rewriter.getF32FloatAttr(0.0));
@@ -114,13 +114,11 @@ public:
     Value initTensor =
         rewriter.create<tcp::SplattedOp>(op.getLoc(), op.getType(), c0, shape);
 
-    // Create the ConvNCHWBias.
+    // Create the ConvNCHW.
     auto conv2dNCHW = rewriter.create<linalg::ConvNCHWOp>(
         op.getLoc(), TypeRange(op.getType()), ValueRange({op.in(), op.filter()}), ValueRange(),
         ValueRange(initTensor));
-    auto conv2dNCHWBias = rewriter.create<AddFOp>(
-        op.getLoc(), TypeRange(op.getType()), conv2dNCHW.getResult(0), op.bias());
-    rewriter.create<shape::AssumingYieldOp>(op.getLoc(), conv2dNCHWBias.getResult());
+    rewriter.create<shape::AssumingYieldOp>(op.getLoc(), conv2dNCHW.getResults());
 
     // Finally, replace with the results of the shape.assuming
     rewriter.replaceOp(op, assuming.getResults());
@@ -144,7 +142,7 @@ public:
     MLIRContext *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<ConvertMatmul>(context);
-    patterns.insert<ConvertConvNCHWBias>(context);
+    patterns.insert<ConvertConvNCHW>(context);
     return std::move(patterns);
   }
 };
