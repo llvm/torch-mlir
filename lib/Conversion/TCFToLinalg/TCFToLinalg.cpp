@@ -92,17 +92,35 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(tcf::ConvNCHWOp op,
                                 PatternRewriter &rewriter) const override {
-    // TODO: Create the constraints for conv_2d_nchw_bias.
     // Create the constraints, and the assuming region.
-    //Value inK = rewriter.create<DimOp>(op.getLoc(), op.in(), 1);
-    //Value filterK = rewriter.create<DimOp>(op.getLoc(), op.filter(), 0);
-    //Value matchingK =
-    //    rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, inK, inK);
-    //Value witness = rewriter.create<shape::CstrRequireOp>(
-    //    op.getLoc(), matchingK, "mismatching contracting dimension for conv_2d_nchw_bias");
-    Value witness = rewriter.create<shape::ConstWitnessOp>(op.getLoc(), true);
+    Value inputC   = rewriter.create<DimOp>(op.getLoc(), op.in(), 1);
+    Value inputH   = rewriter.create<DimOp>(op.getLoc(), op.in(), 2);
+    Value inputW   = rewriter.create<DimOp>(op.getLoc(), op.in(), 3);
+    Value filterF  = rewriter.create<DimOp>(op.getLoc(), op.filter(), 0);
+    Value filterC  = rewriter.create<DimOp>(op.getLoc(), op.filter(), 1);
+    Value filterKH = rewriter.create<DimOp>(op.getLoc(), op.filter(), 2);
+    Value filterKW = rewriter.create<DimOp>(op.getLoc(), op.filter(), 3);
+    Value inRank = rewriter.create<RankOp>(op.getLoc(), op.in());
+    Value matchingC =
+        rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, inputC, filterC);
+    Value matchingFC =
+        rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, inputC, filterF);
+    Value validFilterH =
+        rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::uge, inputH, filterKH);
+    Value validFilterW =
+        rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::uge, inputW, filterKW);
+    Value witnessC = rewriter.create<shape::CstrRequireOp>(
+        op.getLoc(), matchingC, "input and filter channels must be equal");
+    Value witnessFC = rewriter.create<shape::CstrRequireOp>(
+        op.getLoc(), matchingFC, "input channels and filter F-dimension must be equal");
+    Value witnessFilterH = rewriter.create<shape::CstrRequireOp>(
+        op.getLoc(), validFilterH, "input height must be greater than or equal to filter KH-dimension");
+    Value witnessFilterW = rewriter.create<shape::CstrRequireOp>(
+        op.getLoc(), validFilterW, "input width must be greater than or equal to filter KW-dimension");
+    Value assumingAll = rewriter.create<shape::AssumingAllOp>(
+        op.getLoc(), witnessC.getType(), ValueRange({witnessC, witnessFC, witnessFilterH, witnessFilterW}));
     auto assuming = rewriter.create<shape::AssumingOp>(
-        op.getLoc(), ArrayRef<Type>{op.getType()}, witness);
+        op.getLoc(), ArrayRef<Type>{op.getType()}, assumingAll);
 
     // Build the region body.
     rewriter.createBlock(&assuming.doRegion());

@@ -27,11 +27,27 @@ func @tcf_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf
 // CHECK-LABEL:   func @tcf_conv_2d_nchw(
 // CHECK-SAME:                     %[[IN:[a-zA-Z0-9]+]]: tensor<?x?x?x?xf32>
 // CHECK-SAME:                     %[[FILTER:[a-zA-Z0-9]+]]: tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32> {
-// CHECK:           %[[WITNESS:.*]] = shape.const_witness true
+// CHECK:           %[[C1:.*]] = constant 1 : index
 // CHECK:           %[[C0F32:.*]] = constant 0.000000e+00 : f32
 // CHECK:           %[[C2:.*]] = constant 2 : index
 // CHECK:           %[[C3:.*]] = constant 3 : index
 // CHECK:           %[[C0:.*]] = constant 0 : index
+// CHECK:           %[[CHANNELS:.*]] = dim %[[IN]], %[[C1]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[HEIGHT:.*]] = dim %[[IN]], %[[C2]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[WIDTH:.*]] = dim %[[IN]], %[[C3]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[FILTERF:.*]] = dim %[[FILTER]], %[[C0]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[FILTERCHANNELS:.*]] = dim %[[FILTER]], %[[C1]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[FILTERHEIGHT:.*]] = dim %[[FILTER]], %[[C2]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[FILTERWIDTH:.*]] = dim %[[FILTER]], %[[C3]] : tensor<?x?x?x?xf32>
+// CHECK:           %[[CMPCHANNELS:.*]] = cmpi "eq", %[[CHANNELS]], %[[FILTERCHANNELS]] : index
+// CHECK:           %[[CMPCHANNELSF:.*]] = cmpi "eq", %[[CHANNELS]], %[[FILTERF]] : index
+// CHECK:           %[[CMPHEIGHT:.*]] = cmpi "uge", %[[HEIGHT]], %[[FILTERHEIGHT]] : index
+// CHECK:           %[[CMPWIDTH:.*]] = cmpi "uge", %[[WIDTH]], %[[FILTERWIDTH]] : index
+// CHECK:           %[[CSTRCHANNELS:.*]] = shape.cstr_require %[[CMPCHANNELS]], "input and filter channels must be equal"
+// CHECK:           %[[CSTRCHANNELSF:.*]] = shape.cstr_require %[[CMPCHANNELSF]], "input channels and filter F-dimension must be equal"
+// CHECK:           %[[CSTRHEIGHT:.*]] = shape.cstr_require %[[CMPHEIGHT]], "input height must be greater than or equal to filter KH-dimension"
+// CHECK:           %[[CSTRWIDTH:.*]] = shape.cstr_require %[[CMPWIDTH]], "input width must be greater than or equal to filter KW-dimension"
+// CHECK:           %[[WITNESS:.*]] = shape.assuming_all %[[CSTRCHANNELS]], %[[CSTRCHANNELSF]], %[[CSTRHEIGHT]], %[[CSTRWIDTH]]
 // CHECK:           %[[RET:.*]] = shape.assuming %[[WITNESS]] -> (tensor<?x?x?x?xf32>) {
 // CHECK:             %[[BATCHK:.*]] = dim %[[IN]], %[[C0]] : tensor<?x?x?x?xf32>
 // CHECK:             %[[HEIGHT:.*]] = dim %[[IN]], %[[C2]] : tensor<?x?x?x?xf32>

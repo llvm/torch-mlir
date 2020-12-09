@@ -105,8 +105,10 @@ def TCF_ConvNCHWOp : TCF_Op<"conv_2d_nchw"> {
     - filter: [F, C, KH, KW]
     - result: [N, F, H, W]
 
-    If the `K` dimension mismatches between the operands, this op aborts the
-    program.
+    The tensors must met the following conditions; otherwise, this op aborts the program.
+    - F equals C
+    - H is greater than or equal to KH
+    - W is greater than or equal to KW
   }];
   let arguments = (ins 4DTensorOf<[F32]>:$in, 4DTensorOf<[F32]>:$filter);
   let results = (outs 4DTensorOf<[F32]>:$result);
