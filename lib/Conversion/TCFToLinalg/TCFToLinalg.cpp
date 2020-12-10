@@ -99,7 +99,6 @@ public:
     Value filterC  = rewriter.create<DimOp>(op.getLoc(), op.filter(), 1);
     Value filterKH = rewriter.create<DimOp>(op.getLoc(), op.filter(), 2);
     Value filterKW = rewriter.create<DimOp>(op.getLoc(), op.filter(), 3);
-    Value inRank = rewriter.create<RankOp>(op.getLoc(), op.in());
     Value matchingC =
         rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, inputC, filterC);
     Value validFilterH =
