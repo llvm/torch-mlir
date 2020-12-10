@@ -106,7 +106,6 @@ def TCF_ConvNCHWOp : TCF_Op<"conv_2d_nchw"> {
     - result: [N, F, H, W]
 
     The tensors must met the following conditions; otherwise, this op aborts the program.
-    - F equals C
     - H is greater than or equal to KH
     - W is greater than or equal to KW
   }];
