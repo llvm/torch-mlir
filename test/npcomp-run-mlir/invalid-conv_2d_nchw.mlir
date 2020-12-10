@@ -1,21 +1,21 @@
 // RUN: not npcomp-run-mlir %s \
 // RUN:   -invoke conv_2d_nchw \
-// RUN:   -arg-value="dense<[[[[1.0, 0.0], [1.0, 1.0]]]]> : tensor<1x1x2x2xf32>" \
-// RUN:   -arg-value="dense<[[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]]> : tensor<1x2x2x2xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x2x2xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x2x2x2xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHANNELS
 
 // RUN: not npcomp-run-mlir %s \
 // RUN:   -invoke conv_2d_nchw \
-// RUN:   -arg-value="dense<[[[[1.0, 0.0], [1.0, 1.0]]]]> : tensor<1x1x2x2xf32>" \
-// RUN:   -arg-value="dense<[[[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]]> : tensor<1x1x3x2xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x2x2xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x3x2xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HEIGHT
 
 // RUN: not npcomp-run-mlir %s \
 // RUN:   -invoke conv_2d_nchw \
-// RUN:   -arg-value="dense<[[[[1.0, 0.0], [1.0, 1.0]]]]> : tensor<1x1x2x2xf32>" \
-// RUN:   -arg-value="dense<[[[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]]> : tensor<1x1x2x3xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x2x2xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x2x3xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=WIDTH
 
