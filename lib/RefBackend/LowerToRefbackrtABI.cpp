@@ -10,7 +10,7 @@
 #include "npcomp/RefBackend/RefBackend.h"
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Transforms/DialectConversion.h"
 

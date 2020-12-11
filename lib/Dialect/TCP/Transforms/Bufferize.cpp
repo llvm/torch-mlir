@@ -11,8 +11,9 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
@@ -85,7 +86,7 @@ public:
     SmallVector<Value, 6> outputExtents;
     for (int i = 0, e = resultType.getRank(); i < e; i++) {
       Value dimIndex = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
-      Value outputExtent = rewriter.create<ExtractElementOp>(
+      Value outputExtent = rewriter.create<tensor::ExtractOp>(
           op.getLoc(), resultShape, ValueRange({dimIndex}));
       outputExtents.push_back(outputExtent);
     }
@@ -188,6 +189,7 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<scf::SCFDialect>();
+    target.addLegalDialect<tensor::TensorDialect>();
 
     if (failed(applyPartialConversion(func, target, std::move(patterns))))
       return signalPassFailure();

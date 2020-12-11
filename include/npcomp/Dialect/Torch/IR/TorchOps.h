@@ -9,9 +9,9 @@
 #ifndef NPCOMP_DIALECT_TORCH_IR_TORCHOPS_H
 #define NPCOMP_DIALECT_TORCH_IR_TORCHOPS_H
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
 
 #define GET_OP_CLASSES

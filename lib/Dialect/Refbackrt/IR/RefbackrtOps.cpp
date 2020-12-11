@@ -8,7 +8,7 @@
 
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtOps.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"

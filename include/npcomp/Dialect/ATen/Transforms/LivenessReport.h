@@ -11,7 +11,7 @@
 
 #include <string>
 
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/DenseMap.h"
 
 namespace mlir {

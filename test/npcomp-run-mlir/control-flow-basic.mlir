@@ -14,7 +14,7 @@ func @pow2(%arg0: tensor<f32>) -> tensor<f32> {
   // TODO: Allow passing plain integers/floats (not tensors) at
   // calling convention boundaries.
 
-  %num_iters_float = extract_element %arg0[] : tensor<f32>
+  %num_iters_float = tensor.extract %arg0[] : tensor<f32>
   %num_iters_i32 = fptosi %num_iters_float : f32 to i32
   %num_iters = index_cast %num_iters_i32 : i32 to index
 
@@ -26,4 +26,3 @@ func @pow2(%arg0: tensor<f32>) -> tensor<f32> {
   }
   return %ret : tensor<f32>
 }
-

@@ -10,7 +10,7 @@
 #define NPCOMP_JITRUNTIME_JITMODULE_H
 
 #include "mlir/ExecutionEngine/ExecutionEngine.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "npcomp/RefBackend/Runtime/UserAPI.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"

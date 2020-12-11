@@ -11,7 +11,7 @@
 
 #include "llvm/Support/Debug.h"
 
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
 
 #include <iostream>

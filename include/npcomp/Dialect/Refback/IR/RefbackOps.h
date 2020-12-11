@@ -10,9 +10,9 @@
 #define NPCOMP_DIALECT_REFBACK_IR_REFBACKOPS_H
 
 #include "mlir/Dialect/Shape/IR/Shape.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 

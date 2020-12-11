@@ -9,7 +9,7 @@
 #ifndef NPCOMP_TYPING_SUPPORT_CPA_IR_HELPERS_H
 #define NPCOMP_TYPING_SUPPORT_CPA_IR_HELPERS_H
 
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "npcomp/Typing/Analysis/CPA/Types.h"
 
 namespace mlir {

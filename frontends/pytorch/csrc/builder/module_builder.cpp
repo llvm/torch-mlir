@@ -10,9 +10,9 @@
 #include "graph_importer.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
+#include "mlir-c/BuiltinAttributes.h"
+#include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Registration.h"
-#include "mlir-c/StandardAttributes.h"
-#include "mlir-c/StandardTypes.h"
 #include "npcomp-c/Registration.h"
 
 namespace py = pybind11;

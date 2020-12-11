@@ -14,7 +14,7 @@
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/JSON.h"
 

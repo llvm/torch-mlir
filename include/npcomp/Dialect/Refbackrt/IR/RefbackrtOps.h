@@ -9,9 +9,9 @@
 #ifndef NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTOPS_H
 #define NPCOMP_DIALECT_REFBACKRT_IR_REFBACKRTOPS_H
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 
 #define GET_OP_CLASSES

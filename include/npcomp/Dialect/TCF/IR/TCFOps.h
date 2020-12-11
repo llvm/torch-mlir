@@ -9,9 +9,9 @@
 #ifndef NPCOMP_DIALECT_TCF_IR_TCFOPS_H
 #define NPCOMP_DIALECT_TCF_IR_TCFOPS_H
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/StandardTypes.h"
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TCF/IR/TCFOps.h.inc"

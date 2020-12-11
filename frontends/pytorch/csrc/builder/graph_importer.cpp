@@ -9,9 +9,9 @@
 
 #include "mlir_utils.h"
 
+#include "mlir-c/BuiltinAttributes.h"
+#include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "mlir-c/StandardAttributes.h"
-#include "mlir-c/StandardTypes.h"
 
 namespace py = pybind11;
 using namespace torch_mlir;

@@ -11,7 +11,7 @@
 
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
 #include "llvm/Support/Debug.h"
 

@@ -30,7 +30,7 @@ def Refback_AllocMemRefOp : Refback_Op<"alloc_memref", []> {
     Allocates a memref of the given shape.
 
     This op is a convenience for creating a bunch of
-    extract_element ops + std.alloc.
+    tensor.extract ops + std.alloc.
   }];
   let arguments = (ins Shape_ExtentTensorType:$shape);
   let results = (outs AnyMemRef:$memref);

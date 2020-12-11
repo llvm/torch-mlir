@@ -9,8 +9,8 @@
 #ifndef NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_DIALECT_H
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/StandardTypes.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 namespace mlir {

@@ -9,7 +9,7 @@
 #include "npcomp-c/Types.h"
 
 #include "mlir/CAPI/IR.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 

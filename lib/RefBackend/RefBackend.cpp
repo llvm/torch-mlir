@@ -34,6 +34,8 @@
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tensor/Transforms/Passes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -97,8 +99,8 @@ public:
     for (int i = 0, e = memrefType.getRank(); i < e; i++) {
       if (memrefType.isDynamicDim(i)) {
         auto ci = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
-        auto extent = rewriter.create<ExtractElementOp>(op.getLoc(), shape,
-                                                        ValueRange({ci}));
+        auto extent = rewriter.create<tensor::ExtractOp>(op.getLoc(), shape,
+                                                         ValueRange({ci}));
         dynamicExtents.push_back(extent);
       }
     }
@@ -119,7 +121,7 @@ class LowerAllocMemRefOps
     patterns.insert<LowerAllocMemRefOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<refback::AllocMemRefOp>();
-    target.addLegalOp<ExtractElementOp>();
+    target.addLegalOp<tensor::ExtractOp>();
     target.addLegalOp<AllocOp>();
     target.addLegalOp<ConstantOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
@@ -247,6 +249,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addNestedPass<FuncOp>(createSCFBufferizePass());
   pm.addNestedPass<FuncOp>(createLinalgBufferizePass());
   pm.addNestedPass<FuncOp>(createStdBufferizePass());
+  pm.addNestedPass<FuncOp>(createTensorBufferizePass());
   pm.addPass(createFuncBufferizePass());
   pm.addNestedPass<FuncOp>(createFinalizingBufferizePass());
 
