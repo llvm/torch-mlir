@@ -34,12 +34,47 @@ static SmallVector<Value, 6> bypassResultShapes(Operation *op,
   }
   // TODO: This only supports the NCHW data format. Consider other formats and lower ranks.
   if (auto conv2dNCHW = dyn_cast<tcf::ConvNCHWOp>(op)) {
+    // TODO: Replace hard-coded stride/dilation/padding constant-ops.
+    // TODO: Consider migrating this SSA shape-computing graph to a complex op or use the `mlir-linalg-ods-gen` approach and define a `*.tc` spec file.
+    auto cI0 = builder.create<ConstantOp>(op->getLoc(), builder.getIntegerAttr(builder.getIndexType(), 0));
+    auto cI1 = builder.create<ConstantOp>(op->getLoc(), builder.getIntegerAttr(builder.getIndexType(), 1));
+    auto cI2 = builder.create<ConstantOp>(op->getLoc(), builder.getIntegerAttr(builder.getIndexType(), 2));
+    auto stride = cI1;
+    auto dilation = cI1;
+    auto padding = cI0;
+    auto strideHeight = stride;
+    auto strideWidth = stride;
+    auto dilationHeight = dilation;
+    auto dilationWidth = dilation;
+    auto paddingHeight = padding;
+    auto paddingWidth = padding;
     auto batch = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 0);
     auto height = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 2);
     auto width = builder.create<DimOp>(op->getLoc(), conv2dNCHW.in(), 3);
-    auto filter = builder.create<DimOp>(op->getLoc(), conv2dNCHW.filter(), 0);
+    auto filterOutChannels = builder.create<DimOp>(op->getLoc(), conv2dNCHW.filter(), 0);
+    auto filterHeight = builder.create<DimOp>(op->getLoc(), conv2dNCHW.filter(), 2);
+    auto filterWidth = builder.create<DimOp>(op->getLoc(), conv2dNCHW.filter(), 3);
+    // Output height
+    auto twicePaddingHeight = builder.create<MulIOp>(op->getLoc(), paddingHeight, cI2);
+    auto heightPlusTwicePadding = builder.create<SubIOp>(op->getLoc(), height, twicePaddingHeight);
+    auto filterHeightMinusOne = builder.create<SubIOp>(op->getLoc(), filterHeight, cI1);
+    auto dilationFilterHeight = builder.create<MulIOp>(op->getLoc(), dilationHeight, filterHeightMinusOne);
+    auto outHeightUnstridedPlusOne = builder.create<SubIOp>(op->getLoc(), heightPlusTwicePadding, dilationFilterHeight);
+    auto outHeightUnstrided = builder.create<SubIOp>(op->getLoc(), outHeightUnstridedPlusOne, cI1);
+    auto outHeightMinusOne = builder.create<UnsignedDivIOp>(op->getLoc(), outHeightUnstrided, strideHeight);
+    auto outHeight = builder.create<AddIOp>(op->getLoc(), outHeightMinusOne, cI1);
+    // Output width
+    auto twicePaddingWidth = builder.create<MulIOp>(op->getLoc(), paddingWidth, cI2);
+    auto widthPlusTwicePadding = builder.create<SubIOp>(op->getLoc(), width, twicePaddingWidth);
+    auto filterWidthMinusOne = builder.create<SubIOp>(op->getLoc(), filterWidth, cI1);
+    auto dilationFilterWidth = builder.create<MulIOp>(op->getLoc(), dilationWidth, filterWidthMinusOne);
+    auto outWidthUnstridedPlusOne = builder.create<SubIOp>(op->getLoc(), widthPlusTwicePadding, dilationFilterWidth);
+    auto outWidthUnstrided = builder.create<SubIOp>(op->getLoc(), outWidthUnstridedPlusOne, cI1);
+    auto outWidthMinusOne = builder.create<UnsignedDivIOp>(op->getLoc(), outWidthUnstrided, strideWidth);
+    auto outWidth = builder.create<AddIOp>(op->getLoc(), outWidthMinusOne, cI1);
+    // Output shape
     auto shape = builder.create<TensorFromElementsOp>(
-        op->getLoc(), ValueRange({batch, filter, height, width}));
+        op->getLoc(), ValueRange({batch, filterOutChannels, outHeight, outWidth}));
     return {shape};
   }
 
