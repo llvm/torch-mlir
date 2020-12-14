@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 
+#include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
 
 namespace torch_mlir {
@@ -21,6 +22,13 @@ inline MlirStringRef toMlirStringRef(const std::string &s) {
 
 inline MlirStringRef toMlirStringRef(const char *s) {
   return mlirStringRefCreate(s, std::strlen(s));
+}
+
+inline MlirNamedAttribute toMlirNamedAttribute(const char *s,
+                                               MlirAttribute attr) {
+  MlirContext context = mlirAttributeGetContext(attr);
+  MlirIdentifier ident = mlirIdentifierGet(context, toMlirStringRef(s));
+  return mlirNamedAttributeGet(ident, attr);
 }
 
 } // namespace torch_mlir

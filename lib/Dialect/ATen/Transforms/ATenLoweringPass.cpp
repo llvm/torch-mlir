@@ -366,7 +366,7 @@ LogicalResult rewriteWithFunctionCall(Operation *op, ArrayRef<Value> operands,
       auto unpack = [](auto &op, auto &v) -> void {
         auto co = cast<mlir::NPCOMP::aten::ConstantOp>(op.getDefiningOp());
         DenseElementsAttr a =
-            co.template getAttrOfType<DenseElementsAttr>("value");
+            co->template getAttrOfType<DenseElementsAttr>("value");
         for (auto i : a.getIntValues())
           v.push_back(i.getSExtValue());
       };
@@ -485,7 +485,7 @@ public:
     auto co0 =
         cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
     DenseElementsAttr a0 =
-        co0.template getAttrOfType<DenseElementsAttr>("value");
+        co0->template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a0.getAttributeValues())
       shape.push_back(rewriter.create<mlir::ConstantOp>(co0.getLoc(), i));
 
@@ -498,7 +498,7 @@ public:
     auto co1 =
         cast<mlir::NPCOMP::aten::ConstantOp>(operands[2].getDefiningOp());
     DenseElementsAttr a1 =
-        co1.template getAttrOfType<DenseElementsAttr>("value");
+        co1->template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a1.getAttributeValues())
       stride.push_back(rewriter.create<mlir::ConstantOp>(co1.getLoc(), i));
 
@@ -510,7 +510,7 @@ public:
     if (operands.size() > 3) {
       auto co2 =
           cast<mlir::NPCOMP::aten::ConstantOp>(operands[3].getDefiningOp());
-      auto ia2 = co2.getAttrOfType<IntegerAttr>("value");
+      auto ia2 = co2->getAttrOfType<IntegerAttr>("value");
       offset = ia2.getValue();
     }
 
@@ -826,7 +826,8 @@ public:
     SmallVector<Value, 8> shape;
     auto co =
         dyn_cast<mlir::NPCOMP::aten::ConstantOp>(operands[1].getDefiningOp());
-    DenseElementsAttr a = co.template getAttrOfType<DenseElementsAttr>("value");
+    DenseElementsAttr a =
+        co->template getAttrOfType<DenseElementsAttr>("value");
     for (auto i : a.getAttributeValues())
       shape.push_back(rewriter.create<mlir::ConstantOp>(co.getLoc(), i));
 

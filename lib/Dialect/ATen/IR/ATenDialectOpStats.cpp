@@ -28,7 +28,7 @@ namespace {
 std::vector<uint64_t> unpackListConstant(Value op) {
   std::vector<uint64_t> v;
   auto co = cast<mlir::NPCOMP::aten::ConstantOp>(op.getDefiningOp());
-  DenseElementsAttr a = co.template getAttrOfType<DenseElementsAttr>("value");
+  DenseElementsAttr a = co->template getAttrOfType<DenseElementsAttr>("value");
   for (auto i : a.getIntValues())
     v.push_back(i.getSExtValue());
   return v;

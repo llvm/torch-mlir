@@ -116,7 +116,7 @@ public:
     auto *context = op.getContext();
 
     // Create the global string, take its address, and gep to get an `i8*`.
-    auto globalOp = createGlobalString(op.getParentOfType<ModuleOp>(),
+    auto globalOp = createGlobalString(op->getParentOfType<ModuleOp>(),
                                        op.msgAttr(), rewriter, op.getLoc());
     auto msgArray = rewriter.create<LLVM::AddressOfOp>(op.getLoc(), globalOp);
     auto c0 = rewriter.create<LLVM::ConstantOp>(
@@ -427,7 +427,7 @@ static LLVMFuncOp createWrapperFunc(LLVMFuncOp func) {
                                            /*isVarArg=*/false);
   constexpr char kRefbackrtWrapperPrefix[] = "__refbackrt_wrapper_";
   auto wrapperName = (Twine(kRefbackrtWrapperPrefix) + func.getName()).str();
-  OpBuilder moduleBuilder(func.getParentRegion());
+  OpBuilder moduleBuilder(func->getParentRegion());
   LLVMFuncOp wrapper = moduleBuilder.create<LLVMFuncOp>(
       func.getLoc(), wrapperName, wrapperTy, LLVM::Linkage::External);
 
@@ -487,7 +487,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
       auto wrapper = createWrapperFunc(originalFunc);
       op.getResult().setType(wrapper.getType().getPointerTo());
       Builder builder(op.getContext());
-      op.setAttr("global_name", builder.getSymbolRefAttr(wrapper.getName()));
+      op->setAttr("global_name", builder.getSymbolRefAttr(wrapper.getName()));
     });
   }
 };

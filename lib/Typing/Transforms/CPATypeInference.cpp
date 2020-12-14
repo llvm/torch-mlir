@@ -155,7 +155,7 @@ public:
         return WalkResult::advance();
       }
       if (auto yieldOp = dyn_cast<scf::YieldOp>(childOp)) {
-        auto scfParentOp = yieldOp.getParentOp();
+        auto scfParentOp = yieldOp->getParentOp();
         if (scfParentOp->getNumResults() != yieldOp.getNumOperands()) {
           yieldOp.emitWarning()
               << "cannot run type inference on yield due to arity mismatch";

@@ -44,7 +44,7 @@ static ParseResult parseModuleMetadataOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(FuncMetadataOp op) {
-  auto *module = op.getParentOp()->getParentOp();
+  auto *module = op->getParentOp()->getParentOp();
   auto func = dyn_cast_or_null<FuncOp>(
       SymbolTable::lookupSymbolIn(module, op.funcName()));
   if (!func)

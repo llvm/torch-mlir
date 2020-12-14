@@ -17,8 +17,7 @@ using namespace torch_mlir;
 static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
                                             MlirAttribute value) {
   OperationStateHolder s("std.constant", loc);
-  MlirNamedAttribute valueAttr =
-      mlirNamedAttributeGet(toMlirStringRef("value"), value);
+  MlirNamedAttribute valueAttr = toMlirNamedAttribute("value", value);
   mlirOperationStateAddResults(s, 1, &type);
   mlirOperationStateAddAttributes(s, 1, &valueAttr);
   return s.createOperation();
@@ -30,8 +29,8 @@ KernelCallBuilder::KernelCallBuilder(MlirContext context, MlirLocation loc,
     : context(context), loc(loc), state("torch.kernel_call", loc),
       schema(schema) {
   (void)this->context; // Preserve for future.
-  MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
-      toMlirStringRef("kernelName"),
+  MlirNamedAttribute kernelNameAttr = toMlirNamedAttribute(
+      "kernelName",
       mlirStringAttrGet(
           context, mlirStringRefCreate(kernelName.data(), kernelName.size())));
   mlirOperationStateAddAttributes(state, 1, &kernelNameAttr);
@@ -46,15 +45,12 @@ void KernelCallBuilder::addSchemaAttrs() {
   //   sigIsVarret
   //   sigIsMutable
   std::vector<MlirNamedAttribute> attrs;
-  attrs.push_back(
-      mlirNamedAttributeGet(toMlirStringRef("sigIsMutable"),
-                            mlirBoolAttrGet(context, schema.is_mutable())));
-  attrs.push_back(
-      mlirNamedAttributeGet(toMlirStringRef("sigIsVararg"),
-                            mlirBoolAttrGet(context, schema.is_vararg())));
-  attrs.push_back(
-      mlirNamedAttributeGet(toMlirStringRef("sigIsVarret"),
-                            mlirBoolAttrGet(context, schema.is_varret())));
+  attrs.push_back(toMlirNamedAttribute(
+      "sigIsMutable", mlirBoolAttrGet(context, schema.is_mutable())));
+  attrs.push_back(toMlirNamedAttribute(
+      "sigIsVararg", mlirBoolAttrGet(context, schema.is_vararg())));
+  attrs.push_back(toMlirNamedAttribute(
+      "sigIsVarret", mlirBoolAttrGet(context, schema.is_varret())));
 
   // Arg types.
   std::vector<MlirAttribute> args;
@@ -63,9 +59,8 @@ void KernelCallBuilder::addSchemaAttrs() {
     args.push_back(mlirStringAttrGet(
         context, mlirStringRefCreate(typeStr.data(), typeStr.size())));
   }
-  attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigArgTypes"),
-      mlirArrayAttrGet(context, args.size(), args.data())));
+  attrs.push_back(toMlirNamedAttribute(
+      "sigArgTypes", mlirArrayAttrGet(context, args.size(), args.data())));
 
   // Return types.
   std::vector<MlirAttribute> returns;
@@ -74,8 +69,8 @@ void KernelCallBuilder::addSchemaAttrs() {
     returns.push_back(mlirStringAttrGet(
         context, mlirStringRefCreate(typeStr.data(), typeStr.size())));
   }
-  attrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sigRetTypes"),
+  attrs.push_back(toMlirNamedAttribute(
+      "sigRetTypes",
       mlirArrayAttrGet(context, returns.size(), returns.data())));
 
   // Add attrs to op.
@@ -210,15 +205,13 @@ FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
   // TODO: Create a dedicated API upstream for creating/manipulating func ops.
   // (this is fragile and reveals details that are not guaranteed).
   std::vector<MlirNamedAttribute> funcAttrs;
-  funcAttrs.push_back(
-      mlirNamedAttributeGet(toMlirStringRef("type"),
-                            mlirTypeAttrGet(mlirFunctionTypeGet(
-                                context, inputTypes.size(), inputTypes.data(),
-                                /*numResults=*/0, /*results=*/nullptr))));
-  funcAttrs.push_back(mlirNamedAttributeGet(
-      toMlirStringRef("sym_name"),
-      mlirStringAttrGet(context,
-                        mlirStringRefCreate(name.data(), name.size()))));
+  funcAttrs.push_back(toMlirNamedAttribute(
+      "type", mlirTypeAttrGet(mlirFunctionTypeGet(
+                  context, inputTypes.size(), inputTypes.data(),
+                  /*numResults=*/0, /*results=*/nullptr))));
+  funcAttrs.push_back(toMlirNamedAttribute(
+      "sym_name", mlirStringAttrGet(
+                      context, mlirStringRefCreate(name.data(), name.size()))));
 
   MlirOperationState state =
       mlirOperationStateGet(toMlirStringRef("func"), location);
