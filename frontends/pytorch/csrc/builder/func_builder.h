@@ -11,8 +11,6 @@
 #include "mlir_utils.h"
 
 #include "mlir-c/IR.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/StringRef.h"
 
 #include <ATen/Tensor.h>
 #include <ATen/core/function_schema.h>
@@ -102,7 +100,7 @@ private:
 class KernelCallBuilder {
 public:
   KernelCallBuilder(MlirContext context, MlirLocation loc,
-                    llvm::StringRef kernelName,
+                    const std::string &kernelName,
                     const c10::FunctionSchema &schema);
   void addOperand(MlirValue operand);
   void addResultType(MlirType resultType);
@@ -115,7 +113,6 @@ protected:
 private:
   void addSchemaAttrs();
   OperationStateHolder state;
-  llvm::StringRef kernelName;
   const c10::FunctionSchema &schema;
 };
 
@@ -131,8 +128,7 @@ public:
   /// to a parent.
   static std::unique_ptr<FuncBuilder>
   createFunction(Inserter &inserter, MlirLocation location,
-                 llvm::StringRef name,
-                 llvm::SmallVectorImpl<MlirType> &inputTypes);
+                 const std::string &name, std::vector<MlirType> &inputTypes);
 
   MlirContext getContext() { return context; }
   MlirOperation getFuncOp() { return funcOp; }
@@ -143,7 +139,7 @@ public:
 
   /// Rewrites the function's signature to return the given types. It is
   /// assumed that a compatible terminator has been added.
-  void rewriteFuncReturnTypes(llvm::SmallVectorImpl<MlirType> &resultTypes);
+  void rewriteFuncReturnTypes(std::vector<MlirType> &resultTypes);
 
   /// Maps a live Tensor to an MlirValue.
   void mapTensor(at::Tensor tensor, MlirValue value) {
@@ -168,8 +164,7 @@ public:
   MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
 
   /// Builds a list with the given elements
-  MlirValue buildList(MlirLocation loc,
-                      llvm::SmallVectorImpl<MlirValue> &elements);
+  MlirValue buildList(MlirLocation loc, std::vector<MlirValue> &elements);
 
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,
@@ -200,7 +195,7 @@ private:
   /// that tensors may be mapped and accessed in proximity.
   /// TODO: Tensors referenced via an IValue support hash code lookup and
   /// identity checks. Switch to this instead of a linear scan.
-  llvm::SmallVector<std::pair<at::Tensor, MlirValue>, 16> tensorValueMap;
+  std::vector<std::pair<at::Tensor, MlirValue>> tensorValueMap;
 };
 
 } // namespace torch_mlir

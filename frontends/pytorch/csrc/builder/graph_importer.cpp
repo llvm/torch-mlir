@@ -7,6 +7,8 @@
 
 #include "graph_importer.h"
 
+#include <unordered_map>
+
 #include "mlir_utils.h"
 
 #include "mlir-c/BuiltinAttributes.h"
@@ -33,7 +35,7 @@ public:
   MlirValue findRequiredValue(MlirLocation loc, torch::jit::Value *torchValue);
 
 private:
-  llvm::DenseMap<torch::jit::Value *, MlirValue> valueMap;
+  std::unordered_map<torch::jit::Value *, MlirValue> valueMap;
   NodeScope *prev = nullptr;
 };
 
@@ -134,8 +136,8 @@ void GraphImporter::NodeImporter::importNode() {
     mlirBlockInsertOwnedOperationBefore(block, ip, op);
 
     // Map results.
-    for (auto it : llvm::enumerate(node->outputs())) {
-      scope->bindValue(it.value(), mlirOperationGetResult(op, it.index()));
+    for (size_t i = 0; i < node->outputs().size(); ++i) {
+      scope->bindValue(node->outputs()[i], mlirOperationGetResult(op, i));
     }
     return;
   }
@@ -151,7 +153,7 @@ void GraphImporter::NodeImporter::importNode() {
 
 void GraphImporter::NodeImporter::importReturnOp() {
   OperationStateHolder s("std.return", loc);
-  llvm::SmallVector<MlirValue, 4> returnsValues;
+  std::vector<MlirValue> returnsValues;
   for (auto *input : node->inputs()) {
     returnsValues.push_back(scope->findRequiredValue(loc, input));
   }
@@ -271,9 +273,9 @@ void GraphImporter::importGenericFunc() {
 
   // Bind inputs.
   NodeScope scope;
-  for (const auto &it : llvm::enumerate(graph->inputs())) {
-    MlirValue value = mlirBlockGetArgument(entryBlock, it.index());
-    scope.bindValue(it.value(), value);
+  for (size_t i = 0; i < graph->inputs().size(); ++i) {
+    MlirValue value = mlirBlockGetArgument(entryBlock, i);
+    scope.bindValue(graph->inputs()[i], value);
   }
 
   // Walk body nodes.

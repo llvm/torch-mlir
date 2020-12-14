@@ -1,6 +1,3 @@
 add_subdirectory(npcomp-opt)
-if(${TORCH_FOUND})
-  add_subdirectory(mnist-playground)
-endif()
 add_subdirectory(npcomp-run-mlir)
 add_subdirectory(npcomp-shlib)

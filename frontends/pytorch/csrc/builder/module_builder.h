@@ -13,7 +13,6 @@
 #include "acap_dispatch.h"
 
 #include "mlir-c/IR.h"
-#include "llvm/ADT/SmallVector.h"
 
 #include <ATen/Tensor.h>
 #include <torch/csrc/jit/api/compilation_unit.h>

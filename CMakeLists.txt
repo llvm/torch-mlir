@@ -150,14 +150,7 @@ message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
 # Pytorch Configuration
 #-------------------------------------------------------------------------------
 
-if(NPCOMP_ENABLE_PYTORCH)
-  ProbeForPyTorchInstall()
-  if(NPCOMP_ENABLE_PYTORCH STREQUAL "OPTIONAL")
-    find_package(Torch)
-  else()
-    find_package(Torch REQUIRED)
-  endif()
-endif()
+NpcompFindPyTorch(${NPCOMP_ENABLE_PYTORCH})
 
 #-------------------------------------------------------------------------------
 # Pybind11 Configuration
@@ -186,8 +179,13 @@ add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)
 add_subdirectory(test)
-add_subdirectory(frontends)
 
 # Tools needs to come late to ensure that NPCOMP_ALL_LIBS is populated.
 # Generally things after this point may depend on NPCOMP_ALL_LIBS or libNPCOMP.so.
 add_subdirectory(tools)
+
+if(${TORCH_FOUND})
+  add_subdirectory(frontends/pytorch)
+else()
+  message("Skipping pytorch frontend, because PyTorch not found!")
+endif()

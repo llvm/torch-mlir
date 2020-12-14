@@ -12,7 +12,7 @@ function(npcomp_detect_pybind11_install)
   if(pybind11_DIR)
     message(STATUS "Using explicit pybind11 cmake directory: ${pybind11_DIR} (-Dpybind11_DIR to change)")
   else()
-    message(CHECK_START "Checking for pybind11 in python path...")
+    message(STATUS "Checking for pybind11 in python path...")
     execute_process(
       COMMAND "${Python3_EXECUTABLE}"
       -c "import pybind11;print(pybind11.get_cmake_dir(), end='')"
@@ -24,7 +24,6 @@ function(npcomp_detect_pybind11_install)
       message(CHECK_FAIL "not found (install via 'pip install pybind11' or set pybind11_DIR)")
       return()
     endif()
-    message(CHECK_PASS "found (${PACKAGE_DIR})")
     set(pybind11_DIR "${PACKAGE_DIR}" PARENT_SCOPE)
   endif()
 endfunction()

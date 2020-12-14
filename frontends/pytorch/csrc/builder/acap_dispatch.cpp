@@ -46,7 +46,7 @@ static c10::DispatchKey kAcapGradDispatchKey =
 AcapController::TracedKernelCallBuilder::TracedKernelCallBuilder(
     AcapController &parent, MlirContext context, MlirLocation loc,
     const c10::OperatorHandle &opHandle,
-    llvm::Optional<std::string> overrideKernelName)
+    c10::optional<std::string> overrideKernelName)
     : KernelCallBuilder(context, loc,
                         overrideKernelName ? *overrideKernelName
                                            : opHandle.operator_name().name,
@@ -125,8 +125,8 @@ void AcapController::contextExit(py::object exc_type, py::object exc_val,
 void AcapController::returns(std::vector<at::Tensor> tensors) {
   verifyHasNotReturned();
 
-  llvm::SmallVector<MlirType, 4> returnsTypes;
-  llvm::SmallVector<MlirValue, 4> returnsValues;
+  std::vector<MlirType> returnsTypes;
+  std::vector<MlirValue> returnsValues;
   for (auto &tensor : tensors) {
     MlirValue v = funcBuilder->lookupTensor(tensor);
     if (mlirValueIsNull(v)) {
@@ -470,7 +470,7 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
   }
   if (ival.isList()) {
     auto list = ival.toList();
-    llvm::SmallVector<MlirValue, 4> elements;
+    std::vector<MlirValue> elements;
     for (IValue element : list) {
       elements.push_back(mapIValueToMlirValue(loc, element));
     }
@@ -557,8 +557,7 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   } else {
     elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
   }
-  llvm::SmallVector<int64_t, 4> shape(tensor.sizes().begin(),
-                                      tensor.sizes().end());
+  std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
   MlirType shapedType = mlirRankedTensorTypeGetChecked(
       shape.size(), shape.data(), elementType, loc);
   if (mlirTypeIsNull(shapedType)) {

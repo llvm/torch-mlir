@@ -94,10 +94,6 @@ git submodule update
 LLVM_VERSION=10
 export CC=clang-$LLVM_VERSION
 export CXX=clang++-$LLVM_VERSION
-# If compiling on a new OS that defaults to the CXX11 ABI (i.e. Ubuntu >= 20.04)
-# and looking to use binary installs from the PyTorch website, you must build
-# without the CXX11 ABI.
-export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
 export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
 
 # Build and install LLVM/MLIR into the ./install-mlir directory
@@ -124,7 +120,6 @@ source .env
 ### PyTorch Frontend (with PyTorch installed via conda)
 
 ```shell
-# See note above about -D_GLIBCXX_USE_CXX11_ABI=0
 ./build_tools/cmake_configure.sh
 cmake --build build --target check-npcomp check-frontends-pytorch
 ```

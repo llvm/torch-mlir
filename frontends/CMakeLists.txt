@@ -1,5 +1,0 @@
-if(${TORCH_FOUND})
-  add_subdirectory(pytorch)
-else()
-  message("Skipping pytorch frontend, because PyTorch not found!")
-endif()

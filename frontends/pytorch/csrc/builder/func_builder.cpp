@@ -25,10 +25,10 @@ static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
 }
 
 KernelCallBuilder::KernelCallBuilder(MlirContext context, MlirLocation loc,
-                                     llvm::StringRef kernelName,
+                                     const std::string &kernelName,
                                      const c10::FunctionSchema &schema)
     : context(context), loc(loc), state("torch.kernel_call", loc),
-      kernelName(kernelName), schema(schema) {
+      schema(schema) {
   (void)this->context; // Preserve for future.
   MlirNamedAttribute kernelNameAttr = mlirNamedAttributeGet(
       toMlirStringRef("kernelName"),
@@ -45,7 +45,7 @@ void KernelCallBuilder::addSchemaAttrs() {
   //   sigIsVararg
   //   sigIsVarret
   //   sigIsMutable
-  llvm::SmallVector<MlirNamedAttribute, 8> attrs;
+  std::vector<MlirNamedAttribute> attrs;
   attrs.push_back(
       mlirNamedAttributeGet(toMlirStringRef("sigIsMutable"),
                             mlirBoolAttrGet(context, schema.is_mutable())));
@@ -57,7 +57,7 @@ void KernelCallBuilder::addSchemaAttrs() {
                             mlirBoolAttrGet(context, schema.is_varret())));
 
   // Arg types.
-  llvm::SmallVector<MlirAttribute, 4> args;
+  std::vector<MlirAttribute> args;
   for (auto &arg : schema.arguments()) {
     const std::string &typeStr = arg.type()->str();
     args.push_back(mlirStringAttrGet(
@@ -68,7 +68,7 @@ void KernelCallBuilder::addSchemaAttrs() {
       mlirArrayAttrGet(context, args.size(), args.data())));
 
   // Return types.
-  llvm::SmallVector<MlirAttribute, 4> returns;
+  std::vector<MlirAttribute> returns;
   for (auto &ret : schema.returns()) {
     const std::string &typeStr = ret.type()->str();
     returns.push_back(mlirStringAttrGet(
@@ -170,7 +170,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     }
     // Ranked with possibly dynamic dims.
     auto &symbolicShape = tensorType->symbolic_sizes();
-    llvm::SmallVector<int64_t, 4> dims;
+    std::vector<int64_t> dims;
     dims.resize(*sizes.rank());
     for (size_t i = 0; i < dims.size(); ++i) {
       auto shapeSymbol = symbolicShape[i];
@@ -204,12 +204,12 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
 
 std::unique_ptr<FuncBuilder>
 FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
-                            MlirLocation location, llvm::StringRef name,
-                            llvm::SmallVectorImpl<MlirType> &inputTypes) {
+                            MlirLocation location, const std::string &name,
+                            std::vector<MlirType> &inputTypes) {
   auto context = mlirLocationGetContext(location);
   // TODO: Create a dedicated API upstream for creating/manipulating func ops.
   // (this is fragile and reveals details that are not guaranteed).
-  llvm::SmallVector<MlirNamedAttribute, 4> funcAttrs;
+  std::vector<MlirNamedAttribute> funcAttrs;
   funcAttrs.push_back(
       mlirNamedAttributeGet(toMlirStringRef("type"),
                             mlirTypeAttrGet(mlirFunctionTypeGet(
@@ -242,8 +242,7 @@ FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
       context, funcOp, BlockBuilder(entryBlock, /*returnOp=*/{nullptr}, true)));
 }
 
-void FuncBuilder::rewriteFuncReturnTypes(
-    llvm::SmallVectorImpl<MlirType> &resultTypes) {
+void FuncBuilder::rewriteFuncReturnTypes(std::vector<MlirType> &resultTypes) {
   // Get inputs from current function type.
   MlirAttribute funcTypeAttr =
       mlirOperationGetAttributeByName(funcOp, toMlirStringRef("type"));
@@ -252,7 +251,7 @@ void FuncBuilder::rewriteFuncReturnTypes(
   assert(mlirAttributeIsAType(funcTypeAttr) &&
          "function type is not a TypeAttr");
   MlirType funcType = mlirTypeAttrGetValue(funcTypeAttr);
-  llvm::SmallVector<MlirType, 4> inputTypes;
+  std::vector<MlirType> inputTypes;
   for (intptr_t i = 0, e = mlirFunctionTypeGetNumInputs(funcType); i < e; ++i) {
     inputTypes.push_back(mlirFunctionTypeGetInput(funcType, i));
   }
@@ -328,7 +327,7 @@ MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
 }
 
 MlirValue FuncBuilder::buildList(MlirLocation loc,
-                                 llvm::SmallVectorImpl<MlirValue> &elements) {
+                                 std::vector<MlirValue> &elements) {
   MlirType resultType = npcompListTypeGet(context);
   OperationStateHolder state{"basicpy.build_list", loc};
   mlirOperationStateAddResults(state, 1, &resultType);

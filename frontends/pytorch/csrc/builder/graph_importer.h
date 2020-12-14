@@ -41,8 +41,8 @@ public:
   /// when to import globals as constants vs shared arrays, etc.
   struct MlirMappingOptions {
     MlirContext context;
-    llvm::Optional<std::string> genericFuncName;
-    llvm::Optional<std::string> funcName;
+    c10::optional<std::string> genericFuncName;
+    c10::optional<std::string> funcName;
     TypeMapper &typeMapper;
     FuncBuilder::Inserter &inserter;
   };
@@ -82,8 +82,8 @@ private:
   MlirLocation defaultLoc;
 
   /// Argument and return types for the generic func.
-  llvm::SmallVector<MlirType, 4> genericFuncArgTypes;
-  llvm::SmallVector<MlirType, 4> genericFuncReturnTypes;
+  std::vector<MlirType> genericFuncArgTypes;
+  std::vector<MlirType> genericFuncReturnTypes;
 };
 
 } // namespace torch_mlir

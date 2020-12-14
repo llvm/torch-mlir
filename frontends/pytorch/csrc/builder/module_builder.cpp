@@ -74,7 +74,7 @@ std::shared_ptr<AcapController>
 ModuleBuilder::startCaptureFunction(std::string &name,
                                     std::vector<at::Tensor> args) {
   // TODO: Verify that arguments do not alias each other.
-  llvm::SmallVector<MlirType, 4> inputTypes;
+  std::vector<MlirType> inputTypes;
   for (auto &arg : args) {
     inputTypes.push_back(typeMapper.forwardTensorToType(arg));
   }
@@ -88,9 +88,8 @@ ModuleBuilder::startCaptureFunction(std::string &name,
   assert(mlirBlockGetNumArguments(entryBlock) ==
              static_cast<intptr_t>(args.size()) &&
          "entry block incorrect arg arity");
-  for (auto it : llvm::enumerate(args)) {
-    funcBuilder->mapTensor(it.value(),
-                           mlirBlockGetArgument(entryBlock, it.index()));
+  for (size_t i = 0; i < args.size(); ++i) {
+    funcBuilder->mapTensor(args[i], mlirBlockGetArgument(entryBlock, i));
   }
   return std::make_shared<AcapController>(typeMapper, std::move(funcBuilder));
 }
@@ -100,10 +99,9 @@ ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
   auto inserter = createInserter();
   GraphImporter::MlirMappingOptions mappingOptions{
       context,
-      llvm::None, // genericFuncName (default to auto)
-      llvm::None, // funcName (default to auto)
-      typeMapper, inserter,
-  };
+      c10::nullopt, // genericFuncName (default to auto)
+      c10::nullopt, // funcName (default to auto)
+      typeMapper, inserter};
   auto graphImporter = GraphImporter::forPythonJitFunc(
       function.function_, std::move(mappingOptions));
   graphImporter->initialize();
