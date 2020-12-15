@@ -105,9 +105,10 @@ def TCF_ConvNCHWOp : TCF_Op<"conv_2d_nchw"> {
     - filter: [F, C, KH, KW]
     - result: [N, F, Hout, Wout]
 
-    The tensors must met the following conditions; otherwise, this op aborts the program.
+    The tensors must meet the following conditions; otherwise, this op aborts the program.
     - H is greater than or equal to KH
     - W is greater than or equal to KW
+    - Cin matches between in and filter
   }];
   let arguments = (ins 4DTensorOf<[F32]>:$in, 4DTensorOf<[F32]>:$filter);
   let results = (outs 4DTensorOf<[F32]>:$result);
