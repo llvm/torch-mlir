@@ -28,8 +28,8 @@
 
 // RUN: npcomp-run-mlir %s \
 // RUN:   -invoke conv_2d_nchw \
-// RUN:   -arg-value="dense<0.0> : tensor<1x1x1024x1024xf32>" \
-// RUN:   -arg-value="dense<0.0> : tensor<1x1x1024x1024xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x32x32xf32>" \
+// RUN:   -arg-value="dense<0.0> : tensor<1x1x32x32xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=HUGE_SQUARE
 
