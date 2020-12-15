@@ -95,4 +95,25 @@ def TCF_MatmulOp : TCF_Op<"matmul"> {
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` functional-type(operands, results)";
 }
 
+def TCF_ConvNCHWOp : TCF_Op<"conv_2d_nchw"> {
+  let summary = "2-D convolution";
+  let description = [{
+    Performs 2-D convolution. This op is inspired by PyTorch's Conv2d layer (https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html).
+
+    The tensors have dimensions:
+    - in:     [N, Cin, H, W]
+    - filter: [Cout, Cin, KH, KW]
+    - result: [N, Cout, Hout, Wout]
+
+    The tensors must meet the following conditions; otherwise, this op aborts the program.
+    - H is greater than or equal to KH
+    - W is greater than or equal to KW
+    - Cin matches between in and filter
+  }];
+  let arguments = (ins 4DTensorOf<[F32]>:$in, 4DTensorOf<[F32]>:$filter);
+  let results = (outs 4DTensorOf<[F32]>:$result);
+
+  let assemblyFormat = "$in `,` $filter attr-dict `:` functional-type(operands, results)";
+}
+
 #endif // #ifndef TCF_OPS
