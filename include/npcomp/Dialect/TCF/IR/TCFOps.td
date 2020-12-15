@@ -101,9 +101,9 @@ def TCF_ConvNCHWOp : TCF_Op<"conv_2d_nchw"> {
     Performs 2-D convolution. This op is inspired by PyTorch's Conv2d layer (https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html).
 
     The tensors have dimensions:
-    - in:     [N, C, H, W]
-    - filter: [F, C, KH, KW]
-    - result: [N, F, Hout, Wout]
+    - in:     [N, Cin, H, W]
+    - filter: [Cout, Cin, KH, KW]
+    - result: [N, Cout, Hout, Wout]
 
     The tensors must meet the following conditions; otherwise, this op aborts the program.
     - H is greater than or equal to KH
