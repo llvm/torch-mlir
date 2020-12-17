@@ -54,4 +54,22 @@ def TCP_SplattedOp : TCP_Op<"splatted"> {
   let assemblyFormat = "$splatVal `,` $shape attr-dict `:` functional-type(operands, results)";
 }
 
+def TCP_PadOp : TCP_Op<"pad"> {
+  let summary = "Pads a tensor with a fill value";
+  let description = [{
+    Pads a tensor with `fillVal` along the borders of each dimension according to `lowerExpansion` and `upperExpansion`. Note that this op is unmanaged, meaning that it assumes its operands and their shapes are valid.
+
+    The tensors have dimensions:
+    - operand:   [D1, D2, ..., DN]
+    - lowerExpansion: [L1, L2, ..., LN]
+    - upperExpansion: [U1, U2, ..., UN]
+    - fillVal:   scalar
+    - result:    [D1+L1+U1, D2+L2+U2, ..., DN+LN+UN]
+  }];
+  let arguments = (ins AnyRankedTensor:$operand, Shape_ExtentTensorType:$lowerExpansion, Shape_ExtentTensorType:$upperExpansion, AnyType:$fillVal);
+  let results = (outs AnyRankedTensor:$result);
+
+  let assemblyFormat = "$operand `,` $lowerExpansion `,` $upperExpansion `,` $fillVal attr-dict `:` functional-type(operands, results)";
+}
+
 #endif // TCP_OPS
