@@ -37,6 +37,22 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
     return {splatted.shape()};
   }
 
+  if (auto pad = dyn_cast<tcp::PadOp>(op)) {
+    SmallVector<Value, 6> outDims;
+    auto inputType = pad.operand().getType().cast<RankedTensorType>();
+    for (int i = 0, e = inputType.getRank(); i < e; i++) {
+      Value dimIndex = builder.create<ConstantIndexOp>(op.getLoc(), i);
+      Value lowerExpansion = builder.create<tensor::ExtractOp>(op.getLoc(), pad.lowerExpansion(), ValueRange({dimIndex}));
+      Value upperExpansion = builder.create<tensor::ExtractOp>(op.getLoc(), pad.upperExpansion(), ValueRange({dimIndex}));
+      Value operandDim     = builder.create<DimOp>(op.getLoc(), pad.operand(), i);
+      Value totalExpansion = builder.create<AddIOp>(op.getLoc(), lowerExpansion, upperExpansion);
+      Value outDim         = builder.create<AddIOp>(op.getLoc(), totalExpansion, operandDim);
+      outDims.push_back(outDim);
+    }
+    Value outDimTensor = builder.create<TensorFromElementsOp>(op.getLoc(), ValueRange(outDims));
+    return {outDimTensor};
+  }
+
   // No shape transfer function.
   return {};
 }
@@ -159,6 +175,39 @@ public:
 } // namespace
 
 namespace {
+class BufferizePadOp : public OpConversionPattern<tcp::PadOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(tcp::PadOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto resultsOrFailure = allocateResults(op, rewriter, op.getLoc());
+    if (failed(resultsOrFailure))
+      return failure();
+    auto results = *resultsOrFailure;
+    auto c1 = rewriter.create<ConstantOp>(op.getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+    SmallVector<Value, 6> offsets, sizes, strides;
+    auto resultType = op.getType().cast<RankedTensorType>();
+    for (int i = 0, e = resultType.getRank(); i < e; i++) {
+      Value dimIndex   = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
+      Value offset     = rewriter.create<tensor::ExtractOp>(op.getLoc(), op.lowerExpansion(), ValueRange({dimIndex}));
+      Value size       = rewriter.create<DimOp>(op.getLoc(), op.operand(), i);
+      Value stride     = c1;
+      offsets.push_back(offset);
+      sizes.push_back(size);
+      strides.push_back(stride);
+    }
+    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], op.fillVal());
+    auto unpadded = rewriter.create<SubViewOp>(op.getLoc(), results[0], ValueRange(offsets), ValueRange(sizes), ValueRange(strides));
+    Value inputMemref = operands[0];
+    rewriter.create<linalg::CopyOp>(op.getLoc(), inputMemref, unpadded);
+    rewriter.replaceOp(op, results);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
     registry.insert<refback::RefbackDialect>();
@@ -185,6 +234,8 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     target.addIllegalOp<tcp::BroadcastToOp>();
     patterns.insert<BufferizeSplattedOp>(typeConverter, context);
     target.addIllegalOp<tcp::SplattedOp>();
+    patterns.insert<BufferizePadOp>(typeConverter, context);
+    target.addIllegalOp<tcp::PadOp>();
 
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();

@@ -42,7 +42,8 @@ convertAttrToTensor(Attribute attr) {
   auto extents = llvm::to_vector<6>(llvm::map_range(
       type.getShape(), [](int64_t x) { return static_cast<std::int32_t>(x); }));
   auto elementType = type.getElementType();
-  if (auto denseFp = attr.dyn_cast<DenseFPElementsAttr>()) {
+  auto denseFp = attr.dyn_cast<DenseFPElementsAttr>();
+  if (denseFp) {
     if (elementType.isF32()) {
       auto values = llvm::to_vector<100>(llvm::map_range(
           denseFp, [](APFloat f) { return f.convertToFloat(); }));
@@ -50,6 +51,8 @@ convertAttrToTensor(Attribute attr) {
           refbackrt::ArrayRef<std::int32_t>(extents.data(), extents.size()),
           refbackrt::ElementType::F32, static_cast<void *>(values.data()));
     }
+  } else {
+    return make_string_error("unhandled argument; must be dense floating-point");
   }
   return make_string_error("unhandled argument");
 }
