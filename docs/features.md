@@ -34,17 +34,17 @@ In general, the high level modeling in the `basicpy` dialect will preserve the a
 
 ### Constants/Literals:
 
-See [the test as the SOT](../test/Python/Compiler/constants.py). These will generally follow with data type support above but special notes will be called out here.
+See [the test as the SOT](../test/Python/Compiler/Numpy/constants.py). These will generally follow with data type support above but special notes will be called out here.
 
 ### Comparisons:
 
-Full support for comparison ops is expected. See [the test as the SOT](../test/Python/Compiler/comparisons.py). Short-circuit control flow is properly emitted for compound comparisons (e.g. `x < y == z >= omega`).
+Full support for comparison ops is expected. See [the test as the SOT](../test/Python/Compiler/Numpy/comparisons.py). Short-circuit control flow is properly emitted for compound comparisons (e.g. `x < y == z >= omega`).
 
 ### Binary expressions:
 
-See [the test as the SOT](../test/Python/Compiler/binary_expressions.py). All binary expressions should be modeled at the `basicpy` level.
+See [the test as the SOT](../test/Python/Compiler/Numpy/binary_expressions.py). All binary expressions should be modeled at the `basicpy` level.
 
-However, for built-in primitives, differences arise at later phases of compilation (some of which are fundamental, and some of which may be eased at a future point). See [primitive_ops_to_std.py](../test/Python/Compiler/primitive_ops_to_std.py) for precise lowerings.
+However, for built-in primitives, differences arise at later phases of compilation (some of which are fundamental, and some of which may be eased at a future point). See [primitive_ops_to_std.py](../test/Python/Compiler/Numpy/primitive_ops_to_std.py) for precise lowerings.
 
 Notes:
 
@@ -53,7 +53,7 @@ Notes:
 
 ### Logical/Boolean Operations:
 
-* Short-circuiting `and` / `or` operations [are supported](../test/Python/Compiler/booleans.py). Note that such operations return the evaluated value, not `bool`, so fewer constraints are available to type inference (as compared to more strongly typed forms of such operations).
+* Short-circuiting `and` / `or` operations [are supported](../test/Python/Compiler/Numpy/booleans.py). Note that such operations return the evaluated value, not `bool`, so fewer constraints are available to type inference (as compared to more strongly typed forms of such operations).
 * `not` operations
 * Conditional (i.e. `1 if True else 2`)
 
@@ -61,7 +61,7 @@ Most of these operations are implemented in terms of the `basicpy.to_boolean` op
 
 ### Miscellaneous structural components:
 
-See [structure.py](../test/Python/Compiler/structure.py).
+See [structure.py](../test/Python/Compiler/Numpy/structure.py).
 
 * `pass` and functions without an explicit return causes the function to return None.
 * "Expression statements" are supported but not yet complete/correct. They are currently implemented in terms of the side-effecting `basicpy.exec` op, which wraps an expression and an explicit `basicpy.exec_discard` op to anchor it.
@@ -72,11 +72,11 @@ How names are resolved can be quite context dependent, varying from only resolvi
 
 Currently, the facility has been set up to be fairly generic (see [environment.py](../python/npcomp/compiler/environment.py)) with a helper for setting up scopes compatibility with global functions that do not form a closure. See:
 
-* [resolve_const.py test](../test/Python/Compiler/resolve_const.py)
+* [resolve_const.py test](../test/Python/Compiler/Numpy/resolve_const.py)
 
 ### Type inference
 
-See [type_inference.py](../test/Python/Compiler/type_inference.py).
+See [type_inference.py](../test/Python/Compiler/Numpy/type_inference.py).
 
 While transforming from an AST to the `basicpy` dialect, the importer inserted `!basicpy.UnknownType` and corresponding `basicpy.unknown_cast` ops as needed to make the extraction legal. At this phase, if type information is locally known, it is emitted; otherwise, `!basicpy.UnknwonType` is used.
 
@@ -162,7 +162,7 @@ See the `basicpy.func_template` op for more detailed notes. The intention is tha
 
 See the tests:
 
-* [template_call.py](../test/Python/Compiler/template_call.py)
+* [template_call.py](../test/Python/Compiler/Numpy/template_call.py)
 
 
 ## Numpy extension
