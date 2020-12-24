@@ -30,5 +30,7 @@ add_npcomp_library(NPCOMPCompilerRuntimeShlib
   EXCLUDE_FROM_LIBNPCOMP
 )
 target_link_libraries(NPCOMPCompilerRuntimeShlib PRIVATE NPCOMPRuntime)
+if (UNIX AND NOT APPLE)
 set_target_properties(NPCOMPCompilerRuntimeShlib PROPERTIES LINK_FLAGS
     "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/unix_version.script")
+endif()
