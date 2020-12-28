@@ -14,6 +14,8 @@
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
+#include "npcomp/Dialect/RD/IR/RDDialect.h"
+#include "npcomp/Dialect/RD/Transforms/Passes.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
 #include "npcomp/Dialect/TCF/IR/TCFDialect.h"
@@ -31,6 +33,7 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::NPCOMP::aten::ATenDialect,
                   Basicpy::BasicpyDialect,
                   Numpy::NumpyDialect,
+                  mlir::NPCOMP::rd::RDDialect,
                   refbackrt::RefbackrtDialect,
                   refback::RefbackDialect,
                   tcf::TCFDialect,
@@ -45,6 +48,7 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerBasicpyPasses();
   mlir::NPCOMP::registerNumpyPasses();
+  mlir::NPCOMP::registerRDPasses();
   mlir::NPCOMP::registerTCFPasses();
   mlir::NPCOMP::registerTCPPasses();
   mlir::NPCOMP::registerTypingPasses();

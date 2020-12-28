@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "npcomp/Dialect/RD/IR/RDDialect.h"
 #include "npcomp/Dialect/RD/IR/RDOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/IR/TypeUtilities.h"

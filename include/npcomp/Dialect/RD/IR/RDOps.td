@@ -20,6 +20,11 @@ def RD_RangeOp : RD_Op<"range"> {
     let description = [{
         A sequence of consecutive integers.
     }];
+
+    let arguments = (ins I64:$start, I64:$end);
+    let results = (outs RD_Dataset:$result);
+
+    let assemblyFormat = "$start `to` $end attr-dict `:` functional-type(operands, results)";
 }
 
 #endif // #ifndef RD_OPS

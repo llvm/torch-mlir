@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/RD/IR/RDDialect.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Dialect/RD/IR/RDOps.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP::rd;
@@ -36,5 +38,25 @@ void RDDialect::initialize() {
 #define GET_OP_LIST
 #include "npcomp/Dialect/RD/IR/RDOps.cpp.inc"
       >();
+  addTypes<DatasetType>();
   addInterfaces<RDInlinerInterface>();
+}
+
+::mlir::Type RDDialect::parseType(::mlir::DialectAsmParser &parser) const {
+  StringRef keyword;
+  if (parser.parseKeyword(&keyword))
+    return Type();
+
+  if (keyword == "Dataset")
+    return DatasetType::get(getContext());
+
+  parser.emitError(parser.getNameLoc(), "unknown rd type");
+  return Type();
+}
+
+void RDDialect::printType(::mlir::Type type, ::mlir::DialectAsmPrinter &os) const {
+  TypeSwitch<Type>(type)
+    .Case<DatasetType>([&](Type) { os << "Dataset"; })
+    .Default(
+      [&](Type) { llvm_unreachable("unexpected 'rd' type kind"); });
 }
