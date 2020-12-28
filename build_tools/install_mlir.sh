@@ -4,13 +4,18 @@
 # Usage (for aribtrary build/ directory):
 #   BUILD_DIR=/build ./build_tools/install_mlir.sh
 set -e
-td="$(realpath $(dirname $0)/..)"
-build_dir="$(realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
+
+portable_realpath() {
+  echo "$(cd $1 && pwd)"
+}
+
+td="$(portable_realpath $(dirname $0)/..)"
+build_dir="$(portable_realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
 build_mlir="${LLVM_BUILD_DIR-$build_dir/build-mlir}"
 install_mlir="${LLVM_INSTALL_DIR-$build_dir/install-mlir}"
 
 # Find LLVM source (assumes it is adjacent to this directory).
-LLVM_SRC_DIR="$(realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
+LLVM_SRC_DIR="$(portable_realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
 
 if ! [ -f "$LLVM_SRC_DIR/llvm/CMakeLists.txt" ]; then
   echo "Expected LLVM_SRC_DIR variable to be set correctly (got '$LLVM_SRC_DIR')"
