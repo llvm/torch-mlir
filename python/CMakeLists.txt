@@ -75,9 +75,11 @@ target_link_libraries(NPCOMPNativePyExt
     NPCOMP
 
     NPCOMPInitAll
-    NPCOMPPythonCommon
     ${NPCOMP_PYEXT_LIBADD}
   )
 npcomp_python_target_compile_options(NPCOMPNativePyExt)
 
 mlir_check_all_link_libraries(NPCOMPNativePyExt)
+
+# Order dependent: Built artifacts add dependencies to the above targets.
+add_subdirectory(npcomp/dialects)

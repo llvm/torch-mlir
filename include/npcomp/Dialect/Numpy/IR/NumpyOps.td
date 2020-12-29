@@ -9,7 +9,7 @@
 #ifndef NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 
-include "NumpyDialect.td"
+include "npcomp/Dialect/Numpy/IR/NumpyDialect.td"
 include "npcomp/Typing/Analysis/CPA/Interfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -167,7 +167,7 @@ def Numpy_TransposeOp : Numpy_Op<"transpose", []> {
 // See: https://docs.scipy.org/doc/numpy/user/basics.indexing.html
 //----------------------------------------------------------------------------//
 
-def Numpy_GetSlice : Numpy_Op<"get_slice", []> {
+def Numpy_GetSliceOp : Numpy_Op<"get_slice", []> {
   let summary = "Gets a slice of an array";
   let description = [{
     This op encapsulates all forms of indexing into an array by taking a

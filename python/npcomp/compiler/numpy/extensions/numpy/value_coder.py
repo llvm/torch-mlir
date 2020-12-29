@@ -6,7 +6,11 @@
 import numpy as np
 from typing import Union
 
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+from mlir.dialects import std as std_ops
+
+from npcomp import _cext
+from npcomp.dialects import numpy as numpy_ops
 
 from ....utils import logging
 from ...interfaces import *
@@ -23,15 +27,22 @@ class NdArrayValueCoder(ValueCoder):
   __slots__ = []
 
   def code_py_value_as_const(self, env: Environment,
-                             py_value) -> Union[_NotImplementedType, ir.Value]:
+                             py_value) -> Union[_NotImplementedType, _ir.Value]:
     # TODO: Query for ndarray compat (for duck typed and such)
     # TODO: Have a higher level name resolution signal which indicates const
-    ir_h = env.ir_h
+    ic = env.ic
     if isinstance(py_value, np.ndarray):
-      dense_attr = ir_h.context.dense_elements_attr(py_value)
+      dense_attr = _ir.DenseElementsAttr.get(py_value, context=ic.context)
       tensor_type = dense_attr.type
-      tensor_value = ir_h.constant_op(tensor_type, dense_attr).result
-      return ir_h.numpy_create_array_from_tensor_op(tensor_value).result
+      tensor_value = std_ops.ConstantOp(tensor_type,
+                                        dense_attr,
+                                        loc=ic.loc,
+                                        ip=ic.ip).result
+      ndarray_type = _cext.shaped_to_ndarray_type(tensor_type)
+      return numpy_ops.CreateArrayFromTensorOp(ndarray_type,
+                                               tensor_value,
+                                               loc=ic.loc,
+                                               ip=ic.ip).result
     return NotImplemented
 
 

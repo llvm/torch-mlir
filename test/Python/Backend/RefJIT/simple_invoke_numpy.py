@@ -8,9 +8,6 @@ from npcomp.compiler.numpy import test_config
 from npcomp.compiler.numpy.target import *
 from npcomp.compiler.utils import logging
 
-# TODO: This should all exist in a high level API somewhere.
-from _npcomp import mlir
-
 logging.enable()
 
 

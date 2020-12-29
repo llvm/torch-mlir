@@ -16,7 +16,6 @@ target_link_libraries(NPCOMPBackendRefJITPythonModule
   MLIRExecutionEngine
   MLIRTargetLLVMIR
 
-  NPCOMPPythonCommon
   NPCOMPRefBackendJITHelpers
 )
 

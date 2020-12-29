@@ -3,27 +3,43 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import re
-from typing import Iterable
+from typing import Iterable, Optional
 import numpy as np
 
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+from mlir.dialects import std as std_ops
 
-from npcomp.dialect import Numpy
-from npcomp.exporter import *
-from npcomp.types import *
-from npcomp.tracing.context import *
-from npcomp.tracing.emitters import *
+from npcomp import _cext
+from npcomp.dialects import basicpy as basicpy_ops
+from npcomp.dialects import numpy as numpy_ops
+
+from ..exporter import *
+from ..types import *
+from ..compiler.utils.mlir_utils import *
+
+from .context import *
+from .emitters import *
 
 
 class ModuleBuilder:
   """Builds an MLIR module by tracing functions."""
 
-  def __init__(self, mlir_context=None, emitter_registry=None):
-    self.context = mlir_context if mlir_context else ir.MLIRContext()
-    self.module = self.context.new_module()
-    self.helper = Numpy.DialectHelper(self.context, ir.OpBuilder(self.context))
+  __slots__ = [
+      "emitters",
+      "ic",
+  ]
+
+  def __init__(self,
+               mlir_context: Optional[_ir.Context] = None,
+               emitter_registry=None):
+    ic = self.ic = ImportContext(mlir_context)
+    ic.module = _ir.Module.create(loc=ic.loc)
     self.emitters = (emitter_registry
                      if emitter_registry else EmitterRegistry.create_default())
+
+  @property
+  def module(self):
+    return self.ic.module
 
   def trace(self, *export_py_funcs: ExportPyFunction):
     """Traces exported py functions."""
@@ -43,9 +59,7 @@ class FunctionTracer(TraceContext):
       "_args_array_params",
       "_f",
       "_f_types",
-      "_helper",
-      "_mlir_m",
-      "_mlir_c",
+      "_ic",
       "_python_args",
       "_result_array_params",
       "_traced_arrays",
@@ -61,35 +75,39 @@ class FunctionTracer(TraceContext):
     self._validate()
 
     # Alias some parent members for convenience.
-    self._mlir_m = module_builder.module
-    self._mlir_c = module_builder.context
-    self._helper = module_builder.helper
+    self._ic = module_builder.ic
+    with self._ic.context:
+      # Extract ArrayParams for all args and results.
+      self._args_array_params = [
+          ArrayParams.from_constraints(arg.constraints)
+          for arg in self.epf.sig.args
+      ]
+      self._python_args = [None] * len(self._args_array_params)
+      self._result_array_params = ArrayParams.from_constraints(
+          self.epf.sig.result.constraints)
 
-    # Extract ArrayParams for all args and results.
-    self._args_array_params = [
-        ArrayParams.from_constraints(arg.constraints)
-        for arg in self.epf.sig.args
-    ]
-    self._python_args = [None] * len(self._args_array_params)
-    self._result_array_params = ArrayParams.from_constraints(
-        self.epf.sig.result.constraints)
+      # Create the MLIR function.
+      self._f, self._f_types = self._create_mlir_function()
+      self._create_trace_roots()
 
-    # Create the MLIR function.
-    self._f, self._f_types = self._create_mlir_function()
-    self._create_trace_roots()
+  @property
+  def entry_block(self) -> _ir.Block:
+    return self._f.regions[0].blocks[0]
 
   def trace(self):
     # Invoke the python function with placeholders.
     # TODO: More sophisticated signature merging
     # TODO: Multiple results
     # TODO: Error reporting
-    h = self._helper
-    py_results = (self.epf.pyfunc(*self._python_args),)
-    if len(py_results) != len(self._f_types):
-      raise TracingError("Traced function returned != %d results: %r" % (
-          len(self._f_types),
-          py_results,
-      ))
+    ic = self._ic
+    ic.insert_end_of_block(self.entry_block)
+    with ic.context:
+      py_results = (self.epf.pyfunc(*self._python_args),)
+      if len(py_results) != len(self._f_types):
+        raise TracingError("Traced function returned != %d results: %r" % (
+            len(self._f_types),
+            py_results,
+        ))
 
     # Narrow all results to the declared return types.
     return_operands = []
@@ -97,8 +115,12 @@ class FunctionTracer(TraceContext):
       mlir_result = self.get_traced_array_value(py_result)
       # narrow to declared result type.
       return_operands.extend(
-          h.numpy_narrow_op(mlir_result_type, mlir_result).results)
-    h.return_op(return_operands)
+          numpy_ops.NarrowOp(mlir_result_type,
+                             mlir_result,
+                             loc=ic.loc,
+                             ip=ic.ip).results)
+    std_ops.ReturnOp(return_operands, loc=ic.loc, ip=ic.ip)
+    ic.pop_ip()
 
   def set_traced_array(self, traced_array, value):
     """Sets the current SSA value for a traced_array."""
@@ -117,15 +139,18 @@ class FunctionTracer(TraceContext):
     return traced_value
 
   def _get_external_array_value(self, external_array):
-    h = self._helper
+    ic = self._ic
     if not isinstance(external_array, np.ndarray):
       raise TracingError("Expected ndarray but got: %r" % (external_array,))
     found_it = self._external_arrays.get(id(external_array))
     if found_it:
       return found_it[1]
     # Import it.
-    dense_attr = h.context.dense_elements_attr(external_array)
-    const_value = h.constant_op(dense_attr.type, dense_attr).result
+    dense_attr = _ir.DenseElementsAttr.get(external_array, context=ic.context)
+    const_value = std_ops.ConstantOp(dense_attr.type,
+                                     dense_attr,
+                                     loc=ic.loc,
+                                     ip=ic.ip).result
     self._external_arrays[id(external_array)] = (external_array, const_value)
     return const_value
 
@@ -138,28 +163,24 @@ class FunctionTracer(TraceContext):
                                 (self.epf.sig.result,))
 
   def _create_mlir_function(self):
-    mlir_c = self._mlir_c
-    mlir_m = self._mlir_m
-    h = self._helper
+    ic = self._ic
     epf = self.epf
     f_args = [
-        mlir_c.parse_type(ap.mlir_tensor_type_asm)
+        _ir.Type.parse(ap.mlir_tensor_type_asm)
         for ap in self._args_array_params
     ]
-    f_types = [
-        mlir_c.parse_type(self._result_array_params.mlir_tensor_type_asm)
-    ]
-    h.builder.insert_before_terminator(mlir_m.first_block)
-    f_type = h.function_type(f_args, f_types)
-    f = h.func_op(epf.__name__, f_type, create_entry_block=True)
+    f_types = [_ir.Type.parse(self._result_array_params.mlir_tensor_type_asm)]
+    ic.insert_before_terminator(ic.module.body)
+    f_type = _ir.FunctionType.get(f_args, f_types)
+    f, _ = ic.FuncOp(epf.__name__, f_type, create_entry_block=True)
     return f, f_types
 
   def _create_trace_roots(self):
-    entry_block = self._f.first_block
+    entry_block = self.entry_block
     for index, ap in enumerate(self._args_array_params):
       if ap is not None:
         ta = TracedArray(self)
-        self.set_traced_array(ta, entry_block.args[index])
+        self.set_traced_array(ta, entry_block.arguments[index])
         self._python_args[index] = ta
 
   def _resolve_input_ssa_values(self, trace_values: Iterable[TraceValue]):
@@ -190,9 +211,7 @@ class FunctionTracer(TraceContext):
   def _emit_invocation(self, emitter: FuncEmitter, invocation: TraceInvocation):
     tv_map = emitter.map_invocation(invocation)
     input_ssa_values = self._resolve_input_ssa_values(tv_map.input_trace_values)
-    request = EmissionRequest(input_ssa_values,
-                              dialect_helper=self._helper,
-                              extra=tv_map.extra)
+    request = EmissionRequest(input_ssa_values, ic=self._ic, extra=tv_map.extra)
     result_ssa_values = emitter.emit(request)
     py_values = self._resolve_result_py_values(tv_map.result_trace_value_types,
                                                result_ssa_values)
@@ -213,14 +232,18 @@ class FunctionTracer(TraceContext):
     return self._emit_invocation(emitter, invocation)
 
   def _emit_slice_value(self, slice_element):
-    h = self._helper
+    ic = self._ic
     if slice_element == None:
-      return h.basicpy_singleton_op(h.basicpy_NoneType).result
+      return basicpy_ops.SingletonOp(ic.none_type, loc=ic.loc, ip=ic.ip).result
     elif slice_element == Ellipsis:
-      return h.basicpy_singleton_op(h.basicpy_EllipsisType).result
+      return basicpy_ops.SingletonOp(ic.ellipsis_type, loc=ic.loc,
+                                     ip=ic.ip).result
     elif isinstance(slice_element, int):
-      return h.constant_op(h.index_type,
-                           h.context.index_attr(slice_element)).result
+      return std_ops.ConstantOp(ic.index_type,
+                                _ir.IntegerAttr.get(ic.index_type,
+                                                    slice_element),
+                                loc=ic.loc,
+                                ip=ic.ip).result
     elif isinstance(slice_element, slice):
       return self._emit_slice_object(slice_element)
     else:
@@ -229,29 +252,40 @@ class FunctionTracer(TraceContext):
           "TODO: Slicing with generic arrays not yet implemented")
 
   def _emit_slice_object(self, slice_object: slice):
-    h = self._helper
+    ic = self._ic
 
     def emit_index(index):
       if index is None:
-        return h.basicpy_singleton_op(h.basicpy_NoneType).result
+        return basicpy_ops.SingletonOp(ic.none_type, loc=ic.loc,
+                                       ip=ic.ip).result
       else:
-        return h.constant_op(h.index_type,
-                             h.context.index_attr(int(index))).result
+        return std_ops.ConstantOp(ic.index_type,
+                                  _ir.IntegerAttr.get(ic.index_type,
+                                                      int(index)),
+                                  loc=ic.loc,
+                                  ip=ic.ip).result
 
     start = emit_index(slice_object.start)
     stop = emit_index(slice_object.stop)
     step = emit_index(slice_object.step)
-    return h.basicpy_slot_object_make_op("slice", start, stop, step).result
+    result_type = _cext.slot_object_type(ic.context, "slice",
+                                         [start.type, stop.type, step.type])
+    return basicpy_ops.SlotObjectMakeOp(result_type, [start, stop, step],
+                                        loc=ic.loc,
+                                        ip=ic.ip).result
 
   def _handle_array_getitem(self, array, key):
-    h = self._helper
+    ic = self._ic
     array_value = self.get_traced_array_value(array)
     # Array slicing is always based on a tuple.
     slice_tuple = key if isinstance(key, tuple) else (key,)
     # Resolve and emit each slice element.
     slice_values = [self._emit_slice_value(elt) for elt in slice_tuple]
-    result_value = h.numpy_get_slice_op(h.unknown_array_type, array_value,
-                                        *slice_values).result
+    result_value = numpy_ops.GetSliceOp(ic.unknown_array_type,
+                                        array_value,
+                                        slice_values,
+                                        loc=ic.loc,
+                                        ip=ic.ip).result
     result_array = TracedArray(self)
     self.set_traced_array(result_array, result_value)
     return result_array

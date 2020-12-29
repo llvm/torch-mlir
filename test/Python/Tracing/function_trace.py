@@ -30,6 +30,7 @@ exp.simple_mul.sig.result += DType(np.float32)
 
 mb = ModuleBuilder()
 mb.trace(exp.simple_mul)
+# This test exercises the full tracing path and incidentally checks the ops.
 # CHECK: func @simple_mul(%arg0: tensor<?x4xf32>, %arg1: tensor<1xf32>) -> tensor<?x4xf32> {
 # CHECK:  %0 = numpy.builtin_ufunc_call<"numpy.multiply"> (%arg0, %arg1) : (tensor<?x4xf32>, tensor<1xf32>) -> tensor<*x!basicpy.UnknownType>
 # CHECK:  %1 = numpy.builtin_ufunc_call<"numpy.add"> (%0, %arg0) : (tensor<*x!basicpy.UnknownType>, tensor<?x4xf32>) -> tensor<*x!basicpy.UnknownType>
@@ -37,4 +38,4 @@ mb.trace(exp.simple_mul)
 # CHECK:  %3 = numpy.narrow %2 : (tensor<*x!basicpy.UnknownType>) -> tensor<?x4xf32>
 # CHECK:  return %3 : tensor<?x4xf32>
 # CHECK: }
-print(mb.module.to_asm())
+print(str(mb.module))

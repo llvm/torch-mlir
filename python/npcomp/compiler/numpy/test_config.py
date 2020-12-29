@@ -25,7 +25,7 @@ def create_import_dump_decorator(*,
     fe = ImportFrontend(config=config)
     fe.import_global_function(f)
     print("// -----")
-    print(fe.ir_module.to_asm())
+    print(fe.ir_module.operation.get_asm())
     return f
 
   def decorator(*args, expect_error=None):

@@ -9,6 +9,7 @@
 #include "npcomp-c/Types.h"
 
 #include "mlir/CAPI/IR.h"
+#include "mlir/CAPI/Support.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
@@ -85,6 +86,10 @@ MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType) {
       unwrap(shapedType).cast<ShapedType>()));
 }
 
+MlirType npcompNdArrayTypeToTensor(MlirType ndarrayType) {
+  return wrap(unwrap(ndarrayType).cast<Numpy::NdArrayType>().toTensorType());
+}
+
 /*============================================================================*/
 /* None type.                                                                 */
 /*============================================================================*/
@@ -95,6 +100,23 @@ int npcompTypeIsANone(MlirType t) { return unwrap(t).isa<Basicpy::NoneType>(); }
 /** Gets the type of the singleton 'None'. */
 MlirType npcompNoneTypeGet(MlirContext context) {
   return wrap(Basicpy::NoneType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* SlotObject type.                                                           */
+/*============================================================================*/
+
+MlirType npcompSlotObjectTypeGet(MlirContext context, MlirStringRef className,
+                                 intptr_t slotTypeCount,
+                                 const MlirType *slotTypes) {
+  MLIRContext *cppContext = unwrap(context);
+  auto classNameAttr = StringAttr::get(unwrap(className), cppContext);
+  SmallVector<Type> slotTypesCpp;
+  slotTypesCpp.resize(slotTypeCount);
+  for (intptr_t i = 0; i < slotTypeCount; ++i) {
+    slotTypesCpp[i] = unwrap(slotTypes[i]);
+  }
+  return wrap(Basicpy::SlotObjectType::get(classNameAttr, slotTypesCpp));
 }
 
 /*============================================================================*/

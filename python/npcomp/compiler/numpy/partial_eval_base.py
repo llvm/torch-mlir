@@ -52,9 +52,9 @@ class TemplateCallLiveValueRef(LiveValueRef):
       kw_arg_names.append(kw_name)
       linear_args.append(kw_value)
 
-    ir_h = env.ir_h
-    result_ir_value = ir_h.basicpy_func_template_call_op(
-        result_type=ir_h.basicpy_UnknownType,
+    ic = env.ic
+    result_ir_value = ic.basicpy_FuncTemplateCallOp(
+        result_type=ic.unknown_type,
         callee_symbol=self.callee_name,
         args=linear_args,
         arg_names=kw_arg_names).result

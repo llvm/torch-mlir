@@ -1,4 +1,4 @@
-//===- native.cpp - MLIR Python bindings ----------------------------------===//
+//===- NpcompModule.cpp - MLIR Python bindings ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,85 +9,58 @@
 #include <cstddef>
 #include <unordered_map>
 
-#include "npcomp/Python/MlirInit.h"
-#include "npcomp/Python/NpcompModule.h"
-#include "npcomp/Python/PybindUtils.h"
+#include "mlir-c/BuiltinAttributes.h"
+#include "mlir-c/BuiltinTypes.h"
+#include "mlir-c/Diagnostics.h"
+#include "npcomp-c/InitLLVM.h"
 #include "npcomp-c/Registration.h"
-#include "llvm/Support/CommandLine.h"
+#include "npcomp-c/Types.h"
+#include "npcomp/Python/PybindUtils.h"
 
 #ifdef NPCOMP_ENABLE_REFJIT
 #include "npcomp/Backend/RefJIT/PythonModule.h"
 #endif
 
-namespace mlir {
-namespace npcomp {
-namespace python {
+namespace {
 
-static void defineLLVMModule(pybind11::module m) {
-  m.def("print_help_message", []() { llvm::cl::PrintHelpMessage(); });
-  m.def("add_option",
-        [](std::string name, llvm::Optional<std::string> value) {
-          auto options_map = llvm::cl::getRegisteredOptions();
-          auto found_it = options_map.find(name);
-          if (found_it == options_map.end()) {
-            std::string message = "Unknown LLVM option: ";
-            message.append(name);
-            throw py::raiseValueError(message.c_str());
-          }
-
-          std::string value_sr = value ? *value : "";
-          found_it->getValue()->addOccurrence(1, name, value_sr);
-        },
-        py::arg("name"), py::arg("value") = llvm::Optional<std::string>());
-  m.def("reset_option",
-        [](std::string name) {
-          auto options_map = llvm::cl::getRegisteredOptions();
-          auto found_it = options_map.find(name);
-          if (found_it == options_map.end()) {
-            std::string message = "Unknown LLVM option: ";
-            message.append(name);
-            throw py::raiseValueError(message.c_str());
-          }
-          found_it->getValue()->setDefault();
-        },
-        py::arg("name"));
+MlirType shapedToNdArrayArrayType(MlirType shaped_type) {
+  if (!mlirTypeIsAShaped(shaped_type)) {
+    throw py::raiseValueError("type is not a shaped type");
+  }
+  return npcompNdArrayTypeGetFromShaped(shaped_type);
 }
 
-static void defineGlobals(py::module &m) {
-  m.def("register_dialects", [](MlirContext context) {
-    npcompRegisterAllDialects(context);
-  });
+MlirType ndarrayToTensorType(MlirType ndarray_type) {
+  if (!npcompTypeIsANdArray(ndarray_type)) {
+    throw py::raiseValueError("type is not an ndarray type");
+  }
+  return npcompNdArrayTypeToTensor(ndarray_type);
 }
+
+MlirType slotObjectType(MlirContext context, const std::string &className,
+                        const std::vector<MlirType> &slotTypes) {
+  MlirStringRef classNameSr{className.data(), className.size()};
+  return ::npcompSlotObjectTypeGet(context, classNameSr, slotTypes.size(),
+                                   slotTypes.data());
+}
+
+// TODO: Move this upstream.
+void emitError(MlirLocation loc, std::string message) {
+  ::mlirEmitError(loc, message.c_str());
+}
+
+} // namespace
 
 PYBIND11_MODULE(_npcomp, m) {
-  // Guard the once init to happen once per process (vs module, which in
-  // mondo builds can happen multiple times).
-  static bool llvm_init_baton = ([]() { return npcompMlirInitialize(); })();
-  (void)(llvm_init_baton);
-
   m.doc() = "Npcomp native python bindings";
 
-  // TODO: Retire the llvm, mlir, passes, and dialect modules in favor of
-  // upstream Python bindings.
-  auto llvm_m = m.def_submodule("llvm", "LLVM interop");
-  defineLLVMModule(llvm_m);
-
-  // "mlir" module.
-  auto mlir_m = m.def_submodule("mlir", "MLIR interop");
-  auto mlir_ir_m = mlir_m.def_submodule("ir");
-  defineMlirIrModule(mlir_ir_m);
-  // Note: not "pass" because it is a reserved word
-  auto mlir_pass_m = mlir_m.def_submodule("passes");
-  defineMlirPassModule(mlir_pass_m);
-  auto mlir_dialect_m = mlir_m.def_submodule("dialect");
-  defineMlirCoreDialects(mlir_dialect_m);
-
-  // Outer "_npcomp" module
-  auto npcomp_dialect = m.def_submodule("dialect", "NPComp custom dialects");
-  defineNpcompDialect(npcomp_dialect);
-
-  // Globals.
-  defineGlobals(m);
+  m.def("register_all_dialects", ::npcompRegisterAllDialects);
+  m.def("_register_all_passes", ::npcompRegisterAllPasses);
+  m.def("_initialize_llvm_codegen", ::npcompInitializeLLVMCodegen);
+  m.def("shaped_to_ndarray_type", shapedToNdArrayArrayType);
+  m.def("ndarray_to_tensor_type", ndarrayToTensorType);
+  m.def("slot_object_type", slotObjectType);
+  m.def("emit_error", emitError);
 
   // Optional backend modules.
   auto backend_m = m.def_submodule("backend", "Backend support");
@@ -99,7 +72,3 @@ PYBIND11_MODULE(_npcomp, m) {
   ::npcomp::python::defineBackendRefJitModule(refjit_m);
 #endif
 }
-
-} // namespace python
-} // namespace npcomp
-} // namespace mlir

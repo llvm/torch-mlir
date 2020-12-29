@@ -2,7 +2,6 @@ add_subdirectory(CAPI)
 add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(RefBackend)
-add_subdirectory(Python)
 add_subdirectory(Typing)
 
 if(NPCOMP_ENABLE_REFJIT)

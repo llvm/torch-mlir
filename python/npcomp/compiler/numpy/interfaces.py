@@ -6,15 +6,18 @@
 from collections import namedtuple
 from enum import Enum
 import sys
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+
 from .target import *
+from ..utils.mlir_utils import *
 
 __all__ = [
     "Configuration",
     "EmittedError",
     "Environment",
+    "ImportContext",
     "NameReference",
     "NameResolver",
     "PartialEvalHook",
@@ -82,21 +85,18 @@ class NameReference:
     super().__init__()
     self.name = name
 
-  def load(self, env: "Environment",
-           ir_h: ir.DialectHelper) -> "PartialEvalResult":
+  def load(self, env: "Environment") -> "PartialEvalResult":
     """Loads the IR Value associated with the name.
 
     The load may either be direct, returning an existing value or
     side-effecting, causing a read from an external context.
 
-    Args:
-      ir_h: The dialect helper used to emit code.
     Returns:
       A partial evaluation result.
     """
     return PartialEvalResult.not_evaluated()
 
-  def store(self, env: "Environment", value: ir.Value, ir_h: ir.DialectHelper):
+  def store(self, env: "Environment", value: _ir.Value):
     """Stores a new value into the name.
 
     A subsequent call to 'load' should yield the same value, subject to
@@ -104,7 +104,6 @@ class NameReference:
 
     Args:
       value: The new value to store into the name.
-      ir_h: The dialect helper used to emit code.
     Raises:
       NotImplementedError if store is not supported for this name.
     """
@@ -143,7 +142,7 @@ class ValueCoder:
   __slots__ = []
 
   def code_py_value_as_const(self, env: "Environment",
-                             py_value) -> Union[_NotImplementedType, ir.Value]:
+                             py_value) -> Union[_NotImplementedType, _ir.Value]:
     return NotImplemented
 
 
@@ -158,7 +157,7 @@ class ValueCoderChain(ValueCoder):
     return "ValueCoderChain({})".format(self._sub_coders)
 
   def code_py_value_as_const(self, env: "Environment",
-                             py_value) -> Union[_NotImplementedType, ir.Value]:
+                             py_value) -> Union[_NotImplementedType, _ir.Value]:
     for sc in self._sub_coders:
       result = sc.code_py_value_as_const(env, py_value)
       if result is not NotImplemented:
@@ -207,8 +206,8 @@ class PartialEvalResult(namedtuple("PartialEvalResult", "type,yields")):
     return PartialEvalResult(PartialEvalType.YIELDS_LIVE_VALUE, live_value)
 
   @staticmethod
-  def yields_ir_value(ir_value: ir.Value) -> "PartialEvalResult":
-    assert isinstance(ir_value, ir.Value)
+  def yields_ir_value(ir_value: _ir.Value) -> "PartialEvalResult":
+    assert isinstance(ir_value, _ir.Value)
     return PartialEvalResult(PartialEvalType.YIELDS_IR_VALUE, ir_value)
 
   @staticmethod
@@ -247,7 +246,7 @@ class LiveValueRef:
     """Gets a named attribute from the live value."""
     return PartialEvalResult.not_evaluated()
 
-  def resolve_call(self, env: "Environment", args: Sequence[ir.Value],
+  def resolve_call(self, env: "Environment", args: Sequence[_ir.Value],
                    keywords: Sequence[str]) -> PartialEvalResult:
     """Resolves a function call given 'args' and 'keywords'."""
     return PartialEvalResult.not_evaluated()
@@ -302,7 +301,6 @@ class Environment:
   """Instantiated configuration for emitting code in a specific context.
 
   This brings together:
-    - The code generation context (ir_h)
     - An instantiated target
     - Delegating interfaces for other configuration objects.
 
@@ -313,7 +311,7 @@ class Environment:
   """
   __slots__ = [
       "config",
-      "ir_h",
+      "ic",
       "_name_resolvers",
       "target",
   ]
@@ -321,12 +319,12 @@ class Environment:
   def __init__(self,
                *,
                config: Configuration,
-               ir_h: ir.DialectHelper,
+               ic: ImportContext,
                name_resolvers: Sequence[NameResolver] = ()):
     super().__init__()
     self.config = config
-    self.ir_h = ir_h
-    self.target = config.target_factory(self.ir_h)
+    self.ic = ic
+    self.target = config.target_factory(ic)
     self._name_resolvers = (tuple(name_resolvers) +
                             self.config.base_name_resolvers)
 
@@ -341,5 +339,5 @@ class Environment:
     return self.config.partial_eval_hook.partial_evaluate(py_value)
 
   def code_py_value_as_const(self,
-                             py_value) -> Union[_NotImplementedType, ir.Value]:
+                             py_value) -> Union[_NotImplementedType, _ir.Value]:
     return self.config.value_coder.code_py_value_as_const(self, py_value)
