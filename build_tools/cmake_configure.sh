@@ -9,9 +9,13 @@
 #   BUILD_DIR=/build ./build_tools/cmake_configure.sh [ARGS...]
 set -e
 
+portable_realpath() {
+  echo "$(cd $1 && pwd)"
+}
+
 # Setup directories.
-td="$(realpath $(dirname $0)/..)"
-build_dir="$(realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
+td="$(portable_realpath $(dirname $0)/..)"
+build_dir="$(portable_realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
 build_mlir="${LLVM_BUILD_DIR-$build_dir/build-mlir}"
 install_mlir="${LLVM_INSTALL_DIR-$build_dir/install-mlir}"
 declare -a extra_opts
@@ -82,7 +86,7 @@ echo "Using llvm-lit: $LLVM_LIT"
 # Write a .env file for python tooling.
 function write_env_file() {
   echo "Updating $build_dir/.env file"
-  echo "PYTHONPATH=\"$(realpath "$build_dir/python"):$(realpath "$install_mlir/python")\"" > "$build_dir/.env"
+  echo "PYTHONPATH=\"$(portable_realpath "$build_dir/python"):$(portable_realpath "$install_mlir/python")\"" > "$build_dir/.env"
   echo "NUMPY_EXPERIMENTAL_ARRAY_FUNCTION=1" >> "$build_dir/.env"
   if ! cp "$build_dir/.env" "$td/.env"; then
     echo "WARNING: Failed to write $td/.env"
