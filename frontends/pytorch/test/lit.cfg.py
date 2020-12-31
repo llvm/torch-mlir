@@ -58,10 +58,11 @@ config.test_exec_root = os.path.join(config.npcomp_obj_root, 'test')
 config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'bin')
 
 # Tweak the PATH to include the tools dir.
+npcomp_python_dir = "python" if config.npcomp_built_standalone else "tools/npcomp/python"
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 llvm_config.with_environment('PYTHONPATH', [
     os.path.join(config.llvm_obj_root, "python"),
-    os.path.join(config.npcomp_obj_root, "python")],
+    os.path.join(config.npcomp_obj_root, npcomp_python_dir)],
     append_path=True)
 
 

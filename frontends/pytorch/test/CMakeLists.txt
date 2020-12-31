@@ -29,4 +29,4 @@ add_lit_testsuite(check-frontends-pytorch "Running the frontends-pytorch regress
 set_target_properties(check-frontends-pytorch PROPERTIES FOLDER "Tests")
 
 add_lit_testsuites(TORCH_MLIR ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${TEST_DEPENDS})
-add_dependencies(check-all check-frontends-pytorch)
+add_dependencies(check-npcomp-all check-frontends-pytorch)
