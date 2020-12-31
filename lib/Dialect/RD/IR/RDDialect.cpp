@@ -38,7 +38,7 @@ void RDDialect::initialize() {
 #define GET_OP_LIST
 #include "npcomp/Dialect/RD/IR/RDOps.cpp.inc"
       >();
-  addTypes<DatasetType>();
+  addTypes<DatasetType, IteratorType>();
   addInterfaces<RDInlinerInterface>();
 }
 
@@ -49,6 +49,8 @@ void RDDialect::initialize() {
 
   if (keyword == "Dataset")
     return DatasetType::get(getContext());
+  if (keyword == "Iterator")
+    return IteratorType::get(getContext());
 
   parser.emitError(parser.getNameLoc(), "unknown rd type");
   return Type();
@@ -57,6 +59,7 @@ void RDDialect::initialize() {
 void RDDialect::printType(::mlir::Type type, ::mlir::DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
     .Case<DatasetType>([&](Type) { os << "Dataset"; })
+    .Case<IteratorType>([&](Type) { os << "Iterator"; })
     .Default(
       [&](Type) { llvm_unreachable("unexpected 'rd' type kind"); });
 }

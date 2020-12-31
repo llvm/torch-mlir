@@ -27,6 +27,12 @@ public:
     static DatasetType get(MLIRContext *context) { return Base::get(context); }
 };
 
+class IteratorType : public Type::TypeBase<IteratorType, Type, TypeStorage> {
+public:
+  using Base::Base;
+  static IteratorType get(MLIRContext *context) { return Base::get(context); }
+};
+
 } // namespace rd
 } // namespace NPCOMP
 } // namespace mlir

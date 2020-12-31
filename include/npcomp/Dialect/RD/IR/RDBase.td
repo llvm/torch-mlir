@@ -62,8 +62,8 @@ def RD_Dataset : DialectType<RD_Dialect,
 }
 
 def RD_Iterator : DialectType<RD_Dialect,
-    CPred<"$_self.isa<::milr::NPCOMP::rd::IteratorType>()">, "Iterator type">,
-    BuildableType<"$_builder.getType<::miler::NPCOMP::rd::IteratorType>()"> {
+    CPred<"$_self.isa<::mlir::NPCOMP::rd::IteratorType>()">, "Iterator type">,
+    BuildableType<"$_builder.getType<::mlir::NPCOMP::rd::IteratorType>()"> {
 
   let typeDescription = [{
     Sequential access to a collection of values.

@@ -10,12 +10,17 @@
 #define RD_OPS
 
 include "npcomp/Dialect/RD/IR/RDBase.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class RD_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<RD_Dialect, mnemonic, traits> {
 }
 
-def RD_RangeOp : RD_Op<"range"> {
+class RD_DatasetOp<string mnemonic>
+    : RD_Op<mnemonic, [NoSideEffect]> {
+}
+
+def RD_RangeOp : RD_DatasetOp<"range"> {
     let summary = "Range of values.";
     let description = [{
         A sequence of consecutive integers.
