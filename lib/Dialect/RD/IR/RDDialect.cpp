@@ -39,7 +39,7 @@ void RDDialect::initialize() {
 #include "npcomp/Dialect/RD/IR/RDOps.cpp.inc"
       >();
   addTypes<DatasetType, IteratorType>();
-  addInterfaces<RDInlinerInterface>();
+  // addInterfaces<RDInlinerInterface>();
 }
 
 ::mlir::Type RDDialect::parseType(::mlir::DialectAsmParser &parser) const {
