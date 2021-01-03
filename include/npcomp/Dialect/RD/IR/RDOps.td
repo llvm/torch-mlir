@@ -11,6 +11,7 @@
 
 include "npcomp/Dialect/RD/IR/RDBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/SymbolInterfaces.td"
 
 class RD_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<RD_Dialect, mnemonic, traits> {
@@ -25,8 +26,9 @@ def RD_MakeIteratorOp : RD_Op<"make_iterator"> {
         Builds an iterator for a given dataset.
     }];
 
+    // TODO: add an extra argument for the pointer to the memory.
     let arguments = (ins FlatSymbolRefAttr:$ds, Variadic<AnyType>:$operands);
-    let results = (outs RD_Iterator:$itr);
+    let results = (outs RD_Iterator:$itr);  // TODO: Refactor to have the op take this as a pointer.
 
     // TODO: add verification to ensure that types match up!!
 
@@ -49,12 +51,83 @@ def RD_IteratorNextOp : RD_Op<"iterator_next"> {
     let assemblyFormat = "$iterator attr-dict `:` functional-type(operands, results)";  // TODO: just write the element type in future?
 }
 
+def RD_IteratorDelete : RD_Op<"iterator_delete"> {
+    let summary = "Releases dynamically allocated resources associated with the iterator.";
+
+    let arguments = (ins RD_Iterator:$iterator);
+
+    let assemblyFormat = "$iterator attr-dict `:` type($iterator)";
+}
+
+def RD_IteratorAlloca : RD_Op<"iterator_alloca"> {
+    let summary = "Stack-allocate memory that can be used for the iterator.";
+    let description = [{
+        Lowers to llvm.alloca and returns a pointer to an uninitialized iterator.
+    }];
+
+    let arguments = (ins FlatSymbolRefAttr:$ds);
+    // let results = TODO!!!
+}
+
+def RD_IteratorMalloc : RD_Op<"iterator_malloc"> {
+    let summary = "Heap allocate memory that can be used for the iterator.";
+    let description = [{
+        Allocates (with malloc) the memory required to execute an iterator.
+
+        The returned iterator memory is unitialized, and it is the responsibility of
+        the caller to eventually `rd.iterator_free` the iterator memory.
+    }];
+
+    let arguments = (ins FlatSymbolRefAttr:$ds);
+    // TODO: results!
+}
+
+def RD_IteratorDealloc : RD_Op<"iterator_free"> {
+    let summary = "Deallocates heap allocated memory allocated with iterator_malloc.";
+    // TODO: FILL ME IN!
+    let arguments = (ins FlatSymbolRefAttr:$ds);  // TODO: Also add memory pointer.
+}
+
+def RD_IteratorCheckpoint : RD_Op<"iterator_checkpoint"> {
+    let summary = "Persist iterator state to a buffer.";
+
+    let description = [{
+        To handle faults, or to quickly duplicate the state of an iterator,
+        the iterator_checkpoint op serializes state into a buffer which can later
+        be used to initialize a new iterator using the `rd.iterator_restore` op.
+
+        The input iterator is not modified.
+
+        As with all rd operations, they may not be called concurrently with each
+        other on the same iterator.
+    }];
+    // TODO: Implement me!
+}
+
+def RD_IteratorRestore : RD_Op<"iterator_restore"> {
+    let summary = "Restore iterator state from a buffer.";
+    // TODO: Implement me!
+}
+
+def RD_PipelineDefinition : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol]> {
+    let summary = "[Internal] A region to collect ops associated with a single pipeline.";
+    let description = [{
+        The RD compilation flow translates the input functions and operations
+        into a collection of coroutines. All ops associated with a single dataset are
+        contained within the region of this op.
+    }];
+
+    let regions = (region AnyRegion:$body);
+}
+
 def RD_Print : RD_Op<"print"> {
-    let summary = "Prints to the console.";
+    let summary = "[Debug] Prints to the console.";
     let description = [{
         Example:
 
         rd.print %value : i64
+
+        Used for debugging only!
     }];
 
     let arguments = (ins I64:$value);
