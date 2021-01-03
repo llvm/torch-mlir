@@ -9,6 +9,8 @@ func @simple_range(%start: i64, %end: i64) -> !rd.Dataset {
   return %0 : !rd.Dataset
 }
 
+// -----
+
 // CHECK-LABEL: func @range_map_filter
 // CHECK-SAME:                    %[[START:.*]]: i64, %[[END:.*]]: i64
 func @range_map_filter(%start: i64, %end: i64) -> !rd.Dataset {
