@@ -11,6 +11,11 @@
 
 include "mlir/Pass/PassBase.td"
 
+def RDExtractPipelineDefs : Pass<"rd-extract-pipeline-def", "ModuleOp"> {
+  let summary = "Extracts a pipeline def op from a user's program.";
+  let constructor = "mlir::NPCOMP::createExtractPipelineDefPass()";
+}
+
 def RDMergeFuncs : Pass<"rd-mergefuncs", "FuncOp"> {
   let summary = "Merges functions in the rd dialect";
   let constructor = "mlir::NPCOMP::createRDMergeFuncsPass()";

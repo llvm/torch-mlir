@@ -51,7 +51,7 @@ def RD_IteratorNextOp : RD_Op<"iterator_next"> {
     let assemblyFormat = "$iterator attr-dict `:` functional-type(operands, results)";  // TODO: just write the element type in future?
 }
 
-def RD_IteratorDelete : RD_Op<"iterator_delete"> {
+def RD_IteratorDeleteOp : RD_Op<"iterator_deinit"> {
     let summary = "Releases dynamically allocated resources associated with the iterator.";
 
     let arguments = (ins RD_Iterator:$iterator);
@@ -69,7 +69,7 @@ def RD_IteratorAlloca : RD_Op<"iterator_alloca"> {
     // let results = TODO!!!
 }
 
-def RD_IteratorMalloc : RD_Op<"iterator_malloc"> {
+def RD_IteratorMallocOp : RD_Op<"iterator_malloc"> {
     let summary = "Heap allocate memory that can be used for the iterator.";
     let description = [{
         Allocates (with malloc) the memory required to execute an iterator.
@@ -82,13 +82,13 @@ def RD_IteratorMalloc : RD_Op<"iterator_malloc"> {
     // TODO: results!
 }
 
-def RD_IteratorDealloc : RD_Op<"iterator_free"> {
+def RD_IteratorDeallocOp : RD_Op<"iterator_free"> {
     let summary = "Deallocates heap allocated memory allocated with iterator_malloc.";
     // TODO: FILL ME IN!
     let arguments = (ins FlatSymbolRefAttr:$ds);  // TODO: Also add memory pointer.
 }
 
-def RD_IteratorCheckpoint : RD_Op<"iterator_checkpoint"> {
+def RD_IteratorCheckpointOp : RD_Op<"iterator_checkpoint"> {
     let summary = "Persist iterator state to a buffer.";
 
     let description = [{
@@ -104,12 +104,12 @@ def RD_IteratorCheckpoint : RD_Op<"iterator_checkpoint"> {
     // TODO: Implement me!
 }
 
-def RD_IteratorRestore : RD_Op<"iterator_restore"> {
+def RD_IteratorRestoreOp : RD_Op<"iterator_restore"> {
     let summary = "Restore iterator state from a buffer.";
     // TODO: Implement me!
 }
 
-def RD_PipelineDefinition : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol]> {
+def RD_PipelineDefinitionOp : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol, NoRegionArguments, SingleBlockImplicitTerminator<"PipelineDefinitionTerminatorOp">]> {
     let summary = "[Internal] A region to collect ops associated with a single pipeline.";
     let description = [{
         The RD compilation flow translates the input functions and operations
@@ -120,7 +120,17 @@ def RD_PipelineDefinition : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol]> {
     let regions = (region AnyRegion:$body);
 }
 
-def RD_Print : RD_Op<"print"> {
+def RD_PipelineDefinitionTerminatorOp : RD_Op<"pipeline_def_terminator", [Terminator, HasParent<"PipelineDefinitionOp">]> {
+    let summary = "A pseudo op that marks the end of a pipeline definition";
+    let description = [{
+        `pipeline_def_terminator` is a special terminator operation for the body of a `pipeline_def`,
+        it has no semantic meaning beyond keeping the body of a `pipeline_def` well-formed.
+    }];
+
+    let assemblyFormat = "attr-dict";
+}
+
+def RD_PrintOp : RD_Op<"print"> {
     let summary = "[Debug] Prints to the console.";
     let description = [{
         Example:

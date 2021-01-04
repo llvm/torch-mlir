@@ -17,6 +17,7 @@ namespace mlir {
 namespace NPCOMP {
 
 std::unique_ptr<OperationPass<FuncOp>> createRDMergeFuncsPass();
+std::unique_ptr<OperationPass<ModuleOp>> createExtractPipelineDefPass();
 
 /// Registers all RD transformation passes.
 void registerRDPasses();
