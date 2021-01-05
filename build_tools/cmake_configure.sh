@@ -5,12 +5,15 @@
 #
 # Usage (for in-tree build/ directory):
 #   ./build_tools/cmake_configure.sh [ARGS...]
-# Usage (for arbitrary build/ directory):
-#   BUILD_DIR=/build ./build_tools/cmake_configure.sh [ARGS...]
+# For arbitrary build/install directories, set the env variables:
+# - NPCOMP_BUILD_DIR
+# - LLVM_BUILD_DIR
+# - LLVM_INSTALL_DIR
 set -e
 
 portable_realpath() {
-  echo "$(cd $1 && pwd)"
+  # Create the directory if needed so that the `cd` doesn't fail.
+  mkdir -p $1 && cd $1 && pwd
 }
 
 # Setup directories.
