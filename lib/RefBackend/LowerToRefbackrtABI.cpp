@@ -117,8 +117,9 @@ public:
 
     rewriter.updateRootInPlace(op, [&] {
       // Update the function type.
-      op.setType(FunctionType::get(entryConversion.getConvertedTypes(),
-                                   newResultTypes, op.getContext()));
+      op.setType(FunctionType::get(op.getContext(),
+                                   entryConversion.getConvertedTypes(),
+                                   newResultTypes));
       // Rewrite the entry block.
       Block &oldEntry = op.getBody().front();
       Block &newEntry =

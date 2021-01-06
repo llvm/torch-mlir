@@ -105,16 +105,16 @@ Type mapBufferFormatToType(MLIRContext *context, const std::string &format,
   if (format == "b" || format == "h" || format == "i" || format == "l" ||
       format == "L") {
     unsigned width = itemSize * 8;
-    return IntegerType::get(width, IntegerType::SignednessSemantics::Signed,
-                            context);
+    return IntegerType::get(context, width,
+                            IntegerType::SignednessSemantics::Signed);
   }
 
   // Unsigned integer format.
   if (format == "B" || format == "H" || format == "I" || format == "k" ||
       format == "K") {
     unsigned width = itemSize * 8;
-    return IntegerType::get(width, IntegerType::SignednessSemantics::Unsigned,
-                            context);
+    return IntegerType::get(context, width,
+                            IntegerType::SignednessSemantics::Unsigned);
   }
 
   return Type();
@@ -209,14 +209,16 @@ void PyDialectHelper::bind(py::module m) {
                                        pyResultTypes.end());
             SmallVector<Value, 4> operands(pyOperands.begin(),
                                            pyOperands.end());
-            MutableDictionaryAttr attrList;
+            DictionaryAttr attrList;
             if (attrs) {
               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
               if (!dictAttrs) {
                 throw py::raiseValueError(
                     "Expected `attrs` to be a DictionaryAttr");
               }
-              attrList = MutableDictionaryAttr(dictAttrs);
+              attrList = dictAttrs;
+            } else {
+              attrList = DictionaryAttr::get({}, self.getContext());
             }
             Operation *op =
                 Operation::create(loc, opName, types, operands, attrList);
@@ -236,18 +238,20 @@ void PyDialectHelper::bind(py::module m) {
             OpBuilder &opBuilder = self.pyOpBuilder.getBuilder(true);
             Location loc = self.pyOpBuilder.getCurrentLoc();
             // TODO: Dedup attr creation from op().
-            MutableDictionaryAttr attrList;
+            DictionaryAttr attrList;
             if (attrs) {
               auto dictAttrs = attrs->attr.dyn_cast<DictionaryAttr>();
               if (!dictAttrs) {
                 throw py::raiseValueError(
                     "Expected `attrs` to be a DictionaryAttr");
               }
-              attrList = MutableDictionaryAttr(dictAttrs);
+              attrList = dictAttrs;
+            } else {
+              attrList = DictionaryAttr::get({}, self.getContext());
             }
             FuncOp op =
                 opBuilder.create<FuncOp>(loc, StringRef(name), functionType,
-                                         /*attrs=*/attrList.getAttrs());
+                                         /*attrs=*/attrList.getValue());
             if (createEntryBlock) {
               Block *entryBlock = new Block();
               entryBlock->addArguments(functionType.getInputs());
@@ -296,24 +300,24 @@ void PyDialectHelper::bind(py::module m) {
       .def(
           "integer_type",
           [](PyDialectHelper &self, unsigned width) -> PyType {
-            return IntegerType::get(width, self.getContext());
+            return IntegerType::get(self.getContext(), width);
           },
           py::arg("width") = 32)
       .def_property_readonly("i1_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(1, self.getContext());
+                               return IntegerType::get(self.getContext(), 1);
                              })
       .def_property_readonly("i16_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(32, self.getContext());
+                               return IntegerType::get(self.getContext(), 32);
                              })
       .def_property_readonly("i32_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(32, self.getContext());
+                               return IntegerType::get(self.getContext(), 32);
                              })
       .def_property_readonly("i64_type",
                              [](PyDialectHelper &self) -> PyType {
-                               return IntegerType::get(64, self.getContext());
+                               return IntegerType::get(self.getContext(), 64);
                              })
       .def_property_readonly("f32_type",
                              [](PyDialectHelper &self) -> PyType {
@@ -349,8 +353,8 @@ void PyDialectHelper::bind(py::module m) {
              for (auto result : results) {
                resultTypes.push_back(result.type);
              }
-             return FunctionType::get(inputTypes, resultTypes,
-                                      self.getContext());
+             return FunctionType::get(self.getContext(), inputTypes,
+                                      resultTypes);
            });
 }
 

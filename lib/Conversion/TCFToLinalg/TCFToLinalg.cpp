@@ -110,7 +110,7 @@ public:
 
     // Create the matmul.
     auto matmul = rewriter.create<linalg::MatmulOp>(
-        op.getLoc(), TypeRange(op.getType()), op.getOperands(), ValueRange(),
+        op.getLoc(), TypeRange(op.getType()), op.getOperands(),
         ValueRange(initTensor));
     rewriter.create<shape::AssumingYieldOp>(op.getLoc(), matmul.getResult(0));
 
@@ -163,8 +163,8 @@ public:
 
     // Create the ConvNCHW.
     auto conv2dNCHW = rewriter.create<linalg::ConvNCHWOp>(
-        op.getLoc(), TypeRange(op.getType()), ValueRange({op.in(), op.filter()}), ValueRange(),
-        ValueRange(initTensor));
+        op.getLoc(), TypeRange(op.getType()),
+        ValueRange({op.in(), op.filter()}), ValueRange(initTensor));
     rewriter.create<shape::AssumingYieldOp>(op.getLoc(), conv2dNCHW.getResults());
 
     // Finally, replace with the results of the shape.assuming
