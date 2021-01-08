@@ -1,5 +1,6 @@
 .vscode
 .env
+*.code-workspace
 
 build
 build-mlir
