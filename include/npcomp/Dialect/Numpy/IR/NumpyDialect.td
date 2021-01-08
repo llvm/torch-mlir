@@ -42,7 +42,7 @@ class Numpy_Op<string mnemonic, list<OpTrait> traits = []> :
 def Numpy_AnyDtype : DialectType<Numpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Numpy::AnyDtypeType>()">, "any dtype">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Numpy::AnyDtypeType>()"> {
-  let typeDescription = [{
+  let description = [{
     Placeholder for an unknown dtype in a tensor.
   }];
 }
@@ -50,7 +50,7 @@ def Numpy_AnyDtype : DialectType<Numpy_Dialect,
 def Numpy_NdArrayType : DialectType<Numpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Numpy::NdArrayType>()">, "ndarray type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Numpy::NdArrayType>()"> {
-  let typeDescription = [{
+  let description = [{
     NdArrayType: Models a numpy.ndarray and compatible types.
     Unlike lower level representations, this type solely exists to represent
     top-level semantics and source-dialect transformations. As such, it

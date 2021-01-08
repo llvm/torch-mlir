@@ -23,7 +23,6 @@ using namespace mlir::NPCOMP;
 using mlir::LLVM::LLVMArrayType;
 using mlir::LLVM::LLVMFuncOp;
 using mlir::LLVM::LLVMFunctionType;
-using mlir::LLVM::LLVMIntegerType;
 using mlir::LLVM::LLVMPointerType;
 using mlir::LLVM::LLVMStructType;
 using mlir::LLVM::LLVMVoidType;
@@ -35,7 +34,7 @@ using mlir::LLVM::LLVMVoidType;
 //===----------------------------------------------------------------------===//
 
 static LLVMPointerType getInt8PointerType(MLIRContext *context) {
-  return LLVMPointerType::get(LLVM::LLVMIntegerType::get(context, 8));
+  return LLVMPointerType::get(IntegerType::get(context, 8));
 }
 
 // Get the LLVM type for refbackrt::FuncDescriptor.
@@ -43,15 +42,15 @@ static LLVMStructType getFuncDescriptorTy(MLIRContext *context) {
   return LLVMStructType::getLiteral(context,
                                     {
                                         // Name length.
-                                        LLVMIntegerType::get(context, 32),
+                                        IntegerType::get(context, 32),
                                         // Name chars.
                                         getInt8PointerType(context),
                                         // Type-erased function pointer.
                                         getInt8PointerType(context),
                                         // Number of inputs.
-                                        LLVMIntegerType::get(context, 32),
+                                        IntegerType::get(context, 32),
                                         // Number of outputs.
-                                        LLVMIntegerType::get(context, 32),
+                                        IntegerType::get(context, 32),
                                     });
 }
 
@@ -60,7 +59,7 @@ static LLVMStructType getModuleDescriptorTy(MLIRContext *context) {
   return LLVMStructType::getLiteral(
       context, {
                    // std::int32_t numFuncDescriptors;
-                   LLVMIntegerType::get(context, 32),
+                   IntegerType::get(context, 32),
                    // FuncDescriptor *functionDescriptors;
                    LLVMPointerType::get(getFuncDescriptorTy(context)),
                });
@@ -93,7 +92,7 @@ static LLVM::GlobalOp createGlobalString(ModuleOp module, StringAttr msg,
   std::string msgNulTerminated = msg.getValue().str();
   msgNulTerminated.push_back('\0');
   auto arrayTy = LLVMArrayType::get(
-      LLVMIntegerType::get(module.getContext(), 8), msgNulTerminated.size());
+      IntegerType::get(module.getContext(), 8), msgNulTerminated.size());
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(module.getBody());
 
@@ -130,7 +129,7 @@ public:
                                        op.msgAttr(), rewriter, op.getLoc());
     auto msgArray = rewriter.create<LLVM::AddressOfOp>(op.getLoc(), globalOp);
     auto c0 = rewriter.create<LLVM::ConstantOp>(
-        op.getLoc(), LLVMIntegerType::get(context, 32),
+        op.getLoc(), IntegerType::get(context, 32),
         rewriter.getI32IntegerAttr(0));
     auto msg =
         rewriter.create<LLVM::GEPOp>(op.getLoc(), getInt8PointerType(context),
@@ -163,7 +162,7 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
   {
     auto abortIfFuncTy = LLVMFunctionType::get(
         LLVMVoidType::get(context),
-        {LLVMIntegerType::get(context, 1), getInt8PointerType(context)},
+        {IntegerType::get(context, 1), getInt8PointerType(context)},
         /*isVarArg=*/false);
     LLVMFuncOp abortIfFunc = createCompilerRuntimeFuncDecl(
         "abort_if", abortIfFuncTy, builder, module.getLoc());
@@ -178,12 +177,12 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
 static LLVM::GlobalOp
 createFuncDescriptorArray(ArrayRef<refbackrt::FuncMetadataOp> funcMetadatas,
                           OpBuilder &builder, Location loc) {
-  auto llvmI32Ty = LLVMIntegerType::get(builder.getContext(), 32);
+  auto llvmI32Ty = IntegerType::get(builder.getContext(), 32);
 
   DenseMap<StringRef, LLVM::GlobalOp> globalsByName;
   for (auto funcMetadata : funcMetadatas) {
     auto arrayTy =
-        LLVMArrayType::get(LLVMIntegerType::get(builder.getContext(), 8),
+        LLVMArrayType::get(IntegerType::get(builder.getContext(), 8),
                            funcMetadata.funcName().size());
     std::string llvmSymbolName =
         (Twine("__npcomp_internal_constant_") + funcMetadata.funcName()).str();
@@ -263,7 +262,7 @@ createFuncDescriptorArray(ArrayRef<refbackrt::FuncMetadataOp> funcMetadatas,
 
 LLVM::GlobalOp createModuleDescriptor(LLVM::GlobalOp funcDescriptorArray,
                                       OpBuilder &builder, Location loc) {
-  auto llvmI32Ty = LLVMIntegerType::get(builder.getContext(), 32);
+  auto llvmI32Ty = IntegerType::get(builder.getContext(), 32);
   auto moduleDescriptorTy = getModuleDescriptorTy(builder.getContext());
   // TODO: Ideally this symbol name would somehow be related to the module
   // name, if we could consistently assume we had one.
@@ -339,7 +338,7 @@ static Value getTypedAddressFromVoidStarStar(Value voidStarStar, int32_t index,
                                              Type ty, OpBuilder &builder,
                                              Location loc) {
   Value ci = builder.create<LLVM::ConstantOp>(
-      loc, LLVMIntegerType::get(builder.getContext(), 32),
+      loc, IntegerType::get(builder.getContext(), 32),
       builder.getI32IntegerAttr(index));
 
   // Do `voidStarStar[i]` as a gep + load.
@@ -467,8 +466,6 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
 
     OwningRewritePatternList patterns;
     LLVMConversionTarget target(*context);
-    target.addDynamicallyLegalOp<FuncOp>(
-        [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
     populateCompilerRuntimePatterns(module, patterns, converter);
     target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
