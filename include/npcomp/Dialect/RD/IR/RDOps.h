@@ -14,6 +14,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/IR/SymbolTable.h"
+#include "npcomp/Dialect/RD/IR/RDDatasetInterface.h"
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/RD/IR/RDOps.h.inc"

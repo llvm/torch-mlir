@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_RD_TRANSFORMS_PASSES_H
 
 #include "mlir/Pass/Pass.h"
+#include "npcomp/Dialect/RD/IR/RDOps.h"
 
 #include <memory>
 
@@ -18,6 +19,7 @@ namespace NPCOMP {
 
 std::unique_ptr<OperationPass<FuncOp>> createRDMergeFuncsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createExtractPipelineDefPass();
+std::unique_ptr<OperationPass<rd::PipelineDefinitionOp>> createBuildInitFuncPass();
 
 /// Registers all RD transformation passes.
 void registerRDPasses();

@@ -10,6 +10,7 @@
 #define RD_OPS
 
 include "npcomp/Dialect/RD/IR/RDBase.td"
+include "npcomp/Dialect/RD/IR/RDDatasetInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
@@ -148,7 +149,7 @@ def RD_PrintOp : RD_Op<"print"> {
 // Dataset ops allow users to build up compositions of computations.
 
 class RD_DatasetOp<string mnemonic>
-    : RD_Op<mnemonic, [NoSideEffect]> {
+    : RD_Op<mnemonic, [NoSideEffect, DeclareOpInterfaceMethods<DatasetTransformOpInterface>]> {
 }
 
 def RD_RangeOp : RD_DatasetOp<"range"> {

@@ -1,4 +1,5 @@
 add_npcomp_conversion_library(NPCOMPRDPasses
+  BuildInitFuncPass.cpp
   ExtractPipelineDef.cpp
   Passes.cpp
   MergeFuncs.cpp

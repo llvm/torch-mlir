@@ -16,6 +16,11 @@ def RDExtractPipelineDefs : Pass<"rd-extract-pipeline-def", "ModuleOp"> {
   let constructor = "mlir::NPCOMP::createExtractPipelineDefPass()";
 }
 
+def RDBuildInitFunc : Pass<"rd-build-init-func", "::mlir::NPCOMP::rd::PipelineDefinitionOp"> {
+  let summary = "Builds init funcs for a pipeline.";
+  let constructor = "mlir::NPCOMP::createBuildInitFuncPass()";
+}
+
 def RDMergeFuncs : Pass<"rd-mergefuncs", "FuncOp"> {
   let summary = "Merges functions in the rd dialect";
   let constructor = "mlir::NPCOMP::createRDMergeFuncsPass()";

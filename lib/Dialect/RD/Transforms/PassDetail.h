@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_RD_TRANSFORMS_PASSDETAIL_H
 
 #include "mlir/Pass/Pass.h"
+#include "npcomp/Dialect/RD/IR/RDOps.h"
 
 namespace mlir {
 namespace NPCOMP {
