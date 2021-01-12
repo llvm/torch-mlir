@@ -25,7 +25,7 @@ def DatasetTransformOpInterface : OpInterface<"DatasetTransform"> {
     InterfaceMethod<[{
       Builds initialization code given a pointer to the type returned by buildStateLLVMType.
     }],
-    "void", "buildInitState", (ins "OpBuilder &":$builder, "Value":$ptr, "rd::InitArgMap":$args)>
+    "void", "buildInitState", (ins "OpBuilder &":$builder, "Value":$ptr, "const rd::InitArgMap &":$args)>
   ];
 }
 

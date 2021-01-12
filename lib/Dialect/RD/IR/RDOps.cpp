@@ -26,10 +26,10 @@ llvm::Optional<LLVM::LLVMType> RangeOp::buildStateLLVMType() {
     return LLVM::LLVMType::getStructTy(getContext(), {int64Ty, int64Ty, int64Ty});
 }
 
-void RangeOp::buildInitState(OpBuilder& builder, Value ptr, InitArgMap args) {
-    auto startValue = args[start()];
-    auto endValue = args[end()];
-    auto stepValue = args[step()];
+void RangeOp::buildInitState(OpBuilder& builder, Value ptr, const InitArgMap& args) {
+    auto startValue = args.lookup(start());
+    auto endValue = args.lookup(end());
+    auto stepValue = args.lookup(step());
     auto int64Ty = LLVM::LLVMType::getInt64Ty(getContext());
     
     auto zero = builder.create<LLVM::ConstantOp>(
@@ -52,9 +52,9 @@ void RangeOp::buildInitState(OpBuilder& builder, Value ptr, InitArgMap args) {
 llvm::Optional<LLVM::LLVMType> FilterOp::buildStateLLVMType() {
     return {};
 }
-void FilterOp::buildInitState(OpBuilder &builder, Value ptr, InitArgMap args) {}
+void FilterOp::buildInitState(OpBuilder &builder, Value ptr, const InitArgMap& args) {}
 
 llvm::Optional<LLVM::LLVMType> InlineMapOp::buildStateLLVMType() {
     return {};
 }
-void InlineMapOp::buildInitState(OpBuilder &builder, Value ptr, InitArgMap args) {}
+void InlineMapOp::buildInitState(OpBuilder &builder, Value ptr, const InitArgMap& args) {}
