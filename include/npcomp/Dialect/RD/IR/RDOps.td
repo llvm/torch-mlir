@@ -148,46 +148,52 @@ def RD_PrintOp : RD_Op<"print"> {
 
 // Dataset ops allow users to build up compositions of computations.
 
-class RD_DatasetOp<string mnemonic>
-    : RD_Op<mnemonic, [NoSideEffect, DeclareOpInterfaceMethods<DatasetTransformOpInterface>]> {
+multiclass RD_DatasetOp<
+        string mnemonic,
+        string summaryStr,
+        string descriptionStr,
+        dag datasetInputs,
+        dag initInputs,
+        string assemblyFormatStr> {
+    // The main op used to describe the input pipeline.
+    def Op : RD_Op<mnemonic, [NoSideEffect, DeclareOpInterfaceMethods<DatasetTransformOpInterface>]> {
+        let summary = summaryStr;
+        let description = descriptionStr;
+        let arguments = !con(datasetInputs, initInputs);
+        let results = (outs RD_Dataset:$result);
+        let assemblyFormat = assemblyFormatStr;
+    }
+
+    // A related op to initialize iterator state.
+    def InitOp : RD_Op<!strconcat(mnemonic, ".init")> {
+        let summary = !strconcat("Initialize state for ", mnemonic);
+        let arguments = !con(initInputs, (ins RD_Iterator:$state));
+        // No results.
+    }
+
+    // A related op to advance the iterator state and return a result.
+    def NextOp : RD_Op<!strconcat(mnemonic, ".next")> {
+        let summary = !strconcat("Next func for ", mnemonic);
+        let arguments = !con(datasetInputs, (ins RD_Iterator:$state));
+        let results = (outs RD_Dataset:$result);
+    }
 }
 
-def RD_RangeOp : RD_DatasetOp<"range"> {
-    let summary = "Range of values.";
-    let description = [{
+defm RD_Range : RD_DatasetOp<"range", "Range of values.", [{
         A sequence of consecutive integers.
-    }];
+    }], (ins ), (ins I64:$start, I64:$end, I64:$step),
+    "$start `to` $end `by` $step attr-dict `:` functional-type(operands, results)">;
 
-    let arguments = (ins I64:$start, I64:$end, I64:$step);
-    let results = (outs RD_Dataset:$result);
-
-    let assemblyFormat = "$start `to` $end `by` $step attr-dict `:` functional-type(operands, results)";
-}
-
-def RD_InlineMapOp : RD_DatasetOp<"inline_map"> {
-    let summary = "Transform element values by applying function `f` to each of them.";
-    let description = [{
+defm RD_InlineMap : RD_DatasetOp<"inline_map", "Transform element values by applying function `f` to each of them.", [{
         A serial, sequential execution implementation of the elementwise application of
         f to each of the elements in this dataset.
-    }];
+    }], (ins RD_Dataset:$src), (ins FlatSymbolRefAttr:$f),
+    "$f `(` $src `)` attr-dict `:` functional-type(operands, results)">;
 
-    let arguments = (ins RD_Dataset:$src, FlatSymbolRefAttr:$f);
-    let results = (outs RD_Dataset:$result);
-
-    let assemblyFormat = "$f `(` $src `)` attr-dict `:` functional-type(operands, results)";
-}
-
-def RD_FilterOp : RD_DatasetOp<"filter"> {
-    let summary = "Removes all values where `f` returns true.";
-    let description = [{
+defm RD_Filter : RD_DatasetOp<"filter", "Removes all values where `f` returns true.", [{
         A new dataset containing every element in `src` except for those
         that `f` of the element returns true.
-    }];
-
-    let arguments = (ins RD_Dataset:$src, FlatSymbolRefAttr:$f);
-    let results = (outs RD_Dataset:$result);
-
-    let assemblyFormat = "$src `excluding` $f attr-dict `:` functional-type(operands, results)";
-}
+    }], (ins RD_Dataset:$src), (ins FlatSymbolRefAttr:$f),
+    "$src `excluding` $f attr-dict `:` functional-type(operands, results)">;
 
 #endif // #ifndef RD_OPS
