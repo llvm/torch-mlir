@@ -21,4 +21,11 @@ namespace NPCOMP {
 } // namespace NPCOMP
 } // end namespace mlir
 
+namespace mlir {
+namespace NPCOMP {
+// Returns the FuncOp that definesthe pipeline.
+llvm::Optional<FuncOp> findDefinitionFunc(rd::PipelineDefinitionOp definition);
+}
+}
+
 #endif // NPCOMP_DIALECT_RD_TRANSFORMS_PASSDETAIL_H

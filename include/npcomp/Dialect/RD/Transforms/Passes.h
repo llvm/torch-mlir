@@ -20,6 +20,7 @@ namespace NPCOMP {
 std::unique_ptr<OperationPass<FuncOp>> createRDMergeFuncsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createExtractPipelineDefPass();
 std::unique_ptr<OperationPass<rd::PipelineDefinitionOp>> createBuildInitFuncPass();
+std::unique_ptr<OperationPass<rd::PipelineDefinitionOp>> createBuildNextFuncPass();
 
 /// Registers all RD transformation passes.
 void registerRDPasses();

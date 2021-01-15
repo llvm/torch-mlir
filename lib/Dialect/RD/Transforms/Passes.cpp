@@ -18,3 +18,29 @@ namespace {
 } // end namespace
 
 void mlir::NPCOMP::registerRDPasses() { ::registerPasses(); }
+
+#include "PassDetail.h"
+
+namespace mlir {
+namespace NPCOMP {
+
+llvm::Optional<FuncOp> findDefinitionFunc(rd::PipelineDefinitionOp definition) {
+  llvm::Optional<FuncOp> def;
+  definition.walk([&](FuncOp op) {
+    if (op.getName() == "definition") {
+      if (def) {
+        op.emitError("Multiple definition functions.").attachNote(def->getLoc())
+            << "Previous definition here.";
+        return;
+      }
+      def = op;
+    }
+  });
+  if (!def) {
+    definition.emitError("Missing definition function.");
+  }
+  return def;
+}
+
+} // namespace NPCOMP
+} // namespace mlir

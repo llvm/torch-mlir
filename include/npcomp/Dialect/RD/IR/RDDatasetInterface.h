@@ -9,7 +9,8 @@
 #ifndef NPCOMP_DIALECT_RD_IR_RDDATASETINTERFACE_H
 #define NPCOMP_DIALECT_RD_IR_RDDATASETINTERFACE_H
 
-#include "mlir/IR/Types.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 
 namespace mlir {

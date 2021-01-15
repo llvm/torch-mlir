@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/RD/IR/RDOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/RD/IR/RDDialect.h"
@@ -49,12 +50,28 @@ void RangeOp::buildInitState(OpBuilder& builder, Value ptr, const InitArgMap& ar
     builder.create<LLVM::StoreOp>(getLoc(), stepValue, stepPtr);
 }
 
+void RangeOp::buildNextOp(OpBuilder& builder, BlockAndValueMapping &mapping, Value state) {
+    auto ds = builder.create<RangeNextOp>(getLoc(), result().getType(), state);
+    mapping.map(getResult(), ds.getResult());
+}
+
 llvm::Optional<LLVM::LLVMType> FilterOp::buildStateLLVMType() {
     return {};
 }
 void FilterOp::buildInitState(OpBuilder &builder, Value ptr, const InitArgMap& args) {}
+void FilterOp::buildNextOp(OpBuilder &builder, BlockAndValueMapping &mapping,
+                           Value state) {
+  auto newSrc = mapping.lookup(src());
+  auto ds = builder.create<FilterNextOp>(getLoc(), result().getType(), newSrc, state);
+  mapping.map(getResult(), ds.getResult());
+}
 
 llvm::Optional<LLVM::LLVMType> InlineMapOp::buildStateLLVMType() {
     return {};
 }
 void InlineMapOp::buildInitState(OpBuilder &builder, Value ptr, const InitArgMap& args) {}
+void InlineMapOp::buildNextOp(OpBuilder& builder, BlockAndValueMapping &mapping, Value state) {
+  auto newSrc = mapping.lookup(src());
+  auto ds = builder.create<InlineMapNextOp>(getLoc(), result().getType(), newSrc, state);
+  mapping.map(getResult(), ds.getResult());
+}

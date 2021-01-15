@@ -25,30 +25,11 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 
-#include "npcomp/Dialect/RD/IR/RDDatasetInterface.cpp.inc"
-
 #define DEBUG_TYPE "rd-build-init-func"
 
 namespace {
 /// The ordered list of dataset operations that define a dataset.
 using PipelineDefinition = llvm::SmallVector<mlir::Operation*, 6>;
-
-llvm::Optional<FuncOp> findDefinitionFunc(rd::PipelineDefinitionOp definition) {
-  llvm::Optional<FuncOp> def;
-  definition.walk([&](FuncOp op) {
-    if (op.getName() == "definition") {
-      if (def) {
-        op.emitError("Multiple definition functions.").attachNote(def->getLoc()) << "Previous definition here.";
-        return;
-      }
-      def = op;
-    }
-  });
-  if (!def) {
-    definition.emitError("Missing definition function.");
-  }
-  return def;
-}
 
 /// The ordered list of dataset ops within the @definition func op.
 PipelineDefinition extractDatasetOps(FuncOp definition) {

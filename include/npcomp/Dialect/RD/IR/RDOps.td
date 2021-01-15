@@ -121,6 +121,13 @@ def RD_PipelineDefinitionOp : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol, 
     let regions = (region AnyRegion:$body);
 }
 
+def RD_IteratorIndexOp : RD_Op<"iterator_index"> {
+    let summary = "[Internal] Extracts the state for a nested iterator within this iterator.";
+
+    let arguments = (ins RD_Iterator:$parent, I64:$childIndex);
+    let results = (outs RD_Iterator:$result);
+}
+
 def RD_PipelineDefinitionTerminatorOp : RD_Op<"pipeline_def_terminator", [Terminator, HasParent<"PipelineDefinitionOp">]> {
     let summary = "A pseudo op that marks the end of a pipeline definition";
     let description = [{
@@ -154,7 +161,8 @@ multiclass RD_DatasetOp<
         string descriptionStr,
         dag datasetInputs,
         dag initInputs,
-        string assemblyFormatStr> {
+        string assemblyFormatStr,
+        string typeStr = "return {};"> {
     // The main op used to describe the input pipeline.
     def Op : RD_Op<mnemonic, [NoSideEffect, DeclareOpInterfaceMethods<DatasetTransformOpInterface>]> {
         let summary = summaryStr;
@@ -165,24 +173,36 @@ multiclass RD_DatasetOp<
     }
 
     // A related op to initialize iterator state.
-    def InitOp : RD_Op<!strconcat(mnemonic, ".init")> {
+    def InitOp : RD_Op<!strconcat(mnemonic, ".init"), [DatasetInitOpInterface]> {
         let summary = !strconcat("Initialize state for ", mnemonic);
         let arguments = !con(initInputs, (ins RD_Iterator:$state));
         // No results.
+
+        let extraClassDeclaration = !strconcat([{
+            llvm::Optional<LLVM::LLVMType> buildStateLLVMType() {
+        }], typeStr, [{
+            }
+        }]);
     }
 
     // A related op to advance the iterator state and return a result.
-    def NextOp : RD_Op<!strconcat(mnemonic, ".next")> {
+    def NextOp : RD_Op<!strconcat(mnemonic, ".next"), [DatasetNextOpInterface]> {
         let summary = !strconcat("Next func for ", mnemonic);
         let arguments = !con(datasetInputs, (ins RD_Iterator:$state));
         let results = (outs RD_Dataset:$result);
+
+        let extraClassDeclaration = !strconcat([{    llvm::Optional<LLVM::LLVMType> buildStateLLVMType() {
+        }], typeStr, [{    } }]);
     }
 }
 
 defm RD_Range : RD_DatasetOp<"range", "Range of values.", [{
         A sequence of consecutive integers.
     }], (ins ), (ins I64:$start, I64:$end, I64:$step),
-    "$start `to` $end `by` $step attr-dict `:` functional-type(operands, results)">;
+    "$start `to` $end `by` $step attr-dict `:` functional-type(operands, results)", [{
+        auto int64Ty = LLVM::LLVMType::getInt64Ty(getContext());
+        return LLVM::LLVMType::getStructTy(getContext(), {int64Ty, int64Ty, int64Ty});
+    }]>;
 
 defm RD_InlineMap : RD_DatasetOp<"inline_map", "Transform element values by applying function `f` to each of them.", [{
         A serial, sequential execution implementation of the elementwise application of
