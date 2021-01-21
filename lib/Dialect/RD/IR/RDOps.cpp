@@ -75,3 +75,9 @@ void InlineMapOp::buildNextOp(OpBuilder& builder, BlockAndValueMapping &mapping,
   auto ds = builder.create<InlineMapNextOp>(getLoc(), result().getType(), newSrc, state);
   mapping.map(getResult(), ds.getResult());
 }
+
+void IteratorIndexOp::build(::mlir::OpBuilder &odsBuilder,
+                  ::mlir::OperationState &odsState, ::mlir::Value parent,
+                  int64_t childIndex) {
+  IteratorIndexOp::build(odsBuilder, odsState, IteratorType::get(odsBuilder.getContext()), parent, odsBuilder.getI64ArrayAttr({childIndex}));
+}

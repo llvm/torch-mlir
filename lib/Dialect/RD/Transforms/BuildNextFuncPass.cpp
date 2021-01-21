@@ -60,10 +60,11 @@ class BuildNextFunc : public RDBuildNextFuncBase<BuildNextFunc> {
     auto stateValue = nextBody->getArgument(0);
     BlockAndValueMapping mapping;
     builder.setInsertionPointToStart(nextBody);
+    int64_t offset = 0;
     defFunc.walk([&](Operation* op) {
       if (rd::DatasetTransform datasetOp = dyn_cast<rd::DatasetTransform>(op)) {
-        // TODO: Insert iterator index operation.
-        datasetOp.buildNextOp(builder, mapping, stateValue);
+        auto itrPtr = builder.create<rd::IteratorIndexOp>(op->getLoc(), stateValue, offset++);
+        datasetOp.buildNextOp(builder, mapping, itrPtr);
       }
       if (auto returnOp = dyn_cast<ReturnOp>(op)) {
         builder.clone(*returnOp.getOperation(), mapping);

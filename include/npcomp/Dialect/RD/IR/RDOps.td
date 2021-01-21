@@ -124,8 +124,14 @@ def RD_PipelineDefinitionOp : RD_Op<"pipeline_def", [IsolatedFromAbove, Symbol, 
 def RD_IteratorIndexOp : RD_Op<"iterator_index"> {
     let summary = "[Internal] Extracts the state for a nested iterator within this iterator.";
 
-    let arguments = (ins RD_Iterator:$parent, I64:$childIndex);
+    let arguments = (ins RD_Iterator:$parent, I64ArrayAttr:$childIndex);
     let results = (outs RD_Iterator:$result);
+
+    let assemblyFormat = "$parent $childIndex attr-dict `:` type($result)";
+
+    let builders = [
+        OpBuilderDAG<(ins "::mlir::Value":$parent, "int64_t":$childIndex)>
+    ];
 }
 
 def RD_PipelineDefinitionTerminatorOp : RD_Op<"pipeline_def_terminator", [Terminator, HasParent<"PipelineDefinitionOp">]> {

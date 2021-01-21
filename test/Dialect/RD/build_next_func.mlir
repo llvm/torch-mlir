@@ -10,9 +10,12 @@
     return %2 : !rd.Dataset
   }
   // CHECK: func @next(%[[ITR:.*]]: !rd.Iterator) -> !rd.Dataset {
-  // CHECK: %[[RANGE_DS:.*]] = "rd.range.next"(%[[ITR]])
-  // CHECK: %[[MAP_DS:.*]] = "rd.inline_map.next"(%[[RANGE_DS]], %[[ITR]])
-  // CHECK: %[[FILTER_DS:.*]] = "rd.filter.next"(%[[MAP_DS]], %[[ITR]])
+  // CHECK: %[[RANGE_PTR:.*]] = rd.iterator_index %[[ITR]] [0]
+  // CHECK: %[[RANGE_DS:.*]] = "rd.range.next"(%[[RANGE_PTR]])
+  // CHECK: %[[MAP_PTR:.*]] = rd.iterator_index %[[ITR]] [1]
+  // CHECK: %[[MAP_DS:.*]] = "rd.inline_map.next"(%[[RANGE_DS]], %[[MAP_PTR]])
+  // CHECK: %[[FILTER_PTR:.*]] = rd.iterator_index %[[ITR]] [2]
+  // CHECK: %[[FILTER_DS:.*]] = "rd.filter.next"(%[[MAP_DS]], %[[FILTER_PTR]])
   // CHECK: return %[[FILTER_DS]]
   // CHECK: }
   // CHECK: rd.pipeline_def_terminator
