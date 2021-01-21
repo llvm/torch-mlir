@@ -45,31 +45,31 @@ def RD_Dataset : DialectType<RD_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::rd::DatasetType>()">, "Dataset type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::rd::DatasetType>()"> {
 
-  let typeDescription = [{
-    An immutable collection of values.
+  // let typeDescription = [{
+  //   An immutable collection of values.
 
-    A dataset is an abstract collection of values that can be manipulated in bulk using
-    functional operators to build new datasets.
+  //   A dataset is an abstract collection of values that can be manipulated in bulk using
+  //   functional operators to build new datasets.
 
-    In order to allow for efficient optimization and implementation, datasets are
-    immutable and stateless. Once created, the data represented by a dataset never
-    changes. To represent a new collection of data, operations on a dataset return a
-    new dataset.
+  //   In order to allow for efficient optimization and implementation, datasets are
+  //   immutable and stateless. Once created, the data represented by a dataset never
+  //   changes. To represent a new collection of data, operations on a dataset return a
+  //   new dataset.
 
-    To access data in a dataset, create an iterator which allows sequential access to
-    the dataset.
-  }];
+  //   To access data in a dataset, create an iterator which allows sequential access to
+  //   the dataset.
+  // }];
 }
 
 def RD_Iterator : DialectType<RD_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::rd::IteratorType>()">, "Iterator type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::rd::IteratorType>()"> {
 
-  let typeDescription = [{
-    Sequential access to a collection of values.
+  // let typeDescription = [{
+  //   Sequential access to a collection of values.
 
-    TODO(saeta): Write me!
-  }];
+  //   TODO(saeta): Write me!
+  // }];
 }
 
 #endif // #ifndef RD_BASE
