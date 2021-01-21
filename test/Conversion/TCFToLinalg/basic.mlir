@@ -8,12 +8,12 @@
 // CHECK:           %[[C1:.*]] = constant 1 : index
 // CHECK:           %[[LHSK:.*]] = dim %[[LHS]], %[[C1]] : tensor<?x?xf32>
 // CHECK:           %[[RHSK:.*]] = dim %[[RHS]], %[[C0]] : tensor<?x?xf32>
-// CHECK:           %[[KEQUAL:.*]] = cmpi "eq", %[[LHSK]], %[[RHSK]] : index
+// CHECK:           %[[KEQUAL:.*]] = cmpi eq, %[[LHSK]], %[[RHSK]] : index
 // CHECK:           %[[WINESS:.*]] = shape.cstr_require %[[KEQUAL]], "mismatching contracting dimension for matmul"
 // CHECK:           %[[RET:.*]] = shape.assuming %[[WINESS]] -> (tensor<?x?xf32>) {
 // CHECK:             %[[LHSROWS:.*]] = dim %[[LHS]], %[[C0]] : tensor<?x?xf32>
 // CHECK:             %[[RHSCOLS:.*]] = dim %[[RHS]], %[[C1]] : tensor<?x?xf32>
-// CHECK:             %[[SHAPE:.*]] = tensor_from_elements %[[LHSROWS]], %[[RHSCOLS]] : tensor<2xindex>
+// CHECK:             %[[SHAPE:.*]] = tensor.from_elements %[[LHSROWS]], %[[RHSCOLS]] : tensor<2xindex>
 // CHECK:             %[[INIT_TENSOR:.*]] = tcp.splatted %[[C0F32]], %[[SHAPE]] : (f32, tensor<2xindex>) -> tensor<?x?xf32>
 // CHECK:             %[[MATMUL:.*]] = linalg.matmul ins(%[[LHS]], %[[RHS]] : tensor<?x?xf32>, tensor<?x?xf32>) outs(%[[INIT_TENSOR]] : tensor<?x?xf32>)  -> tensor<?x?xf32>
 // CHECK:             shape.assuming_yield %[[MATMUL]] : tensor<?x?xf32>
@@ -38,9 +38,9 @@ func @tcf_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf
 // CHECK:           %[[FILTERCHANNELS:.*]] = dim %[[FILTER]], %[[C1]] : tensor<?x?x?x?xf32>
 // CHECK:           %[[FILTERHEIGHT:.*]] = dim %[[FILTER]], %[[C2]] : tensor<?x?x?x?xf32>
 // CHECK:           %[[FILTERWIDTH:.*]] = dim %[[FILTER]], %[[C3]] : tensor<?x?x?x?xf32>
-// CHECK:           %[[CMPCHANNELS:.*]] = cmpi "eq", %[[CHANNELS]], %[[FILTERCHANNELS]] : index
-// CHECK:           %[[CMPHEIGHT:.*]] = cmpi "uge", %[[HEIGHT]], %[[FILTERHEIGHT]] : index
-// CHECK:           %[[CMPWIDTH:.*]] = cmpi "uge", %[[WIDTH]], %[[FILTERWIDTH]] : index
+// CHECK:           %[[CMPCHANNELS:.*]] = cmpi eq, %[[CHANNELS]], %[[FILTERCHANNELS]] : index
+// CHECK:           %[[CMPHEIGHT:.*]] = cmpi uge, %[[HEIGHT]], %[[FILTERHEIGHT]] : index
+// CHECK:           %[[CMPWIDTH:.*]] = cmpi uge, %[[WIDTH]], %[[FILTERWIDTH]] : index
 // CHECK:           %[[CSTRCHANNELS:.*]] = shape.cstr_require %[[CMPCHANNELS]], "input and filter in-channels must be equal"
 // CHECK:           %[[CSTRHEIGHT:.*]] = shape.cstr_require %[[CMPHEIGHT]], "input height must be greater than or equal to filter KH-dimension"
 // CHECK:           %[[CSTRWIDTH:.*]] = shape.cstr_require %[[CMPWIDTH]], "input width must be greater than or equal to filter KW-dimension"
@@ -60,7 +60,7 @@ func @tcf_matmul(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf
 // CHECK:             %[[WIDTHV0:.*]] = subi %[[WIDTH]], %[[FILTERWIDTHM1]] : index
 // CHECK:             %[[WIDTHV0M1:.*]] = subi %[[WIDTHV0]], %[[C1]] : index
 // CHECK:             %[[OUTWIDTH:.*]] = addi %[[WIDTHV0M1]], %[[C1]] : index
-// CHECK:             %[[SHAPE:.*]] = tensor_from_elements %[[BATCH]], %[[OUTCHANNELS]], %[[OUTHEIGHT]], %[[OUTWIDTH]] : tensor<4xindex>
+// CHECK:             %[[SHAPE:.*]] = tensor.from_elements %[[BATCH]], %[[OUTCHANNELS]], %[[OUTHEIGHT]], %[[OUTWIDTH]] : tensor<4xindex>
 // CHECK:             %[[INIT_TENSOR:.*]] = tcp.splatted %[[C0F32]], %[[SHAPE]] : (f32, tensor<4xindex>) -> tensor<?x?x?x?xf32>
 // CHECK:             %[[CONVNCHW:.*]] = linalg.conv_2d_nchw ins(%[[IN]], %[[FILTER]] : tensor<?x?x?x?xf32>, tensor<?x?x?x?xf32>) outs(%[[INIT_TENSOR]] : tensor<?x?x?x?xf32>)  -> tensor<?x?x?x?xf32>
 // CHECK:             shape.assuming_yield %[[CONVNCHW]] : tensor<?x?x?x?xf32>

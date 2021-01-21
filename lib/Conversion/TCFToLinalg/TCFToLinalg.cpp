@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -28,7 +29,7 @@ static SmallVector<Value, 6> bypassResultShapes(Operation *op,
   if (auto matmul = dyn_cast<tcf::MatmulOp>(op)) {
     auto lhsRows = builder.create<DimOp>(op->getLoc(), matmul.lhs(), 0);
     auto rhsCols = builder.create<DimOp>(op->getLoc(), matmul.rhs(), 1);
-    auto shape = builder.create<TensorFromElementsOp>(
+    auto shape = builder.create<tensor::FromElementsOp>(
         op->getLoc(), ValueRange({lhsRows, rhsCols}));
     return {shape};
   }
@@ -73,8 +74,9 @@ static SmallVector<Value, 6> bypassResultShapes(Operation *op,
     auto outWidthMinusOne = builder.create<UnsignedDivIOp>(op->getLoc(), outWidthUnstrided, strideWidth);
     auto outWidth = builder.create<AddIOp>(op->getLoc(), outWidthMinusOne, cI1);
     // Output shape
-    auto shape = builder.create<TensorFromElementsOp>(
-        op->getLoc(), ValueRange({batch, filterOutChannels, outHeight, outWidth}));
+    auto shape = builder.create<tensor::FromElementsOp>(
+        op->getLoc(),
+        ValueRange({batch, filterOutChannels, outHeight, outWidth}));
     return {shape};
   }
 
@@ -178,7 +180,8 @@ namespace {
 class ConvertTCFToLinalg : public ConvertTCFToLinalgBase<ConvertTCFToLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect, tcp::TCPDialect>();
+    registry
+        .insert<shape::ShapeDialect, tcp::TCPDialect, tensor::TensorDialect>();
   }
 
   void runOnOperation() override {
