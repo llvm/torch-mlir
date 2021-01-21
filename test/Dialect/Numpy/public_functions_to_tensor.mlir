@@ -22,8 +22,7 @@ module @legalConversion {
 // CHECK-LABEL: @nonPublic
 module @nonPublic {
   // CHECK: @f(%arg0: !numpy.ndarray<[3,?]:f32>) -> !numpy.ndarray<[3,?]:f32>
-  func @f(%arg0: !numpy.ndarray<[3,?]:f32>) -> (!numpy.ndarray<[3,?]:f32>)
-      attributes { sym_visibility = "private" } {
+  func private @f(%arg0: !numpy.ndarray<[3,?]:f32>) -> (!numpy.ndarray<[3,?]:f32>) {
     return %arg0 : !numpy.ndarray<[3,?]:f32>
   }
 }
@@ -37,8 +36,7 @@ module @called {
     return %arg0 : !numpy.ndarray<*:f32>
   }
 
-  func @caller(%arg0: !numpy.ndarray<*:f32>) -> !numpy.ndarray<*:f32>
-    attributes { sym_visibility = "private" } {
+  func private @caller(%arg0: !numpy.ndarray<*:f32>) -> !numpy.ndarray<*:f32> {
     %0 = call @f(%arg0) : (!numpy.ndarray<*:f32>) -> !numpy.ndarray<*:f32>
     return %0 : !numpy.ndarray<*:f32>
   }

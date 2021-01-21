@@ -121,7 +121,7 @@ def float_floordiv(a: float, b: float):
 @import_global
 def to_boolean(x: int):
   # CHECK: %[[ZERO:.*]] = constant 0 : i64
-  # CHECK: %[[BOOL:.*]] = cmpi "ne", %arg0, %[[ZERO]] : i64
+  # CHECK: %[[BOOL:.*]] = cmpi ne, %arg0, %[[ZERO]] : i64
   # CHECK: select %[[BOOL]]
   # Note that the not operator is just used to force a bool conversion.
   return not x
@@ -131,7 +131,7 @@ def to_boolean(x: int):
 @import_global
 def to_boolean_float(x: float):
   # CHECK: %[[ZERO:.*]] = constant 0.000000e+00 : f64
-  # CHECK: %[[BOOL:.*]] = cmpf "one", %arg0, %[[ZERO]] : f64
+  # CHECK: %[[BOOL:.*]] = cmpf one, %arg0, %[[ZERO]] : f64
   # CHECK: select %[[BOOL]]
   # Note that the not operator is just used to force a bool conversion.
   return not x
@@ -145,7 +145,7 @@ def to_boolean_float(x: float):
 # CHECK-LABEL: func @int_lt_
 @import_global
 def int_lt_(x: int, y: int):
-  # CHECK: %[[CMP:.*]] = cmpi "slt", %arg0, %arg1 : i64
+  # CHECK: %[[CMP:.*]] = cmpi slt, %arg0, %arg1 : i64
   # CHECK: %{{.*}} = basicpy.bool_cast %[[CMP]] : i1 -> !basicpy.BoolType
   return x < y
 
@@ -153,49 +153,49 @@ def int_lt_(x: int, y: int):
 # CHECK-LABEL: func @int_gt_
 @import_global
 def int_gt_(x: int, y: int):
-  # CHECK: cmpi "sgt"
+  # CHECK: cmpi sgt
   return x > y
 
 
 # CHECK-LABEL: func @int_lte_
 @import_global
 def int_lte_(x: int, y: int):
-  # CHECK: cmpi "sle"
+  # CHECK: cmpi sle
   return x <= y
 
 
 # CHECK-LABEL: func @int_gte_
 @import_global
 def int_gte_(x: int, y: int):
-  # CHECK: cmpi "sge"
+  # CHECK: cmpi sge
   return x >= y
 
 
 # CHECK-LABEL: func @int_eq_
 @import_global
 def int_eq_(x: int, y: int):
-  # CHECK: cmpi "eq"
+  # CHECK: cmpi eq
   return x == y
 
 
 # CHECK-LABEL: func @int_neq_
 @import_global
 def int_neq_(x: int, y: int):
-  # CHECK: cmpi "ne"
+  # CHECK: cmpi ne
   return x != y
 
 
 # CHECK-LABEL: func @int_is_
 @import_global
 def int_is_(x: int, y: int):
-  # CHECK: cmpi "eq"
+  # CHECK: cmpi eq
   return x is y
 
 
 # CHECK-LABEL: func @int_is_not_
 @import_global
 def int_is_not_(x: int, y: int):
-  # CHECK: cmpi "ne"
+  # CHECK: cmpi ne
   return x is not y
 
 
@@ -207,7 +207,7 @@ def int_is_not_(x: int, y: int):
 # CHECK-LABEL: func @float_lt_
 @import_global
 def float_lt_(x: float, y: float):
-  # CHECK: %[[CMP:.*]] = cmpf "olt", %arg0, %arg1 : f64
+  # CHECK: %[[CMP:.*]] = cmpf olt, %arg0, %arg1 : f64
   # CHECK: %{{.*}} = basicpy.bool_cast %[[CMP]] : i1 -> !basicpy.BoolType
   return x < y
 
@@ -215,47 +215,47 @@ def float_lt_(x: float, y: float):
 # CHECK-LABEL: func @float_gt_
 @import_global
 def float_gt_(x: float, y: float):
-  # CHECK: cmpf "ogt"
+  # CHECK: cmpf ogt
   return x > y
 
 
 # CHECK-LABEL: func @float_lte_
 @import_global
 def float_lte_(x: float, y: float):
-  # CHECK: cmpf "ole"
+  # CHECK: cmpf ole
   return x <= y
 
 
 # CHECK-LABEL: func @float_gte_
 @import_global
 def float_gte_(x: float, y: float):
-  # CHECK: cmpf "oge"
+  # CHECK: cmpf oge
   return x >= y
 
 
 # CHECK-LABEL: func @float_eq_
 @import_global
 def float_eq_(x: float, y: float):
-  # CHECK: cmpf "oeq"
+  # CHECK: cmpf oeq
   return x == y
 
 
 # CHECK-LABEL: func @float_neq_
 @import_global
 def float_neq_(x: float, y: float):
-  # CHECK: cmpf "one"
+  # CHECK: cmpf one
   return x != y
 
 
 # CHECK-LABEL: func @float_is_
 @import_global
 def float_is_(x: float, y: float):
-  # CHECK: cmpf "oeq"
+  # CHECK: cmpf oeq
   return x is y
 
 
 # CHECK-LABEL: func @float_is_not_
 @import_global
 def float_is_not_(x: float, y: float):
-  # CHECK: cmpf "one"
+  # CHECK: cmpf one
   return x is not y

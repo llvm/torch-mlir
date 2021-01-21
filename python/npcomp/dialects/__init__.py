@@ -4,4 +4,4 @@
 
 # Generated tablegen dialects expect to be able to find some symbols from
 # the mlir.dialects package.
-from mlir.dialects import _cext, _segmented_accessor, _equally_sized_accessor, _get_default_loc_context
+from mlir.dialects import _cext, segmented_accessor, equally_sized_accessor, extend_opview_class, get_default_loc_context
