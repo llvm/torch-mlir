@@ -70,7 +70,7 @@ class ElideCreateRedundantArrayFromTensor
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(CopyToTensorOp op,
-                                PatternRewriter &rewriter) const {
+                                PatternRewriter &rewriter) const override {
     auto createArrayOp =
         dyn_cast_or_null<CreateArrayFromTensorOp>(op.source().getDefiningOp());
     if (createArrayOp && createArrayOp.dest().hasOneUse()) {

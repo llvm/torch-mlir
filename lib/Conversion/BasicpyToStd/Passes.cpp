@@ -21,7 +21,7 @@ namespace {
 class ConvertBasicpyToStd
     : public ConvertBasicpyToStdBase<ConvertBasicpyToStd> {
 public:
-  void runOnOperation() {
+  void runOnOperation() override {
     FuncOp func = getOperation();
     (void)applyPatternsAndFoldGreedily(func, getPatterns());
   }

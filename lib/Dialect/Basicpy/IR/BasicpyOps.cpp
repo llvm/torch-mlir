@@ -387,7 +387,7 @@ class ElideIdentityUnknownCast : public OpRewritePattern<UnknownCastOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(UnknownCastOp op,
-                                PatternRewriter &rewriter) const {
+                                PatternRewriter &rewriter) const override {
     if (op.operand().getType() != op.result().getType())
       return failure();
     rewriter.replaceOp(op, op.operand());
