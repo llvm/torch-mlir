@@ -9,10 +9,20 @@
 #include "npcomp-c/Registration.h"
 
 #include "mlir/CAPI/IR.h"
+#include "mlir/Conversion/Passes.h"
+#include "mlir/Transforms/Passes.h"
 #include "npcomp/InitAll.h"
 
 void npcompRegisterAllDialects(MlirContext context) {
   mlir::NPCOMP::registerAllDialects(unwrap(context)->getDialectRegistry());
   // TODO: Don't eagerly load once D88162 is in and clients can do this.
   unwrap(context)->getDialectRegistry().loadAll(unwrap(context));
+}
+
+void npcompRegisterAllPasses() {
+  ::mlir::NPCOMP::registerAllPasses();
+
+  // Upstream passes we depend on.
+  ::mlir::registerCanonicalizerPass();
+  ::mlir::registerSCFToStandardPass();
 }

@@ -71,7 +71,7 @@ class PublicFunctionsToTensorPass
 
     // Update signature.
     funcType =
-        FunctionType::get(inputTypes, resultTypes, funcType.getContext());
+        FunctionType::get(funcType.getContext(), inputTypes, resultTypes);
     func.setType(funcType);
 
     // Rewrite all return terminators.

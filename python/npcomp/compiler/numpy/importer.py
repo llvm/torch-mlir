@@ -8,7 +8,11 @@ import ast
 import sys
 import traceback
 
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+from mlir.dialects import std as std_ops
+
+from npcomp import _cext
+from npcomp.dialects import basicpy as basicpy_ops
 
 from ..utils import logging
 from .interfaces import *
@@ -23,24 +27,23 @@ __all__ = [
 class FunctionContext:
   """Accounting information for importing a function."""
   __slots__ = [
-      "ir_c",
+      "ic",
       "ir_f",
-      "ir_h",
-      "filename_ident",
+      "filename",
       "environment",
   ]
 
-  def __init__(self, ir_c, ir_f, ir_h, filename_ident, environment):
-    self.ir_c = ir_c
+  def __init__(self, *, ic: ImportContext, ir_f: _ir.Operation, filename: str,
+               environment: Environment):
+    self.ic = ic
     self.ir_f = ir_f
-    self.ir_h = ir_h
-    self.filename_ident = filename_ident
+    self.filename = filename
     self.environment = environment
 
   def abort(self, message):
     """Emits an error diagnostic and raises an exception to abort."""
     loc = self.current_loc
-    ir.emit_error(loc, message)
+    _cext.emit_error(loc, message)
     raise EmittedError(loc, message)
 
   def check_partial_evaluated(self, result: PartialEvalResult):
@@ -53,18 +56,20 @@ class FunctionContext:
       else:
         message = ("Error while evaluating value from environment:\n" +
                    "".join(traceback.format_exception(exc_type, exc_value, tb)))
-      ir.emit_error(loc, message)
+
+      # TODO: Add this to the python API.
+      _cext.emit_error(loc, message)
       raise EmittedError(loc, message)
     if result.type == PartialEvalType.NOT_EVALUATED:
       self.abort("Unable to evaluate expression")
 
   @property
   def current_loc(self):
-    return self.ir_h.builder.current_loc
+    return self.ic.loc
 
   def update_loc(self, ast_node):
-    self.ir_h.builder.set_file_line_col(self.filename_ident, ast_node.lineno,
-                                        ast_node.col_offset)
+    self.ic.set_file_line_col(self.filename, ast_node.lineno,
+                              ast_node.col_offset)
 
   def lookup_name(self, name) -> NameReference:
     """Lookup a name in the environment, requiring it to have evaluated."""
@@ -74,7 +79,7 @@ class FunctionContext:
     logging.debug("Map name({}) -> {}", name, ref)
     return ref
 
-  def emit_const_value(self, py_value) -> ir.Value:
+  def emit_const_value(self, py_value) -> _ir.Value:
     """Codes a value as a constant, returning an ir Value."""
     env = self.environment
     result = env.code_py_value_as_const(py_value)
@@ -83,7 +88,7 @@ class FunctionContext:
     return result
 
   def emit_partial_eval_result(self,
-                               partial_result: PartialEvalResult) -> ir.Value:
+                               partial_result: PartialEvalResult) -> _ir.Value:
     """Emits a partial eval result either as a direct IR value or a constant."""
     self.check_partial_evaluated(partial_result)
     if partial_result.type == PartialEvalType.YIELDS_IR_VALUE:
@@ -134,17 +139,20 @@ class FunctionDefImporter(BaseNodeVisitor):
     self._last_was_return = False
 
   def import_body(self):
-    ir_h = self.fctx.ir_h
+    ic = self.fctx.ic
     for ast_stmt in self.ast_fd.body:
       self._last_was_return = False
       logging.debug("STMT: {}", ast.dump(ast_stmt, include_attributes=True))
       self.visit(ast_stmt)
     if not self._last_was_return:
       # Add a default terminator.
-      none_value = ir_h.basicpy_singleton_op(ir_h.basicpy_NoneType).result
-      none_cast = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                               none_value).result
-      ir_h.return_op([none_cast])
+      none_value = basicpy_ops.SingletonOp(ic.none_type, loc=ic.loc,
+                                           ip=ic.ip).result
+      none_cast = basicpy_ops.UnknownCastOp(ic.unknown_type,
+                                            none_value,
+                                            loc=ic.loc,
+                                            ip=ic.ip).result
+      std_ops.ReturnOp([none_cast], loc=ic.loc, ip=ic.ip)
 
   def visit_Assign(self, ast_node):
     expr = ExpressionImporter(self.fctx)
@@ -164,27 +172,27 @@ class FunctionDefImporter(BaseNodeVisitor):
             "Cannot assign to '{}': Store not supported".format(name_ref))
 
   def visit_Expr(self, ast_node):
-    ir_h = self.fctx.ir_h
-    _, ip = ir_h.basicpy_exec_op()
+    ic = self.fctx.ic
+    exec_ip = ic.basicpy_ExecOp()
+
     # Evaluate the expression in the exec body.
-    orig_ip = ir_h.builder.insertion_point
-    ir_h.builder.insertion_point = ip
+    ic.push_ip(exec_ip)
     expr = ExpressionImporter(self.fctx)
     expr.visit(ast_node.value)
-    ir_h.basicpy_exec_discard_op([expr.value])
-    ir_h.builder.insertion_point = orig_ip
+    basicpy_ops.ExecDiscardOp([expr.value], loc=ic.loc, ip=ic.ip)
+    ic.pop_ip()
 
   def visit_Pass(self, ast_node):
     pass
 
   def visit_Return(self, ast_node):
-    ir_h = self.fctx.ir_h
-    expr = ExpressionImporter(self.fctx)
-    expr.visit(ast_node.value)
-    casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                          expr.value).result
-    ir_h.return_op([casted])
-    self._last_was_return = True
+    ic = self.fctx.ic
+    with ic.loc, ic.ip:
+      expr = ExpressionImporter(self.fctx)
+      expr.visit(ast_node.value)
+      casted = basicpy_ops.UnknownCastOp(ic.unknown_type, expr.value).result
+      std_ops.ReturnOp([casted])
+      self._last_was_return = True
 
 
 class ExpressionImporter(BaseNodeVisitor):
@@ -233,15 +241,20 @@ class ExpressionImporter(BaseNodeVisitor):
         ast.dump(ast_node)))
 
   def visit_BinOp(self, ast_node):
-    ir_h = self.fctx.ir_h
+    ic = self.fctx.ic
     left = self.sub_evaluate(ast_node.left)
     right = self.sub_evaluate(ast_node.right)
-    self.value = ir_h.basicpy_binary_expr_op(
-        ir_h.basicpy_UnknownType, left, right,
-        ast_node.op.__class__.__name__).result
+    self.value = basicpy_ops.BinaryExprOp(ic.unknown_type,
+                                          left,
+                                          right,
+                                          _ir.StringAttr.get(
+                                              ast_node.op.__class__.__name__,
+                                              context=ic.context),
+                                          ip=ic.ip,
+                                          loc=ic.loc).result
 
   def visit_BoolOp(self, ast_node):
-    ir_h = self.fctx.ir_h
+    ic = self.fctx.ic
     if isinstance(ast_node.op, ast.And):
       return_first_true = False
     elif isinstance(ast_node.op, ast.Or):
@@ -255,25 +268,30 @@ class ExpressionImporter(BaseNodeVisitor):
       next_value = self.sub_evaluate(next_node)
       if not next_nodes:
         return next_value
-      condition_value = ir_h.basicpy_as_i1_op(next_value).result
-      if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
-                                               condition_value, True)
-      orig_ip = ir_h.builder.insertion_point
+      condition_value = basicpy_ops.AsI1Op(ic.i1_type, next_value,
+                                           ip=ic.ip).result
+      if_op, then_ip, else_ip = ic.scf_IfOp([ic.unknown_type], condition_value,
+                                            True)
       # Short-circuit return case.
-      ir_h.builder.insertion_point = then_ip if return_first_true else else_ip
-      next_value_casted = ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                                       next_value).result
-      ir_h.scf_yield_op([next_value_casted])
+      ic.push_ip(then_ip if return_first_true else else_ip)
+      next_value_casted = basicpy_ops.UnknownCastOp(ic.unknown_type,
+                                                    next_value,
+                                                    ip=ic.ip).result
+      ic.scf_YieldOp([next_value_casted])
+      ic.pop_ip()
+
       # Nested evaluate next case.
-      ir_h.builder.insertion_point = else_ip if return_first_true else then_ip
+      ic.push_ip(else_ip if return_first_true else then_ip)
       nested_value = emit_next(next_nodes)
-      nested_value_casted = next_value_casted = ir_h.basicpy_unknown_cast_op(
-          ir_h.basicpy_UnknownType, nested_value).result
-      ir_h.scf_yield_op([nested_value_casted])
-      ir_h.builder.insertion_point = orig_ip
+      nested_value_casted = next_value_casted = basicpy_ops.UnknownCastOp(
+          ic.unknown_type, nested_value, ip=ic.ip).result
+      ic.scf_YieldOp([nested_value_casted])
+      ic.pop_ip()
+
       return if_op.result
 
-    self.value = emit_next(ast_node.values)
+    with ic.loc:
+      self.value = emit_next(ast_node.values)
 
   def visit_Call(self, ast_node):
     # Evaluate positional args.
@@ -311,15 +329,23 @@ class ExpressionImporter(BaseNodeVisitor):
   def visit_Compare(self, ast_node):
     # Short-circuit comparison (degenerates to binary comparison when just
     # two operands).
-    ir_h = self.fctx.ir_h
-    false_value = ir_h.basicpy_bool_constant_op(False).result
+    ic = self.fctx.ic
+    false_value = basicpy_ops.BoolConstantOp(ic.bool_type,
+                                             ic.i1_false,
+                                             ip=ic.ip,
+                                             loc=ic.loc).result
 
     def emit_next(left_value, comparisons):
       operation, right_node = comparisons[0]
       comparisons = comparisons[1:]
       right_value = self.sub_evaluate(right_node)
-      compare_result = ir_h.basicpy_binary_compare_op(
-          left_value, right_value, operation.__class__.__name__).result
+      compare_result = basicpy_ops.BinaryCompareOp(
+          ic.bool_type,
+          left_value,
+          right_value,
+          _ir.StringAttr.get(operation.__class__.__name__),
+          ip=ic.ip,
+          loc=ic.loc).result
       # Terminate by yielding the final compare result.
       if not comparisons:
         return compare_result
@@ -327,47 +353,56 @@ class ExpressionImporter(BaseNodeVisitor):
       # Emit 'if' op and recurse. The if op takes an i1 (core dialect
       # requirement) and returns a basicpy.BoolType. Since this is an 'and',
       # all else clauses yield a false value.
-      compare_result_i1 = ir_h.basicpy_bool_cast_op(ir_h.i1_type,
-                                                    compare_result).result
-      if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_BoolType],
-                                               compare_result_i1, True)
-      orig_ip = ir_h.builder.insertion_point
+      compare_result_i1 = basicpy_ops.BoolCastOp(ic.i1_type,
+                                                 compare_result,
+                                                 ip=ic.ip,
+                                                 loc=ic.loc).result
+      if_op, then_ip, else_ip = ic.scf_IfOp([ic.bool_type], compare_result_i1,
+                                            True)
       # Build the else clause.
-      ir_h.builder.insertion_point = else_ip
-      ir_h.scf_yield_op([false_value])
+      ic.push_ip(else_ip)
+      ic.scf_YieldOp([false_value])
+      ic.pop_ip()
+
       # Build the then clause.
-      ir_h.builder.insertion_point = then_ip
+      ic.push_ip(then_ip)
       nested_result = emit_next(right_value, comparisons)
-      ir_h.scf_yield_op([nested_result])
-      ir_h.builder.insertion_point = orig_ip
+      ic.scf_YieldOp([nested_result])
+      ic.pop_ip()
+
       return if_op.result
 
     self.value = emit_next(self.sub_evaluate(ast_node.left),
                            list(zip(ast_node.ops, ast_node.comparators)))
 
   def visit_IfExp(self, ast_node):
-    ir_h = self.fctx.ir_h
-    test_result = ir_h.basicpy_as_i1_op(self.sub_evaluate(ast_node.test)).result
-    if_op, then_ip, else_ip = ir_h.scf_if_op([ir_h.basicpy_UnknownType],
-                                             test_result, True)
-
-    orig_ip = ir_h.builder.insertion_point
+    ic = self.fctx.ic
+    test_result = basicpy_ops.AsI1Op(ic.i1_type,
+                                     self.sub_evaluate(ast_node.test),
+                                     ip=ic.ip,
+                                     loc=ic.loc).result
+    if_op, then_ip, else_ip = ic.scf_IfOp([ic.unknown_type], test_result, True)
     # Build the then clause
-    ir_h.builder.insertion_point = then_ip
+    ic.push_ip(then_ip)
     then_result = self.sub_evaluate(ast_node.body)
-    ir_h.scf_yield_op([
-        ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                     then_result).result
+    ic.scf_YieldOp([
+        basicpy_ops.UnknownCastOp(ic.unknown_type,
+                                  then_result,
+                                  ip=ic.ip,
+                                  loc=ic.loc).result
     ])
-    # Build the then clause.
-    ir_h.builder.insertion_point = else_ip
-    orelse_result = self.sub_evaluate(ast_node.orelse)
-    ir_h.scf_yield_op([
-        ir_h.basicpy_unknown_cast_op(ir_h.basicpy_UnknownType,
-                                     orelse_result).result
-    ])
-    ir_h.builder.insertion_point = orig_ip
+    ic.pop_ip()
 
+    # Build the then clause.
+    ic.push_ip(else_ip)
+    orelse_result = self.sub_evaluate(ast_node.orelse)
+    ic.scf_YieldOp([
+        basicpy_ops.UnknownCastOp(ic.unknown_type,
+                                  orelse_result,
+                                  ip=ic.ip,
+                                  loc=ic.loc).result
+    ])
+    ic.pop_ip()
     self.value = if_op.result
 
   def visit_Name(self, ast_node):
@@ -380,18 +415,20 @@ class ExpressionImporter(BaseNodeVisitor):
     self.value = self.fctx.emit_partial_eval_result(pe_result)
 
   def visit_UnaryOp(self, ast_node):
-    ir_h = self.fctx.ir_h
-    op = ast_node.op
-    operand_value = self.sub_evaluate(ast_node.operand)
-    if isinstance(op, ast.Not):
-      # Special handling for logical-not.
-      condition_value = ir_h.basicpy_as_i1_op(operand_value).result
-      true_value = ir_h.basicpy_bool_constant_op(True).result
-      false_value = ir_h.basicpy_bool_constant_op(False).result
-      self.value = ir_h.select_op(condition_value, false_value,
-                                  true_value).result
-    else:
-      self.fctx.abort("Unknown unary op %r", (ast.dump(op)))
+    ic = self.fctx.ic
+    with ic.ip, ic.loc:
+      op = ast_node.op
+      operand_value = self.sub_evaluate(ast_node.operand)
+      if isinstance(op, ast.Not):
+        # Special handling for logical-not.
+        condition_value = basicpy_ops.AsI1Op(ic.i1_type, operand_value).result
+        true_value = basicpy_ops.BoolConstantOp(ic.bool_type, ic.i1_true).result
+        false_value = basicpy_ops.BoolConstantOp(ic.bool_type,
+                                                 ic.i1_false).result
+        self.value = std_ops.SelectOp(ic.bool_type, condition_value,
+                                      false_value, true_value).result
+      else:
+        self.fctx.abort("Unknown unary op %r", (ast.dump(op)))
 
   if sys.version_info < (3, 8, 0):
     # <3.8 breaks these out into separate AST classes.

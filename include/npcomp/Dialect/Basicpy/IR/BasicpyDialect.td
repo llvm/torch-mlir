@@ -43,7 +43,7 @@ class Basicpy_Op<string mnemonic, list<OpTrait> traits = []> :
 def Basicpy_BoolType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BoolType>()">, "Bool type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BoolType>()"> {
-  let typeDescription = [{
+  let description = [{
     Type for 'True' and 'False' values.
   }];
 }
@@ -51,7 +51,7 @@ def Basicpy_BoolType : DialectType<Basicpy_Dialect,
 def Basicpy_BytesType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::BytesType>()">, "Bytes type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::BytesType>()"> {
-  let typeDescription = [{
+  let description = [{
     Represents Python 'bytes' values.
   }];
 }
@@ -59,7 +59,7 @@ def Basicpy_BytesType : DialectType<Basicpy_Dialect,
 def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::EllipsisType>()">, "Ellipsis type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::EllipsisType>()"> {
-  let typeDescription = [{
+  let description = [{
     Type of the Python 'Ellipsis' value.
   }];
 }
@@ -67,7 +67,7 @@ def Basicpy_EllipsisType : DialectType<Basicpy_Dialect,
 def Basicpy_NoneType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::NoneType>()">, "None type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::NoneType>()"> {
-  let typeDescription = [{
+  let description = [{
     Type of the Python 'None' value.
   }];
 }
@@ -75,7 +75,7 @@ def Basicpy_NoneType : DialectType<Basicpy_Dialect,
 def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::SlotObjectType>()">,
     "Slot object"> {
-  let typeDescription = [{
+  let description = [{
     Type for built-in objects which have a fixed number of slots and a type
     name in the system catalog of types. In some ways, this resembles a
     namedtuple, but it is used for built-in custom objects.
@@ -85,7 +85,7 @@ def Basicpy_SlotObjectType : DialectType<Basicpy_Dialect,
 def Basicpy_StrType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::StrType>()">,"String type">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::Basicpy::StrType>()"> {
-  let typeDescription = [{
+  let description = [{
     Represents values of the python 'str' type.
   }];
 }
@@ -93,7 +93,7 @@ def Basicpy_StrType : DialectType<Basicpy_Dialect,
 def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::UnknownType>()">,
     "Unknown type"> {
-  let typeDescription = [{
+  let description = [{
     An unknown type (for the current phase of processing).
   }];
 }
@@ -101,7 +101,7 @@ def Basicpy_UnknownType : DialectType<Basicpy_Dialect,
 def Basicpy_ListType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::ListType>()">,
     "List type"> {
-  let typeDescription = [{
+  let description = [{
     A Python list type. In the non-parameterized case, there are limited
     constraints on the element type or length; however, it can be refined to
     include such constraints.
@@ -114,7 +114,7 @@ def Basicpy_ListType : DialectType<Basicpy_Dialect,
 def Basicpy_TupleType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::TupleType>()">,
     "Tuple type"> {
-  let typeDescription = [{
+  let description = [{
     A Python tuple type. In the non-parameterized case, there are limited
     constraints on the element type or length; however, it can be refined to
     include such constraints.
@@ -129,7 +129,7 @@ def Basicpy_TupleType : DialectType<Basicpy_Dialect,
 def Basicpy_DictType : DialectType<Basicpy_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::Basicpy::DictType>()">,
     "Dict type"> {
-  let typeDescription = [{
+  let description = [{
     A Python dict type. In the non-parameterized case, there are limited
     constraints on the key or value types; however, it can be refined to
     include such constraints.

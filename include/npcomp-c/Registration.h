@@ -21,6 +21,9 @@ extern "C" {
  */
 void npcompRegisterAllDialects(MlirContext context);
 
+/** Registers all NPComp passes for symbolic access with the global registry. */
+void npcompRegisterAllPasses();
+
 #ifdef __cplusplus
 }
 #endif

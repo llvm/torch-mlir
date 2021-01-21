@@ -1,0 +1,12 @@
+function(_add_dialect target td_file bind_name)
+  set(LLVM_TARGET_DEFINITIONS ${td_file})
+  mlir_tablegen("${bind_name}.py" -gen-python-op-bindings -bind-dialect=${bind_name})
+  add_public_tablegen_target(${target})
+  add_dependencies(NPCOMPNativePyExt ${target})
+endfunction()
+
+_add_dialect(NPCOMPPyDialectATen ATenBind.td "aten")
+_add_dialect(NPCOMPPyDialectBasicpy BasicpyBind.td "basicpy")
+_add_dialect(NPCOMPPyDialectNumpy NumpyBind.td "numpy")
+_add_dialect(NPCOMPPyDialectTCF TCFBind.td "tcf")
+_add_dialect(NPCOMPPyDialectTorch TorchBind.td "torch")

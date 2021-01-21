@@ -52,8 +52,8 @@ class ShapeRefinementPass : public TCFShapeRefinementBase<ShapeRefinementPass> {
     auto funcType = func.getType();
     SmallVector<Type, 4> resultTypes(firstReturnOp->getOperandTypes().begin(),
                                      firstReturnOp->getOperandTypes().end());
-    func.setType(FunctionType::get(funcType.getInputs(), resultTypes,
-                                   funcType.getContext()));
+    func.setType(FunctionType::get(funcType.getContext(), funcType.getInputs(),
+                                   resultTypes));
   }
 };
 

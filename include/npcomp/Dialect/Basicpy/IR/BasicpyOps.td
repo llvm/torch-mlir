@@ -1,4 +1,4 @@
-//===- BasicPyOps.td - Basic Python ops --------------------*- tablegen -*-===//
+//===- BasicpyOps.td - Basic Python ops --------------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +9,7 @@
 #ifndef NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS
 #define NPCOMP_DIALECT_BASICPY_IR_BASICPY_OPS
 
-include "BasicpyDialect.td"
+include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -510,7 +510,6 @@ def Basicpy_SlotObjectMakeOp : Basicpy_Op<"slot_object_make", [
           !basicpy.SlotObject<slice, !basicpy.NoneType>
   }];
   let arguments = (ins
-    StrAttr:$className,
     // TODO: Tighter constraints on allowable types.
     Variadic<AnyType>:$slots
   );

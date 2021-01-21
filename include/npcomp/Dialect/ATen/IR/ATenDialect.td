@@ -32,7 +32,7 @@ def ATen_Dialect : Dialect {
 def ATen_ListType : DialectType<ATen_Dialect,
     CPred<"$_self.isa<::mlir::NPCOMP::aten::ATenListType>()">, "ATen List">,
     BuildableType<"$_builder.getType<::mlir::NPCOMP::aten::ATenListType()"> {
-  let typeDescription = [{
+  let description = [{
     A variadic list of arguments in ATen.
   }];
 }

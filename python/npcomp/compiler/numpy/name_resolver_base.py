@@ -5,8 +5,7 @@
 
 from typing import Optional
 
-from _npcomp.mlir import ir
-
+from mlir import ir as _ir
 from .interfaces import *
 
 __all__ = [
@@ -36,7 +35,7 @@ class LocalNameReference(NameReference):
           "Attempt to access local '{}' before assignment".format(self.name))
     return PartialEvalResult.yields_ir_value(self._current_value)
 
-  def store(self, env: Environment, value: ir.Value):
+  def store(self, env: Environment, value: _ir.Value):
     self._current_value = value
 
   def __repr__(self):

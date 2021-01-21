@@ -7,8 +7,6 @@ import subprocess
 
 from mlir.ir import *
 from mlir.passmanager import *
-from _npcomp import register_dialects
-from _npcomp import mlir as legacy_mlir
 from npcomp.compiler.generic.backend import iree as iree_backend
 from npcomp.compiler.utils import logging
 
@@ -56,7 +54,7 @@ class CompilerBackend:
     self._ireert = _get_iree()
     self._debug = logging.debug_enabled()
 
-  def compile(self, legacy_imported_ir_module: legacy_mlir.ir.ModuleOp):
+  def compile(self, imported_module: Module):
     """Compiles an imported module.
 
     Args:
@@ -67,10 +65,12 @@ class CompilerBackend:
       for IREE, it is a serialized VM flatbuffer) but the contract is that
       it is operated on by methods on this class.
     """
-    # TODO: Once transitioned to new Python API, don't reparse the module.
-    with Context() as context:
-      register_dialects(context)
-      imported_module = Module.parse(legacy_imported_ir_module.to_asm())
+    with imported_module.context:
+      # Frontend.
+      if self._debug:
+        logging.debug("Input IR:\n{}", imported_module)
+      assert (
+          imported_module.operation.verify()), "Imported module does not verify"
       # Frontend.
       pm = PassManager.parse(",".join(FRONTEND_PASSES))
       pm.run(imported_module)

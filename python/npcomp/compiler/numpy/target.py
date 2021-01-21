@@ -3,7 +3,9 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import *
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+
+from ..utils.mlir_utils import *
 
 __all__ = [
     "GenericTarget32",
@@ -19,32 +21,23 @@ class Target:
   target.
   """
   __slots__ = [
-      "_mlir_helper",
+      "ic",
   ]
 
-  def __init__(self, mlir_helper: ir.DialectHelper):
-    super().__init__()
-    self._mlir_helper = mlir_helper
-
-  @property
-  def mlir_helper(self):
-    return self._mlir_helper
-
-  @property
-  def mlir_context(self):
-    return self._mlir_helper.context
+  def __init__(self, ic):
+    self.ic = ic
 
   @property
   def target_name(self) -> str:
     return NotImplementedError()
 
   @property
-  def impl_int_type(self) -> ir.Type:
+  def impl_int_type(self) -> _ir.Type:
     """Gets the default int type for the backend for the Python 'int' type."""
     raise NotImplementedError()
 
   @property
-  def impl_float_type(self) -> ir.Type:
+  def impl_float_type(self) -> _ir.Type:
     """Gets the implementation's type for the python 'float' type."""
     raise NotImplementedError()
 
@@ -57,14 +50,14 @@ class GenericTarget64(Target):
     return "generic64"
 
   @property
-  def impl_int_type(self) -> ir.Type:
+  def impl_int_type(self) -> _ir.Type:
     """Gets the default int type for the backend for the Python 'int' type."""
-    return self.mlir_helper.i64_type
+    return _ir.IntegerType.get_signless(64, context=self.ic.context)
 
   @property
-  def impl_float_type(self) -> ir.Type:
+  def impl_float_type(self) -> _ir.Type:
     """Gets the implementation's type for the python 'float' type."""
-    return self.mlir_helper.f64_type
+    return _ir.F64Type.get(context=self.ic.context)
 
 
 class GenericTarget32(Target):
@@ -75,15 +68,15 @@ class GenericTarget32(Target):
     return "generic32"
 
   @property
-  def impl_int_type(self) -> ir.Type:
+  def impl_int_type(self) -> _ir.Type:
     """Gets the default int type for the backend for the Python 'int' type."""
-    return self.mlir_helper.i32_type
+    return _ir.IntegerType.get_signless(32, context=self.ic.context)
 
   @property
-  def impl_float_type(self) -> ir.Type:
+  def impl_float_type(self) -> _ir.Type:
     """Gets the implementation's type for the python 'float' type."""
-    return self.mlir_helper.f32_type
+    return _ir.F32Type.get(context=self.ic.context)
 
 
 # Factory for producing a target (matches the Target constructor).
-TargetFactory = Callable[[ir.DialectHelper], Target]
+TargetFactory = Callable[[ImportContext], Target]

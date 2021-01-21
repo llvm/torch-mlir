@@ -8,8 +8,8 @@ add_custom_command(
   TARGET NPCOMPPythonResources
   COMMAND ${CMAKE_COMMAND} -E copy
         # TODO: Make the runtime library work for windows.
-        ${CMAKE_BINARY_DIR}/lib/libNPCOMPCompilerRuntimeShlib.so
-        ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/generic/backend/libNPCOMPCompilerRuntimeShlib.so
+        ${CMAKE_BINARY_DIR}/lib/libNPCOMPCompilerRuntimeShlib${CMAKE_SHARED_LIBRARY_SUFFIX}
+        ${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/generic/backend/libNPCOMPCompilerRuntimeShlib${CMAKE_SHARED_LIBRARY_SUFFIX}
 )
 add_dependencies(NPCOMPPythonResources
   NPCOMPCompilerRuntimeShlib
@@ -75,9 +75,11 @@ target_link_libraries(NPCOMPNativePyExt
     NPCOMP
 
     NPCOMPInitAll
-    NPCOMPPythonCommon
     ${NPCOMP_PYEXT_LIBADD}
   )
 npcomp_python_target_compile_options(NPCOMPNativePyExt)
 
 mlir_check_all_link_libraries(NPCOMPNativePyExt)
+
+# Order dependent: Built artifacts add dependencies to the above targets.
+add_subdirectory(npcomp/dialects)

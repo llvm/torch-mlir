@@ -1,16 +1,24 @@
 #!/bin/bash
 # Usage (for in-tree build/ directory):
 #   ./build_tools/install_mlir.sh
-# Usage (for aribtrary build/ directory):
-#   BUILD_DIR=/build ./build_tools/install_mlir.sh
+# For arbitrary build/install directories, set the env variables:
+# - NPCOMP_BUILD_DIR
+# - LLVM_BUILD_DIR
+# - LLVM_INSTALL_DIR
 set -e
-td="$(realpath $(dirname $0)/..)"
-build_dir="$(realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
+
+portable_realpath() {
+  # Create the directory if needed so that the `cd` doesn't fail.
+  mkdir -p $1 && cd $1 && pwd
+}
+
+td="$(portable_realpath $(dirname $0)/..)"
+build_dir="$(portable_realpath "${NPCOMP_BUILD_DIR:-$td/build}")"
 build_mlir="${LLVM_BUILD_DIR-$build_dir/build-mlir}"
 install_mlir="${LLVM_INSTALL_DIR-$build_dir/install-mlir}"
 
 # Find LLVM source (assumes it is adjacent to this directory).
-LLVM_SRC_DIR="$(realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
+LLVM_SRC_DIR="$(portable_realpath "${LLVM_SRC_DIR:-$td/external/llvm-project}")"
 
 if ! [ -f "$LLVM_SRC_DIR/llvm/CMakeLists.txt" ]; then
   echo "Expected LLVM_SRC_DIR variable to be set correctly (got '$LLVM_SRC_DIR')"
@@ -69,7 +77,6 @@ cmake -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_USE_SPLIT_DWARF=ON \
   -DLLVM_ENABLE_ASSERTIONS=On \
-  -DLLVM_ENABLE_RTTI=On \
   -DMLIR_BINDINGS_PYTHON_ENABLED=ON
 
 cmake --build "$build_mlir" --target install

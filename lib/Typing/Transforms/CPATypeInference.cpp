@@ -296,7 +296,7 @@ public:
       auto resultRange = p.getLastReturnOp()->getOperandTypes();
       resultTypes.append(resultRange.begin(), resultRange.end());
     }
-    auto funcType = FunctionType::get(inputTypes, resultTypes, &getContext());
+    auto funcType = FunctionType::get(&getContext(), inputTypes, resultTypes);
     func.setType(funcType);
   }
 };

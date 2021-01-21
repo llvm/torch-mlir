@@ -7,6 +7,10 @@ import numpy as np
 from collections import namedtuple
 from enum import Enum
 
+from mlir import ir as _ir
+
+from npcomp.dialects import numpy as numpy_ops
+
 
 class Protocol(Enum):
   UFUNC = 1
@@ -39,8 +43,7 @@ TraceInvocation.__new__.__defaults__ = (Protocol.ARRAY_FUNC, "__call__")
 
 
 class EmissionRequest(
-    namedtuple("EmissionRequest",
-               ["input_ssa_values", "dialect_helper", "extra"])):
+    namedtuple("EmissionRequest", ["input_ssa_values", "ic", "extra"])):
   """Represents the result of processing inputs from an invocation.
 
   The `input_ssa_values` are mlir.ir.Value instances corresponding to
@@ -173,11 +176,14 @@ class GenericCallUfuncEmitter(FuncEmitter):
     return py_results[0]
 
   def emit(self, request: EmissionRequest):
-    h = request.dialect_helper
-    op_result_type = h.tensor_type(h.numpy_any_dtype)
-    call_op = h.numpy_builtin_ufunc_call_op(*request.input_ssa_values,
-                                            qualified_name=self._ufunc_name,
-                                            result_type=op_result_type)
+    ic = request.ic
+    name_attr = _ir.StringAttr.get(self._ufunc_name)
+    result_type = ic.unknown_tensor_type
+    call_op = numpy_ops.BuiltinUfuncCallOp(result_type,
+                                           qualified_name=name_attr,
+                                           inputs=request.input_ssa_values,
+                                           loc=ic.loc,
+                                           ip=ic.ip)
     return call_op.results
 
 
@@ -219,9 +225,13 @@ class GenericArrayFuncEmitter(FuncEmitter):
       return tuple(py_results)
 
   def emit(self, request: EmissionRequest):
-    h = request.dialect_helper
-    op_result_types = [h.tensor_type(h.numpy_any_dtype)] * self._nresults
-    op = h.op(self._op_name, op_result_types, request.input_ssa_values)
+    ic = request.ic
+    op_result_types = [ic.unknown_tensor_type] * self._nresults
+    op = _ir.Operation.create(self._op_name,
+                              results=op_result_types,
+                              operands=request.input_ssa_values,
+                              loc=ic.loc,
+                              ip=ic.ip)
     return op.results
 
 

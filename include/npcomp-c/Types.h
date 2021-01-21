@@ -75,6 +75,9 @@ MlirType npcompNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
 /// Helper that gets an equivalent NdArrayType from a ShapedType.
 MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType);
 
+/// Helper that converts an NdArrayType to a TensorType.
+MlirType npcompNdArrayTypeToTensor(MlirType ndarrayType);
+
 /*============================================================================*/
 /* None type.                                                                 */
 /*============================================================================*/
@@ -84,6 +87,14 @@ int npcompTypeIsANone(MlirType t);
 
 /** Gets the type of the singleton 'None'. */
 MlirType npcompNoneTypeGet(MlirContext context);
+
+/*============================================================================*/
+/* SlotObject type.                                                           */
+/*============================================================================*/
+
+MlirType npcompSlotObjectTypeGet(MlirContext context, MlirStringRef className,
+                                 intptr_t slotTypeCount,
+                                 const MlirType *slotTypes);
 
 /*============================================================================*/
 /* Tuple type.                                                                */

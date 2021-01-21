@@ -8,7 +8,10 @@ from typing import Callable, Iterator, Sequence, Tuple
 import functools
 import numpy as np
 
-from _npcomp.mlir import ir
+from mlir import ir as _ir
+
+from npcomp import _cext
+from npcomp.dialects import numpy as numpy_ops
 
 from ....utils import logging
 from ...interfaces import *
@@ -71,7 +74,7 @@ class BuiltinUfuncLiveValueRef(LiveValueRef):
     self._qualified_name = qualified_name
     self._ufunc = ufunc
 
-  def resolve_call(self, env: Environment, args: Sequence[ir.Value],
+  def resolve_call(self, env: Environment, args: Sequence[_ir.Value],
                    keywords: Sequence[str]) -> PartialEvalResult:
     if keywords:
       return PartialEvalResult.error_message(
@@ -80,14 +83,27 @@ class BuiltinUfuncLiveValueRef(LiveValueRef):
       return PartialEvalResult.error_message(
           "ufunc {} expected {} inputs but got {}".format(
               self._qualified_name, self._ufunc.nin, len(args)))
-    ir_h = env.ir_h
+    ic = env.ic
+
     # Because a ufunc call is defined in terms of tensors and, at this stage,
     # all "public" values are ndarray, do appropriate conversions.
-    tensor_args = [ir_h.numpy_copy_to_tensor_op(arg).result for arg in args]
-    result_type = ir_h.numpy_unknown_tensor_type
-    tensor_result = ir_h.numpy_builtin_ufunc_call_op(
-        *tensor_args,
-        qualified_name=self._qualified_name,
-        result_type=result_type).result
-    array_result = ir_h.numpy_create_array_from_tensor_op(tensor_result).result
+    def copy_to_tensor(value):
+      tensor_type = _cext.ndarray_to_tensor_type(value.type)
+      return numpy_ops.CopyToTensorOp(tensor_type, value, loc=ic.loc,
+                                      ip=ic.ip).result
+
+    tensor_args = [copy_to_tensor(arg) for arg in args]
+    result_type = ic.unknown_tensor_type
+    tensor_result = numpy_ops.BuiltinUfuncCallOp(result_type,
+                                                 _ir.StringAttr.get(
+                                                     self._qualified_name,
+                                                     context=ic.context),
+                                                 tensor_args,
+                                                 loc=ic.loc,
+                                                 ip=ic.ip).result
+    array_result = numpy_ops.CreateArrayFromTensorOp(
+        _cext.shaped_to_ndarray_type(tensor_result.type),
+        tensor_result,
+        loc=ic.loc,
+        ip=ic.ip).result
     return PartialEvalResult.yields_ir_value(array_result)

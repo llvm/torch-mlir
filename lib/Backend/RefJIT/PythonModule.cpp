@@ -12,8 +12,6 @@
 
 #include "mlir/CAPI/IR.h"
 #include "mlir/CAPI/Pass.h"
-#include "npcomp/Python/MlirIr.h"
-#include "npcomp/Python/MlirPass.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
 
 using llvm::SmallVector;
@@ -21,8 +19,6 @@ using llvm::StringRef;
 using llvm::Twine;
 
 // Make namespaces consistent.
-using mlir::PyModuleOp;
-using mlir::PyPassManager;
 using refback::JITModule;
 using refbackrt::Ref;
 using refbackrt::Tensor;

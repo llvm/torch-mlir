@@ -57,7 +57,7 @@ public:
       for (auto t : callOp.getCalleeType().getResults())
         tys.push_back(t);
 
-      auto newFnTy = FunctionType::get(tys, {}, op->getContext());
+      auto newFnTy = FunctionType::get(op->getContext(), tys, {});
       // FIXME: possible name collision
       std::string newFnName = callOp.callee().str() + "_out";
 
@@ -130,7 +130,7 @@ public:
       newFuncInputTys.push_back(ty);
 
     FunctionType newFuncTy =
-        FunctionType::get(newFuncInputTys, {}, module.getContext());
+        FunctionType::get(module.getContext(), newFuncInputTys, {});
     graph.setType(newFuncTy);
 
     Operation *retOp = BB.getTerminator();

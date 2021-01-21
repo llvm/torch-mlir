@@ -10,16 +10,14 @@ import inspect
 import textwrap
 from typing import Optional
 
-from _npcomp.mlir import ir
-from _npcomp.mlir.dialect import ScfDialectHelper
-from npcomp.dialect import Numpy
-
+from mlir import ir as _ir
 from ..utils import logging
 from .importer import *
 from .interfaces import *
 from .name_resolver_base import *
 from .value_coder_base import *
 from .target import *
+from ..utils.mlir_utils import *
 
 __all__ = [
     "ImportFrontend",
@@ -29,34 +27,27 @@ __all__ = [
 class ImportFrontend:
   """Frontend for importing various entities into a Module."""
   __slots__ = [
-      "_ir_context",
       "_ir_module",
-      "_ir_h",
       "_config",
+      "_ic",
   ]
 
   def __init__(self,
                *,
                config: Configuration,
-               ir_context: ir.MLIRContext = None):
+               ir_context: Optional[_ir.Context] = None):
     super().__init__()
-    self._ir_context = ir.MLIRContext() if not ir_context else ir_context
-    self._ir_module = self._ir_context.new_module()
-    self._ir_h = AllDialectHelper(self._ir_context,
-                                  ir.OpBuilder(self._ir_context))
+    ic = self._ic = ImportContext(ir_context)
+    self._ic.module = _ir.Module.create(loc=ic.loc)
     self._config = config
 
   @property
-  def ir_context(self):
-    return self._ir_context
+  def ir_context(self) -> _ir.Context:
+    return self._ic.context
 
   @property
-  def ir_module(self):
-    return self._ir_module
-
-  @property
-  def ir_h(self):
-    return self._ir_h
+  def ir_module(self) -> _ir.Module:
+    return self._ic.module
 
   def import_global_function(self, f):
     """Imports a global function.
@@ -70,10 +61,8 @@ class ImportFrontend:
     Args:
       f: The python callable.
     """
-    h = self.ir_h
-    ir_c = self.ir_context
-    ir_m = self.ir_module
-    target = self._config.target_factory(h)
+    ic = self._ic
+    target = self._config.target_factory(ic)
     filename = inspect.getsourcefile(f)
     source_lines, start_lineno = inspect.getsourcelines(f)
     source = "".join(source_lines)
@@ -81,7 +70,6 @@ class ImportFrontend:
     ast_root = ast.parse(source, filename=filename)
     ast.increment_lineno(ast_root, start_lineno - 1)
     ast_fd = ast_root.body[0]
-    filename_ident = ir_c.identifier(filename)
 
     # Define the function.
     # TODO: Much more needs to be done here (arg/result mapping, etc)
@@ -98,27 +86,21 @@ class ImportFrontend:
     ]
     f_return_type = self._resolve_signature_annotation(
         target, f_signature.return_annotation)
-    ir_f_type = h.function_type(f_input_types, [f_return_type])
+    ir_f_type = _ir.FunctionType.get(f_input_types, [f_return_type],
+                                     context=ic.context)
 
-    h.builder.set_file_line_col(filename_ident, ast_fd.lineno,
-                                ast_fd.col_offset)
-    h.builder.insert_before_terminator(ir_m.first_block)
-    # TODO: Do not hardcode this IREE attribute.
-    attrs = ir_c.dictionary_attr({"iree.module.export": ir_c.unit_attr})
-    ir_f = h.func_op(ast_fd.name,
-                     ir_f_type,
-                     create_entry_block=True,
-                     attrs=attrs)
+    ic.set_file_line_col(filename, ast_fd.lineno, ast_fd.col_offset)
+    ic.insert_before_terminator(ic.module.body)
+    ir_f, entry_block = ic.FuncOp(ast_fd.name,
+                                  ir_f_type,
+                                  create_entry_block=True)
+    ic.insert_end_of_block(entry_block)
     env = self._create_const_global_env(f,
                                         parameter_bindings=zip(
                                             f_params.keys(),
-                                            ir_f.first_block.args),
+                                            entry_block.arguments),
                                         target=target)
-    fctx = FunctionContext(ir_c=ir_c,
-                           ir_f=ir_f,
-                           ir_h=h,
-                           filename_ident=filename_ident,
-                           environment=env)
+    fctx = FunctionContext(ic=ic, ir_f=ir_f, filename=filename, environment=env)
 
     fdimport = FunctionDefImporter(fctx, ast_fd)
     fdimport.import_body()
@@ -131,7 +113,7 @@ class ImportFrontend:
     for advanced cases, including mutable global state, closures, etc.
     Globals from the module are considered immutable.
     """
-    ir_h = self._ir_h
+    ic = self._ic
     try:
       code = f.__code__
       globals_dict = f.__globals__
@@ -149,7 +131,7 @@ class ImportFrontend:
         ConstModuleNameResolver(globals_dict, as_dict=True),
         ConstModuleNameResolver(builtins_module),
     )
-    env = Environment(config=self._config, ir_h=ir_h, name_resolvers=resolvers)
+    env = Environment(config=self._config, ic=ic, name_resolvers=resolvers)
 
     # Bind parameters.
     for name, value in parameter_bindings:
@@ -158,9 +140,9 @@ class ImportFrontend:
     return env
 
   def _resolve_signature_annotation(self, target: Target, annot):
-    ir_h = self._ir_h
+    ic = self._ic
     if annot is inspect.Signature.empty:
-      return ir_h.basicpy_UnknownType
+      return ic.unknown_type
 
     # TODO: Do something real here once we need more than the primitive types.
     if annot is int:
@@ -168,23 +150,8 @@ class ImportFrontend:
     elif annot is float:
       return target.impl_float_type
     elif annot is bool:
-      return ir_h.basicpy_BoolType
+      return ic.bool_type
     elif annot is str:
-      return ir_h.basicpy_StrType
+      return ic.str_type
     else:
-      return ir_h.basicpy_UnknownType
-
-
-################################################################################
-# Support
-################################################################################
-
-
-# TODO: Remove this hack in favor of a helper function that combines
-# multiple dialect helpers so that we don't need to deal with the sharp
-# edge of initializing multiple native base classes.
-class AllDialectHelper(Numpy.DialectHelper, ScfDialectHelper):
-
-  def __init__(self, *args, **kwargs):
-    Numpy.DialectHelper.__init__(self, *args, **kwargs)
-    ScfDialectHelper.__init__(self, *args, **kwargs)
+      return ic.unknown_type

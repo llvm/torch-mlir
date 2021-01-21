@@ -1,3 +1,5 @@
+# RUN: %PYTHON %s | FileCheck %s --dump-input=fail
+
 #  Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -25,4 +27,12 @@ exp.dot2d.sig.result += DType(np.float32)
 
 mb = npc.tracing.ModuleBuilder()
 mb.trace(exp.dot2d)
-print(mb.module.to_asm())
+
+# CHECK-LABEL:   func @dot2d(
+# CHECK-SAME:                %[[VAL_0:.*]]: tensor<?x16xf32>,
+# CHECK-SAME:                %[[VAL_1:.*]]: tensor<16x32xf32>) -> tensor<?x32xf32> {
+# CHECK:           %[[VAL_2:.*]] = numpy.dot %[[VAL_0]], %[[VAL_1]] : (tensor<?x16xf32>, tensor<16x32xf32>) -> tensor<*x!basicpy.UnknownType>
+# CHECK:           %[[VAL_3:.*]] = numpy.narrow %[[VAL_2]] : (tensor<*x!basicpy.UnknownType>) -> tensor<?x32xf32>
+# CHECK:           return %[[VAL_3]] : tensor<?x32xf32>
+# CHECK:         }
+print(mb.module)
