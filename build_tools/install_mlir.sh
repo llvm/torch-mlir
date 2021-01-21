@@ -67,6 +67,7 @@ cmake -GNinja \
   "-B$build_mlir" \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
   "-DPYTHON_EXECUTABLE=$python_exe" \
+  "-DPython3_EXECUTABLE=$python_exe" \
   -DLLVM_BUILD_LLVM_DYLIB=ON \
   -DLLVM_LINK_LLVM_DYLIB=ON \
   -DLLVM_INSTALL_UTILS=ON \

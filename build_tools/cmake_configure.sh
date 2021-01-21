@@ -105,6 +105,7 @@ cmake -GNinja \
   "-DNPCOMP_USE_SPLIT_DWARF=ON" \
   "-DCMAKE_CXX_FLAGS_DEBUG=$DEBUG_FLAGS" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
+  "-DPython3_EXECUTABLE=$python_exe" \
   "-DMLIR_DIR=$install_mlir/lib/cmake/mlir" \
   "-DLLVM_EXTERNAL_LIT=$LLVM_LIT" \
   "-DLLVM_ENABLE_WARNINGS=ON" \
