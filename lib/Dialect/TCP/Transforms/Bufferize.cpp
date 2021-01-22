@@ -49,7 +49,7 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
       Value outDim         = builder.create<AddIOp>(op.getLoc(), totalExpansion, operandDim);
       outDims.push_back(outDim);
     }
-    Value outDimTensor = builder.create<TensorFromElementsOp>(op.getLoc(), ValueRange(outDims));
+    Value outDimTensor = builder.create<tensor::FromElementsOp>(op.getLoc(), ValueRange(outDims));
     return {outDimTensor};
   }
 

@@ -41,7 +41,7 @@ func @tcp_splatted(%arg0: f32, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
 // CHECK:           %[[D1:.*]] = dim %[[TENSOR]], %[[C0_0]] : tensor<?xf32>
 // CHECK:           %[[D1_EXPANSION:.*]] = addi %[[LOWER_EXTENT_D1]], %[[UPPER_EXTENT_D1]] : index
 // CHECK:           %[[D1_OUT:.*]] = addi %[[D1_EXPANSION]], %[[D1]] : index
-// CHECK:           %[[D1_OUT_TENSOR:.*]] = tensor_from_elements %[[D1_OUT]] : tensor<1xindex>
+// CHECK:           %[[D1_OUT_TENSOR:.*]] = tensor.from_elements %[[D1_OUT]] : tensor<1xindex>
 // CHECK:           %[[D1_OUT_MREF:.*]] = refback.alloc_memref %[[D1_OUT_TENSOR]] : memref<?xf32>
 // CHECK:           %[[C1:.*]] = constant 1 : index
 // CHECK:           %[[C0_1:.*]] = constant 0 : index
