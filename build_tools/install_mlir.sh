@@ -60,13 +60,10 @@ if [ -z "$python_exe" ]; then
   exit 1
 fi
 
-# TODO: Make it possible to build without an RTTI compiled LLVM. There are
-# a handful of vague linkage issues that need to be fixed upstream.
 cmake -GNinja \
   "-H$LLVM_SRC_DIR/llvm" \
   "-B$build_mlir" \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
-  "-DPYTHON_EXECUTABLE=$python_exe" \
   "-DPython3_EXECUTABLE=$python_exe" \
   -DLLVM_BUILD_LLVM_DYLIB=ON \
   -DLLVM_LINK_LLVM_DYLIB=ON \
@@ -78,6 +75,7 @@ cmake -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_USE_SPLIT_DWARF=ON \
   -DLLVM_ENABLE_ASSERTIONS=On \
-  -DMLIR_BINDINGS_PYTHON_ENABLED=ON
+  -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
+  "$@"
 
 cmake --build "$build_mlir" --target install
