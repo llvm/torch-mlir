@@ -30,6 +30,7 @@ config.llvm_host_triple = '@LLVM_HOST_TRIPLE@'
 config.host_arch = "@HOST_ARCH@"
 config.npcomp_src_root = "@CMAKE_SOURCE_DIR@"
 config.npcomp_obj_root = "@CMAKE_BINARY_DIR@"
+config.npcomp_built_standalone = bool("@NPCOMP_BUILT_STANDALONE@")
 
 # Optional features.
 config.npcomp_enable_iree = @NPCOMP_ENABLE_IREE@
@@ -49,4 +50,4 @@ import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@CMAKE_SOURCE_DIR@/test/lit.cfg.py")
+lit_config.load_config(config, "@CMAKE_CURRENT_SOURCE_DIR@/lit.cfg.py")
