@@ -57,7 +57,9 @@ def TCP_SplattedOp : TCP_Op<"splatted"> {
 def TCP_PadOp : TCP_Op<"pad"> {
   let summary = "Pads a tensor with a fill value";
   let description = [{
-    Pads a tensor with `fillVal` along the borders of each dimension according to `lowerExpansion` and `upperExpansion`. Note that this op is unmanaged, meaning that it assumes its operands and their shapes are valid.
+    Pads a tensor with `fillVal` along the borders of each dimension according
+    to `lowerExpansion` and `upperExpansion`. Note that this op is unmanaged,
+    meaning that it assumes its operands and their shapes are valid.
 
     The tensors have dimensions:
     - operand:   [D1, D2, ..., DN]
