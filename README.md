@@ -24,13 +24,13 @@ See the [features doc](docs/features.md) for a semi-curated status of what is im
 
 The compiler is separated into:
 
-* [Frontend importer](python/npcomp/compiler/frontend.py): Translates from
+* [Frontend importer](python/npcomp/compiler/numpy/frontend.py): Translates from
   various AST levels to corresponding MLIR dialects.
 * Frontend compiler: MLIR passes and conversions, mostly operating on the
   [basicpy](include/npcomp/Dialect/Basicpy/IR/BasicpyOps.td) and
   [numpy](include/npcomp/Dialect/Numpy/IR/NumpyOps.td) dialects.
 * Backend compiler and runtime: Some effort has been taken to make this
-  pluggable, but right now, only the [IREE Backend](python/npcomp/compiler/backend/iree.py)
+  pluggable, but right now, only the [IREE Backend](python/npcomp/compiler/generic/backend/iree.py)
   exists. There is in-tree work to also build a minimal reference backend
   directly targeting LLVM.
 
