@@ -27,8 +27,8 @@ The compiler is separated into:
 * [Frontend importer](python/npcomp/compiler/frontend.py): Translates from
   various AST levels to corresponding MLIR dialects.
 * Frontend compiler: MLIR passes and conversions, mostly operating on the
-  [basicpy](include/Dialect/Basicpy/IR/BasicpyOps.td) and
-  [numpy](include/Dialect/Numpy/IR/NumpyOps.td) dialects.
+  [basicpy](include/npcomp/Dialect/Basicpy/IR/BasicpyOps.td) and
+  [numpy](include/npcomp/Dialect/Numpy/IR/NumpyOps.td) dialects.
 * Backend compiler and runtime: Some effort has been taken to make this
   pluggable, but right now, only the [IREE Backend](python/npcomp/compiler/backend/iree.py)
   exists. There is in-tree work to also build a minimal reference backend
