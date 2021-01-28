@@ -35,5 +35,9 @@ func @numeric_constant() {
   %2 = basicpy.numeric_constant 2.0 : f32
   // CHECK: %num_0 = basicpy.numeric_constant [2.000000e+00 : f32, 3.000000e+00 : f32] : complex<f32>
   %3 = basicpy.numeric_constant [2.0 : f32, 3.0 : f32] : complex<f32>
+  // CHECK: %bool_true = basicpy.bool_constant true
+  %4 = basicpy.bool_constant true
+  // CHECK: %bool_false = basicpy.bool_constant false
+  %5 = basicpy.bool_constant false
   return
 }

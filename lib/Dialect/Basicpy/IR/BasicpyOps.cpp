@@ -31,7 +31,10 @@ OpFoldResult BoolConstantOp::fold(ArrayRef<Attribute> operands) {
 
 void BoolConstantOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "bool");
+  if (value())
+    setNameFn(getResult(), "bool_true");
+  else
+    setNameFn(getResult(), "bool_false");
 }
 
 //===----------------------------------------------------------------------===//

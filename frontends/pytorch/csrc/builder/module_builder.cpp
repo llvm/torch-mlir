@@ -8,6 +8,7 @@
 #include "module_builder.h"
 
 #include "graph_importer.h"
+#include "ivalue_importer.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/BuiltinAttributes.h"
@@ -109,6 +110,11 @@ ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
   return function;
 }
 
+void ModuleBuilder::importModule(torch::jit::Module jitModule) {
+  importIValue(jitModule._ivalue(), mlirModuleGetBody(module),
+               mlirModuleGetContext(module));
+}
+
 FuncBuilder::Inserter ModuleBuilder::createInserter() {
   MlirBlock block = getBodyBlock();
   MlirOperation terminator = this->terminator;
@@ -129,5 +135,6 @@ void ModuleBuilder::bind(py::module &m) {
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
       .def("capture_function", &ModuleBuilder::startCaptureFunction,
            py::keep_alive<0, 1>())
-      .def("import_function", &ModuleBuilder::importFunction);
+      .def("import_function", &ModuleBuilder::importFunction)
+      .def("import_module", &ModuleBuilder::importModule);
 }

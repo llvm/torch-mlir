@@ -16,6 +16,7 @@
 
 #include <ATen/Tensor.h>
 #include <torch/csrc/jit/api/compilation_unit.h>
+#include <torch/csrc/jit/api/module.h>
 #include <torch/csrc/jit/ir/ir.h>
 
 namespace torch_mlir {
@@ -42,6 +43,9 @@ public:
   // Returns the same function, making it suitable as a nested decorator.
   torch::jit::StrongFunctionPtr
   importFunction(torch::jit::StrongFunctionPtr function);
+
+  // Imports a torch::jit::Module into the current module.
+  void importModule(torch::jit::Module jitModule);
 
 private:
   FuncBuilder::Inserter createInserter();

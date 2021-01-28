@@ -31,6 +31,52 @@ inline MlirNamedAttribute toMlirNamedAttribute(const char *s,
   return mlirNamedAttributeGet(ident, attr);
 }
 
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    MlirNamedAttribute namedAttr) {
+  mlirOperationStateAddAttributes(&state, 1, &namedAttr);
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    MlirRegion region) {
+  mlirOperationStateAddOwnedRegions(&state, 1, &region);
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    MlirValue value) {
+  mlirOperationStateAddOperands(&state, 1, &value);
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    MlirType resultType) {
+  mlirOperationStateAddResults(&state, 1, &resultType);
+}
+
+template <typename T, typename... Ts>
+void addToMlirOperationState(MlirOperationState &state, T &&t, Ts &&...ts) {
+  addToMlirOperationState(state, t);
+  addToMlirOperationState(state, std::forward<Ts>(ts)...);
+}
+
+inline void addToMlirOperationState(MlirOperationState &state) {}
+
+template <typename... Ts>
+MlirOperation createMlirOperation(std::string name, MlirLocation loc,
+                                  Ts &&...ts) {
+  MlirOperationState state = mlirOperationStateGet(toMlirStringRef(name), loc);
+  addToMlirOperationState(state, std::forward<Ts>(ts)...);
+  return mlirOperationCreate(&state);
+}
+
+template <typename... Ts>
+MlirOperation createMlirOperationAtEnd(MlirBlock block, std::string name,
+                                       MlirLocation loc, Ts &&...ts) {
+  MlirOperation operation =
+      createMlirOperation(name, loc, std::forward<Ts>(ts)...);
+  mlirBlockInsertOwnedOperationBefore(block, mlirBlockGetTerminator(block),
+                                      operation);
+  return operation;
+}
+
 } // namespace torch_mlir
 
 #endif // NPCOMP_FRONTENDS_PYTORCH_CSRC_MLIR_UTILS_H

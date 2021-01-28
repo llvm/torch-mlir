@@ -5,6 +5,11 @@ mlir_tablegen(TorchDialect.h.inc -gen-dialect-decls -dialect=torch)
 add_public_tablegen_target(MLIRTorchOpsIncGen)
 add_dependencies(mlir-headers MLIRTorchOpsIncGen)
 
+set(LLVM_TARGET_DEFINITIONS TorchTypes.td)
+mlir_tablegen(TorchTypes.h.inc -gen-typedef-decls)
+mlir_tablegen(TorchTypes.cpp.inc -gen-typedef-defs)
+add_public_tablegen_target(MLIRTorchTypesIncGen)
+
 set(LLVM_TARGET_DEFINITIONS OpInterfaces.td)
 mlir_tablegen(OpInterfaces.h.inc -gen-op-interface-decls)
 mlir_tablegen(OpInterfaces.cpp.inc -gen-op-interface-defs)

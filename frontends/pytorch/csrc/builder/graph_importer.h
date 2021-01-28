@@ -20,8 +20,10 @@
 
 namespace torch_mlir {
 
-/// Main entry-point for importing torch::jit::Graph instances (and structures
-/// surrounding them such as modules and methods).
+/// Main entry-point for importing torch::jit::Graph instances.
+///
+/// This code doesn't handle importing of torch::jit::Module's. See
+/// ModuleImporter for that.
 ///
 /// In torch terminology, a Graph is a function. Later in the compiler, we may
 /// specialize multiple versions of it.
