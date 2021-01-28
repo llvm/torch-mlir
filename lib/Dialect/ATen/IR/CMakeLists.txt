@@ -9,6 +9,7 @@ add_npcomp_dialect_library(NPCOMPATenDialect
   MLIRATenIncGen
   #MLIRATenEnumsIncGen
   MLIRATenOpInterfacesIncGen
+  MLIRTorchOpInterfacesIncGen
   #MLIRATenToStdIncGen
 
   LINK_LIBS PUBLIC

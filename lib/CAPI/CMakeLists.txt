@@ -16,4 +16,5 @@ add_npcomp_library(NPCOMPCAPI
   NPCOMPInitAll
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
+  NPCOMPTorchDialect
   )

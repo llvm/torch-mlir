@@ -107,6 +107,16 @@ int npcompTypeIsATuple(MlirType t);
 /** Gets the generic Python "tuple" type. */
 MlirType npcompTupleTypeGet(MlirContext context);
 
+/*============================================================================*/
+/* torch.nn.Module type.                                                      */
+/*============================================================================*/
+
+/** Checks whether the given type is a torch.nn.Module type */
+int npcompTypeIsANnModule(MlirType t);
+
+/** Gets the singleton torch.nn.Module type. */
+MlirType npcompNnModuleTypeGet(MlirContext context);
+
 #ifdef __cplusplus
 }
 #endif

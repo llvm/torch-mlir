@@ -50,7 +50,7 @@ func @numeric_constant_complex_f32() -> complex<f32> {
 // -----
 // CHECK-LABEL: @bool_constant
 func @bool_constant() -> !basicpy.BoolType {
-  // CHECK: %bool = basicpy.bool_constant true
+  // CHECK: %bool_true = basicpy.bool_constant true
   %0 = basicpy.bool_constant true
   return %0 : !basicpy.BoolType
 }

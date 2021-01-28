@@ -9,6 +9,7 @@
 #define NPCOMP_FRONTENDS_PYTORCH_CSRC_BUILDER_FUNC_BUILDER_H
 
 #include "mlir_utils.h"
+#include "torch_to_mlir_utils.h"
 
 #include "mlir-c/IR.h"
 
@@ -43,34 +44,6 @@ public:
 private:
   MlirOperationState state;
   bool owned = true;
-};
-
-/// Maps various runtime types to MlirType.
-class TypeMapper {
-public:
-  TypeMapper(MlirContext context) : context(context) {}
-
-  /// Gets a corresponding MlirType for the Torch ScalarType.
-  /// Throws std::invalid_argument on failure.
-  MlirType mapFromTorchScalarType(c10::ScalarType scalarType);
-
-  /// Gets a corresponding MlirType for the forward component of a tensor.
-  /// Throws std::invalid_argument on failure.
-  MlirType forwardTensorToType(at::Tensor tensor);
-
-  /// Gets a corresponding MlirType for the Torch ScalarType.
-  /// Returns a null type on failure and emits a diagnostic.
-  MlirType mapFromTorchScalarType(MlirLocation loc, c10::ScalarType scalarType);
-
-  /// Maps a torch type to a corresponding MlirType. Returns a null type
-  /// on failure and emits a diagnostic.
-  MlirType mapFromTorchType(MlirLocation loc, const c10::TypePtr &torchType);
-
-private:
-  /// Maps from a scalar type and returns null if no match (no other error
-  /// reporting).
-  MlirType rawMapFromTorchScalarType(c10::ScalarType scalarType);
-  MlirContext context;
 };
 
 /// Wraps an MlirBlock under construction, primarily tracking the terminator

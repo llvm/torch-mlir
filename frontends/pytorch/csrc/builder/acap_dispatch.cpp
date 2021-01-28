@@ -529,80 +529,15 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
 }
 
 MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
-  using at::ScalarType;
-
-  auto throwUnsupportedTensorError = [&]() {
-    std::stringstream msg;
-    msg << "Unsupported import tensor type: " << tensor;
-    throw std::invalid_argument(msg.str());
-  };
-
-  // Get a C-contiguous form as we can bulk-load that into a DenseElementsAttr.
-  if (!tensor.is_contiguous())
-    tensor = tensor.contiguous();
-
-  // The flat number of bytes throws an exception for tensors that are not
-  // dense and accessible as such.
-  at::checkLayout(at::CheckedFrom("accessing contiguous"), tensor,
-                  c10::Layout::Strided);
-
-  // Construct the ShapedType.
   auto loc = getCurrentLocation();
-  MlirType elementType;
-  if (tensor.scalar_type() == ScalarType::Bool) {
-    // Bool is a special case. When used as an element type, it must be i1.
-    // The generalized (non-Tensor) conversion, assumes that Bool is the
-    // Basicpy bool type.
-    elementType = mlirIntegerTypeGet(funcBuilder->getContext(), 1);
-  } else {
-    elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
-  }
-  std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-  MlirType shapedType = mlirRankedTensorTypeGetChecked(
-      shape.size(), shape.data(), elementType, loc);
-  if (mlirTypeIsNull(shapedType)) {
-    throwUnsupportedTensorError();
-  }
-
-  // Import DenseElementsAttr data.
-  // TODO: Support bool tensors.
-  // TODO: More import formats in C-API.
-  MlirAttribute valueAttribute;
-  auto numElements = tensor.numel();
-  auto tensorData = tensor.data_ptr();
-  switch (tensor.scalar_type()) {
-  case ScalarType::Int:
-    valueAttribute = mlirDenseElementsAttrInt32Get(
-        shapedType, numElements, static_cast<const int32_t *>(tensorData));
-    break;
-  case ScalarType::Long:
-    valueAttribute = mlirDenseElementsAttrInt64Get(
-        shapedType, numElements, static_cast<const int64_t *>(tensorData));
-    break;
-  case ScalarType::Float:
-    valueAttribute = mlirDenseElementsAttrFloatGet(
-        shapedType, numElements, static_cast<const float *>(tensorData));
-    break;
-  case ScalarType::Double:
-    valueAttribute = mlirDenseElementsAttrDoubleGet(
-        shapedType, numElements, static_cast<const double *>(tensorData));
-    break;
-  case ScalarType::Bool:
-    // TODO: Add a test specifically for bool and ensure consistency between
-    // storage format and load format
-    // (https://github.com/llvm/mlir-npcomp/issues/100).
-    valueAttribute = mlirDenseElementsAttrBoolGet(
-        shapedType, numElements, static_cast<const int *>(tensorData));
-    break;
-  default:
-    throwUnsupportedTensorError();
-  }
+  MlirAttribute valueAttribute = converTensorToMlirElementsAttr(tensor, loc);
   MlirValue constTensorValue =
       funcBuilder->getGeneralConstant(loc, valueAttribute);
 
   // Create an array from the tensor constant via the
   // numpy.create_array_from_tensor op.
-  MlirType constArrayType = npcompNdArrayTypeGetFromShaped(shapedType);
+  MlirType constArrayType =
+      npcompNdArrayTypeGetFromShaped(mlirAttributeGetType(valueAttribute));
   MlirOperationState state = mlirOperationStateGet(
       toMlirStringRef("numpy.create_array_from_tensor"), loc);
   mlirOperationStateAddOperands(&state, 1, &constTensorValue);

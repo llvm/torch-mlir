@@ -13,6 +13,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
+#include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -132,4 +133,18 @@ int npcompTypeIsATuple(MlirType t) {
 /** Gets the "any dtype" type. */
 MlirType npcompTupleTypeGet(MlirContext context) {
   return wrap(Basicpy::TupleType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* torch.nn.Module type.                                                      */
+/*============================================================================*/
+
+/** Checks whether the given type is a torch.nn.Module type */
+int npcompTypeIsANnModule(MlirType t) {
+  return unwrap(t).isa<Torch::NnModuleType>();
+}
+
+/** Gets the singleton torch.nn.Module type. */
+MlirType npcompNnModuleTypeGet(MlirContext context) {
+  return wrap(Torch::NnModuleType::get(unwrap(context)));
 }
