@@ -19,9 +19,9 @@ mb = torch_mlir.ModuleBuilder()
 def add3(t0, t1, t2):
   # TODO: Checks for debug info are quite hard with the new trailing debug
   # attribute print. See if this can be improved.
-  # CHECK: loc({{.*}}test_script_debug_info.py":[[# @LINE + 1]]
+  # CHECK: loc({{.*}}debug-info.py":[[# @LINE + 1]]
   intermediate = t0 + t1
-  # CHECK: loc({{.*}}test_script_debug_info.py":[[# @LINE + 1]]
+  # CHECK: loc({{.*}}debug-info.py":[[# @LINE + 1]]
   final = intermediate + t2
   return final
 
