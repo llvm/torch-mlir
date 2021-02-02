@@ -16,6 +16,8 @@ add_library(NPCOMPTorchMLIRExt SHARED
   builder/func_builder.cpp
   builder/graph_importer.cpp
   builder/module_builder.cpp
+  builder/node_importer.cpp
+  builder/op_builder.cpp
   builder/ivalue_importer.cpp
   builder/python_bindings.cpp
   builder/torch_to_mlir_utils.cpp

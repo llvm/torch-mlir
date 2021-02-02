@@ -19,6 +19,6 @@ try:
     return x
 except RuntimeError as e:
   # TODO: Once diagnostics are enabled, verify the actual error emitted.
-  assert str(e) == "could not convert function input type"
+  assert str(e) == "unsupported type"
 else:
   assert False, "Expected exception"

@@ -55,6 +55,16 @@ private:
 MlirAttribute converTensorToMlirElementsAttr(at::Tensor tensor,
                                              MlirLocation loc);
 
+MlirAttribute importAttribute(MlirLocation loc, torch::jit::Node *node,
+                              c10::Symbol symbol);
+
+MlirLocation getMlirLocationFromNode(MlirContext context,
+                                     torch::jit::Node *node);
+
+std::vector<MlirType>
+getMlirTypesFromValues(MlirLocation loc,
+                       c10::ArrayRef<torch::jit::Value *> values);
+
 } // namespace torch_mlir
 
 #endif // NPCOMP_FRONTENDS_PYTORCH_CSRC_TORCH_TO_MLIR_UTILS_H

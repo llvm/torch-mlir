@@ -131,4 +131,45 @@ def Torch_MethodOp : Torch_Op<"method", [
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// TorchScript `prim::` ops.
+//===----------------------------------------------------------------------===//
+
+def Torch_PrimGetAttrOp : Torch_Op<"prim.GetAttr", []> {
+  let summary = "TorchScript prim::GetAttr op";
+
+  let arguments = (ins StrAttr:$name, Torch_NnModuleType:$receiver);
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    $receiver `[` $name `]` attr-dict `:` type($result)
+  }];
+}
+
+def Torch_PrimSetAttrOp : Torch_Op<"prim.SetAttr", []> {
+  let summary = "TorchScript prim::SetAttr op";
+
+  let arguments = (ins
+    StrAttr:$name,
+    Torch_NnModuleType:$receiver,
+    AnyTorchType:$value
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $receiver `[` $name `]` `=` $value attr-dict `:` type($value)
+  }];
+}
+
+def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
+  let summary = "TorchScript prim::CallMethod op";
+
+  let arguments = (ins StrAttr:$name, Torch_NnModuleType:$receiver);
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    $receiver `[` $name `]` attr-dict `:` type($result)
+  }];
+}
+
 #endif // TORCH_OPS

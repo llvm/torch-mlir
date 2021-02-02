@@ -114,6 +114,12 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
   case TypeKind::IntType: {
     return mlirIntegerTypeGet(context, 64);
   }
+  case TypeKind::NoneType: {
+    return npcompNoneTypeGet(context);
+  }
+  case TypeKind::BoolType: {
+    return npcompBoolTypeGet(context);
+  }
   default: {
     std::stringstream message;
     message << "unable to map Torch type " << *torchType << " to MLIR type";
@@ -209,4 +215,55 @@ MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
     throwUnsupportedTensorError();
   }
   return {nullptr}; // Unreachable.
+}
+
+MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
+                                          torch::jit::Node *node,
+                                          c10::Symbol symbol) {
+  MlirContext context = mlirLocationGetContext(loc);
+  auto kind = node->kindOf(symbol);
+  switch (kind) {
+  case torch::jit::AttributeKind::i:
+    // TODO: This should be a signed int once we have a constant op that can
+    // do that.
+    return mlirIntegerAttrGet(mlirIntegerTypeGet(context, 64), node->i(symbol));
+  case torch::jit::AttributeKind::f:
+    return mlirFloatAttrDoubleGet(context, mlirF64TypeGet(context),
+                                  node->f(symbol));
+  case torch::jit::AttributeKind::s:
+    return mlirStringAttrGet(context, toMlirStringRef(node->s(symbol)));
+  default: {
+    std::stringstream msg;
+    msg << "unhandled: value attribute kind " << toString(kind);
+    mlirEmitError(loc, msg.str().c_str());
+    throw mlir_diagnostic_emitted();
+  }
+  }
+}
+
+MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
+                                                 torch::jit::Node *node) {
+  auto flc = node->sourceRange().file_line_col();
+  if (flc) {
+    const std::string &file = std::get<0>(*flc);
+    int line = std::get<1>(*flc);
+    int col = std::get<2>(*flc);
+    return mlirLocationFileLineColGet(context, toMlirStringRef(file), line,
+                                      col);
+  }
+  return mlirLocationUnknownGet(context);
+}
+
+std::vector<MlirType>
+torch_mlir::getMlirTypesFromValues(MlirLocation loc,
+                                   c10::ArrayRef<torch::jit::Value *> values) {
+  TypeMapper typeMapper(mlirLocationGetContext(loc));
+  std::vector<MlirType> ret;
+  for (auto value : values) {
+    MlirType t = typeMapper.mapFromTorchType(loc, value->type());
+    if (mlirTypeIsNull(t))
+      throw mlir_diagnostic_emitted("unsupported type");
+    ret.push_back(t);
+  }
+  return ret;
 }
