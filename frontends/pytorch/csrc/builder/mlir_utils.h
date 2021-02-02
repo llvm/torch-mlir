@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
@@ -47,13 +48,23 @@ inline void addToMlirOperationState(MlirOperationState &state,
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
+                                    std::vector<MlirValue> &&values) {
+  mlirOperationStateAddOperands(&state, values.size(), values.data());
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
                                     MlirType resultType) {
   mlirOperationStateAddResults(&state, 1, &resultType);
 }
 
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    std::vector<MlirType> &&resultTypes) {
+  mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
+}
+
 template <typename T, typename... Ts>
 void addToMlirOperationState(MlirOperationState &state, T &&t, Ts &&...ts) {
-  addToMlirOperationState(state, t);
+  addToMlirOperationState(state, std::forward<T>(t));
   addToMlirOperationState(state, std::forward<Ts>(ts)...);
 }
 

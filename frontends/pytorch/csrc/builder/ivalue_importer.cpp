@@ -139,28 +139,19 @@ MlirValue IValueImporter::importIValue(c10::IValue ivalue) {
 
 void IValueImporter::importMethod(torch::jit::Function *function,
                                   MlirBlock nnModuleBody) {
-  // TODO: Can we do better?
-  MlirLocation loc = mlirLocationUnknownGet(context);
-
-  FuncBuilder::Inserter inserter = [&](MlirOperation func) {
-    mlirBlockInsertOwnedOperationBefore(
-        importBlock, mlirBlockGetTerminator(importBlock), func);
-    // TODO: This should probably be a flag in MlirMappingOptions.
-    mlirOperationSetAttributeByName(
-        func, toMlirStringRef("sym_visibility"),
-        mlirStringAttrGet(context, toMlirStringRef("private")));
-  };
   // We make an effort for the func op's symbol name to be useful for debugging,
   // but still clearly non-load-bearing.
   std::string symName =
       "__npcomp_priv_fn." + function->qualname().qualifiedName();
-  GraphImporter::MlirMappingOptions mappingOptions{context, symName, symName,
-                                                   typeMapper, inserter};
-  GraphImporter importer(function->graph(), mappingOptions);
-  importer.initialize();
-  importer.importGenericFunc();
+  MlirOperation func =
+      importGraphAsFuncOp(context, function->graph().get(), symName);
+  mlirOperationSetAttributeByName(
+      func, toMlirStringRef("sym_visibility"),
+      mlirStringAttrGet(context, toMlirStringRef("private")));
+  mlirBlockInsertOwnedOperationBefore(
+      importBlock, mlirBlockGetTerminator(importBlock), func);
   createMlirOperationAtEnd(
-      nnModuleBody, "torch.method", loc,
+      nnModuleBody, "torch.method", mlirLocationUnknownGet(context),
       toMlirNamedAttribute(
           "name",
           mlirStringAttrGet(context, toMlirStringRef(function->name()))),

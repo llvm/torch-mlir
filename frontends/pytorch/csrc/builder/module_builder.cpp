@@ -97,16 +97,11 @@ ModuleBuilder::startCaptureFunction(std::string &name,
 
 torch::jit::StrongFunctionPtr
 ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
-  auto inserter = createInserter();
-  GraphImporter::MlirMappingOptions mappingOptions{
-      context,
-      c10::nullopt, // genericFuncName (default to auto)
-      c10::nullopt, // funcName (default to auto)
-      typeMapper, inserter};
-  auto graphImporter = GraphImporter::forPythonJitFunc(
-      function.function_, std::move(mappingOptions));
-  graphImporter->initialize();
-  graphImporter->importGenericFunc();
+  MlirBlock block = getBodyBlock();
+  MlirOperation terminator = this->terminator;
+  MlirOperation func = importGraphAsFuncOp(
+      context, function.function_->graph().get(), function.function_->name());
+  mlirBlockInsertOwnedOperationBefore(block, terminator, func);
   return function;
 }
 

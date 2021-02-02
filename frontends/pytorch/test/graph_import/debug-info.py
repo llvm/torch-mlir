@@ -9,7 +9,7 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
-# CHECK-LABEL: func @add3$generic
+# CHECK-LABEL: func @add3
 # Note that line-level debug information for parts unannotated in the Torch
 # graph are ascribed to the first op that carries source information. Presently
 # this includes naked constants, return and the function itself. This heuristic

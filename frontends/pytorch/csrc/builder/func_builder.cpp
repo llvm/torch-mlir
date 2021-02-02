@@ -7,21 +7,14 @@
 
 #include "func_builder.h"
 
+#include "op_builder.h"
+
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
 #include "npcomp-c/Types.h"
 
 using namespace torch_mlir;
-
-static MlirOperation createStandardConstant(MlirLocation loc, MlirType type,
-                                            MlirAttribute value) {
-  OperationStateHolder s("std.constant", loc);
-  MlirNamedAttribute valueAttr = toMlirNamedAttribute("value", value);
-  mlirOperationStateAddResults(s, 1, &type);
-  mlirOperationStateAddAttributes(s, 1, &valueAttr);
-  return s.createOperation();
-}
 
 KernelCallBuilder::KernelCallBuilder(MlirContext context, MlirLocation loc,
                                      const std::string &kernelName,
@@ -189,24 +182,16 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
 }
 
 MlirValue FuncBuilder::getBoolConstant(MlirLocation loc, bool v) {
-  MlirAttribute value = mlirBoolAttrGet(context, v);
-  return getGeneralConstant(loc, value);
+  return insertConstantOp(OpBuilder(context).createBoolConstant(loc, v));
 }
 
 MlirValue FuncBuilder::getNoneConstant(MlirLocation loc) {
-  OperationStateHolder state{"basicpy.singleton", loc};
-  MlirType noneType = npcompNoneTypeGet(context);
-  mlirOperationStateAddResults(state, 1, &noneType);
-  MlirOperation op = state.createOperation();
-  return insertConstantOp(op);
+  return insertConstantOp(OpBuilder(context).createNoneConstant(loc));
 }
 
 MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
                                           MlirAttribute value) {
-  MlirType valueType = mlirAttributeGetType(value);
-  MlirOperation constOp = createStandardConstant(loc, valueType, value);
-  MlirValue constValue = insertConstantOp(constOp);
-  return constValue;
+  return insertConstantOp(OpBuilder(context).createStdConstant(loc, value));
 }
 
 MlirValue FuncBuilder::buildList(MlirLocation loc,
