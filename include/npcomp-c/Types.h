@@ -38,6 +38,16 @@ int npcompTypeIsABool(MlirType t);
 MlirType npcompBoolTypeGet(MlirContext context);
 
 /*============================================================================*/
+/* Bytes type.                                                                */
+/*============================================================================*/
+
+/** Checks whether the given type is the Python "bytes" type. */
+int npcompTypeIsABytes(MlirType t);
+
+/** Gets the Python "bytes" type. */
+MlirType npcompBytesTypeGet(MlirContext context);
+
+/*============================================================================*/
 /* Dict type.                                                                 */
 /*============================================================================*/
 

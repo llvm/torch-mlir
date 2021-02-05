@@ -30,6 +30,13 @@ static int printStandardTypes(MlirContext ctx) {
   mlirTypeDump(boolType);
   fprintf(stderr, "\n");
 
+  // Bytes type.
+  MlirType bytesType = npcompBytesTypeGet(ctx);
+  if (!npcompTypeIsABytes(bytesType))
+    return 1;
+  mlirTypeDump(bytesType);
+  fprintf(stderr, "\n");
+
   // Any dtype.
   MlirType anyDtype = npcompAnyDtypeTypeGet(ctx);
   if (!npcompTypeIsAAnyDtype(anyDtype))
@@ -56,6 +63,7 @@ int main() {
   // clang-format off
   // CHECK-LABEL: @types
   // CHECK: !basicpy.BoolType
+  // CHECK: !basicpy.BytesType
   // CHECK: !numpy.any_dtype
   // CHECK: !numpy.ndarray<[4]:!basicpy.BoolType>
   // CHECK: 0

@@ -41,6 +41,18 @@ MlirType npcompBoolTypeGet(MlirContext context) {
 }
 
 /*============================================================================*/
+/* Bytes type.                                                                */
+/*============================================================================*/
+
+int npcompTypeIsABytes(MlirType t) {
+  return unwrap(t).isa<Basicpy::BytesType>();
+}
+
+MlirType npcompBytesTypeGet(MlirContext context) {
+  return wrap(Basicpy::BytesType::get(unwrap(context)));
+}
+
+/*============================================================================*/
 /* Dict type.                                                                 */
 /*============================================================================*/
 
