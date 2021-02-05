@@ -59,6 +59,11 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     } else if (output->type()->cast<c10::BoolType>()) {
       op = builder.createBoolConstant(
           loc, static_cast<bool>(node->i(c10::attr::value)));
+    } else if (output->type()->cast<c10::StringType>()) {
+      // TODO: Are TorchScript strings bytes or str technically?
+      // For now, model it as bytes to avoid pledging more than we currently
+      // model (e.g. no unicode, etc.).
+      op = builder.createBytesConstant(loc, node->s(c10::attr::value));
     } else {
       MlirAttribute valueAttr = importAttribute(loc, node, c10::attr::value);
       op = builder.createStdConstant(loc, valueAttr);
@@ -71,9 +76,9 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::GetAttr) {
     MlirType resultType =
         typeMapper.mapFromTorchType(loc, node->output()->type());
-    MlirValue operand = lookupMappedValue(node->input());
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.GetAttr", loc, resultType, operand,
+        appendToBlock, "torch.prim.GetAttr", loc, resultType,
+        lookupMappedValues(node->inputs()),
         toMlirNamedAttribute("name",
                              importAttribute(loc, node, c10::attr::name)));
     mapResults(node, operation);
@@ -83,8 +88,7 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::SetAttr) {
     createMlirOperationAtEnd(
         appendToBlock, "torch.prim.SetAttr", loc,
-        lookupMappedValue(node->inputs()[0]),
-        lookupMappedValue(node->inputs()[1]),
+        lookupMappedValues(node->inputs()),
         toMlirNamedAttribute("name",
                              importAttribute(loc, node, c10::attr::name)));
     return;
@@ -93,11 +97,19 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::CallMethod) {
     MlirType resultType =
         typeMapper.mapFromTorchType(loc, node->output()->type());
-    MlirValue operand = lookupMappedValue(node->input());
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.CallMethod", loc, resultType, operand,
+        appendToBlock, "torch.prim.CallMethod", loc, resultType,
+        lookupMappedValues(node->inputs()),
         toMlirNamedAttribute("name",
                              importAttribute(loc, node, c10::attr::name)));
+    mapResults(node, operation);
+    return;
+  }
+
+  if (kind == c10::prim::Print) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "torch.prim.Print", loc,
+                                 lookupMappedValues(node->inputs()));
     mapResults(node, operation);
     return;
   }
