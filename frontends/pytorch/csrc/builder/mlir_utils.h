@@ -48,7 +48,7 @@ inline void addToMlirOperationState(MlirOperationState &state,
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
-                                    std::vector<MlirValue> &&values) {
+                                    const std::vector<MlirValue> &values) {
   mlirOperationStateAddOperands(&state, values.size(), values.data());
 }
 
@@ -58,17 +58,18 @@ inline void addToMlirOperationState(MlirOperationState &state,
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
-                                    std::vector<MlirType> &&resultTypes) {
+                                    const std::vector<MlirType> &resultTypes) {
   mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
 }
 
-template <typename T, typename... Ts>
-void addToMlirOperationState(MlirOperationState &state, T &&t, Ts &&...ts) {
-  addToMlirOperationState(state, std::forward<T>(t));
-  addToMlirOperationState(state, std::forward<Ts>(ts)...);
-}
-
 inline void addToMlirOperationState(MlirOperationState &state) {}
+
+template <typename T, typename U, typename... Ts>
+void addToMlirOperationState(MlirOperationState &state, T &&t, U &&u,
+                             Ts &&...ts) {
+  addToMlirOperationState(state, std::forward<T>(t));
+  addToMlirOperationState(state, std::forward<U>(u), std::forward<Ts>(ts)...);
+}
 
 template <typename... Ts>
 MlirOperation createMlirOperation(std::string name, MlirLocation loc,
