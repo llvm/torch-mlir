@@ -210,7 +210,7 @@ at::Tensor AcapController::convolutionKernel(
 
   auto current = getCurrentThreadAcapController();
   if (!current) {
-    return opTyped.callWithDispatchKey(c10::DispatchKey::AutogradOther, input,
+    return opTyped.redispatch(c10::DispatchKeySet({c10::DispatchKey::AutogradOther}), input,
                                        weight, bias, stride, padding, dilation,
                                        transposed, output_padding, groups);
   }
@@ -240,8 +240,8 @@ at::Tensor AcapController::convolutionKernel(
   callBuilder.addOperand(IValue(output_padding));
   callBuilder.addOperand(IValue(groups));
 
-  auto result = opTyped.callWithDispatchKey(
-      c10::DispatchKey::AutogradOther, input, weight, bias, stride, padding,
+  auto result = opTyped.redispatch(
+      c10::DispatchKeySet({c10::DispatchKey::AutogradOther}), input, weight, bias, stride, padding,
       dilation, transposed, output_padding, groups);
   callBuilder.addResult(result);
   callBuilder.create();
@@ -277,7 +277,7 @@ AcapController::mklConvolutionBackward(
 
   auto current = getCurrentThreadAcapController();
   if (!current) {
-    return opTyped.callWithDispatchKey(c10::DispatchKey::AutogradOther, input,
+    return opTyped.redispatch(c10::DispatchKeySet({c10::DispatchKey::AutogradOther}), input,
                                        grad_output, weight, padding, stride,
                                        dilation, groups, output_mask);
   }
@@ -313,8 +313,8 @@ AcapController::mklConvolutionBackward(
   callBuilder.addOperand(IValue(groups));
   callBuilder.addOperand(IValue(output_mask));
 
-  auto results = opTyped.callWithDispatchKey(
-      c10::DispatchKey::AutogradCPU, input, grad_output, weight, padding,
+  auto results = opTyped.redispatch(
+      c10::DispatchKeySet({c10::DispatchKey::AutogradCPU}), input, grad_output, weight, padding,
       stride, dilation, groups, output_mask);
 
   callBuilder.addResult(std::get<0>(results));
@@ -346,7 +346,7 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
 
   auto current = getCurrentThreadAcapController();
   if (!current) {
-    return opTyped.callWithDispatchKey(c10::DispatchKey::AutogradOther, self,
+    return opTyped.redispatch(c10::DispatchKeySet({c10::DispatchKey::AutogradOther}), self,
                                        src, non_blocking);
   }
 
@@ -356,7 +356,7 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
 
   callBuilder.addOperand(IValue(self));
   callBuilder.addOperand(IValue(src));
-  auto &result = opTyped.callWithDispatchKey(c10::DispatchKey::CPU, self, src,
+  auto &result = opTyped.redispatch(c10::DispatchKeySet({c10::DispatchKey::CPU}), self, src,
                                              non_blocking);
   callBuilder.addResult(result);
   callBuilder.create();
@@ -383,7 +383,7 @@ at::Tensor AcapController::arangeBackendSelectKernel(
       at::Scalar end, c10::optional<at::ScalarType> dtype,
       c10::optional<at::Layout> layout, c10::optional<at::Device> device,
       c10::optional<bool> pin_memory)>();
-  return opTyped.callWithDispatchKey(targetDk, end, dtype, layout, device,
+  return opTyped.redispatch(c10::DispatchKeySet({targetDk}), end, dtype, layout, device,
                                      pin_memory);
 }
 
@@ -593,7 +593,7 @@ TORCH_LIBRARY_IMPL(aten, ACAP_GRAD_DISPATCH_KEY, m) {
   // Presumably this is on someone's list to adapt to the dispatch machinery
   // in a more appropriate way, but as the core of what the framework is,
   // perhaps people are reticent to touch it. Maybe someday, this can go away.
-  m.impl_UNBOXED("convolution", &AcapController::convolutionKernel);
+  m.impl("convolution", &AcapController::convolutionKernel);
 
   // Sadly, there is no easy intercept point for the backwards convolution
   // kernel which allows for chaining to an existing backend. And convolution
