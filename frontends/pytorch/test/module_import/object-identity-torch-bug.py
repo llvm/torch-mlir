@@ -24,8 +24,8 @@ class TestModule(torch.nn.Module):
         # CHECK: %[[L2:.*]] = basicpy.build_list
         # CHECK: %[[L1:.*]] = basicpy.build_list
         # CHECK: torch.nn_module {
-        # CHECK:   torch.attr "l2", %[[L2]]
-        # CHECK:   torch.attr "l1", %[[L1]]
+        # CHECK:   torch.slot "l2", %[[L2]]
+        # CHECK:   torch.slot "l1", %[[L1]]
         self.l2 = self.l1 = [1]
 
     # This can be uncommented when the graph importer supports it.

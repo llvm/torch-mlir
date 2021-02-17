@@ -15,6 +15,8 @@ class Submodule(torch.nn.Module):
     def __init__(self, n):
         super().__init__()
         self.n = n
+    def forward(self):
+       return self.n
 
 class TestModule(torch.nn.Module):
     def __init__(self):
@@ -27,9 +29,9 @@ class TestModule(torch.nn.Module):
         # Modules with the same class can be selected between.
         # CHECK: %[[MOD:.*]] = scf.if
         s = self.s1 if b else self.s2
-        # CHECK: %[[N:.*]] = torch.prim.GetAttr %5["n"]
-        # CHECK: return %[[N]] 
-        return s.n
+        # CHECK: %[[N:.*]] = torch.prim.CallMethod %[[MOD]]["forward"] ()
+        # CHECK: return %[[N]]
+        return s.forward()
 
 
 test_module = TestModule()

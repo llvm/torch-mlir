@@ -26,20 +26,20 @@ class TestModule(torch.nn.Module):
 
 # CHECK:         %[[N0:.*]] = basicpy.numeric_constant 0 : i64
 # CHECK:         %[[S0:.*]] = torch.nn_module  {
-# CHECK:           torch.attr "training", %[[T]] : !basicpy.BoolType
-# CHECK:           torch.attr "n", %[[N0]] : i64
+# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "n", %[[N0]] : i64
 # CHECK:         }
 
 # CHECK:         %[[N1:.*]] = basicpy.numeric_constant 1 : i64
 # CHECK:         %[[S1:.*]] = torch.nn_module  {
-# CHECK:           torch.attr "training", %[[T]] : !basicpy.BoolType
-# CHECK:           torch.attr "n", %[[N1]] : i64
+# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "n", %[[N1]] : i64
 # CHECK:         }
 
 # CHECK:        %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:           torch.attr "training", %[[T]] : !basicpy.BoolType
-# CHECK:           torch.attr "s0", %[[S0]] : !torch.nn.Module
-# CHECK:           torch.attr "s1", %[[S1]] : !torch.nn.Module
+# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "s0", %[[S0]] : !torch.nn.Module
+# CHECK:           torch.slot "s1", %[[S1]] : !torch.nn.Module
 # CHECK:         }
 
 

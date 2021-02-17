@@ -23,8 +23,8 @@ class TestModule(torch.nn.Module):
 # CHECK:         %[[CT:.*]] = constant dense<1.000000e+00> : tensor<1xf32>
 # CHECK:         %[[T:.*]] = numpy.create_array_from_tensor %[[CT]] : (tensor<1xf32>) -> !numpy.ndarray<*:!numpy.any_dtype>
 # CHECK:         %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:           torch.attr "p", %[[P]] : !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:           torch.attr "t", %[[T]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK:           torch.slot "p", %[[P]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK:           torch.slot "t", %[[T]] : !numpy.ndarray<*:!numpy.any_dtype>
 # CHECK:         }
 
 

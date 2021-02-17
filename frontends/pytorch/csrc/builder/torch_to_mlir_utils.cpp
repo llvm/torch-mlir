@@ -106,10 +106,18 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompNdArrayTypeGetRanked(dims.size(), dims.data(), elementType);
   }
   case TypeKind::ClassType: {
-    return npcompNnModuleTypeGet(context);
+    auto maybeName = torchType->cast<c10::ClassType>()->name();
+    return npcompNnModuleTypeGet(
+        context, toMlirStringRef(maybeName ? maybeName->qualifiedName()
+                                           : "unnamed class"));
   }
   case TypeKind::FloatType: {
     return mlirF64TypeGet(context);
+  }
+  case TypeKind::OptionalType: {
+    return npcompOptionalTypeGet(
+        mapFromTorchType(
+            loc, torchType->cast<c10::OptionalType>()->getElementType()));
   }
   case TypeKind::IntType: {
     return mlirIntegerTypeGet(context, 64);
@@ -119,6 +127,10 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
   }
   case TypeKind::BoolType: {
     return npcompBoolTypeGet(context);
+  }
+  case TypeKind::ListType: {
+    // TODO: Don't lose the element type information.
+    return npcompListTypeGet(context);
   }
   default: {
     std::stringstream message;

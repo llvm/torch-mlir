@@ -22,9 +22,62 @@ class Torch_Type<string name, string typeMnemonic> : TypeDef<Torch_Dialect, name
 def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   let summary = "torch.nn.Module";
   let description = [{
+    Represents an instance of a `torch.nn.Module` with the given `className`.
+  }];
+  let parameters = (ins StringRefParameter<"class name">:$className);
+
+  let printer = [{
+    $_printer << "nn.Module<\"";
+    llvm::printEscapedString(getImpl()->className, $_printer.getStream());
+    $_printer << "\">";
+  }];
+
+  let parser = [{
+    if (parser.parseLess())
+      return Type();
+    StringRef className;
+    if ($_parser.parseOptionalString(&className))
+      return Type();
+    if ($_parser.parseGreater())
+      return Type();
+    return get($_ctxt, className);
   }];
 }
 
+// TODO: It feels like this should be something more general.
+// However, to do that, we need to agree on construction operations
+// and the valid MLIR representations of the "None" state.
+//
+// For now, we only need it as a stand-in type to allow importing
+// the `_is_full_backward_hook` optional bool type that Torch puts on
+// all classes.
+def Torch_OptionalType : Torch_Type<"Optional", "optional"> {
+  let summary = "!torch.optional<T>";
+  let description = [{
+  }];
+  let parameters = (ins "::mlir::Type":$containedType);
+
+  let printer = [{
+    $_printer << "optional<" << getImpl()->containedType << ">";
+  }];
+
+  let parser = [{
+    if (parser.parseLess())
+      return Type();
+    Type containedType;
+    if ($_parser.parseType(containedType))
+      return Type();
+    if ($_parser.parseGreater())
+      return Type();
+    return get($_ctxt, containedType);
+  }];
+
+  let builders = [
+    TypeBuilderWithInferredContext<(ins "::mlir::Type":$containedType), [{
+      return Base::get(containedType.getContext(), containedType);
+    }]>
+  ];
+}
 
 //===----------------------------------------------------------------------===//
 // Type predicates

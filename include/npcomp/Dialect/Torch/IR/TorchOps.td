@@ -49,10 +49,11 @@ def Torch_KernelCallOp : Torch_Op<"kernel_call", [
 }
 
 //===----------------------------------------------------------------------===//
-// TorchScript modeling ops.
+// TorchScript `torch.nn.Module` object instantiation ops.
 //===----------------------------------------------------------------------===//
 
 def Torch_NnModuleOp : Torch_Op<"nn_module", [
+    DeclareOpInterfaceMethods<SymbolUserOpInterface>,
     SingleBlockImplicitTerminator<"::mlir::NPCOMP::Torch::NnModuleTerminatorOp">]> {
   let summary = "Constructs a torch.nn.Module";
   let description = [{
@@ -65,15 +66,19 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
     Example:
 
     ```mlir
-    %2 = torch.nn_module  {
-      torch.attr "b", %bool_true : !basicpy.BoolType
-      torch.attr "i", %num3_i64 : i64
-      torch.attr "f", %num : f64
-      torch.attr "t", %0 : !numpy.ndarray<*:!numpy.any_dtype>
-      torch.attr "submodule", %1 : !torch.nn.Module
-      torch.method "method", @f
-    }
+    %2 = torch.nn_module {
+      torch.slot "b", %bool_true : !basicpy.BoolType
+      torch.slot "i", %num3_i64 : i64
+      torch.slot "f", %num : f64
+      torch.slot "t", %0 : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.slot "submodule", %1 : !torch.nn.Module
+    } : !torch.nn.Module<"my_class_name">
     ```
+
+    This op is tightly coupled to the `torch.class_type` op named in the
+    `!torch.nn.Module<"my_class_name">` type. Each slot must match precisely
+    with the corresponding `torch.attr` in the `torch.class_type`.
+    See the documentation for `torch.class_type` for information.
   }];
 
   let arguments = (ins);
@@ -81,7 +86,11 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
   let regions = (region SizedRegion<1>:$region);
   let verifier = "return ::verify(*this);";
 
-  let assemblyFormat = "$region attr-dict";
+  let assemblyFormat = "$region attr-dict `:` type($result)";
+
+  let extraClassDeclaration = [{
+    StringRef getClassName() { return getType().getClassName(); }
+  }];
 }
 
 def Torch_NnModuleTerminatorOp : Torch_Op<"nn_module_terminator", [Terminator,
@@ -94,13 +103,13 @@ def Torch_NnModuleTerminatorOp : Torch_Op<"nn_module_terminator", [Terminator,
   let assemblyFormat = "attr-dict";
 }
 
-def Torch_AttrOp : Torch_Op<"attr", [
+def Torch_SlotOp : Torch_Op<"slot", [
     HasParent<"::mlir::NPCOMP::Torch::NnModuleOp">]> {
-  let summary = "Define an attribute of a torch.nn.Module";
+  let summary = "Define the value of a slot of a torch.nn.Module";
   let description = [{
-    This op declaratively specifies that the parent torch.nn_module has an
-    attribute `name` with value `value`, which is allowed to be an arbitrary
-    Torch-compatible SSA value, including other torch.nn.Module's.
+    This op specifies that the initial value of the slot `name` of the
+    parent torch.nn_module should be `value`, which is allowed to be an
+    arbitrary Torch-compatible SSA value, including other !torch.nn.Module's.
   }];
 
   let arguments = (ins StrAttr:$name, AnyTorchType:$value);
@@ -111,13 +120,73 @@ def Torch_AttrOp : Torch_Op<"attr", [
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Modeling of TorchScript class types
+//===----------------------------------------------------------------------===//
+
+def Torch_ClassTypeOp : Torch_Op<"class_type", [
+    Symbol,
+    SingleBlockImplicitTerminator<"::mlir::NPCOMP::Torch::ClassTypeTerminatorOp">]> {
+  let summary = "Constructs a torch.ClassType";
+  let description = [{
+    Declares a class type. Class types are the types used to describe
+    TorchScript `torch.nn.Module`'s. The terminology "class type" is for
+    consistency with TorchScript (a better name in our context might be
+    "nn module subtype"). The `syn_name` of this op is the same string
+    as in the `!torch.nn.Module<"...">` type.
+
+    Example:
+
+    ```mlir
+    // A simple empty torch.class_type, with corresponding torch.nn_module.
+    torch.class_type @empty {}
+    %submodule = torch.nn_module {} : !torch.nn.Module<"empty">
+
+    // A class type with many members.
+    torch.class_type @test {
+      torch.attr "b" : !basicpy.BoolType
+      torch.attr "i" : i64
+      torch.attr "f" : f64
+      torch.attr "t" : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.attr "submodule" : !torch.nn.Module<"empty">
+      torch.method "method", @f
+    }
+    torch.nn_module {
+      // These must match the order and names in the `torch.class_type`.
+      torch.slot "b", %bool_true : !basicpy.BoolType
+      torch.slot "i", %num3_i64 : i64
+      torch.slot "f", %num : f64
+      torch.slot "t", %array : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
+    } : !torch.nn.Module<"test">
+    ```
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name);
+  let results = (outs);
+  let regions = (region SizedRegion<1>:$region);
+  let verifier = "return ::verify(*this);";
+
+  let assemblyFormat = "$sym_name $region attr-dict";
+}
+
+def Torch_ClassTypeTerminatorOp : Torch_Op<"class_type_terminator", [Terminator,
+    HasParent<"::mlir::NPCOMP::Torch::ClassTypeOp">]> {
+  let summary = "Implicit terminator for torch.class_type";
+
+  let arguments = (ins);
+  let results = (outs);
+
+  let assemblyFormat = "attr-dict";
+}
+
 def Torch_MethodOp : Torch_Op<"method", [
-    HasParent<"::mlir::NPCOMP::Torch::NnModuleOp">,
+    HasParent<"::mlir::NPCOMP::Torch::ClassTypeOp">,
     DeclareOpInterfaceMethods<SymbolUserOpInterface>
   ]> {
-  let summary = "Define a method of a torch.nn.Module";
+  let summary = "Declare a method of a torch.class_type";
   let description = [{
-    This op declaratively specifies that the parent torch.nn_module has a
+    This op declaratively specifies that the parent torch.class_type has a
     method `name` which calls `function`. `function` is an unbound function.
     That is, it explicitly takes the torch.nn.Module as a parameter (no implicit
     "self" object).
@@ -128,6 +197,88 @@ def Torch_MethodOp : Torch_Op<"method", [
 
   let assemblyFormat = [{
     $name `,` $function attr-dict
+  }];
+}
+
+def Torch_AttrOp : Torch_Op<"attr", [
+    HasParent<"::mlir::NPCOMP::Torch::ClassTypeOp">
+  ]> {
+  let summary = "Declare an attribute of a torch.class_type";
+  let description = [{
+    This op declaratively specifies that torch.nn.Module's of the parent
+    torch.class_type must have an attribute `name` of type `type`.
+  }];
+
+  let arguments = (ins StrAttr:$name, TypeAttr:$type);
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $name `:` $type attr-dict
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// Global slot ops
+//===----------------------------------------------------------------------===//
+// TODO: Should these be in a separate dialect?
+// At this point, they are fairly specific to torch types, but their get/set
+// semantics follow Python.
+//===----------------------------------------------------------------------===//
+
+def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
+    Symbol,
+    IsolatedFromAbove,
+  ]> {
+  let summary = "A slot with global storage";
+  let description = [{
+    Represents a slot with global storage. The slot semantics are the same
+    as Python's: getting or setting a slot is done by object identity.
+  }];
+
+  let arguments = (ins SymbolNameAttr:$sym_name, TypeAttr:$typeBound);
+  let results = (outs);
+
+
+  let assemblyFormat = [{
+    $sym_name attr-dict `:` $typeBound
+  }];
+
+  let extraClassDeclaration = [{
+    // The name of the function, which, for semantic correctness, must be called
+    // exactly once and this call must be done before any other calls into
+    // the module.
+    // TODO: Avoid load-bearing names.
+    // We could replace this with an op that marks the function as initializer.
+    static constexpr StringRef getGlobalSlotInitializerFuncName() {
+      return "__torch_global_slot_initializer";
+    }
+  }];
+}
+
+def Torch_GlobalSlotGetOp : Torch_Op<"global_slot.get", []> {
+  let summary = "Get the value stored in a torch.global_slot";
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$slot
+  );
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    $slot attr-dict `:` type($result)
+  }];
+}
+
+def Torch_GlobalSlotSetOp : Torch_Op<"global_slot.set", []> {
+  let summary = "Set the value stored in a torch.global_slot";
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$slot,
+    AnyTorchType:$value
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $slot `=` $value attr-dict `:` type($value)
   }];
 }
 
@@ -142,7 +293,7 @@ def Torch_PrimGetAttrOp : Torch_Op<"prim.GetAttr", []> {
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` attr-dict `:` type($result)
+    $receiver `[` $name `]` attr-dict `:` type($receiver) `->` type($result)
   }];
 }
 
@@ -157,7 +308,7 @@ def Torch_PrimSetAttrOp : Torch_Op<"prim.SetAttr", []> {
   let results = (outs);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` `=` $value attr-dict `:` type($value)
+    $receiver `[` $name `]` `=` $value attr-dict `:` type($receiver) `,` type($value)
   }];
 }
 
@@ -172,7 +323,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` `(` $operands `)` attr-dict `:` type($operands) `->` type($result)
+    $receiver `[` $name `]` `(` $operands `)` attr-dict `:` type($receiver) `,` functional-type($operands, $result)
   }];
 }
 

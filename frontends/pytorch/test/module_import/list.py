@@ -15,13 +15,16 @@ class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.l = [1, 2]
-
+# CHECK: torch.class_type @[[CLASSTYPE:.*]] {
+# TODO: Don't lose element type.
+# CHECK:   torch.attr "l" : !basicpy.ListType
+# CHECK: }
 # CHECK: %[[N1:.*]] = basicpy.numeric_constant 1 : i64
 # CHECK: %[[N2:.*]] = basicpy.numeric_constant 2 : i64
 # CHECK: %[[LIST:.*]] = basicpy.build_list %[[N1]], %[[N2]] : (i64, i64) -> !basicpy.ListType
 # CHECK: torch.nn_module  {
-# CHECK:   torch.attr "l", %[[LIST]] : !basicpy.ListType
-# CHECK: }
+# CHECK:   torch.slot "l", %[[LIST]] : !basicpy.ListType
+# CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 
 test_module = TestModule()

@@ -101,7 +101,8 @@ public:
 private:
   MlirValue rawImportIValue(c10::IValue value);
   MlirValue importModule(torch::jit::Module jitModule);
-  void importMethod(torch::jit::Function *function, MlirBlock nnModuleBody);
+  void importMethod(torch::jit::Function *function, MlirBlock classTypeBody);
+  void importClassType(c10::ClassType *classType);
 
   MlirBlock importBlock;
   MlirContext context;
@@ -111,6 +112,12 @@ private:
   std::unordered_map<c10::IValue, MlirValue, IValueHasher, IValueEq> valueMap;
   // Used to detect potentially aliasing tensors.
   std::unordered_set<c10::StorageImpl *> seenStorageImpls;
+  // The set of ClassType's that have already been imported.
+  //
+  // ClassType's are referenced via their `classType->name()->qualifiedName()`
+  // string (as an MLIR symbol name) so we don't need to keep a map associating
+  // them with the MlirOperation that they import into.
+  std::unordered_set<c10::ClassType *> classTypes;
   // The stack of attribute names we have traversed to reach the current IValue.
   // Used for diagnostics.
   std::vector<std::string> attributeNameStack;
@@ -128,16 +135,25 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
 
-  MlirOperation nnModule =
-      createMlirOperation("torch.nn_module", loc,
-                          npcompNnModuleTypeGet(context), mlirRegionCreate());
+  c10::optional<c10::QualifiedName> maybeName = currentModule.type()->name();
+  if (!maybeName) {
+    throw std::invalid_argument("cannot import unnamed module");
+  }
+  std::string moduleTypeName = maybeName->qualifiedName();
+
+  // Ensure the class type has been imported.
+  importClassType(currentModule.type().get());
+
+  MlirOperation nnModule = createMlirOperation(
+      "torch.nn_module", loc,
+      npcompNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
+      mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
 
   if (!rootModuleName.has_value()) {
-    c10::optional<c10::QualifiedName> maybeName = currentModule.type()->name();
-    rootModuleName = maybeName ? maybeName->qualifiedName() : "unnamed module";
+    rootModuleName = moduleTypeName;
   }
 
   const std::vector<c10::IValue> &slots = currentModule._ivalue()->slots();
@@ -151,7 +167,7 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
     MlirValue slotValue = importIValue(slots[i]);
     // TODO: Is it necessary to track whether an attribute is a "parameter"?
     createMlirOperationAtEnd(
-        nnModuleBody, "torch.attr", loc, slotValue,
+        nnModuleBody, "torch.slot", loc, slotValue,
         toMlirNamedAttribute(
             "name", mlirStringAttrGet(
                         context, toMlirStringRef(classAttribute.getName()))));
@@ -160,10 +176,6 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
 
   if (rootModuleName.has_value()) {
     rootModuleName = c10::nullopt;
-  }
-
-  for (torch::jit::Function *function : currentModule.type()->methods()) {
-    importMethod(function, nnModuleBody);
   }
 
   createMlirOperationAtEnd(nnModuleBody, "torch.nn_module_terminator", loc);
@@ -262,7 +274,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
 }
 
 void IValueImporter::importMethod(torch::jit::Function *function,
-                                  MlirBlock nnModuleBody) {
+                                  MlirBlock classTypeBody) {
   // We make an effort for the func op's symbol name to be useful for debugging,
   // but still clearly non-load-bearing.
   std::string symName =
@@ -275,13 +287,50 @@ void IValueImporter::importMethod(torch::jit::Function *function,
   mlirBlockInsertOwnedOperationBefore(
       importBlock, mlirBlockGetTerminator(importBlock), func);
   createMlirOperationAtEnd(
-      nnModuleBody, "torch.method", mlirLocationUnknownGet(context),
+      classTypeBody, "torch.method", mlirLocationUnknownGet(context),
       toMlirNamedAttribute(
           "name",
           mlirStringAttrGet(context, toMlirStringRef(function->name()))),
       toMlirNamedAttribute("function", mlirFlatSymbolRefAttrGet(
                                            context, toMlirStringRef(symName))));
 }
+
+void IValueImporter::importClassType(c10::ClassType *classType) {
+  if (!classTypes.insert(classType).second) {
+    return;
+  }
+
+  // TODO: Can we do better?
+  MlirLocation loc = mlirLocationUnknownGet(context);
+
+  MlirOperation op = createMlirOperationAtEnd(
+      importBlock, "torch.class_type", loc, mlirRegionCreate(),
+      toMlirNamedAttribute(
+          "sym_name",
+          mlirStringAttrGet(
+              context, toMlirStringRef(classType->name()->qualifiedName()))));
+  MlirRegion region = mlirOperationGetRegion(op, 0);
+  mlirRegionAppendOwnedBlock(region, mlirBlockCreate(0, nullptr));
+  MlirBlock classTypeBody = mlirRegionGetFirstBlock(region);
+
+  for (const c10::ClassAttribute &classAttribute : classType->getAttributes()) {
+    createMlirOperationAtEnd(
+        classTypeBody, "torch.attr", loc,
+        toMlirNamedAttribute(
+            "name", mlirStringAttrGet(
+                        context, toMlirStringRef(classAttribute.getName()))),
+        toMlirNamedAttribute("type",
+                             mlirTypeAttrGet(typeMapper.mapFromTorchType(
+                                 loc, classAttribute.getType()))));
+  }
+
+  for (torch::jit::Function *function : classType->methods()) {
+    importMethod(function, classTypeBody);
+  }
+
+  createMlirOperationAtEnd(classTypeBody, "torch.class_type_terminator", loc);
+}
+
 void torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
                               MlirContext context) {
   // When debugging module importing, it can be useful to dump as so:

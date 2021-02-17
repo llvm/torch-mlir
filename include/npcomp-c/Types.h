@@ -124,8 +124,18 @@ MlirType npcompTupleTypeGet(MlirContext context);
 /** Checks whether the given type is a torch.nn.Module type */
 int npcompTypeIsANnModule(MlirType t);
 
-/** Gets the singleton torch.nn.Module type. */
-MlirType npcompNnModuleTypeGet(MlirContext context);
+/** Gets the !torch.nn.Module type of the specified class. */
+MlirType npcompNnModuleTypeGet(MlirContext context, MlirStringRef className);
+
+/*============================================================================*/
+/* torch.optional type.                                                       */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.optional<T> type */
+int npcompTypeIsAOptional(MlirType t);
+
+/** Gets the !torch.optional<T> type with subtype T. */
+MlirType npcompOptionalTypeGet(MlirType containedType);
 
 #ifdef __cplusplus
 }
