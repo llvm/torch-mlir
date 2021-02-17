@@ -16,8 +16,8 @@ class TestModule(torch.nn.Module):
         super().__init__()
         # CHECK: %[[A:.*]] = numpy.create_array_from_tensor
         # CHECK: torch.nn_module {
-        # CHECK:   torch.attr "t1", %[[A]]
-        # CHECK:   torch.attr "t2", %[[A]]
+        # CHECK:   torch.slot "t1", %[[A]]
+        # CHECK:   torch.slot "t2", %[[A]]
         self.t1 = self.t2 = torch.tensor([10., 20.])
 
 

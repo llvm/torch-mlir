@@ -32,8 +32,8 @@ class TestModule(torch.nn.Module):
 #     the case that the name is `__main__` Torch replaces it with `__torch__` to
 #     avoid collisions.
 
-# CHECK: func private @__npcomp_priv_fn.__torch__.Submodule.forward
-# CHECK: func private @__npcomp_priv_fn.__torch__.TestModule.forward
+# CHECK-DAG: func private @__npcomp_priv_fn.__torch__.TestModule.forward
+# CHECK=DAG: func private @__npcomp_priv_fn.__torch__.Submodule.forward
 
 
 test_module = TestModule()

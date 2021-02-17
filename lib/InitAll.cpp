@@ -21,6 +21,7 @@
 #include "npcomp/Dialect/TCP/IR/TCPDialect.h"
 #include "npcomp/Dialect/TCP/Transforms/Passes.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
+#include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "npcomp/Typing/Transforms/Passes.h"
 
 #include "npcomp/Conversion/Passes.h"
@@ -47,5 +48,6 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerNumpyPasses();
   mlir::NPCOMP::registerTCFPasses();
   mlir::NPCOMP::registerTCPPasses();
+  mlir::NPCOMP::registerTorchPasses();
   mlir::NPCOMP::registerTypingPasses();
 }

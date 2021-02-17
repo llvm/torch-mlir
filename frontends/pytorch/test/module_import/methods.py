@@ -19,17 +19,22 @@ class TestModule(torch.nn.Module):
 
 # The symbol name of the function is NOT load-bearing and cannot be relied upon.
 
+# CHECK-LABEL:   torch.class_type
+# CHECK-SAME:        @[[CLASSTYPE:.*]] {
+# CHECK:           torch.method "forward", @[[SYMNAME:.*]]
+# CHECK:         }
+
+
 # CHECK-LABEL:   func private
-# CHECK-SAME:                 @[[SYMNAME:.*]](
-# CHECK-SAME:                                 %[[SELF:.*]]: !torch.nn.Module,
+# CHECK-SAME:                 @[[SYMNAME]](
+# CHECK-SAME:                                 %[[SELF:.*]]: !torch.nn.Module<"[[CLASSTYPE]]">,
 # CHECK-SAME:                                 %[[X:.*]]: !numpy.ndarray<*:!numpy.any_dtype>,
 # CHECK-SAME:                                 %[[Y:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
 # CHECK:           %[[RET:.*]] = torch.kernel_call "aten::mul" %[[X]], %[[Y]]
 # CHECK:           return %[[RET]] : !numpy.ndarray<*:!numpy.any_dtype>
 
 # CHECK:         %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:           torch.method "forward", @[[SYMNAME]]
-# CHECK:         }
+# CHECK:         } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 
 test_module = TestModule()

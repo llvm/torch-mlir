@@ -156,7 +156,21 @@ int npcompTypeIsANnModule(MlirType t) {
   return unwrap(t).isa<Torch::NnModuleType>();
 }
 
-/** Gets the singleton torch.nn.Module type. */
-MlirType npcompNnModuleTypeGet(MlirContext context) {
-  return wrap(Torch::NnModuleType::get(unwrap(context)));
+/** Gets the torch.nn.Module type of the specified class. */
+MlirType npcompNnModuleTypeGet(MlirContext context, MlirStringRef className) {
+  return wrap(Torch::NnModuleType::get(unwrap(context), unwrap(className)));
+}
+
+/*============================================================================*/
+/* torch.optional type.                                                       */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.optional<T> type */
+int npcompTypeIsAOptional(MlirType t) {
+  return unwrap(t).isa<Torch::OptionalType>();
+}
+
+/** Gets the !torch.optional<T> type with subtype T. */
+MlirType npcompOptionalTypeGet(MlirType containedType) {
+  return wrap(Torch::OptionalType::get(unwrap(containedType)));
 }

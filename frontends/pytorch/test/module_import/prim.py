@@ -18,7 +18,7 @@ class TestModule(torch.nn.Module):
         self.t2 = torch.ones(1)
 
     # CHECK-LABEL:   func{{.*}}TestModule.forward{{.*}}(
-    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module) -> !basicpy.NoneType {
+    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">) -> !basicpy.NoneType {
     def forward(self):
         # CHECK: %[[T2:.*]] = torch.prim.GetAttr %[[SELF]]["t2"]
         # CHECK: torch.prim.SetAttr %[[SELF]]["t1"] = %[[T2]]
@@ -26,7 +26,7 @@ class TestModule(torch.nn.Module):
         # CHECK: torch.prim.CallMethod %[[SELF]]["callee"] (%{{.*}}, %{{.*}})
         self.callee(self.t1, self.t2)
     # CHECK-LABEL:   func{{.*}}TestModule.callee{{.*}}(
-    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module,
+    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">,
     # CHECK-SAME:         %[[X:.*]]: !numpy.ndarray<*:!numpy.any_dtype>,
     # CHECK-SAME:         %[[Y:.*]]: !numpy.ndarray<*:!numpy.any_dtype>
     def callee(self, x, y):
