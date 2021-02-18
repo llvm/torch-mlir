@@ -251,6 +251,11 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isModule()) {
     return importModule(ivalue.toModule());
   }
+  if (ivalue.isNone()) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "basicpy.singleton", loc, npcompNoneTypeGet(context));
+    return mlirOperationGetResult(operation, 0);
+  }
   std::stringstream msg;
   msg << "Unsupported ivalue: " << ivalue;
   throw std::invalid_argument(msg.str());

@@ -27,7 +27,7 @@ class TestModule(torch.nn.Module):
         # Modules with the same class can be selected between.
         # CHECK: %[[MOD:.*]] = scf.if
         s = self.s1 if b else self.s2
-        # CHECK: %[[N:.*]] = torch.prim.GetAttr %4["n"]
+        # CHECK: %[[N:.*]] = torch.prim.GetAttr %5["n"]
         # CHECK: return %[[N]] 
         return s.n
 
