@@ -335,7 +335,7 @@ void torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
                               MlirContext context) {
   // When debugging module importing, it can be useful to dump as so:
   // if (ivalue.isModule())
-  //   ivalue.toModule().dump(true, true, true);
+  //   ivalue.toModule().dump(true, false, false);
   IValueImporter importer(block, context);
   importer.importIValue(ivalue);
 }
