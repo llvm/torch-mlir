@@ -8,12 +8,35 @@
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Basicpy;
+
+//===----------------------------------------------------------------------===//
+// Dialect Interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct BasicpyInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
+                       BlockAndValueMapping &valueMapping) const final {
+    return true;
+  }
+  bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+} // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
+// Dialect Class
+//===----------------------------------------------------------------------===//
 
 void BasicpyDialect::initialize() {
   addOperations<
@@ -22,6 +45,7 @@ void BasicpyDialect::initialize() {
       >();
   addTypes<BoolType, BytesType, DictType, EllipsisType, ListType, NoneType,
            SlotObjectType, StrType, TupleType, UnknownType>();
+  addInterfaces<BasicpyInlinerInterface>();
 
   // TODO: Make real ops for everything we need.
   allowUnknownOperations();
