@@ -132,6 +132,10 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     // TODO: Don't lose the element type information.
     return npcompListTypeGet(context);
   }
+  case TypeKind::TupleType: {
+    // TODO: Don't lose the element type information.
+    return npcompTupleTypeGet(context);
+  }
   default: {
     std::stringstream message;
     message << "unable to map Torch type " << *torchType << " to MLIR type";
@@ -244,6 +248,8 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
                                   node->f(symbol));
   case torch::jit::AttributeKind::s:
     return mlirStringAttrGet(context, toMlirStringRef(node->s(symbol)));
+  case torch::jit::AttributeKind::t:
+    return converTensorToMlirElementsAttr(node->t(symbol), loc);
   default: {
     std::stringstream msg;
     msg << "unhandled: value attribute kind " << toString(kind);

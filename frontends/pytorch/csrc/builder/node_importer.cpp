@@ -15,6 +15,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
+#include "npcomp-c/Types.h"
 
 namespace py = pybind11;
 using namespace torch_mlir;
@@ -110,6 +111,14 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     MlirOperation operation =
         createMlirOperationAtEnd(appendToBlock, "torch.prim.Print", loc,
                                  lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
+  if (kind == c10::prim::TupleConstruct) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "basicpy.build_tuple", loc, npcompTupleTypeGet(context),
+        lookupMappedValues(node->inputs()));
     mapResults(node, operation);
     return;
   }

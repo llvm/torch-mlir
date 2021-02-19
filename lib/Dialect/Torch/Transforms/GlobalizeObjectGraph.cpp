@@ -234,6 +234,43 @@ void ObjectGraphGlobalizer::createInitializerFunc() {
   builder.create<ReturnOp>(loc);
 }
 
+// Verify that a value conforms to the subset of allowed uses for
+// !torch.nn.Module<"..."> types.
+static LogicalResult verifyNnModuleValueUses(Value value) {
+  // Trivially true for non-module types.
+  if (!value.getType().isa<NnModuleType>())
+    return success();
+  for (Operation *op : value.getUsers()) {
+    if (isa<PrimGetAttrOp, PrimSetAttrOp, PrimCallMethodOp>(op))
+      continue;
+    // TODO: Improve this based on real user use cases.
+    // This is a diagnostic that users will hit if they do not conform to
+    // the supported subset of TorchScript.
+    return op->emitError() << "unsupported use of a torch.nn.Module. Expected "
+                              "only method calls or attribute get/set";
+  }
+  return success();
+}
+
+// Verify that `func` conforms to the subset of allowable method bodies
+// that we can convert.
+static LogicalResult verifyMethodConformsToSubset(FuncOp func) {
+  auto walkResult = func.walk([](Block *block) {
+    for (Value arg : block->getArguments()) {
+      if (failed(verifyNnModuleValueUses(arg)))
+        return WalkResult::interrupt();
+    }
+    for (Operation &op : *block) {
+      for (Value result : op.getResults()) {
+        if (failed(verifyNnModuleValueUses(result)))
+          return WalkResult::interrupt();
+      }
+    }
+    return WalkResult::advance();
+  });
+  return failure(walkResult.wasInterrupted());
+}
+
 LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
   DenseMap<AttrOfClass, StringRef> linkageNames;
   for (auto classType : module.getOps<ClassTypeOp>()) {
@@ -261,14 +298,23 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       primSetAttr.erase();
     }
     if (auto primGetAttr = dyn_cast<PrimGetAttrOp>(op)) {
-      auto classType = symbolTable.lookup<ClassTypeOp>(
-          primGetAttr.receiver().getType().cast<NnModuleType>().getClassName());
-      auto globalSlot = globalSlotForAttr[{classType, primGetAttr.name()}];
-      auto globalSlotGet = OpBuilder(primGetAttr)
-                               .create<GlobalSlotGetOp>(primGetAttr.getLoc(),
-                                                        primGetAttr.getType(),
-                                                        globalSlot.sym_name());
-      primGetAttr.replaceAllUsesWith(globalSlotGet.getOperation());
+      // If the return value is NnModuleType, then we don't need to do anything.
+      // Our verification earlier ensured that there are no uses that
+      // we won't properly rewrite.
+      if (!primGetAttr.getType().isa<NnModuleType>()) {
+        auto classType =
+            symbolTable.lookup<ClassTypeOp>(primGetAttr.receiver()
+                                                .getType()
+                                                .cast<NnModuleType>()
+                                                .getClassName());
+        auto globalSlot = globalSlotForAttr[{classType, primGetAttr.name()}];
+        auto globalSlotGet =
+            OpBuilder(primGetAttr)
+                .create<GlobalSlotGetOp>(primGetAttr.getLoc(),
+                                         primGetAttr.getType(),
+                                         globalSlot.sym_name());
+        primGetAttr.replaceAllUsesWith(globalSlotGet.getOperation());
+      }
       primGetAttr.erase();
     }
     if (auto primCallMethod = dyn_cast<PrimCallMethodOp>(op)) {
@@ -277,10 +323,14 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
                                                            .cast<NnModuleType>()
                                                            .getClassName());
       StringRef linkageName = linkageNames[{classType, primCallMethod.name()}];
+
+      auto newOperands = llvm::to_vector<6>(
+          llvm::make_filter_range(primCallMethod.operands(), [](Value v) {
+            return !v.getType().isa<NnModuleType>();
+          }));
       auto call = OpBuilder(primCallMethod)
                       .create<CallOp>(primCallMethod.getLoc(), linkageName,
-                                      primCallMethod.getType(),
-                                      primCallMethod.operands());
+                                      primCallMethod.getType(), newOperands);
       primCallMethod.replaceAllUsesWith(call);
       primCallMethod.erase();
     }
@@ -291,6 +341,8 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       if (it == methodLinkageNames.end())
         continue;
       FuncOp func = symbolTable.lookup<FuncOp>(method.function());
+      if (failed(verifyMethodConformsToSubset(func)))
+        return failure();
       func.setVisibility(SymbolTable::Visibility::Public);
       func.setName(it->second);
       func.walk(rewriteOpWithNnModuleTypeOperand);
@@ -298,20 +350,12 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       for (auto arg : llvm::enumerate(func.getArguments())) {
         if (!arg.value().getType().isa<NnModuleType>())
           continue;
-        if (!arg.value().use_empty()) {
-          // TODO: Improve this based on real user use cases.
-          // This is a diagnostic that users will hit if they do not conform to
-          // the supported subset of TorchScript.
-          auto diag = func.emitError().append(
-              "func argument at index ", arg.index(),
-              " has uses that were not able to be converted");
-          for (Operation *user : arg.value().getUsers())
-            diag.attachNote(user->getLoc()).append("see user here");
-          return failure();
-        }
+        assert(arg.value().use_empty() && "all uses should have been removed");
         argsToErase.push_back(arg.index());
       }
       func.eraseArguments(argsToErase);
+      // No need to handle the results, since we currently don't allow ReturnOp
+      // as a user of module types.
     }
   }
   return success();

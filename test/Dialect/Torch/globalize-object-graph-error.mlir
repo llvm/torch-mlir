@@ -29,20 +29,6 @@ torch.class_type @parent {
 
 // -----
 
-torch.class_type @c {
-  torch.method "f", @f
-}
-// expected-error @+1 {{func argument at index 1 has uses that were not able to be converted}}
-func private @f(%arg0: !torch.nn.Module<"c">, %arg1: !torch.nn.Module<"c">) {
-  // expected-note @+1 {{see user here}}
-  %0 = basicpy.build_list %arg1 : (!torch.nn.Module<"c">) -> !basicpy.ListType
-  return
-}
-
-torch.nn_module {} : !torch.nn.Module<"c">
-
-// -----
-
 // expected-error @+1 {{reachable by multiple paths from root object: '<root>.m' and '<root>.m2'}}
 torch.class_type @child {
   torch.attr "float" : f64
