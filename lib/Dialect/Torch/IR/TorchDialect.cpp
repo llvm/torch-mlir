@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringExtras.h"
@@ -15,6 +16,24 @@
 
 using namespace mlir;
 using namespace mlir::NPCOMP::Torch;
+
+//===----------------------------------------------------------------------===//
+// Dialect Interfaces
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct TorchInlinerInterface : public DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+  bool isLegalToInline(Region *dest, Region *src, bool wouldBeCloned,
+                       BlockAndValueMapping &valueMapping) const final {
+    return true;
+  }
+  bool isLegalToInline(Operation *, Region *, bool wouldBeCloned,
+                       BlockAndValueMapping &) const final {
+    return true;
+  }
+};
+} // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // Tablegen Type Definitions
@@ -32,6 +51,7 @@ void TorchDialect::initialize() {
 #define GET_TYPEDEF_LIST
 #include "npcomp/Dialect/Torch/IR/TorchTypes.cpp.inc"
       >();
+  addInterfaces<TorchInlinerInterface>();
 }
 
 Type TorchDialect::parseType(DialectAsmParser &parser) const {
