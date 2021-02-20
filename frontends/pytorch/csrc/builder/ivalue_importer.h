@@ -12,6 +12,7 @@
 
 #include "../pybind.h"
 #include "func_builder.h"
+#include "class_annotator.h"
 
 #include "mlir-c/IR.h"
 
@@ -23,7 +24,8 @@ namespace torch_mlir {
 
 /// Main entry-point for importing torch IValue's .
 /// Recursively imports `ivalue`, inserting operations at the end of `block`.
-void importIValue(c10::IValue ivalue, MlirBlock block, MlirContext context);
+void importIValue(c10::IValue ivalue, MlirBlock block, MlirContext context,
+                  ClassAnnotator &annotator);
 
 } // namespace torch_mlir
 

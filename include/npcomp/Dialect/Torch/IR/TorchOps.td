@@ -190,13 +190,24 @@ def Torch_MethodOp : Torch_Op<"method", [
     method `name` which calls `function`. `function` is an unbound function.
     That is, it explicitly takes the torch.nn.Module as a parameter (no implicit
     "self" object).
+
+    If `private` is present, it indicates that external calls cannot be made
+    to this method.
   }];
 
-  let arguments = (ins StrAttr:$name, FlatSymbolRefAttr:$function);
+  // We don't use sym_visibility because that only applies to Symbol's, and
+  // some of the related concepts like "nested" visibility are specific to
+  // symbols.
+  let arguments = (ins
+    StrAttr:$name,
+    FlatSymbolRefAttr:$function,
+    // `private` is a C++ keyword, so use `isPrivate`.
+    UnitAttr:$isPrivate
+  );
   let results = (outs);
 
   let assemblyFormat = [{
-    $name `,` $function attr-dict
+    (`private` $isPrivate^)? $name `,` $function attr-dict
   }];
 }
 
@@ -207,13 +218,24 @@ def Torch_AttrOp : Torch_Op<"attr", [
   let description = [{
     This op declaratively specifies that torch.nn.Module's of the parent
     torch.class_type must have an attribute `name` of type `type`.
+
+    If `private` is present, it indicates that the value of this attribute
+    cannot be accessed externally.
   }];
 
-  let arguments = (ins StrAttr:$name, TypeAttr:$type);
+  // We don't use sym_visibility because that only applies to Symbol's, and
+  // some of the related concepts like "nested" visibility are specific to
+  // symbols.
+  let arguments = (ins
+    StrAttr:$name,
+    TypeAttr:$type,
+    // `private` is a C++ keyword, so use `isPrivate`
+    UnitAttr:$isPrivate
+  );
   let results = (outs);
 
   let assemblyFormat = [{
-    $name `:` $type attr-dict
+    (`private` $isPrivate^)? $name `:` $type attr-dict
   }];
 }
 
@@ -233,14 +255,19 @@ def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
   let description = [{
     Represents a slot with global storage. The slot semantics are the same
     as Python's: getting or setting a slot is done by object identity.
+
+    The `typeBound` is a type that the contained type is a subtype of.
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name, TypeAttr:$typeBound);
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
+    TypeAttr:$typeBound
+  );
   let results = (outs);
 
-
   let assemblyFormat = [{
-    $sym_name attr-dict `:` $typeBound
+    ($sym_visibility^)? $sym_name attr-dict `:` $typeBound
   }];
 
   let extraClassDeclaration = [{

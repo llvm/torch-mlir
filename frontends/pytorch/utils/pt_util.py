@@ -26,15 +26,27 @@ def main():
                         help="dump the pytorch module")
     parser.add_argument("--import", action="store_true",
                         help="import the pytorch module")
+    parser.add_argument("--exported-name", action="append",
+                        help="""
+Name to export, such as `my.submodule.forward`(default = export all).
+Can pass repeatedly.
+""")
     args = parser.parse_args()
     # TODO: Investigate why "cpu" is needed.
     module = torch.jit.load(args.pt_file, map_location="cpu")
-    mb = torch_mlir.ModuleBuilder()
+
     if args.dump:
         module._c.dump(code=True, attrs=False, params=False)
+
     # `import` is a Python keyword, so getattr is needed.
     if getattr(args, "import", False):
-        mb.import_module(module._c)
+        class_annotator = torch_mlir.ClassAnnotator()
+        if args.exported_name is not None:
+            class_annotator.exportNone(module._c._type())
+            for name in args.exported_name:
+                class_annotator.exportPath(name.split("."), module._c._type())
+        mb = torch_mlir.ModuleBuilder()
+        mb.import_module(module._c, class_annotator)
         mb.module.operation.print(large_elements_limit=16)
 
 

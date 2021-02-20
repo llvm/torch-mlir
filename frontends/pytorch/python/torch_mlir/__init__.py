@@ -12,4 +12,5 @@ from _torch_mlir import *
 __all__ = [
   "debug_trace_to_stderr",
   "ModuleBuilder",
+  "ClassAnnotator",
 ]
