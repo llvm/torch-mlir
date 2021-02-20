@@ -188,7 +188,10 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
     } else {
       auto linkageName = llvm::join(nameStack, ".");
       auto globalSlot = globalBuilder.create<GlobalSlotOp>(
-          attr->getLoc(), linkageName, TypeAttr::get(attr.type()));
+          attr->getLoc(), linkageName, /*sym_visibility=*/nullptr,
+          TypeAttr::get(attr.type()));
+      if (attr.isPrivate())
+        globalSlot.setVisibility(SymbolTable::Visibility::Private);
       AttrOfClass attrOfClass = {classType, attr.name()};
       assert(globalSlotForAttr.find(attrOfClass) == globalSlotForAttr.end());
       globalSlotForAttr[attrOfClass] = globalSlot;
@@ -289,6 +292,7 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
   // of methods with a single instance of the corresponding type just gets
   // arbitrarily tricky to rewrite. E.g. what if the user creates a list
   // of modules, or there is an scf.if selecting between modules, etc.
+  SmallVector<Operation *> toErase;
   auto rewriteOpWithNnModuleTypeOperand = [&](Operation *op) {
     if (auto primSetAttr = dyn_cast<PrimSetAttrOp>(op)) {
       auto classType = symbolTable.lookup<ClassTypeOp>(
@@ -297,9 +301,8 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       OpBuilder(primSetAttr)
           .create<GlobalSlotSetOp>(primSetAttr.getLoc(), globalSlot.sym_name(),
                                    primSetAttr.value());
-      primSetAttr.erase();
-    }
-    if (auto primGetAttr = dyn_cast<PrimGetAttrOp>(op)) {
+      toErase.push_back(primSetAttr);
+    } else if (auto primGetAttr = dyn_cast<PrimGetAttrOp>(op)) {
       // If the return value is NnModuleType, then we don't need to do anything.
       // Our verification earlier ensured that there are no uses that
       // we won't properly rewrite.
@@ -317,9 +320,8 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
                                          globalSlot.sym_name());
         primGetAttr.replaceAllUsesWith(globalSlotGet.getOperation());
       }
-      primGetAttr.erase();
-    }
-    if (auto primCallMethod = dyn_cast<PrimCallMethodOp>(op)) {
+      toErase.push_back(primGetAttr);
+    } else if (auto primCallMethod = dyn_cast<PrimCallMethodOp>(op)) {
       auto classType = symbolTable.lookup<ClassTypeOp>(primCallMethod.receiver()
                                                            .getType()
                                                            .cast<NnModuleType>()
@@ -334,7 +336,7 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
                       .create<CallOp>(primCallMethod.getLoc(), linkageName,
                                       primCallMethod.getType(), newOperands);
       primCallMethod.replaceAllUsesWith(call);
-      primCallMethod.erase();
+      toErase.push_back(primCallMethod);
     }
   };
   for (auto classType : module.getOps<ClassTypeOp>()) {
@@ -345,9 +347,15 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       FuncOp func = symbolTable.lookup<FuncOp>(method.function());
       if (failed(verifyMethodConformsToSubset(func)))
         return failure();
-      func.setVisibility(SymbolTable::Visibility::Public);
+      if (!method.isPrivate())
+        func.setVisibility(SymbolTable::Visibility::Public);
       func.setName(it->second);
       func.walk(rewriteOpWithNnModuleTypeOperand);
+      for (Operation *op : toErase) {
+        op->dropAllDefinedValueUses();
+        op->erase();
+      }
+      toErase.clear();
       SmallVector<unsigned> argsToErase;
       for (auto arg : llvm::enumerate(func.getArguments())) {
         if (!arg.value().getType().isa<NnModuleType>())
@@ -360,13 +368,16 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
       // as a user of module types.
     }
   }
+
   return success();
 }
 
 void ObjectGraphGlobalizer::removeObjectGraph() {
   for (Operation &op : llvm::make_early_inc_range(*module.getBody())) {
-    if (isa<ClassTypeOp, NnModuleOp>(op))
+    if (isa<ClassTypeOp, NnModuleOp>(op)) {
+      op.dropAllDefinedValueUses();
       op.erase();
+    }
   }
 }
 

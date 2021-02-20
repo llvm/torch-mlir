@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ivalue_importer.h"
+#include "class_annotator.h"
 #include "graph_importer.h"
 
 #include <unordered_map>
@@ -93,20 +94,24 @@ namespace {
 /// (PyTorch allows this!).
 class IValueImporter {
 public:
-  IValueImporter(MlirBlock importBlock, MlirContext context)
-      : importBlock(importBlock), context(context), typeMapper(context) {}
+  IValueImporter(MlirBlock importBlock, MlirContext context,
+                 ClassAnnotator &annotator)
+      : importBlock(importBlock), context(context), typeMapper(context),
+        annotator(annotator) {}
 
   MlirValue importIValue(c10::IValue value);
 
 private:
   MlirValue rawImportIValue(c10::IValue value);
   MlirValue importModule(torch::jit::Module jitModule);
-  void importMethod(torch::jit::Function *function, MlirBlock classTypeBody);
+  void importMethod(torch::jit::Function *function, MlirBlock classTypeBody,
+                    const MethodAnnotation &methodAnnotation);
   void importClassType(c10::ClassType *classType);
 
   MlirBlock importBlock;
   MlirContext context;
   TypeMapper typeMapper;
+  ClassAnnotator &annotator;
 
   // Map tracking already-imported values.
   std::unordered_map<c10::IValue, MlirValue, IValueHasher, IValueEq> valueMap;
@@ -274,7 +279,8 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
 }
 
 void IValueImporter::importMethod(torch::jit::Function *function,
-                                  MlirBlock classTypeBody) {
+                                  MlirBlock classTypeBody,
+                                  const MethodAnnotation &methodAnnotation) {
   // We make an effort for the func op's symbol name to be useful for debugging,
   // but still clearly non-load-bearing.
   std::string symName =
@@ -286,13 +292,18 @@ void IValueImporter::importMethod(torch::jit::Function *function,
       mlirStringAttrGet(context, toMlirStringRef("private")));
   mlirBlockInsertOwnedOperationBefore(
       importBlock, mlirBlockGetTerminator(importBlock), func);
+  c10::optional<MlirNamedAttribute> isPrivate;
+  if (!methodAnnotation.isExported) {
+    isPrivate = toMlirNamedAttribute("isPrivate", mlirUnitAttrGet(context));
+  }
   createMlirOperationAtEnd(
       classTypeBody, "torch.method", mlirLocationUnknownGet(context),
       toMlirNamedAttribute(
           "name",
           mlirStringAttrGet(context, toMlirStringRef(function->name()))),
       toMlirNamedAttribute("function", mlirFlatSymbolRefAttrGet(
-                                           context, toMlirStringRef(symName))));
+                                           context, toMlirStringRef(symName))),
+      isPrivate);
 }
 
 void IValueImporter::importClassType(c10::ClassType *classType) {
@@ -313,7 +324,17 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
   mlirRegionAppendOwnedBlock(region, mlirBlockCreate(0, nullptr));
   MlirBlock classTypeBody = mlirRegionGetFirstBlock(region);
 
-  for (const c10::ClassAttribute &classAttribute : classType->getAttributes()) {
+  ClassAnnotation &classAnnotation =
+      annotator.getOrCreateClassAnnotation(classType);
+
+  const auto &attributeAnnotations = classAnnotation.getAttributeAnnotations();
+  const auto &classAttributes = classType->getAttributes();
+  for (int i = 0, e = classAttributes.size(); i != e; i++) {
+    const c10::ClassAttribute &classAttribute = classAttributes[i];
+    c10::optional<MlirNamedAttribute> isPrivate;
+    if (!attributeAnnotations[i].isExported) {
+      isPrivate = toMlirNamedAttribute("isPrivate", mlirUnitAttrGet(context));
+    }
     createMlirOperationAtEnd(
         classTypeBody, "torch.attr", loc,
         toMlirNamedAttribute(
@@ -321,21 +342,24 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
                         context, toMlirStringRef(classAttribute.getName()))),
         toMlirNamedAttribute("type",
                              mlirTypeAttrGet(typeMapper.mapFromTorchType(
-                                 loc, classAttribute.getType()))));
+                                 loc, classAttribute.getType()))),
+        isPrivate);
   }
 
-  for (torch::jit::Function *function : classType->methods()) {
-    importMethod(function, classTypeBody);
+  const auto &methodAnnotations = classAnnotation.getMethodAnnotations();
+  const auto &methods = classType->methods();
+  for (int i = 0, e = methods.size(); i != e; i++) {
+    importMethod(methods[i], classTypeBody, methodAnnotations[i]);
   }
 
   createMlirOperationAtEnd(classTypeBody, "torch.class_type_terminator", loc);
 }
 
 void torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
-                              MlirContext context) {
+                              MlirContext context, ClassAnnotator &annotator) {
   // When debugging module importing, it can be useful to dump as so:
   // if (ivalue.isModule())
   //   ivalue.toModule().dump(true, false, false);
-  IValueImporter importer(block, context);
+  IValueImporter importer(block, context, annotator);
   importer.importIValue(ivalue);
 }

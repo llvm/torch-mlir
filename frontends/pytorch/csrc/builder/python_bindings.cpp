@@ -13,6 +13,7 @@
 #include "../init_python_bindings.h"
 #include "acap_dispatch.h"
 #include "module_builder.h"
+#include "class_annotator.h"
 
 using namespace torch_mlir;
 namespace py = pybind11;
@@ -139,4 +140,6 @@ void torch_mlir::InitBuilderBindings(py::module &m) {
   m.def("get_registered_ops", &GetRegisteredOps, kGetRegisteredOpsDocstring);
 
   ModuleBuilder::bind(m);
+
+  initClassAnnotatorBindings(m);
 }

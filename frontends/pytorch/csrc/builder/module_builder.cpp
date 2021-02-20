@@ -134,9 +134,15 @@ ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
   return function;
 }
 
-void ModuleBuilder::importModule(torch::jit::Module jitModule) {
+void ModuleBuilder::importModule(torch::jit::Module jitModule,
+                                 py::object maybeClassAnnotator) {
+  ClassAnnotator dummyAnnotator;
+  ClassAnnotator *classAnnotator = &dummyAnnotator;
+  if (!maybeClassAnnotator.is_none()) {
+    classAnnotator = py::cast<ClassAnnotator *>(maybeClassAnnotator);
+  }
   importIValue(jitModule._ivalue(), mlirModuleGetBody(module),
-               mlirModuleGetContext(module));
+               mlirModuleGetContext(module), *classAnnotator);
 }
 
 FuncBuilder::Inserter ModuleBuilder::createInserter() {
@@ -160,5 +166,6 @@ void ModuleBuilder::bind(py::module &m) {
       .def("capture_function", &ModuleBuilder::startCaptureFunction,
            py::keep_alive<0, 1>())
       .def("import_function", &ModuleBuilder::importFunction)
-      .def("import_module", &ModuleBuilder::importModule);
+      .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
+           py::arg("classAnnotator") = py::none());
 }

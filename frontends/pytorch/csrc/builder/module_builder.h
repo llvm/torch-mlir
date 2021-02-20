@@ -11,6 +11,7 @@
 #include "../pybind.h"
 
 #include "acap_dispatch.h"
+#include "class_annotator.h"
 
 #include "mlir-c/IR.h"
 
@@ -44,8 +45,11 @@ public:
   torch::jit::StrongFunctionPtr
   importFunction(torch::jit::StrongFunctionPtr function);
 
-  // Imports a torch::jit::Module into the current module.
-  void importModule(torch::jit::Module jitModule);
+  // Imports a torch::jit::Module into the current module, using the
+  // annotations, if not none, provided in `maybeClassAnnotator` which should be
+  // a ClassAnnotator.
+  void importModule(torch::jit::Module jitModule,
+                    py::object maybeClassAnnotator);
 
 private:
   FuncBuilder::Inserter createInserter();

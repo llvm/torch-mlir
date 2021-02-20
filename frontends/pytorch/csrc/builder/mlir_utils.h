@@ -15,6 +15,8 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
 
+#include "c10/util/Optional.h"
+
 namespace torch_mlir {
 
 inline MlirStringRef toMlirStringRef(const std::string &s) {
@@ -60,6 +62,13 @@ inline void addToMlirOperationState(MlirOperationState &state,
 inline void addToMlirOperationState(MlirOperationState &state,
                                     const std::vector<MlirType> &resultTypes) {
   mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
+}
+
+template <typename T>
+void addToMlirOperationState(MlirOperationState &state, c10::optional<T> o) {
+  if (o.has_value()) {
+    addToMlirOperationState(state, o.value());
+  }
 }
 
 inline void addToMlirOperationState(MlirOperationState &state) {}
