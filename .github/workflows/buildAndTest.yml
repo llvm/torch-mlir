@@ -18,6 +18,9 @@ jobs:
     - name: Install python depends
       run: |
         python3 -m pip install pytest pybind11 numpy
+    - name: Install pytorch_nightly depends
+      run: |
+        python3 -m pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -50,6 +53,9 @@ jobs:
     - name: Install python depends
       run: |
         python3 -m pip install pytest pybind11 numpy
+    - name: Install pytorch_nightly depends
+      run: |
+        python3 -m pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -73,10 +79,10 @@ jobs:
         mkdir build_assert
         cd build_assert
         cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
-        make check-npcomp -j$(nproc)
+        make check-npcomp check-frontends-pytorch -j$(nproc)
     - name: Build and Test npcomp (Release)
       run: |
         mkdir build_release
         cd build_release
         cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
-        make check-npcomp -j$(nproc)
+        make check-npcomp check-frontends-pytorch -j$(nproc)
