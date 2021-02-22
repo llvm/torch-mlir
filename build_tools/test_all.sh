@@ -21,6 +21,7 @@ cd $td/build
 
 ninja
 ninja check-npcomp
+ninja check-frontends-pytorch
 
 echo
 echo "========"

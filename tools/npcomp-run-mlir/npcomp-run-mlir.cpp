@@ -11,16 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/InitLLVM.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR.h"
 #include "npcomp-c/InitLLVM.h"
 #include "npcomp/InitAll.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
+#include "llvm/Support/InitLLVM.h"
 
 using namespace mlir;
 using llvm::Error;
@@ -119,11 +120,9 @@ static void printOutputs(ArrayRef<refbackrt::Ref<refbackrt::Tensor>> outputs,
   }
 }
 
-Error compileAndRun(std::string mlirFile, mlir::DialectRegistry &registry,
+Error compileAndRun(std::string mlirFile, mlir::MLIRContext &context,
                     std::string invokeFunction, ArrayRef<StringRef> argValues,
                     ArrayRef<StringRef> sharedLibs, bool optimize) {
-  MLIRContext context;
-  registry.loadAll(&context);
   OwningModuleRef moduleRef = parseSourceFile(mlirFile, &context);
   if (!moduleRef)
     return make_string_error(Twine("could not open ") + mlirFile);
@@ -186,6 +185,9 @@ int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::NPCOMP::registerAllDialects(registry);
   mlir::NPCOMP::registerAllPasses();
+  MLIRContext context;
+  context.appendDialectRegistry(registry);
+  context.loadAllAvailableDialects();
 
   llvm::InitLLVM y(argc, argv);
   npcompInitializeLLVMCodegen();
@@ -200,7 +202,7 @@ int main(int argc, char **argv) {
   SmallVector<StringRef, 6> argValues(options.argValues.begin(),
                                       options.argValues.end());
   Error error =
-      compileAndRun(options.inputFile, registry, options.invokeFunction,
+      compileAndRun(options.inputFile, context, options.invokeFunction,
                     argValues, sharedLibs, options.optimize);
 
   int exitCode = EXIT_SUCCESS;

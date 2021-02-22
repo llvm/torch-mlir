@@ -242,7 +242,7 @@ public:
     auto &env = cpaContext.getCurrentEnvironment();
 
     InitialConstraintGenerator p(env);
-    p.runOnFunction(func);
+    (void)p.runOnFunction(func);
 
     CPA::PropagationWorklist prop(env);
     do {

@@ -114,7 +114,7 @@ Type BasicpyDialect::parseType(DialectAsmParser &parser) const {
     }
     if (parser.parseGreater())
       return Type();
-    return SlotObjectType::get(StringAttr::get(className, getContext()),
+    return SlotObjectType::get(StringAttr::get(getContext(), className),
                                slotTypes);
   }
   if (keyword == "StrType")

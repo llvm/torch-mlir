@@ -73,7 +73,8 @@ mlir::Type TypeNode::constructIrType(Context &context,
                                      const TypeVarMap &mapping,
                                      MLIRContext *mlirContext,
                                      llvm::Optional<Location> loc) {
-  mlir::emitOptionalError(loc, "base class cannot construct concrete types");
+  (void)mlir::emitOptionalError(loc,
+                                "base class cannot construct concrete types");
   return {};
 }
 

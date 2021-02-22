@@ -82,11 +82,12 @@ void PropagationWorklist::propagateTransitivity() {
 ValueType *
 GreedyTypeNodeVarResolver::unionCandidateTypes(const ValueTypeSet &candidates) {
   if (candidates.empty()) {
-    mlir::emitOptionalError(loc, "no candidate types were identified");
+    (void)mlir::emitOptionalError(loc, "no candidate types were identified");
     return nullptr;
   }
   if (candidates.size() != 1) {
-    mlir::emitOptionalError(loc, "ambiguous candidate types were identified");
+    (void)mlir::emitOptionalError(loc,
+                                  "ambiguous candidate types were identified");
     return nullptr;
   }
 

@@ -14,9 +14,11 @@
 #include "npcomp/InitAll.h"
 
 void npcompRegisterAllDialects(MlirContext context) {
-  mlir::NPCOMP::registerAllDialects(unwrap(context)->getDialectRegistry());
+  mlir::DialectRegistry registry;
+  mlir::NPCOMP::registerAllDialects(registry);
+  unwrap(context)->appendDialectRegistry(registry);
   // TODO: Don't eagerly load once D88162 is in and clients can do this.
-  unwrap(context)->getDialectRegistry().loadAll(unwrap(context));
+  unwrap(context)->loadAllAvailableDialects();
 }
 
 void npcompRegisterAllPasses() {

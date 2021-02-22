@@ -179,7 +179,7 @@ struct RestrictedCanonicalizer
         op->getCanonicalizationPatterns(patterns, context);
 
     Operation *op = getOperation();
-    applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns));
+    (void)applyPatternsAndFoldGreedily(op->getRegions(), std::move(patterns));
   }
 };
 } // end anonymous namespace

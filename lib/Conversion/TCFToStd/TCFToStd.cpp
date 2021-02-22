@@ -9,6 +9,7 @@
 #include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Traits.h"
@@ -108,9 +109,9 @@ public:
 static LogicalResult
 matchAndRewriteUnaryElementwise(Operation *op, PatternRewriter &rewriter) {
   if (isa<tcf::ExpOp>(op)) {
-    rewriter.replaceOpWithNewOp<ExpOp>(op, op->getOperand(0));
+    rewriter.replaceOpWithNewOp<math::ExpOp>(op, op->getOperand(0));
   } else if (isa<tcf::TanhOp>(op)) {
-    rewriter.replaceOpWithNewOp<TanhOp>(op, op->getOperand(0));
+    rewriter.replaceOpWithNewOp<math::TanhOp>(op, op->getOperand(0));
   } else {
     op->dump();
     llvm::report_fatal_error(

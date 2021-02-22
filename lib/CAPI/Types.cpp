@@ -123,7 +123,7 @@ MlirType npcompSlotObjectTypeGet(MlirContext context, MlirStringRef className,
                                  intptr_t slotTypeCount,
                                  const MlirType *slotTypes) {
   MLIRContext *cppContext = unwrap(context);
-  auto classNameAttr = StringAttr::get(unwrap(className), cppContext);
+  auto classNameAttr = StringAttr::get(cppContext, unwrap(className));
   SmallVector<Type> slotTypesCpp;
   slotTypesCpp.resize(slotTypeCount);
   for (intptr_t i = 0; i < slotTypeCount; ++i) {

@@ -2,7 +2,7 @@
 
 // CHECK-LABEL:   func @unary_ops(
 // CHECK-SAME:                    %[[ARG:.*]]: tensor<?xf32>) -> tensor<?xf32> {
-// CHECK:           %[[RET:.*]] = exp %[[ARG]] : tensor<?xf32>
+// CHECK:           %[[RET:.*]] = math.exp %[[ARG]] : tensor<?xf32>
 // CHECK:           return %[[RET]] : tensor<?xf32>
 // CHECK:         }
 func @unary_ops(%arg0: tensor<?xf32>) -> tensor<?xf32> {

@@ -8,6 +8,8 @@
 
 #include "npcomp/InitAll.h"
 
+#include "mlir/IR/Dialect.h"
+#include "npcomp/Conversion/Passes.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "npcomp/Dialect/ATen/Transforms/Passes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
@@ -22,10 +24,8 @@
 #include "npcomp/Dialect/TCP/Transforms/Passes.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
-#include "npcomp/Typing/Transforms/Passes.h"
-
-#include "npcomp/Conversion/Passes.h"
 #include "npcomp/RefBackend/RefBackend.h"
+#include "npcomp/Typing/Transforms/Passes.h"
 
 void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
   // clang-format off

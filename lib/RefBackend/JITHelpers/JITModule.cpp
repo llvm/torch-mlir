@@ -9,6 +9,7 @@
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
+#include "mlir/Target/LLVMIR.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
 using namespace refback;
@@ -36,6 +37,9 @@ void JITModule::buildBackendCompilationPipeline(PassManager &pm,
 llvm::Expected<std::unique_ptr<JITModule>>
 JITModule::fromCompiledModule(mlir::ModuleOp module,
                               llvm::ArrayRef<llvm::StringRef> sharedLibs) {
+  // Ensure LLVM Dialect -> LLVM IR translations are available.
+  mlir::registerLLVMDialectTranslation(*module->getContext());
+  // Build the JITModule.
   auto expectedEngine = ExecutionEngine::create(
       module, /*llvmModuleBuilder=*/nullptr,
       /*transformer=*/[](llvm::Module *) { return Error::success(); },

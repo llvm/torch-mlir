@@ -81,7 +81,7 @@ public:
       LLVM_DEBUG(llvm::dbgs()
                  << "generated layer_name: '" << layerName << "'\n");
 
-      auto attr = StringAttr::get(layerName, module.getContext());
+      auto attr = StringAttr::get(module.getContext(), layerName);
       op->setAttr(StringRef("layer_name"), attr);
     });
   }

@@ -182,8 +182,9 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
   for (auto attr : classType.getOps<AttrOp>()) {
     nameStack.push_back(attr.name().str());
     if (auto type = attr.type().dyn_cast<NnModuleType>()) {
-      recursivelyTraverseClassType(
-          symbolTable.lookup<ClassTypeOp>(type.getClassName()));
+      if (failed(recursivelyTraverseClassType(
+              symbolTable.lookup<ClassTypeOp>(type.getClassName()))))
+        return failure();
     } else {
       auto linkageName = llvm::join(nameStack, ".");
       auto globalSlot = globalBuilder.create<GlobalSlotOp>(
@@ -200,7 +201,8 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
     auto linkageName = llvm::join(nameStack, ".");
     nameStack.pop_back();
     if (!methodLinkageNames.insert({method.function(), linkageName}).second)
-      method.emitError() << "unbound function shared by multiple methods";
+      return method.emitError()
+             << "unbound function shared by multiple methods";
   }
   return success();
 }

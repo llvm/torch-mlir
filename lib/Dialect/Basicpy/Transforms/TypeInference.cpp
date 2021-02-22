@@ -441,7 +441,7 @@ public:
 
     TypeEquations equations;
     TypeEquationPopulator p(equations);
-    p.runOnFunction(func);
+    (void)p.runOnFunction(func);
     LLVM_DEBUG(equations.report(llvm::dbgs()));
 
     TypeUnifier unifier;
