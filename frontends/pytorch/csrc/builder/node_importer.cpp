@@ -125,7 +125,7 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
 
   if (kind == c10::prim::ListConstruct) {
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "basicpy.build_tuple", loc, npcompListTypeGet(context),
+        appendToBlock, "basicpy.build_list", loc, npcompListTypeGet(context),
         lookupMappedValues(node->inputs()));
     mapResults(node, operation);
     return;
