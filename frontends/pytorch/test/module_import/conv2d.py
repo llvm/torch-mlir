@@ -20,17 +20,19 @@ class TestModule(torch.nn.Module):
     def forward(self, x):
         return self.conv1(x)
 
-# CHECK: torch.class_type @[[CLASSTYPE:.*]] {
-# TODO: Don't lose element type.
-# CHECK:   torch.attr "l" : !basicpy.ListType
-# CHECK: }
-# CHECK: %[[N1:.*]] = basicpy.numeric_constant 1 : i64
-# CHECK: %[[N2:.*]] = basicpy.numeric_constant 2 : i64
-# CHECK: %[[LIST:.*]] = basicpy.build_list %[[N1]], %[[N2]] : (i64, i64) -> !basicpy.ListType
-# CHECK: torch.nn_module  {
-# CHECK:   torch.slot "l", %[[LIST]] : !basicpy.ListType
-# CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
+# CHECK-LABEL:   torch.class_type
+# CHECK-SAME:        @[[CLASSTYPE:.*]] {
+# CHECK:           torch.method "forward", @[[SYMNAME:.*]]
+# CHECK:         }
 
+# CHECK-LABEL:   func private
+# CHECK-SAME:                 @[[SYMNAME]](
+# CHECK-SAME:                                 %[[SELF:.*]]: !torch.nn.Module<"[[CLASSTYPE]]">,
+# CHECK-SAME:                                 %[[INPUT:.*]]: !numpy.ndarray<*:!numpy.any_dtype>)
+
+# TODO(brycearden): Check's could be improved here, but this will do for now
+# CHECK: torch.method "_conv_forward"
+# CHECK: torch.kernel_call "aten::conv2d"
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)
