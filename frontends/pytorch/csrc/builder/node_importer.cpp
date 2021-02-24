@@ -123,6 +123,14 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::ListConstruct) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "basicpy.build_tuple", loc, npcompListTypeGet(context),
+        lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   if (kind == c10::prim::If) {
     // TorchScript will already have an explicit op to determine truthiness. So
     // all we need to do here is launder !basicpy.BoolType to i1 for `scf.if`.
