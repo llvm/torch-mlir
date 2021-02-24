@@ -164,9 +164,11 @@ def AnyTorchType : AnyTypeOf<[
     AnyTorchScalarType,
     AnyTorchTensorType,
     Basicpy_ListType,
+    Basicpy_TupleType,
     Basicpy_NoneType,
     Basicpy_BytesType,
     Torch_NnModuleType,
+    Torch_OptionalType,
   ], "Any type that is legal to pass to a Torch kernel">;
 
 #endif // TORCH_TYPES
