@@ -250,6 +250,7 @@ def Torch_AttrOp : Torch_Op<"attr", [
 def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
     Symbol,
     IsolatedFromAbove,
+    SingleBlockImplicitTerminator<"::mlir::NPCOMP::Torch::GlobalSlotInitOp">
   ]> {
   let summary = "A slot with global storage";
   let description = [{
@@ -265,21 +266,32 @@ def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
     TypeAttr:$typeBound
   );
   let results = (outs);
+  let regions = (region SizedRegion<1>:$initializer);
 
   let assemblyFormat = [{
-    ($sym_visibility^)? $sym_name attr-dict `:` $typeBound
+    ($sym_visibility^)? $sym_name attr-dict `:` $typeBound ($initializer^)?
+  }];
+}
+
+def Torch_GlobalSlotInitOp : Torch_Op<"global_slot.init", [
+    Terminator,
+    HasParent<"::mlir::NPCOMP::Torch::GlobalSlotOp">]> {
+  let summary = "yield-like terminator for torch.global_slot initializer region";
+  let description = [{
+    The operand to this op becomes the initial value of the parent
+    torch.global_slot.
   }];
 
-  let extraClassDeclaration = [{
-    // The name of the function, which, for semantic correctness, must be called
-    // exactly once and this call must be done before any other calls into
-    // the module.
-    // TODO: Avoid load-bearing names.
-    // We could replace this with an op that marks the function as initializer.
-    static constexpr StringRef getGlobalSlotInitializerFuncName() {
-      return "__torch_global_slot_initializer";
-    }
-  }];
+  let arguments = (ins AnyTorchType:$initialValue);
+  let results = (outs);
+
+  // This bulider creates an illegal op, but is needed to appease
+  // ensureTerminator in the default builders for SingleBlockImplicitTerminator
+  // on the parent torch.global_slot op.
+  // TODO: Have a SingleBlockExplicitTerminator trait.
+  let builders = [OpBuilderDAG<(ins), [{ /*nothing to do */ }]>];
+
+  let assemblyFormat = "$initialValue attr-dict `:` type($initialValue)";
 }
 
 def Torch_GlobalSlotGetOp : Torch_Op<"global_slot.get", []> {

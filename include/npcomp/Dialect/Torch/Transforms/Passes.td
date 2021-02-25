@@ -59,6 +59,14 @@ def GlobalizeObjectGraph : Pass<"torch-globalize-object-graph", "ModuleOp"> {
         paths. Or worse, infinite number of paths when considering cyclic
         object graphs. Also as of Feb 2021, TorchScript won't import into
         this form (it has a bug related to the identity of submodules).
+    - Two slots cannot have initial values that alias each other.
+      - Rationale: This makes the representation of initial values simpler. Also
+        as of Feb 2021, TorchScript won't import into this form except
+        potentially for Tensors (it has a bug related to the identity of
+        objects). And for tensors, the npcomp IValue importer only supports a
+        very restricted form of aliasing anyway for other reasons. We are
+        waiting for signals that more general handling of object aliasing is
+        important to devote the effort to it.
   }];
 }
 
