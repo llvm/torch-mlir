@@ -253,6 +253,17 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
                                  npcompListTypeGet(context), elems);
     return mlirOperationGetResult(operation, 0);
   }
+  if (ivalue.isTuple()) {
+    auto list = ivalue.toTuple()->elements();
+    std::vector<MlirValue> elems;
+    for (const c10::IValue &elem : list) {
+      elems.push_back(importIValue(elem));
+    }
+    MlirOperation operation =
+        createMlirOperationAtEnd(importBlock, "basicpy.build_tuple", loc,
+                                 npcompTupleTypeGet(context), elems);
+    return mlirOperationGetResult(operation, 0);
+  }
   if (ivalue.isTensor()) {
     at::Tensor tensor = ivalue.toTensor().contiguous();
     MlirAttribute denseElements = converTensorToMlirElementsAttr(tensor, loc);
