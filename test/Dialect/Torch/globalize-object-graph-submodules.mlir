@@ -2,12 +2,11 @@
 
 // Check that linkage names consist of the dotted path from the root. 
 
-// CHECK-LABEL:   torch.global_slot @m.float : f64
+// CHECK-LABEL:   torch.global_slot @m.float : f64  {
+// CHECK:           %[[INIT:.*]] = constant 4.200000e+01 : f64
+// CHECK:           torch.global_slot.init %[[INIT]] : f64
+// CHECK:         }
 
-// CHECK-LABEL:   func @__torch_global_slot_initializer() {
-// CHECK:           %[[C42:.*]] = constant 4.200000e+01 : f64
-// CHECK:           torch.global_slot.set @m.float = %[[C42]] : f64
-// CHECK:           return
 
 torch.class_type @child {
   torch.attr "float" : f64

@@ -33,7 +33,8 @@ private:
   FailureOr<NnModuleOp> findRootNnModule();
   LogicalResult checkSingleInstanceOfEachClass();
   LogicalResult recursivelyTraverseClassType(ClassTypeOp classType);
-  void createInitializerFunc();
+  LogicalResult populateGlobalSlotInitializer(GlobalSlotOp op,
+                                              Value initialValue);
   LogicalResult rewriteMethods();
   void removeObjectGraph();
 
@@ -72,6 +73,11 @@ private:
   // Used for diagnostics.
   // The map value is the original path from the root that we found it at.
   DenseMap</*ClassTypeOp*/ Operation *, std::string> seenClassTypes;
+
+  // A set of values that we have copied into torch.global_slot initializers,
+  // which cannot be used in multiple initializers because their object
+  // identity is important.
+  DenseSet<Value> objectsWithIdentityAlreadyCopiedIntoInitializers;
 };
 } // namespace
 
@@ -109,9 +115,6 @@ LogicalResult ObjectGraphGlobalizer::globalizeObjectGraph() {
       symbolTable.lookup<ClassTypeOp>(rootNnModule.getClassName());
   if (failed(recursivelyTraverseClassType(rootClassType)))
     return failure();
-
-  // Move all slot initial values into an initializer func.
-  createInitializerFunc();
 
   // Rewrite torch.prim.GetAttr/torch.prim.SetAttr/torch.prim.CallMethod.
   if (failed(rewriteMethods()))
@@ -195,6 +198,9 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
       AttrOfClass attrOfClass = {classType, attr.name()};
       assert(globalSlotForAttr.find(attrOfClass) == globalSlotForAttr.end());
       globalSlotForAttr[attrOfClass] = globalSlot;
+      if (failed(populateGlobalSlotInitializer(globalSlot,
+                                               slotInitialValues[attrOfClass])))
+        return failure();
     }
     nameStack.pop_back();
   }
@@ -210,33 +216,48 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
   return success();
 }
 
-void ObjectGraphGlobalizer::createInitializerFunc() {
-  auto loc = module.getLoc();
-  auto func = globalBuilder.create<FuncOp>(
-      loc, GlobalSlotOp::getGlobalSlotInitializerFuncName(),
-      globalBuilder.getFunctionType({}, {}));
-  OpBuilder builder(func.getContext());
-  Block *body = builder.createBlock(&func.getBody());
+static bool hasMeaningfulObjectIdentity(Type type) {
+  return !type.isa<IntegerType, FloatType, Basicpy::BoolType,
+                   Basicpy::BytesType, TensorType>();
+}
 
-  SmallVector<Operation *> opsToMove;
-  for (Operation &op : llvm::make_early_inc_range(*module.getBody())) {
-    if (isa<ClassTypeOp, NnModuleOp, GlobalSlotOp, FuncOp, ModuleTerminatorOp>(
-            &op))
+LogicalResult
+ObjectGraphGlobalizer::populateGlobalSlotInitializer(GlobalSlotOp globalSlot,
+                                                     Value initialValue) {
+  OpBuilder builder(globalSlot.getContext());
+  builder.createBlock(&globalSlot.getRegion());
+
+  SmallPtrSet<Operation *, 6> needToClone;
+  SmallVector<Operation *> worklist = {initialValue.getDefiningOp()};
+  while (!worklist.empty()) {
+    Operation *op = worklist.pop_back_val();
+    if (!needToClone.insert(op).second)
       continue;
-    op.moveBefore(body, body->end());
-    for (Value result : llvm::make_early_inc_range(op.getResults())) {
-      auto it = slotInitialValuesInverseMap.find(result);
-      if (it == slotInitialValuesInverseMap.end())
+    for (Value operand : op->getOperands()) {
+      if (auto def = operand.getDefiningOp())
+        worklist.push_back(def);
+    }
+  }
+  worklist.assign(needToClone.begin(), needToClone.end());
+  llvm::sort(worklist, [](Operation *lhs, Operation *rhs) {
+    return lhs->isBeforeInBlock(rhs);
+  });
+  BlockAndValueMapping mapping;
+  for (Operation *op : worklist) {
+    builder.clone(*op, mapping);
+    for (Value result : op->getResults()) {
+      if (!hasMeaningfulObjectIdentity(result.getType()))
         continue;
-      for (AttrOfClass attrOfClass : it->second) {
-        GlobalSlotOp globalSlot = globalSlotForAttr[attrOfClass];
-        OpBuilder::atBlockEnd(body).create<GlobalSlotSetOp>(
-            globalSlot.getLoc(), globalSlot.sym_name(), result);
+      if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
+               .second) {
+        return op->emitError()
+               << "potentially-aliased value used to initialize multiple slots";
       }
     }
   }
-
-  builder.create<ReturnOp>(loc);
+  builder.create<GlobalSlotInitOp>(globalSlot->getLoc(),
+                                   mapping.lookup(initialValue));
+  return success();
 }
 
 // Verify that a value conforms to the subset of allowed uses for
@@ -374,7 +395,7 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
 
 void ObjectGraphGlobalizer::removeObjectGraph() {
   for (Operation &op : llvm::make_early_inc_range(*module.getBody())) {
-    if (isa<ClassTypeOp, NnModuleOp>(op)) {
+    if (!isa<FuncOp, GlobalSlotOp, ModuleTerminatorOp>(op)) {
       op.dropAllDefinedValueUses();
       op.erase();
     }
