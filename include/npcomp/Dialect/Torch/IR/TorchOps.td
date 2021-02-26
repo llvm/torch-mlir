@@ -365,4 +365,15 @@ def Torch_PrintOp : Torch_Op<"prim.Print", []> {
   }];
 }
 
+def Torch_PrimNumToTensorOp : Torch_Op<"prim.NumToTensor", []> {
+  let summary = "TorchScript prim::NumToTensor op";
+
+  let arguments = (ins AnyTorchNumberType:$num);
+  let results = (outs AnyTorchTensorType:$result);
+
+  let assemblyFormat = [{
+    $num attr-dict `:` type($num) `->` type($result)
+  }];
+}
+
 #endif // TORCH_OPS

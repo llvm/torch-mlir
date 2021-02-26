@@ -139,6 +139,15 @@ def AnyTorchScalarType : AnyTypeOf<[
     AnySignlessInteger,
   ], "Any primitive type suitable to be passed as a Torch Scalar">;
 
+def AnyTorchNumberType : AnyTypeOf<[
+    AnySignedInteger,
+    AnyFloat,
+    Basicpy_BoolType,
+    // Allow signless integers for ease of conversions. In general, this
+    // dialect uses signed integers.
+    AnySignlessInteger,
+  ], "Any primitive numeric type">;
+
 def AnyTorchBoolType : AnyTypeOf<[
     I1,
     Basicpy_BoolType,
