@@ -149,6 +149,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::NumToTensor) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "torch.prim.NumToTensor", loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   // Unhandled.
   {
     std::stringstream msg;
