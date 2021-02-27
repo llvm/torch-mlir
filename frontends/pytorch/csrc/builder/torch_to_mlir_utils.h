@@ -51,6 +51,19 @@ private:
   MlirContext context;
 };
 
+/// Creates a FunctionType suitable for expressing the signature of `block`.
+///
+/// `mlir::Block` only has a formalized notion of argument types (bb args), but
+/// the exact nature of the block's terminator is left opaque (for example, you
+/// can have a weird terminator that "returns all but the first operand").
+/// `torch::jit::Block` on the other hand has a formalized notion of a
+/// `param_node` and `return_node`, which are effectively dummy operations at
+/// the start and end of the block, which establish a formal signature for the
+/// block and can be generically reasoned about -- that is what we anchor on
+/// here.
+MlirType getFunctionTypeFromBlock(MlirContext context,
+                                  torch::jit::Block *block);
+
 /// Creates an appropriate MlirAttribute that holds the same values as `tensor`.
 MlirAttribute converTensorToMlirElementsAttr(at::Tensor tensor,
                                              MlirLocation loc);

@@ -10,6 +10,7 @@
 #include <unordered_map>
 
 #include "mlir_utils.h"
+#include "torch_to_mlir_utils.h"
 
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
@@ -17,21 +18,6 @@
 
 namespace py = pybind11;
 using namespace torch_mlir;
-
-static MlirType getFunctionTypeFromBlock(MlirContext context,
-                                         torch::jit::Block *block) {
-  MlirLocation inputLoc = getMlirLocationFromNode(context, block->param_node());
-  std::vector<MlirType> inputTypes =
-      getMlirTypesFromValues(inputLoc, block->param_node()->outputs());
-
-  MlirLocation outputLoc =
-      getMlirLocationFromNode(context, block->return_node());
-  std::vector<MlirType> outputTypes =
-      getMlirTypesFromValues(outputLoc, block->return_node()->inputs());
-
-  return mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
-                             outputTypes.size(), outputTypes.data());
-}
 
 MlirOperation torch_mlir::importGraphAsFuncOp(MlirContext context,
                                               torch::jit::Graph *graph,

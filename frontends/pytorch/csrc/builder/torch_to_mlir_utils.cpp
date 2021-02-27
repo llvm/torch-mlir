@@ -160,6 +160,21 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
   return npcompNdArrayTypeGetRanked(sizes.size(), sizes.data(), elementType);
 }
 
+MlirType torch_mlir::getFunctionTypeFromBlock(MlirContext context,
+                                              torch::jit::Block *block) {
+  MlirLocation inputLoc = getMlirLocationFromNode(context, block->param_node());
+  std::vector<MlirType> inputTypes =
+      getMlirTypesFromValues(inputLoc, block->param_node()->outputs());
+
+  MlirLocation outputLoc =
+      getMlirLocationFromNode(context, block->return_node());
+  std::vector<MlirType> outputTypes =
+      getMlirTypesFromValues(outputLoc, block->return_node()->inputs());
+
+  return mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
+                             outputTypes.size(), outputTypes.data());
+}
+
 MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
                                                          MlirLocation loc) {
   MlirContext context = mlirLocationGetContext(loc);

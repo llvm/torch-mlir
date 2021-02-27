@@ -21,5 +21,14 @@ mb = torch_mlir.ModuleBuilder()
 def prim_NumToTensor(i: int):
     return _to_tensor(i)
 
+# CHECK-LABEL:   func @prim_Print(
+# CHECK-SAME:                     %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !basicpy.NoneType {
+# CHECK:           %[[STR:.*]] = basicpy.bytes_constant "x"
+# CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !numpy.ndarray<*:!numpy.any_dtype>
+@mb.import_function
+@torch.jit.script
+def prim_Print(x):
+    print("x", x)
+
 mb.module.operation.print()
 print()
