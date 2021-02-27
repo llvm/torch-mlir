@@ -11,31 +11,30 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
+
+# Function names in the Torch compilation unit are systematic -- they
+# are effectively Python dotted paths. E.g. a Python module "foo" with a class
+# "bar" with a method "baz" will result in a function in the compilation unit
+# called "foo.bar.baz" when it gets `torch.jit.script`'ed.
+# (with the exception that `__main__` is replaced with `__torch__`).
+#
+# Given how systematic this is, we don't treat the symbol names as opaque (i.e.
+# we don't need to capture their names when FileCheck testing).
+
+# CHECK-LABEL:     func private @__torch__.TestModule.forward
+# CHECK-SAME:        (%[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[X:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+# CHECK:             return %[[X]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK:           }
+#
+# CHECK-LABEL:   torch.class_type @__torch__.TestModule  {
+# CHECK:           torch.method "forward", @__torch__.TestModule.forward
+# CHECK:         }
+
 class TestModule(torch.nn.Module):
   def __init__(self):
     super().__init__()
-  def forward(self, x, y):
-    return x * y
-
-# The symbol name of the function is NOT load-bearing and cannot be relied upon.
-
-# CHECK-LABEL:   torch.class_type
-# CHECK-SAME:        @[[CLASSTYPE:.*]] {
-# CHECK:           torch.method "forward", @[[SYMNAME:.*]]
-# CHECK:         }
-
-
-# CHECK-LABEL:   func private
-# CHECK-SAME:                 @[[SYMNAME]](
-# CHECK-SAME:                                 %[[SELF:.*]]: !torch.nn.Module<"[[CLASSTYPE]]">,
-# CHECK-SAME:                                 %[[X:.*]]: !numpy.ndarray<*:!numpy.any_dtype>,
-# CHECK-SAME:                                 %[[Y:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
-# CHECK:           %[[RET:.*]] = torch.kernel_call "aten::mul" %[[X]], %[[Y]]
-# CHECK:           return %[[RET]] : !numpy.ndarray<*:!numpy.any_dtype>
-
-# CHECK:         %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:         } : !torch.nn.Module<"[[CLASSTYPE]]">
-
+  def forward(self, x):
+    return x
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)

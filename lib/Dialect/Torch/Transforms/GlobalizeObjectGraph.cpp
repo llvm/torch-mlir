@@ -267,7 +267,7 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
   if (!value.getType().isa<NnModuleType>())
     return success();
   for (Operation *op : value.getUsers()) {
-    if (isa<PrimGetAttrOp, PrimSetAttrOp, PrimCallMethodOp>(op))
+    if (isa<CallOp, PrimGetAttrOp, PrimSetAttrOp, PrimCallMethodOp>(op))
       continue;
     // TODO: Improve this based on real user use cases.
     // This is a diagnostic that users will hit if they do not conform to
@@ -278,9 +278,13 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
   return success();
 }
 
+static std::string getNonMethodMangledFunctionName(StringRef originalName) {
+  return "__npcomp_priv_fn$" + originalName.str();
+}
+
 // Verify that `func` conforms to the subset of allowable method bodies
 // that we can convert.
-static LogicalResult verifyMethodConformsToSubset(FuncOp func) {
+static LogicalResult verifyFuncConformsToSubset(FuncOp func) {
   auto walkResult = func.walk([](Block *block) {
     for (Value arg : block->getArguments()) {
       if (failed(verifyNnModuleValueUses(arg)))
@@ -358,35 +362,69 @@ LogicalResult ObjectGraphGlobalizer::rewriteMethods() {
                                       primCallMethod.getType(), newOperands);
       primCallMethod.replaceAllUsesWith(call);
       toErase.push_back(primCallMethod);
+    } else if (auto callOp = dyn_cast<CallOp>(op)) {
+      auto newOperands = llvm::to_vector<6>(
+          llvm::make_filter_range(callOp.operands(), [](Value v) {
+            return !v.getType().isa<NnModuleType>();
+          }));
+      auto newCallOp = OpBuilder(callOp).create<CallOp>(
+          callOp.getLoc(), getNonMethodMangledFunctionName(callOp.callee()),
+          callOp.getResultTypes(), newOperands);
+      callOp.replaceAllUsesWith(newCallOp);
+      toErase.push_back(callOp);
     }
   };
+  struct MethodFuncRewrite {
+    bool isPrivate;
+    std::string linkageName;
+  };
+
+  DenseMap<FuncOp, MethodFuncRewrite> methodFuncRewrites;
   for (auto classType : module.getOps<ClassTypeOp>()) {
     for (auto method : classType.getOps<MethodOp>()) {
       auto it = methodLinkageNames.find(method.function());
       if (it == methodLinkageNames.end())
         continue;
       FuncOp func = symbolTable.lookup<FuncOp>(method.function());
-      if (failed(verifyMethodConformsToSubset(func)))
-        return failure();
-      if (!method.isPrivate())
+      methodFuncRewrites[func] =
+          MethodFuncRewrite{method.isPrivate(), it->second};
+    }
+  }
+  for (auto func : module.getOps<FuncOp>()) {
+    if (failed(verifyFuncConformsToSubset(func)))
+      return failure();
+    func.walk(rewriteOpWithNnModuleTypeOperand);
+    for (Operation *op : toErase) {
+      op->dropAllDefinedValueUses();
+      op->erase();
+    }
+    toErase.clear();
+    SmallVector<unsigned> argsToErase;
+    for (auto arg : llvm::enumerate(func.getArguments())) {
+      if (!arg.value().getType().isa<NnModuleType>())
+        continue;
+      assert(arg.value().use_empty() && "all uses should have been removed");
+      argsToErase.push_back(arg.index());
+    }
+    func.eraseArguments(argsToErase);
+    // No need to handle the results, since we currently don't allow ReturnOp
+    // as a user of module types.
+
+    // Adjust the linkage names to adopt the linkage convention of this pass,
+    // namely that only objects accessible from a root !torch.nn.Module are
+    // possible external linkage candidates, and their linkage name is the
+    // dotted path from the root.
+    //
+    // Any other function gets a prefix to avoid collisions. These other
+    // functions correspond to free functions somewhere outside the module
+    // hierarchy.
+    auto it = methodFuncRewrites.find(func);
+    if (it != methodFuncRewrites.end()) {
+      if (!it->second.isPrivate)
         func.setVisibility(SymbolTable::Visibility::Public);
-      func.setName(it->second);
-      func.walk(rewriteOpWithNnModuleTypeOperand);
-      for (Operation *op : toErase) {
-        op->dropAllDefinedValueUses();
-        op->erase();
-      }
-      toErase.clear();
-      SmallVector<unsigned> argsToErase;
-      for (auto arg : llvm::enumerate(func.getArguments())) {
-        if (!arg.value().getType().isa<NnModuleType>())
-          continue;
-        assert(arg.value().use_empty() && "all uses should have been removed");
-        argsToErase.push_back(arg.index());
-      }
-      func.eraseArguments(argsToErase);
-      // No need to handle the results, since we currently don't allow ReturnOp
-      // as a user of module types.
+      func.setName(it->second.linkageName);
+    } else {
+      func.setName(getNonMethodMangledFunctionName(func.getName()));
     }
   }
 

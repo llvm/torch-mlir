@@ -65,6 +65,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
       // For now, model it as bytes to avoid pledging more than we currently
       // model (e.g. no unicode, etc.).
       op = builder.createBytesConstant(loc, node->s(c10::attr::value));
+    } else if (auto functionType = output->type()->cast<c10::FunctionType>()) {
+      torch::jit::Function *function = functionType->function();
+      const std::string &symName = function->qualname().qualifiedName();
+      op = createMlirOperation(
+          "std.constant", loc,
+          getFunctionTypeFromBlock(context, function->graph()->block()),
+          toMlirNamedAttribute(
+              "value",
+              mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
     } else {
       MlirAttribute valueAttr = importAttribute(loc, node, c10::attr::value);
       op = builder.createStdConstant(loc, valueAttr);
@@ -152,6 +161,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::NumToTensor) {
     MlirOperation operation =
         createMlirOperationAtEnd(appendToBlock, "torch.prim.NumToTensor", loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
+  if (kind == c10::prim::CallFunction) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "std.call_indirect", loc,
                                  getMlirTypesFromValues(loc, node->outputs()),
                                  lookupMappedValues(node->inputs()));
     mapResults(node, operation);

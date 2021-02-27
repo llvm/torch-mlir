@@ -107,6 +107,7 @@ private:
   void importMethod(torch::jit::Function *function, MlirBlock classTypeBody,
                     const MethodAnnotation &methodAnnotation);
   void importClassType(c10::ClassType *classType);
+  void importCompilationUnit(torch::jit::CompilationUnit *cu);
 
   MlirBlock importBlock;
   MlirContext context;
@@ -115,6 +116,15 @@ private:
 
   // Map tracking already-imported values.
   std::unordered_map<c10::IValue, MlirValue, IValueHasher, IValueEq> valueMap;
+
+  // The unique compilation unit that is shared by all modules reachable
+  // from the root ivalue being imported.
+  // It basically contains a symbol table of functions which are referenced from
+  // e.g. methods (the function names are meaningful and match with Python's
+  // module hierarchy, with the exception of `__main__` being replaced with
+  // `__torch__`).
+  torch::jit::CompilationUnit *compilationUnit = nullptr;
+
   // Used to detect potentially aliasing tensors.
   std::unordered_set<c10::StorageImpl *> seenStorageImpls;
   // The set of ClassType's that have already been imported.
@@ -145,6 +155,10 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
     throw std::invalid_argument("cannot import unnamed module");
   }
   std::string moduleTypeName = maybeName->qualifiedName();
+
+  // If this is the first time we are encountering a module, import the
+  // compilation unit.
+  importCompilationUnit(currentModule._ivalue()->compilation_unit().get());
 
   // Ensure the class type has been imported.
   importClassType(currentModule.type().get());
@@ -292,17 +306,12 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
 void IValueImporter::importMethod(torch::jit::Function *function,
                                   MlirBlock classTypeBody,
                                   const MethodAnnotation &methodAnnotation) {
-  // We make an effort for the func op's symbol name to be useful for debugging,
-  // but still clearly non-load-bearing.
-  std::string symName =
-      "__npcomp_priv_fn." + function->qualname().qualifiedName();
-  MlirOperation func =
-      importGraphAsFuncOp(context, function->graph().get(), symName);
-  mlirOperationSetAttributeByName(
-      func, toMlirStringRef("sym_visibility"),
-      mlirStringAttrGet(context, toMlirStringRef("private")));
-  mlirBlockInsertOwnedOperationBefore(
-      importBlock, mlirBlockGetTerminator(importBlock), func);
+  // The function's name becomes the MLIR symbol table name of the imported func
+  // when we import the compilation unit.
+  const std::string &symName = function->qualname().qualifiedName();
+  MlirAttribute functionSymbolRef =
+      mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName));
+
   c10::optional<MlirNamedAttribute> isPrivate;
   if (!methodAnnotation.isExported) {
     isPrivate = toMlirNamedAttribute("isPrivate", mlirUnitAttrGet(context));
@@ -312,9 +321,7 @@ void IValueImporter::importMethod(torch::jit::Function *function,
       toMlirNamedAttribute(
           "name",
           mlirStringAttrGet(context, toMlirStringRef(function->name()))),
-      toMlirNamedAttribute("function", mlirFlatSymbolRefAttrGet(
-                                           context, toMlirStringRef(symName))),
-      isPrivate);
+      toMlirNamedAttribute("function", functionSymbolRef), isPrivate);
 }
 
 void IValueImporter::importClassType(c10::ClassType *classType) {
@@ -364,6 +371,45 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
   }
 
   createMlirOperationAtEnd(classTypeBody, "torch.class_type_terminator", loc);
+}
+
+void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
+  if (compilationUnit == nullptr) {
+    compilationUnit = cu;
+  } else {
+    // All sorts of stuff is connected to the compilation unit, such as
+    // c10::ClassType's (owned by the compilation unit), c10::FunctionType
+    // (which holds a pointer to a torch::jit::Function in the compilation
+    // unit), load-bearing symbol table names of functions, etc.
+    //
+    // It doesn't seem to be defined how multiple compilation units semantically
+    // connect with each other, and it doesn't seem to happen either (though
+    // structurally at the C++ level nothing prevents it), so make it an error.
+    if (compilationUnit != cu) {
+      throw std::invalid_argument(
+          "found two compilation units while importing");
+    }
+    return;
+  }
+
+  for (torch::jit::Function *function : cu->get_functions()) {
+    MlirOperation func = importGraphAsFuncOp(
+        context, function->graph().get(), function->qualname().qualifiedName());
+    // For IValue importing, the logical linkage structure of the module
+    // is determined by the object graph.
+    //
+    // The functions' symbol names are thus irrelevant to the module's
+    // externally visible characteristics, so mark them all as private.
+    //
+    // These functions may be referenced by the object graph, which can make
+    // them reachable from the exernally visible characteristics of the module,
+    // but they cannot be intrinsically externally visible.
+    mlirOperationSetAttributeByName(
+        func, toMlirStringRef("sym_visibility"),
+        mlirStringAttrGet(context, toMlirStringRef("private")));
+    mlirBlockInsertOwnedOperationBefore(
+        importBlock, mlirBlockGetTerminator(importBlock), func);
+  }
 }
 
 void torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
