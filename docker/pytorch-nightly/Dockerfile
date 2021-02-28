@@ -7,7 +7,7 @@ RUN apt update
 
 # Python and build system.
 RUN apt install -y python3 python-is-python3
-RUN apt install -y python3-pip pybind11-dev python3-pybind11
+RUN apt install -y python3-pip 
 RUN apt install -y git cmake ccache ninja-build
 RUN apt install -y clang lld
 RUN ln -s /usr/bin/llvm-symbolizer-10 /usr/bin/llvm-symbolizer
@@ -15,6 +15,7 @@ RUN ln -s /usr/bin/llvm-symbolizer-10 /usr/bin/llvm-symbolizer
 # Install PyTorch
 # Installs under: /usr/local/lib/python3.8/dist-packages/torch
 RUN pip3 install numpy
+RUN pip3 install pybind11
 RUN pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 RUN ln -s /usr/local/lib/python3.8/dist-packages/torch /pytorch
 
