@@ -206,6 +206,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::unchecked_cast) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "torch.prim.unchecked_cast", loc,
+        getMlirTypesFromValues(loc, node->outputs()),
+        lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   // Unhandled.
   {
     std::stringstream msg;
