@@ -136,9 +136,12 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     // TODO: Don't lose the element type information.
     return npcompTupleTypeGet(context);
   }
+  case TypeKind::StringType: {
+    return npcompBytesTypeGet(context);
+  }
   default: {
     std::stringstream message;
-    message << "unable to map Torch type " << *torchType << " to MLIR type";
+    message << "unable to map Torch type '" << *torchType << "' to MLIR type";
     mlirEmitError(loc, message.str().c_str());
     return {nullptr};
   }

@@ -176,6 +176,24 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::RaiseException) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "torch.prim.RaiseException", loc,
+        getMlirTypesFromValues(loc, node->outputs()),
+        lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
+  if (kind == c10::prim::Uninitialized) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "torch.prim.Uninitialized", loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   // Unhandled.
   {
     std::stringstream msg;
