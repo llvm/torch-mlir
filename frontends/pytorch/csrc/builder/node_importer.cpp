@@ -140,6 +140,18 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::Loop) {
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "torch.prim.Loop", loc,
+        getMlirTypesFromValues(loc, node->outputs()),
+        lookupMappedValues(node->inputs()), mlirRegionCreate());
+    mapResults(node, operation);
+    mlirRegionAppendOwnedBlock(
+        mlirOperationGetRegion(operation, 0),
+        importBlock(node->blocks()[0], "torch.prim.Loop.condition"));
+    return;
+  }
+
   if (kind == c10::prim::If) {
     // TorchScript will already have an explicit op to determine truthiness. So
     // all we need to do here is launder !basicpy.BoolType to i1 for `scf.if`.

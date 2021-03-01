@@ -155,5 +155,28 @@ static LogicalResult verify(ClassTypeOp op) {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// PrimLoopOp
+//===----------------------------------------------------------------------===//
+
+OperandRange PrimLoopOp::getSuccessorEntryOperands(unsigned index) {
+  assert(index == 0);
+  return iterArgsInit();
+}
+
+void PrimLoopOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  (void)operands;
+
+  if (!index.hasValue()) {
+    regions.emplace_back(&region(), region().getArguments().slice(1));
+    return;
+  }
+  assert(*index == 0);
+  regions.emplace_back(&region(), region().getArguments().slice(1));
+  regions.emplace_back(getResults());
+}
+
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"

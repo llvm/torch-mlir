@@ -12,6 +12,7 @@
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 
 class Torch_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Torch_Dialect, mnemonic, traits> {
@@ -374,6 +375,49 @@ def Torch_PrimPrintOp : Torch_Op<"prim.Print", []> {
 
   let assemblyFormat = [{
     `(` $operands `)` attr-dict `:` type($operands)
+  }];
+}
+
+def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getSuccessorEntryOperands"]>]> {
+  let summary = "TorchScript prim::Loop op";
+  let description = [{
+    This op (together with prim.Loop.condition) define a looping construct
+    that combines `for` and `while` behavior.
+
+    See: https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
+  }];
+
+  let arguments = (ins
+    I64:$maxTripCount,
+    Basicpy_BoolType:$initialCondition,
+    Variadic<AnyTorchType>:$iterArgsInit
+  );
+  let results = (outs Variadic<AnyTorchType>:$results);
+  let regions = (region SizedRegion<1>:$region);
+
+  let assemblyFormat = [{
+    $maxTripCount `,` $initialCondition `,` `init` `(` $iterArgsInit `)` $region
+    attr-dict `:` functional-type(operands, results)
+  }];
+  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+}
+
+def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
+    Terminator,
+    HasParent<"::mlir::NPCOMP::Torch::PrimLoopOp">]> {
+  let summary = "yield-like terminator for torch.prim.Loop";
+  let description = [{
+    Does not correspond to any torch prim op directly (the way that they model
+    blocks has a built-in notion of yield-like terminator).
+  }];
+
+  let arguments = (ins Basicpy_BoolType:$shouldContinue, Variadic<AnyTorchType>:$iterArgs);
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $shouldContinue `iter` `(` $iterArgs `)`
+    attr-dict `:` type($shouldContinue) `,` `(` type($iterArgs) `)`
   }];
 }
 
