@@ -457,4 +457,16 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", []> {
   }];
 }
 
+def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", []> {
+  let summary = "TorchScript prim::unchecked_cast op";
+  // TODO: This seems to mostly be used for casting "optional" to the contained
+  // type. Verify that and tighten the verifier.
+  let arguments = (ins AnyTorchType:$operand);
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
 #endif // TORCH_OPS
