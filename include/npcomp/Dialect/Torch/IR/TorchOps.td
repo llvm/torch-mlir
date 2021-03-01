@@ -366,7 +366,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
   }];
 }
 
-def Torch_PrintOp : Torch_Op<"prim.Print", []> {
+def Torch_PrimPrintOp : Torch_Op<"prim.Print", []> {
   let summary = "TorchScript prim::Print op";
 
   let arguments = (ins Variadic<AnyTorchType>:$operands);
@@ -385,6 +385,31 @@ def Torch_PrimNumToTensorOp : Torch_Op<"prim.NumToTensor", []> {
 
   let assemblyFormat = [{
     $num attr-dict `:` type($num) `->` type($result)
+  }];
+}
+
+def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", []> {
+  let summary = "TorchScript prim::RaiseException op";
+
+  // TODO: Error messages suggest that any exception derived from BaseException
+  // is allowed at the Python level, but they seem to just be strings at the
+  // IR level.
+  let arguments = (ins Basicpy_BytesType:$errorMsg);
+  let results = (outs);
+
+  let assemblyFormat = [{
+    $errorMsg attr-dict
+  }];
+}
+
+def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", []> {
+  let summary = "TorchScript prim::Uninitialized op";
+
+  let arguments = (ins);
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    attr-dict `:` type($result)
   }];
 }
 

@@ -30,5 +30,15 @@ def prim_NumToTensor(i: int):
 def prim_Print(x):
     print("x", x)
 
+# CHECK-LABEL:   func @prim_RaiseException() -> !basicpy.NoneType {
+# CHECK:           %[[ERRORSTR:.*]] = basicpy.bytes_constant "Error"
+# CHECK:           %[[NONE:.*]] = torch.prim.Uninitialized : !basicpy.NoneType
+# CHECK:           torch.prim.RaiseException %[[ERRORSTR]]
+# CHECK:           return %[[NONE]] : !basicpy.NoneType
+@mb.import_function
+@torch.jit.script
+def prim_RaiseException():
+    raise Exception("Error")
+
 mb.module.operation.print()
 print()
