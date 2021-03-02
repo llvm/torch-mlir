@@ -1,9 +1,9 @@
 import numpy as np
 
-from npcomp.compiler import test_config
-from npcomp.compiler.backend import refjit
-from npcomp.compiler.frontend import *
-from npcomp.compiler.target import *
+from npcomp.compiler.numpy import test_config
+from npcomp.compiler.numpy.backend import refjit
+from npcomp.compiler.numpy.frontend import *
+from npcomp.compiler.numpy.target import *
 
 
 def compile_function(f):
