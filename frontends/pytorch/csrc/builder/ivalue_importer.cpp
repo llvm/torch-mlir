@@ -7,7 +7,7 @@
 
 #include "ivalue_importer.h"
 #include "class_annotator.h"
-#include "graph_importer.h"
+#include "function_importer.h"
 
 #include <unordered_map>
 
@@ -393,8 +393,7 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
   }
 
   for (torch::jit::Function *function : cu->get_functions()) {
-    MlirOperation func = importGraphAsFuncOp(
-        context, function->graph().get(), function->qualname().qualifiedName());
+    MlirOperation func = importJitFunctionAsFuncOp(context, function);
     // For IValue importing, the logical linkage structure of the module
     // is determined by the object graph.
     //

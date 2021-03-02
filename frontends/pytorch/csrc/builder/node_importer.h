@@ -20,8 +20,11 @@
 
 namespace torch_mlir {
 
+using CreateTerminatorFn =
+    std::function<void(c10::ArrayRef<MlirValue>, MlirBlock)>;
+
 MlirBlock importBlock(MlirContext context, torch::jit::Block *jitBlock,
-                      const std::string &terminatorOpName);
+                      CreateTerminatorFn createTerminator);
 
 } // namespace torch_mlir
 

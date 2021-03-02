@@ -30,7 +30,7 @@ public:
   NodeImporter(MlirContext context) : context(context) {}
 
   void importNode(Node *node, MlirBlock appendToBlock);
-  MlirBlock importBlock(Block *jitBlock, const std::string &terminatorOpName);
+  MlirBlock importBlock(Block *jitBlock, CreateTerminatorFn createTerminator);
 
 private:
   void importPrimNode(Node *node, MlirBlock appendToBlock);
@@ -70,7 +70,7 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
       const std::string &symName = function->qualname().qualifiedName();
       op = createMlirOperation(
           "std.constant", loc,
-          getFunctionTypeFromBlock(context, function->graph()->block()),
+          getFunctionTypeFromSchema(context, function->getSchema()),
           toMlirNamedAttribute(
               "value",
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
@@ -141,14 +141,28 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   }
 
   if (kind == c10::prim::Loop) {
+    std::vector<MlirType> resultTypes =
+        getMlirTypesFromValues(loc, node->outputs());
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.Loop", loc,
-        getMlirTypesFromValues(loc, node->outputs()),
-        lookupMappedValues(node->inputs()), mlirRegionCreate());
+        appendToBlock, "torch.prim.Loop", loc, resultTypes,
+        lookupMappedValues(node->inputs().slice(0, 2)),
+        derefineValues(lookupMappedValues(node->inputs().slice(2)), resultTypes,
+                       loc, appendToBlock),
+        mlirRegionCreate());
     mapResults(node, operation);
+    std::vector<MlirType> terminatorOperandTypes = {npcompBoolTypeGet(context)};
+    terminatorOperandTypes.insert(terminatorOperandTypes.end(),
+                                  resultTypes.begin(), resultTypes.end());
+    auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
+                                MlirBlock appendToBlock) {
+      createMlirOperationAtEnd(appendToBlock, "torch.prim.Loop.condition", loc,
+                               derefineValues(yieldedValues,
+                                              terminatorOperandTypes, loc,
+                                              appendToBlock));
+    };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
-        importBlock(node->blocks()[0], "torch.prim.Loop.condition"));
+        importBlock(node->blocks()[0], createTerminator));
     return;
   }
 
@@ -158,15 +172,24 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     MlirOperation pred = createMlirOperationAtEnd(
         appendToBlock, "basicpy.bool_cast", loc, mlirIntegerTypeGet(context, 1),
         lookupMappedValue(node->input()));
+    std::vector<MlirType> resultTypes =
+        getMlirTypesFromValues(loc, node->outputs());
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "scf.if", loc, mlirOperationGetResult(pred, 0),
-        getMlirTypesFromValues(loc, node->outputs()), mlirRegionCreate(),
-        mlirRegionCreate());
+        resultTypes, mlirRegionCreate(), mlirRegionCreate());
     mapResults(node, operation);
-    mlirRegionAppendOwnedBlock(mlirOperationGetRegion(operation, 0),
-                               importBlock(node->blocks()[0], "scf.yield"));
-    mlirRegionAppendOwnedBlock(mlirOperationGetRegion(operation, 1),
-                               importBlock(node->blocks()[1], "scf.yield"));
+    auto createTerminator =
+        [&](c10::ArrayRef<MlirValue> yieldedValues, MlirBlock appendToBlock) {
+          createMlirOperationAtEnd(
+              appendToBlock, "scf.yield", loc,
+              derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
+        };
+    mlirRegionAppendOwnedBlock(
+        mlirOperationGetRegion(operation, 0),
+        importBlock(node->blocks()[0], createTerminator));
+    mlirRegionAppendOwnedBlock(
+        mlirOperationGetRegion(operation, 1),
+        importBlock(node->blocks()[1], createTerminator));
     return;
   }
 
@@ -180,10 +203,18 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   }
 
   if (kind == c10::prim::CallFunction) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "std.call_indirect", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
+    auto functionType = node->input(0)->type()->cast<c10::FunctionType>();
+    torch::jit::Block *calleeEntryBlock =
+        functionType->function()->graph()->block();
+    auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
+      return typeMapper.mapFromTorchType(loc, v->type());
+    });
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "std.call_indirect", loc,
+        getMlirTypesFromValues(loc, node->outputs()),
+        lookupMappedValue(node->input(0)),
+        derefineValues(lookupMappedValues(node->inputs().slice(1)),
+                       expectedTypes, loc, appendToBlock));
     mapResults(node, operation);
     return;
   }
@@ -288,15 +319,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 }
 
 MlirBlock NodeImporter::importBlock(Block *jitBlock,
-                                    const std::string &terminatorOpName) {
+                                    CreateTerminatorFn createTerminator) {
   MlirBlock block = createBlockFor(jitBlock);
   for (Node *node : jitBlock->nodes()) {
     importNode(node, block);
   }
   Node *returnNode = jitBlock->return_node();
-  createMlirOperationAtEnd(block, terminatorOpName,
-                           getMlirLocationFromNode(context, returnNode),
-                           lookupMappedValues(returnNode->inputs()));
+  createTerminator(lookupMappedValues(returnNode->inputs()), block);
   return block;
 }
 
@@ -343,7 +372,7 @@ NodeImporter::lookupMappedValues(c10::ArrayRef<Value *> values) {
 }
 
 MlirBlock torch_mlir::importBlock(MlirContext context, Block *jitBlock,
-                                  const std::string &terminatorOpName) {
+                                  CreateTerminatorFn createTerminator) {
   NodeImporter importer(context);
-  return importer.importBlock(jitBlock, terminatorOpName);
+  return importer.importBlock(jitBlock, createTerminator);
 }

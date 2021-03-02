@@ -9,7 +9,7 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
-# CHECK: @returns_none
+# CHECK: @__torch__.returns_none
 @mb.import_function
 @torch.jit.script
 def returns_none():

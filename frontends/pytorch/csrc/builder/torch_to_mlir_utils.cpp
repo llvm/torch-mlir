@@ -5,7 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "graph_importer.h"
+#include "function_importer.h"
 #include "ivalue_importer.h"
 
 #include <unordered_map>
@@ -163,17 +163,28 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
   return npcompNdArrayTypeGetRanked(sizes.size(), sizes.data(), elementType);
 }
 
-MlirType torch_mlir::getFunctionTypeFromBlock(MlirContext context,
-                                              torch::jit::Block *block) {
-  MlirLocation inputLoc = getMlirLocationFromNode(context, block->param_node());
+MlirType
+torch_mlir::getFunctionTypeFromSchema(MlirContext context,
+                                      const c10::FunctionSchema &schema) {
+  MlirLocation loc = mlirLocationUnknownGet(context);
+  TypeMapper typeMapper(context);
+  auto mapType = [&](const c10::TypePtr &torchType) {
+    MlirType type = typeMapper.mapFromTorchType(loc, torchType);
+    if (mlirTypeIsNull(type)) {
+      std::stringstream msg;
+      msg << "unsupported type in function schema: '"
+              << c10::toString(torchType) << "'";
+      throw std::invalid_argument(msg.str());
+    }
+    return type;
+  };
+
   std::vector<MlirType> inputTypes =
-      getMlirTypesFromValues(inputLoc, block->param_node()->outputs());
-
-  MlirLocation outputLoc =
-      getMlirLocationFromNode(context, block->return_node());
+      c10::fmap(schema.arguments(),
+                [&](const c10::Argument &arg) { return mapType(arg.type()); });
   std::vector<MlirType> outputTypes =
-      getMlirTypesFromValues(outputLoc, block->return_node()->inputs());
-
+      c10::fmap(schema.returns(),
+                [&](const c10::Argument &arg) { return mapType(arg.type()); });
   return mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
                              outputTypes.size(), outputTypes.data());
 }
@@ -300,6 +311,28 @@ torch_mlir::getMlirTypesFromValues(MlirLocation loc,
     if (mlirTypeIsNull(t))
       throw mlir_diagnostic_emitted("unsupported type");
     ret.push_back(t);
+  }
+  return ret;
+}
+
+std::vector<MlirValue>
+torch_mlir::derefineValues(c10::ArrayRef<MlirValue> values,
+                           c10::ArrayRef<MlirType> expectedTypes,
+                           MlirLocation loc, MlirBlock appendToBlock) {
+  std::vector<MlirValue> ret;
+  assert(values.size() == expectedTypes.size());
+  for (int i = 0, e = values.size(); i != e; i++) {
+    MlirValue value = values[i];
+    MlirType expectedType = expectedTypes[i];
+    MlirType type = mlirValueGetType(value);
+    if (mlirTypeEqual(expectedType, type)) {
+      // No need to derefine.
+      ret.push_back(value);
+    } else {
+      MlirOperation operation = createMlirOperationAtEnd(
+          appendToBlock, "torch.derefine", loc, expectedType, value);
+      ret.push_back(mlirOperationGetResult(operation, 0));
+    }
   }
   return ret;
 }

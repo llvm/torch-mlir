@@ -13,6 +13,7 @@ include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class Torch_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<Torch_Dialect, mnemonic, traits> {
@@ -457,10 +458,59 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", []> {
   }];
 }
 
-def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", []> {
+def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", [
+    NoSideEffect
+  ]> {
   let summary = "TorchScript prim::unchecked_cast op";
-  // TODO: This seems to mostly be used for casting "optional" to the contained
-  // type. Verify that and tighten the verifier.
+  let description = [{
+    Refine a type to one of its subtypes.
+
+    For example, refine a type that was only statically known to be
+    Optional[T] to a T when we obtain static information that guarantees it.
+
+    The key observation here is that Optional[T] does not have a corresponding
+    runtime type (i.e. `c10::IValue` subclass). It represents a set of possible
+    concrete types which for `Optional[T]` is either `None` or a concrete
+    subtype of `T` (which in the simplest case is just `T`). In particular,
+    at runtime there is no way to distinguish `Optional[int]` from
+    `Optional[Optional[int]]`, because both are either `None` or `int`.
+    This differs from C++ std::optional.
+
+    The best documentation of this op is inspection of the code in
+    `torch/csrc/jit/frontend/ir_emitter.cpp`.
+  }];
+
+  // TODO: When we model PyTorch's notion of subtyping, verify the types here.
+  let arguments = (ins AnyTorchType:$operand);
+  let results = (outs AnyTorchType:$result);
+
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// Additional ops used to model TorchScript's Graph's / Node's.
+//===----------------------------------------------------------------------===//
+
+def Torch_DerefineOp : Torch_Op<"derefine", [
+    NoSideEffect
+  ]> {
+  let summary = "De-refine a type";
+  let description = [{
+    In terms of IR structure, TorchScript allows types to vary in many
+    circumstances where MLIR requires pointer-identical types. In particular,
+    it is valid to pass any subtype in place of a type. For example, if an
+    `Optional[int]` is required somewhere in the IR, it is legal to pass a
+    value of just `int` (but not the other way around; see
+    `torch.prim.unchecked_cast`). In effect, every *use* can have a different
+    type.
+
+    This op bridges that impedance mismatch. This op allows casting a value
+    from one type to a type that it is a subtype of to model this behavior.
+  }];
+
+  // TODO: When we model PyTorch's notion of subtyping, verify the types here.
   let arguments = (ins AnyTorchType:$operand);
   let results = (outs AnyTorchType:$result);
 
