@@ -2,6 +2,8 @@
 # This file is licensed under a pytorch-style license
 # See frontends/pytorch/LICENSE for license information.
 
+import typing
+
 import torch
 import torch_mlir
 
@@ -61,6 +63,26 @@ def prim_unchecked_cast(i: typing.Optional[int]):
     if i is None:
         return 3
     return i
+
+# CHECK-LABEL:   func @prim_TupleUnpack(
+# CHECK-SAME:                     %[[ARG:.*]]: !basicpy.TupleType) -> i64 {
+# CHECK:           %[[RET:.*]]:2 = torch.prim.TupleUnpack %[[ARG]] : !basicpy.TupleType -> i64, i64
+# CHECK:           return %[[RET]]#0 : i64
+@mb.import_function
+@torch.jit.script
+def prim_TupleUnpack(lt: typing.Tuple[int, int]):
+    val, _ = lt
+    return val
+
+# CHECK-LABEL:   func @prim_ListUnpack(
+# CHECK-SAME:                     %[[ARG:.*]]: !basicpy.ListType) -> i64 {
+# CHECK:           %[[RET:.*]]:3 = torch.prim.ListUnpack %[[ARG]] : !basicpy.ListType -> i64, i64
+# CHECK:           return %[[RET]]#1 : i64
+@mb.import_function
+@torch.jit.script
+def prim_ListUnpack(lt: typing.List[int]):
+    _, val, _ = lt
+    return val
 
 mb.module.operation.print()
 print()
