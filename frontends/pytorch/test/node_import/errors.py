@@ -17,8 +17,8 @@ try:
   @torch.jit.script
   def import_class(x: typing.Any):
     return x
-except RuntimeError as e:
+except Exception as e:
   # TODO: Once diagnostics are enabled, verify the actual error emitted.
-  assert str(e) == "unsupported type"
+  assert str(e) == "unsupported type in function schema: 'Any'"
 else:
   assert False, "Expected exception"

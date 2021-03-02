@@ -51,18 +51,12 @@ private:
   MlirContext context;
 };
 
-/// Creates a FunctionType suitable for expressing the signature of `block`.
+/// Creates a FunctionType suitable for expressing the signature of `schema`.
 ///
-/// `mlir::Block` only has a formalized notion of argument types (bb args), but
-/// the exact nature of the block's terminator is left opaque (for example, you
-/// can have a weird terminator that "returns all but the first operand").
-/// `torch::jit::Block` on the other hand has a formalized notion of a
-/// `param_node` and `return_node`, which are effectively dummy operations at
-/// the start and end of the block, which establish a formal signature for the
-/// block and can be generically reasoned about -- that is what we anchor on
-/// here.
-MlirType getFunctionTypeFromBlock(MlirContext context,
-                                  torch::jit::Block *block);
+/// This can differ from the type inferred from the block of a
+/// torch::jit::Function due to derefinement.
+MlirType getFunctionTypeFromSchema(MlirContext context,
+                                   const c10::FunctionSchema &schema);
 
 /// Creates an appropriate MlirAttribute that holds the same values as `tensor`.
 MlirAttribute converTensorToMlirElementsAttr(at::Tensor tensor,
@@ -77,6 +71,11 @@ MlirLocation getMlirLocationFromNode(MlirContext context,
 std::vector<MlirType>
 getMlirTypesFromValues(MlirLocation loc,
                        c10::ArrayRef<torch::jit::Value *> values);
+
+std::vector<MlirValue> derefineValues(c10::ArrayRef<MlirValue> values,
+                                      c10::ArrayRef<MlirType> expectedTypes,
+                                      MlirLocation loc,
+                                      MlirBlock appendToBlock);
 
 } // namespace torch_mlir
 

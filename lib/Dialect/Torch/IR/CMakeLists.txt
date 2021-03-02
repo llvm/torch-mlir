@@ -17,6 +17,7 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
   MLIRIR
   MLIRSupport
   MLIRControlFlowInterfaces
+  MLIRSideEffectInterfaces
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
 )

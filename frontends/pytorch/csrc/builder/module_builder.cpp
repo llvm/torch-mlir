@@ -7,7 +7,7 @@
 
 #include "module_builder.h"
 
-#include "graph_importer.h"
+#include "function_importer.h"
 #include "ivalue_importer.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
@@ -128,8 +128,7 @@ torch::jit::StrongFunctionPtr
 ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
   MlirBlock block = getBodyBlock();
   MlirOperation terminator = this->terminator;
-  MlirOperation func = importGraphAsFuncOp(
-      context, function.function_->graph().get(), function.function_->name());
+  MlirOperation func = importJitFunctionAsFuncOp(context, function.function_);
   mlirBlockInsertOwnedOperationBefore(block, terminator, func);
   return function;
 }

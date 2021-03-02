@@ -9,7 +9,7 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
-# CHECK-LABEL:   func @f(
+# CHECK-LABEL:   func @__torch__.f(
 # CHECK-SAME:            %[[T0:.*]]: !numpy.ndarray<*:!numpy.any_dtype>,
 # CHECK-SAME:            %[[T1:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !basicpy.TupleType {
 # CHECK:           %[[RET:.*]] = basicpy.build_tuple %[[T0]], %[[T1]] : (!numpy.ndarray<*:!numpy.any_dtype>, !numpy.ndarray<*:!numpy.any_dtype>) -> !basicpy.TupleType

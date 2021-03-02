@@ -14,7 +14,7 @@ import typing
 mb = torch_mlir.ModuleBuilder()
 
 
-# CHECK-LABEL:   func @prim_NumToTensor(
+# CHECK-LABEL:   func @__torch__.prim_NumToTensor(
 # CHECK-SAME:                           %[[ARG:.*]]: i64) -> !numpy.ndarray<*:!numpy.any_dtype> {
 # CHECK:           %[[RET:.*]] = torch.prim.NumToTensor %[[ARG]] : i64 -> !numpy.ndarray<*:!numpy.any_dtype>
 # CHECK:           return %[[RET]] : !numpy.ndarray<*:!numpy.any_dtype>
@@ -25,7 +25,7 @@ mb = torch_mlir.ModuleBuilder()
 def prim_NumToTensor(i: int):
     return _to_tensor(i)
 
-# CHECK-LABEL:   func @prim_Print(
+# CHECK-LABEL:   func @__torch__.prim_Print(
 # CHECK-SAME:                     %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !basicpy.NoneType {
 # CHECK:           %[[STR:.*]] = basicpy.bytes_constant "x"
 # CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !numpy.ndarray<*:!numpy.any_dtype>
@@ -34,7 +34,7 @@ def prim_NumToTensor(i: int):
 def prim_Print(x):
     print("x", x)
 
-# CHECK-LABEL:   func @prim_RaiseException() -> !basicpy.NoneType {
+# CHECK-LABEL:   func @__torch__.prim_RaiseException() -> !basicpy.NoneType {
 # CHECK:           %[[ERRORSTR:.*]] = basicpy.bytes_constant "Error"
 # CHECK:           %[[NONE:.*]] = torch.prim.Uninitialized : !basicpy.NoneType
 # CHECK:           torch.prim.RaiseException %[[ERRORSTR]]
@@ -44,7 +44,7 @@ def prim_Print(x):
 def prim_RaiseException():
     raise Exception("Error")
 
-# CHECK-LABEL:   func @prim_unchecked_cast(
+# CHECK-LABEL:   func @__torch__.prim_unchecked_cast(
 # CHECK-SAME:                              %[[VAL_0:.*]]: !torch.optional<i64>) -> i64 {
 # CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
 # CHECK:           %[[C3:.*]] = constant 3 : i64
@@ -64,7 +64,7 @@ def prim_unchecked_cast(i: typing.Optional[int]):
         return 3
     return i
 
-# CHECK-LABEL:   func @prim_TupleUnpack(
+# CHECK-LABEL:   func @__torch__.prim_TupleUnpack(
 # CHECK-SAME:                     %[[ARG:.*]]: !basicpy.TupleType) -> i64 {
 # CHECK:           %[[RET:.*]]:2 = torch.prim.TupleUnpack %[[ARG]] : !basicpy.TupleType -> i64, i64
 # CHECK:           return %[[RET]]#0 : i64
@@ -74,7 +74,7 @@ def prim_TupleUnpack(tup: typing.Tuple[int, int]):
     val, _ = tup
     return val
 
-# CHECK-LABEL:   func @prim_TupleIndex(
+# CHECK-LABEL:   func @__torch__.prim_TupleIndex(
 # CHECK-SAME:                     %[[ARG:.*]]: !basicpy.TupleType) -> i64 {
 # CHECK:           %[[RET:.*]] = torch.prim.TupleIndex %[[ARG]], %[[IDX:.*]] : !basicpy.TupleType, i64 -> i64
 # CHECK:           return %[[RET]] : i64
@@ -83,7 +83,7 @@ def prim_TupleUnpack(tup: typing.Tuple[int, int]):
 def prim_TupleIndex(tup: typing.Tuple[int, int]):
     return tup[0]
 
-# CHECK-LABEL:   func @prim_ListUnpack(
+# CHECK-LABEL:   func @__torch__.prim_ListUnpack(
 # CHECK-SAME:                     %[[ARG:.*]]: !basicpy.ListType) -> i64 {
 # CHECK:           %[[RET:.*]]:3 = torch.prim.ListUnpack %[[ARG]] : !basicpy.ListType -> i64, i64
 # CHECK:           return %[[RET]]#1 : i64

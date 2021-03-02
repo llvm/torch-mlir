@@ -9,7 +9,7 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
-# CHECK-LABEL: @f
+# CHECK-LABEL: @__torch__.f
 @mb.import_function
 @torch.jit.script
 def f(b: bool, i: int):

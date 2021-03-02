@@ -9,7 +9,7 @@ import torch_mlir
 
 mb = torch_mlir.ModuleBuilder()
 
-# CHECK: @returns_bool
+# CHECK: @__torch__.returns_bool
 @mb.import_function
 @torch.jit.script
 def returns_bool():
