@@ -224,6 +224,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::TupleIndex) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "torch.prim.TupleIndex", loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   if (kind == c10::prim::ListUnpack) {
     MlirOperation operation =
         createMlirOperationAtEnd(appendToBlock, "torch.prim.ListUnpack", loc,

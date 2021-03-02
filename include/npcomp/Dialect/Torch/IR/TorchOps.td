@@ -491,4 +491,15 @@ def Torch_PrimTupleUnpackOp: Torch_Op<"prim.TupleUnpack", []> {
   }];
 }
 
+def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", []> {
+  let summary = "TorchScript prim::TupleIndex op";
+  let arguments = (ins 
+      AnyTorchType:$operand,
+      AnyTorchNumberType:$idx);
+  let results = (outs AnyTorchType:$result);
+  let assemblyFormat = [{
+    $operand `,` $idx attr-dict `:` type($operand) `,` type($idx) `->` type($result)
+  }];
+}
+
 #endif // TORCH_OPS
