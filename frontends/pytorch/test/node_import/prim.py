@@ -74,6 +74,15 @@ def prim_TupleUnpack(tup: typing.Tuple[int, int]):
     val, _ = tup
     return val
 
+# CHECK-LABEL:   func @prim_TupleIndex(
+# CHECK-SAME:                     %[[ARG:.*]]: !basicpy.TupleType) -> i64 {
+# CHECK:           %[[RET:.*]] = torch.prim.TupleIndex %[[ARG]], %[[IDX:.*]] : !basicpy.TupleType, i64 -> i64
+# CHECK:           return %[[RET]] : i64
+@mb.import_function
+@torch.jit.script
+def prim_TupleIndex(tup: typing.Tuple[int, int]):
+    return tup[0]
+
 # CHECK-LABEL:   func @prim_ListUnpack(
 # CHECK-SAME:                     %[[ARG:.*]]: !basicpy.ListType) -> i64 {
 # CHECK:           %[[RET:.*]]:3 = torch.prim.ListUnpack %[[ARG]] : !basicpy.ListType -> i64, i64
