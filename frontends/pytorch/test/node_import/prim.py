@@ -70,8 +70,8 @@ def prim_unchecked_cast(i: typing.Optional[int]):
 # CHECK:           return %[[RET]]#0 : i64
 @mb.import_function
 @torch.jit.script
-def prim_TupleUnpack(lt: typing.Tuple[int, int]):
-    val, _ = lt
+def prim_TupleUnpack(tup: typing.Tuple[int, int]):
+    val, _ = tup
     return val
 
 # CHECK-LABEL:   func @prim_ListUnpack(
@@ -80,8 +80,8 @@ def prim_TupleUnpack(lt: typing.Tuple[int, int]):
 # CHECK:           return %[[RET]]#1 : i64
 @mb.import_function
 @torch.jit.script
-def prim_ListUnpack(lt: typing.List[int]):
-    _, val, _ = lt
+def prim_ListUnpack(l: typing.List[int]):
+    _, val, _ = l
     return val
 
 mb.module.operation.print()
