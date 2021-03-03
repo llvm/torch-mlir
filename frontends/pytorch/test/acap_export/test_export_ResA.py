@@ -46,7 +46,7 @@ with mb.capture_function("resa", [inputs]) as f:
 # CHECK-LABEL:   func @resa(
 # CHECK-SAME:               %[[VAL_0:.*]]: !numpy.ndarray<[1,16,128,128]:f32>) -> !numpy.ndarray<[1,16,128,128]:f32> {
 # CHECK:           %[[VAL_118:.*]] = torch.kernel_call "aten::convolution" {{.*}} : (!numpy.ndarray<[1,8,128,128]:f32>, !numpy.ndarray<[16,8,1,1]:f32>, !numpy.ndarray<[16]:f32>, !basicpy.ListType, !basicpy.ListType, !basicpy.ListType, !basicpy.BoolType, !basicpy.ListType, i64) -> !numpy.ndarray<[1,16,128,128]:f32>
-# CHECK:           %[[VAL_119:.*]] = torch.kernel_call "aten::add" %{{.*}}, %[[VAL_118]], %{{.*}} : (!numpy.ndarray<[1,16,128,128]:f32>, !numpy.ndarray<[1,16,128,128]:f32>, i64) -> !numpy.ndarray<[1,16,128,128]:f32>
+# CHECK:           %[[VAL_119:.*]] = torch.kernel_call "aten::add" %{{.*}}, %[[VAL_118]], %{{.*}}, %{{.*}} : (!numpy.ndarray<[1,16,128,128]:f32>, !numpy.ndarray<[1,16,128,128]:f32>, i64, !numpy.ndarray<[1,16,128,128]:f32>) -> !numpy.ndarray<[1,16,128,128]:f32>
 # CHECK:           return %[[VAL_119]] : !numpy.ndarray<[1,16,128,128]:f32>
 # CHECK:         }
 mb.module.operation.print(large_elements_limit=2)

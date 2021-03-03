@@ -1,7 +1,10 @@
 # -*- Python -*-
 # This file is licensed under a pytorch-style license
 # See frontends/pytorch/LICENSE for license information.
+
 # RUN: %PYTHON %s | npcomp-opt -aten-recognize-kernels -numpy-public-functions-to-tensor -canonicalize | FileCheck %s
+# TODO: Re-enable after adding support for 4-operand aten::add in `aten-recognize-kernels`.
+# XFAIL: *
 
 # TODO: This test should go away or become part of an e2e test suite. It is
 # preserved right now as a stop-gap.
