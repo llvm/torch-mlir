@@ -66,6 +66,19 @@ public:
   }
 };
 
+/// The ATen Conv2dOp has seven arguments:
+///   input, weight, bias, stride, padding, dilation, groups
+class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(aten::Conv2dOp srcConv2dOp,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<tcf::ConvNCHWOp>(
+        srcConv2dOp, srcConv2dOp.getResult().getType(), srcConv2dOp.input(),
+        srcConv2dOp.weight());
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::NPCOMP::populateCoreATenToTCFPatterns(
@@ -75,4 +88,5 @@ void mlir::NPCOMP::populateCoreATenToTCFPatterns(
   patterns.insert<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(
       context);
   patterns.insert<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
+  patterns.insert<ConvertATenConv2d>(context);
 }
