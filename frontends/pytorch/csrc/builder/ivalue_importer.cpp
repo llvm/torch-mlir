@@ -293,6 +293,16 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isModule()) {
     return importModule(ivalue.toModule());
   }
+  if (ivalue.isString()) {
+    MlirType type = npcompBytesTypeGet(context);
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "basicpy.bytes_constant", loc, type,
+        toMlirNamedAttribute(
+            "value",
+            mlirStringAttrGet(context,
+                              toMlirStringRef(ivalue.toString()->string()))));
+    return mlirOperationGetResult(operation, 0);
+  }
   if (ivalue.isNone()) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "basicpy.singleton", loc, npcompNoneTypeGet(context));
