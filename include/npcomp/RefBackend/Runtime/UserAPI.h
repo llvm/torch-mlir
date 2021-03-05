@@ -24,8 +24,11 @@
 #include "npcomp/RefBackend/Runtime/Support.h"
 #include <atomic>
 #include <cstdlib>
+#include <string>
 
 namespace refbackrt {
+
+struct RuntimeValue;
 
 // Reference-counted handle to a type with a `refCount` member.
 template <typename T> class Ref {
@@ -134,6 +137,7 @@ private:
   }
   // Reference count management.
   template <typename T> friend class Ref;
+  friend struct RuntimeValue;
   std::atomic<int> refCount{0};
 
   ElementType elementType;
@@ -148,6 +152,131 @@ private:
   void *allocatedPtr;
 
   // Sizes are tail-allocated.
+};
+
+// RuntimeValue is a generic tagged union used to hold all value types
+// The tag determines the type, and the payload represents the stored 
+// contents of an object. If an object is not trivially destructible,
+// then it must be refcounted and must have a refCount. 
+#define NPCOMP_FORALL_TAGS(_)                                                  \
+  _(None)                                                                      \
+  _(Bool)                                                                      \
+  _(Int)                                                                       \
+  _(Double)                                                                    \
+  _(Tensor)
+
+struct RuntimeValue final {
+
+  RuntimeValue() : payload{0}, tag(Tag::None) {}
+
+  // Bool
+  RuntimeValue(bool b) : tag(Tag::Bool) { payload.asBool = b; }
+  bool isBool() const { return Tag::Bool == tag; }
+  bool toBool() const {
+    assert(isBool());
+    return payload.asBool;
+  }
+
+  // Int
+  RuntimeValue(std::int64_t i) : tag(Tag::Int) { payload.asInt = i; }
+  RuntimeValue(std::int32_t i) : RuntimeValue(static_cast<int64_t>(i)) {}
+  bool isInt() const { return Tag::Int == tag; }
+  bool toInt() const {
+    assert(isInt());
+    return payload.asInt;
+  }
+
+  // Double
+  RuntimeValue(double d) : tag(Tag::Double) { payload.asDouble = d; }
+  bool isDouble() const { return Tag::Double == tag; }
+  bool toDouble() const {
+    assert(isDouble());
+    return payload.asDouble;
+  }
+
+  // Tensor
+  RuntimeValue(Ref<Tensor> tensor) : tag(Tag::Tensor) {
+    payload.asRefPtr = static_cast<void *>(tensor.takePtr());
+  }
+  bool isTensor() const { return Tag::Tensor == tag; }
+  Ref<Tensor> toTensor() const {
+    assert(isTensor());
+    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asRefPtr));
+  }
+
+  // RuntimeValue (downcast)
+  const RuntimeValue &toRuntimeValue() const { return *this; }
+  RuntimeValue &toRuntimeValue() { return *this; }
+
+  // Stringify tag for debugging.
+  std::string tagKind() const {
+    switch (tag) {
+#define DEFINE_CASE(x)                                                         \
+  case Tag::x:                                                                 \
+    return #x;
+      NPCOMP_FORALL_TAGS(DEFINE_CASE)
+#undef DEFINE_CASE
+    }
+    // TODO(brycearden): Print tag here
+    return "InvalidTag!";
+  }
+
+  RuntimeValue(const RuntimeValue &rhs) : RuntimeValue(rhs.payload, rhs.tag) {
+    if (isTensor()) {
+      reinterpret_cast<Tensor *>(payload.asRefPtr)->refCount += 1;
+    }
+  }
+  RuntimeValue(RuntimeValue &&rhs) noexcept : RuntimeValue() { swap(rhs); }
+
+  RuntimeValue &operator=(RuntimeValue &&rhs) & noexcept {
+    RuntimeValue(std::move(rhs)).swap(*this); // this also sets rhs to None
+    return *this;
+  }
+  RuntimeValue &operator=(RuntimeValue const &rhs) & {
+    RuntimeValue(rhs).swap(*this);
+    return *this;
+  }
+
+  ~RuntimeValue() {
+    if (isTensor()) {
+      Tensor *tensor = reinterpret_cast<Tensor *>(payload.asRefPtr);
+      if (tensor->refCount) {
+        tensor->refCount -= 1;
+      } else {
+        assert(false && "Expected a non-zero refCount for RuntimeValue");
+      }
+
+      // Let RAII go out of scope and call the destructor on Ref
+      Ref<Tensor> unused(tensor);
+    }
+  }
+
+private:
+  void swap(RuntimeValue &rhs) {
+    std::swap(payload, rhs.payload);
+    std::swap(tag, rhs.tag);
+  }
+
+  // NOTE: Runtime tags are intentionally private.
+  // Please use the helper functions above to query information about the type
+  // of a RuntimeValue.
+  enum class Tag : std::uint32_t {
+#define DEFINE_TAG(x) x,
+    NPCOMP_FORALL_TAGS(DEFINE_TAG)
+#undef DEFINE_TAG
+  };
+
+  union Payload {
+    bool asBool;
+    int64_t asInt;
+    double asDouble;
+    void *asRefPtr;
+  };
+
+  RuntimeValue(Payload pl, Tag tag) : payload(pl), tag(tag) {}
+
+  Payload payload;
+  Tag tag;
 };
 
 //===----------------------------------------------------------------------===//
@@ -172,7 +301,8 @@ constexpr static int kMaxArity = 20;
 // Low-level invocation API. The number of inputs and outputs should be correct
 // and match the results of getMetadata.
 void invoke(ModuleDescriptor *moduleDescriptor, StringRef functionName,
-            ArrayRef<Ref<Tensor>> inputs, MutableArrayRef<Ref<Tensor>> outputs);
+            ArrayRef<RuntimeValue> inputs,
+            MutableArrayRef<RuntimeValue> outputs);
 
 // Metadata for function `functionName`.
 //

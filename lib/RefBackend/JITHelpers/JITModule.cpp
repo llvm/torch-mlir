@@ -73,14 +73,14 @@ static refbackrt::MutableArrayRef<T> toRefbackrt(llvm::MutableArrayRef<T> a) {
   return refbackrt::MutableArrayRef<T>(a.data(), a.size());
 }
 
-llvm::Expected<llvm::SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6>>
+llvm::Expected<llvm::SmallVector<refbackrt::RuntimeValue, 6>>
 JITModule::invoke(llvm::StringRef functionName,
-                  llvm::ArrayRef<refbackrt::Ref<refbackrt::Tensor>> inputs) {
+                  llvm::ArrayRef<refbackrt::RuntimeValue> inputs) {
   refbackrt::FunctionMetadata metadata;
   if (refbackrt::failed(refbackrt::getMetadata(
           descriptor, toRefbackrt(functionName), metadata)))
     return make_string_error("unknown function: " + Twine(functionName));
-  SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6> outputs(
+  SmallVector<refbackrt::RuntimeValue, 6> outputs(
       metadata.numOutputs);
   if (metadata.numInputs != static_cast<std::int32_t>(inputs.size()))
     return make_string_error("invoking '" + Twine(functionName) +
