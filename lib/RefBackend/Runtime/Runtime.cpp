@@ -172,8 +172,8 @@ static FuncDescriptor *getFuncDescriptor(ModuleDescriptor *moduleDescriptor,
 }
 
 void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
-                       StringRef functionName, ArrayRef<RuntimeValue> inputs,
-                       MutableArrayRef<RuntimeValue> outputs) {
+                       StringRef functionName, ArrayRef<RtValue> inputs,
+                       MutableArrayRef<RtValue> outputs) {
   auto *descriptor = getFuncDescriptor(moduleDescriptor, functionName);
   assert(descriptor && "unknown function name");
   assert(inputs.size() < kMaxArity && "number of inputs exceeds kMaxArity");
@@ -224,7 +224,7 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
     Tensor *tensor = convertUnrankedMemrefToRefbackrtTensor(
         outputUnrankedMemrefs[i].rank, outputUnrankedMemrefs[i].descriptor,
         elementType);
-    outputs[i] = RuntimeValue(Ref<Tensor>(tensor));
+    outputs[i] = RtValue(Ref<Tensor>(tensor));
   }
 
   // Now, we just need to free all the UnrankedMemref's that we created.
