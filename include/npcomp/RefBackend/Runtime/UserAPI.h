@@ -25,13 +25,40 @@
 #include <atomic>
 #include <cstdlib>
 #include <string>
+#include <iostream>
 
 namespace refbackrt {
 
 struct RtValue;
 
+// Generic base class for representing an object that should be reference
+// counted.
+class RefTarget {
+public:
+  std::atomic<int> refCount{0};
+  virtual ~RefTarget() = 0;
+};
+
+// Generic Base class that holds any static operations for RefCounted objects
+class RefBase {
+public:
+  static void incref(RefTarget *ptr) {
+    if (!ptr)
+      return;
+    ptr->refCount += 1;
+  }
+  static void decref(RefTarget *ptr) {
+    if (!ptr)
+      return;
+    if (ptr->refCount.fetch_sub(1) == 1) {
+      ptr->~RefTarget();
+      std::free(static_cast<void *>(ptr));
+    }
+  }
+};
+
 // Reference-counted handle to a type with a `refCount` member.
-template <typename T> class Ref {
+template <typename T> class Ref : public RefBase {
 public:
   Ref() { ptr = nullptr; }
   // Creates a Ref and increments the refcount by 1.
@@ -61,7 +88,10 @@ public:
     ptr = other.takePtr();
     return *this;
   }
-  ~Ref() { decref(ptr); }
+  ~Ref() { 
+    std::cout << "Calling Ref Destructor." << std::endl;
+    decref(ptr);
+  }
 
   T &operator*() const { return *ptr; }
   T *operator->() const { return ptr; }
@@ -99,7 +129,7 @@ enum class ElementType : std::int32_t {
 std::int32_t getElementTypeByteSize(ElementType type);
 
 // Representation of a tensor.
-class Tensor {
+class Tensor : public RefTarget {
 public:
   // Due to tail-allocated objects, this struct should never be directly
   // constructed.
@@ -136,9 +166,9 @@ private:
     return MutableArrayRef<std::int32_t>(tail, rank);
   }
   // Reference count management.
-  template <typename T> friend class Ref;
-  friend struct RtValue;
-  std::atomic<int> refCount{0};
+  // template <typename T> friend class Ref;
+  // friend struct RtValue;
+  // std::atomic<int> refCount{0};
 
   ElementType elementType;
   // The number of dimensions of this Tensor.
@@ -155,9 +185,9 @@ private:
 };
 
 // RtValue is a generic tagged union used to hold all value types
-// The tag determines the type, and the payload represents the stored 
+// The tag determines the type, and the payload represents the stored
 // contents of an object. If an object is not trivially destructible,
-// then it must be refcounted and must have a refCount. 
+// then it must be refcounted and must have a refCount.
 #define NPCOMP_FORALL_TAGS(_)                                                  \
   _(None)                                                                      \
   _(Bool)                                                                      \
@@ -196,13 +226,16 @@ struct RtValue final {
 
   // Tensor
   RtValue(Ref<Tensor> tensor) : tag(Tag::Tensor) {
-    payload.asRefPtr = static_cast<void *>(tensor.takePtr());
+    payload.asRefTargetPtr = reinterpret_cast<RefTarget *>(tensor.takePtr());
   }
   bool isTensor() const { return Tag::Tensor == tag; }
   Ref<Tensor> toTensor() const {
     assert(isTensor());
-    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asRefPtr));
+    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
   }
+
+  // Ref
+  bool isRef() const { return isTensor(); }
 
   // RtValue (downcast)
   const RtValue &toRtValue() const { return *this; }
@@ -222,8 +255,8 @@ struct RtValue final {
   }
 
   RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
-    if (isTensor()) {
-      reinterpret_cast<Tensor *>(payload.asRefPtr)->refCount += 1;
+    if (isRef()) {
+      RefBase::incref(payload.asRefTargetPtr);
     }
   }
   RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
@@ -238,16 +271,8 @@ struct RtValue final {
   }
 
   ~RtValue() {
-    if (isTensor()) {
-      Tensor *tensor = reinterpret_cast<Tensor *>(payload.asRefPtr);
-      if (tensor->refCount) {
-        tensor->refCount -= 1;
-      } else {
-        assert(false && "Expected a non-zero refCount for RtValue");
-      }
-
-      // Let RAII go out of scope and call the destructor on Ref
-      Ref<Tensor> unused(tensor);
+    if (isRef()) {
+      RefBase::decref(payload.asRefTargetPtr);
     }
   }
 
@@ -270,7 +295,7 @@ private:
     bool asBool;
     int64_t asInt;
     double asDouble;
-    void *asRefPtr;
+    RefTarget *asRefTargetPtr;
   };
 
   RtValue(Payload pl, Tag tag) : payload(pl), tag(tag) {}
@@ -301,8 +326,7 @@ constexpr static int kMaxArity = 20;
 // Low-level invocation API. The number of inputs and outputs should be correct
 // and match the results of getMetadata.
 void invoke(ModuleDescriptor *moduleDescriptor, StringRef functionName,
-            ArrayRef<RtValue> inputs,
-            MutableArrayRef<RtValue> outputs);
+            ArrayRef<RtValue> inputs, MutableArrayRef<RtValue> outputs);
 
 // Metadata for function `functionName`.
 //
