@@ -9,7 +9,7 @@
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/Target/LLVMIR.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
 using namespace refback;

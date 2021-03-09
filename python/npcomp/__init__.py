@@ -11,8 +11,8 @@ def _load_extension():
   import _npcomp
   sys.setdlopenflags(flags)
 
-  import mlir
-  mlir._cext.globals.append_dialect_search_prefix("npcomp.dialects")
+  from mlir._cext_loader import _cext
+  _cext.globals.append_dialect_search_prefix("npcomp.dialects")
   return _npcomp
 
 

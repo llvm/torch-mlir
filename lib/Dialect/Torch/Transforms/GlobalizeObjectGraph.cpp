@@ -192,7 +192,7 @@ ObjectGraphGlobalizer::recursivelyTraverseClassType(ClassTypeOp classType) {
       auto linkageName = llvm::join(nameStack, ".");
       auto globalSlot = globalBuilder.create<GlobalSlotOp>(
           attr->getLoc(), linkageName, /*sym_visibility=*/nullptr,
-          TypeAttr::get(attr.type()));
+          attr.type());
       if (attr.isPrivate())
         globalSlot.setVisibility(SymbolTable::Visibility::Private);
       AttrOfClass attrOfClass = {classType, attr.name()};
