@@ -221,8 +221,8 @@ MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
     elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
   }
   std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-  MlirType shapedType = mlirRankedTensorTypeGetChecked(
-      shape.size(), shape.data(), elementType, loc);
+  MlirType shapedType = mlirRankedTensorTypeGetChecked(loc, shape.size(),
+      shape.data(), elementType);
   if (mlirTypeIsNull(shapedType)) {
     throwUnsupportedTensorError();
   }

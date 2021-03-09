@@ -76,7 +76,7 @@ static MemRefType getShapeErasedMemRefType(MemRefType type) {
     shape[i] = -1;
   }
   return MemRefType::get(shape, type.getElementType(), type.getAffineMaps(),
-                         type.getMemorySpace());
+                         type.getMemorySpaceAsInt());
 }
 
 /// Create a type cast to memref

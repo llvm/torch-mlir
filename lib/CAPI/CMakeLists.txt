@@ -12,7 +12,7 @@ add_npcomp_library(NPCOMPCAPI
   LINK_LIBS PUBLIC
   MLIRExecutionEngine
   MLIRLLVMIR
-  MLIRTargetLLVMIR
+  MLIRTargetLLVMIRExport
   NPCOMPInitAll
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect

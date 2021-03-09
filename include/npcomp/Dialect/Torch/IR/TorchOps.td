@@ -291,7 +291,7 @@ def Torch_GlobalSlotInitOp : Torch_Op<"global_slot.init", [
   // ensureTerminator in the default builders for SingleBlockImplicitTerminator
   // on the parent torch.global_slot op.
   // TODO: Have a SingleBlockExplicitTerminator trait.
-  let builders = [OpBuilderDAG<(ins), [{ /*nothing to do */ }]>];
+  let builders = [OpBuilder<(ins), [{ /*nothing to do */ }]>];
 
   let assemblyFormat = "$initialValue attr-dict `:` type($initialValue)";
 }

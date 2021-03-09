@@ -21,9 +21,7 @@ namespace py = pybind11;
 using namespace torch_mlir;
 
 static py::object getMlirIrClass(const char *className) {
-  // Note that the "mlir" module may be a loader which internally sets up
-  // the child modules, so it must be resolved incrementally (vs "mlir.ir").
-  return py::module::import("mlir").attr("ir").attr(className);
+  return py::module::import("mlir.ir").attr(className);
 }
 
 static py::object createPythonContextIfNone(py::object contextObj) {
