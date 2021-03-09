@@ -118,9 +118,6 @@ public:
 
 private:
   void releaseResources() {
-    if (ptr == nullptr) {
-      assert(false && "ptr is nullptr");
-    }
     ptr->~T();
     std::free(ptr);
   }
