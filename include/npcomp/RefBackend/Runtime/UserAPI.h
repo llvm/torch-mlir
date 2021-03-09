@@ -25,72 +25,76 @@
 #include <atomic>
 #include <cstdlib>
 #include <string>
-#include <iostream>
 
 namespace refbackrt {
 
 struct RtValue;
 
-// Generic base class for representing an object that should be reference
-// counted.
+// Base class for any RefCounted object type
 class RefTarget {
-public:
-  std::atomic<int> refCount{0};
-  virtual ~RefTarget() = 0;
-};
+  mutable std::atomic<size_t> refcount;
 
-// Generic Base class that holds any static operations for RefCounted objects
-class RefBase {
+  template <typename T> friend class Ref;
+  friend struct RtValue;
+  inline void incref() const { this->refcount += 1; }
+
+  template <typename T> friend class Ref;
+  friend struct RtValue;
+  inline bool decref() const {
+    if (this->refcount.fetch_sub(1) == 1)
+      return true;
+    return false;
+  }
+
 public:
-  static void incref(RefTarget *ptr) {
-    if (!ptr)
-      return;
-    ptr->refCount += 1;
-  }
-  static void decref(RefTarget *ptr) {
-    if (!ptr)
-      return;
-    if (ptr->refCount.fetch_sub(1) == 1) {
-      ptr->~RefTarget();
-      std::free(static_cast<void *>(ptr));
-    }
-  }
+  size_t refCount() const { return refcount; }
+
+protected:
+  void setRefCount(uint32_t val) { refcount = val; }
+
+  constexpr RefTarget() noexcept : refcount(0) {}
 };
 
 // Reference-counted handle to a type with a `refCount` member.
-template <typename T> class Ref : public RefBase {
+// T is expected to be a RefTarget
+template <typename T> class Ref {
 public:
   Ref() { ptr = nullptr; }
   // Creates a Ref and increments the refcount by 1.
   // rawPtr must be allocated with std::malloc.
   Ref(T *rawPtr) {
-    assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
+    assert(rawPtr->refCount() >= 0 &&
+           "expected non-negative refcount to start!");
     ptr = rawPtr;
-    ptr->refCount += 1;
+    ptr->incref();
   }
   Ref(const Ref &other) {
     ptr = other.ptr;
-    incref(ptr);
+    ptr->incref();
   }
   Ref(Ref &&other) { ptr = other.takePtr(); }
   Ref &operator=(const Ref &other) {
     if (&other == this)
       return *this;
-    decref(ptr);
+    if (ptr != nullptr && ptr->decref())
+      releaseResources();
     ptr = other.ptr;
-    incref(ptr);
+    ptr->incref();
     return *this;
   }
   Ref &operator=(Ref &&other) {
     if (&other == this)
       return *this;
-    decref(ptr);
+    if (ptr != nullptr && ptr->decref()) {
+      releaseResources();
+    }
     ptr = other.takePtr();
     return *this;
   }
-  ~Ref() { 
-    std::cout << "Calling Ref Destructor." << std::endl;
-    decref(ptr);
+  ~Ref() {
+    if (ptr != nullptr && ptr->decref()) {
+      releaseResources();
+    }
   }
 
   T &operator*() const { return *ptr; }
@@ -103,22 +107,24 @@ public:
     return ret;
   }
 
-  int debugGetRefCount() { return ptr->refCount; }
+  static Ref reclaimPtr(T *otherPtr) {
+    assert(otherPtr->refCount() >= 1);
+    auto ret = Ref();
+    ret.ptr = otherPtr;
+    return ret;
+  }
+
+  int debugGetRefCount() { return ptr->refCount(); }
 
 private:
-  static void incref(T *ptr) {
-    if (!ptr)
-      return;
-    ptr->refCount += 1;
-  }
-  static void decref(T *ptr) {
-    if (!ptr)
-      return;
-    if (ptr->refCount.fetch_sub(1) == 1) {
-      ptr->~T();
-      std::free(static_cast<void *>(ptr));
+  void releaseResources() {
+    if (ptr == nullptr) {
+      assert(false && "ptr is nullptr");
     }
+    ptr->~T();
+    std::free(ptr);
   }
+
   T *ptr;
 };
 
@@ -256,7 +262,7 @@ struct RtValue final {
 
   RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
     if (isRef()) {
-      RefBase::incref(payload.asRefTargetPtr);
+      payload.asRefTargetPtr->incref();
     }
   }
   RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
@@ -272,7 +278,12 @@ struct RtValue final {
 
   ~RtValue() {
     if (isRef()) {
-      RefBase::decref(payload.asRefTargetPtr);
+      if (isTensor()) {
+        auto raii = Ref<Tensor>::reclaimPtr(
+            reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
+        return;
+      }
+      assert(false && "Unsupported RtValue type");
     }
   }
 
