@@ -29,6 +29,12 @@ function(add_npcomp_library name)
     LINK_LIBS ${ARG_LINK_LIBS})
 
   set_target_properties(${name} PROPERTIES FOLDER "NPCOMP libraries")
+
+  install(TARGETS ${name}
+    LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
+    ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
+    RUNTIME DESTINATION bin COMPONENT ${name})
+    
 endfunction()
 
 # Declare the library associated with a dialect.
@@ -58,6 +64,11 @@ function(add_npcomp_executable name)
     # API for all shared libaries loaded by this executable.
     target_link_libraries(${name} PRIVATE ${LLVM_PTHREAD_LIB})
   endif()
+
+  install(TARGETS ${name}
+    RUNTIME DESTINATION ${LLVM_UTILS_INSTALL_DIR}
+    COMPONENT ${name})
+
 endfunction()
 
 function(npcomp_enable_exceptions name)
