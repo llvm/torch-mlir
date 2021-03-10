@@ -24,7 +24,6 @@
 #include "npcomp/RefBackend/Runtime/Support.h"
 #include <atomic>
 #include <cstdlib>
-#include <string>
 
 namespace refbackrt {
 
@@ -48,7 +47,7 @@ public:
   Ref(T *rawPtr) {
     assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
     ptr = rawPtr;
-    ptr->refCount += 1;
+    incref(ptr);
   }
   Ref(const Ref &other) {
     ptr = other.ptr;
@@ -147,10 +146,6 @@ private:
     auto *tail = reinterpret_cast<std::int32_t *>(this + 1);
     return MutableArrayRef<std::int32_t>(tail, rank);
   }
-  // Reference count management.
-  // template <typename T> friend class Ref;
-  // friend struct RtValue;
-  // std::atomic<int> refCount{0};
 
   ElementType elementType;
   // The number of dimensions of this Tensor.
@@ -170,12 +165,17 @@ private:
 // The tag determines the type, and the payload represents the stored
 // contents of an object. If an object is not trivially destructible,
 // then it must be refcounted and must have a refCount.
-#define NPCOMP_FORALL_TAGS(_)                                                  \
+#define NPCOMP_FORALL_PRIM_TAGS(_)                                             \
   _(None)                                                                      \
   _(Bool)                                                                      \
   _(Int)                                                                       \
-  _(Double)                                                                    \
-  _(Tensor)
+  _(Double)
+
+#define NPCOMP_FORALL_REF_TAGS(_) _(Tensor)
+
+#define NPCOMP_FORALL_TAGS(_)                                                  \
+  NPCOMP_FORALL_PRIM_TAGS(_)                                                   \
+  NPCOMP_FORALL_REF_TAGS(_)
 
 struct RtValue final {
 
@@ -208,23 +208,31 @@ struct RtValue final {
 
   // Tensor
   RtValue(Ref<Tensor> tensor) : tag(Tag::Tensor) {
-    payload.asRefTargetPtr = reinterpret_cast<RefTarget *>(tensor.takePtr());
+    payload.asVoidPtr = reinterpret_cast<void *>(tensor.takePtr());
   }
   bool isTensor() const { return Tag::Tensor == tag; }
   Ref<Tensor> toTensor() const {
     assert(isTensor());
-    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
+    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asVoidPtr));
   }
 
   // Ref
-  bool isRef() const { return isTensor(); }
+  bool isRef() const {
+#define DEFINE_IS_REF(x)                                                       \
+  if (is##x()) {                                                               \
+    return true;                                                               \
+  }
+    NPCOMP_FORALL_REF_TAGS(DEFINE_IS_REF)
+#undef DEFINE_IS_REF
+    return false;
+  }
 
   // RtValue (downcast)
   const RtValue &toRtValue() const { return *this; }
   RtValue &toRtValue() { return *this; }
 
   // Stringify tag for debugging.
-  std::string tagKind() const {
+  StringRef tagKind() const {
     switch (tag) {
 #define DEFINE_CASE(x)                                                         \
   case Tag::x:                                                                 \
@@ -237,8 +245,15 @@ struct RtValue final {
   }
 
   RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
-    if (isTensor()) {
-      Ref<Tensor>::incref(static_cast<Tensor*>(payload.asRefTargetPtr));
+    if (isRef()) {
+#define DEFINE_INCREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::incref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_INCREF)
+#undef DEFINE_INCREF
+      assert(false && "Unsupported RtValue type");
     }
   }
   RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
@@ -254,10 +269,13 @@ struct RtValue final {
 
   ~RtValue() {
     if (isRef()) {
-      if (isTensor()) {
-        Ref<Tensor>::decref(static_cast<Tensor*>(payload.asRefTargetPtr));
-        return;
-      }
+#define DEFINE_DECREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::decref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_DECREF)
+#undef DEFINE_DECREF
       assert(false && "Unsupported RtValue type");
     }
   }
@@ -281,7 +299,7 @@ private:
     bool asBool;
     int64_t asInt;
     double asDouble;
-    RefTarget *asRefTargetPtr;
+    void *asVoidPtr;
   };
 
   RtValue(Payload pl, Tag tag) : payload(pl), tag(tag) {}
