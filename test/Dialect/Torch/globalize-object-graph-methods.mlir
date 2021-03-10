@@ -29,7 +29,7 @@ func private @test_set(%arg0: !torch.nn.Module<"c">, %arg1: f64) {
 // CHECK:           %[[V:.*]] = call @test_call(%[[A]]) : (f64) -> f64
 // CHECK:           return %[[V]] : f64
 func private @test_call(%arg0: !torch.nn.Module<"c">, %arg1: f64) -> f64 {
-  %0 = torch.prim.CallMethod %arg0["test_call"] (%arg1) : !torch.nn.Module<"c">, (f64) -> f64
+  %0 = call @test_call(%arg0, %arg1) : (!torch.nn.Module<"c">, f64) -> f64
   return %0 : f64
 }
 

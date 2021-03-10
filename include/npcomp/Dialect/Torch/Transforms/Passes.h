@@ -19,6 +19,13 @@ namespace Torch {
 
 std::unique_ptr<OperationPass<ModuleOp>> createGlobalizeObjectGraphPass();
 
+std::unique_ptr<OperationPass<ModuleOp>>
+createPrepareForGlobalizeObjectGraphPass();
+
+/// Creates a pipeline that "globalizes" the given program.
+/// See the documentation on torch-globalize-object-graph for more details.
+void createGlobalizePipeline(OpPassManager &pm);
+
 } // namespace Torch
 
 /// Registers all Torch transformation passes.
