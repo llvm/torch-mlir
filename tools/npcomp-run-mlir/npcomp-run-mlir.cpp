@@ -58,14 +58,15 @@ convertAttrToTensor(Attribute attr) {
   return make_string_error("unhandled argument");
 }
 
-static Expected<SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6>>
+static Expected<SmallVector<refbackrt::RtValue, 6>>
 createInputs(ArrayRef<StringRef> argValues) {
   MLIRContext context;
-  SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6> ret;
+  SmallVector<refbackrt::RtValue, 6> ret;
   for (auto argValue : argValues) {
     auto attr = parseAttribute(argValue, &context);
     if (!attr)
       return make_string_error(Twine("could not parse arg value: ") + argValue);
+    // TODO(brycearden): Handle multiple input types
     auto expectedTensor = convertAttrToTensor(attr);
     if (!expectedTensor)
       return expectedTensor.takeError();
@@ -111,11 +112,12 @@ static void printOutput(refbackrt::Tensor &tensor, llvm::raw_ostream &os) {
   attr.print(os);
 }
 
-static void printOutputs(ArrayRef<refbackrt::Ref<refbackrt::Tensor>> outputs,
+static void printOutputs(ArrayRef<refbackrt::RtValue> outputs,
                          llvm::raw_ostream &os) {
   for (auto output : llvm::enumerate(outputs)) {
+    assert(output.value().isTensor() && "only tensor outputs are supported.");
     os << "output #" << output.index() << ": ";
-    printOutput(*output.value(), os);
+    printOutput(*output.value().toTensor().get(), os);
     os << "\n";
   }
 }

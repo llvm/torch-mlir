@@ -131,7 +131,7 @@ Tensor *Tensor::createRaw(ArrayRef<std::int32_t> extents, ElementType type,
   auto *tensor = static_cast<Tensor *>(
       std::malloc(sizeof(Tensor) + extents.size() * sizeof(std::int32_t)));
 
-  tensor->refCount.store(0);
+  tensor->refCount = 0;
   tensor->elementType = type;
   tensor->rank = extents.size();
   auto byteSize = getElementTypeByteSize(type) * totalElements(extents);
@@ -172,8 +172,8 @@ static FuncDescriptor *getFuncDescriptor(ModuleDescriptor *moduleDescriptor,
 }
 
 void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
-                       StringRef functionName, ArrayRef<Ref<Tensor>> inputs,
-                       MutableArrayRef<Ref<Tensor>> outputs) {
+                       StringRef functionName, ArrayRef<RtValue> inputs,
+                       MutableArrayRef<RtValue> outputs) {
   auto *descriptor = getFuncDescriptor(moduleDescriptor, functionName);
   assert(descriptor && "unknown function name");
   assert(inputs.size() < kMaxArity && "number of inputs exceeds kMaxArity");
@@ -191,7 +191,7 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   // more complex though (and maybe impossible given the current abstractions).
   for (int i = 0, e = inputs.size(); i < e; i++) {
     inputUnrankedMemrefs[i] =
-        convertRefbackrtTensorToUnrankedMemref(inputs[i].get());
+        convertRefbackrtTensorToUnrankedMemref(inputs[i].toTensor().get());
   }
   // Create a type-erased list of "packed inputs" to pass to the
   // LLVM/C ABI wrapper function. Each packedInput pointer corresponds to
@@ -224,7 +224,7 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
     Tensor *tensor = convertUnrankedMemrefToRefbackrtTensor(
         outputUnrankedMemrefs[i].rank, outputUnrankedMemrefs[i].descriptor,
         elementType);
-    outputs[i] = Ref<Tensor>(tensor);
+    outputs[i] = RtValue(Ref<Tensor>(tensor));
   }
 
   // Now, we just need to free all the UnrankedMemref's that we created.

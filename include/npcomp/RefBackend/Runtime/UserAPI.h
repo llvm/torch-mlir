@@ -27,6 +27,17 @@
 
 namespace refbackrt {
 
+struct RtValue;
+
+// Base class for any RefCounted object type
+class RefTarget {
+protected:
+  template <typename T> friend class Ref;
+  mutable std::atomic<size_t> refCount;
+
+  constexpr RefTarget() noexcept : refCount(0) {}
+};
+
 // Reference-counted handle to a type with a `refCount` member.
 template <typename T> class Ref {
 public:
@@ -36,7 +47,7 @@ public:
   Ref(T *rawPtr) {
     assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
     ptr = rawPtr;
-    ptr->refCount += 1;
+    incref(ptr);
   }
   Ref(const Ref &other) {
     ptr = other.ptr;
@@ -73,11 +84,14 @@ public:
   int debugGetRefCount() { return ptr->refCount; }
 
 private:
+  friend struct RtValue;
   static void incref(T *ptr) {
     if (!ptr)
       return;
     ptr->refCount += 1;
   }
+
+  friend struct RtValue;
   static void decref(T *ptr) {
     if (!ptr)
       return;
@@ -96,7 +110,7 @@ enum class ElementType : std::int32_t {
 std::int32_t getElementTypeByteSize(ElementType type);
 
 // Representation of a tensor.
-class Tensor {
+class Tensor : public RefTarget {
 public:
   // Due to tail-allocated objects, this struct should never be directly
   // constructed.
@@ -132,9 +146,6 @@ private:
     auto *tail = reinterpret_cast<std::int32_t *>(this + 1);
     return MutableArrayRef<std::int32_t>(tail, rank);
   }
-  // Reference count management.
-  template <typename T> friend class Ref;
-  std::atomic<int> refCount{0};
 
   ElementType elementType;
   // The number of dimensions of this Tensor.
@@ -148,6 +159,153 @@ private:
   void *allocatedPtr;
 
   // Sizes are tail-allocated.
+};
+
+// RtValue is a generic tagged union used to hold all value types
+// The tag determines the type, and the payload represents the stored
+// contents of an object. If an object is not trivially destructible,
+// then it must be refcounted and must have a refCount.
+#define NPCOMP_FORALL_PRIM_TAGS(_)                                             \
+  _(None)                                                                      \
+  _(Bool)                                                                      \
+  _(Int)                                                                       \
+  _(Double)
+
+#define NPCOMP_FORALL_REF_TAGS(_) _(Tensor)
+
+#define NPCOMP_FORALL_TAGS(_)                                                  \
+  NPCOMP_FORALL_PRIM_TAGS(_)                                                   \
+  NPCOMP_FORALL_REF_TAGS(_)
+
+struct RtValue final {
+
+  RtValue() : payload{0}, tag(Tag::None) {}
+
+  // Bool
+  RtValue(bool b) : tag(Tag::Bool) { payload.asBool = b; }
+  bool isBool() const { return Tag::Bool == tag; }
+  bool toBool() const {
+    assert(isBool());
+    return payload.asBool;
+  }
+
+  // Int
+  RtValue(std::int64_t i) : tag(Tag::Int) { payload.asInt = i; }
+  RtValue(std::int32_t i) : RtValue(static_cast<int64_t>(i)) {}
+  bool isInt() const { return Tag::Int == tag; }
+  bool toInt() const {
+    assert(isInt());
+    return payload.asInt;
+  }
+
+  // Double
+  RtValue(double d) : tag(Tag::Double) { payload.asDouble = d; }
+  bool isDouble() const { return Tag::Double == tag; }
+  bool toDouble() const {
+    assert(isDouble());
+    return payload.asDouble;
+  }
+
+  // Tensor
+  RtValue(Ref<Tensor> tensor) : tag(Tag::Tensor) {
+    payload.asVoidPtr = reinterpret_cast<void *>(tensor.takePtr());
+  }
+  bool isTensor() const { return Tag::Tensor == tag; }
+  Ref<Tensor> toTensor() const {
+    assert(isTensor());
+    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asVoidPtr));
+  }
+
+  // Ref
+  bool isRef() const {
+#define DEFINE_IS_REF(x)                                                       \
+  if (is##x()) {                                                               \
+    return true;                                                               \
+  }
+    NPCOMP_FORALL_REF_TAGS(DEFINE_IS_REF)
+#undef DEFINE_IS_REF
+    return false;
+  }
+
+  // RtValue (downcast)
+  const RtValue &toRtValue() const { return *this; }
+  RtValue &toRtValue() { return *this; }
+
+  // Stringify tag for debugging.
+  StringRef tagKind() const {
+    switch (tag) {
+#define DEFINE_CASE(x)                                                         \
+  case Tag::x:                                                                 \
+    return #x;
+      NPCOMP_FORALL_TAGS(DEFINE_CASE)
+#undef DEFINE_CASE
+    }
+    // TODO(brycearden): Print tag here
+    return "InvalidTag!";
+  }
+
+  RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
+    if (isRef()) {
+#define DEFINE_INCREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::incref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_INCREF)
+#undef DEFINE_INCREF
+      assert(false && "Unsupported RtValue type");
+    }
+  }
+  RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
+
+  RtValue &operator=(RtValue &&rhs) & noexcept {
+    RtValue(std::move(rhs)).swap(*this); // this also sets rhs to None
+    return *this;
+  }
+  RtValue &operator=(RtValue const &rhs) & {
+    RtValue(rhs).swap(*this);
+    return *this;
+  }
+
+  ~RtValue() {
+    if (isRef()) {
+#define DEFINE_DECREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::decref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_DECREF)
+#undef DEFINE_DECREF
+      assert(false && "Unsupported RtValue type");
+    }
+  }
+
+private:
+  void swap(RtValue &rhs) {
+    std::swap(payload, rhs.payload);
+    std::swap(tag, rhs.tag);
+  }
+
+  // NOTE: Runtime tags are intentionally private.
+  // Please use the helper functions above to query information about the type
+  // of a RtValue.
+  enum class Tag : std::uint32_t {
+#define DEFINE_TAG(x) x,
+    NPCOMP_FORALL_TAGS(DEFINE_TAG)
+#undef DEFINE_TAG
+  };
+
+  union Payload {
+    bool asBool;
+    int64_t asInt;
+    double asDouble;
+    void *asVoidPtr;
+  };
+
+  RtValue(Payload pl, Tag tag) : payload(pl), tag(tag) {}
+
+  Payload payload;
+  Tag tag;
 };
 
 //===----------------------------------------------------------------------===//
@@ -172,7 +330,7 @@ constexpr static int kMaxArity = 20;
 // Low-level invocation API. The number of inputs and outputs should be correct
 // and match the results of getMetadata.
 void invoke(ModuleDescriptor *moduleDescriptor, StringRef functionName,
-            ArrayRef<Ref<Tensor>> inputs, MutableArrayRef<Ref<Tensor>> outputs);
+            ArrayRef<RtValue> inputs, MutableArrayRef<RtValue> outputs);
 
 // Metadata for function `functionName`.
 //

@@ -40,9 +40,9 @@ public:
   fromCompiledModule(mlir::ModuleOp module,
                      llvm::ArrayRef<llvm::StringRef> sharedLibs);
 
-  llvm::Expected<llvm::SmallVector<refbackrt::Ref<refbackrt::Tensor>, 6>>
+  llvm::Expected<llvm::SmallVector<refbackrt::RtValue, 6>>
   invoke(llvm::StringRef functionName,
-         llvm::ArrayRef<refbackrt::Ref<refbackrt::Tensor>> inputs);
+         llvm::ArrayRef<refbackrt::RtValue> inputs);
 
 private:
   JITModule();
