@@ -25,19 +25,23 @@ jobs:
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
       shell: bash
+    - name: Get workflow spec hash
+      id: get-workflow-hash
+      run: echo "::set-output name=hash::$(md5sum $GITHUB_WORKSPACE/.github/workflows/buildAndTest.yml)"
+      shell: bash
     - name: Cache LLVM
       id: cache-llvm
       uses: actions/cache@v2
       with:
         path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}
+        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}-${{ steps.get-workflow-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
         mkdir -p ${LLVM}/build
         mkdir -p ${LLVM}/install
         cd ${LLVM}/build
-        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
+        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
         cmake --build . --target install -- -j$(nproc)
   build:
     name: Build and Test
@@ -60,19 +64,23 @@ jobs:
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
       shell: bash
+    - name: Get workflow spec hash
+      id: get-workflow-hash
+      run: echo "::set-output name=hash::$(md5sum $GITHUB_WORKSPACE/.github/workflows/buildAndTest.yml)"
+      shell: bash
     - name: Cache LLVM
       id: cache-llvm
       uses: actions/cache@v2
       with:
         path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}
+        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}-${{ steps.get-workflow-hash.outputs.hash }}
     - name: Rebuild and Install LLVM
       if: steps.cache-llvm.outputs.cache-hit != 'true'
       run: |
         mkdir ${LLVM}/build
         mkdir ${LLVM}/install
         cd ${LLVM}/build
-        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
+        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON -DMLIR_BINDINGS_PYTHON_ENABLED=ON
         cmake --build . --target install -- -j$(nproc)
     - name: Build and Test npcomp (Assert)
       run: |
