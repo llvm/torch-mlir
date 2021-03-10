@@ -92,6 +92,9 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
 
   let extraClassDeclaration = [{
     StringRef getClassName() { return getType().getClassName(); }
+    ClassTypeOp getClassType(::mlir::SymbolTable &symbolTable) {
+      return symbolTable.lookup<ClassTypeOp>(getClassName());
+    }
   }];
 }
 

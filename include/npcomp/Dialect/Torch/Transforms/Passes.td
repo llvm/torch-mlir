@@ -38,7 +38,10 @@ def GlobalizeObjectGraph : Pass<"torch-globalize-object-graph", "ModuleOp"> {
 
     This pass performs a complete change of the externally visible calling
     convention of the MLIR module for a graph of objects and methods to a
-    fixed set of globals and functions.
+    fixed set of globals and functions. Additionally, method signatures are
+    changed such that all types of !torch.nn.Module are deleted from public
+    interfaces since they are guaranteed to correspond to a unique instance and
+    are thus redundant.
 
     Of course, only a subset of programs can be transformed, and this pass fails
     with an error if the conditions are violated.
@@ -49,11 +52,25 @@ def GlobalizeObjectGraph : Pass<"torch-globalize-object-graph", "ModuleOp"> {
       - Rationale: Allows us to have a notion of a unique "root" op, which is
         used to define linkage. This also matches how TorchScript imports in
         practice (`torch.jit.script` imports a single root object).
-    - There must be exactly one instance of each torch.class_type. Equivalently,
-      Every torch.nn_module must have a distinct type.
-      - Rationale: This guarantee precludes things like selecting between
-        multiple modules dynamically at runtime, which would require indirecting
-        between the separate storage of each instance.
+    - Multiple instances of the same class type are allowed, as long as it is
+      possible to monomorphize ("template instantiate") functions so that each
+      argument of !torch.nn.Module type corresponds to a unique instance.
+      In pratice, this limitation is either 1) (fundamental) due to truly
+      dynamic use of modules, such as `m1 if cond() else m2` in Python code,
+      or 2) (incidental) imprecision of the static analysis used in this pass
+      which is used to calculate when a single intance is relevant. In general,
+      this analysis is equivalent to the halting problem, but we can aim to
+      improve this pass such that practical patterns are all handled.
+      - Rationale: The fundamental limitation "1)" guarantees that the
+        program can be lowered to a fixed set of globals without indirection
+        across globals. In the absence of this property, most compiler
+        analyses/transformations are significantly curtailed (or require very
+        sophisticated implementations). For the moment, this restriction
+        is deemed to be sufficiently reasonable to be a pragmatic choice to
+        avoid front-loading the complexity of working with a representation that
+        really does a good job of representing that kind of program.
+        Additionally, it avoids front-loading the handling of programs which
+        have !torch.nn.Module types at external calling convention boundaries.
     - All torch.nn_module's must be reachable by a unique path from the root
       - Rationale: Eliminates possibility of potentially exponential number of
         paths. Or worse, infinite number of paths when considering cyclic
@@ -67,6 +84,20 @@ def GlobalizeObjectGraph : Pass<"torch-globalize-object-graph", "ModuleOp"> {
         very restricted form of aliasing anyway for other reasons. We are
         waiting for signals that more general handling of object aliasing is
         important to devote the effort to it.
+  }];
+}
+
+def PrepareForGlobalizeObjectGraph
+  : Pass<"torch-prepare-for-globalize-object-graph", "ModuleOp"> {
+  let summary = "Lowering in preparation for globalizing";
+  let constructor = "mlir::NPCOMP::Torch::createPrepareForGlobalizeObjectGraphPass()";
+  let description = [{
+    Establishes and the invariants needed by the
+    torch-globalize-object-graph transformation. Fails if that cannot be
+    accomplished.
+
+    Currently, this just involves ensuring a small set of patterns have been
+    applied.
   }];
 }
 

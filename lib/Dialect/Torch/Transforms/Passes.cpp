@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
+#include "mlir/Pass/PassManager.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -17,4 +18,14 @@ namespace {
 #include "npcomp/Dialect/Torch/Transforms/Passes.h.inc"
 } // end namespace
 
-void mlir::NPCOMP::registerTorchPasses() { ::registerPasses(); }
+void mlir::NPCOMP::registerTorchPasses() {
+  ::registerPasses();
+  mlir::PassPipelineRegistration<>(
+      "torch-globalize-pipeline", "Globalization pipeline.",
+      mlir::NPCOMP::Torch::createGlobalizePipeline);
+}
+
+void mlir::NPCOMP::Torch::createGlobalizePipeline(OpPassManager &pm) {
+  pm.addPass(createPrepareForGlobalizeObjectGraphPass());
+  pm.addPass(createGlobalizeObjectGraphPass());
+}
