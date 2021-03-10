@@ -32,70 +32,45 @@ struct RtValue;
 
 // Base class for any RefCounted object type
 class RefTarget {
-  mutable std::atomic<size_t> refcount;
-
-  template <typename T> friend class Ref;
-  friend struct RtValue;
-  inline void incref() const { this->refcount += 1; }
-
-  template <typename T> friend class Ref;
-  friend struct RtValue;
-  inline bool decref() const {
-    if (this->refcount.fetch_sub(1) == 1)
-      return true;
-    return false;
-  }
-
-public:
-  size_t refCount() const { return refcount; }
-
 protected:
-  void setRefCount(uint32_t val) { refcount = val; }
+  template <typename T> friend class Ref;
+  mutable std::atomic<size_t> refCount;
 
-  constexpr RefTarget() noexcept : refcount(0) {}
+  constexpr RefTarget() noexcept : refCount(0) {}
 };
 
 // Reference-counted handle to a type with a `refCount` member.
-// T is expected to be a RefTarget
 template <typename T> class Ref {
 public:
   Ref() { ptr = nullptr; }
   // Creates a Ref and increments the refcount by 1.
   // rawPtr must be allocated with std::malloc.
   Ref(T *rawPtr) {
-    assert(rawPtr->refCount() >= 0 &&
-           "expected non-negative refcount to start!");
+    assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
     ptr = rawPtr;
-    ptr->incref();
+    ptr->refCount += 1;
   }
   Ref(const Ref &other) {
     ptr = other.ptr;
-    ptr->incref();
+    incref(ptr);
   }
   Ref(Ref &&other) { ptr = other.takePtr(); }
   Ref &operator=(const Ref &other) {
     if (&other == this)
       return *this;
-    if (ptr != nullptr && ptr->decref())
-      releaseResources();
+    decref(ptr);
     ptr = other.ptr;
-    ptr->incref();
+    incref(ptr);
     return *this;
   }
   Ref &operator=(Ref &&other) {
     if (&other == this)
       return *this;
-    if (ptr != nullptr && ptr->decref()) {
-      releaseResources();
-    }
+    decref(ptr);
     ptr = other.takePtr();
     return *this;
   }
-  ~Ref() {
-    if (ptr != nullptr && ptr->decref()) {
-      releaseResources();
-    }
-  }
+  ~Ref() { decref(ptr); }
 
   T &operator*() const { return *ptr; }
   T *operator->() const { return ptr; }
@@ -107,21 +82,25 @@ public:
     return ret;
   }
 
-  static Ref reclaimPtr(T *otherPtr) {
-    assert(otherPtr->refCount() >= 1);
-    auto ret = Ref();
-    ret.ptr = otherPtr;
-    return ret;
-  }
-
-  int debugGetRefCount() { return ptr->refCount(); }
+  int debugGetRefCount() { return ptr->refCount; }
 
 private:
-  void releaseResources() {
-    ptr->~T();
-    std::free(ptr);
+  friend struct RtValue;
+  static void incref(T *ptr) {
+    if (!ptr)
+      return;
+    ptr->refCount += 1;
   }
 
+  friend struct RtValue;
+  static void decref(T *ptr) {
+    if (!ptr)
+      return;
+    if (ptr->refCount.fetch_sub(1) == 1) {
+      ptr->~T();
+      std::free(static_cast<void *>(ptr));
+    }
+  }
   T *ptr;
 };
 
@@ -258,8 +237,8 @@ struct RtValue final {
   }
 
   RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
-    if (isRef()) {
-      payload.asRefTargetPtr->incref();
+    if (isTensor()) {
+      Ref<Tensor>::incref(static_cast<Tensor*>(payload.asRefTargetPtr));
     }
   }
   RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
@@ -276,8 +255,7 @@ struct RtValue final {
   ~RtValue() {
     if (isRef()) {
       if (isTensor()) {
-        auto raii = Ref<Tensor>::reclaimPtr(
-            reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
+        Ref<Tensor>::decref(static_cast<Tensor*>(payload.asRefTargetPtr));
         return;
       }
       assert(false && "Unsupported RtValue type");
