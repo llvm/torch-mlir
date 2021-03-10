@@ -23,6 +23,40 @@ namespace refbackrt {
 // LowerToLLVM.cpp for more details.
 typedef void ABIFunc(void **, void **);
 
+enum class ABIArgType : std::uint32_t {
+  kNone = 0,
+  kMemref,
+  kF32,
+  kF64,
+};
+
+enum class ABIElementType : std::uint32_t {
+  kNone = 0,
+  kF32,
+};
+
+struct InputDescriptor {
+  ABIArgType abiType;
+  ABIElementType elementType;
+
+  std::int32_t rank;
+  std::int32_t* extents;
+
+  // TODO(brycearden): Change to bool at ABI boundary
+  // std::int32_t isStatic;
+};
+
+struct OutputDescriptor {
+  ABIArgType abiType;
+  ABIElementType elementType;
+
+  std::int32_t rank;
+  std::int32_t* extents;
+
+  // TODO(brycearden): Change to bool at ABI boundary
+  //std::int32_t isStatic;
+};
+
 struct FuncDescriptor {
   // The length of the function name.
   std::int32_t nameLen;
@@ -35,9 +69,9 @@ struct FuncDescriptor {
   std::int32_t numInputs;
   // The number of outputs of the function.
   std::int32_t numOutputs;
-  // TODO: Add arg/result descriptors and other metadata.
-  // With those descriptors we can do type and shape checking for each
-  // argument.
+  // TODO: Add shape checking to arg / result descriptor(s)
+  InputDescriptor *inputDescriptors;
+  OutputDescriptor *outputDescriptors;
 };
 
 // The top-level entry point of the module metadata emitted by the

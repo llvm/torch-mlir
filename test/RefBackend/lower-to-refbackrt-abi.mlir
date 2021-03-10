@@ -3,8 +3,14 @@
 // Test module metadata.
 
 // CHECK:      refbackrt.module_metadata
-// CHECK-NEXT:   refbackrt.func_metadata {funcName = @f_2inputs_0outputs, numInputs = 2 : i32, numOutputs = 0 : i32}
-// CHECK-NEXT:   refbackrt.func_metadata {funcName = @f_1input_2outputs, numInputs = 1 : i32, numOutputs = 2 : i32}
+// CHECK-NEXT: refbackrt.func_metadata
+// CHECK-SAME:   funcName = @f_2inputs_0outputs
+// CHECK-SAME:   numInputs = 2
+// CHECK-SAME:   numOutputs = 0
+// CHECK-NEXT: refbackrt.func_metadata 
+// CHECK-SAME:   funcName = @f_1input_2outputs
+// CHECK-SAME:   numInputs = 1
+// CHECK-SAME:   numOutputs = 2
 
 // This function only exists to test its metadata above.
 func @f_2inputs_0outputs(%arg0: memref<?xf32>, %arg1: memref<?xf32>) {

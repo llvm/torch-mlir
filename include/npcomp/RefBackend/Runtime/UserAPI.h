@@ -22,6 +22,7 @@
 #define NPCOMP_RUNTIME_USERAPI_H
 
 #include "npcomp/RefBackend/Runtime/Support.h"
+#include <array>
 #include <atomic>
 #include <cstdlib>
 
@@ -105,9 +106,11 @@ private:
 
 // The available data types.
 enum class ElementType : std::int32_t {
+  NONE,
   F32,
 };
 std::int32_t getElementTypeByteSize(ElementType type);
+StringRef getElementTypeAsStringRef(ElementType type);
 
 // Representation of a tensor.
 class Tensor : public RefTarget {
@@ -122,6 +125,12 @@ public:
                             ElementType elementType, void *data);
   // Same as `create`, but returns a raw pointer.
   static Tensor *createRaw(ArrayRef<std::int32_t> extents,
+                           ElementType elementType, void *data);
+
+  static Ref<Tensor> create(ArrayRef<std::int64_t> extents,
+                            ElementType elementType, void *data);
+  // Same as `create`, but returns a raw pointer.
+  static Tensor *createRaw(ArrayRef<std::int64_t> extents,
                            ElementType elementType, void *data);
 
   ElementType getElementType() const { return elementType; }
@@ -169,6 +178,7 @@ private:
   _(None)                                                                      \
   _(Bool)                                                                      \
   _(Int)                                                                       \
+  _(Float)                                                                     \
   _(Double)
 
 #define NPCOMP_FORALL_REF_TAGS(_) _(Tensor)
@@ -193,15 +203,23 @@ struct RtValue final {
   RtValue(std::int64_t i) : tag(Tag::Int) { payload.asInt = i; }
   RtValue(std::int32_t i) : RtValue(static_cast<int64_t>(i)) {}
   bool isInt() const { return Tag::Int == tag; }
-  bool toInt() const {
+  int64_t toInt() const {
     assert(isInt());
     return payload.asInt;
+  }
+
+  // Float
+  RtValue(float f) : tag(Tag::Float) { payload.asFloat = f; }
+  bool isFloat() const { return Tag::Float == tag; }
+  float toFloat() const {
+    assert(isFloat());
+    return payload.asFloat;
   }
 
   // Double
   RtValue(double d) : tag(Tag::Double) { payload.asDouble = d; }
   bool isDouble() const { return Tag::Double == tag; }
-  bool toDouble() const {
+  double toDouble() const {
     assert(isDouble());
     return payload.asDouble;
   }
@@ -225,6 +243,11 @@ struct RtValue final {
     NPCOMP_FORALL_REF_TAGS(DEFINE_IS_REF)
 #undef DEFINE_IS_REF
     return false;
+  }
+
+  // Scalar
+  bool isScalar() const {
+    return isBool() || isInt() || isFloat() || isDouble();
   }
 
   // RtValue (downcast)
@@ -298,6 +321,7 @@ private:
   union Payload {
     bool asBool;
     int64_t asInt;
+    float asFloat;
     double asDouble;
     void *asVoidPtr;
   };
@@ -313,19 +337,72 @@ private:
 // This is the main entry point that users interact with.
 //===----------------------------------------------------------------------===//
 
+enum class ArgType : std::uint32_t {
+  kNone = 0,
+  kTensor,
+  kF32,
+  kF64,
+};
+StringRef getArgTypeAsStringRef(ArgType type);
+
+// Maximum rank supported across the ABI boundary
+constexpr static int kMaxRank = 6;
+
+struct InputArgInfo {
+  // What type of argument this is
+  ArgType argType;
+  // Certain arg types also have an element type
+  ElementType elementType;
+  std::int32_t rank;
+  std::array<std::int32_t, kMaxRank> extents;
+};
+
+struct OutputArgInfo {
+  // What type of argument this is
+  ArgType argType;
+  // Certain arg types also have an element type
+  ElementType elementType;
+  std::int32_t rank;
+  std::array<std::int32_t, kMaxRank> extents;
+  // TODO(brycearden): Add checks for whether output buffers alias to input
+  // buffers and populate field(s) here indicating that case
+};
+
+// Maximum input or output arity.
+constexpr static int kMaxArity = 20;
+
 // Metadata for a particular function.
-// TODO: Add arg types.
 struct FunctionMetadata {
   std::int32_t numInputs;
   std::int32_t numOutputs;
+
+  std::array<InputArgInfo, kMaxArity> inputArgInfos;
+  std::array<OutputArgInfo, kMaxArity> outputArgInfos;
 };
 
 // Opaque forward declaration of module descriptor type. This is the type
 // created by the compiler in the module binary.
 struct ModuleDescriptor;
 
-// Maximum input or output arity.
-constexpr static int kMaxArity = 20;
+// Verifies that the input RtValue arg types match what the user provides
+// matches the types we expect from the descriptors emitted by the
+// compiler.
+//
+// Returns failure if the input type(s) are not valid
+LogicalResult checkRtValueArgTypes(const RtValue &value,
+                                   const InputArgInfo &info);
+
+// Verifies that the input RtValue shapes matches what the user provides
+// matches the types we expect from the descriptors emitted by the
+// compiler.
+//
+// Returns failure if the input type(s) are not valid
+LogicalResult checkRtValueShapes(const RtValue &value,
+                                 const InputArgInfo &info);
+
+// Creates an RtValue of the right type from the output metadata
+// provided by the compiled module
+RtValue createRtValueFromOutputArgInfo(const OutputArgInfo &info);
 
 // Low-level invocation API. The number of inputs and outputs should be correct
 // and match the results of getMetadata.

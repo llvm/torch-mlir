@@ -58,6 +58,14 @@ convertAttrToTensor(Attribute attr) {
   return make_string_error("unhandled argument");
 }
 
+static Expected<float> convertAttrToFloat(Attribute attr) {
+  auto type = attr.getType().dyn_cast<FloatType>();
+  if (!type) 
+    return make_string_error("converting an argument to float that is not a FloatType");
+  auto floatAttr = attr.dyn_cast<FloatAttr>();
+  return floatAttr.getValue().convertToFloat();
+}
+
 static Expected<SmallVector<refbackrt::RtValue, 6>>
 createInputs(ArrayRef<StringRef> argValues) {
   MLIRContext context;
@@ -66,12 +74,22 @@ createInputs(ArrayRef<StringRef> argValues) {
     auto attr = parseAttribute(argValue, &context);
     if (!attr)
       return make_string_error(Twine("could not parse arg value: ") + argValue);
-    // TODO(brycearden): Handle multiple input types
-    auto expectedTensor = convertAttrToTensor(attr);
-    if (!expectedTensor)
-      return expectedTensor.takeError();
-    ret.push_back(std::move(*expectedTensor));
+
+    auto attrType = attr.getType();
+
+    if (attrType.isa<RankedTensorType>()) {
+      auto expectedTensor = convertAttrToTensor(attr);
+      if (!expectedTensor)
+        return expectedTensor.takeError();
+      ret.push_back(std::move(*expectedTensor));
+    } else if (attrType.isa<FloatType>()) {
+      auto expectedFloat = convertAttrToFloat(attr);
+      if (!expectedFloat)
+        return expectedFloat.takeError();
+      ret.push_back(refbackrt::RtValue(*expectedFloat));
+    }
   }
+
   return ret;
 }
 
@@ -92,34 +110,40 @@ static RankedTensorType getCorrespondingMLIRTensorType(refbackrt::Tensor &tensor
   return RankedTensorType::get(extents, elementType);
 }
 
-static Attribute convertToMLIRAttribute(refbackrt::Tensor &tensor,
+static Attribute convertToMLIRAttribute(const refbackrt::RtValue &value,
                                         Builder &builder) {
-  RankedTensorType type = getCorrespondingMLIRTensorType(tensor, builder);
-  switch (tensor.getElementType()) {
-  case refbackrt::ElementType::F32: {
-    SmallVector<float, 100> values;
-    auto *basePtr = tensor.getData<float>();
-    for (int i = 0, e = type.getNumElements(); i < e; i++)
-      values.push_back(basePtr[i]);
-    return DenseFPElementsAttr::get(type, values);
-  }
+  if (value.isTensor()) {
+    auto& tensor = *(value.toTensor());
+    RankedTensorType type = getCorrespondingMLIRTensorType(tensor, builder);
+    switch (tensor.getElementType()) {
+      case refbackrt::ElementType::F32: {
+        SmallVector<float, 100> values;
+        auto *basePtr = tensor.getData<float>();
+        for (int i = 0, e = type.getNumElements(); i < e; i++)
+          values.push_back(basePtr[i]);
+        return DenseFPElementsAttr::get(type, values);
+      }
+    }
+  } else if (value.isFloat()) {
+    return builder.getF32FloatAttr(value.toFloat());
+  } else {
+    assert(false && "could not convert value to mlir attribute");
   }
   llvm_unreachable("unsupported dtype");
 }
 
-static void printOutput(refbackrt::Tensor &tensor, llvm::raw_ostream &os) {
+static void printOutput(const refbackrt::RtValue &value, llvm::raw_ostream &os) {
   MLIRContext context;
   Builder builder(&context);
-  auto attr = convertToMLIRAttribute(tensor, builder);
+  auto attr = convertToMLIRAttribute(value, builder);
   attr.print(os);
 }
 
 static void printOutputs(ArrayRef<refbackrt::RtValue> outputs,
                          llvm::raw_ostream &os) {
   for (auto output : llvm::enumerate(outputs)) {
-    assert(output.value().isTensor() && "only tensor outputs are supported.");
     os << "output #" << output.index() << ": ";
-    printOutput(*output.value().toTensor().get(), os);
+    printOutput(output.value(), os);
     os << "\n";
   }
 }
@@ -150,9 +174,11 @@ Error compileAndRun(std::string mlirFile, mlir::MLIRContext &context,
   auto expectedInputs = createInputs(argValues);
   if (!expectedInputs)
     return expectedInputs.takeError();
+
   auto expectedOutputs = jitModule->invoke(invokeFunction, *expectedInputs);
   if (!expectedOutputs)
     return expectedOutputs.takeError();
+
   auto outputs = std::move(*expectedOutputs);
   printOutputs(outputs, llvm::outs());
   llvm::outs() << "SUCCESS\n";

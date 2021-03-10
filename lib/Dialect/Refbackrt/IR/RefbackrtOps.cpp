@@ -54,6 +54,16 @@ static LogicalResult verify(FuncMetadataOp op) {
     return op.emitError() << "must agree on number of inputs";
   if (op.numOutputs() != func.getNumResults())
     return op.emitError() << "must agree on number of outputs";
+
+  if (op.numInputs() > 0) {
+    if (op.numInputs() != op.inputArgTypes()->size()) {
+      return op.emitError() << "number of inputTypes must match number of inputs";
+    }
+  }
+  if (op.numOutputs() > 0) {
+    if (op.numOutputs() != op.outputArgTypes()->size())
+      return op.emitError() << "number of outputTypes must match number of outputs";
+  }
   return success();
 }
 
