@@ -24,7 +24,6 @@
 #include "npcomp/RefBackend/Runtime/Support.h"
 #include <atomic>
 #include <cstdlib>
-#include <string>
 
 namespace refbackrt {
 
@@ -32,70 +31,45 @@ struct RtValue;
 
 // Base class for any RefCounted object type
 class RefTarget {
-  mutable std::atomic<size_t> refcount;
-
-  template <typename T> friend class Ref;
-  friend struct RtValue;
-  inline void incref() const { this->refcount += 1; }
-
-  template <typename T> friend class Ref;
-  friend struct RtValue;
-  inline bool decref() const {
-    if (this->refcount.fetch_sub(1) == 1)
-      return true;
-    return false;
-  }
-
-public:
-  size_t refCount() const { return refcount; }
-
 protected:
-  void setRefCount(uint32_t val) { refcount = val; }
+  template <typename T> friend class Ref;
+  mutable std::atomic<size_t> refCount;
 
-  constexpr RefTarget() noexcept : refcount(0) {}
+  constexpr RefTarget() noexcept : refCount(0) {}
 };
 
 // Reference-counted handle to a type with a `refCount` member.
-// T is expected to be a RefTarget
 template <typename T> class Ref {
 public:
   Ref() { ptr = nullptr; }
   // Creates a Ref and increments the refcount by 1.
   // rawPtr must be allocated with std::malloc.
   Ref(T *rawPtr) {
-    assert(rawPtr->refCount() >= 0 &&
-           "expected non-negative refcount to start!");
+    assert(rawPtr->refCount >= 0 && "expected non-negative refcount to start!");
     ptr = rawPtr;
-    ptr->incref();
+    incref(ptr);
   }
   Ref(const Ref &other) {
     ptr = other.ptr;
-    ptr->incref();
+    incref(ptr);
   }
   Ref(Ref &&other) { ptr = other.takePtr(); }
   Ref &operator=(const Ref &other) {
     if (&other == this)
       return *this;
-    if (ptr != nullptr && ptr->decref())
-      releaseResources();
+    decref(ptr);
     ptr = other.ptr;
-    ptr->incref();
+    incref(ptr);
     return *this;
   }
   Ref &operator=(Ref &&other) {
     if (&other == this)
       return *this;
-    if (ptr != nullptr && ptr->decref()) {
-      releaseResources();
-    }
+    decref(ptr);
     ptr = other.takePtr();
     return *this;
   }
-  ~Ref() {
-    if (ptr != nullptr && ptr->decref()) {
-      releaseResources();
-    }
-  }
+  ~Ref() { decref(ptr); }
 
   T &operator*() const { return *ptr; }
   T *operator->() const { return ptr; }
@@ -107,21 +81,25 @@ public:
     return ret;
   }
 
-  static Ref reclaimPtr(T *otherPtr) {
-    assert(otherPtr->refCount() >= 1);
-    auto ret = Ref();
-    ret.ptr = otherPtr;
-    return ret;
-  }
-
-  int debugGetRefCount() { return ptr->refCount(); }
+  int debugGetRefCount() { return ptr->refCount; }
 
 private:
-  void releaseResources() {
-    ptr->~T();
-    std::free(ptr);
+  friend struct RtValue;
+  static void incref(T *ptr) {
+    if (!ptr)
+      return;
+    ptr->refCount += 1;
   }
 
+  friend struct RtValue;
+  static void decref(T *ptr) {
+    if (!ptr)
+      return;
+    if (ptr->refCount.fetch_sub(1) == 1) {
+      ptr->~T();
+      std::free(static_cast<void *>(ptr));
+    }
+  }
   T *ptr;
 };
 
@@ -168,10 +146,6 @@ private:
     auto *tail = reinterpret_cast<std::int32_t *>(this + 1);
     return MutableArrayRef<std::int32_t>(tail, rank);
   }
-  // Reference count management.
-  // template <typename T> friend class Ref;
-  // friend struct RtValue;
-  // std::atomic<int> refCount{0};
 
   ElementType elementType;
   // The number of dimensions of this Tensor.
@@ -191,12 +165,17 @@ private:
 // The tag determines the type, and the payload represents the stored
 // contents of an object. If an object is not trivially destructible,
 // then it must be refcounted and must have a refCount.
-#define NPCOMP_FORALL_TAGS(_)                                                  \
+#define NPCOMP_FORALL_PRIM_TAGS(_)                                             \
   _(None)                                                                      \
   _(Bool)                                                                      \
   _(Int)                                                                       \
-  _(Double)                                                                    \
-  _(Tensor)
+  _(Double)
+
+#define NPCOMP_FORALL_REF_TAGS(_) _(Tensor)
+
+#define NPCOMP_FORALL_TAGS(_)                                                  \
+  NPCOMP_FORALL_PRIM_TAGS(_)                                                   \
+  NPCOMP_FORALL_REF_TAGS(_)
 
 struct RtValue final {
 
@@ -229,23 +208,31 @@ struct RtValue final {
 
   // Tensor
   RtValue(Ref<Tensor> tensor) : tag(Tag::Tensor) {
-    payload.asRefTargetPtr = reinterpret_cast<RefTarget *>(tensor.takePtr());
+    payload.asVoidPtr = reinterpret_cast<void *>(tensor.takePtr());
   }
   bool isTensor() const { return Tag::Tensor == tag; }
   Ref<Tensor> toTensor() const {
     assert(isTensor());
-    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
+    return Ref<Tensor>(reinterpret_cast<Tensor *>(payload.asVoidPtr));
   }
 
   // Ref
-  bool isRef() const { return isTensor(); }
+  bool isRef() const {
+#define DEFINE_IS_REF(x)                                                       \
+  if (is##x()) {                                                               \
+    return true;                                                               \
+  }
+    NPCOMP_FORALL_REF_TAGS(DEFINE_IS_REF)
+#undef DEFINE_IS_REF
+    return false;
+  }
 
   // RtValue (downcast)
   const RtValue &toRtValue() const { return *this; }
   RtValue &toRtValue() { return *this; }
 
   // Stringify tag for debugging.
-  std::string tagKind() const {
+  StringRef tagKind() const {
     switch (tag) {
 #define DEFINE_CASE(x)                                                         \
   case Tag::x:                                                                 \
@@ -259,7 +246,14 @@ struct RtValue final {
 
   RtValue(const RtValue &rhs) : RtValue(rhs.payload, rhs.tag) {
     if (isRef()) {
-      payload.asRefTargetPtr->incref();
+#define DEFINE_INCREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::incref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_INCREF)
+#undef DEFINE_INCREF
+      assert(false && "Unsupported RtValue type");
     }
   }
   RtValue(RtValue &&rhs) noexcept : RtValue() { swap(rhs); }
@@ -275,11 +269,13 @@ struct RtValue final {
 
   ~RtValue() {
     if (isRef()) {
-      if (isTensor()) {
-        auto raii = Ref<Tensor>::reclaimPtr(
-            reinterpret_cast<Tensor *>(payload.asRefTargetPtr));
-        return;
-      }
+#define DEFINE_DECREF(x)                                                       \
+  if (is##x()) {                                                               \
+    Ref<x>::decref(static_cast<x *>(payload.asVoidPtr));                       \
+    return;                                                                    \
+  }
+      NPCOMP_FORALL_REF_TAGS(DEFINE_DECREF)
+#undef DEFINE_DECREF
       assert(false && "Unsupported RtValue type");
     }
   }
@@ -303,7 +299,7 @@ private:
     bool asBool;
     int64_t asInt;
     double asDouble;
-    RefTarget *asRefTargetPtr;
+    void *asVoidPtr;
   };
 
   RtValue(Payload pl, Tag tag) : payload(pl), tag(tag) {}

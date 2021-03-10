@@ -131,7 +131,7 @@ Tensor *Tensor::createRaw(ArrayRef<std::int32_t> extents, ElementType type,
   auto *tensor = static_cast<Tensor *>(
       std::malloc(sizeof(Tensor) + extents.size() * sizeof(std::int32_t)));
 
-  tensor->setRefCount(0);
+  tensor->refCount = 0;
   tensor->elementType = type;
   tensor->rank = extents.size();
   auto byteSize = getElementTypeByteSize(type) * totalElements(extents);
