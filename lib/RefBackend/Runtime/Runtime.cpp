@@ -118,10 +118,36 @@ static std::int32_t totalElements(ArrayRef<std::int32_t> extents) {
 
 std::int32_t refbackrt::getElementTypeByteSize(ElementType type) {
   switch (type) {
+  case ElementType::NONE:
+    return 0;
   case ElementType::F32:
     return 4;
   }
   llvm_unreachable("unsupported dtype");
+}
+
+StringRef refbackrt::getElementTypeAsStringRef(ElementType type) {
+  switch (type) {
+  case ElementType::NONE:
+    return "NONE";
+  case ElementType::F32:
+    return "F32";
+  }
+  llvm_unreachable("unsupported element type string");
+}
+
+StringRef refbackrt::getArgTypeAsStringRef(ArgType type) {
+  switch (type) {
+  case ArgType::kNone:
+    return "kNone";
+  case ArgType::kTensor:
+    return "kTensor";
+  case ArgType::kF32:
+    return "kF32";
+  case ArgType::kF64:
+    return "kF64";
+  }
+  llvm_unreachable("unsupported arg type string");
 }
 
 Ref<Tensor> Tensor::create(ArrayRef<std::int32_t> extents, ElementType type,
@@ -192,10 +218,7 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   // Deepcopy the refbackrt::Tensor's into UnrankedMemref's.
   // TODO: Avoid the deep copy. It makes the later lifetime management code
   // more complex though (and maybe impossible given the current abstractions).
-  for (int i = 0, e = inputs.size(); i < e; i++) {
-    inputUnrankedMemrefs[i] =
-        convertRefbackrtTensorToUnrankedMemref(inputs[i].toTensor().get());
-  }
+  //
   // Create a type-erased list of "packed inputs" to pass to the
   // LLVM/C ABI wrapper function. Each packedInput pointer corresponds to
   // one LLVM/C ABI argument to the underlying function.
@@ -204,16 +227,30 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   // "explode" the unranked memref descriptors on the underlying function
   // into separate arguments for the rank and pointer-to-descriptor.
   for (int i = 0, e = inputs.size(); i < e; i++) {
-    packedInputs[2 * i] = ToVoidPtr(&inputUnrankedMemrefs[i].rank);
-    packedInputs[2 * i + 1] = ToVoidPtr(&inputUnrankedMemrefs[i].descriptor);
+    auto idx = 2 * i;
+    if (inputs[i].isTensor()) {
+      inputUnrankedMemrefs[i] =
+          convertRefbackrtTensorToUnrankedMemref(inputs[i].toTensor().get());
+      packedInputs[idx] = ToVoidPtr(&inputUnrankedMemrefs[i].rank);
+      packedInputs[idx + 1] = ToVoidPtr(&inputUnrankedMemrefs[i].descriptor);
+    } else if (inputs[i].isScalar()) {
+      packedInputs[idx] = ToVoidPtr(&inputs[i]);
+    } else {
+      assert(false && "unsupported input RtValue type");
+    }
   }
+
   // Create a type-erased list of "packed output" to pass to the
   // LLVM/C ABI wrapper function.
   //
   // Due to how StandardToLLVM lowering works, each packedOutput pointer
   // corresponds to a single UnrankedMemref (not "exploded").
   for (int i = 0, e = outputs.size(); i < e; i++) {
-    packedOutputs[i] = ToVoidPtr(&outputUnrankedMemrefs[i]);
+    if (outputs[i].isTensor()) {
+      packedOutputs[i] = ToVoidPtr(&outputUnrankedMemrefs[i]);
+    } else if (outputs[i].isScalar()) {
+      packedOutputs[i] = ToVoidPtr(&outputs[i]);
+    }
   }
 
   // Actually invoke the function!
@@ -223,11 +260,15 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   // TODO: Avoid needing to make a deep copy.
   for (int i = 0, e = outputs.size(); i < e; i++) {
     // TODO: Have compiler emit the element type in the metadata.
-    auto elementType = ElementType::F32;
-    Tensor *tensor = convertUnrankedMemrefToRefbackrtTensor(
-        outputUnrankedMemrefs[i].rank, outputUnrankedMemrefs[i].descriptor,
-        elementType);
-    outputs[i] = RtValue(Ref<Tensor>(tensor));
+    if (outputs[i].isTensor()) {
+      auto elementType = ElementType::F32;
+      Tensor *tensor = convertUnrankedMemrefToRefbackrtTensor(
+          outputUnrankedMemrefs[i].rank, outputUnrankedMemrefs[i].descriptor,
+          elementType);
+      outputs[i] = RtValue(Ref<Tensor>(tensor));
+    } else if (outputs[i].isFloat()) {
+      outputs[i] = RtValue(*(reinterpret_cast<float *>(packedOutputs[i])));
+    }
   }
 
   // Now, we just need to free all the UnrankedMemref's that we created.
@@ -239,24 +280,30 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
 
   // Free the output buffers.
   for (int i = 0, e = outputs.size(); i < e; i++) {
-    void *allocatedPtr = outputUnrankedMemrefs[i].descriptor->allocatedPtr;
-    // Multiple returned memrefs can point into the same underlying
-    // malloc allocation. Do a linear scan to see if any of the previously
-    // deallocated buffers already freed this pointer.
-    bool bufferNeedsFreeing = true;
-    for (int j = 0; j < i; j++) {
-      if (allocatedPtr == outputUnrankedMemrefs[j].descriptor->allocatedPtr)
-        bufferNeedsFreeing = false;
+    if (outputs[i].isRef()) {
+      void *allocatedPtr = outputUnrankedMemrefs[i].descriptor->allocatedPtr;
+      // Multiple returned memrefs can point into the same underlying
+      // malloc allocation. Do a linear scan to see if any of the previously
+      // deallocated buffers already freed this pointer.
+      bool bufferNeedsFreeing = true;
+      for (int j = 0; j < i; j++) {
+        if (allocatedPtr == outputUnrankedMemrefs[j].descriptor->allocatedPtr)
+          bufferNeedsFreeing = false;
+      }
+      if (!bufferNeedsFreeing)
+        std::free(allocatedPtr);
     }
-    if (!bufferNeedsFreeing)
-      std::free(allocatedPtr);
   }
 
   // Free the input buffers.
   for (int i = 0, e = inputs.size(); i < e; i++) {
+    if (!inputs[i].isRef())
+      continue;
     void *allocatedPtr = inputUnrankedMemrefs[i].descriptor->allocatedPtr;
     bool bufferNeedsFreeing = true;
     for (int j = 0, je = outputs.size(); j < je; j++) {
+      if (!outputs[j].isRef())
+        continue;
       if (allocatedPtr == outputUnrankedMemrefs[j].descriptor->allocatedPtr)
         bufferNeedsFreeing = false;
     }
@@ -274,6 +321,8 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
 
   // Free the output descriptors.
   for (int i = 0, e = outputs.size(); i < e; i++) {
+    if (!outputs[i].isRef())
+      continue;
     // The LLVM lowering guarantees that each returned unranked memref
     // descriptor is separately malloc'ed, so no need to do anything special
     // like we had to do for the allocatedPtr's.
@@ -281,8 +330,79 @@ void refbackrt::invoke(ModuleDescriptor *moduleDescriptor,
   }
   // Free the input descriptors.
   for (int i = 0, e = inputs.size(); i < e; i++) {
+    if (!inputs[i].isRef())
+      continue;
     std::free(inputUnrankedMemrefs[i].descriptor);
   }
+}
+
+static InputArgInfo
+getExternalInputArgInfo(const refbackrt::InputDescriptor &inputDescriptor) {
+  InputArgInfo ret;
+
+  // Set arg / element types accordingly
+  switch (inputDescriptor.abiType) {
+  case ABIArgType::kNone:
+    ret.argType = ArgType::kNone;
+    ret.elementType = ElementType::NONE;
+    break;
+  case ABIArgType::kMemref:
+    ret.argType = ArgType::kTensor;
+    ret.elementType = ElementType::F32;
+    break;
+  case ABIArgType::kF32:
+    ret.argType = ArgType::kF32;
+    ret.elementType = ElementType::NONE;
+    break;
+  case ABIArgType::kF64:
+    ret.argType = ArgType::kF64;
+    ret.elementType = ElementType::NONE;
+    break;
+  default:
+    assert(false && "need to update external internal map");
+  }
+
+  // Extract shape information
+  ret.rank = inputDescriptor.rank;
+  for (int i = 0; i < inputDescriptor.rank; i++) {
+    ret.extents[i] = inputDescriptor.extents[i];
+  }
+
+  return ret;
+}
+
+static OutputArgInfo
+getExternalOutputArgInfo(const refbackrt::OutputDescriptor &outputDescriptor) {
+  OutputArgInfo ret;
+
+  // Set arg / element types accordingly
+  switch (outputDescriptor.abiType) {
+  case ABIArgType::kNone:
+    ret.argType = ArgType::kNone;
+    ret.elementType = ElementType::NONE;
+    break;
+  case ABIArgType::kMemref:
+    ret.argType = ArgType::kTensor;
+    ret.elementType = ElementType::F32;
+    break;
+  case ABIArgType::kF32:
+    ret.argType = ArgType::kF32;
+    ret.elementType = ElementType::NONE;
+    break;
+  case ABIArgType::kF64:
+    ret.argType = ArgType::kF64;
+    ret.elementType = ElementType::NONE;
+    break;
+  default:
+    assert(false && "need to update external internal map");
+  }
+
+  // Extract shape information
+  ret.rank = outputDescriptor.rank;
+  for (int i = 0; i < outputDescriptor.rank; i++) {
+    ret.extents[i] = outputDescriptor.extents[i];
+  }
+  return ret;
 }
 
 LogicalResult refbackrt::getMetadata(ModuleDescriptor *moduleDescriptor,
@@ -293,5 +413,107 @@ LogicalResult refbackrt::getMetadata(ModuleDescriptor *moduleDescriptor,
     return failure();
   outMetadata.numInputs = descriptor->numInputs;
   outMetadata.numOutputs = descriptor->numOutputs;
+
+  for (int i = 0; i < descriptor->numInputs; i++) {
+    outMetadata.inputArgInfos[i] =
+        getExternalInputArgInfo(descriptor->inputDescriptors[i]);
+  }
+
+  for (int i = 0; i < descriptor->numOutputs; i++) {
+    outMetadata.outputArgInfos[i] =
+        getExternalOutputArgInfo(descriptor->outputDescriptors[i]);
+  }
+
   return success();
+}
+
+LogicalResult refbackrt::checkRtValueShapes(const RtValue &value,
+                                            const InputArgInfo &info) {
+  if (value.isTensor()) {
+    auto refTensor = value.toTensor();
+
+    // Don't bother checking shapes for unranked tensors
+    if (info.rank < 0)
+      return success();
+
+    if (refTensor->getRank() != info.rank)
+      return failure();
+
+    auto tensorExtents = refTensor->getExtents();
+    for (int i = 0; i < info.rank; i++) {
+      // If a dimension is dynamic, it is encoded as extent = -1
+      // and we should skip checking over that dimension
+      if (info.extents[i] > 0 && (info.extents[i] != tensorExtents[i]))
+        return failure();
+    }
+  }
+
+  return success();
+}
+
+LogicalResult refbackrt::checkRtValueArgTypes(const RtValue &value,
+                                              const InputArgInfo &info) {
+  // Generic checks based on argType(s)
+  if ((value.isTensor() && info.argType != ArgType::kTensor) ||
+      (value.isFloat() && info.argType != ArgType::kF32))
+    return failure();
+
+  if (value.isRef()) {
+    // Will need special error checking for ref-counted types
+    // Currently only f32 tensors are supported
+    if (value.isTensor()) {
+      auto refTensor = value.toTensor();
+      if (refTensor->getElementType() != ElementType::F32)
+        return failure();
+    } else {
+      assert(false && "Unsupported input type checking for Ref type");
+    }
+  }
+  return success();
+}
+
+RtValue refbackrt::createRtValueFromOutputArgInfo(const OutputArgInfo &info) {
+  constexpr int32_t kDynamicConstantShape = 100;
+  switch (info.argType) {
+  case ArgType::kTensor: {
+    // HACK: for dynamic dims the shape will be negative, so for now we are
+    // just going to create a tensor of size kDynamicConstantShape
+    std::array<int32_t, kMaxRank> tensorShape;
+    for (int i = 0; i < info.rank; i++) {
+      tensorShape[i] =
+          info.extents[i] > 0 ? info.extents[i] : kDynamicConstantShape;
+    }
+    refbackrt::ArrayRef<int32_t> shape(tensorShape.data(), info.rank);
+    int numel = 1;
+    for (int i = 0; i < info.rank; i++)
+      numel *= shape[i];
+
+    void *data;
+    switch (info.elementType) {
+    case ElementType::F32: {
+      auto byteSize = numel * sizeof(float);
+      data = static_cast<void *>(aligned_alloc(32, byteSize));
+      memset(data, 0, byteSize);
+      return RtValue(Tensor::create(shape, ElementType::F32, data));
+      break;
+    }
+    default: { assert(false && "unknown output tensor type"); }
+    }
+
+    // The Tensor::create function will malloc and memcpy the data
+    // into the Tensor object, so after we need to free our
+    // temporary data buffer
+    assert(data && "data ptr must exist");
+    auto refTensor = Tensor::create(shape, ElementType::F32, data);
+    free(data);
+    return RtValue(refTensor);
+  }
+  case ArgType::kF32: {
+    return RtValue(-20.0f);
+  }
+  default: {
+    assert(false && "Don't know how to handle this artType");
+    return RtValue();
+  }
+  }
 }

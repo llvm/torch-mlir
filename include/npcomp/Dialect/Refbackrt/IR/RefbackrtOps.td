@@ -68,12 +68,47 @@ def Refbackrt_FuncMetadataOp
   let description = [{
     Runtime metadata for a single func.
 
-    TODO: Augment this with information for type/shape checking of arguments.
+    Contains type / shape information for arguments as described below:
+
+    * ArgType(s): 
+        Integer value from `CompilerDataStructures.h` for each argument
+        indicating what type it is (e.g. Float, Int, Tensor, Dict, etc.)
+    * ElementType(s): 
+        Certain input ArgType's also have an element type (e.g. Tensor<float>,
+        List<int>, etc.)
+        TODO(brycearden): Support nested types (e.g. List<Tensor<float>>)
+    * Rank(s):
+        Integer value indicating the rank for each argument.
+    * Shape(s):
+        Flattened hyper-rectangular representation of the shapes for each argument.
+        Since each shape's size varies based on the Rank, we pad out the shapes
+        to size kMaxRank to make ABI lowering easier. See `LowerToRefbackrtABI.cpp`
+        for details.
+
+      Shapes Example: 
+        constexpr int kMaxRank = 6;
+        // func @f(%arg0: f32, %arg1: tensor<5xf32>) would result in...
+        inputShapes = dense<...> : tensor<12xi32>
+        // 2 shapes with 6 elements each so that the LowerToLLVM pass
+        // where only the first `rank` values in each shape are valid.
+        // 
+        // can update the struct(s) by just grabbing a pointer at 
+        // %shape_ptr = %base + (kMaxRank * argIndex)
   }];
   let arguments = (ins
     FlatSymbolRefAttr:$funcName,
     I32Attr:$numInputs,
-    I32Attr:$numOutputs
+    I32Attr:$numOutputs,
+    OptionalAttr<I32ElementsAttr>:$inputArgTypes,
+    OptionalAttr<I32ElementsAttr>:$inputElementTypes,
+    OptionalAttr<I32ElementsAttr>:$inputRanks,
+    OptionalAttr<I32ElementsAttr>:$inputShapes,
+    // I32ElementsAttr:$inputIsStatic,
+    OptionalAttr<I32ElementsAttr>:$outputArgTypes,
+    OptionalAttr<I32ElementsAttr>:$outputElementTypes,
+    OptionalAttr<I32ElementsAttr>:$outputRanks,
+    OptionalAttr<I32ElementsAttr>:$outputShapes
+    //I32ElementsAttr:$outputIsStatic
   );
   let results = (outs);
   let assemblyFormat = "attr-dict";
