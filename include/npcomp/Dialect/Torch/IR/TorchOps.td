@@ -552,4 +552,13 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", []> {
   }];
 }
 
+def Torch_PrimdtypeOp : Torch_Op<"prim.dtype", []> {
+  let summary = "TorchScript prim::dtype op";
+  let arguments = (ins AnyTorchTensorType:$tensor);
+  let results = (outs AnyTorchNumberType:$result);
+  let assemblyFormat = [{
+    $tensor attr-dict `:` type($tensor) `->` type($result)
+  }];
+}
+
 #endif // TORCH_OPS

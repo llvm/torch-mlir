@@ -273,6 +273,15 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
+  if (kind == c10::prim::dtype) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, "torch.prim.dtype", loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
   // Unhandled.
   {
     std::stringstream msg;
