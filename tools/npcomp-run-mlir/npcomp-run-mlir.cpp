@@ -80,6 +80,7 @@ static Type convertToMLIRType(refbackrt::ElementType type, Builder &builder) {
   case refbackrt::ElementType::F32:
     return builder.getF32Type();
   }
+  llvm_unreachable("unsupported dtype");
 }
 
 static RankedTensorType getCorrespondingMLIRTensorType(refbackrt::Tensor &tensor,
@@ -103,6 +104,7 @@ static Attribute convertToMLIRAttribute(refbackrt::Tensor &tensor,
     return DenseFPElementsAttr::get(type, values);
   }
   }
+  llvm_unreachable("unsupported dtype");
 }
 
 static void printOutput(refbackrt::Tensor &tensor, llvm::raw_ostream &os) {

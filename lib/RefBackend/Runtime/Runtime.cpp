@@ -8,6 +8,8 @@
 
 #include "npcomp/RefBackend/Runtime/UserAPI.h"
 
+#include "llvm/Support/ErrorHandling.h"
+
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -119,6 +121,7 @@ std::int32_t refbackrt::getElementTypeByteSize(ElementType type) {
   case ElementType::F32:
     return 4;
   }
+  llvm_unreachable("unsupported dtype");
 }
 
 Ref<Tensor> Tensor::create(ArrayRef<std::int32_t> extents, ElementType type,
