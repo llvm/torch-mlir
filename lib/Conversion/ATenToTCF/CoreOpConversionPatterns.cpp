@@ -111,9 +111,15 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
       return rewriter.notifyMatchFailure(
           srcConv2dOp, "aten.conv2d to tcf.conv_2d_nchw currently only supports groups == 1");
     }
-    rewriter.replaceOpWithNewOp<tcf::ConvNCHWOp>(
-        srcConv2dOp, srcConv2dOp.getResult().getType(), srcConv2dOp.input(),
+    auto tcfConvNCHWOp = rewriter.create<tcf::ConvNCHWOp>(
+        srcConv2dOp.getLoc(), srcConv2dOp.getResult().getType(), srcConv2dOp.input(),
         srcConv2dOp.weight());
+    // TODO: Reference Torch Conv2D's bias flag to conditionally create TCF Add.
+    // (see https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html#torch.nn.Conv2d)
+    auto tcfConvNCHWBiasOp = rewriter.create<tcf::AddOp>(
+        srcConv2dOp.getLoc(), srcConv2dOp.getResult().getType(), tcfConvNCHWOp.getResult(),
+        srcConv2dOp.bias());
+    rewriter.replaceOp(srcConv2dOp, tcfConvNCHWBiasOp.getResult());
     return success();
   }
 };
