@@ -73,9 +73,9 @@ static ParseResult parseNumericConstantOp(OpAsmParser &parser,
 
 static void print(OpAsmPrinter &p, NumericConstantOp op) {
   p << "basicpy.numeric_constant ";
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"value"});
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"value"});
 
-  if (op.getAttrs().size() > 1)
+  if (op->getAttrs().size() > 1)
     p << ' ';
   p << op.value();
 
@@ -169,7 +169,7 @@ static ParseResult parseExecOp(OpAsmParser &parser, OperationState *result) {
 
 static void print(OpAsmPrinter &p, ExecOp op) {
   p << op.getOperationName();
-  p.printOptionalAttrDictWithKeyword(op.getAttrs());
+  p.printOptionalAttrDictWithKeyword(op->getAttrs());
   p.printRegion(op.body());
 }
 
@@ -224,7 +224,7 @@ static ParseResult parseFuncTemplateOp(OpAsmParser &parser,
 static void print(OpAsmPrinter &p, FuncTemplateOp op) {
   p << op.getOperationName() << " ";
   p.printSymbolName(op.getName());
-  p.printOptionalAttrDictWithKeyword(op.getAttrs(),
+  p.printOptionalAttrDictWithKeyword(op->getAttrs(),
                                      {SymbolTable::getSymbolAttrName()});
   p.printRegion(op.body());
 }
@@ -289,7 +289,7 @@ static void print(OpAsmPrinter &p, SlotObjectMakeOp op) {
   p << op.getOperationName() << "(";
   p.printOperands(op.slots());
   p << ")";
-  p.printOptionalAttrDict(op.getAttrs(), {"className"});
+  p.printOptionalAttrDict(op->getAttrs(), {"className"});
 
   // Not really a symbol but satisfies same rules.
   p.printArrowTypeList(op.getOperation()->getResultTypes());
@@ -353,7 +353,7 @@ static void print(OpAsmPrinter &p, SlotObjectGetOp op) {
   p << op.getOperationName() << " ";
   p.printOperand(op.object());
   p << "[" << op.index() << "]";
-  p.printOptionalAttrDict(op.getAttrs(), {"index"});
+  p.printOptionalAttrDict(op->getAttrs(), {"index"});
   p << " : ";
   p.printType(op.object().getType());
 }
