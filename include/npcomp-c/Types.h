@@ -137,6 +137,16 @@ int npcompTypeIsAOptional(MlirType t);
 /** Gets the !torch.optional<T> type with subtype T. */
 MlirType npcompOptionalTypeGet(MlirType containedType);
 
+/*============================================================================*/
+/* torch.Device type.                                                         */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.Device type */
+int npcompTypeIsADevice(MlirType t);
+
+/** Gets the !torch.Device type. */
+MlirType npcompDeviceTypeGet(MlirContext context);
+
 #ifdef __cplusplus
 }
 #endif

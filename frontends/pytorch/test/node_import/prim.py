@@ -45,15 +45,15 @@ def prim_RaiseException():
     raise Exception("Error")
 
 # CHECK-LABEL:   func @__torch__.prim_unchecked_cast(
-# CHECK-SAME:                              %[[VAL_0:.*]]: !torch.optional<i64>) -> i64 {
+# CHECK-SAME:                              %[[ARG:.*]]: !torch.optional<i64>) -> i64 {
 # CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
 # CHECK:           %[[C3:.*]] = constant 3 : i64
-# CHECK:           %[[IS_NONE:.*]] = torch.kernel_call "aten::__is__" %[[VAL_0]], %[[NONE]] : (!torch.optional<i64>, !basicpy.NoneType) -> !basicpy.BoolType
+# CHECK:           %[[IS_NONE:.*]] = torch.kernel_call "aten::__is__" %[[ARG]], %[[NONE]] : (!torch.optional<i64>, !basicpy.NoneType) -> !basicpy.BoolType
 # CHECK:           %[[COND:.*]] = basicpy.bool_cast %[[IS_NONE]] : !basicpy.BoolType -> i1
 # CHECK:           %[[RESULT:.*]] = scf.if %[[COND]] -> (i64) {
 # CHECK:             scf.yield %[[C3]] : i64
 # CHECK:           } else {
-# CHECK:             %[[CASTED:.*]] = torch.prim.unchecked_cast %[[VAL_0]] : !torch.optional<i64> -> i64
+# CHECK:             %[[CASTED:.*]] = torch.prim.unchecked_cast %[[ARG]] : !torch.optional<i64> -> i64
 # CHECK:             scf.yield %[[CASTED]] : i64
 # CHECK:           }
 # CHECK:           return %[[RESULT:.*]] : i64
@@ -101,6 +101,15 @@ def prim_ListUnpack(l: typing.List[int]):
 @torch.jit.script
 def prim_dtype(x):
     return x.dtype
+
+# CHECK-LABEL:   func @__torch__.prim_device(
+# CHECK-SAME:                                %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !torch.Device {
+# CHECK:           %[[RET:.*]] = torch.prim.device %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> !torch.Device
+# CHECK:           return %[[RET]] : !torch.Device
+@mb.import_function
+@torch.jit.script
+def prim_device(x):
+    return x.device
 
 mb.module.operation.print()
 print()

@@ -561,4 +561,13 @@ def Torch_PrimdtypeOp : Torch_Op<"prim.dtype", []> {
   }];
 }
 
+def Torch_PrimdeviceOp : Torch_Op<"prim.device", []> {
+  let summary = "TorchScript prim::device op";
+  let arguments = (ins AnyTorchTensorType:$tensor);
+  let results = (outs Torch_DeviceType:$result);
+  let assemblyFormat = [{
+    $tensor attr-dict `:` type($tensor) `->` type($result)
+  }];
+}
+
 #endif // TORCH_OPS

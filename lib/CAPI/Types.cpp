@@ -174,3 +174,17 @@ int npcompTypeIsAOptional(MlirType t) {
 MlirType npcompOptionalTypeGet(MlirType containedType) {
   return wrap(Torch::OptionalType::get(unwrap(containedType)));
 }
+
+/*============================================================================*/
+/* torch.Device type.                                                         */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.Device type */
+int npcompTypeIsADevice(MlirType t) {
+  return unwrap(t).isa<Torch::DeviceType>();
+}
+
+/** Gets the !torch.Device type. */
+MlirType npcompDeviceTypeGet(MlirContext context) {
+  return wrap(Torch::DeviceType::get(unwrap(context)));
+}
