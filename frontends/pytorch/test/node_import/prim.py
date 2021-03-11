@@ -93,5 +93,14 @@ def prim_ListUnpack(l: typing.List[int]):
     _, val, _ = l
     return val
 
+# CHECK-LABEL:   func @__torch__.prim_dtype(
+# CHECK-SAME:                               %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> i64 {
+# CHECK:           %[[RET:.*]] = torch.prim.dtype %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> i64
+# CHECK:           return %[[RET]] : i64
+@mb.import_function
+@torch.jit.script
+def prim_dtype(x):
+    return x.dtype
+
 mb.module.operation.print()
 print()
