@@ -79,6 +79,10 @@ def Torch_OptionalType : Torch_Type<"Optional", "optional"> {
   ];
 }
 
+def Torch_DeviceType : Torch_Type<"Device", "Device"> {
+  let summary = "Torch device";
+}
+
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
@@ -178,6 +182,7 @@ def AnyTorchType : AnyTypeOf<[
     Basicpy_BytesType,
     Torch_NnModuleType,
     Torch_OptionalType,
+    Torch_DeviceType,
   ], "Any type that is legal to pass to a Torch kernel">;
 
 #endif // TORCH_TYPES

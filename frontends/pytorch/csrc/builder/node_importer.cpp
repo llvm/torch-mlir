@@ -75,6 +75,7 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   case c10::prim::TupleUnpack:
   case c10::prim::ListUnpack:
   case c10::prim::dtype:
+  case c10::prim::device:
   case c10::prim::unchecked_cast:
   case c10::prim::Uninitialized:
   case c10::prim::RaiseException:
@@ -93,8 +94,7 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
   case c10::prim::GetAttr:
-  case c10::prim::SetAttr:
-  case c10::prim::CallMethod: {
+  case c10::prim::SetAttr: {
     createAndMapNodeWithAttribute(
         node, "torch.prim." + std::string(kind.toUnqualString()), "name",
         importAttribute(loc, node, c10::attr::name));
@@ -184,6 +184,25 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 1),
         importBlock(node->blocks()[1], createTerminator));
+    return;
+  }
+
+  if (kind == c10::prim::CallMethod) {
+    auto classType = node->input(0)->type()->cast<c10::ClassType>();
+    auto methodName = node->s(c10::attr::name);
+    torch::jit::Function *function = classType->findMethod(methodName);
+    torch::jit::Block *calleeEntryBlock = function->graph()->block();
+    auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
+      return typeMapper.mapFromTorchType(loc, v->type());
+    });
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, "torch.prim.CallMethod", loc,
+        getMlirTypesFromValues(loc, node->outputs()),
+        derefineValues(lookupMappedValues(node->inputs()), expectedTypes, loc,
+                       appendToBlock),
+        toMlirNamedAttribute("name",
+                             importAttribute(loc, node, c10::attr::name)));
+    mapResults(node, operation);
     return;
   }
 
