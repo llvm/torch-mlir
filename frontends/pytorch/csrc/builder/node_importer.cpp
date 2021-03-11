@@ -51,6 +51,57 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   TypeMapper typeMapper(context);
   MlirLocation loc = getMlirLocationFromNode(context, node);
   auto kind = node->kind();
+
+  auto createAndMapTrivialNode = [&](Node *node, const std::string &opName) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, opName, loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+  };
+  auto createAndMapNodeWithAttribute = [&](Node *node,
+                                           const std::string &opName,
+                                           const std::string &attrName,
+                                           MlirAttribute attr) {
+    MlirOperation operation =
+        createMlirOperationAtEnd(appendToBlock, opName, loc,
+                                 getMlirTypesFromValues(loc, node->outputs()),
+                                 lookupMappedValues(node->inputs()),
+                                 toMlirNamedAttribute(attrName.c_str(), attr));
+    mapResults(node, operation);
+  };
+  switch (kind) {
+  case c10::prim::TupleIndex:
+  case c10::prim::TupleUnpack:
+  case c10::prim::ListUnpack:
+  case c10::prim::dtype:
+  case c10::prim::unchecked_cast:
+  case c10::prim::Uninitialized:
+  case c10::prim::RaiseException:
+  case c10::prim::Print:
+  case c10::prim::NumToTensor: {
+    createAndMapTrivialNode(node,
+                            "torch.prim." + std::string(kind.toUnqualString()));
+    return;
+  }
+  case c10::prim::ListConstruct: {
+    createAndMapTrivialNode(node, "basicpy.build_list");
+    return;
+  }
+  case c10::prim::TupleConstruct: {
+    createAndMapTrivialNode(node, "basicpy.build_tuple");
+    return;
+  }
+  case c10::prim::GetAttr:
+  case c10::prim::SetAttr:
+  case c10::prim::CallMethod: {
+    createAndMapNodeWithAttribute(
+        node, "torch.prim." + std::string(kind.toUnqualString()), "name",
+        importAttribute(loc, node, c10::attr::name));
+    return;
+  }
+  }
+
   if (kind == c10::prim::Constant) {
     auto output = node->output();
     MlirOperation op;
@@ -80,63 +131,6 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     }
     mlirBlockAppendOwnedOperation(appendToBlock, op);
     mapResults(node, op);
-    return;
-  }
-
-  if (kind == c10::prim::GetAttr) {
-    MlirType resultType =
-        typeMapper.mapFromTorchType(loc, node->output()->type());
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.GetAttr", loc, resultType,
-        lookupMappedValues(node->inputs()),
-        toMlirNamedAttribute("name",
-                             importAttribute(loc, node, c10::attr::name)));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::SetAttr) {
-    createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.SetAttr", loc,
-        lookupMappedValues(node->inputs()),
-        toMlirNamedAttribute("name",
-                             importAttribute(loc, node, c10::attr::name)));
-    return;
-  }
-
-  if (kind == c10::prim::CallMethod) {
-    MlirType resultType =
-        typeMapper.mapFromTorchType(loc, node->output()->type());
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.CallMethod", loc, resultType,
-        lookupMappedValues(node->inputs()),
-        toMlirNamedAttribute("name",
-                             importAttribute(loc, node, c10::attr::name)));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::Print) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.Print", loc,
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::TupleConstruct) {
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "basicpy.build_tuple", loc, npcompTupleTypeGet(context),
-        lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::ListConstruct) {
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "basicpy.build_list", loc, npcompListTypeGet(context),
-        lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
     return;
   }
 
@@ -193,15 +187,6 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
-  if (kind == c10::prim::NumToTensor) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.NumToTensor", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
   if (kind == c10::prim::CallFunction) {
     auto functionType = node->input(0)->type()->cast<c10::FunctionType>();
     torch::jit::Block *calleeEntryBlock =
@@ -215,69 +200,6 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
         lookupMappedValue(node->input(0)),
         derefineValues(lookupMappedValues(node->inputs().slice(1)),
                        expectedTypes, loc, appendToBlock));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::RaiseException) {
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.RaiseException", loc,
-        getMlirTypesFromValues(loc, node->outputs()),
-        lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::Uninitialized) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.Uninitialized", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::unchecked_cast) {
-    MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "torch.prim.unchecked_cast", loc,
-        getMlirTypesFromValues(loc, node->outputs()),
-        lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::TupleUnpack) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.TupleUnpack", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::TupleIndex) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.TupleIndex", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::ListUnpack) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.ListUnpack", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
-    mapResults(node, operation);
-    return;
-  }
-
-  if (kind == c10::prim::dtype) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, "torch.prim.dtype", loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
     mapResults(node, operation);
     return;
   }
