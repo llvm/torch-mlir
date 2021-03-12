@@ -87,6 +87,18 @@ func @convolution_backward(
 }
 
 // -----
+// CHECK-LABEL: func @conv2d
+// Contains a Tensor, Tensor, Tensor?, int[], int[] int[], int
+func @conv2d(%arg0: !numpy.ndarray<*:!numpy.any_dtype>, %arg1: !numpy.ndarray<*:!numpy.any_dtype>, %arg2: !numpy.ndarray<*:!numpy.any_dtype>, %arg3: !basicpy.ListType, %arg4: !basicpy.ListType, %arg5: !basicpy.ListType, %arg6: i64) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  // CHECK: %[[TARG0:.*]] = numpy.copy_to_tensor %arg0
+  // CHECK: %[[TARG1:.*]] = numpy.copy_to_tensor %arg1
+  // CHECK: %[[TARG2:.*]] = numpy.copy_to_tensor %arg2
+  // CHECK: %[[TRESULT:.*]] = "aten.conv2d"(%[[TARG0]], %[[TARG1]], %[[TARG2]], %arg3, %arg4, %arg5, %arg6) : (tensor<*x!numpy.any_dtype>, tensor<*x!numpy.any_dtype>, tensor<*x!numpy.any_dtype>, !basicpy.ListType, !basicpy.ListType, !basicpy.ListType, i64) -> tensor<*x!numpy.any_dtype>
+  %0 = torch.kernel_call "aten::conv2d" %arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6: (!numpy.ndarray<*:!numpy.any_dtype>, !numpy.ndarray<*:!numpy.any_dtype>, !numpy.ndarray<*:!numpy.any_dtype>, !basicpy.ListType, !basicpy.ListType, !basicpy.ListType, i64) -> !numpy.ndarray<*:!numpy.any_dtype> {sigArgTypes = ["Tensor", "Tensor", "Tensor?", "int[]", "int[]", "int[]", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+  return %0 : !numpy.ndarray<*:!numpy.any_dtype>
+}
+
+// -----
 // CHECK-LABEL: func @copy_inplace
 // Mutable/in-place op conversion, dropping result.
 func @copy_inplace(%arg0: !numpy.ndarray<[4]:f32>, %arg1: !numpy.ndarray<[4]:f32>) -> !numpy.ndarray<[4]:f32> {
