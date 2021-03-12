@@ -12,6 +12,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/TCF/IR/TCFOps.h"
 
 using namespace mlir;
@@ -81,7 +82,8 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
     assert(strideOp->getNumOperands() == 2 && "expected stride length of 2");
     auto *strideOperand0Op = strideOp->getOperand(0).getDefiningOp();
     auto *strideOperand1Op = strideOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(strideOperand0Op, m_One())
+    if (!matchPattern(strideOp, m_Op<Basicpy::BuildListOp>())
+      || !matchPattern(strideOperand0Op, m_One())
       || !matchPattern(strideOperand1Op, m_One())
       ) {
       return rewriter.notifyMatchFailure(
@@ -91,7 +93,8 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
     assert(paddingOp->getNumOperands() == 2 && "expected padding length of 2");
     auto *paddingOperand0Op = paddingOp->getOperand(0).getDefiningOp();
     auto *paddingOperand1Op = paddingOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(paddingOperand0Op, m_Zero())
+    if (!matchPattern(paddingOp, m_Op<Basicpy::BuildListOp>())
+      || !matchPattern(paddingOperand0Op, m_Zero())
       || !matchPattern(paddingOperand1Op, m_Zero())
       ) {
       return rewriter.notifyMatchFailure(
@@ -101,7 +104,8 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
     assert(dilationOp->getNumOperands() == 2 && "expected dilation length of 2");
     auto *dilationOperand0Op = dilationOp->getOperand(0).getDefiningOp();
     auto *dilationOperand1Op = dilationOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(dilationOperand0Op, m_One())
+    if (!matchPattern(dilationOp, m_Op<Basicpy::BuildListOp>())
+      || !matchPattern(dilationOperand0Op, m_One())
       || !matchPattern(dilationOperand1Op, m_One())
       ) {
       return rewriter.notifyMatchFailure(
