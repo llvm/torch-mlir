@@ -76,6 +76,7 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
     auto results = srcConv2dOp.getOperation()->getResults();
     assert(srcConv2dOp.getNumOperands() == 7 && "expected seven (7) operands");
     assert(results.size() == 1 && "expected single result op");
+    // TODO: Replace constant int-list constraints for stride, padding, and dilation; and, constant int constraint for groups.
     auto *strideOp = srcConv2dOp.stride().getDefiningOp();
     assert(strideOp->getNumOperands() == 2 && "expected stride length of 2");
     auto *strideOperand0Op = strideOp->getOperand(0).getDefiningOp();
