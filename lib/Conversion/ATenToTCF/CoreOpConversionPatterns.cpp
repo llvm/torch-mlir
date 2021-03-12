@@ -78,34 +78,52 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
     assert(srcConv2dOp.getNumOperands() == 7 && "expected seven (7) operands");
     assert(results.size() == 1 && "expected single result op");
     // TODO: Replace constant int-list constraints for stride, padding, and dilation; and, constant int constraint for groups.
-    auto *strideOp = srcConv2dOp.stride().getDefiningOp();
-    assert(strideOp->getNumOperands() == 2 && "expected stride length of 2");
-    auto *strideOperand0Op = strideOp->getOperand(0).getDefiningOp();
-    auto *strideOperand1Op = strideOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(strideOp, m_Op<Basicpy::BuildListOp>())
-      || !matchPattern(strideOperand0Op, m_One())
+    auto strideOp = srcConv2dOp.stride().getDefiningOp<Basicpy::BuildListOp>();
+    if (!strideOp) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected basicpy.build_list to drive stride input");
+    }
+    if (strideOp.getNumOperands() != 2) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected stride length of 2");
+    }
+    auto *strideOperand0Op = strideOp.getOperand(0).getDefiningOp();
+    auto *strideOperand1Op = strideOp.getOperand(1).getDefiningOp();
+    if (!matchPattern(strideOperand0Op, m_One())
       || !matchPattern(strideOperand1Op, m_One())
       ) {
       return rewriter.notifyMatchFailure(
           srcConv2dOp, "aten.conv2d to tcf.conv_2d_nchw currently only supports stride == [1, 1]");
     }
-    auto *paddingOp = srcConv2dOp.padding().getDefiningOp();
-    assert(paddingOp->getNumOperands() == 2 && "expected padding length of 2");
-    auto *paddingOperand0Op = paddingOp->getOperand(0).getDefiningOp();
-    auto *paddingOperand1Op = paddingOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(paddingOp, m_Op<Basicpy::BuildListOp>())
-      || !matchPattern(paddingOperand0Op, m_Zero())
+    auto paddingOp = srcConv2dOp.padding().getDefiningOp<Basicpy::BuildListOp>();
+    if (!paddingOp) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected basicpy.build_list to drive padding input");
+    }
+    if (paddingOp.getNumOperands() != 2) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected padding length of 2");
+    }
+    auto *paddingOperand0Op = paddingOp.getOperand(0).getDefiningOp();
+    auto *paddingOperand1Op = paddingOp.getOperand(1).getDefiningOp();
+    if (!matchPattern(paddingOperand0Op, m_Zero())
       || !matchPattern(paddingOperand1Op, m_Zero())
       ) {
       return rewriter.notifyMatchFailure(
           srcConv2dOp, "aten.conv2d to tcf.conv_2d_nchw currently only supports padding == [0, 0]");
     }
-    auto *dilationOp = srcConv2dOp.dilation().getDefiningOp();
-    assert(dilationOp->getNumOperands() == 2 && "expected dilation length of 2");
-    auto *dilationOperand0Op = dilationOp->getOperand(0).getDefiningOp();
-    auto *dilationOperand1Op = dilationOp->getOperand(1).getDefiningOp();
-    if (!matchPattern(dilationOp, m_Op<Basicpy::BuildListOp>())
-      || !matchPattern(dilationOperand0Op, m_One())
+    auto dilationOp = srcConv2dOp.dilation().getDefiningOp<Basicpy::BuildListOp>();
+    if (!dilationOp) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected basicpy.build_list to drive dilation input");
+    }
+    if (dilationOp.getNumOperands() != 2) {
+      return rewriter.notifyMatchFailure(
+          srcConv2dOp, "expected dilation length of 2");
+    }
+    auto *dilationOperand0Op = dilationOp.getOperand(0).getDefiningOp();
+    auto *dilationOperand1Op = dilationOp.getOperand(1).getDefiningOp();
+    if (!matchPattern(dilationOperand0Op, m_One())
       || !matchPattern(dilationOperand1Op, m_One())
       ) {
       return rewriter.notifyMatchFailure(
