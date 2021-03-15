@@ -10,6 +10,7 @@ import argparse
 from contextlib import contextmanager
 import importlib
 import logging
+import pprint
 import re
 import sys
 import textwrap
@@ -147,7 +148,10 @@ def dump_registered_ops(outfile: TextIO, reg_ops_dict: Dict[str, REG_OP_TYPE]):
     attr_dict = reg_ops_dict[k]
     outfile.write(f"OP '{k}':\n")
     for attr_name, attr_value in attr_dict.items():
-      outfile.write(f"    {attr_name} = {attr_value!r}\n")
+      pretty_repr = pprint.pformat(attr_value)
+      if "\n" in pretty_repr:
+        pretty_repr = textwrap.indent("\n" + pretty_repr, 8 * " ")
+      outfile.write(f"    {attr_name} = {pretty_repr}\n")
     outfile.write("\n")
 
 

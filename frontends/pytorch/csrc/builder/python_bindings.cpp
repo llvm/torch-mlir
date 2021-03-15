@@ -102,6 +102,7 @@ py::list GetRegisteredOps() {
             for (auto &symbol : arg.alias_info()->afterSets()) {
               after.append(std::string(symbol.toQualString()));
             }
+            aliasInfo["is_write"] = arg.alias_info()->isWrite();
             aliasInfo["before"] = std::move(before);
             aliasInfo["after"] = std::move(after);
             argRecord["alias_info"] = std::move(aliasInfo);
