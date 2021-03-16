@@ -103,6 +103,9 @@ def generate_ops(g: "OpGenerator"):
       "convolution",
       alias_kernel_names=["aten::convolution"])
   g.ordinary_immutable_op(
+      "aten::conv2d(Tensor,Tensor,Tensor?,int[],int[],int[],int)",
+      "Conv2dOp", "conv2d")
+  g.ordinary_immutable_op(
       "aten::convolution_backward_overrideable(Tensor,Tensor,Tensor,int[],int[],int[],bool,int[],int,bool[])",
       "ConvolutionBackwardOp",
       "convolution_backward",

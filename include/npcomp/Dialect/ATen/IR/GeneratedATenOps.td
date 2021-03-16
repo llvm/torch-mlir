@@ -495,7 +495,7 @@ def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterface
 }
 
 def aten_Conv2dOp: aten_Op<"conv2d", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
-  let summary = "Recognized op for kernel aten::conv2d_overrideable";
+  let summary = "Recognized op for kernel aten::conv2d";
   let arguments = (ins
     AnyTorchImmutableTensor:$input,
     AnyTorchImmutableTensor:$weight,

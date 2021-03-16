@@ -891,8 +891,7 @@ const Torch::BuildKernelMetadata &Conv2dOp::getTorchBuildKernelMetadata() {
   using KVC = Torch::KernelValueConversion::BitMask;
   static Torch::BuildKernelMetadata metadata = ([]() {
     Torch::BuildKernelMetadata m;
-    m.kernelName = "aten::conv2d_overrideable";
-    m.aliasKernelNames.push_back("aten::conv2d");
+    m.kernelName = "aten::conv2d";
     m.promoteTrailingOutTensor = true;
     m.addArgTypes({"Tensor", "Tensor", "Tensor?", "int[]", "int[]", "int[]", "int"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone});
