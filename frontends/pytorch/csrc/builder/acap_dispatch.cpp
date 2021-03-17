@@ -168,8 +168,7 @@ void AcapController::fallbackKernel(const OperatorHandle &opHandle,
                                     Stack *stack) {
   auto redispatchCallback = [&]() {
     // Exclude recursive dispatch to this kernel.
-    c10::DispatchKeySet keySet{kAcapDispatchKey, kAcapGradDispatchKey};
-    c10::impl::ExcludeDispatchKeyGuard exclusion(keySet);
+    c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
     // Passthrough.
     auto &dispatcher = c10::Dispatcher::singleton();
     dispatcher.callBoxed(opHandle, stack);
@@ -404,8 +403,7 @@ void AcapController::fallbackKernelImpl(
   }
 
   // Exclude recursive dispatch to this kernel.
-  c10::DispatchKeySet keySet{kAcapDispatchKey, kAcapGradDispatchKey};
-  c10::impl::ExcludeDispatchKeyGuard exclusion(keySet);
+  c10::impl::ExcludeDispatchKeyGuard exclusion(kAcapDispatchKey);
 
   const FunctionSchema &schema = opHandle.schema();
 
@@ -610,9 +608,4 @@ TORCH_LIBRARY_IMPL(aten, ACAP_GRAD_DISPATCH_KEY, m) {
   // convolution kernel that fully does what is needed and delegates to an
   // appropriate implementation behind the scenes.
   m.impl("mkldnn_convolution_backward", AcapController::mklConvolutionBackward);
-}
-
-TORCH_LIBRARY_IMPL(_, ACAP_GRAD_DISPATCH_KEY, m) {
-  m.fallback(torch::CppFunction::makeFromBoxedFunction<
-             &AcapController::fallbackKernel>());
 }
