@@ -79,6 +79,30 @@ def Numpy_CopyToTensorOp : Numpy_Op<"copy_to_tensor", [
   let hasCanonicalizer = 1;
 }
 
+def Numpy_OverwriteArrayOp : Numpy_Op<"overwrite_array", []> {
+  let summary = "Ovewrite the contents of array with a tensor.";
+  let description = [{
+    Replaces the contents of `array` with corresponding values from `tensor`.
+
+    Immediately after this op has completed, indexing `array` will result
+    in identical values as indexing into `tensor`. Of course, later ops
+    might mutate `array`, so this relationship need not hold for the entire
+    program.
+
+    This op has undefined behavior if the tensor and array have different
+    shapes or dtypes.
+  }];
+  let arguments = (ins
+    Numpy_AnyTensor:$tensor,
+    Numpy_NdArrayType:$array
+  );
+  let results = (outs
+  );
+  let assemblyFormat = [{
+    $tensor `overwrites` $array attr-dict `:` type($tensor) `,` type($array)
+  }];
+}
+
 //----------------------------------------------------------------------------//
 // Universal function ops (ufunc)
 // See: https://docs.scipy.org/doc/numpy/reference/ufuncs.html

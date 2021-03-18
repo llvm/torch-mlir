@@ -61,13 +61,15 @@ class CompilerBackend:
       for IREE, it is a serialized VM flatbuffer) but the contract is that
       it is operated on by methods on this class.
     """
-    # TODO: Once transitioned to new Python API, don't reparse the module.
-    with Context() as context:
+    with imported_module.context as context:
       if self._debug:
         logging.debug("Initial PyTorch IR:\n{}", imported_module)
 
       # Frontend.
-      pm = PassManager.parse(",".join(TORCH_TO_TCF_PASSES))
+      pipeline_str = ",".join(TORCH_TO_TCF_PASSES)
+      if self._debug:
+        logging.debug("Running Torch->TCF pipeline '{}'", pipeline_str)
+      pm = PassManager.parse(pipeline_str)
       pm.run(imported_module)
       if self._debug:
         logging.debug("TCF IR:\n{}", imported_module)

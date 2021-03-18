@@ -80,6 +80,11 @@ struct BuildKernelMetadata : public KernelMetadata {
   /// all be handled with this flag.
   bool promoteTrailingOutTensor = false;
 
+  /// Many ops have variant that treats the first (self) argument as an out
+  /// param (usually denoted with a trailing `_`, such as `aten::div_`).
+  /// When this string is set, it indicates the name of such a variant op.
+  Optional<StringRef> inplaceVariantKernelName = None;
+
   SmallVector<KernelValueConversion::BitMask, 4> argConversions;
   SmallVector<KernelValueConversion::BitMask, 4> returnConversions;
 

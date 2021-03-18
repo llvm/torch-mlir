@@ -209,11 +209,13 @@ class OpGenerator:
       - Setting all arguments and returns to kImmutableTensor
       - Enabling kPromoteScalarToTensor on the second argument.
     """
+    kernel_name = kernel_sig.partition("(")[0]
     opdef = self.define_op(
         kernel_sig=kernel_sig,
         ods_name=ods_name,
         op_name=op_name,
         promote_trailing_out_tensor=promote_trailing_out_tensor,
+        inplace_variant_kernel_name=kernel_name + "_",
         traits=list(traits) + ["NoSideEffect"],
         **kwargs)
     opdef.arg_transforms(
@@ -443,6 +445,7 @@ class InflightOpDef:
                traits: Sequence[str] = (),
                alias_kernel_names: Sequence[str] = (),
                promote_trailing_out_tensor: bool = False,
+               inplace_variant_kernel_name: Optional[str] = None,
                override_arg_types: Sequence[str] = None,
                override_return_types: Sequence[str] = None,
                drop_arg_indices: Sequence[int] = (),
@@ -455,6 +458,7 @@ class InflightOpDef:
     self.traits = list(traits)
     self.alias_kernel_names = list(alias_kernel_names)
     self.promote_trailing_out_tensor = promote_trailing_out_tensor
+    self.inplace_variant_kernel_name = inplace_variant_kernel_name
     self.override_arg_types = override_arg_types
     self.override_return_types = override_return_types
     self.drop_arg_indices = drop_arg_indices
@@ -548,6 +552,7 @@ class InflightOpDef:
         arg_type_flags=self.arg_type_flags,
         return_type_flags=self.return_type_flags,
         promote_trailing_out_tensor=self.promote_trailing_out_tensor,
+        inplace_variant_kernel_name=self.inplace_variant_kernel_name,
         alias_kernel_names=self.alias_kernel_names)
 
 
@@ -647,6 +652,7 @@ class CCImplEmitter(EmitterBase):
                           arg_type_flags: List[Tuple[str, List[Tuple[str]]]],
                           return_type_flags: List[Tuple[str, List[Tuple[str]]]],
                           promote_trailing_out_tensor: bool = False,
+                          inplace_variant_kernel_name: Optional[str] = None,
                           alias_kernel_names: Sequence[str] = ()):
     # getTorchKernelMetadata() method.
     self.print(
@@ -671,6 +677,9 @@ class CCImplEmitter(EmitterBase):
               f"m.aliasKernelNames.push_back({self.quote(alias_kernel_name)});")
         if promote_trailing_out_tensor:
           self.print("m.promoteTrailingOutTensor = true;")
+        if inplace_variant_kernel_name is not None:
+          self.print(
+              f"m.inplaceVariantKernelName = {self.quote(inplace_variant_kernel_name)};")
         # Arg types/flags.
         arg_types = self._format_cpp_str_initlist(
             [t[0] for t in arg_type_flags])
