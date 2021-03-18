@@ -365,7 +365,7 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
 }
 
 at::Tensor AcapController::arangeBackendSelectKernel(
-    at::Scalar end, c10::optional<at::ScalarType> dtype,
+    const at::Scalar &end, c10::optional<at::ScalarType> dtype,
     c10::optional<at::Layout> layout, c10::optional<at::Device> device,
     c10::optional<bool> pin_memory) {
   static c10::OperatorName opName{"aten::arange", ""};
@@ -381,7 +381,7 @@ at::Tensor AcapController::arangeBackendSelectKernel(
   // built-in handlers dispatch to BackendSelect kernels.
   auto targetDk = c10::computeDispatchKey(dtype, layout, device);
   auto opTyped = opHandle->typed<at::Tensor(
-      at::Scalar end, c10::optional<at::ScalarType> dtype,
+      const at::Scalar &end, c10::optional<at::ScalarType> dtype,
       c10::optional<at::Layout> layout, c10::optional<at::Device> device,
       c10::optional<bool> pin_memory)>();
   return opTyped.redispatch(c10::DispatchKeySet({targetDk}), end, dtype, layout, device,
