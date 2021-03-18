@@ -72,11 +72,10 @@ public:
                                      bool non_blocking);
 
   // Backend select kernel for arange factory function.
-  static at::Tensor
-  arangeBackendSelectKernel(at::Scalar end, c10::optional<at::ScalarType> dtype,
-                            c10::optional<at::Layout> layout,
-                            c10::optional<at::Device> device,
-                            c10::optional<bool> pin_memory);
+  static at::Tensor arangeBackendSelectKernel(
+      const at::Scalar &end, c10::optional<at::ScalarType> dtype,
+      c10::optional<at::Layout> layout, c10::optional<at::Device> device,
+      c10::optional<bool> pin_memory);
 
 private:
   /// Builds a kernel call step by step.
