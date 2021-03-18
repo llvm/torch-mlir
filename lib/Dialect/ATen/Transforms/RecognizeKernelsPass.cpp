@@ -188,6 +188,12 @@ public:
       CandidateTransformList &candidates = kernelTransforms[aliasKernelName];
       candidates.emplace_back(opName, buildMetadata);
     }
+
+    if (buildMetadata.inplaceVariantKernelName) {
+      CandidateTransformList &candidates =
+          kernelTransforms[*buildMetadata.inplaceVariantKernelName];
+      candidates.emplace_back(opName, buildMetadata);
+    }
   }
 
   LogicalResult transformKernelCall(KernelCallOp kernelCall,
@@ -235,8 +241,10 @@ public:
       return failure();
     }
 
-    // TODO: Detect trailing outref.
-    bool sourceHasTrailingOutRef = false;
+    bool sourceHasTrailingOutRef =
+        candidate.buildMetadata.promoteTrailingOutTensor &&
+        sourceMetadata.argTypes.size() ==
+            candidate.buildMetadata.argTypes.size() + 1;
     if (sourceHasTrailingOutRef ||
         sourceMetadata.argTypes.size() ==
             candidate.buildMetadata.argTypes.size()) {
@@ -261,7 +269,6 @@ public:
                                      PatternRewriter &rewriter) const {
     using KVC = KernelValueConversion::BitMask;
     // Pre-conditions.
-    assert(!sourceHasTrailingOutRef && "trailing outref not yet implemented");
     if (sourceHasTrailingOutRef)
       assert((sourceMetadata.argTypes.size() ==
               candidate.buildMetadata.argTypes.size() + 1) &&
@@ -270,6 +277,10 @@ public:
       assert(sourceMetadata.argTypes.size() ==
                  candidate.buildMetadata.argTypes.size() &&
              "arg arity mismatch");
+    bool isInplaceVariant =
+        candidate.buildMetadata.inplaceVariantKernelName &&
+        kernelCall.kernelName() ==
+            *candidate.buildMetadata.inplaceVariantKernelName;
 
     // Convert fixed return types.
     using PostConversionCallback = std::function<void()>;
@@ -368,6 +379,9 @@ public:
     Operation *newOp = rewriter.createOperation(state);
 
     // Materialize conversions for results.
+    // For out params, we need to save off the converted first result -- we will
+    // just RAUW it with the out param later.
+    Value firstResultConverted;
     for (auto it : llvm::enumerate(resultConversions)) {
       ConversionInfo &info = it.value();
       Value origOpResultValue = info.originalValue;
@@ -379,11 +393,30 @@ public:
                                                   newOpResultValue, rewriter);
       }
       origOpResultValue.replaceAllUsesWith(convertedValue);
+      if (it.index() == 0)
+        firstResultConverted = convertedValue;
     }
 
     // Post conversion callbacks.
     for (auto &callback : postConversionCallbacks)
       callback();
+
+    if (sourceHasTrailingOutRef || isInplaceVariant) {
+      assert(newOp->getNumResults() > 0 &&
+             newOp->getResultTypes()[0].isa<TensorType>() &&
+             "must have tensor first result");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "    - Ovewriting out param with result tensor.\n");
+      Value out;
+      if (sourceHasTrailingOutRef)
+        out = kernelCall.getOperand(fixedArgArity);
+      else // isInplaceVariant
+        out = kernelCall.getOperand(0);
+      rewriter.create<Numpy::OverwriteArrayOp>(kernelCall.getLoc(),
+                                               newOp->getResult(0), out);
+      assert(firstResultConverted && "must have a first result");
+      firstResultConverted.replaceAllUsesWith(out);
+    }
 
     // Done.
     rewriter.eraseOp(kernelCall);

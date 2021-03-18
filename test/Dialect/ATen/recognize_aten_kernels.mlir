@@ -108,3 +108,42 @@ func @copy_inplace(%arg0: !numpy.ndarray<[4]:f32>, %arg1: !numpy.ndarray<[4]:f32
   // CHECK: return %arg0
   return %0 : !numpy.ndarray<[4]:f32>
 }
+
+// -----
+
+// Out params.
+// Some torch ops allow an extra argument which the result is written into.
+// The return value is identical to this out argument can be RAUW'ed.
+//
+// CHECK-LABEL:   func @out_param(
+// CHECK-SAME:               %[[ARRAY:.*]]: !numpy.ndarray<[2,2]:f32>,
+// CHECK-SAME:               %[[OUT:.*]]: !numpy.ndarray<[2,2]:f32>) -> (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) {
+func @out_param(%arg0: !numpy.ndarray<[2,2]:f32>, %arg1: !numpy.ndarray<[2,2]:f32>) -> (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) {
+  // CHECK:           %[[TENSOR:.*]] = numpy.copy_to_tensor %[[ARRAY]] : (!numpy.ndarray<[2,2]:f32>) -> tensor<2x2xf32>
+  // CHECK:           %[[RESULT_TENSOR:.*]] = "aten.tanh"(%[[TENSOR]]) : (tensor<2x2xf32>) -> tensor<2x2xf32>
+  // CHECK:           numpy.overwrite_array %[[RESULT_TENSOR]] overwrites %[[OUT]] : tensor<2x2xf32>, !numpy.ndarray<[2,2]:f32>
+  %3 = torch.kernel_call "aten::tanh" %arg0, %arg1 : (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) -> !numpy.ndarray<[2,2]:f32> {sigArgTypes = ["Tensor", "Tensor"], sigIsMutable = true, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+  // CHECK:           return %[[OUT]], %[[OUT]] : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
+  return %3, %arg1 : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
+}
+
+// -----
+
+// Inplace variant.
+// Some torch ops have a trailing "_" variant which updates the first (self)
+// parameter in place.
+// These are equivalent to the out param versions, as-if there the self param
+// was appended as the out param.
+//
+// CHECK-LABEL:   func @inplace_variant(
+// CHECK-SAME:               %[[LHS_OUT:.*]]: !numpy.ndarray<[2,2]:f32>,
+// CHECK-SAME:               %[[RHS:.*]]: !numpy.ndarray<[2,2]:f32>) -> (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) {
+func @inplace_variant(%arg0: !numpy.ndarray<[2,2]:f32>, %arg1: !numpy.ndarray<[2,2]:f32>) -> (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) {
+  // CHECK:           %[[LHS_TENSOR:.*]] = numpy.copy_to_tensor %[[LHS_OUT]] : (!numpy.ndarray<[2,2]:f32>) -> tensor<2x2xf32>
+  // CHECK:           %[[RHS_TENSOR:.*]] = numpy.copy_to_tensor %[[RHS]] : (!numpy.ndarray<[2,2]:f32>) -> tensor<2x2xf32>
+  // CHECK:           %[[RESULT_TENSOR:.*]] = "aten.div"(%[[LHS_TENSOR]], %[[RHS_TENSOR]]) : (tensor<2x2xf32>, tensor<2x2xf32>) -> tensor<2x2xf32>
+  // CHECK:           numpy.overwrite_array %[[RESULT_TENSOR]] overwrites %[[LHS_OUT]] : tensor<2x2xf32>, !numpy.ndarray<[2,2]:f32>
+  %0 = torch.kernel_call "aten::div_" %arg0, %arg1 : (!numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>) -> !numpy.ndarray<[2,2]:f32> {sigArgTypes = ["Tensor", "Tensor"], sigIsMutable = true, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+  // CHECK:           return %[[LHS_OUT]], %[[LHS_OUT]] : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
+  return %0, %arg0 : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
+}

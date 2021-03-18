@@ -29,6 +29,7 @@ const Torch::BuildKernelMetadata &AddOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::add";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::add_";
     m.addArgTypes({"Tensor", "Tensor", "Scalar"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar, KVC::kNone});
     m.addReturnTypes({"Tensor"});
@@ -48,6 +49,7 @@ const Torch::BuildKernelMetadata &Atan2Op::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::atan2";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::atan2_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -67,6 +69,7 @@ const Torch::BuildKernelMetadata &DivOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::div";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::div_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -86,6 +89,7 @@ const Torch::BuildKernelMetadata &FloorDivideOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::floor_divide";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::floor_divide_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -105,6 +109,7 @@ const Torch::BuildKernelMetadata &MulOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::mul";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::mul_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -124,6 +129,7 @@ const Torch::BuildKernelMetadata &RemainderOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::remainder";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::remainder_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -143,6 +149,7 @@ const Torch::BuildKernelMetadata &TrueDivideOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::true_divide";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::true_divide_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -162,6 +169,7 @@ const Torch::BuildKernelMetadata &MaximumOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::maximum";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::maximum_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
@@ -181,6 +189,7 @@ const Torch::BuildKernelMetadata &MinimumOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::minimum";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::minimum_";
     m.addArgTypes({"Tensor", "Tensor"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor|KVC::kPromoteScalar});
     m.addReturnTypes({"Tensor"});
