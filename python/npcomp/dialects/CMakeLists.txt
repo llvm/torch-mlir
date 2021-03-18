@@ -3,6 +3,10 @@ function(_add_dialect target td_file bind_name)
   mlir_tablegen("${bind_name}.py" -gen-python-op-bindings -bind-dialect=${bind_name})
   add_public_tablegen_target(${target})
   add_dependencies(NPCOMPNativePyExt ${target})
+  
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${bind_name}.py
+  DESTINATION python/npcomp/dialects
+  COMPONENT python)
 endfunction()
 
 _add_dialect(NPCOMPPyDialectATen ATenBind.td "aten")

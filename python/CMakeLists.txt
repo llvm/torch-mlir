@@ -53,6 +53,14 @@ add_library(NPCOMPNativePyExt ${NPCOMP_PYEXT_LINK_MODE}
   NpcompModule.cpp
 )
 
+install(TARGETS NPCOMPNativePyExt
+LIBRARY DESTINATION python COMPONENT python
+ARCHIVE DESTINATION python COMPONENT python
+RUNTIME DESTINATION bin COMPONENT python)
+
+install(DIRECTORY npcomp
+DESTINATION python COMPONENT python)
+
 set_target_properties(NPCOMPNativePyExt PROPERTIES LIBRARY_OUTPUT_DIRECTORY
                       "${CMAKE_CURRENT_BINARY_DIR}")
 set_target_properties(NPCOMPNativePyExt PROPERTIES OUTPUT_NAME _npcomp)
