@@ -16,6 +16,19 @@ __all__ = [
     "CompilerBackend",
 ]
 
+# The set of passes that lowers from a TorchScript object graph representation
+# to a module semantics where symbols correspond to dotted paths into the
+# module.
+OBJECT_GRAPH_LOWERING_PASSES = (
+    "torch-globalize-pipeline",
+    # symbol-dce is currently needed for correctness, as we don't have a lowering
+    # in the backend for torch.global_slot's.
+    # Torch usually inserts a few unused global slots that are otherwise
+    # bothersome because we don't currently have a lowering for them.
+    # TODO: Support global slots in backends.
+    "symbol-dce",
+)
+
 TORCH_TO_TCF_PASSES = (
     "func(aten-recognize-kernels)",
     "func(convert-aten-to-tcf)",
@@ -50,7 +63,7 @@ class CompilerBackend:
     self._debug = logging.debug_enabled()
 
   def compile(self, imported_module: Module):
-    """Compiles an imported module.
+    """Compiles an imported module, with a flat list of functions.
 
     Args:
       imported_module: The MLIR module consisting of funcs in the torch
@@ -85,6 +98,31 @@ class CompilerBackend:
     jit_module = self._refjit.JITModule.from_compiled_module(
         imported_module, refjit_backend.get_runtime_libs())
     return jit_module
+
+  def compile_object_graph(self, imported_module: Module):
+    """Compiles an imported module, with TorchScript object graph semantics.
+
+    Args:
+      imported_module: The MLIR module consisting of IR as imported by the
+      torch_mlir.import_module
+    Returns:
+      An opaque, backend specific module object that can be passed to load.
+      The object may actually be something more specific to the backend (i.e.
+      for IREE, it is a serialized VM flatbuffer) but the contract is that
+      it is operated on by methods on this class.
+    """
+    with imported_module.context as context:
+      if self._debug:
+        logging.debug("Initial PyTorch object graph IR:\n{}", imported_module)
+
+      # Frontend.
+      pipeline_str = ",".join(OBJECT_GRAPH_LOWERING_PASSES)
+      if self._debug:
+        logging.debug(
+            "Running Torch object graph lowering pipeline '{}'", pipeline_str)
+      pm = PassManager.parse(pipeline_str)
+      pm.run(imported_module)
+    return self.compile(imported_module)
 
   def load(self, jit_module) -> TorchJitModuleInvoker:
     """Loads a compiled artifact into the runtime."""
