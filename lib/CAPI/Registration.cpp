@@ -25,6 +25,7 @@ void npcompRegisterAllPasses() {
   ::mlir::NPCOMP::registerAllPasses();
 
   // Upstream passes we depend on.
+  ::mlir::registerSymbolDCEPass();
   ::mlir::registerCanonicalizerPass();
   ::mlir::registerSCFToStandardPass();
 }
