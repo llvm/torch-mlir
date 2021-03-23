@@ -149,12 +149,11 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
 
 } // namespace
 
-void mlir::NPCOMP::populateCoreATenToTCFPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns) {
-  patterns.insert<ConvertATenAdd>(context);
-  patterns.insert<ConvertBinaryElementwise<aten::MulOp, tcf::MulOp>>(context);
-  patterns.insert<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(
-      context);
-  patterns.insert<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
-  patterns.insert<ConvertATenConv2d>(context);
+void mlir::NPCOMP::populateCoreATenToTCFPatterns(RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertATenAdd>(context);
+  patterns.add<ConvertBinaryElementwise<aten::MulOp, tcf::MulOp>>(context);
+  patterns.add<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(context);
+  patterns.add<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
+  patterns.add<ConvertATenConv2d>(context);
 }

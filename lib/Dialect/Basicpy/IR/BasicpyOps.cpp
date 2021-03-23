@@ -400,9 +400,9 @@ public:
 
 } // namespace
 
-void UnknownCastOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ElideIdentityUnknownCast>(context);
+void UnknownCastOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<ElideIdentityUnknownCast>(context);
 }
 
 #define GET_OP_CLASSES

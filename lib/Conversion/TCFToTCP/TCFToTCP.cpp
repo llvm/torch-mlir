@@ -36,7 +36,7 @@ public:
     // NOTE: We are keeping this pass around, even though it currently does
     // nothing, in order to avoid having to reintroduce the same
     // boilerplate.
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(getOperation().getContext());
     return std::move(patterns);
   }
 };

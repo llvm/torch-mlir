@@ -32,6 +32,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
@@ -105,7 +106,8 @@ public:
         dynamicExtents.push_back(extent);
       }
     }
-    rewriter.replaceOpWithNewOp<AllocOp>(op, memrefType, dynamicExtents);
+    rewriter.replaceOpWithNewOp<memref::AllocOp>(op, memrefType,
+                                                 dynamicExtents);
     return success();
   }
 };
@@ -118,12 +120,12 @@ class LowerAllocMemRefOps
   void runOnOperation() override {
     auto func = getOperation();
     auto *context = &getContext();
-    OwningRewritePatternList patterns;
-    patterns.insert<LowerAllocMemRefOp>(context);
+    RewritePatternSet patterns(context);
+    patterns.add<LowerAllocMemRefOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<refback::AllocMemRefOp>();
     target.addLegalOp<tensor::ExtractOp>();
-    target.addLegalOp<AllocOp>();
+    target.addLegalOp<memref::AllocOp>();
     target.addLegalOp<ConstantOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
       return signalPassFailure();
@@ -173,7 +175,7 @@ struct RestrictedCanonicalizer
     }
 
     // Collect all canonicalization patterns from ops in the included dialects.
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(context);
     for (AbstractOperation *op : context->getRegisteredOperations())
       if (dialectsToCanonicalize.count(&op->dialect))
         op->getCanonicalizationPatterns(patterns, context);
@@ -235,7 +237,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   // rather than a single mega dialect conversion pass.
   //
   // This means that intermediate steps have source/target materializations
-  // (tensor_load / tensor_to_memref) in the IR.
+  // (memref.tensor_load / memref.buffer_cast) in the IR.
 
   // Run tensor constant bufferization.
   // This pass has to run on a module op, and so does the final

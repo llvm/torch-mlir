@@ -242,8 +242,9 @@ public:
 } // namespace
 
 void mlir::NPCOMP::populateBasicpyToStdPrimitiveOpPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns) {
-  patterns.insert<NumericBinaryExpr>(context);
-  patterns.insert<NumericCompare>(context);
-  patterns.insert<NumericToI1>(context);
+    RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<NumericBinaryExpr>(context);
+  patterns.add<NumericCompare>(context);
+  patterns.add<NumericToI1>(context);
 }

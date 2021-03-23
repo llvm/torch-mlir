@@ -20,8 +20,7 @@ namespace {
 } // namespace
 
 namespace mlir {
-void populateATenToStdPatterns(MLIRContext *context,
-                               OwningRewritePatternList &patterns) {
-  populateWithGenerated(context, patterns);
+void populateATenToStdPatterns(RewritePatternSet &patterns) {
+  populateWithGenerated(patterns);
 }
 } // namespace mlir

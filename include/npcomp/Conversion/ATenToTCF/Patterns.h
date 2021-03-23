@@ -14,15 +14,14 @@
 namespace mlir {
 
 class MLIRContext;
-class OwningRewritePatternList;
+class RewritePatternSet;
 
 namespace NPCOMP {
 
 /// Populates patterns for converting core ATen ops to TCF. These patterns
 /// cover core arithmetic ops that are on the order of 1:1 representationally.
 /// More advanced patterns are managed elsewhere.
-void populateCoreATenToTCFPatterns(MLIRContext *context,
-                                   OwningRewritePatternList &patterns);
+void populateCoreATenToTCFPatterns(RewritePatternSet &patterns);
 
 } // namespace NPCOMP
 } // namespace mlir

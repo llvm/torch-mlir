@@ -58,7 +58,8 @@ Type TorchDialect::parseType(DialectAsmParser &parser) const {
   StringRef keyword;
   if (parser.parseKeyword(&keyword))
     return Type();
-  if (Type type = generatedTypeParser(getContext(), parser, keyword))
+  Type type;
+  if (generatedTypeParser(getContext(), parser, keyword, type).hasValue())
     return type;
 
   parser.emitError(parser.getNameLoc(), "invalid 'torch' type: `")

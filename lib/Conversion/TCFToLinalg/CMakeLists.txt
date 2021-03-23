@@ -15,5 +15,6 @@ add_npcomp_conversion_library(NPCOMPTCFToLinalg
   MLIRPass
   MLIRTransforms
   MLIRShape
+  MLIRMemRef
   NPCOMPTCFDialect
 )

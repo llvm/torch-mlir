@@ -17,7 +17,6 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/PassManager.h"
-#include "mlir/Target/LLVMIR.h"
 #include "npcomp-c/InitLLVM.h"
 #include "npcomp/InitAll.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"

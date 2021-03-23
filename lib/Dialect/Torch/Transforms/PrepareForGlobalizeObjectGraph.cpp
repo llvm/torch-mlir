@@ -73,10 +73,10 @@ class PrepareForGlobalizeObjectGraphPass
     SymbolTable symbolTable(getOperation());
 
     MLIRContext *context = &getContext();
-    OwningRewritePatternList patterns;
-    patterns.insert<ConvertPrimCallMethodToCall>(context, symbolTable);
+    RewritePatternSet patterns(context);
+    patterns.add<ConvertPrimCallMethodToCall>(context, symbolTable);
     CallIndirectOp::getCanonicalizationPatterns(patterns, context);
-    patterns.insert<EraseUnusedConstantOp>(context);
+    patterns.add<EraseUnusedConstantOp>(context);
 
     // Use applyPatternsAndFoldGreedily because the CallIndirectOp folding
     // makes the ConstantOp unused, which does not work with the visitation
@@ -99,7 +99,7 @@ class PrepareForGlobalizeObjectGraphPass
     target.addIllegalOp<CallIndirectOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
-    OwningRewritePatternList dummyPatterns;
+    RewritePatternSet dummyPatterns(context);
 
     if (failed(applyFullConversion(getOperation(), target,
                                       std::move(dummyPatterns)))) {

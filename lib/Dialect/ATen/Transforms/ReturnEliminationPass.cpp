@@ -15,6 +15,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 
@@ -73,7 +74,7 @@ public:
         if (!v.getType().isa<MemRefType>())
           llvm_unreachable("function returns non-memref");
         if (!valueMap.count(v)) {
-          valueMap[v] = builder->create<AllocOp>(
+          valueMap[v] = builder->create<memref::AllocOp>(
               op->getLoc(), v.getType().cast<MemRefType>());
         }
         v.replaceAllUsesWith(valueMap[v]);
@@ -86,7 +87,7 @@ public:
       auto fn = module.lookupSymbol<FuncOp>(callOp.callee());
       if (fn && fn.use_empty())
         erasedOps.insert(fn);
-    } else if (isa<AllocOp>(op)) {
+    } else if (isa<memref::AllocOp>(op)) {
       Value v = op->getResult(0);
       if (valueMap.count(v)) {
         v.replaceAllUsesWith(valueMap[v]);

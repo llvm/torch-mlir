@@ -23,8 +23,7 @@ class ATenDialect;
 
 namespace mlir {
 
-void populateATenToStdPatterns(MLIRContext *context,
-                               OwningRewritePatternList &patterns);
+void populateATenToStdPatterns(RewritePatternSet &patterns);
 
 } // namespace mlir
 

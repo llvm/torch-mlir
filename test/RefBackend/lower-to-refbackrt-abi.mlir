@@ -37,11 +37,11 @@ func @identity(%arg0: memref<?xf32>) -> memref<?xf32> {
 
 // CHECK-LABEL: func @use_of_arg(%arg0: memref<*xf32>)
 func @use_of_arg(%arg0: memref<?xf32>) {
-  // CHECK-NEXT: %[[MEMREF:.*]] = memref_cast %arg0 : memref<*xf32> to memref<?xf32>
+  // CHECK-NEXT: %[[MEMREF:.*]] = memref.cast %arg0 : memref<*xf32> to memref<?xf32>
   %c0 = constant 0 : index
-  %0 = dim %arg0, %c0 : memref<?xf32>
+  %0 = memref.dim %arg0, %c0 : memref<?xf32>
   // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
-  // CHECK-NEXT: dim %[[MEMREF]], %[[C0]] : memref<?xf32>
+  // CHECK-NEXT: memref.dim %[[MEMREF]], %[[C0]] : memref<?xf32>
   return
 }
 
@@ -49,12 +49,12 @@ func @use_of_arg(%arg0: memref<?xf32>) {
 
 // CHECK-LABEL: func @multiple_blocks(%arg0: memref<*xf32>) -> memref<*xf32>
 func @multiple_blocks(%arg0: memref<?xf32>) -> memref<?xf32> {
-  // CHECK-NEXT:   %[[INMEMREF:.*]] = memref_cast %arg0 : memref<*xf32> to memref<?xf32>
+  // CHECK-NEXT:   %[[INMEMREF:.*]] = memref.cast %arg0 : memref<*xf32> to memref<?xf32>
   // CHECK-NEXT:   br ^bb1(%[[INMEMREF]] : memref<?xf32>)
   br ^bb1(%arg0: memref<?xf32>)
   // CHECK-NEXT: ^bb1(%[[BBARG:.*]]: memref<?xf32>):
 ^bb1(%bbarg: memref<?xf32>):
-  // CHECK-NEXT:   %[[OUTMEMREF:.*]] = memref_cast %[[BBARG]] : memref<?xf32> to memref<*xf32>
+  // CHECK-NEXT:   %[[OUTMEMREF:.*]] = memref.cast %[[BBARG]] : memref<?xf32> to memref<*xf32>
   // CHECK-NEXT:   return %[[OUTMEMREF]] : memref<*xf32>
   return %bbarg : memref<?xf32>
 }

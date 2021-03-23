@@ -19,8 +19,7 @@ namespace NPCOMP {
 // Conversion patterns
 //===----------------------------------------------------------------------===//
 
-void populateBasicpyToStdPrimitiveOpPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
+void populateBasicpyToStdPrimitiveOpPatterns(RewritePatternSet &patterns);
 
 } // namespace NPCOMP
 } // namespace mlir

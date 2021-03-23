@@ -81,9 +81,9 @@ public:
 };
 } // namespace
 
-void CopyToTensorOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &patterns, MLIRContext *context) {
-  patterns.insert<ElideCreateRedundantArrayFromTensor>(context);
+void CopyToTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  patterns.add<ElideCreateRedundantArrayFromTensor>(context);
 }
 
 #define GET_OP_CLASSES

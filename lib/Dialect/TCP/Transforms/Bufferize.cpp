@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -49,7 +50,7 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
         builder.create<tensor::ExtractOp>(op.getLoc(), pad.upperExpansion(),
             ValueRange({dimIndex}));
       auto operandDim =
-        builder.create<DimOp>(op.getLoc(), pad.operand(), i);
+          builder.create<memref::DimOp>(op.getLoc(), pad.operand(), i);
       auto totalExpansion =
         builder.create<AddIOp>(op.getLoc(), lowerExpansion, upperExpansion);
       auto outDim =
@@ -117,7 +118,8 @@ public:
     SmallVector<Value, 6> inputDimRequiresBroadcasting;
     for (int i = 0, e = inputType.getRank(); i < e; i++) {
       // Calculate the relevant extents.
-      Value inputExtent = rewriter.create<DimOp>(op.getLoc(), op.operand(), i);
+      Value inputExtent =
+          rewriter.create<memref::DimOp>(op.getLoc(), op.operand(), i);
       inputDimRequiresBroadcasting.push_back(
           rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::ne, inputExtent,
                                   outputExtents[rankDiff + i]));
@@ -152,10 +154,10 @@ public:
             inductionVariables[rankDiff + i]);
         inputIndices.push_back(select);
       }
-      Value load =
-          rewriter.create<LoadOp>(op.getLoc(), inputMemref, inputIndices);
-      rewriter.create<StoreOp>(op.getLoc(), load, resultMemref,
-                               inductionVariables);
+      Value load = rewriter.create<memref::LoadOp>(op.getLoc(), inputMemref,
+                                                   inputIndices);
+      rewriter.create<memref::StoreOp>(op.getLoc(), load, resultMemref,
+                                       inductionVariables);
     }
     rewriter.replaceOp(op, resultMemref);
     return success();
@@ -202,16 +204,16 @@ public:
       auto offset =
         rewriter.create<tensor::ExtractOp>(op.getLoc(), op.lowerExpansion(),
             ValueRange({dimIndex}));
-      auto size     = rewriter.create<DimOp>(op.getLoc(), op.operand(), i);
+      auto size = rewriter.create<memref::DimOp>(op.getLoc(), op.operand(), i);
       auto stride   = c1;
       offsets.push_back(offset);
       sizes.push_back(size);
       strides.push_back(stride);
     }
     rewriter.create<linalg::FillOp>(op.getLoc(), results[0], op.fillVal());
-    auto unpadded =
-      rewriter.create<SubViewOp>(op.getLoc(), results[0], ValueRange(offsets),
-          ValueRange(sizes), ValueRange(strides));
+    auto unpadded = rewriter.create<memref::SubViewOp>(
+        op.getLoc(), results[0], ValueRange(offsets), ValueRange(sizes),
+        ValueRange(strides));
     auto inputMemref = operands[0];
     rewriter.create<linalg::CopyOp>(op.getLoc(), inputMemref, unpadded);
     rewriter.replaceOp(op, results);
@@ -234,7 +236,7 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
 
     BufferizeTypeConverter typeConverter;
 
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(context);
 
     ConversionTarget target(*context);
 
@@ -243,17 +245,18 @@ class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
     // we can just open-code the extents for the alloc.
     target.addLegalOp<refback::AllocMemRefOp>();
 
-    patterns.insert<LowerBroadcastToToLoopsPattern>(typeConverter, context);
+    patterns.add<LowerBroadcastToToLoopsPattern>(typeConverter, context);
     target.addIllegalOp<tcp::BroadcastToOp>();
-    patterns.insert<BufferizeSplattedOp>(typeConverter, context);
+    patterns.add<BufferizeSplattedOp>(typeConverter, context);
     target.addIllegalOp<tcp::SplattedOp>();
-    patterns.insert<BufferizePadOp>(typeConverter, context);
+    patterns.add<BufferizePadOp>(typeConverter, context);
     target.addIllegalOp<tcp::PadOp>();
 
     target.addLegalDialect<linalg::LinalgDialect>();
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
+    target.addLegalDialect<memref::MemRefDialect>();
 
     if (failed(applyPartialConversion(func, target, std::move(patterns))))
       return signalPassFailure();

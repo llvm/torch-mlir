@@ -467,12 +467,12 @@ class ATenRecognizeKernelsPass
   }
 
   void runOnOperation() override {
-    auto &context = getContext();
-    KernelCallTransformer transformer(context);
+    MLIRContext *context = &getContext();
+    KernelCallTransformer transformer(*context);
     transformer.addDialectOps<ATenDialect>();
 
-    OwningRewritePatternList patterns;
-    patterns.insert<RecognizeOpPattern>(&context, transformer);
+    RewritePatternSet patterns(context);
+    patterns.add<RecognizeOpPattern>(context, transformer);
     if (failed(
             applyPatternsAndFoldGreedily(getOperation(), std::move(patterns))))
       signalPassFailure();

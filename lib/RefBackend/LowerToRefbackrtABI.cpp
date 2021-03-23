@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Verifier.h"
@@ -353,8 +354,8 @@ public:
       for (auto newAndOldArg :
            llvm::zip(newEntry.getArguments(), oldEntry.getArguments())) {
         std::tie(newArg, oldArg) = newAndOldArg;
-        auto memref = rewriter.create<MemRefCastOp>(op.getLoc(), newArg,
-                                                    oldArg.getType());
+        auto memref = rewriter.create<memref::CastOp>(op.getLoc(), newArg,
+                                                      oldArg.getType());
         rewriter.replaceUsesOfBlockArgument(oldArg, memref);
       }
     });
@@ -390,23 +391,24 @@ static LogicalResult doDialectConversion(ModuleOp module) {
       [](OpBuilder &builder, UnrankedMemRefType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        return builder.create<MemRefCastOp>(
+        return builder.create<memref::CastOp>(
             loc, inputs[0], getABIMemrefType(inputs[0].getType()));
       });
 
-  OwningRewritePatternList patterns;
+  RewritePatternSet patterns(context);
   ConversionTarget target(*context);
   target.addLegalDialect<refbackrt::RefbackrtDialect>();
   target.addLegalDialect<StandardOpsDialect>();
+  target.addLegalDialect<memref::MemRefDialect>();
 
-  patterns.insert<FuncOpSignatureConversion>(typeConverter, context);
+  patterns.add<FuncOpSignatureConversion>(typeConverter, context);
   target.addDynamicallyLegalOp<FuncOp>(
       [&](FuncOp op) { return typeConverter.isSignatureLegal(op.getType()); });
-  patterns.insert<RewriteReturnOp>(typeConverter, context);
+  patterns.add<RewriteReturnOp>(typeConverter, context);
   target.addDynamicallyLegalOp<ReturnOp>(
       [&](ReturnOp op) { return typeConverter.isLegal(op); });
 
-  patterns.insert<LowerAssertOp>(context);
+  patterns.add<LowerAssertOp>(context);
   target.addIllegalOp<AssertOp>();
 
   return applyPartialConversion(module, target, std::move(patterns));

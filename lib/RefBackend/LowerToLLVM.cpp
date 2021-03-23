@@ -200,7 +200,7 @@ static LLVMFuncOp createCompilerRuntimeFuncDecl(StringRef name, Type type,
 }
 
 static void populateCompilerRuntimePatterns(ModuleOp module,
-                                            OwningRewritePatternList &patterns,
+                                            RewritePatternSet &patterns,
                                             LLVMTypeConverter &typeConverter) {
   auto *context = module.getContext();
   OpBuilder builder(module.getBodyRegion());
@@ -212,7 +212,7 @@ static void populateCompilerRuntimePatterns(ModuleOp module,
         /*isVarArg=*/false);
     LLVMFuncOp abortIfFunc = createCompilerRuntimeFuncDecl(
         "abort_if", abortIfFuncTy, builder, module.getLoc());
-    patterns.insert<AbortIfOpCompilerRuntimeLowering>(abortIfFunc);
+    patterns.add<AbortIfOpCompilerRuntimeLowering>(abortIfFunc);
   }
 }
 
@@ -701,16 +701,16 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
 
     LLVMTypeConverter converter(context);
 
-    OwningRewritePatternList patterns;
+    RewritePatternSet patterns(context);
     LLVMConversionTarget target(*context);
     populateCompilerRuntimePatterns(module, patterns, converter);
     target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
-    patterns.insert<LowerModuleMetadata>(context);
+    patterns.add<LowerModuleMetadata>(context);
 
     // TODO: Move these "std to std" legalizations to their own pass if we grow
     // lots of these patterns.
-    populateExpandTanhPattern(patterns, context);
+    populateExpandTanhPattern(patterns);
 
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {
       return signalPassFailure();

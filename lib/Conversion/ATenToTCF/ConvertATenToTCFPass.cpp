@@ -27,8 +27,8 @@ public:
   void runOnOperation() override {
     FuncOp funcOp = getOperation();
     MLIRContext *context = &getContext();
-    OwningRewritePatternList patterns;
-    populateCoreATenToTCFPatterns(context, patterns);
+    RewritePatternSet patterns(context);
+    populateCoreATenToTCFPatterns(patterns);
     (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
   }
 };

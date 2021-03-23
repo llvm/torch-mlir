@@ -145,12 +145,12 @@ public:
 
   FrozenRewritePatternList getPatterns() {
     MLIRContext *context = &getContext();
-    OwningRewritePatternList patterns;
-    patterns.insert<ConvertUnaryElementwise<tcf::ExpOp>,
-                    ConvertUnaryElementwise<tcf::TanhOp>>(context);
-    patterns.insert<ConvertBinaryElementwise<tcf::AddOp>,
-                    ConvertBinaryElementwise<tcf::MaxOp>,
-                    ConvertBinaryElementwise<tcf::MulOp>>(context);
+    RewritePatternSet patterns(context);
+    patterns.add<ConvertUnaryElementwise<tcf::ExpOp>,
+                 ConvertUnaryElementwise<tcf::TanhOp>>(context);
+    patterns.add<ConvertBinaryElementwise<tcf::AddOp>,
+                 ConvertBinaryElementwise<tcf::MaxOp>,
+                 ConvertBinaryElementwise<tcf::MulOp>>(context);
     return std::move(patterns);
   }
 };

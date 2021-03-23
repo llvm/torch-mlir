@@ -16,6 +16,8 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/EDSC/Intrinsics.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/EDSC/Builders.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/EDSC/Builders.h"
@@ -85,7 +87,8 @@ static Value memRefTypeCast(PatternRewriter &builder, Value val) {
 
   if (auto memrefTy = type.dyn_cast<MemRefType>()) {
     MemRefType newType = getShapeErasedMemRefType(memrefTy);
-    return builder.create<MemRefCastOp>(val.getLoc(), val, newType).getResult();
+    return builder.create<memref::CastOp>(val.getLoc(), val, newType)
+        .getResult();
   }
   if (auto tensorTy = type.dyn_cast<TensorType>()) {
     auto memRefType = mlir::MemRefType::get(tensorTy.getShape(),
@@ -224,7 +227,7 @@ public:
     MemRefType memRefResultTy = mlir::MemRefType::get(
         tensorResultTy.getShape(), tensorResultTy.getElementType(), {}, 0);
 
-    Value result = rewriter.create<AllocOp>(loc, memRefResultTy);
+    Value result = rewriter.create<memref::AllocOp>(loc, memRefResultTy);
     Value lhs = memRefTypeCast(rewriter, operands[0]);
     Value rhs = memRefTypeCast(rewriter, operands[1]);
     using namespace edsc;
@@ -232,7 +235,7 @@ public:
     ScopedContext scope(rewriter, loc);
     Value zero = intrinsics::std_constant_index(0);
     MemRefBoundsCapture vRes(result), vLHS(lhs), vRHS(rhs);
-    StdIndexedValue iRes(result), iLHS(lhs), iRHS(rhs);
+    MemRefIndexedValue iRes(result), iLHS(lhs), iRHS(rhs);
     Value M(vRes.ub(0));
     if (vRes.rank() == 1) {
       affineLoopNestBuilder({zero}, {M}, 1, [&](ValueRange ivs) {
@@ -320,7 +323,8 @@ LogicalResult rewriteWithVoidFunctionCallExplicit(
       // assume memRefResultTy has known shape, so we don't need any
       // dynamic dimensions for the alloc.
       assert(memRefResultTy.hasStaticShape());
-      Value allocVal = rewriter.create<AllocOp>(op->getLoc(), memRefResultTy);
+      Value allocVal =
+          rewriter.create<memref::AllocOp>(op->getLoc(), memRefResultTy);
       Value castVal = memRefTypeCast(rewriter, allocVal);
       newOps.push_back(castVal);
       newResults.push_back(allocVal);
@@ -867,9 +871,9 @@ struct ATenLoweringPass : public ATenLoweringBase<ATenLoweringPass> {
       return type;
     });
 
-    OwningRewritePatternList acapPatterns;
     auto module = getOperation();
     auto context = module.getContext();
+    RewritePatternSet acapPatterns(context);
 
     // c++ patterns
     acapPatterns.insert<
@@ -885,16 +889,15 @@ struct ATenLoweringPass : public ATenLoweringBase<ATenLoweringPass> {
         NllLoss2dBackwardOpConversion, LogSoftmaxOpConversion,
         LogSoftmaxBackwardDataOpConversion, DivOpConversion>(context);
 
-    mlir::populateFuncOpTypeConversionPattern(acapPatterns, context,
-                                              typeConverter);
+    mlir::populateFuncOpTypeConversionPattern(acapPatterns, typeConverter);
 
     // tablegen patterns
-    populateATenToStdPatterns(context, acapPatterns);
+    populateATenToStdPatterns(acapPatterns);
 
     // Perform acap specific lowering.
     ConversionTarget target(getContext());
     target.addLegalDialect<LLVM::LLVMDialect, StandardOpsDialect,
-                           scf::SCFDialect>();
+                           scf::SCFDialect, memref::MemRefDialect>();
     target.addLegalOp<AffineForOp, AffineApplyOp, AffineYieldOp>();
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
       return typeConverter.isSignatureLegal(op.getType());
