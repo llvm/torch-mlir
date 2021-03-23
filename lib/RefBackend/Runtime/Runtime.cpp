@@ -358,8 +358,6 @@ getExternalInputArgInfo(const refbackrt::InputDescriptor &inputDescriptor) {
     ret.argType = ArgType::kF64;
     ret.elementType = ElementType::NONE;
     break;
-  default:
-    assert(false && "need to update external internal map");
   }
 
   // Extract shape information
@@ -393,8 +391,6 @@ getExternalOutputArgInfo(const refbackrt::OutputDescriptor &outputDescriptor) {
     ret.argType = ArgType::kF64;
     ret.elementType = ElementType::NONE;
     break;
-  default:
-    assert(false && "need to update external internal map");
   }
 
   // Extract shape information

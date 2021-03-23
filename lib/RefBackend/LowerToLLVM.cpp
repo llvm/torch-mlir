@@ -307,7 +307,7 @@ createFuncDescriptorArray(ArrayRef<refbackrt::FuncMetadataOp> funcMetadatas,
     Value inputDescriptorArray =
         builder.create<LLVM::UndefOp>(loc, inputDescriptorArrayTy);
 
-    for (int i = 0; i < funcMetadata.numInputs(); i++) {
+    for (int i = 0, e = funcMetadata.numInputs(); i < e; i++) {
       // Arg Type
       if (!funcMetadata.inputArgTypes().hasValue())
         funcMetadata.emitError()
@@ -365,7 +365,7 @@ createFuncDescriptorArray(ArrayRef<refbackrt::FuncMetadataOp> funcMetadatas,
     Value outputDescriptorArray =
         builder.create<LLVM::UndefOp>(loc, outputDescriptorArrayTy);
 
-    for (int i = 0; i < funcMetadata.numOutputs(); i++) {
+    for (int i = 0, e = funcMetadata.numOutputs(); i < e; i++) {
       if (!funcMetadata.outputArgTypes().hasValue())
         funcMetadata.emitError()
             << "numOutputs > 0 but there are no outputArgTypes?";
@@ -597,11 +597,6 @@ static Type getUnrankedMemrefDescriptorType(MLIRContext *context) {
   return converter.convertType(
       UnrankedMemRefType::get(Float32Type::get(context),
                               /*memorySpace=*/0));
-}
-
-static Type getDoubleType(MLIRContext *context) {
-  LLVMTypeConverter converter(context);
-  return converter.convertType(FloatType::getF64(context));
 }
 
 static Type getFloatType(MLIRContext *context) {

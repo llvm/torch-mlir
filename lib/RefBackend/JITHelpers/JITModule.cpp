@@ -76,15 +76,15 @@ static refbackrt::MutableArrayRef<T> toRefbackrt(llvm::MutableArrayRef<T> a) {
 }
 
 static std::string stringifyShape(refbackrt::ArrayRef<std::int32_t> extents) {
-  static constexpr char *kDynamicDimAsString = "?";
+  static constexpr char kDynamicDimAsString[] = "?";
   std::stringstream ss;
   ss << "(";
-  for (int i = 0; i < extents.size(); i++) {
+  for (int i = 0, e = extents.size(); i < e; i++) {
     if (extents[i] < 0)
       ss << kDynamicDimAsString;
     else
       ss << extents[i];
-    if (i != extents.size() - 1)
+    if (i != e - 1)
       ss << "x";
   }
   ss << ")";
@@ -135,8 +135,8 @@ JITModule::invoke(llvm::StringRef functionName,
   // Tag::kNone) currently without passing the ArgInfo structs down to the
   // Runtime level, so we deal with the output type creation here.
   for (int i = 0; i < metadata.numOutputs; i++) {
-    outputs[i] = std::move(
-        refbackrt::createRtValueFromOutputArgInfo(metadata.outputArgInfos[i]));
+    outputs[i] =
+        refbackrt::createRtValueFromOutputArgInfo(metadata.outputArgInfos[i]);
   }
 
   refbackrt::invoke(

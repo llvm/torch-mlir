@@ -96,8 +96,9 @@ static Type convertToMLIRType(refbackrt::ElementType type, Builder &builder) {
   switch (type) {
   case refbackrt::ElementType::F32:
     return builder.getF32Type();
+  default:
+    llvm_unreachable("unsupported dtype");
   }
-  llvm_unreachable("unsupported dtype");
 }
 
 static RankedTensorType getCorrespondingMLIRTensorType(refbackrt::Tensor &tensor,
@@ -122,13 +123,13 @@ static Attribute convertToMLIRAttribute(const refbackrt::RtValue &value,
           values.push_back(basePtr[i]);
         return DenseFPElementsAttr::get(type, values);
       }
+      default:
+        llvm_unreachable("unsupported element type");
     }
   } else if (value.isFloat()) {
     return builder.getF32FloatAttr(value.toFloat());
-  } else {
-    assert(false && "could not convert value to mlir attribute");
   }
-  llvm_unreachable("unsupported dtype");
+  llvm_unreachable("unsupported type");
 }
 
 static void printOutput(const refbackrt::RtValue &value, llvm::raw_ostream &os) {
