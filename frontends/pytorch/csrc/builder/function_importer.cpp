@@ -19,9 +19,9 @@
 namespace py = pybind11;
 using namespace torch_mlir;
 
-MlirOperation
-torch_mlir::importJitFunctionAsFuncOp(MlirContext context,
-                                      torch::jit::Function *function) {
+MlirOperation torch_mlir::importJitFunctionAsFuncOp(
+    MlirContext context, torch::jit::Function *function,
+    std::function<MlirAttribute(int)> getArgAttribute) {
   // Useful for debugging:
   // graph->dump();
   MlirLocation loc = mlirLocationUnknownGet(context);
@@ -37,6 +37,14 @@ torch_mlir::importJitFunctionAsFuncOp(MlirContext context,
       "func", loc, mlirRegionCreate(),
       toMlirNamedAttribute("type", mlirTypeAttrGet(functionType)),
       toMlirNamedAttribute("sym_name", symNameAttr));
+  for (int i = 0, e = mlirFunctionTypeGetNumInputs(functionType); i != e; i++) {
+    MlirAttribute argAttr = getArgAttribute(i);
+    if (mlirAttributeIsNull(argAttr)) {
+      continue;
+    }
+    mlirOperationSetAttributeByName(
+        func, toMlirStringRef("arg" + std::to_string(i)), argAttr);
+  }
   MlirRegion bodyRegion = mlirOperationGetRegion(func, 0);
   std::vector<MlirType> resultTypes;
   for (int i = 0, e = mlirFunctionTypeGetNumResults(functionType); i != e;

@@ -38,6 +38,8 @@ def Torch_Dialect : Dialect {
     the `ATen` dialect for mathematical ops like add, conv, etc), instead
     modeling the open op-system that PyTorch reasons about natively.
   }];
+
+  let hasRegionArgAttrVerify = 1;
 }
 
 #endif // TORCH_BASE

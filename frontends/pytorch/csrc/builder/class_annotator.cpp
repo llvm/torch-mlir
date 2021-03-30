@@ -9,6 +9,8 @@
 
 #include <stdexcept>
 
+#include "torch/csrc/Dtype.h"
+
 using namespace torch_mlir;
 
 //===----------------------------------------------------------------------===//
@@ -94,23 +96,10 @@ void ClassAnnotator::exportPath(std::vector<std::string> exportedPath,
     throw std::invalid_argument(
         "Empty exported path. Can only export a property of a class.");
   }
-  c10::ClassType *classType = &rootClassType;
-  // Reverse so that pop_back gives us the initial atoms first.
-  std::reverse(exportedPath.begin(), exportedPath.end());
-  while (exportedPath.size() != 1) {
-    // This will throw in case of missing attribute.
-    c10::TypePtr childType = classType->getAttribute(exportedPath.back());
-    c10::ClassTypePtr childClassType = childType->cast<c10::ClassType>();
-    if (!childClassType) {
-      std::stringstream ss;
-      ss << "class '" << classType->name()->qualifiedName()
-         << "' does not have a submodule in attribute '" << exportedPath.back()
-         << "'";
-      throw std::invalid_argument(ss.str());
-    }
-    exportedPath.pop_back();
-    classType = childClassType.get();
-  }
+  c10::ClassType *classType =
+      getClassAtPath(&rootClassType, c10::ArrayRef<std::string>(exportedPath)
+                                         .slice(0, exportedPath.size() - 1)
+                                         .vec());
 
   if (!classType->findAttribute(exportedPath.back()) &&
       !classType->findMethod(exportedPath.back())) {
@@ -152,8 +141,113 @@ ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType *classType) {
     auto newAnnotation = std::make_unique<ClassAnnotation>(
         classType->shared_from_this()->cast<c10::ClassType>());
     it = classAnnotations.insert({classType, std::move(newAnnotation)}).first;
+    for (int i = 0, e = classType->methods().size(); i != e; i++) {
+      functionToMethodMap[classType->methods()[i]] =
+          &it->second->getMethodAnnotations()[i];
+    }
   }
   return *it->second;
+}
+
+static c10::ScalarType convertToC10ScalarType(py::object obj) {
+  if (THPDtype_Check(obj.ptr())) {
+    // Need reinterpret_cast, since no C++-level inheritance is involved.
+    THPDtype *dtype = reinterpret_cast<THPDtype *>(obj.ptr());
+    return dtype->scalar_type;
+  }
+  std::stringstream ss;
+  ss << "unsupported scalar type '" << obj << "'";
+  throw std::invalid_argument(ss.str());
+}
+
+static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
+                               py::list pyArgAnnotations,
+                               torch::jit::Function *function) {
+  if (pyArgAnnotations.size() != function->num_inputs()) {
+    throw std::invalid_argument("Arg annotations should have one entry per "
+                                "function parameter (including self).");
+  }
+  if (!methodAnnotation.argAnnotations.has_value()) {
+    methodAnnotation.argAnnotations.emplace(function->num_inputs(),
+                                            ArgAnnotation{});
+  }
+  std::vector<ArgAnnotation> &argAnnotations =
+      methodAnnotation.argAnnotations.value();
+  for (int i = 0, e = argAnnotations.size(); i != e; i++) {
+    if (pyArgAnnotations[i].is_none()) {
+      continue;
+    }
+    auto tuple = py::cast<py::tuple>(pyArgAnnotations[i]);
+    auto shape = tuple[0];
+    auto dtype = tuple[1];
+    if (!shape.is_none()) {
+      argAnnotations[i].shape = py::cast<std::vector<int64_t>>(shape);
+    }
+    if (!dtype.is_none()) {
+      argAnnotations[i].dtype = convertToC10ScalarType(dtype);
+    }
+  };
+}
+
+void ClassAnnotator::annotateShapesAndDtypes(c10::ClassType &rootClassType,
+                                             std::vector<std::string> path,
+                                             py::list argAnnotations) {
+  if (path.size() == 0) {
+    throw std::invalid_argument("Empty annotated path. Can only annotate "
+                                "shapes/dtypes of a method of a class.");
+  }
+  c10::ClassType *classType =
+      getClassAtPath(&rootClassType, c10::ArrayRef<std::string>(path)
+                                         .slice(0, path.size() - 1)
+                                         .vec());
+
+  // Throw error if no method on the class of the specified name.
+  torch::jit::Function *function = &classType->getMethod(path.back());
+
+  ClassAnnotation &classAnnotation = getOrCreateClassAnnotation(classType);
+  std::vector<MethodAnnotation> &methodAnnotations =
+      classAnnotation.getMethodAnnotations();
+  const std::vector<torch::jit::Function *> &methods = classType->methods();
+  for (int i = 0, e = methods.size(); i != e; i++) {
+    if (methods[i]->name() == path.back()) {
+      fillArgAnnotations(methodAnnotations[i], argAnnotations, function);
+    }
+  }
+
+  return;
+}
+
+c10::ClassType *ClassAnnotator::getClassAtPath(c10::ClassType *rootClassType,
+                                               std::vector<std::string> path) {
+  c10::ClassType *classType = rootClassType;
+  // Reverse so that pop_back gives us the initial atoms first.
+  std::reverse(path.begin(), path.end());
+  while (!path.empty()) {
+    // This will throw in case of missing attribute.
+    c10::TypePtr childType = classType->getAttribute(path.back());
+    c10::ClassTypePtr childClassType = childType->cast<c10::ClassType>();
+    if (!childClassType) {
+      std::stringstream ss;
+      ss << "class '" << classType->name()->qualifiedName()
+         << "' does not have a submodule in attribute '" << path.back() << "'";
+      throw std::invalid_argument(ss.str());
+    }
+    path.pop_back();
+    classType = childClassType.get();
+  }
+  return classType;
+}
+
+//===----------------------------------------------------------------------===//
+// Helper methods
+//===----------------------------------------------------------------------===//
+MethodAnnotation *
+ClassAnnotator::getMethodAnnotationForFunction(torch::jit::Function *function) {
+  auto it = functionToMethodMap.find(function);
+  if (it == functionToMethodMap.end()) {
+    return nullptr;
+  }
+  return it->second;
 }
 
 //===----------------------------------------------------------------------===//
@@ -168,10 +262,40 @@ std::string AttributeAnnotation::toString(const std::string &name) {
   return ss.str();
 }
 
+std::string ArgAnnotation::toString(int argIndex) {
+    std::stringstream ss;
+    ss << "ArgAnnotation(" << argIndex << ") {\n";
+    ss << "  dtype = " << (dtype ? c10::toString(*dtype) : "<none>") << "\n";
+    ss << "  shape = ";
+    if (shape) {
+      ss << "[";
+      for (int i = 0, e = shape.value().size(); i != e; i++) {
+        if (i) {
+          ss << ", ";
+        }
+        ss << shape.value()[i];
+      }
+      ss << "]\n";
+    } else {
+      ss << "<none>\n";
+    }
+    ss << "}\n";
+    return ss.str();
+}
+
 std::string MethodAnnotation::toString(const std::string &name) {
   std::stringstream ss;
   ss << "MethodAnnotation('" << name << "') {\n";
   ss << "  isExported = " << (isExported ? "true" : "false") << "\n";
+  ss << "  argAnnotations =";
+  if (argAnnotations) {
+    ss << "\n";
+    for (int i = 0, e = argAnnotations.value().size(); i < e; i++) {
+      ss << indentString("    ", argAnnotations.value()[i].toString(i));
+    }
+  } else {
+    ss << " <none>\n";
+  }
   ss << "}\n";
   return ss.str();
 }
@@ -209,5 +333,6 @@ void torch_mlir::initClassAnnotatorBindings(py::module &m) {
       .def(py::init<>())
       .def("exportPath", &ClassAnnotator::exportPath)
       .def("exportNone", &ClassAnnotator::exportNone)
+      .def("annotateShapesAndDtypes", &ClassAnnotator::annotateShapesAndDtypes)
       .def("__repr__", &ClassAnnotator::toString);
 }
