@@ -13,6 +13,13 @@ func @conv2d(%arg0: tensor<?x?x?x?xf32>, %arg1: tensor<?x?x?x?xf32>, %arg2: tens
   return %3 : tensor<?x?x?x?xf32>
 }
 
+// CHECK-LABEL: @unary_ops
+func @unary_ops(%arg0: tensor<?x5x1xf32>) -> tensor<?x5x1xf32> {
+  // CHECK: tcf.tanh %arg0 : tensor<?x5x1xf32>
+  %0 = "aten.tanh"(%arg0) : (tensor<?x5x1xf32>) -> tensor<?x5x1xf32>
+  return %0 : tensor<?x5x1xf32>
+}
+
 // CHECK-LABEL: @binary_elementwise_ops
 // NOTE: These are all template expanded, so just testing an examplar op and
 // special cases.

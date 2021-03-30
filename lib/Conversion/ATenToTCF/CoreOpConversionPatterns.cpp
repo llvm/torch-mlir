@@ -47,6 +47,24 @@ class ConvertATenAdd : public OpRewritePattern<aten::AddOp> {
   }
 };
 
+/// Common conversion template for unary ops that map 1:1.
+template <typename SourceOp, typename TargetOp>
+class ConvertUnary : public OpRewritePattern<SourceOp> {
+public:
+  using OpRewritePattern<SourceOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(SourceOp srcOp,
+                                PatternRewriter &rewriter) const override {
+    auto operands = srcOp.getOperation()->getOperands();
+    auto results = srcOp.getOperation()->getResults();
+    assert(operands.size() == 1 && "expected unary op");
+    assert(results.size() == 1 && "expected single result op");
+    Type resultType = results[0].getType();
+    rewriter.replaceOpWithNewOp<TargetOp>(srcOp, resultType,
+                                          srcOp->getOperand(0));
+    return success();
+  }
+};
+
 /// Common conversion template for true binary elementwise ops.
 /// This does not apply to the handful of not-actually-binary PyTorch ops that
 /// have broadcastable self/other operands but may have additional parameters.
@@ -152,6 +170,7 @@ class ConvertATenConv2d : public OpRewritePattern<aten::Conv2dOp> {
 void mlir::NPCOMP::populateCoreATenToTCFPatterns(RewritePatternSet &patterns) {
   MLIRContext *context = patterns.getContext();
   patterns.add<ConvertATenAdd>(context);
+  patterns.add<ConvertUnary<aten::TanhOp, tcf::TanhOp>>(context);
   patterns.add<ConvertBinaryElementwise<aten::MulOp, tcf::MulOp>>(context);
   patterns.add<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(context);
   patterns.add<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
