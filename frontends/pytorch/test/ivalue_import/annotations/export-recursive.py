@@ -41,8 +41,8 @@ class_type = recursivescriptmodule._c._type()
 # CHECK:           torch.method private "not_exported_method", @{{.*}}
 # CHECK:         }              
 annotator.exportNone(class_type)
-annotator.exportPath(['s', 'exported'], class_type)
-annotator.exportPath(['s', 'forward'], class_type)
+annotator.exportPath(class_type, ['s', 'exported'])
+annotator.exportPath(class_type, ['s', 'forward'])
 
 # # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
 mb.import_module(recursivescriptmodule._c, annotator)

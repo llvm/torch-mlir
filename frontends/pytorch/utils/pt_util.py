@@ -44,7 +44,7 @@ Can pass repeatedly.
         if args.exported_name is not None:
             class_annotator.exportNone(module._c._type())
             for name in args.exported_name:
-                class_annotator.exportPath(name.split("."), module._c._type())
+                class_annotator.exportPath(module._c._type(), name.split("."))
         mb = torch_mlir.ModuleBuilder()
         mb.import_module(module._c, class_annotator)
         mb.module.operation.print(large_elements_limit=16)

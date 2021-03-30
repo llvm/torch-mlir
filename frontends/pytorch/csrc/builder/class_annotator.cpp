@@ -88,10 +88,10 @@ static void exportNoneRecurse(ClassAnnotator &classAnnotator,
 
 void ClassAnnotator::exportNone(c10::ClassType &rootClassType) {
   exportNoneRecurse(*this, &rootClassType);
-} 
+}
 
-void ClassAnnotator::exportPath(std::vector<std::string> exportedPath,
-                                c10::ClassType &rootClassType) {
+void ClassAnnotator::exportPath(c10::ClassType &rootClassType,
+                                std::vector<std::string> exportedPath) {
   if (exportedPath.size() == 0) {
     throw std::invalid_argument(
         "Empty exported path. Can only export a property of a class.");
