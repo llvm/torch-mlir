@@ -24,29 +24,29 @@ LLVM/MLIR/npcomp or contribute it upstream to PyTorch. However, as it will be
 quite some time before the components are in a state to support such a
 dependency, it is being carried in-tree in the interim.
 
-### Program capture with a ATen pseudo-device.
+### Program capture with a ATen dispatch capture.
 
 Integration with a pseudo-device is typified by code like the following:
 
 ```
-import npcomp.frontends.pytorch as torch_mlir
+import torch
+import torch_mlir
 
-dev = torch_mlir.mlir_device()
-t0 = torch.randn((4,4), device=dev)
-t1 = torch.randn((4,4)).to(dev)
-t2 = t0 + t1
-t2_mlir = torch_mlir.get_mlir( t2 )
-t2_cpu = t2.to('cpu')
+lhs = torch.rand(2, 3)
+rhs = torch.rand(3, 4)
+
+mb = torch_mlir.ModuleBuilder()
+with mb.capture_function("mm", [lhs, rhs]) as f:
+  result = torch.mm(lhs, rhs)
+  f.returns([result])
+
+mb.module.operation.print()
 ```
 
-In this case t2_cpu contains the result of the computation, and t2_mlir
-contains the mlir description of the computation.  Tensors are allocated
-directly on the virtual device using the `device=` argument, or computed on
-the host and then moved to the virtual device using the `to(dev)`
-call. Subsequent calls on those tensors construct a graph of computation, but
-do not perform compute in most cases.  This computation graph is returned in
-MLIR format by the `get_mlir` call, or lazily evaluated to return a regular
-pytorch tensor by the `to(`cpu`)` call.
+All operations that happen under the `mb.capture_function` context manager are
+intercepted via PyTorch's
+[dispatcher](http://blog.ezyang.com/2020/09/lets-talk-about-the-pytorch-dispatcher/),
+and an IR graph is constructed into the module held by the ModuleBuilder.
 
 This technique has several advantages and disadvantages. For training use
 cases, this technique generates a backward path automatically using the same
@@ -55,4 +55,4 @@ simpler, since it will not reflect conditionals in the original python
 code. Lastly, it is natural if MLIR is being used as a frontend target for an
 actual device of some sort.  In this case, the MLIR could go through a
 device-specific lowering path and the resulting code run on a device.
-The implementation of this technique is largely modeled after pytorch_xla.
+The implementation of this technique is largely modeled after `pytorch/xla`.
