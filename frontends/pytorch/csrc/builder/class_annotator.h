@@ -123,8 +123,8 @@ public:
   // For example, if `exportedPath = ['a', 'b']`, then `rootClassType` should
   // have a submodule `a` and that submodule should have a method or attribute
   // `b`.
-  void exportPath(std::vector<std::string> exportedPath,
-                  c10::ClassType &rootClassType);
+  void exportPath(c10::ClassType &rootClassType,
+                  std::vector<std::string> exportedPath);
   // Mark everything as not-exported.
   //
   // This is kind of useless by itself, but together with `exportPath` allows

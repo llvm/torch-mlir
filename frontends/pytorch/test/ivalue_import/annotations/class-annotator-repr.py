@@ -41,8 +41,8 @@ annotator = torch_mlir.ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
 
 annotator.exportNone(class_type)
-annotator.exportPath(['s', 'exported'], class_type)
-annotator.exportPath(['s', 'forward'], class_type)
+annotator.exportPath(class_type, ['s', 'exported'])
+annotator.exportPath(class_type, ['s', 'forward'])
 annotator.annotateShapesAndDtypes(class_type, ['forward'], [
     None,
     ((1024, 2), torch.float32),
