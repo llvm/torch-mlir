@@ -97,3 +97,18 @@ torch.class_type @c {
 
 // expected-error @+1 {{'a' does not reference a valid class type}}
 %m = torch.nn_module {} : !torch.nn.Module<"a">
+
+// -----
+
+// expected-error @+1 {{'torch.type_bound' must be attached to an argument of !numpy.ndarray type}}
+func @f(%arg0: i32 {torch.type_bound = !numpy.ndarray<*:f32>})
+
+// -----
+
+// expected-error @+1 {{'torch.type_bound' must be TypeAttr}}
+func @f(%arg0: i32 {torch.type_bound = 1})
+
+// -----
+
+// expected-error @+1 {{'torch.type_bound' must be of !numpy.ndarray type}}
+func @f(%arg0: i32 {torch.type_bound = i32})

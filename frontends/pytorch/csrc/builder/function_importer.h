@@ -32,8 +32,18 @@ namespace torch_mlir {
 /// The torch::jit::Graph is a combination of an MLIR context, function, and
 /// builder. See NodeImporter for importing of the core IR Node/Block
 /// structure that is analogous to MLIR's Operation/Region/Block core structure.
-MlirOperation importJitFunctionAsFuncOp(MlirContext context,
-                                        torch::jit::Function *function);
+///
+/// If the `getArgAttribute` function is present, then it will be called for
+/// each function argument index `i` and should return an MlirAttribute which
+/// will be attached as an argument attribute to the func op's argument. If a
+/// null MlirAttribute is returned, no attribute will be attached to that
+/// argument.
+MlirOperation importJitFunctionAsFuncOp(
+    MlirContext context, torch::jit::Function *function,
+    std::function<MlirAttribute(int)> getArgAttribute =
+        [](int) -> MlirAttribute {
+      return {nullptr};
+    });
 
 } // namespace torch_mlir
 

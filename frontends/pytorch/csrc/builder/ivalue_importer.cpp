@@ -403,7 +403,28 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
   }
 
   for (torch::jit::Function *function : cu->get_functions()) {
-    MlirOperation func = importJitFunctionAsFuncOp(context, function);
+    MethodAnnotation *annotation =
+        annotator.getMethodAnnotationForFunction(function);
+    MlirOperation func = importJitFunctionAsFuncOp(
+        context, function, [&](int argIndex) -> MlirAttribute {
+          if (!annotation || !annotation->argAnnotations.has_value()) {
+            return {nullptr};
+          }
+          auto &shape = annotation->argAnnotations.value()[argIndex].shape;
+          auto &dtype = annotation->argAnnotations.value()[argIndex].dtype;
+          // TODO: Handle unranked tensors and tensors with unknown dtype (but
+          // possibly known ranks/sizes).
+          if (!shape || !dtype) {
+            return {nullptr};
+          }
+          auto typeBound = npcompNdArrayTypeGetRanked(
+              shape->size(), shape->data(),
+              TypeMapper(context).mapFromTorchScalarType(
+                  mlirLocationUnknownGet(context), *dtype));
+          MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(
+              "torch.type_bound", mlirTypeAttrGet(typeBound));
+          return mlirDictionaryAttrGet(context, 1, &typeBoundAttr);
+        });
     // For IValue importing, the logical linkage structure of the module
     // is determined by the object graph.
     //

@@ -35,12 +35,32 @@ struct AttributeAnnotation {
   std::string toString(const std::string &name);
 };
 
+// An annotation of an argument of a method.
+//
+// Note that the "self" parameter is considered an explicit argument as well.
+struct ArgAnnotation {
+  // If not None, represents information known about the shape of the
+  // argument (the argument must be a tensor).
+  // Each entry represents the size of each dimension of a tensor with known
+  // rank. `-1` represents an unknown size along that dimension.
+  c10::optional<std::vector<int64_t>> shape;
+  // If not None, represents information known about the dtype of the argument
+  // (the argument must be a tensor).
+  c10::optional<c10::ScalarType> dtype;
+
+  std::string toString(int argIndex);
+};
+
 // An annotation on a class's method (corresponds to a torch::jit::Function).
 struct MethodAnnotation {
   // Whether external calls to this method are allowed.
   // The default "no knowledge" state of the program is that all methods
   // can be externally called.
   bool isExported = true;
+
+  // Optional is not strictly needed here, but it prevents an unreasonably
+  // large printout of the default ArgAnnotation for every method.
+  c10::optional<std::vector<ArgAnnotation>> argAnnotations;
 
   std::string toString(const std::string &name);
 };
@@ -60,6 +80,9 @@ struct MethodAnnotation {
 //
 // We make some mild efforts to check for mutation to the underlying, but
 // they don't provide firm guarantees. Caveat emptor.
+//
+// Note: We do take advantage of this to assume that our annotation vectors
+// don't resize (no invalidation of iterators).
 class ClassAnnotation {
 public:
   ClassAnnotation(c10::ClassTypePtr classType);
@@ -88,6 +111,9 @@ using ClassAnnotationMap =
     std::unordered_map<c10::ClassType *, std::unique_ptr<ClassAnnotation>>;
 
 // A collection of class annotations + methods to create the annotations.
+//
+// This object is bound into Python, but the UI is quite poor. We expect
+// some amount of Python metaprogramming syntax sugar to make it usable.
 class ClassAnnotator {
 public:
   ClassAnnotator() = default;
@@ -106,16 +132,44 @@ public:
   // names.
   void exportNone(c10::ClassType &rootClassType);
 
+  // Annotate shapes and dtypes of the arguments of a method at path `path` from
+  // `rootClassType`.
+  //
+  // `argAnnotations` should be a list of 2-tuples, with the first element
+  // being a list/tuple of integer sizes, and the second being a torch datatype
+  // object, such as `torch.float32`, `torch.int8`, etc.
+  // These will be put into an `ArgAnnotation` struct -- see there for
+  // precise definitions of the promised semantics of each entry.
+  void annotateShapesAndDtypes(c10::ClassType &rootClassType,
+                               std::vector<std::string> path,
+                               py::list argAnnotations);
+
   // The annotations collected so far.
   const ClassAnnotationMap &getAnnotationMap();
 
   // Get the ClassAnnotation corresponding to `classType`.
   ClassAnnotation &getOrCreateClassAnnotation(c10::ClassType *classType);
 
+  // Helper to find the MethodAnnotation corresponding to a
+  // torch::jit::Function, or null if not found.
+  //
+  // Users could in principle scan all annotations to find this, but it's more
+  // efficient to maintain the reverse mapping directly.
+  MethodAnnotation *
+  getMethodAnnotationForFunction(torch::jit::Function *function);
+
   std::string toString();
 
 private:
+  // Traverse `path` starting from `rootClassType` to find the ClassType
+  // of a presumed nested submodule. Throw an error if there is no such
+  // submodule.
+  c10::ClassType *getClassAtPath(c10::ClassType *rootClassType,
+                                 std::vector<std::string> path);
   ClassAnnotationMap classAnnotations;
+  // Reverse mapping used to service getMethodAnnotationForFunction.
+  std::unordered_map<torch::jit::Function *, MethodAnnotation *>
+      functionToMethodMap;
 };
 
 void initClassAnnotatorBindings(py::module &m);

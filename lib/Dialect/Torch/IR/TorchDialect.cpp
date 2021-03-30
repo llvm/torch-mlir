@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringExtras.h"
@@ -70,6 +72,31 @@ Type TorchDialect::parseType(DialectAsmParser &parser) const {
 void TorchDialect::printType(Type type, DialectAsmPrinter &printer) const {
   if (failed(generatedTypePrinter(type, printer)))
     llvm_unreachable("unknown 'torch' type");
+}
+
+LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
+                                                     unsigned regionIndex,
+                                                     unsigned argIndex,
+                                                     NamedAttribute namedAttr) {
+  if (namedAttr.first == "torch.type_bound") {
+    auto func = dyn_cast<FuncOp>(op);
+    if (!func)
+      return op->emitError() << "'torch.type_bound' must be attached to a func";
+    TypeAttr attr = namedAttr.second.dyn_cast<TypeAttr>();
+    if (!attr)
+      return op->emitError() << "'torch.type_bound' must be TypeAttr";
+    auto type = attr.getValue().dyn_cast<Numpy::NdArrayType>();
+    if (!type)
+      return op->emitError()
+             << "'torch.type_bound' must be of !numpy.ndarray type";
+    if (!func.getType().getInput(argIndex).isa<Numpy::NdArrayType>())
+      return op->emitError() << "'torch.type_bound' must be attached to an "
+                                "argument of !numpy.ndarray type";
+    return success();
+  }
+
+  return op->emitError() << "unknown region arg attribute '" << namedAttr.first
+                         << "'";
 }
 
 #include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
