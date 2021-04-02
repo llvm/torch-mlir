@@ -1,4 +1,5 @@
 add_npcomp_conversion_library(NPCOMPNumpyPasses
+  ArrayToTensor.cpp
   Passes.cpp
   PublicFunctionToTensor.cpp
 
