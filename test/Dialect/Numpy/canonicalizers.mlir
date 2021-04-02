@@ -25,3 +25,14 @@ func @elideCreateRedundantArrayFromTensorNonTrivial() -> (tensor<2xf64>, tensor<
   %2 = numpy.copy_to_tensor %0 : (!numpy.ndarray<[2]:f64>) -> tensor<2xf64>
   return %1, %2 : tensor<2xf64>, tensor<2xf64>
 }
+
+// CHECK-LABEL:   func @commuteStaticInfoCastOpWithCreateArrayFromTensorOp(
+// CHECK-SAME:                                                             %[[TENSOR:.*]]: tensor<2x3x?xf32>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+// CHECK:           %[[ERASED_TENSOR:.*]] = numpy.tensor_static_info_cast %[[TENSOR]] : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype>
+// CHECK:           %[[ERASED_ARRAY:.*]] = numpy.create_array_from_tensor %[[ERASED_TENSOR]] : (tensor<*x!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype>
+// CHECK:           return %[[ERASED_ARRAY]] : !numpy.ndarray<*:!numpy.any_dtype>
+func @commuteStaticInfoCastOpWithCreateArrayFromTensorOp(%arg0: tensor<2x3x?xf32>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  %0 = numpy.create_array_from_tensor %arg0 : (tensor<2x3x?xf32>) -> !numpy.ndarray<[2,3,?]:f32>
+  %1 = numpy.static_info_cast %0 : !numpy.ndarray<[2,3,?]:f32> to !numpy.ndarray<*:!numpy.any_dtype>
+  return %1 : !numpy.ndarray<*:!numpy.any_dtype>
+}

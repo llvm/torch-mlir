@@ -53,6 +53,33 @@ def Numpy_StaticInfoCastOp : Numpy_Op<"static_info_cast", [
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand) `to` type($result)
   }];
+  let hasCanonicalizer = 1;
+}
+
+def Numpy_TensorStaticInfoCastOp : Numpy_Op<"tensor_static_info_cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    NoSideEffect]> {
+  let summary = "Adds/removes static information from a tensor type.";
+  let description = [{
+    This op does not imply any runtime code. Semantically it is an identity
+    function.
+
+    Unlike `tensor.cast`, this op allows changing dtype, following the
+    rules of numpy arrays where no runtime code is implied. In particular,
+    `!numpy.any_dtype` is compatible with all other element types, but otherwise
+    the element types must be the same. An element type of `!numpy.any_dtype`
+    represents the absence of static knowledge of the dtype. It does not
+    itself represent a concrete runtime element type.
+  }];
+  let arguments = (ins
+    Numpy_AnyTensor:$operand
+  );
+  let results = (outs
+    Numpy_AnyTensor:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `to` type($result)
+  }];
 }
 
 //----------------------------------------------------------------------------//

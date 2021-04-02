@@ -18,6 +18,7 @@ namespace NPCOMP {
 namespace Numpy {
 
 std::unique_ptr<OperationPass<ModuleOp>> createPublicFunctionsToTensorPass();
+std::unique_ptr<OperationPass<FuncOp>> createArrayToTensorPass();
 
 } // namespace Numpy
 

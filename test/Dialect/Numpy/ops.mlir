@@ -28,3 +28,14 @@ func @static_info_cast(%arg0: !numpy.ndarray<[2,3]:f32>, %arg1: !numpy.ndarray<[
   %2 = numpy.static_info_cast %arg2 : !numpy.ndarray<*:f32> to !numpy.ndarray<[?,?]:f32>
   return
 }
+
+// CHECK-LABEL: @tensor_static_info_cast
+func @tensor_static_info_cast(%arg0: tensor<2x3xf32>, %arg1: tensor<?x3xf32>, %arg2: tensor<*xf32>) {
+  // CHECK-NEXT: numpy.tensor_static_info_cast %arg0 : tensor<2x3xf32> to tensor<*x!numpy.any_dtype>
+  %0 = numpy.tensor_static_info_cast %arg0 : tensor<2x3xf32> to tensor<*x!numpy.any_dtype>
+  // CHECK-NEXT: numpy.tensor_static_info_cast %arg1 : tensor<?x3xf32> to tensor<7x3xf32>
+  %1 = numpy.tensor_static_info_cast %arg1 : tensor<?x3xf32> to tensor<7x3xf32>
+  // CHECK-NEXT: numpy.tensor_static_info_cast %arg2 : tensor<*xf32> to tensor<?x?xf32>
+  %2 = numpy.tensor_static_info_cast %arg2 : tensor<*xf32> to tensor<?x?xf32>
+  return
+}
