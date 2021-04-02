@@ -6,6 +6,7 @@ add_npcomp_conversion_library(NPCOMPATenPasses
   ATenToStd.cpp
   LivenessReport.cpp
   RecognizeKernelsPass.cpp
+  RecognizeTorchFallbackPass.cpp
   ReturnEliminationPass.cpp
 
   DEPENDS
