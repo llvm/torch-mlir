@@ -699,7 +699,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     RewritePatternSet patterns(context);
     LLVMConversionTarget target(*context);
     populateCompilerRuntimePatterns(module, patterns, converter);
-    target.addLegalOp<ModuleOp, ModuleTerminatorOp>();
+    target.addLegalOp<ModuleOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
     patterns.add<LowerModuleMetadata>(context);
 

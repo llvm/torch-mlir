@@ -90,7 +90,7 @@ class ImportFrontend:
                                      context=ic.context)
 
     ic.set_file_line_col(filename, ast_fd.lineno, ast_fd.col_offset)
-    ic.insert_before_terminator(ic.module.body)
+    ic.insert_end_of_block(ic.module.body)
     ir_f, entry_block = ic.FuncOp(ast_fd.name,
                                   ir_f_type,
                                   create_entry_block=True)

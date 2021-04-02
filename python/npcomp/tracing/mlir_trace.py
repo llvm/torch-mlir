@@ -170,7 +170,7 @@ class FunctionTracer(TraceContext):
         for ap in self._args_array_params
     ]
     f_types = [_ir.Type.parse(self._result_array_params.mlir_tensor_type_asm)]
-    ic.insert_before_terminator(ic.module.body)
+    ic.insert_end_of_block(ic.module.body)
     f_type = _ir.FunctionType.get(f_args, f_types)
     f, _ = ic.FuncOp(epf.__name__, f_type, create_entry_block=True)
     return f, f_types
