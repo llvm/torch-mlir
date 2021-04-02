@@ -625,7 +625,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
     liveFuncs.insert(kv.second);
   }
   for (auto &op : llvm::make_early_inc_range(module.getOps())) {
-    if (isa<GlobalSlotOp, ModuleTerminatorOp>(&op))
+    if (isa<GlobalSlotOp>(&op))
       continue;
     if (auto func = dyn_cast<FuncOp>(op)) {
       if (liveFuncs.contains(func))
