@@ -27,6 +27,7 @@ OBJECT_GRAPH_LOWERING_PASSES = (
     # bothersome because we don't currently have a lowering for them.
     # TODO: Support global slots in backends.
     "symbol-dce",
+    "torch-adjust-calling-conventions",
 )
 
 TORCH_TO_TCF_PASSES = (

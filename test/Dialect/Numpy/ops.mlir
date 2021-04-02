@@ -17,3 +17,14 @@ func @ndarray_tensor_bridging(%arg0: !numpy.ndarray<[2,3]:f32>, %arg1: !numpy.nd
   numpy.overwrite_array %arg2 overwrites %arg0 : tensor<2x3xf32>, !numpy.ndarray<[2,3]:f32>
   return
 }
+
+// CHECK-LABEL: @static_info_cast
+func @static_info_cast(%arg0: !numpy.ndarray<[2,3]:f32>, %arg1: !numpy.ndarray<[?,3]:f32>, %arg2: !numpy.ndarray<*:f32>) {
+  // CHECK-NEXT: numpy.static_info_cast %arg0 : !numpy.ndarray<[2,3]:f32> to !numpy.ndarray<*:!numpy.any_dtype>
+  %0 = numpy.static_info_cast %arg0 : !numpy.ndarray<[2,3]:f32> to !numpy.ndarray<*:!numpy.any_dtype>
+  // CHECK-NEXT: numpy.static_info_cast %arg1 : !numpy.ndarray<[?,3]:f32> to !numpy.ndarray<[7,3]:f32>
+  %1 = numpy.static_info_cast %arg1 : !numpy.ndarray<[?,3]:f32> to !numpy.ndarray<[7,3]:f32>
+  // CHECK-NEXT: numpy.static_info_cast %arg2 : !numpy.ndarray<*:f32> to !numpy.ndarray<[?,?]:f32>
+  %2 = numpy.static_info_cast %arg2 : !numpy.ndarray<*:f32> to !numpy.ndarray<[?,?]:f32>
+  return
+}

@@ -1,4 +1,5 @@
 add_npcomp_conversion_library(NPCOMPTorchPasses
+  AdjustCallingConventions.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   PrepareForGlobalizeObjectGraph.cpp
