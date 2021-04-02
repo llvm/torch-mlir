@@ -26,6 +26,8 @@ createPrepareForGlobalizeObjectGraphPass();
 /// See the documentation on torch-globalize-object-graph for more details.
 void createGlobalizePipeline(OpPassManager &pm);
 
+std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
+
 } // namespace Torch
 
 /// Registers all Torch transformation passes.

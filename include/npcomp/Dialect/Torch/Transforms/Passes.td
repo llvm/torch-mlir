@@ -101,4 +101,28 @@ def PrepareForGlobalizeObjectGraph
   }];
 }
 
+def AdjustCallingConventions
+  : Pass<"torch-adjust-calling-conventions", "ModuleOp"> {
+  let summary = "Adjust the calling conventions of functions";
+  let constructor = "mlir::NPCOMP::Torch::createAdjustCallingConventionsPass()";
+  let description = [{
+    Adjusts the calling conventions of functions in the module, with the aim of
+    preparing them for backends and further lowering passes. As this changes
+    the module calling convention, it should be considered a legalization
+    step towards reaching IR that is suitable for an appropriate backend.
+    All transformations are context-free and suitable for documenting
+    at the user level if needed to clarify the eventual calling convention
+    of compiled artifacts.
+    This is not an optimization.
+
+    The transformations performed are:
+    - `torch.type_bound` annotations are incorporated into the type of the
+      function arguments, which should be `!numpy.ndarray<...>`'s.
+    - Python-isms are rewritten to MLIR-isms
+      - NoneType return is rewritten to the absence of a return value.
+      - (Not implemented yet) Tuple return is rewritten to multiple return
+        values
+  }];
+}
+
 #endif // NPCOMP_TORCH_PASSES

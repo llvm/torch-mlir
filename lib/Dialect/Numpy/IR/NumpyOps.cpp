@@ -11,6 +11,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 
@@ -56,6 +57,24 @@ void BuiltinUfuncCallOp::addCPAConstraints(Typing::CPA::Context &context) {
   for (auto input : inputs()) {
     constrainUnaryDtypeInvariantOp(context, input, output(), *this);
   }
+}
+
+//----------------------------------------------------------------------------//
+// StaticInfoCast
+//----------------------------------------------------------------------------//
+
+bool StaticInfoCastOp::areCastCompatible(mlir::TypeRange inputs,
+                                         mlir::TypeRange outputs) {
+  auto input = inputs[0].cast<NdArrayType>();
+  auto output = outputs[0].cast<NdArrayType>();
+  if (input.getOptionalShape() && output.getOptionalShape()) {
+    if (failed(verifyCompatibleShape(*input.getOptionalShape(),
+                                     *output.getOptionalShape())))
+      return false;
+  }
+  return input.getDtype() == output.getDtype() ||
+         input.getDtype().isa<AnyDtypeType>() ||
+         output.getDtype().isa<AnyDtypeType>();
 }
 
 //----------------------------------------------------------------------------//

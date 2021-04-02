@@ -12,6 +12,7 @@
 include "npcomp/Dialect/Numpy/IR/NumpyDialect.td"
 include "npcomp/Typing/Analysis/CPA/Interfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 //----------------------------------------------------------------------------//
@@ -32,6 +33,25 @@ def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
   );
   let assemblyFormat = [{
     $operand attr-dict `:` functional-type($operand, $result)
+  }];
+}
+
+def Numpy_StaticInfoCastOp : Numpy_Op<"static_info_cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    NoSideEffect]> {
+  let summary = "Adds/removes static information from an array type.";
+  let description = [{
+    This op does not imply any runtime code. Semantically it is an identity
+    function.
+  }];
+  let arguments = (ins
+    Numpy_AnyArray:$operand
+  );
+  let results = (outs
+    Numpy_AnyArray:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `to` type($result)
   }];
 }
 
