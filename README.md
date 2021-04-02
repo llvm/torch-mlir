@@ -9,6 +9,12 @@ The NPComp project aims to provide tooling for compiling numerical python progra
 
 In addition to providing a bridge to a variety of Python based numerical programming frameworks, NPComp also directly develops components for tracing and compilation of generic Python program fragments.
 
+## Project Communication
+
+- `#mlir-npcomp` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
+- issues/PR's on this github repo
+- [`mlir-npcomp` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/mlir-npcomp/41) of LLVM Discourse
+
 ## Framework integrations
 
 * [PyTorch](frontends/pytorch/README.md) -- Experimental integration for
