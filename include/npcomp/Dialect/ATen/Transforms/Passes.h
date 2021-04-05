@@ -19,8 +19,6 @@ namespace aten {
 
 std::unique_ptr<OperationPass<FuncOp>> createRecognizeKernelsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createRecognizeTorchFallbackPass();
-
 std::unique_ptr<OperationPass<ModuleOp>> createATenOpReportPass();
 // Return the report in the given output string.
 std::unique_ptr<OperationPass<ModuleOp>>
