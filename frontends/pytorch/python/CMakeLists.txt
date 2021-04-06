@@ -5,4 +5,4 @@
 
 npcomp_python_create_symlinks(${CMAKE_BINARY_DIR}/python ${CMAKE_CURRENT_SOURCE_DIR})
 
-install(DIRECTORY python DESTINATION python COMPONENT python)
+install(DIRECTORY . DESTINATION python COMPONENT python)
