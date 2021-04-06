@@ -10,7 +10,6 @@
 #define REFBACK_OPS
 
 include "npcomp/Dialect/Refback/IR/RefbackBase.td"
-include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "mlir/Dialect/Shape/IR/ShapeBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
