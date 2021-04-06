@@ -11,6 +11,7 @@
 
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
@@ -42,6 +43,13 @@ public:
     // Change nothing if this KernelCallOp does not descend directly from a FuncOp.
     if (!isa<FuncOp>(kcOp->getParentOp())) {
       return failure();
+    }
+    // Check for defining ops that are not supported and signal match failure.
+    for (auto arg : kernelCall.args()) {
+      Operation *op = arg.getDefiningOp();
+      if (op && !isa<ConstantOp,BuildListOp>(op)) {
+        return failure();
+      }
     }
     // New Torch fallback region.
     auto torchfb = rewriter.create<refback::TorchFallbackOp>(
