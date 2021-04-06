@@ -28,6 +28,8 @@ void createGlobalizePipeline(OpPassManager &pm);
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createRefineTypesPass();
+
 } // namespace Torch
 
 /// Registers all Torch transformation passes.

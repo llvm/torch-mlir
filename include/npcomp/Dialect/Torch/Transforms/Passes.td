@@ -125,4 +125,13 @@ def AdjustCallingConventions
   }];
 }
 
+def RefineTypes : Pass<"torch-refine-types", "FuncOp"> {
+  let summary = "Refine types";
+  let constructor = "mlir::NPCOMP::Torch::createRefineTypesPass()";
+  let description = [{
+    Refines types of the program. Currently, this means shapes and dtypes of
+    tensors/arrays.
+  }];
+}
+
 #endif // NPCOMP_TORCH_PASSES
