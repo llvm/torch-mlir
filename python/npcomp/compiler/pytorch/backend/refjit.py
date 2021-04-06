@@ -20,6 +20,9 @@ __all__ = [
 # to a module semantics where symbols correspond to dotted paths into the
 # module.
 OBJECT_GRAPH_LOWERING_PASSES = (
+    # Globalize the program. The rest of the compiler assumes a globalized
+    # program, which makes all analyses and transforms significantly easier
+    # to write.
     "torch-globalize-pipeline",
     # symbol-dce is currently needed for correctness, as we don't have a lowering
     # in the backend for torch.global_slot's.
@@ -27,14 +30,42 @@ OBJECT_GRAPH_LOWERING_PASSES = (
     # bothersome because we don't currently have a lowering for them.
     # TODO: Support global slots in backends.
     "symbol-dce",
+    # Incorporate user annotations and remove signature Python-isms.
     "torch-adjust-calling-conventions",
 )
 
+# TODO: Replace this with lowering to "TCP + guards" -- that's the real
+# backend interface. Put differently, add "TCF to TCP" to the end of this
+# pipeline.
 TORCH_TO_TCF_PASSES = (
+    # Recognize ATen kernels.
     "func(aten-recognize-kernels)",
-    "func(convert-aten-to-tcf)",
+
+    # Convert the bulk of the program to ranked tensors with known dtype.
+    # This is the input to the backend layer that we are aiming for.
+
+    # First, unilaterally convert public functions to tensor.
+    # The way this pass is currently written, this implies that
+    # as pipeline authors, we are restricting our users to not be able to see
+    # updates to "out params" on their public functions.
+    # This is deemed ok for now.
     "numpy-public-functions-to-tensor",
-    "canonicalize",
+    # Convert the bulk of non-ABI-visible arrays to tensors.
+    "func(numpy-array-to-tensor)",
+    # Do shape and dtype refinement.
+    # We could do it sooner, but the pass currently doesn't have transfer
+    # functions for array ops.
+    "func(torch-refine-types)",
+    # Propagate to ABI return types the shape/dtype information discovered by
+    # the previous pass. Doing this is ABI-compatible for our backends.
+    "numpy-refine-public-return",
+    # Clean up a few stray array/tensor conversion remnants.
+    "func(numpy-array-to-tensor)",
+
+    # Lower to TCF which is the input to RefBackend.
+    # Most of this pass should be subsumed by aten->linalg+guards conversions.
+    # (the guard generation will be automated from the linalg Op DSL)
+    "func(convert-aten-to-tcf)",
 )
 
 # Re-export.
