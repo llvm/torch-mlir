@@ -3,6 +3,7 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   Passes.cpp
   GlobalizeObjectGraph.cpp
   PrepareForGlobalizeObjectGraph.cpp
+  RefineTypes.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/Torch/Transforms
