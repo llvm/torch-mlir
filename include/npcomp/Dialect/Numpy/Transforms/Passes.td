@@ -38,4 +38,26 @@ def NumpyArrayToTensor : Pass<"numpy-array-to-tensor", "FuncOp"> {
 }
 
 
+def NumpyRefinePublicReturn : Pass<"numpy-refine-public-return", "ModuleOp"> {
+  let summary = "Refine public return";
+  let constructor = "mlir::NPCOMP::Numpy::createRefinePublicReturnPass()";
+  let description = [{
+    Refines types of values return from public functions based on
+    intraprocedural information.
+
+    This pass effectively encodes an assumption by the pass pipeline author that
+    the public calling convention of the module can have its types refined,
+    without causing ABI mismatches. This is frequently true -- for example, in
+    many systems, `tensor<?x?xf32>`, `tensor<3x3xf32>` and
+    `tensor<*x!numpy.any_dtype>` are all the same data structure on calling
+    convention boundaries.
+
+    This pass is expected to run after shape refinement has occurred to
+    otherwise resolve shapes, and is currently mainly useful to convert
+    rank/dtype-erased function boundaries to ranked, dtyped code for
+    compiler backends.
+  }];
+}
+
+
 #endif // NPCOMP_NUMPY_PASSES
