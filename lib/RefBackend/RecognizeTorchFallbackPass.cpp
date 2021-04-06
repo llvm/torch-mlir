@@ -40,8 +40,8 @@ public:
   LogicalResult matchAndRewrite(Torch::KernelCallOp kernelCall,
                                 PatternRewriter &rewriter) const override {
     Operation *kcOp = kernelCall.getOperation();
-    // Change nothing if this KernelCallOp does not descend directly from a FuncOp.
-    if (!isa<FuncOp>(kcOp->getParentOp())) {
+    // Do not match kernel-calls that already sit in a Torch fallback region.
+    if (isa<TorchFallbackOp>(kcOp->getParentOp())) {
       return failure();
     }
     // Check for defining ops that are not supported and signal match failure.
