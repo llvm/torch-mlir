@@ -7,9 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/STLExtras.h"
