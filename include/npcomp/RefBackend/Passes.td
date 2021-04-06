@@ -66,4 +66,9 @@ def RestrictedCanonicalizer : Pass<"restricted-canonicalize"> {
   ];
 }
 
+def RecognizeTorchFallback : Pass<"refback-recognize-torch-fallback", "FuncOp"> {
+  let summary = "Encapsulates torch.kernel_call ops.";
+  let constructor = "mlir::NPCOMP::createRecognizeTorchFallbackPass()";
+}
+
 #endif // NPCOMP_REFBACKEND_PASSES

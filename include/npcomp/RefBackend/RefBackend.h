@@ -33,6 +33,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createLowerToLLVMPass();
 
 std::unique_ptr<Pass> createRestrictedCanonicalizerPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createRecognizeTorchFallbackPass();
+
 struct RefBackendLoweringPipelineOptions
     : public PassPipelineOptions<RefBackendLoweringPipelineOptions> {
   // If this option is true, then perform optimizations.

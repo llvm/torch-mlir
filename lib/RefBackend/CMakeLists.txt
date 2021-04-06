@@ -5,6 +5,7 @@ add_npcomp_library(NPCOMPRefBackend
   RefBackend.cpp
   LowerToLLVM.cpp
   LowerToRefbackrtABI.cpp
+  RecognizeTorchFallbackPass.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SRC_DIR}/include/npcomp/RefBackend
