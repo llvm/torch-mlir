@@ -6,6 +6,9 @@ add_npcomp_library(NPCOMPRefBackendTorch
 
   DEPENDS
   NPCOMPRefBackendPassIncGen
+
+  LINK_LIBS PUBLIC
+  NPCOMPTorchDialect
   )
 
 mlir_check_all_link_libraries(NPCOMPRefBackendTorch)
