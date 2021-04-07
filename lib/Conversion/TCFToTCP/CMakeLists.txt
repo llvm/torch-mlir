@@ -16,4 +16,5 @@ add_npcomp_conversion_library(NPCOMPTCFToTCP
   MLIRTransforms
   MLIRShape
   NPCOMPTCFDialect
+  NPCOMPTCPDialect
 )
