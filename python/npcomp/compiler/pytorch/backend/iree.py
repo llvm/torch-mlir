@@ -8,19 +8,43 @@ import torch
 
 from mlir.ir import *
 from mlir.passmanager import *
-from npcomp.compiler.generic.backend import refjit as refjit_backend
 from npcomp.compiler.utils import logging
+import iree.runtime as ireert
+import iree.compiler as ireec
 
 __all__ = [
-    "is_enabled",
     "CompilerBackend",
 ]
 
-# Re-export.
-is_enabled = refjit_backend.is_enabled
+PREPARE_FOR_IREE_PASSES = (
+  "npcomp-iree-backend-lower-linkage",
+)
+
+class IreeModuleInvoker:
+  """Wrapper around a native IREE module for calling functions."""
+
+  def __init__(self, iree_module):
+    super().__init__()
+    self._iree_module = iree_module
+
+  def __getattr__(self, function_name):
+    return self.__getitem__(function_name)
+
+  def __getitem__(self, function_name):
+
+    def invoke(*args):
+      results = self._iree_module[function_name](*args)
+      if len(results) == 1:
+        # De-tuple.
+        return results[0]
+      else:
+        return tuple(results)
+
+    invoke.__isnpcomp__ = True
+    return invoke
 
 
-class TorchJitModuleInvoker(refjit_backend.JitModuleInvoker):
+class TorchIreeModuleInvoker(IreeModuleInvoker):
   """Allows torch.Tensor inputs to be passed to module invocations."""
 
   def __getitem__(self, function_name: str):
@@ -39,7 +63,6 @@ class CompilerBackend:
 
   def __init__(self):
     super().__init__()
-    self._refjit = refjit_backend.get_refjit()
     self._debug = logging.debug_enabled()
 
   def compile(self, imported_module: Module):
@@ -59,22 +82,27 @@ class CompilerBackend:
     """
     with imported_module.context as context:
       if self._debug:
-        logging.debug("IR passed to RefJIT compiler backend:\n{}",
+        logging.debug("IR passed to IREE compiler backend:\n{}",
                       imported_module)
-      # Backend.
-      # Note that this is a separate pass manager purely to aid in debugging.
-      pm = PassManager()
-      self._refjit.build_backend_compilation_pipeline(pm)
+      pipeline_str = ",".join(PREPARE_FOR_IREE_PASSES)
+      if self._debug:
+        logging.debug("Running Prepare For IREE pipeline '{}'", pipeline_str)
+      pm = PassManager.parse(pipeline_str)
       pm.run(imported_module)
       if self._debug:
         logging.debug(
-          "RefBackend input IR (this is what the RefBackend compiler sees):\n{}",
+          "IREE Input IR (this is what IREE's compiler will see):\n{}",
           imported_module)
 
-    jit_module = self._refjit.JITModule.from_compiled_module(
-        imported_module, refjit_backend.get_runtime_libs())
-    return jit_module
+      # Backend.
+      binary = ireec.compile_str(str(imported_module),
+                                 target_backends=["dylib-llvm-aot"])
+      iree_config = ireert.Config(driver_name="dylib")
 
-  def load(self, jit_module) -> TorchJitModuleInvoker:
+      iree_module = ireert.load_module(ireert.VmModule.from_flatbuffer(binary),
+                                       config=iree_config)
+    return iree_module
+
+  def load(self, iree_module) -> TorchIreeModuleInvoker:
     """Loads a compiled artifact into the runtime."""
-    return TorchJitModuleInvoker(jit_module)
+    return TorchIreeModuleInvoker(iree_module)

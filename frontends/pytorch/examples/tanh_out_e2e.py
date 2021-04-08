@@ -6,7 +6,7 @@ import torch
 import torch_mlir
 
 import npcomp
-from npcomp.compiler.pytorch.backend import refjit
+from npcomp.compiler.pytorch.backend import refjit, frontend_lowering
 from npcomp.compiler.utils import logging
 
 import test_utils
@@ -27,7 +27,7 @@ with mb.capture_function("test", [arg0]) as f:
   f.returns([fun(arg0)])
 
 backend = refjit.CompilerBackend()
-jit_module = backend.load(backend.compile(mb.module))
+jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 test_utils.compare_outputs(torch.mm, jit_module.test, arg0, arg1)
 test_utils.compare_outputs(torch.mm, jit_module.test, arg0 + 1, arg1 + 1)
