@@ -6,7 +6,7 @@ import torch
 import torch_mlir
 
 import npcomp
-from npcomp.compiler.pytorch.backend import refjit
+from npcomp.compiler.pytorch.backend import refjit, frontend_lowering
 from npcomp.compiler.utils import logging
 
 import test_utils
@@ -29,7 +29,7 @@ with mb.capture_function("mul_maximum", [lhs, rhs, threshold, bias]) as f:
   f.returns([result])
 
 backend = refjit.CompilerBackend()
-jit_module = backend.load(backend.compile(mb.module))
+jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum, lhs, rhs,
                            threshold, bias)

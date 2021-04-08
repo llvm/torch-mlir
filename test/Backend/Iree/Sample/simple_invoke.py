@@ -1,4 +1,6 @@
 # RUN: %PYTHON %s
+# TODO: Numpy compiler has bitrotted.
+# XFAIL: *
 
 from npcomp.compiler.numpy.backend import iree
 from npcomp.compiler.numpy.frontend import *

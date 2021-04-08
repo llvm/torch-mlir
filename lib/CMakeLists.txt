@@ -8,6 +8,11 @@ if(NPCOMP_ENABLE_REFJIT)
   add_subdirectory(Backend/RefJIT)
 endif()
 
+# Currently this doesn't introduce any actual dependency on IREE, so add it
+# unconditionally.
+# TODO: Put this behind the NPCOMP_ENABLE_IREE flag.
+add_subdirectory(Backend/IREE)
+
 ################################################################################
 # Setup the initialization target.
 # This includes conditional dependencies based on whether features are enabled.
@@ -29,6 +34,7 @@ add_npcomp_library(NPCOMPInitAll
 
   PUBLIC
   # Local depends
+  NPCOMPIREEBackend
   NPCOMPRefBackend
   NPCOMPRefbackDialect
   NPCOMPTCPDialect

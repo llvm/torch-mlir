@@ -10,6 +10,7 @@
 
 #include "mlir/CAPI/IR.h"
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/InitAll.h"
 
@@ -28,4 +29,5 @@ void npcompRegisterAllPasses() {
   ::mlir::registerSymbolDCEPass();
   ::mlir::registerCanonicalizerPass();
   ::mlir::registerSCFToStandardPass();
+  ::mlir::registerConvertElementwiseToLinalgPass();
 }

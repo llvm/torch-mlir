@@ -8,12 +8,12 @@ import torch
 import torch_mlir
 
 import npcomp
-from npcomp.compiler.pytorch.backend import refjit, frontend_lowering
+from npcomp.compiler.pytorch.backend import iree, frontend_lowering
 from npcomp.compiler.utils import logging
 
 import test_utils
 
-#logging.enable()
+logging.enable()
 
 # RUN: %PYTHON %s | npcomp-opt | FileCheck %s
 
@@ -40,7 +40,7 @@ class_annotator.annotateShapesAndDtypes(recursivescriptmodule._c._type(), ['forw
 mb.import_module(recursivescriptmodule._c, class_annotator)
 #mb.module.operation.print()
 
-backend = refjit.CompilerBackend()
+backend = iree.CompilerBackend()
 compiled = backend.compile(frontend_lowering.lower_object_graph(mb.module))
 jit_module = backend.load(compiled)
 
