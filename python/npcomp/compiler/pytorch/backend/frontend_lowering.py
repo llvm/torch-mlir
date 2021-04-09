@@ -61,6 +61,7 @@ TORCH_TO_TCP_PASSES = (
     # Lower to TCP (+ guards) which is the input to codegen backends.
     # Most of this should be subsumed by aten->linalg+guards conversions.
     # (the guard generation will be automated from the linalg Op DSL)
+    "func(convert-aten-to-linalg)",
     "func(convert-aten-to-tcf)",
     "func(convert-tcf-to-std)",
     "func(convert-elementwise-to-linalg)",

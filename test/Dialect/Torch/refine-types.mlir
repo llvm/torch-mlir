@@ -24,6 +24,19 @@ func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
 
 // -----
 
+// CHECK-LABEL:   func @f(
+// CHECK-SAME:            %[[LHS:.*]]: tensor<2x?xf32>,
+// CHECK-SAME:            %[[RHS:.*]]: tensor<?x?xf32>) -> tensor<*x!numpy.any_dtype> {
+// CHECK:           %[[MM:.*]] = "aten.mm"(%[[LHS]], %[[RHS]]) : (tensor<2x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = numpy.tensor_static_info_cast %[[MM]] : tensor<?x?xf32> to tensor<*x!numpy.any_dtype>
+// CHECK:           return %[[SHAPE_ERASED]] : tensor<*x!numpy.any_dtype>
+func @f(%arg0: tensor<2x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<*x!numpy.any_dtype> {
+  %1 = "aten.mm"(%arg0, %arg1) : (tensor<2x?xf32>, tensor<?x?xf32>) -> tensor<*x!numpy.any_dtype>
+  return %1 : tensor<*x!numpy.any_dtype>
+}
+
+// -----
+
 // CHECK-LABEL:   func @f
 func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
   // Check propagation through multiple ops.

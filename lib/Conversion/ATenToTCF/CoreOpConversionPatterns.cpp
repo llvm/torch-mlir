@@ -173,6 +173,5 @@ void mlir::NPCOMP::populateCoreATenToTCFPatterns(RewritePatternSet &patterns) {
   patterns.add<ConvertUnary<aten::TanhOp, tcf::TanhOp>>(context);
   patterns.add<ConvertBinaryElementwise<aten::MulOp, tcf::MulOp>>(context);
   patterns.add<ConvertBinaryElementwise<aten::MaximumOp, tcf::MaxOp>>(context);
-  patterns.add<ConvertBinaryElementwise<aten::MmOp, tcf::MatmulOp>>(context);
   patterns.add<ConvertATenConv2d>(context);
 }
