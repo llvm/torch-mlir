@@ -75,13 +75,24 @@ bool operator==(const ValueKnowledge &lhs, const ValueKnowledge &rhs) {
          std::make_tuple(rhs.hasRank, rhs.sizes, rhs.elementType);
 }
 
-// static llvm::raw_ostream &operator<<(llvm::raw_ostream &os, ValueKnowledge &knowledge) {
+// static llvm::raw_ostream &operator<<(llvm::raw_ostream &os, ValueKnowledge
+// &knowledge) {
 //   os << "hasRank = " << knowledge.hasRank << ", sizes = [";
 //   llvm::interleaveComma(knowledge.sizes, os);
 //   os << "]"
 //      << ", elementType = " << knowledge.elementType;
 //   return os;
 // }
+
+Type joinElementTypes(Type lhs, Type rhs) {
+  if (lhs.isa<Numpy::AnyDtypeType>())
+    return rhs;
+  if (rhs.isa<Numpy::AnyDtypeType>())
+    return lhs;
+  if (lhs == rhs)
+    return lhs;
+  return Numpy::AnyDtypeType::get(lhs.getContext());
+}
 
 // Given two pieces of static knowledge, calculate conservatively the
 // information we can be sure about.
@@ -116,13 +127,7 @@ ValueKnowledge join(const ValueKnowledge &lhs, const ValueKnowledge &rhs) {
     }
   }
 
-  if (!lhs.elementType || lhs.elementType.isa<Numpy::AnyDtypeType>()) {
-    result.elementType = rhs.elementType;
-  } else if (!rhs.elementType || rhs.elementType.isa<Numpy::AnyDtypeType>()) {
-    result.elementType = lhs.elementType;
-  } else if (lhs.elementType == rhs.elementType) {
-    result.elementType = lhs.elementType;
-  }
+  result.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
   return result;
 }
 
@@ -157,6 +162,52 @@ private:
   DenseMap<Value, ValueKnowledge> facts;
 };
 
+// Return the knowledge for the results of an op, based on the knowledge of the
+// operands and any information intrinsic to `op`.
+static SmallVector<ValueKnowledge>
+forwardKnowledgeTransferFunction(Operation *op,
+                                 ArrayRef<ValueKnowledge> operandKnowledge) {
+  if (isa<Numpy::TensorStaticInfoCastOp, aten::TanhOp>(op)) {
+    return {operandKnowledge[0]};
+  } else if (isa<aten::MmOp>(op)) {
+    auto &lhs = operandKnowledge[0];
+    auto &rhs = operandKnowledge[1];
+    auto knowledge =
+        ValueKnowledge::getMostConservativeKnowledge(op->getContext());
+    knowledge.hasRank = true;
+    // WARNING: We could be more precise here by calculating the output
+    // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
+    // at this stage in the compiler because we don't really have many static
+    // guarantees about the input ranks because `aten` ops do dynamic error
+    // checking and safely abort the program. There is nothing preventing us
+    // from (correctly!) statically inferring the shapes of the operands to
+    // shapes that are guaranteed to cause an error at runtime.
+    //
+    // Example: Suppose a user program calls `aten.mm` with two rank-0 operands.
+    // The program emits an error when invoked, but when running this pass,
+    // we will (correctly!) infer `lhs.hasRank && lhs.sizes.size() == 0 &&
+    // rhs.hasRank && rhs.sizes.size() == 0` -- it's not safe to access
+    // `lhs.sizes[0]` / `rhs.sizes[1]`! So when writing this transfer
+    // function, it's not as simple as taking `lhs.sizes[0]` and `rhs.sizes[1]`,
+    // as both of those might read out of bounds of the array. It would require
+    // more complicated logic.
+    //
+    // Just knowing dtypes and ranks is sufficient at this stage
+    // in the compiler. The precise per-dimension size propagation is best done
+    // lower in the stack, such as at the linalg level, where we have more
+    // static guarantees and more structure.
+    knowledge.sizes.resize(2, kUnknownSize);
+    // TODO: Investigate promotion rules if element types mismatch.
+    // This is conservatively correct, assuming that if both element types are
+    // the same, then the result is of that same element type.
+    knowledge.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
+    return {knowledge};
+  }
+  return SmallVector<ValueKnowledge>(
+      op->getNumResults(),
+      ValueKnowledge::getMostConservativeKnowledge(op->getContext()));
+}
+
 void TypeAnalyzer::propagate(Region &region) {
   bool changed;
   do {
@@ -168,10 +219,13 @@ void TypeAnalyzer::propagate(Region &region) {
       for (Operation &op : block.getOperations()) {
         for (Value v : op.getResults())
           changed |= incorporateKnowledge(v, getKnowledgeFromType(v.getType()));
-        if (isa<Numpy::TensorStaticInfoCastOp, aten::TanhOp>(op)) {
-          changed |= incorporateKnowledge(op.getResult(0),
-                                          getKnowledge(op.getOperand(0)));
-        }
+        auto operandKnowledge = llvm::to_vector<6>(llvm::map_range(
+            op.getOperands(), [&](Value v) { return getKnowledge(v); }));
+        SmallVector<ValueKnowledge> resultKnowledge =
+            forwardKnowledgeTransferFunction(&op, operandKnowledge);
+        assert(resultKnowledge.size() == op.getNumResults());
+        for (auto t : llvm::zip(op.getResults(), resultKnowledge))
+          changed |= incorporateKnowledge(std::get<0>(t), std::get<1>(t));
       }
     };
   } while (changed);

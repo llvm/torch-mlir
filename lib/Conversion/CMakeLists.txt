@@ -1,3 +1,4 @@
+add_subdirectory(ATenToLinalg)
 add_subdirectory(ATenToTCF)
 add_subdirectory(BasicpyToStd)
 add_subdirectory(NumpyToTCF)

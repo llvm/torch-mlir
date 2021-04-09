@@ -8,6 +8,7 @@
 
 #include "npcomp/Conversion/Passes.h"
 
+#include "npcomp/Conversion/ATenToLinalg/ATenToLinalg.h"
 #include "npcomp/Conversion/ATenToTCF/Passes.h"
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
 #include "npcomp/Conversion/NumpyToTCF/Passes.h"
