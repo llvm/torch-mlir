@@ -9,6 +9,7 @@
 #include "npcomp/InitAll.h"
 
 #include "mlir/IR/Dialect.h"
+#include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Backend/IREE/Passes.h"
 #include "npcomp/Conversion/Passes.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
@@ -52,4 +53,5 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerTorchPasses();
   mlir::NPCOMP::registerTypingPasses();
   mlir::NPCOMP::IREEBackend::registerIREEBackendPasses();
+  mlir::NPCOMP::CommonBackend::registerCommonBackendPasses();
 }

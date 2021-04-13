@@ -27,6 +27,7 @@ void npcompRegisterAllPasses() {
 
   // Upstream passes we depend on.
   ::mlir::registerSymbolDCEPass();
+  ::mlir::registerInlinerPass();
   ::mlir::registerCanonicalizerPass();
   ::mlir::registerSCFToStandardPass();
   ::mlir::registerConvertElementwiseToLinalgPass();
