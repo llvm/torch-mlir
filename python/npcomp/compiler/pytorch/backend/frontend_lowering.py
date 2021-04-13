@@ -19,14 +19,22 @@ __all__ = [
 # to a module semantics where symbols correspond to dotted paths into the
 # module.
 OBJECT_GRAPH_LOWERING_PASSES = (
+    # When we import TorchScript IR, we import their entire "compilation unit",
+    # which can contain numerous functions unrelated to the current program,
+    # which breaks torch-globalization-pipeline; for example, there can be
+    # random functions referencing types that haven't been imported
+    # as part of the root `torch.nn.Module` we imported. Those will
+    # be unreferenced private functions which symbol-dce will clean up nicely.
+    "symbol-dce",
     # Globalize the program. The rest of the compiler assumes a globalized
     # program, which makes all analyses and transforms significantly easier
     # to write.
     "torch-globalize-pipeline",
-    # symbol-dce is currently needed for correctness, as we don't have a lowering
-    # in the backend for torch.global_slot's.
-    # Torch usually inserts a few unused global slots that are otherwise
-    # bothersome because we don't currently have a lowering for them.
+    # "lower" `torch.global_slot` ops by deleting them if unused, which we
+    # currently require because we don't have a lowering path for backends to
+    # handle them.
+    # Torch usually inserts a few unused global slots so this ends up hitting
+    # every single module even if it doesn't have any explicit slots.
     # TODO: Support global slots in backends.
     "symbol-dce",
     # Currently, our shape inference is not powerful enough to deal with
