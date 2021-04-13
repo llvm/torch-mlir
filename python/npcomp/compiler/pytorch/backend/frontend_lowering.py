@@ -29,6 +29,10 @@ OBJECT_GRAPH_LOWERING_PASSES = (
     # bothersome because we don't currently have a lowering for them.
     # TODO: Support global slots in backends.
     "symbol-dce",
+    # Currently, our shape inference is not powerful enough to deal with
+    # calls, so inline everything.
+    # TODO: Improve shape inference.
+    "inline",
     # Incorporate user annotations and remove signature Python-isms.
     "torch-adjust-calling-conventions",
 )
@@ -65,6 +69,7 @@ TORCH_TO_TCP_PASSES = (
     "func(convert-aten-to-tcf)",
     "func(convert-tcf-to-std)",
     "func(convert-elementwise-to-linalg)",
+    "npcomp-verify-backend-contract",
 )
 
 def lower_module(imported_module: Module):

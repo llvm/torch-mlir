@@ -19,11 +19,18 @@ logging.enable()
 
 mb = torch_mlir.ModuleBuilder()
 
-class TestModule(torch.nn.Module):
+class Submodule(torch.nn.Module):
     def __init__(self):
         super().__init__()
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
+
+class TestModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.s = Submodule()
+    def forward(self, lhs, rhs):
+        return self.s.forward(lhs, rhs)
 
 test_module = TestModule()
 class_annotator = torch_mlir.ClassAnnotator()
