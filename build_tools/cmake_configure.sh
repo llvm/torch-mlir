@@ -102,6 +102,7 @@ cmake -GNinja \
   "-H$td" \
   "-B$build_dir" \
   "-DCMAKE_BUILD_TYPE=Debug" \
+  "-DBUILD_SHARED_LIBS=ON" \
   "-DNPCOMP_USE_SPLIT_DWARF=ON" \
   "-DCMAKE_CXX_FLAGS_DEBUG=$DEBUG_FLAGS" \
   "-DPYTHON_EXECUTABLE=$python_exe" \
