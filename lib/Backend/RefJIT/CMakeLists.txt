@@ -12,6 +12,7 @@ add_library(NPCOMPBackendRefJITPythonModule
 )
 
 target_link_libraries(NPCOMPBackendRefJITPythonModule
+  "${Python3_LIBRARIES}"
   pybind11::module
   MLIRExecutionEngine
   MLIRTargetLLVMIRExport

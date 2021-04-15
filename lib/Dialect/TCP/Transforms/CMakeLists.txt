@@ -14,5 +14,8 @@ add_npcomp_conversion_library(NPCOMPTCPPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRTransforms
+  MLIRTransformUtils
+  NPCOMPRefbackDialect
   NPCOMPTCPDialect
 )

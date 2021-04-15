@@ -15,7 +15,10 @@ add_npcomp_library(NPCOMPConversionPasses
   Core
 
   LINK_LIBS PUBLIC
+  NPCOMPATenToTCF
   NPCOMPBasicpyToSTD
   NPCOMPNumpyToTCF
+  NPCOMPTCFToLinalg
+  NPCOMPTCFToStd
   NPCOMPTCFToTCP
 )

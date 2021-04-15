@@ -15,4 +15,9 @@ add_npcomp_conversion_library(NPCOMPATenPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRTransformUtils
+  MLIRLLVMIR
+  MLIRStandardToLLVM
+  NPCOMPATenDialect
+  NPCOMPTorchDialect
 )

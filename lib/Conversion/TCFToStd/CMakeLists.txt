@@ -17,5 +17,7 @@ add_npcomp_conversion_library(NPCOMPTCFToStd
   MLIRShape
   MLIRStandard
   MLIRLinalg
+  MLIRMath
   NPCOMPTCFDialect
+  NPCOMPTCPDialect
 )

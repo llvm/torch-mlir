@@ -17,6 +17,9 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRTransformUtils
+  MLIRTransforms
   NPCOMPTorchDialect
   NPCOMPBasicpyDialect
+  NPCOMPATenDialect
 )

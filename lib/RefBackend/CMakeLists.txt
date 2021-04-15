@@ -24,6 +24,15 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRStandard
   MLIRStandardOpsTransforms
   MLIRStandardToLLVM
+  MLIRAffineToStandard
+  MLIRLinalgTransforms
+  MLIRMathTransforms
+  MLIRTensorTransforms
+  NPCOMPRefbackrtDialect
+  NPCOMPTCFToLinalg
+  NPCOMPTCFToStd
+  NPCOMPTCFToTCP
+  NPCOMPTCPPasses
   )
 
 mlir_check_all_link_libraries(NPCOMPRefBackend)

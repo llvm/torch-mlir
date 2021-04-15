@@ -16,5 +16,6 @@ add_npcomp_conversion_library(NPCOMPNumpyPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRTransformUtils
   NPCOMPNumpyDialect
 )

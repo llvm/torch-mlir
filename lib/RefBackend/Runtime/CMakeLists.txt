@@ -10,6 +10,9 @@ set(LLVM_OPTIONAL_SOURCES
 # refbackrt module and the relevant data structures.
 add_npcomp_library(NPCOMPRuntime
   Runtime.cpp
+
+  LINK_LIBS PUBLIC
+  LLVMSupport
 )
 
 mlir_check_all_link_libraries(NPCOMPRuntime)

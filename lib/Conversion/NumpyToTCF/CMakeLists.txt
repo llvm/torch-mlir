@@ -13,4 +13,5 @@ add_npcomp_conversion_library(NPCOMPNumpyToTCF
   MLIRTransforms
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
+  NPCOMPTCFDialect
 )

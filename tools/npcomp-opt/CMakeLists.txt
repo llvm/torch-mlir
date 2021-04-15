@@ -5,7 +5,7 @@ add_npcomp_executable(npcomp-opt npcomp-opt.cpp)
 target_link_libraries(npcomp-opt PRIVATE
   # Shared library deps first ensure we get most of what we need from libraries.
   NPCOMP
-  MLIR
+  MLIROptLib
 )
 
 mlir_check_all_link_libraries(npcomp-opt)

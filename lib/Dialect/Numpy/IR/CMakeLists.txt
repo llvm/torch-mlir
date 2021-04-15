@@ -10,5 +10,7 @@ add_npcomp_dialect_library(NPCOMPNumpyDialect
 
   LINK_LIBS PUBLIC
   NPCOMPBasicpyDialect
+  NPCOMPTypingCPA
+  NPCOMPTypingCPASupport
   MLIRIR
 )

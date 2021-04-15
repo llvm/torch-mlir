@@ -13,6 +13,7 @@ add_npcomp_library(NPCOMPIREEBackend
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRPass
   )
 
 mlir_check_all_link_libraries(NPCOMPIREEBackend)
