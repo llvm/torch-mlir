@@ -16,6 +16,7 @@ add_npcomp_library(NPCOMPConversionPasses
   Core
 
   LINK_LIBS PUBLIC
+  NPCOMPATenToLinalg
   NPCOMPATenToTCF
   NPCOMPBasicpyToSTD
   NPCOMPNumpyToTCF
