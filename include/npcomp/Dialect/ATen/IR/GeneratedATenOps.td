@@ -642,4 +642,3 @@ def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<Torch
   let results = (outs
   );
 }
-
