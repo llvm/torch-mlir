@@ -89,6 +89,13 @@ source $WHERE_YOU_CHECKED_OUT_NPCOMP/tools/bash_helpers.sh
 
 ## Build Instructions
 
+Notes:
+
+* Currently, the recommended approach is to build with `BUILD_SHARED_LIBS=ON`.
+  This is configured in both `cmake_configure.sh` and the GitHub workflow. This
+  is part of a larger work in progress related to library layering with MLIR.
+  For more information, see https://github.com/llvm/mlir-npcomp/issues/189.
+
 ### Common prep
 
 ```shell
