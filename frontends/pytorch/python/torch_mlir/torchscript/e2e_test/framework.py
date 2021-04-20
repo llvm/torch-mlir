@@ -230,31 +230,3 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
                        trace=trace,
                        golden_trace=golden_trace))
     return results
-
-
-def report_results(results: List[TestResult]):
-    """Provide a basic error report summarizing various TestResult's."""
-    for result in results:
-        failed = False
-        for item_num, (item, golden_item) in enumerate(
-                zip(result.trace, result.golden_trace)):
-            assert item.symbol == golden_item.symbol
-            assert len(item.inputs) == len(golden_item.inputs)
-            assert len(item.outputs) == len(golden_item.outputs)
-            for input, golden_input in zip(item.inputs, golden_item.inputs):
-                assert torch.allclose(input, golden_input)
-            for output_num, (output, golden_output) in enumerate(
-                    zip(item.outputs, golden_item.outputs)):
-                # TODO: Refine error message. Things to consider:
-                # - Very large tensors -- don't spew, but give useful info
-                # - Smaller tensors / primitives -- want to show exact values
-                # - Machine parseable format?
-                if not torch.allclose(output, golden_output):
-                    print(
-                        f'Error: in call #{item_num} into the module: result #{output_num} not close in call to "{item.symbol}"'
-                    )
-                    failed = True
-        if failed:
-            print('FAILURE "{}"'.format(result.unique_name))
-        else:
-            print('SUCCESS "{}"'.format(result.unique_name))

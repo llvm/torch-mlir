@@ -4,7 +4,8 @@
 
 import argparse
 
-from torch_mlir.torchscript.e2e_test.framework import run_tests, report_results
+from torch_mlir.torchscript.e2e_test.framework import run_tests
+from torch_mlir.torchscript.e2e_test.reporting import report_results
 from torch_mlir.torchscript.e2e_test.registry import GLOBAL_TEST_REGISTRY
 
 # Available test configs.
@@ -20,6 +21,7 @@ from torch_mlir.torchscript.e2e_test.configs import (
 # be run from a specific directory.
 # TODO: Find out best practices for python "main" files.
 import basic
+import vision_models
 
 def main():
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
@@ -29,7 +31,7 @@ def main():
         help='''
 Meaning of options:
 "refbackend": run through npcomp's RefBackend.
-"native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic).
+"native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 ''')
     args = parser.parse_args()
