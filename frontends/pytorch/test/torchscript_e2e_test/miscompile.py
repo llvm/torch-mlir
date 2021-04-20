@@ -6,7 +6,8 @@
 
 import torch
 
-from torch_mlir.torchscript.e2e_test.framework import run_tests, report_results, TestUtils
+from torch_mlir.torchscript.e2e_test.framework import run_tests, TestUtils
+from torch_mlir.torchscript.e2e_test.reporting import report_results
 from torch_mlir.torchscript.e2e_test.registry import register_test_case, GLOBAL_TEST_REGISTRY
 from torch_mlir.torchscript.e2e_test.configs import TorchScriptTestConfig
 
@@ -25,8 +26,11 @@ class MmModule(torch.nn.Module):
 
 
 # TODO: Refine error messages.
-# CHECK: Error: in call #0 into the module: result #0 not close in call to "forward"
 # CHECK: FAILURE "MmModule_basic"
+# CHECK: Error: in call #0 into the module: result #0 not close in call to "forward"
+# CHECK: tensor stats       :  min={{.*}}, max={{.*}}, mean={{.*}}
+# CHECK: golden tensor stats:  min={{.*}}, max={{.*}}, mean={{.*}}
+# CHECK-NOT: ALL PASS
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))

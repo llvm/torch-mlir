@@ -6,7 +6,8 @@
 
 import torch
 
-from torch_mlir.torchscript.e2e_test.framework import run_tests, report_results, TestUtils
+from torch_mlir.torchscript.e2e_test.framework import run_tests, TestUtils
+from torch_mlir.torchscript.e2e_test.reporting import report_results
 from torch_mlir.torchscript.e2e_test.registry import register_test_case, GLOBAL_TEST_REGISTRY
 from torch_mlir.torchscript.e2e_test.configs import TorchScriptTestConfig
 
@@ -23,6 +24,12 @@ class MmModule(torch.nn.Module):
 # CHECK: SUCCESS "MmModule_basic"
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+
+
+# CHECK: SUCCESS "MmModule_basic2"
+@register_test_case(module_factory=lambda: MmModule())
+def MmModule_basic2(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
 
