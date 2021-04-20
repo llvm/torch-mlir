@@ -13,6 +13,12 @@ from torch_mlir.torchscript.e2e_test.configs import (
 )
 
 # Import tests to register them in the global registry.
+# TODO: Use a relative import.
+# That requires invoking this file as a "package" though, which makes it
+# not possible to just do `python main.py`. Instead, it requires something
+# like `python -m tochscript.main` which is annoying because it can only
+# be run from a specific directory.
+# TODO: Find out best practices for python "main" files.
 import basic
 
 def main():
