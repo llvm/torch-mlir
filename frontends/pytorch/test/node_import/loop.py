@@ -18,7 +18,7 @@ mb = torch_mlir.ModuleBuilder()
 # CHECK:           %[[RESULTS:.*]] = torch.prim.Loop %[[MAX_ITERATIONS]], %[[BOOL_TRUE]], init(%[[F_INIT]])  {
 # CHECK:           ^bb0(%[[IV:.*]]: i64, %[[F_ITER:.*]]: f64):
 # CHECK:             %[[F_NEXT:.*]] = torch.kernel_call "aten::add" %[[F_ITER]], %[[IV]] : (f64, i64) -> f64 {sigArgTypes = ["float", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["float"]}
-# CHECK:             torch.prim.Loop.condition %[[BOOL_TRUE]] iter(%[[F_NEXT]]) : !basicpy.BoolType, (f64)
+# CHECK:             torch.prim.Loop.condition %[[BOOL_TRUE]], iter(%[[F_NEXT]] : f64)
 # CHECK:           } : (i64, !basicpy.BoolType, f64) -> f64
 # CHECK:           return %[[RESULTS:.*]] : f64
 @mb.import_function
@@ -38,7 +38,7 @@ def prim_Loop_forlike(n: int):
 # CHECK:           ^bb0(%[[F_ITER:.*]]: i64, %[[F_ITER:.*]]: f64):
 # CHECK:             %[[F_NEXT:.*]] = torch.kernel_call "aten::mul" %[[F_ITER]], %[[F_ITER]] : (f64, f64) -> f64 {sigArgTypes = ["float", "float"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["float"]}
 # CHECK:             %[[COND_ITER:.*]] = torch.kernel_call "aten::lt" %[[F_NEXT]], %[[VAL_0]] : (f64, i64) -> !basicpy.BoolType {sigArgTypes = ["float", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["bool"]}
-# CHECK:             torch.prim.Loop.condition %[[COND_ITER]] iter(%[[F_NEXT]]) : !basicpy.BoolType, (f64)
+# CHECK:             torch.prim.Loop.condition %[[COND_ITER]], iter(%[[F_NEXT]] : f64)
 # CHECK:           } : (i64, !basicpy.BoolType, f64) -> f64
 # CHECK:           return %[[RET:.*]] : f64
 @mb.import_function
@@ -57,7 +57,7 @@ def prim_Loop_whilelike(n: int):
 # CHECK:           %[[RET:.*]] = torch.prim.Loop %[[ARG]], %[[TRUE]], init(%[[NONE_DEREFINED]])  {
 # CHECK:           ^bb0(%[[IV:.*]]: i64, %[[X_ITER:.*]]: !torch.optional<i64>):
 # CHECK:             %[[X_NEXT:.*]] = torch.derefine %[[ARG]] : i64 -> !torch.optional<i64>
-# CHECK:             torch.prim.Loop.condition %[[TRUE]] iter(%[[X_NEXT]]) : !basicpy.BoolType, (!torch.optional<i64>)
+# CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(%[[X_NEXT]] : !torch.optional<i64>)
 # CHECK:           } : (i64, !basicpy.BoolType, !torch.optional<i64>) -> !torch.optional<i64>
 # CHECK:           return %[[RET:.*]] : !torch.optional<i64>
 @mb.import_function

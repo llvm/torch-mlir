@@ -3,6 +3,8 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import re
+import sys
 
 from torch_mlir.torchscript.e2e_test.framework import run_tests
 from torch_mlir.torchscript.e2e_test.reporting import report_results
@@ -34,6 +36,9 @@ Meaning of options:
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 ''')
+    parser.add_argument('--filter', default='.*', help='''
+Regular expression specifying which tests to include in this run.
+''')
     args = parser.parse_args()
     if args.config == 'refbackend':
         config = RefBackendTestConfig()
@@ -41,7 +46,20 @@ Meaning of options:
         config = NativeTorchTestConfig()
     elif args.config == 'torchscript':
         config = TorchScriptTestConfig()
-    results = run_tests(GLOBAL_TEST_REGISTRY, config)
+
+    tests = [
+        test for test in GLOBAL_TEST_REGISTRY
+        if re.match(args.filter, test.unique_name)
+    ]
+    if len(tests) == 0:
+        print(
+            f'ERROR: the provided filter {args.filter!r} does not match any tests'
+        )
+        print('The available tests are:')
+        for test in GLOBAL_TEST_REGISTRY:
+            print(test.unique_name)
+        sys.exit(1)
+    results = run_tests(tests, config)
     report_results(results)
 
 if __name__ == '__main__':

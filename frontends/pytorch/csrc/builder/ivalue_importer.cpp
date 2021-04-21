@@ -403,6 +403,12 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
   }
 
   for (torch::jit::Function *function : cu->get_functions()) {
+    // Useful for debugging errors in free functions that end up being
+    // unused. These can be missing when round-tripping through the on-disk
+    // format, even though they still cause import issues when importing
+    // through the larger Python session where they originate.
+    // std::cerr << "NAME: " << function->qualname().qualifiedName() << "\n";
+    // std::cerr << *function->graph();
     MethodAnnotation *annotation =
         annotator.getMethodAnnotationForFunction(function);
     MlirOperation func = importJitFunctionAsFuncOp(
