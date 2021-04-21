@@ -11,7 +11,7 @@ from torch_mlir.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
-class Resnet18Module(torch.nn.Module):
+class ResNet18Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # Reset seed to make model deterministic.
@@ -25,6 +25,6 @@ class Resnet18Module(torch.nn.Module):
     def forward(self, img):
         return self.resnet.forward(img)
 
-@register_test_case(module_factory=lambda: Resnet18Module())
-def Resnet18Module_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ResNet18Module())
+def ResNet18Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))

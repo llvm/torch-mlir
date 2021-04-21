@@ -80,6 +80,9 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
   case c10::prim::Uninitialized:
   case c10::prim::RaiseException:
   case c10::prim::Print:
+  case c10::prim::min:
+  case c10::prim::max:
+  case c10::prim::layout:
   case c10::prim::NumToTensor: {
     createAndMapTrivialNode(node,
                             "torch.prim." + std::string(kind.toUnqualString()));

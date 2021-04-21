@@ -102,6 +102,15 @@ def prim_ListUnpack(l: typing.List[int]):
 def prim_dtype(x):
     return x.dtype
 
+# CHECK-LABEL:   func @__torch__.prim_layout(
+# CHECK-SAME:                                %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> i64 {
+# CHECK:           %[[RET:.*]] = torch.prim.layout %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> i64
+# CHECK:           return %[[RET]] : i64
+@mb.import_function
+@torch.jit.script
+def prim_layout(x):
+    return x.layout
+
 # CHECK-LABEL:   func @__torch__.prim_device(
 # CHECK-SAME:                                %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !torch.Device {
 # CHECK:           %[[RET:.*]] = torch.prim.device %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> !torch.Device
@@ -110,6 +119,34 @@ def prim_dtype(x):
 @torch.jit.script
 def prim_device(x):
     return x.device
+
+# CHECK-LABEL:   func @__torch__.prim_min(
+# CHECK-SAME:                             %[[ARG:.*]]: i64) -> !basicpy.TupleType {
+# CHECK:           %[[SINGLETON:.*]] = basicpy.build_list %[[ARG]] : (i64) -> !basicpy.ListType
+# CHECK:           %[[MIN1:.*]] = torch.prim.min %[[SINGLETON]] : !basicpy.ListType -> i64
+# CHECK:           %[[MIN2:.*]] = torch.prim.min %[[ARG]], %[[ARG]] : i64, i64 -> i64
+# CHECK:           %[[ARG_3_TIMES:.*]] = basicpy.build_list %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !basicpy.ListType
+# CHECK:           %[[MIN3:.*]] = torch.prim.min %[[ARG_3_TIMES]] : !basicpy.ListType -> i64
+# CHECK:           %[[RET:.*]] = basicpy.build_tuple %[[MIN1]], %[[MIN2]], %[[MIN3]] : (i64, i64, i64) -> !basicpy.TupleType
+# CHECK:           return %[[RET]] : !basicpy.TupleType
+@mb.import_function
+@torch.jit.script
+def prim_min(x: int):
+    return min(x), min(x,x), min(x, x, x)
+
+# CHECK-LABEL:   func @__torch__.prim_max(
+# CHECK-SAME:                             %[[ARG:.*]]: i64) -> !basicpy.TupleType {
+# CHECK:           %[[SINGLETON:.*]] = basicpy.build_list %[[ARG]] : (i64) -> !basicpy.ListType
+# CHECK:           %[[MAX1:.*]] = torch.prim.max %[[SINGLETON]] : !basicpy.ListType -> i64
+# CHECK:           %[[MAX2:.*]] = torch.prim.max %[[ARG]], %[[ARG]] : i64, i64 -> i64
+# CHECK:           %[[ARG_3_TIMES:.*]] = basicpy.build_list %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !basicpy.ListType
+# CHECK:           %[[MAX3:.*]] = torch.prim.max %[[ARG_3_TIMES]] : !basicpy.ListType -> i64
+# CHECK:           %[[RET:.*]] = basicpy.build_tuple %[[MAX1]], %[[MAX2]], %[[MAX3]] : (i64, i64, i64) -> !basicpy.TupleType
+# CHECK:           return %[[RET]] : !basicpy.TupleType
+@mb.import_function
+@torch.jit.script
+def prim_max(x: int):
+    return max(x), max(x,x), max(x, x, x)
 
 mb.module.operation.print()
 print()

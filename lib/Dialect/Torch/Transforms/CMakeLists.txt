@@ -19,4 +19,9 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   MLIRPass
   NPCOMPTorchDialect
   NPCOMPBasicpyDialect
+  NPCOMPATenPasses
+  NPCOMPNumpyPasses
+  NPCOMPATenToLinalg
+  NPCOMPATenToTCF
+  NPCOMPTCFToStd
 )

@@ -56,8 +56,9 @@ class VerifyBackendContractPass
     target.addDynamicallyLegalDialect<StandardOpsDialect>(isLegalScalarOp);
     target.addDynamicallyLegalDialect<math::MathDialect>(isLegalScalarOp);
 
-    // Tensor operations should go through linalg.
+    // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
+    target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
     // DimOp is used to query tensor sizes.
     target.addDynamicallyLegalOp<memref::DimOp>(opHasLegalTypes);
 
