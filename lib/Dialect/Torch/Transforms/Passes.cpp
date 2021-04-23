@@ -89,6 +89,12 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(OpPassManager &pm) 
     // updates to "out params" on their public functions.
     // This is deemed ok for now.
     pm.addPass(Numpy::createPublicFunctionsToTensorPass());
+    // Inline global slots, which for most inference scenarios deletes them.
+    // This also exposes more information to intraprocedural transformations
+    // below like ArrayToTensor and RefineTypes.
+    // TODO: Don't rely on this pass to "lower" global slots by deleting.
+    // This pass should eventually be "just an optimization".
+    pm.addPass(createInlineGlobalSlotsPass());
     // Convert the bulk of non-ABI-visible arrays to tensors.
     pm.addNestedPass<FuncOp>(Numpy::createArrayToTensorPass());
     // Do shape and dtype refinement.
