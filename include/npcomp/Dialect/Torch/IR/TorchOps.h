@@ -69,4 +69,20 @@ template <> struct llvm::DenseMapInfo<::mlir::NPCOMP::Torch::ClassTypeOp> {
   static bool isEqual(ClassTypeOp lhs, ClassTypeOp rhs) { return lhs == rhs; }
 };
 
+template <> struct llvm::DenseMapInfo<::mlir::NPCOMP::Torch::GlobalSlotOp> {
+  using OpTy = ::mlir::NPCOMP::Torch::GlobalSlotOp;
+  static OpTy getEmptyKey() {
+    auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
+    return OpTy::getFromOpaquePointer(pointer);
+  }
+  static OpTy getTombstoneKey() {
+    auto *pointer = llvm::DenseMapInfo<void *>::getTombstoneKey();
+    return OpTy::getFromOpaquePointer(pointer);
+  }
+  static unsigned getHashValue(OpTy val) {
+    return hash_value(val.getAsOpaquePointer());
+  }
+  static bool isEqual(OpTy lhs, OpTy rhs) { return lhs == rhs; }
+};
+
 #endif // NPCOMP_DIALECT_TORCH_IR_TORCHOPS_H
