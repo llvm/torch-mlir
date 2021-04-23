@@ -120,6 +120,7 @@ class ConvertATenToLinalg
     : public ConvertATenToLinalgBase<ConvertATenToLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect>();
     registry.insert<memref::MemRefDialect>();
   }
 

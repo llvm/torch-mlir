@@ -351,6 +351,9 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
 
 namespace {
 class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<Numpy::NumpyDialect, aten::ATenDialect>();
+  }
   void runOnOperation() override {
     auto func = getOperation();
     TypeAnalyzer analyzer(&getContext());

@@ -136,7 +136,7 @@ namespace {
 class ConvertTCFToStd : public ConvertTCFToStdBase<ConvertTCFToStd> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<shape::ShapeDialect>();
+    registry.insert<math::MathDialect, shape::ShapeDialect, tcp::TCPDialect>();
   }
 
   void runOnOperation() override {
