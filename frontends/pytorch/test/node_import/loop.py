@@ -53,10 +53,10 @@ def prim_Loop_whilelike(n: int):
 # CHECK-SAME:                             %[[ARG:.*]]: i64) -> !torch.optional<i64> {
 # CHECK:           %[[TRUE:.*]] = basicpy.bool_constant true
 # CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
-# CHECK:           %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !basicpy.NoneType -> !torch.optional<i64>
+# CHECK:           %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !basicpy.NoneType to !torch.optional<i64>
 # CHECK:           %[[RET:.*]] = torch.prim.Loop %[[ARG]], %[[TRUE]], init(%[[NONE_DEREFINED]])  {
 # CHECK:           ^bb0(%[[IV:.*]]: i64, %[[X_ITER:.*]]: !torch.optional<i64>):
-# CHECK:             %[[X_NEXT:.*]] = torch.derefine %[[ARG]] : i64 -> !torch.optional<i64>
+# CHECK:             %[[X_NEXT:.*]] = torch.derefine %[[ARG]] : i64 to !torch.optional<i64>
 # CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(%[[X_NEXT]] : !torch.optional<i64>)
 # CHECK:           } : (i64, !basicpy.BoolType, !torch.optional<i64>) -> !torch.optional<i64>
 # CHECK:           return %[[RET:.*]] : !torch.optional<i64>

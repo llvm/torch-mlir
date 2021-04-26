@@ -111,6 +111,112 @@ LogicalResult convertMmOp(aten::MmOp op, PatternRewriter &rewriter) {
   return success();
 }
 
+// See comments at in convertMmOp and the heading for this section for general
+// considerations. This function needs to be auto-generated.
+LogicalResult convertLinearOp(aten::LinearOp op, PatternRewriter &rewriter) {
+  MLIRContext *context = op->getContext();
+  Location loc = op->getLoc();
+  Value input = op.input();
+  Value weight = op.weight();
+  Value bias = op.bias();
+  // TODO: Handle the case of bias being None (bias is optional).
+  if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+    return failure();
+  auto inputType = input.getType().cast<RankedTensorType>();
+  auto weightType = weight.getType().cast<RankedTensorType>();
+  auto biasType = bias.getType().cast<RankedTensorType>();
+  // Only handle the case of rank 2 `input` for now.
+  // TODO: Insert the appropriate reshape to collapse any leading dimensions.
+  if (inputType.getRank() != 2 || weightType.getRank() != 2 ||
+      biasType.getRank() != 1) {
+    return rewriter.notifyMatchFailure(
+        op,
+        "expected both input and weight to be rank 2 and bias to be rank 1");
+  }
+  // TODO: Handle type promotion. What are ATen's promotion rules?
+  if (inputType.getElementType() != weightType.getElementType() ||
+      inputType.getElementType() != biasType.getElementType()) {
+    return rewriter.notifyMatchFailure(op, "unimplemented: type promotion");
+  }
+
+  // TODO: We can handle a static size 1 here at some complexity cost, but the
+  // dynamic case is not representable in linalg. We don't handle either for
+  // now. Biases are generally statically shaped for most models (since for
+  // inference they are constants, and for training they don't change shape
+  // typically), so this is not too constraining.
+  auto biasSize = bias.getType().cast<RankedTensorType>().getShape()[0];
+  if (biasSize == 1 || biasSize == ShapedType::kDynamicSize)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: size-1 broadcasting for aten::LinearOp");
+
+  auto getDimOp = [&](Value v, int dimension) {
+    return rewriter.create<memref::DimOp>(loc, v, dimension);
+  };
+  Value inputDim0 = getDimOp(input, 0);
+  Value inputDim1 = getDimOp(input, 1);
+  Value weightDim0 = getDimOp(weight, 0);
+  Value weightDim1 = getDimOp(weight, 1);
+  Value biasDim0 = getDimOp(bias, 0);
+  Value contractingDimEqual =
+      rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, inputDim1, weightDim1);
+  rewriter.create<AssertOp>(
+      loc, contractingDimEqual,
+      rewriter.getStringAttr(
+          "mismatching contracting dimension for aten.linear"));
+  // Here we take advantage of ruling out the size-1 case above.
+  // In the static-size-1 case, we will not emit this check at all.
+  Value biasSizeCorrect =
+      rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, weightDim0, biasDim0);
+  rewriter.create<AssertOp>(
+      loc, biasSizeCorrect,
+      rewriter.getStringAttr("mismatching bias size for aten.linear"));
+
+  Value initTensor = rewriter.create<linalg::InitTensorOp>(
+      loc, ValueRange{inputDim0, weightDim0}, inputType.getElementType());
+  SmallVector<AffineMap> broadcastIndexingMaps = {
+      AffineMap::get(
+          /*dimCount=*/2, /*symbolCount=*/0, rewriter.getAffineDimExpr(1)),
+      rewriter.getMultiDimIdentityMap(2)};
+  SmallVector<StringRef> iteratorTypes(2, "parallel");
+  Value broadcasted = rewriter
+                          .create<linalg::GenericOp>(
+                              loc, initTensor.getType(), bias, initTensor,
+                              /*indexingMaps=*/broadcastIndexingMaps,
+                              /*iteratorTypes=*/iteratorTypes,
+                              [](OpBuilder &b, Location loc, ValueRange args) {
+                                b.create<linalg::YieldOp>(loc, args[0]);
+                              })
+                          .getResult(0);
+  // We need a matmul with dimension ordering (N, K) * (M, K), so transpose
+  // the weights to fit into linalg::MatmulOp which is (N, K) * (K, M).
+  // TODO: This whole aten.linear lowering should eventually be generated from a
+  // single linalg ODS generator statement. Both the bias and matmul part.
+  SmallVector<AffineMap> transposeIndexingMaps = {
+      AffineMap::get(
+          /*dimCount=*/2, /*symbolCount=*/0,
+          {rewriter.getAffineDimExpr(1), rewriter.getAffineDimExpr(0)},
+          context),
+      rewriter.getMultiDimIdentityMap(2)};
+  Value transposedWeightInitTensor = rewriter.create<linalg::InitTensorOp>(
+      loc, ValueRange{weightDim1, weightDim0}, weightType.getElementType());
+  Value transposedWeights =
+      rewriter
+          .create<linalg::GenericOp>(
+              loc, transposedWeightInitTensor.getType(), weight,
+              transposedWeightInitTensor,
+              /*indexingMaps=*/transposeIndexingMaps,
+              /*iteratorTypes=*/iteratorTypes,
+              [](OpBuilder &b, Location loc, ValueRange args) {
+                b.create<linalg::YieldOp>(loc, args[0]);
+              })
+          .getResult(0);
+  Value matmul = rewriter.create<linalg::MatmulOp>(
+      loc, broadcasted.getType(), ValueRange{input, transposedWeights},
+      broadcasted).getResult(0);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, op.getType(), matmul);
+  return success();
+}
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -132,6 +238,7 @@ public:
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     patterns.add(convertMmOp);
+    patterns.add(convertLinearOp);
     return std::move(patterns);
   }
 };

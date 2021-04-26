@@ -37,6 +37,20 @@ func @f(%arg0: tensor<2x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<*x!numpy.any_d
 
 // -----
 
+// CHECK-LABEL:   func @f(
+// CHECK-SAME:            %[[INPUT:.*]]: tensor<?x3xf32>,
+// CHECK-SAME:            %[[WEIGHT:.*]]: tensor<5x3xf32>,
+// CHECK-SAME:            %[[BIAS:.*]]: tensor<5xf32>) -> tensor<*x!numpy.any_dtype> {
+// CHECK:           %[[LINEAR:.*]] = "aten.linear"(%[[INPUT]], %[[WEIGHT]], %[[BIAS]]) : (tensor<?x3xf32>, tensor<5x3xf32>, tensor<5xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = numpy.tensor_static_info_cast %[[LINEAR]] : tensor<?x?xf32> to tensor<*x!numpy.any_dtype>
+// CHECK:           return %[[SHAPE_ERASED]] : tensor<*x!numpy.any_dtype>
+func @f(%arg0: tensor<?x3xf32>, %arg1: tensor<5x3xf32>, %arg2: tensor<5xf32>) -> tensor<*x!numpy.any_dtype> {
+  %1 = "aten.linear"(%arg0, %arg1, %arg2) : (tensor<?x3xf32>, tensor<5x3xf32>, tensor<5xf32>) -> tensor<*x!numpy.any_dtype>
+  return %1 : tensor<*x!numpy.any_dtype>
+}
+
+// -----
+
 // CHECK-LABEL:   func @f
 func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
   // Check propagation through multiple ops.
