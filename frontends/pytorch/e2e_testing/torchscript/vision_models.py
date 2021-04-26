@@ -17,6 +17,7 @@ class ResNet18Module(torch.nn.Module):
         # Reset seed to make model deterministic.
         torch.manual_seed(0)
         self.resnet = models.resnet18()
+        self.train(False)
     @export
     @annotate_args([
         None,

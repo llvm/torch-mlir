@@ -22,6 +22,14 @@ using namespace mlir::NPCOMP::Basicpy;
 template <typename T> static LogicalResult verify(T op) { return success(); }
 
 //===----------------------------------------------------------------------===//
+// BoolCastOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult BoolCastOp::fold(ArrayRef<Attribute> operands) {
+  return operands[0];
+}
+
+//===----------------------------------------------------------------------===//
 // BoolConstantOp
 //===----------------------------------------------------------------------===//
 
