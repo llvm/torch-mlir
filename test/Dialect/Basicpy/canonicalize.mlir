@@ -70,3 +70,13 @@ func @str_constant() -> !basicpy.StrType {
   %0 = basicpy.str_constant "foobar"
   return %0 : !basicpy.StrType
 }
+
+// -----
+// CHECK-LABEL: @bool_cast
+func @bool_cast() -> i1 {
+  // CHECK: %[[CTRUE:.*]] = constant true
+  %0 = basicpy.bool_constant true
+  %1 = basicpy.bool_cast %0 : !basicpy.BoolType -> i1
+  // CHECK: return %[[CTRUE]] : i1
+  return %1 : i1
+}

@@ -11,4 +11,5 @@ add_npcomp_dialect_library(NPCOMPBasicpyDialect
   LINK_LIBS PUBLIC
   NPCOMPTypingCPA
   MLIRIR
+  MLIRStandard
 )

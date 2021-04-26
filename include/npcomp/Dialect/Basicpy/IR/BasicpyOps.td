@@ -295,6 +295,7 @@ def Basicpy_BoolCastOp : Basicpy_Op<"bool_cast", [NoSideEffect]> {
   let arguments = (ins BoolOrI1Type:$operand);
   let results = (outs BoolOrI1Type:$result);
   let assemblyFormat = "$operand attr-dict `:` type(operands) `->` type(results)";
+  let hasFolder = 1;
 }
 
 def Basicpy_UnknownCastOp : Basicpy_Op<"unknown_cast", [NoSideEffect]> {
