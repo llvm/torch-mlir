@@ -8,6 +8,10 @@ func @kernel_call(%arg0 : si32, %arg1 : tensor<3x4xf32>) -> tensor<*xf32> {
   return %1 : tensor<*xf32>
 }
 
+func @derefine(%arg0: tensor<f32>) -> !torch.optional<tensor<f32>> {
+  %0 = torch.derefine %arg0 : tensor<f32> to !torch.optional<tensor<f32>>
+  return %0 : !torch.optional<tensor<f32>>
+}
 
 %bool_true = basicpy.bool_constant true
 %num3_i64 = basicpy.numeric_constant 3 : i64

@@ -476,6 +476,18 @@ def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<Torc
 // NN ops
 // -----------------------------------------------------------------------------
 
+def aten_LinearOp: aten_Op<"linear", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::linear";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$input,
+    AnyTorchImmutableTensor:$weight,
+    AnyTorchOptionalImmutableTensor:$bias
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
 def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
   let summary = "Recognized op for kernel aten::convolution_overrideable";
   let arguments = (ins
@@ -642,3 +654,4 @@ def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<Torch
   let results = (outs
   );
 }
+

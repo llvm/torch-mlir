@@ -12,6 +12,7 @@
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -497,7 +498,8 @@ def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", [
 //===----------------------------------------------------------------------===//
 
 def Torch_DerefineOp : Torch_Op<"derefine", [
-    NoSideEffect
+    NoSideEffect,
+    DeclareOpInterfaceMethods<CastOpInterface>,
   ]> {
   let summary = "De-refine a type";
   let description = [{
@@ -513,13 +515,14 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
     from one type to a type that it is a subtype of to model this behavior.
   }];
 
-  // TODO: When we model PyTorch's notion of subtyping, verify the types here.
   let arguments = (ins AnyTorchType:$operand);
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
+    $operand attr-dict `:` type($operand) `to` type($result)
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", []> {
