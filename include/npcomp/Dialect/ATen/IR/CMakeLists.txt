@@ -15,5 +15,5 @@ mlir_tablegen(ATenOpInterfaces.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(MLIRATenOpInterfacesIncGen)
 add_dependencies(mlir-generic-headers MLIRATenOpInterfacesIncGen)
 
-add_mlir_doc(ATenDialect -gen-dialect-doc ATenDialect ATen/)
-add_mlir_doc(ATenOps -gen-op-doc ATenOps ATen/)
+add_mlir_doc(ATenDialect ATenDialect ATen/ -gen-dialect-doc)
+add_mlir_doc(ATenOps ATenOps ATen/ -gen-op-doc)

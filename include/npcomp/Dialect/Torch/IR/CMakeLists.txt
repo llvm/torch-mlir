@@ -16,5 +16,5 @@ mlir_tablegen(OpInterfaces.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(MLIRTorchOpInterfacesIncGen)
 add_dependencies(mlir-generic-headers MLIRTorchOpInterfacesIncGen)
 
-add_mlir_doc(TorchDialect -gen-dialect-doc TorchDialect Torch/)
-add_mlir_doc(TorchOps -gen-op-doc TorchOps Torch/)
+add_mlir_doc(TorchDialect TorchDialect Torch/ -gen-dialect-doc)
+add_mlir_doc(TorchOps TorchOps Torch/ -gen-op-doc)

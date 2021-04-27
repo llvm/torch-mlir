@@ -112,3 +112,11 @@ func @f(%arg0: i32 {torch.type_bound = 1})
 
 // expected-error @+1 {{'torch.type_bound' must be of !numpy.ndarray type}}
 func @f(%arg0: i32 {torch.type_bound = i32})
+
+// -----
+
+func @derefine(%arg0: !torch.optional<tensor<f32>>) -> tensor<f32> {
+  // expected-error @+1 {{operand type '!torch.optional<tensor<f32>>' and result type 'tensor<f32>' are cast incompatible}}
+  %0 = torch.derefine %arg0 : !torch.optional<tensor<f32>> to tensor<f32>
+  return %0 : tensor<f32>
+}

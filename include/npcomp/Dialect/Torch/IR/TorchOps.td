@@ -12,6 +12,7 @@
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -420,8 +421,8 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
   let results = (outs);
 
   let assemblyFormat = [{
-    $shouldContinue `iter` `(` $iterArgs `)`
-    attr-dict `:` type($shouldContinue) `,` `(` type($iterArgs) `)`
+    $shouldContinue `,`
+    `iter` `(` ($iterArgs^ `:` type($iterArgs))? `)` attr-dict
   }];
 }
 
@@ -497,7 +498,8 @@ def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", [
 //===----------------------------------------------------------------------===//
 
 def Torch_DerefineOp : Torch_Op<"derefine", [
-    NoSideEffect
+    NoSideEffect,
+    DeclareOpInterfaceMethods<CastOpInterface>,
   ]> {
   let summary = "De-refine a type";
   let description = [{
@@ -513,13 +515,14 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
     from one type to a type that it is a subtype of to model this behavior.
   }];
 
-  // TODO: When we model PyTorch's notion of subtyping, verify the types here.
   let arguments = (ins AnyTorchType:$operand);
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
+    $operand attr-dict `:` type($operand) `to` type($result)
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", []> {
@@ -564,12 +567,43 @@ def Torch_PrimdtypeOp : Torch_Op<"prim.dtype", []> {
   }];
 }
 
+def Torch_PrimlayoutOp : Torch_Op<"prim.layout", []> {
+  let summary = "TorchScript prim::layout op";
+  let arguments = (ins AnyTorchTensorType:$tensor);
+  let results = (outs AnyTorchNumberType:$result);
+  let assemblyFormat = [{
+    $tensor attr-dict `:` type($tensor) `->` type($result)
+  }];
+}
+
 def Torch_PrimdeviceOp : Torch_Op<"prim.device", []> {
   let summary = "TorchScript prim::device op";
   let arguments = (ins AnyTorchTensorType:$tensor);
   let results = (outs Torch_DeviceType:$result);
   let assemblyFormat = [{
     $tensor attr-dict `:` type($tensor) `->` type($result)
+  }];
+}
+
+def Torch_PrimminOp : Torch_Op<"prim.min", []> {
+  let summary = "TorchScript prim::min op";
+  // TODO: Separate this along all the different possible signatures.
+  // At the time of this writing, there are 11.
+  // In particular, there are binary scalar versions and various list versions.
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let results = (outs AnyTorchScalarType:$result);
+  let assemblyFormat = [{
+    $operands attr-dict `:` type($operands) `->` type($result)
+  }];
+}
+
+def Torch_PrimmaxOp : Torch_Op<"prim.max", []> {
+  let summary = "TorchScript prim::max op";
+  // TODO: Separate this along all the different possible signatures.
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let results = (outs AnyTorchScalarType:$result);
+  let assemblyFormat = [{
+    $operands attr-dict `:` type($operands) `->` type($result)
   }];
 }
 

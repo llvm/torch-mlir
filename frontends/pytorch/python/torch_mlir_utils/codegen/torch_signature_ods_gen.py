@@ -97,6 +97,9 @@ def generate_ops(g: "OpGenerator"):
   # ops (generic for non-CPU/GPU backends) but set the names according to
   # how they come in.
   g.print_banner("NN ops")
+  g.ordinary_immutable_op("aten::linear(Tensor,Tensor,Tensor?)",
+      "LinearOp",
+      "linear")
   g.ordinary_immutable_op(
       "aten::convolution_overrideable(Tensor,Tensor,Tensor?,int[],int[],int[],bool,int[],int)",
       "ConvolutionOp",

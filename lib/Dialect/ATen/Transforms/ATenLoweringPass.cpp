@@ -860,7 +860,8 @@ MemRefType convertTensorType(TensorType tensor) {
 /// FIXME: Audit this for completeness
 struct ATenLoweringPass : public ATenLoweringBase<ATenLoweringPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<LLVM::LLVMDialect, StandardOpsDialect>();
+    registry
+        .insert<LLVM::LLVMDialect, StandardOpsDialect, memref::MemRefDialect>();
   }
 
   void runOnOperation() override {

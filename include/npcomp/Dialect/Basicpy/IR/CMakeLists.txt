@@ -10,5 +10,5 @@ mlir_tablegen(${dialect}Enums.cpp.inc -gen-enum-defs)
 add_public_tablegen_target(MLIR${dialect}IncGen)
 add_dependencies(mlir-headers MLIR${dialect}IncGen)
 
-add_mlir_doc(BasicpyDialect -gen-dialect-doc BasicpyDialect Basicpy/)
-add_mlir_doc(BasicpyOps -gen-op-doc BasicpyOps Basicpy/)
+add_mlir_doc(BasicpyDialect BasicpyDialect Basicpy/ -gen-dialect-doc)
+add_mlir_doc(BasicpyOps BasicpyOps Basicpy/ -gen-op-doc)

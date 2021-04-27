@@ -18,6 +18,7 @@
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;

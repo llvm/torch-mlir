@@ -226,6 +226,7 @@ namespace {
 class TCPBufferizePass : public TCPBufferizeBase<TCPBufferizePass> {
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
     registry.insert<refback::RefbackDialect>();
+    registry.insert<memref::MemRefDialect>();
     registry.insert<linalg::LinalgDialect>();
     registry.insert<scf::SCFDialect>();
   }

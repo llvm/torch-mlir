@@ -872,6 +872,25 @@ const Torch::BuildKernelMetadata &TruncOp::getTorchBuildKernelMetadata() {
 // NN ops
 // -----------------------------------------------------------------------------
 
+Torch::KernelMetadata LinearOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &LinearOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::linear";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor", "Tensor?"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
 Torch::KernelMetadata ConvolutionOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }

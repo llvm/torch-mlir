@@ -36,10 +36,10 @@ def prim_If(b: bool, i: int):
 # CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
 # CHECK:           %[[PRED:.*]] = basicpy.bool_cast %[[B]] : !basicpy.BoolType -> i1
 # CHECK:           %[[RES:.*]] = scf.if %[[PRED]] -> (!torch.optional<i64>) {
-# CHECK:             %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !basicpy.NoneType -> !torch.optional<i64>
+# CHECK:             %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !basicpy.NoneType to !torch.optional<i64>
 # CHECK:             scf.yield %[[NONE_DEREFINED]] : !torch.optional<i64>
 # CHECK:           } else {
-# CHECK:             %[[I_DEREFINED:.*]] = torch.derefine %[[I]] : i64 -> !torch.optional<i64>
+# CHECK:             %[[I_DEREFINED:.*]] = torch.derefine %[[I]] : i64 to !torch.optional<i64>
 # CHECK:             scf.yield %[[I_DEREFINED]] : !torch.optional<i64>
 # CHECK:           }
 # CHECK:           return %[[RES:.*]] : !torch.optional<i64>

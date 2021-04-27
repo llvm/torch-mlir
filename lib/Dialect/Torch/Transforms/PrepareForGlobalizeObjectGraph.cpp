@@ -32,6 +32,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto classType = symbolTable.lookup<ClassTypeOp>(
         op.receiver().getType().cast<NnModuleType>().getClassName());
+    assert(classType && "malformed module -- missing ClassTypeOp");
     FuncOp func;
     for (auto method : classType.getOps<MethodOp>()) {
       if (method.name() == op.name()) {

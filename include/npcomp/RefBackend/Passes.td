@@ -29,7 +29,7 @@ def LowerToRefbackrtABI : Pass<"lower-to-refbackrt-abi", "ModuleOp"> {
 def LowerAllocMemRefOps : Pass<"lower-alloc-memref-ops", "FuncOp"> {
   let summary = "Lower AllocMemRefOp's";
   let constructor = "mlir::NPCOMP::createLowerAllocMemRefOpsPass()";
-  let dependentDialects = ["tensor::TensorDialect"];
+  let dependentDialects = ["tensor::TensorDialect", "memref::MemRefDialect"];
 }
 
 def LowerToLLVM : Pass<"refback-lower-to-llvm", "ModuleOp"> {

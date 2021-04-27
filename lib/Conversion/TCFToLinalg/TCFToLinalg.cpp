@@ -191,8 +191,8 @@ namespace {
 class ConvertTCFToLinalg : public ConvertTCFToLinalgBase<ConvertTCFToLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry
-        .insert<shape::ShapeDialect, tcp::TCPDialect, tensor::TensorDialect>();
+    registry.insert<shape::ShapeDialect, tcp::TCPDialect, tensor::TensorDialect,
+                    memref::MemRefDialect, linalg::LinalgDialect>();
   }
 
   void runOnOperation() override {

@@ -130,9 +130,12 @@ ninja check-npcomp
 source .env
 ```
 
-### PyTorch Frontend (with PyTorch installed via conda)
+### PyTorch Frontend
 
 ```shell
+# Install PyTorch. We currently track and require the nighly build.
+pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+# Build/test npcomp.
 ./build_tools/cmake_configure.sh
 cmake --build build --target check-npcomp check-frontends-pytorch
 ```

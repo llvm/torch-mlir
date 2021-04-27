@@ -202,6 +202,21 @@ forwardKnowledgeTransferFunction(Operation *op,
     // the same, then the result is of that same element type.
     knowledge.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
     return {knowledge};
+  } else if (isa<aten::LinearOp>(op)) {
+    // The output shape is the input shape with the last dimension changed
+    // to the weight's output dimension.
+    auto knowledge = operandKnowledge[0];
+    if (knowledge.hasRank && knowledge.sizes.size() > 0)
+      knowledge.sizes[knowledge.sizes.size() - 1] = kUnknownSize;
+    // TODO: Handle case of bias being None gracefully. Requires a lattice
+    // that tracks "None" (torch.optional). See also
+    // DerefineOp::getCanonicalizationPatterns for more refinement that needs to
+    // be done in this pass.
+    knowledge.elementType =
+        joinElementTypes(knowledge.elementType,
+                         joinElementTypes(operandKnowledge[1].elementType,
+                                          operandKnowledge[2].elementType));
+    return {knowledge};
   }
   return SmallVector<ValueKnowledge>(
       op->getNumResults(),
@@ -351,6 +366,9 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
 
 namespace {
 class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<Numpy::NumpyDialect, aten::ATenDialect>();
+  }
   void runOnOperation() override {
     auto func = getOperation();
     TypeAnalyzer analyzer(&getContext());

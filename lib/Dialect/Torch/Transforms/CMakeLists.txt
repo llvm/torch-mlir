@@ -2,6 +2,7 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   AdjustCallingConventions.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
+  InlineGlobalSlots.cpp
   PrepareForGlobalizeObjectGraph.cpp
   RefineTypes.cpp
 
@@ -22,4 +23,10 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   NPCOMPTorchDialect
   NPCOMPBasicpyDialect
   NPCOMPATenDialect
+  NPCOMPATenPasses
+  NPCOMPNumpyPasses
+  NPCOMPATenToLinalg
+  NPCOMPATenToTCF
+  NPCOMPTCFToStd
+
 )

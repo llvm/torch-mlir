@@ -420,7 +420,7 @@ namespace {
 class LowerToRefbackrtABI
     : public LowerToRefbackrtABIBase<LowerToRefbackrtABI> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<refbackrt::RefbackrtDialect>();
+    registry.insert<refbackrt::RefbackrtDialect, memref::MemRefDialect>();
   }
 
   void runOnOperation() override {

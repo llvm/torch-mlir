@@ -10,6 +10,7 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/PatternMatch.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
@@ -177,6 +178,46 @@ void PrimLoopOp::getSuccessorRegions(
   regions.emplace_back(&region(), region().getArguments().slice(1));
   regions.emplace_back(getResults());
 }
+
+//===----------------------------------------------------------------------===//
+// DerefineOp
+//===----------------------------------------------------------------------===//
+
+bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
+                                   mlir::TypeRange outputs) {
+  return isValidSubtype(inputs[0], outputs[0]);
+}
+
+void DerefineOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](DerefineOp op, PatternRewriter &rewriter) {
+    // TODO: Properly model which ops allow type refinement.
+    // For now, just assume all aten/torch ops allow refinement (which they do,
+    // since that is what TorchScript IR allows).
+    // See also: The comment in RefineTypes.cpp. For now, we copypasta from
+    // there, since dependency-wise it's not clear where is the best place to
+    // put this. Also, it seems like upstream MLIR might grow some useful
+    // utilities to help with this case:
+    // https://llvm.discourse.group/t/allow-shape-concretization-or-type-concretization-in-rewrites/3327/3
+    // (or perhaps we should implement the AllowsTypeRefinement/Refinable
+    // design in npcomp first and upstream it)
+    //
+    // TODO: Extend RefineTypes for this case and delete this canonicalization,
+    // since we don't want control flow or calls to randomly block this fold
+    // (this canonicalization pattern makes the compiler brittle to control flow
+    // and calls).
+    bool allAllowRefinement =
+        llvm::all_of(op.getResult().getUsers(), [&](Operation *user) {
+          StringRef ns = user->getDialect()->getNamespace();
+          return ns == "aten" || ns == "torch";
+        });
+    if (!allAllowRefinement)
+      return failure();
+    rewriter.replaceOp(op, op.getOperand());
+    return success();
+  });
+}
+
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"
