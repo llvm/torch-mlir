@@ -12,6 +12,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Conversion/ATenToLinalg/ATenToLinalg.h"
+#include "npcomp/Conversion/ATenToStd/ATenToStd.h"
 #include "npcomp/Conversion/ATenToTCF/Passes.h"
 #include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 #include "npcomp/Dialect/ATen/Transforms/Passes.h"
@@ -106,6 +107,9 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   // Recognize ATen kernels. This is a totally local transformation that
   // we want to run as soon as possible.
   pm.addNestedPass<FuncOp>(aten::createRecognizeKernelsPass());
+  // Convert any operations on primitive types as soon as possible. Unlike
+  // tensor compute ops, we don't need to wait for dtype/shape inference.
+  pm.addNestedPass<FuncOp>(createConvertATenToStdPass());
 
   if (options.optimize) {
     // OPT-ONLY: Right now we rely on this to eliminate certain branches that

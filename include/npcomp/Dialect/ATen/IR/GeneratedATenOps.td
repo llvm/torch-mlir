@@ -473,6 +473,43 @@ def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<Torc
 }
 
 // -----------------------------------------------------------------------------
+// TorchScript primitive ops
+// -----------------------------------------------------------------------------
+
+def aten_IsOp: aten_Op<"__is__", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::__is__";
+  let arguments = (ins
+    AnyTorchType:$self,
+    AnyTorchType:$obj
+  );
+  let results = (outs
+    AnyTorchBoolType
+  );
+  let hasFolder = 1;
+}
+
+def aten_DimOp: aten_Op<"dim", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::dim";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self
+  );
+  let results = (outs
+    AnyTorchIntType
+  );
+}
+
+def aten_NeIntOp: aten_Op<"ne.int", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+  let summary = "Recognized op for kernel aten::ne";
+  let arguments = (ins
+    AnyTorchIntType:$a,
+    AnyTorchIntType:$b
+  );
+  let results = (outs
+    AnyTorchBoolType
+  );
+}
+
+// -----------------------------------------------------------------------------
 // NN ops
 // -----------------------------------------------------------------------------
 

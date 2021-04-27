@@ -92,6 +92,12 @@ def generate_ops(g: "OpGenerator"):
     g.ordinary_unary_op(f"aten::{uname}(Tensor)",
                         f"{snakecase_to_camelcase(uname)}Op", uname)
 
+  g.print_banner("TorchScript primitive ops")
+  g.ordinary_primitive_op("aten::__is__(t1,t2)", "IsOp", "__is__",
+                          has_folder=True)
+  g.ordinary_primitive_op("aten::dim(Tensor)", "DimOp", "dim")
+  g.ordinary_primitive_op("aten::ne(int,int)", "NeIntOp", "ne.int")
+
   # Convolution ops. Note that these are special in PyTorch and the importer,
   # and we model them after the signatures of the convolution_overrideable
   # ops (generic for non-CPU/GPU backends) but set the names according to
@@ -266,6 +272,37 @@ class OpGenerator:
             "int[]": "AnyTorchIntListType",
             "bool": "AnyTorchBoolType",
             "bool[]": "AnyTorchBoolListType",
+        },
+        flag_transforms={
+            "Tensor": ["kImmutableTensor"],
+            "Tensor?": ["kImmutableTensor"],
+        },
+    )
+    opdef.emit()
+
+  def ordinary_primitive_op(self,
+                            kernel_sig: str,
+                            ods_name: str,
+                            op_name: str,
+                            traits: Sequence[str] = (),
+                            **kwargs):
+    """"An ordinary op which might operate on a variety of non-tensor types."""
+    opdef = self.define_op(
+        kernel_sig=kernel_sig,
+        ods_name=ods_name,
+        op_name=op_name,
+        traits=list(traits) + ["NoSideEffect"],
+        **kwargs)
+    opdef.transforms(
+        type_transforms={
+            "Tensor": "AnyTorchImmutableTensor",
+            "Tensor?": "AnyTorchOptionalImmutableTensor",
+            "int": "AnyTorchIntType",
+            "int[]": "AnyTorchIntListType",
+            "bool": "AnyTorchBoolType",
+            "bool[]": "AnyTorchBoolListType",
+            "t1": "AnyTorchType",
+            "t2": "AnyTorchType",
         },
         flag_transforms={
             "Tensor": ["kImmutableTensor"],
@@ -452,7 +489,8 @@ class InflightOpDef:
                override_arg_types: Sequence[str] = None,
                override_return_types: Sequence[str] = None,
                drop_arg_indices: Sequence[int] = (),
-               drop_return_indices: Sequence[int] = ()):
+               drop_return_indices: Sequence[int] = (),
+               has_folder: bool = False):
     super().__init__()
     self.g = g
     self.kernel_sig = kernel_sig
@@ -466,6 +504,7 @@ class InflightOpDef:
     self.override_return_types = override_return_types
     self.drop_arg_indices = drop_arg_indices
     self.drop_return_indices = drop_return_indices
+    self.has_folder = has_folder
     self.reg_record = g.get_reg_record(self.kernel_sig)
     self._emitted = False
     self._traceback = traceback.extract_stack()[0:-2]
@@ -548,7 +587,8 @@ class InflightOpDef:
                                   self.reg_record,
                                   ods_ins=self.ods_ins,
                                   ods_outs=self.ods_outs,
-                                  traits=self.traits)
+                                  traits=self.traits,
+                                  has_folder=self.has_folder)
     self.g.impl_emitter.emit_kernel_methods(
         self.ods_name,
         self.reg_record,
@@ -608,7 +648,8 @@ class OdsEmitter(EmitterBase):
                  ods_ins: List[Tuple[str, str]],
                  ods_outs: List[Tuple[str, str]],
                  traits: Sequence[str] = (),
-                 summary: Optional[str] = None):
+                 summary: Optional[str] = None,
+                 has_folder: bool = False):
     # Def first-line.
     full_traits = list(traits)
     full_traits.append(
@@ -635,6 +676,9 @@ class OdsEmitter(EmitterBase):
       with self.indent():
         self._emit_dag_list_body(ods_outs)
       self.print(");")
+
+      if has_folder:
+        self.print("let hasFolder = 1;")
 
     # Def last-line.
     self.print("}\n")
