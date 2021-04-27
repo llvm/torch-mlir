@@ -48,3 +48,37 @@ func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
   %3 = "aten.tanh"(%2) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
   return %3 : tensor<*x!numpy.any_dtype>
 }
+
+// -----
+
+// CHECK-LABEL:   func @f
+// CHECK: %[[ATEN:.*]] = "aten.tanh"(%{{.*}}) : (tensor<*x!numpy.any_dtype>) -> tensor<2x3x?xf32>
+// CHECK: %[[CAST:.*]] = numpy.tensor_static_info_cast %[[ATEN]] : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype> 
+// CHECK: return %[[CAST]] : tensor<*x!numpy.any_dtype>
+func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
+  %cast = numpy.tensor_static_info_cast %arg0 : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype>
+  br ^bb1(%cast: tensor<*x!numpy.any_dtype>)
+^bb1(%arg1: tensor<*x!numpy.any_dtype>):
+  %1 = "aten.tanh"(%arg1) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
+  return %1 : tensor<*x!numpy.any_dtype>
+}
+
+// -----
+
+// CHECK-LABEL:   func @f
+// CHECK: func private @callee
+// CHECK-NEXT: "aten.tanh"(%{{.*}}) : (tensor<*x!numpy.any_dtype>) -> tensor<2x3x?xf32>
+func @f() {
+  module {
+    func private @callee(%arg0: tensor<*x!numpy.any_dtype>) {
+      %1 = "aten.tanh"(%arg0) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
+      return
+    }
+    func @caller(%arg0: tensor<2x3x?xf32>) {
+      %cast = numpy.tensor_static_info_cast %arg0 : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype>
+      call @callee(%cast) : (tensor<*x!numpy.any_dtype>) -> ()
+      return
+    }
+  }
+  return
+}

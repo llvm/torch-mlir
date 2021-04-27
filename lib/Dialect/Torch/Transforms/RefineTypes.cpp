@@ -8,6 +8,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Analysis/DataFlowAnalysis.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -33,13 +34,23 @@ using namespace mlir::NPCOMP::Torch;
 
 constexpr int64_t kUnknownSize = -1;
 
+static Type joinElementTypes(Type lhs, Type rhs) {
+  if (lhs.isa<Numpy::AnyDtypeType>())
+    return rhs;
+  if (rhs.isa<Numpy::AnyDtypeType>())
+    return lhs;
+  if (lhs == rhs)
+    return lhs;
+  return Numpy::AnyDtypeType::get(lhs.getContext());
+}
+
 namespace {
 // Statically known information for a particular Value.
 //
 // This struct currently tracks only information relevant for tensor/array-like
 // shaped types. It is fine to associate a `ValueKnowledge` with a non-shaped
 // type as long as it is in the default "no knowledge" state returned by
-// `getMostConservativeKnowledge`. The important invariant is that we cannot
+// `getPessimisticValueState`. The important invariant is that we cannot
 // claim to know something about a value which is false.
 //
 // This class could also be called "dataflow facts", "lattice value", etc.
@@ -54,9 +65,72 @@ struct ValueKnowledge {
     assert(sizes.size() == 0 || hasRank);
   }
 
-  // Get a safe "most conservative knowledge" default state.
-  static ValueKnowledge getMostConservativeKnowledge(MLIRContext *context) {
+  // Get the static knowledge intrinsic to `type`.
+  static ValueKnowledge getKnowledgeFromType(Type type) {
+    ValueKnowledge result = getPessimisticValueState(type.getContext());
+    if (auto tensorType = type.dyn_cast<TensorType>()) {
+      if (tensorType.hasRank()) {
+        result.hasRank = true;
+        result.sizes = tensorType.getShape().vec();
+      }
+      result.elementType = tensorType.getElementType();
+      return result;
+    }
+    return result;
+  }
+
+  // Return a pessimistic/conservative value state without assuming any knowlege
+  // about the IR.
+  static ValueKnowledge getPessimisticValueState(MLIRContext *context) {
     return ValueKnowledge(false, {}, Numpy::AnyDtypeType::get(context));
+  }
+  // Return a pessimistic/conservative value state only using knowlege already
+  // recorded in the IR.
+  static ValueKnowledge getPessimisticValueState(Value value) {
+    return getKnowledgeFromType(value.getType());
+  }
+
+  bool operator==(const ValueKnowledge &rhs) const {
+    return std::make_tuple(hasRank, sizes, elementType) ==
+           std::make_tuple(rhs.hasRank, rhs.sizes, rhs.elementType);
+  }
+
+  // Given two pieces of static knowledge, calculate conservatively the
+  // information we can be sure about.
+  static ValueKnowledge join(const ValueKnowledge &lhs,
+                                    const ValueKnowledge &rhs) {
+    // Mental model: All conditions are checking how to change from the safe "no
+    // knowledge" default-initialized state to a state with more knowledge
+    // consistent with lhs and rhs.
+    ValueKnowledge result =
+        getPessimisticValueState(lhs.elementType.getContext());
+
+    if (lhs.hasRank && !rhs.hasRank) {
+      result.hasRank = true;
+      result.sizes = lhs.sizes;
+    } else if (!lhs.hasRank && rhs.hasRank) {
+      result.hasRank = true;
+      result.sizes = rhs.sizes;
+    } else if (lhs.hasRank && rhs.hasRank &&
+               lhs.sizes.size() == rhs.sizes.size()) {
+      result.hasRank = true;
+      result.sizes.resize(lhs.sizes.size(), kUnknownSize);
+      for (int i = 0, e = result.sizes.size(); i != e; i++) {
+        int64_t lhsSize = lhs.sizes[i];
+        int64_t rhsSize = rhs.sizes[i];
+        int64_t &resultSize = result.sizes[i];
+        if (lhsSize == kUnknownSize) {
+          resultSize = rhsSize;
+        } else if (rhsSize == kUnknownSize) {
+          resultSize = lhsSize;
+        } else if (lhsSize == rhsSize) {
+          resultSize = lhsSize;
+        }
+      }
+    }
+
+    result.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
+    return result;
   }
 
   // Whether the Value is known to have a rank.
@@ -68,12 +142,6 @@ struct ValueKnowledge {
   // This is equal to !numpy.any_dtype if it is not a concrete type.
   Type elementType;
 };
-} // namespace
-
-bool operator==(const ValueKnowledge &lhs, const ValueKnowledge &rhs) {
-  return std::make_tuple(lhs.hasRank, lhs.sizes, lhs.elementType) ==
-         std::make_tuple(rhs.hasRank, rhs.sizes, rhs.elementType);
-}
 
 // static llvm::raw_ostream &operator<<(llvm::raw_ostream &os, ValueKnowledge
 // &knowledge) {
@@ -84,191 +152,84 @@ bool operator==(const ValueKnowledge &lhs, const ValueKnowledge &rhs) {
 //   return os;
 // }
 
-Type joinElementTypes(Type lhs, Type rhs) {
-  if (lhs.isa<Numpy::AnyDtypeType>())
-    return rhs;
-  if (rhs.isa<Numpy::AnyDtypeType>())
-    return lhs;
-  if (lhs == rhs)
-    return lhs;
-  return Numpy::AnyDtypeType::get(lhs.getContext());
-}
-
-// Given two pieces of static knowledge, calculate conservatively the
-// information we can be sure about.
-ValueKnowledge join(const ValueKnowledge &lhs, const ValueKnowledge &rhs) {
-  // Mental model: All conditions are checking how to change from the safe "no
-  // knowledge" default-initialized state to a state with more knowledge
-  // consistent with lhs and rhs.
-  ValueKnowledge result = ValueKnowledge::getMostConservativeKnowledge(
-      lhs.elementType.getContext());
-
-  if (lhs.hasRank && !rhs.hasRank) {
-    result.hasRank = true;
-    result.sizes = lhs.sizes;
-  } else if (!lhs.hasRank && rhs.hasRank) {
-    result.hasRank = true;
-    result.sizes = rhs.sizes;
-  } else if (lhs.hasRank && rhs.hasRank &&
-             lhs.sizes.size() == rhs.sizes.size()) {
-    result.hasRank = true;
-    result.sizes.resize(lhs.sizes.size(), kUnknownSize);
-    for (int i = 0, e = result.sizes.size(); i != e; i++) {
-      int64_t lhsSize = lhs.sizes[i];
-      int64_t rhsSize = rhs.sizes[i];
-      int64_t &resultSize = result.sizes[i];
-      if (lhsSize == kUnknownSize) {
-        resultSize = rhsSize;
-      } else if (rhsSize == kUnknownSize) {
-        resultSize = lhsSize;
-      } else if (lhsSize == rhsSize) {
-        resultSize = lhsSize;
-      }
-    }
-  }
-
-  result.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
-  return result;
-}
-
-// Get the static knowledge intrinsic to `type`.
-ValueKnowledge getKnowledgeFromType(Type type) {
-  if (auto tensorType = type.dyn_cast<TensorType>()) {
-    ValueKnowledge result =
-        ValueKnowledge::getMostConservativeKnowledge(type.getContext());
-    if (tensorType.hasRank()) {
-      result.hasRank = true;
-      result.sizes = tensorType.getShape().vec();
-    }
-    result.elementType = tensorType.getElementType();
-    return result;
-  }
-  return ValueKnowledge::getMostConservativeKnowledge(type.getContext());
-}
-
-// Simple forward intraprocedural dataflow for type information.
-class TypeAnalyzer {
+// Forward intraprocedural dataflow for type information.
+class TypeAnalyzer : public ForwardDataFlowAnalysis<ValueKnowledge> {
 public:
-  TypeAnalyzer(MLIRContext *context) : context(context) {}
-  void propagate(Region &region);
-  // Get the knowledge that is known about `v`.
-  ValueKnowledge &getKnowledge(Value v);
+  using ForwardDataFlowAnalysis<ValueKnowledge>::ForwardDataFlowAnalysis;
 
-private:
-  // Incorporate `knowledge` into what is known about `v`.
-  // Return true if new knowledge was obtained about `v`.
-  bool incorporateKnowledge(Value v, ValueKnowledge knowledge);
-  MLIRContext *context;
-  DenseMap<Value, ValueKnowledge> facts;
-};
-
-// Return the knowledge for the results of an op, based on the knowledge of the
-// operands and any information intrinsic to `op`.
-static SmallVector<ValueKnowledge>
-forwardKnowledgeTransferFunction(Operation *op,
-                                 ArrayRef<ValueKnowledge> operandKnowledge) {
-  if (isa<Numpy::TensorStaticInfoCastOp, aten::TanhOp>(op)) {
-    return {operandKnowledge[0]};
-  } else if (isa<aten::MmOp>(op)) {
-    auto &lhs = operandKnowledge[0];
-    auto &rhs = operandKnowledge[1];
-    auto knowledge =
-        ValueKnowledge::getMostConservativeKnowledge(op->getContext());
-    knowledge.hasRank = true;
-    // WARNING: We could be more precise here by calculating the output
-    // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
-    // at this stage in the compiler because we don't really have many static
-    // guarantees about the input ranks because `aten` ops do dynamic error
-    // checking and safely abort the program. There is nothing preventing us
-    // from (correctly!) statically inferring the shapes of the operands to
-    // shapes that are guaranteed to cause an error at runtime.
-    //
-    // Example: Suppose a user program calls `aten.mm` with two rank-0 operands.
-    // The program emits an error when invoked, but when running this pass,
-    // we will (correctly!) infer `lhs.hasRank && lhs.sizes.size() == 0 &&
-    // rhs.hasRank && rhs.sizes.size() == 0` -- it's not safe to access
-    // `lhs.sizes[0]` / `rhs.sizes[1]`! So when writing this transfer
-    // function, it's not as simple as taking `lhs.sizes[0]` and `rhs.sizes[1]`,
-    // as both of those might read out of bounds of the array. It would require
-    // more complicated logic.
-    //
-    // Just knowing dtypes and ranks is sufficient at this stage
-    // in the compiler. The precise per-dimension size propagation is best done
-    // lower in the stack, such as at the linalg level, where we have more
-    // static guarantees and more structure.
-    knowledge.sizes.resize(2, kUnknownSize);
-    // TODO: Investigate promotion rules if element types mismatch.
-    // This is conservatively correct, assuming that if both element types are
-    // the same, then the result is of that same element type.
-    knowledge.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
-    return {knowledge};
+  // Compute the knowledge for the results of an op, based on the knowledge of
+  // the operands and any information intrinsic to `op`.
+  ChangeResult
+  visitOperation(Operation *op,
+                 ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
+    if (isa<Numpy::TensorStaticInfoCastOp, aten::TanhOp>(op)) {
+      return getLatticeElement(op->getResult(0)).join(*operands[0]);
+    }
+    if (isa<aten::MmOp>(op)) {
+      auto &lhs = operands[0]->getValue();
+      auto &rhs = operands[1]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.hasRank = true;
+      // WARNING: We could be more precise here by calculating the output
+      // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
+      // at this stage in the compiler because we don't really have many static
+      // guarantees about the input ranks because `aten` ops do dynamic error
+      // checking and safely abort the program. There is nothing preventing us
+      // from (correctly!) statically inferring the shapes of the operands to
+      // shapes that are guaranteed to cause an error at runtime.
+      //
+      // Example: Suppose a user program calls `aten.mm` with two rank-0
+      // operands. The program emits an error when invoked, but when running
+      // this pass, we will (correctly!) infer `lhs.hasRank && lhs.sizes.size()
+      // == 0 && rhs.hasRank && rhs.sizes.size() == 0` -- it's not safe to
+      // access `lhs.sizes[0]` / `rhs.sizes[1]`! So when writing this transfer
+      // function, it's not as simple as taking `lhs.sizes[0]` and
+      // `rhs.sizes[1]`, as both of those might read out of bounds of the array.
+      // It would require more complicated logic.
+      //
+      // Just knowing dtypes and ranks is sufficient at this stage
+      // in the compiler. The precise per-dimension size propagation is best
+      // done lower in the stack, such as at the linalg level, where we have
+      // more static guarantees and more structure.
+      knowledge.sizes.resize(2, kUnknownSize);
+      // TODO: Investigate promotion rules if element types mismatch.
+      // This is conservatively correct, assuming that if both element types are
+      // the same, then the result is of that same element type.
+      knowledge.elementType =
+          joinElementTypes(lhs.elementType, rhs.elementType);
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    }
+    // Otherwise, this is an unknown operation. Just mark all results as having
+    // reached a pessimistic fixpoint.
+    return markAllPessimisticFixpoint(op->getResults());
   }
-  return SmallVector<ValueKnowledge>(
-      op->getNumResults(),
-      ValueKnowledge::getMostConservativeKnowledge(op->getContext()));
-}
-
-void TypeAnalyzer::propagate(Region &region) {
-  bool changed;
-  do {
-    changed = false;
-    // TODO: Find out why region.walk doesn't walk the blocks.
-    for (Block &block : region) {
-      for (Value v : block.getArguments())
-        changed |= incorporateKnowledge(v, getKnowledgeFromType(v.getType()));
-      for (Operation &op : block.getOperations()) {
-        for (Value v : op.getResults())
-          changed |= incorporateKnowledge(v, getKnowledgeFromType(v.getType()));
-        auto operandKnowledge = llvm::to_vector<6>(llvm::map_range(
-            op.getOperands(), [&](Value v) { return getKnowledge(v); }));
-        SmallVector<ValueKnowledge> resultKnowledge =
-            forwardKnowledgeTransferFunction(&op, operandKnowledge);
-        assert(resultKnowledge.size() == op.getNumResults());
-        for (auto t : llvm::zip(op.getResults(), resultKnowledge))
-          changed |= incorporateKnowledge(std::get<0>(t), std::get<1>(t));
-      }
-    };
-  } while (changed);
-}
-
-ValueKnowledge &TypeAnalyzer::getKnowledge(Value v) {
-  auto p =
-      facts.insert({v, ValueKnowledge::getMostConservativeKnowledge(context)});
-  return p.first->second;
-}
-
-bool TypeAnalyzer::incorporateKnowledge(Value v, ValueKnowledge knowledge) {
-  ValueKnowledge &currentKnowledge = getKnowledge(v);
-  ValueKnowledge updatedKnowledge = join(currentKnowledge, knowledge);
-  assert(join(updatedKnowledge, knowledge) == updatedKnowledge &&
-         "nonmonotonic!");
-  assert(join(updatedKnowledge, currentKnowledge) == updatedKnowledge &&
-         "nonmonotonic!");
-  if (currentKnowledge == updatedKnowledge)
-    return false;
-  currentKnowledge = updatedKnowledge;
-  return true;
-}
+};
+} // namespace
 
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------
 
 // Get the most refined TensorType compatible with ValueKnowledge.
-static TensorType getTensorTypeFromKnowledge(MLIRContext *context,
-                                             ValueKnowledge &knowledge) {
-  Type elementType = knowledge.elementType ? knowledge.elementType
-                                           : Numpy::AnyDtypeType::get(context);
-  if (!knowledge.hasRank)
-    return UnrankedTensorType::get(elementType);
-  return RankedTensorType::get(knowledge.sizes, elementType);
+static TensorType
+getTensorTypeFromKnowledge(MLIRContext *context,
+                           LatticeElement<ValueKnowledge> *knowledge) {
+  if (!knowledge)
+    return UnrankedTensorType::get(Numpy::AnyDtypeType::get(context));
+
+  const ValueKnowledge &value = knowledge->getValue();
+  if (!value.hasRank)
+    return UnrankedTensorType::get(value.elementType);
+  return RankedTensorType::get(value.sizes, value.elementType);
 }
 
 // Get a the most refined type compatible with ValueKnowledge, or null if that
 // is not possible.
 static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
   if (v.getType().isa<TensorType>())
-    return getTensorTypeFromKnowledge(v.getContext(), analyzer.getKnowledge(v));
+    return getTensorTypeFromKnowledge(v.getContext(),
+                                      analyzer.lookupLatticeElement(v));
   // TODO: Support !numpy.ndarray type.
   return nullptr;
 }
@@ -357,7 +318,7 @@ class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
   void runOnOperation() override {
     auto func = getOperation();
     TypeAnalyzer analyzer(&getContext());
-    analyzer.propagate(func.getRegion());
+    analyzer.run(func);
     optimize(func, analyzer);
   }
 };
