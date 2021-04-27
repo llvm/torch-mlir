@@ -20,6 +20,11 @@ def ConvertATenToTCF : Pass<"convert-aten-to-tcf", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createConvertATenToTCFPass()";
 }
 
+def ConvertATenToStd : Pass<"convert-aten-to-std", "FuncOp"> {
+  let summary = "Convert recognized ATen to Std ops";
+  let constructor = "mlir::NPCOMP::createConvertATenToStdPass()";
+}
+
 def ConvertATenToLinalg : Pass<"convert-aten-to-linalg", "FuncOp"> {
   let summary = "Convert recognized ATen to Linalg ops";
   let description = [{

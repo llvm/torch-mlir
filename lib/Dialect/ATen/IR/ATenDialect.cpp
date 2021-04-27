@@ -10,7 +10,9 @@
 
 #include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
+#include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -96,17 +98,25 @@ void ATenDialect::printType(mlir::Type type, DialectAsmPrinter &os) const {
 } // namespace NPCOMP
 } // namespace mlir
 
+Operation *ATenDialect::materializeConstant(OpBuilder &builder,
+                                               Attribute value, Type type,
+                                               Location loc) {
+  // Bool (i1 -> !basicpy.BoolType).
+  if (type.isa<Basicpy::BoolType>()) {
+    auto i1Value = value.dyn_cast<IntegerAttr>();
+    if (i1Value && i1Value.getType().getIntOrFloatBitWidth() == 1)
+      return builder.create<Basicpy::BoolConstantOp>(loc, type, i1Value);
+  }
+  return nullptr;
+}
+
 void ATenDialect::initialize() {
   addTypes<ATenListType>();
   addOperations<
 #define GET_OP_LIST
 #include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
       >();
+  getContext()->getOrLoadDialect("torch");
 }
 
-#define GET_OP_CLASSES
-#include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
-
 #include "npcomp/Dialect/ATen/IR/ATenOpInterfaces.cpp.inc"
-
-#include "npcomp/Dialect/ATen/IR/GeneratedATenOps.cpp.inc"

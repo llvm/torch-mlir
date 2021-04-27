@@ -23,6 +23,7 @@ include "mlir/IR/OpBase.td"
 def ATen_Dialect : Dialect {
   let name = "aten";
   let cppNamespace = "::mlir::NPCOMP::aten";
+  let hasConstantMaterializer = 1;
 }
 
 //===----------------------------------------------------------------------===//

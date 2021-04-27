@@ -1,5 +1,6 @@
 add_npcomp_dialect_library(NPCOMPATenDialect
   ATenDialect.cpp
+  ATenOps.cpp
   ATenDialectOpStats.cpp
 
   ADDITIONAL_HEADER_DIRS

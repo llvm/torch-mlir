@@ -869,6 +869,64 @@ const Torch::BuildKernelMetadata &TruncOp::getTorchBuildKernelMetadata() {
 }
 
 // -----------------------------------------------------------------------------
+// TorchScript primitive ops
+// -----------------------------------------------------------------------------
+
+Torch::KernelMetadata IsOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &IsOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::__is__";
+    m.addArgTypes({"t1", "t2"});
+    m.addArgConversions({KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"bool"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata DimOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &DimOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::dim";
+    m.addArgTypes({"Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor});
+    m.addReturnTypes({"int"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata NeIntOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &NeIntOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::ne";
+    m.addArgTypes({"int", "int"});
+    m.addArgConversions({KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"bool"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
+// -----------------------------------------------------------------------------
 // NN ops
 // -----------------------------------------------------------------------------
 
