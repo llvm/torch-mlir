@@ -21,11 +21,6 @@ def ATenLayerName : Pass<"aten-layer-name", "ModuleOp"> {
   let constructor = "mlir::NPCOMP::aten::createATenLayerNamePass()";
 }
 
-def ATenLowering : Pass<"aten-to-std", "ModuleOp"> {
-  let summary = "ATen dialect lowering to function calls.";
-  let constructor = "mlir::NPCOMP::aten::createATenLoweringPass()";
-}
-
 def ATenOpReport : Pass<"aten-op-report", "ModuleOp"> {
   let summary = "Generate ATen operation report.";
   let constructor = "mlir::NPCOMP::aten::createATenOpReportPass()";
