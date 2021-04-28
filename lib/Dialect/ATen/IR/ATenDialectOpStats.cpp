@@ -40,13 +40,6 @@ namespace mlir {
 namespace NPCOMP {
 namespace aten {
 
-std::map<std::string, uint64_t> AdaptiveAvgPool2dOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  // FIXME: unimplemented
-  toReturn["reads"] = -1;
-  toReturn["writes"] = -1;
-  return toReturn;
-}
 std::map<std::string, uint64_t> AdaptiveAvgPool2dBackwardOp::getStatistics() {
   std::map<std::string, uint64_t> toReturn;
   // FIXME: unimplemented
@@ -127,46 +120,6 @@ std::map<std::string, uint64_t> AsStridedOp::getStatistics() {
   toReturn["writes"] = 0;
   toReturn["operand:0:activation_in"] = 0;
   toReturn["result:0:activation_out"] = 0;
-  return toReturn;
-}
-
-// batch_norm
-std::map<std::string, uint64_t> BatchNormOp::getStatistics() {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = getResult(0).getType().cast<TensorType>();
-  uint64_t op_volume = getTensorVolume(resultTy);
-  uint64_t weight_volume = getTensorVolume(getOperand(1).getType());
-  uint64_t bias_volume = getTensorVolume(getOperand(2).getType());
-  toReturn["operand:0:activation_in"] = op_volume;
-  toReturn["result:0:activation_out"] = op_volume;
-  toReturn["operand:1:parameters_in:weight"] = weight_volume;
-  toReturn["operand:2:parameters_in:bias"] = bias_volume;
-
-  // Now for the arithmetic.  Assume variance is calculated as sum of squares
-  uint64_t ifm_depth = resultTy.getShape()[1];
-
-  toReturn["ops:+"] = op_volume;  // Add up for mean
-  toReturn["ops:*"] = op_volume;  // Square for variance
-  toReturn["ops:+"] += op_volume; // Add up squares for variance
-
-  toReturn["ops:*"] += ifm_depth; // Calc channel means
-  toReturn["ops:-"] += ifm_depth; // Calc channel vars
-  toReturn["ops:*"] += ifm_depth; // Calc channel vars
-
-  toReturn["ops:sqrt"] = ifm_depth; // Convert to SD
-  toReturn["ops:/"] = ifm_depth;    // Get the reciprocal
-
-  toReturn["ops:+"] += op_volume; // Subtract mean off each pixel
-  toReturn["ops:*"] += op_volume; // Multiply by 1/SD for each pixel
-
-  toReturn["ops:+"] += op_volume; // Bias
-  toReturn["ops:*"] += op_volume; // Scale
-
-  toReturn["reads"] = op_volume + weight_volume + bias_volume;
-  toReturn["writes"] = op_volume;
-
   return toReturn;
 }
 
@@ -263,33 +216,6 @@ std::map<std::string, uint64_t> HardtanhUnderOp::getStatistics() {
 std::map<std::string, uint64_t> HardtanhBackwardOp::getStatistics() {
   std::map<std::string, uint64_t> toReturn;
   // FIXME: unimplemented
-  return toReturn;
-}
-
-// max_pool2d
-std::map<std::string, uint64_t> MaxPool2dOp::getStatistics() {
-
-  std::map<std::string, uint64_t> toReturn;
-
-  TensorType resultTy = getResult().getType().cast<TensorType>();
-  TensorType inputType = getOperand(0).getType().cast<TensorType>();
-
-  uint64_t ofm_volume = getTensorVolume(resultTy);
-  toReturn["result:0:activation_out"] = ofm_volume;
-
-  uint64_t ifm_volume = getTensorVolume(inputType);
-  toReturn["input:0:activation_in"] = ifm_volume;
-
-  // To find the number of compares, we need the filter extent
-
-  std::vector<uint64_t> kernel_size = unpackListConstant(getOperand(1));
-
-  uint64_t aperture = kernel_size[0] * kernel_size[1];
-  toReturn["ops:>"] = ofm_volume * (aperture - 1);
-
-  toReturn["reads"] = ifm_volume;
-  toReturn["writes"] = ofm_volume;
-
   return toReturn;
 }
 

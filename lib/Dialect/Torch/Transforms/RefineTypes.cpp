@@ -162,7 +162,9 @@ public:
   ChangeResult
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
-    if (isa<Numpy::TensorStaticInfoCastOp, aten::TanhOp>(op)) {
+    if (isa<Numpy::TensorStaticInfoCastOp, Numpy::CopyToTensorOp,
+            Numpy::CreateArrayFromTensorOp, aten::TanhOp, aten::BatchNormOp,
+            aten::ReluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
     if (isa<aten::MmOp>(op)) {
@@ -213,6 +215,52 @@ public:
           knowledge.elementType,
           joinElementTypes(operands[1]->getValue().elementType,
                            operands[2]->getValue().elementType));
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (isa<aten::Conv2dOp>(op)) {
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.hasRank = true;
+      knowledge.sizes.resize(4, kUnknownSize);
+      // Running some experiments in PyTorch, the bias doesn't seem to
+      // contribute to the final element type.
+      knowledge.elementType =
+          joinElementTypes(operands[0]->getValue().elementType,
+                           operands[1]->getValue().elementType);
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (isa<aten::MaxPool2dOp>(op)) {
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.hasRank = true;
+      knowledge.sizes.resize(4, kUnknownSize);
+      knowledge.elementType = operands[0]->getValue().elementType;
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (isa<aten::AdaptiveAvgPool2dOp>(op)) {
+      auto input = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      if (input.hasRank) {
+        knowledge.hasRank = true;
+        knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+      }
+      knowledge.elementType = input.elementType;
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (isa<aten::AddOp>(op)) {
+      // This is a general binary broadcasting shape transfer function.
+      // We currently don't track "size 1" in our lattice, but we might want to.
+      // We could make this more precise as well. But again, as with the other
+      // shape transfer functions, handling the statically-invalid case is
+      // tricky, so we defer that until we need it.
+      auto lhs = operands[0]->getValue();
+      auto rhs = operands[1]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      if (lhs.hasRank && rhs.hasRank) {
+        knowledge.hasRank = true;
+        knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
+                               kUnknownSize);
+      }
+      knowledge.elementType =
+          joinElementTypes(lhs.elementType, rhs.elementType);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     }
     // Otherwise, this is an unknown operation. Just mark all results as having
