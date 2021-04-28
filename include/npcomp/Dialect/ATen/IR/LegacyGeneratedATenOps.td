@@ -406,22 +406,6 @@ def aten_HardtanhUnderOp: aten_Op<"hardtanh_", [NoSideEffect, StatisticsOpInterf
   }];
 }
 
-def aten_AdaptiveAvgPool2dOp: aten_Op<"_adaptive_avg_pool2d", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyType:$output_size
-  );
-  let summary = "aten _adaptive_avg_pool2d operator";
-  let description = [{
-    AdaptiveAvgPool2dOp
-    aten _adaptive_avg_pool2d operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_AdaptiveAvgPool2dBackwardOp: aten_Op<"_adaptive_avg_pool2d_backward", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
   let arguments = (

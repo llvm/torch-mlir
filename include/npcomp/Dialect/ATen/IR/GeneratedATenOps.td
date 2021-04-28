@@ -525,6 +525,50 @@ def aten_LinearOp: aten_Op<"linear", [NoSideEffect, DeclareOpInterfaceMethods<To
   );
 }
 
+def aten_BatchNormOp: aten_Op<"batch_norm", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::batch_norm";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$input,
+    AnyTorchOptionalImmutableTensor:$weight,
+    AnyTorchOptionalImmutableTensor:$bias,
+    AnyTorchOptionalImmutableTensor:$running_mean,
+    AnyTorchOptionalImmutableTensor:$running_var,
+    AnyTorchBoolType:$training,
+    AnyFloat:$momentum,
+    AnyFloat:$eps,
+    AnyTorchBoolType:$cudnn_enabled
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_MaxPool2dOp: aten_Op<"max_pool2d", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::max_pool2d";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchIntListType:$kernel_size,
+    AnyTorchIntListType:$stride,
+    AnyTorchIntListType:$padding,
+    AnyTorchIntListType:$dilation,
+    AnyTorchBoolType:$ceil_mode
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
+def aten_AdaptiveAvgPool2dOp: aten_Op<"adaptive_avg_pool2d", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::adaptive_avg_pool2d";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self,
+    AnyTorchIntListType:$output_size
+  );
+  let results = (outs
+    AnyTorchImmutableTensor
+  );
+}
+
 def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::convolution_overrideable";
   let arguments = (ins
@@ -691,3 +735,4 @@ def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<Torch
   let results = (outs
   );
 }
+

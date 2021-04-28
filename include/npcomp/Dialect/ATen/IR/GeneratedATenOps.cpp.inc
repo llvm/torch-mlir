@@ -213,6 +213,7 @@ const Torch::BuildKernelMetadata &AbsOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::abs";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::abs_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -232,6 +233,7 @@ const Torch::BuildKernelMetadata &AcosOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::acos";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::acos_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -251,6 +253,7 @@ const Torch::BuildKernelMetadata &AngleOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::angle";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::angle_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -270,6 +273,7 @@ const Torch::BuildKernelMetadata &AsinOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::asin";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::asin_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -289,6 +293,7 @@ const Torch::BuildKernelMetadata &AtanOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::atan";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::atan_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -308,6 +313,7 @@ const Torch::BuildKernelMetadata &CeilOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::ceil";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::ceil_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -327,6 +333,7 @@ const Torch::BuildKernelMetadata &ConjOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::conj";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::conj_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -346,6 +353,7 @@ const Torch::BuildKernelMetadata &CosOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::cos";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::cos_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -365,6 +373,7 @@ const Torch::BuildKernelMetadata &CoshOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::cosh";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::cosh_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -384,6 +393,7 @@ const Torch::BuildKernelMetadata &DigammaOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::digamma";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::digamma_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -403,6 +413,7 @@ const Torch::BuildKernelMetadata &ErfOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::erf";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::erf_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -422,6 +433,7 @@ const Torch::BuildKernelMetadata &ErfcOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::erfc";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::erfc_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -441,6 +453,7 @@ const Torch::BuildKernelMetadata &ErfinvOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::erfinv";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::erfinv_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -460,6 +473,7 @@ const Torch::BuildKernelMetadata &ExpOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::exp";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::exp_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -479,6 +493,7 @@ const Torch::BuildKernelMetadata &Expm1Op::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::expm1";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::expm1_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -498,6 +513,7 @@ const Torch::BuildKernelMetadata &FloorOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::floor";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::floor_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -517,6 +533,7 @@ const Torch::BuildKernelMetadata &FracOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::frac";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::frac_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -536,6 +553,7 @@ const Torch::BuildKernelMetadata &LgammaOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::lgamma";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::lgamma_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -555,6 +573,7 @@ const Torch::BuildKernelMetadata &LogOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::log";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::log_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -574,6 +593,7 @@ const Torch::BuildKernelMetadata &Log10Op::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::log10";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::log10_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -593,6 +613,7 @@ const Torch::BuildKernelMetadata &Log1pOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::log1p";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::log1p_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -612,6 +633,7 @@ const Torch::BuildKernelMetadata &Log2Op::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::log2";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::log2_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -631,6 +653,7 @@ const Torch::BuildKernelMetadata &NegOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::neg";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::neg_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -650,6 +673,7 @@ const Torch::BuildKernelMetadata &ReluOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::relu";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::relu_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -669,6 +693,7 @@ const Torch::BuildKernelMetadata &ReciprocalOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::reciprocal";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::reciprocal_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -688,6 +713,7 @@ const Torch::BuildKernelMetadata &RoundOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::round";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::round_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -707,6 +733,7 @@ const Torch::BuildKernelMetadata &RsqrtOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::rsqrt";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::rsqrt_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -726,6 +753,7 @@ const Torch::BuildKernelMetadata &SigmoidOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::sigmoid";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::sigmoid_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -745,6 +773,7 @@ const Torch::BuildKernelMetadata &SignOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::sign";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::sign_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -764,6 +793,7 @@ const Torch::BuildKernelMetadata &SinOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::sin";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::sin_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -783,6 +813,7 @@ const Torch::BuildKernelMetadata &SinhOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::sinh";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::sinh_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -802,6 +833,7 @@ const Torch::BuildKernelMetadata &SqrtOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::sqrt";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::sqrt_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -821,6 +853,7 @@ const Torch::BuildKernelMetadata &TanOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::tan";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::tan_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -840,6 +873,7 @@ const Torch::BuildKernelMetadata &TanhOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::tanh";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::tanh_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -859,6 +893,7 @@ const Torch::BuildKernelMetadata &TruncOp::getTorchBuildKernelMetadata() {
     Torch::BuildKernelMetadata m;
     m.kernelName = "aten::trunc";
     m.promoteTrailingOutTensor = true;
+    m.inplaceVariantKernelName = "aten::trunc_";
     m.addArgTypes({"Tensor"});
     m.addArgConversions({KVC::kImmutableTensor});
     m.addReturnTypes({"Tensor"});
@@ -942,6 +977,63 @@ const Torch::BuildKernelMetadata &LinearOp::getTorchBuildKernelMetadata() {
     m.promoteTrailingOutTensor = true;
     m.addArgTypes({"Tensor", "Tensor", "Tensor?"});
     m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata BatchNormOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &BatchNormOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::batch_norm";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "Tensor?", "Tensor?", "Tensor?", "Tensor?", "bool", "float", "float", "bool"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata MaxPool2dOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &MaxPool2dOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::max_pool2d";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "int[]", "int[]", "int[]", "int[]", "bool"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kImmutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata AdaptiveAvgPool2dOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &AdaptiveAvgPool2dOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::adaptive_avg_pool2d";
+    m.promoteTrailingOutTensor = true;
+    m.addArgTypes({"Tensor", "int[]"});
+    m.addArgConversions({KVC::kImmutableTensor, KVC::kNone});
     m.addReturnTypes({"Tensor"});
     m.addReturnConversions({KVC::kImmutableTensor});
     return m;

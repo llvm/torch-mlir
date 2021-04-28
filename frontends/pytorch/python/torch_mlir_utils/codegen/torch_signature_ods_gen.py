@@ -107,6 +107,18 @@ def generate_ops(g: "OpGenerator"):
       "LinearOp",
       "linear")
   g.ordinary_immutable_op(
+      "aten::batch_norm(Tensor,Tensor?,Tensor?,Tensor?,Tensor?,bool,float,float,bool)",
+      "BatchNormOp",
+      "batch_norm")
+  g.ordinary_immutable_op(
+      "aten::max_pool2d(Tensor,int[],int[],int[],int[],bool)",
+      "MaxPool2dOp",
+      "max_pool2d")
+  g.ordinary_immutable_op(
+    "aten::adaptive_avg_pool2d(Tensor,int[])",
+    "AdaptiveAvgPool2dOp",
+    "adaptive_avg_pool2d")
+  g.ordinary_immutable_op(
       "aten::convolution_overrideable(Tensor,Tensor,Tensor?,int[],int[],int[],bool,int[],int)",
       "ConvolutionOp",
       "convolution",
@@ -272,6 +284,7 @@ class OpGenerator:
             "int[]": "AnyTorchIntListType",
             "bool": "AnyTorchBoolType",
             "bool[]": "AnyTorchBoolListType",
+            "float": "AnyFloat",
         },
         flag_transforms={
             "Tensor": ["kImmutableTensor"],
@@ -363,11 +376,13 @@ class OpGenerator:
     These take and return a tensor and typically have an out and inplace
     variant (they may not but we generate patterns to match anyway).
     """
+    kernel_name = kernel_sig.partition("(")[0]
     opdef = self.define_op(
         kernel_sig=kernel_sig,
         ods_name=ods_name,
         op_name=op_name,
         promote_trailing_out_tensor=promote_trailing_out_tensor,
+        inplace_variant_kernel_name=kernel_name + "_",
         traits=list(traits) + ["NoSideEffect"],
         **kwargs)
     opdef.arg_transforms(
