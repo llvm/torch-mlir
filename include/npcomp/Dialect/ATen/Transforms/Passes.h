@@ -25,7 +25,6 @@ std::unique_ptr<OperationPass<ModuleOp>>
 createATenOpReportPass(std::string &output);
 
 std::unique_ptr<OperationPass<ModuleOp>> createATenLayerNamePass();
-std::unique_ptr<OperationPass<ModuleOp>> createATenLoweringPass();
 std::unique_ptr<OperationPass<ModuleOp>> createReturnEliminationPass();
 } // namespace aten
 
