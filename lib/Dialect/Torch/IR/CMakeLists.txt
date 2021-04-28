@@ -20,4 +20,5 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
   MLIRSideEffectInterfaces
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
+  NPCOMPInterfaces
 )

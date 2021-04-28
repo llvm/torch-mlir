@@ -18,7 +18,7 @@
 // Binary arithmetic ops
 // -----------------------------------------------------------------------------
 
-def aten_AddOp: aten_Op<"add", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AddOp: aten_Op<"add", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::add";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -30,7 +30,7 @@ def aten_AddOp: aten_Op<"add", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_Atan2Op: aten_Op<"atan2", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Atan2Op: aten_Op<"atan2", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::atan2";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -41,7 +41,7 @@ def aten_Atan2Op: aten_Op<"atan2", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_DivOp: aten_Op<"div", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_DivOp: aten_Op<"div", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::div";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -52,7 +52,7 @@ def aten_DivOp: aten_Op<"div", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_FloorDivideOp: aten_Op<"floor_divide", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_FloorDivideOp: aten_Op<"floor_divide", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::floor_divide";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -63,7 +63,7 @@ def aten_FloorDivideOp: aten_Op<"floor_divide", [NoSideEffect, DeclareOpInterfac
   );
 }
 
-def aten_MulOp: aten_Op<"mul", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_MulOp: aten_Op<"mul", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::mul";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -74,7 +74,7 @@ def aten_MulOp: aten_Op<"mul", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_RemainderOp: aten_Op<"remainder", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_RemainderOp: aten_Op<"remainder", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::remainder";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -85,7 +85,7 @@ def aten_RemainderOp: aten_Op<"remainder", [NoSideEffect, DeclareOpInterfaceMeth
   );
 }
 
-def aten_TrueDivideOp: aten_Op<"true_divide", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_TrueDivideOp: aten_Op<"true_divide", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::true_divide";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -96,7 +96,7 @@ def aten_TrueDivideOp: aten_Op<"true_divide", [NoSideEffect, DeclareOpInterfaceM
   );
 }
 
-def aten_MaximumOp: aten_Op<"maximum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_MaximumOp: aten_Op<"maximum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::maximum";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -107,7 +107,7 @@ def aten_MaximumOp: aten_Op<"maximum", [NoSideEffect, DeclareOpInterfaceMethods<
   );
 }
 
-def aten_MinimumOp: aten_Op<"minimum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_MinimumOp: aten_Op<"minimum", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::minimum";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -122,7 +122,7 @@ def aten_MinimumOp: aten_Op<"minimum", [NoSideEffect, DeclareOpInterfaceMethods<
 // Unary arithmetic ops
 // -----------------------------------------------------------------------------
 
-def aten_AbsOp: aten_Op<"abs", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AbsOp: aten_Op<"abs", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::abs";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -132,7 +132,7 @@ def aten_AbsOp: aten_Op<"abs", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_AcosOp: aten_Op<"acos", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AcosOp: aten_Op<"acos", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::acos";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -142,7 +142,7 @@ def aten_AcosOp: aten_Op<"acos", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_AngleOp: aten_Op<"angle", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AngleOp: aten_Op<"angle", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::angle";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -152,7 +152,7 @@ def aten_AngleOp: aten_Op<"angle", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_AsinOp: aten_Op<"asin", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AsinOp: aten_Op<"asin", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::asin";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -162,7 +162,7 @@ def aten_AsinOp: aten_Op<"asin", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_AtanOp: aten_Op<"atan", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_AtanOp: aten_Op<"atan", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::atan";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -172,7 +172,7 @@ def aten_AtanOp: aten_Op<"atan", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_CeilOp: aten_Op<"ceil", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_CeilOp: aten_Op<"ceil", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::ceil";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -182,7 +182,7 @@ def aten_CeilOp: aten_Op<"ceil", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_ConjOp: aten_Op<"conj", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ConjOp: aten_Op<"conj", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::conj";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -192,7 +192,7 @@ def aten_ConjOp: aten_Op<"conj", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_CosOp: aten_Op<"cos", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_CosOp: aten_Op<"cos", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::cos";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -202,7 +202,7 @@ def aten_CosOp: aten_Op<"cos", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_CoshOp: aten_Op<"cosh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_CoshOp: aten_Op<"cosh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::cosh";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -212,7 +212,7 @@ def aten_CoshOp: aten_Op<"cosh", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_DigammaOp: aten_Op<"digamma", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_DigammaOp: aten_Op<"digamma", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::digamma";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -222,7 +222,7 @@ def aten_DigammaOp: aten_Op<"digamma", [NoSideEffect, DeclareOpInterfaceMethods<
   );
 }
 
-def aten_ErfOp: aten_Op<"erf", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ErfOp: aten_Op<"erf", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::erf";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -232,7 +232,7 @@ def aten_ErfOp: aten_Op<"erf", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_ErfcOp: aten_Op<"erfc", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ErfcOp: aten_Op<"erfc", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::erfc";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -242,7 +242,7 @@ def aten_ErfcOp: aten_Op<"erfc", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_ErfinvOp: aten_Op<"erfinv", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ErfinvOp: aten_Op<"erfinv", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::erfinv";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -252,7 +252,7 @@ def aten_ErfinvOp: aten_Op<"erfinv", [NoSideEffect, DeclareOpInterfaceMethods<To
   );
 }
 
-def aten_ExpOp: aten_Op<"exp", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ExpOp: aten_Op<"exp", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::exp";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -262,7 +262,7 @@ def aten_ExpOp: aten_Op<"exp", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_Expm1Op: aten_Op<"expm1", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Expm1Op: aten_Op<"expm1", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::expm1";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -272,7 +272,7 @@ def aten_Expm1Op: aten_Op<"expm1", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_FloorOp: aten_Op<"floor", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_FloorOp: aten_Op<"floor", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::floor";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -282,7 +282,7 @@ def aten_FloorOp: aten_Op<"floor", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_FracOp: aten_Op<"frac", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_FracOp: aten_Op<"frac", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::frac";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -292,7 +292,7 @@ def aten_FracOp: aten_Op<"frac", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_LgammaOp: aten_Op<"lgamma", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_LgammaOp: aten_Op<"lgamma", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::lgamma";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -302,7 +302,7 @@ def aten_LgammaOp: aten_Op<"lgamma", [NoSideEffect, DeclareOpInterfaceMethods<To
   );
 }
 
-def aten_LogOp: aten_Op<"log", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_LogOp: aten_Op<"log", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::log";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -312,7 +312,7 @@ def aten_LogOp: aten_Op<"log", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_Log10Op: aten_Op<"log10", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Log10Op: aten_Op<"log10", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::log10";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -322,7 +322,7 @@ def aten_Log10Op: aten_Op<"log10", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_Log1pOp: aten_Op<"log1p", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Log1pOp: aten_Op<"log1p", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::log1p";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -332,7 +332,7 @@ def aten_Log1pOp: aten_Op<"log1p", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_Log2Op: aten_Op<"log2", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Log2Op: aten_Op<"log2", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::log2";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -342,7 +342,7 @@ def aten_Log2Op: aten_Op<"log2", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_NegOp: aten_Op<"neg", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NegOp: aten_Op<"neg", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::neg";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -352,7 +352,7 @@ def aten_NegOp: aten_Op<"neg", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_ReluOp: aten_Op<"relu", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ReluOp: aten_Op<"relu", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::relu";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -362,7 +362,7 @@ def aten_ReluOp: aten_Op<"relu", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_ReciprocalOp: aten_Op<"reciprocal", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ReciprocalOp: aten_Op<"reciprocal", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::reciprocal";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -372,7 +372,7 @@ def aten_ReciprocalOp: aten_Op<"reciprocal", [NoSideEffect, DeclareOpInterfaceMe
   );
 }
 
-def aten_RoundOp: aten_Op<"round", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_RoundOp: aten_Op<"round", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::round";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -382,7 +382,7 @@ def aten_RoundOp: aten_Op<"round", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_RsqrtOp: aten_Op<"rsqrt", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_RsqrtOp: aten_Op<"rsqrt", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::rsqrt";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -392,7 +392,7 @@ def aten_RsqrtOp: aten_Op<"rsqrt", [NoSideEffect, DeclareOpInterfaceMethods<Torc
   );
 }
 
-def aten_SigmoidOp: aten_Op<"sigmoid", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_SigmoidOp: aten_Op<"sigmoid", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::sigmoid";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -402,7 +402,7 @@ def aten_SigmoidOp: aten_Op<"sigmoid", [NoSideEffect, DeclareOpInterfaceMethods<
   );
 }
 
-def aten_SignOp: aten_Op<"sign", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_SignOp: aten_Op<"sign", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::sign";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -412,7 +412,7 @@ def aten_SignOp: aten_Op<"sign", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_SinOp: aten_Op<"sin", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_SinOp: aten_Op<"sin", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::sin";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -422,7 +422,7 @@ def aten_SinOp: aten_Op<"sin", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_SinhOp: aten_Op<"sinh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_SinhOp: aten_Op<"sinh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::sinh";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -432,7 +432,7 @@ def aten_SinhOp: aten_Op<"sinh", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_SqrtOp: aten_Op<"sqrt", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_SqrtOp: aten_Op<"sqrt", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::sqrt";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -442,7 +442,7 @@ def aten_SqrtOp: aten_Op<"sqrt", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_TanOp: aten_Op<"tan", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_TanOp: aten_Op<"tan", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::tan";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -452,7 +452,7 @@ def aten_TanOp: aten_Op<"tan", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_TanhOp: aten_Op<"tanh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_TanhOp: aten_Op<"tanh", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::tanh";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -462,7 +462,7 @@ def aten_TanhOp: aten_Op<"tanh", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   );
 }
 
-def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::trunc";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -476,7 +476,7 @@ def aten_TruncOp: aten_Op<"trunc", [NoSideEffect, DeclareOpInterfaceMethods<Torc
 // TorchScript primitive ops
 // -----------------------------------------------------------------------------
 
-def aten_IsOp: aten_Op<"__is__", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_IsOp: aten_Op<"__is__", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::__is__";
   let arguments = (ins
     AnyTorchType:$self,
@@ -488,7 +488,7 @@ def aten_IsOp: aten_Op<"__is__", [NoSideEffect, DeclareOpInterfaceMethods<TorchB
   let hasFolder = 1;
 }
 
-def aten_DimOp: aten_Op<"dim", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_DimOp: aten_Op<"dim", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::dim";
   let arguments = (ins
     AnyTorchImmutableTensor:$self
@@ -498,7 +498,7 @@ def aten_DimOp: aten_Op<"dim", [NoSideEffect, DeclareOpInterfaceMethods<TorchBui
   );
 }
 
-def aten_NeIntOp: aten_Op<"ne.int", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NeIntOp: aten_Op<"ne.int", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::ne";
   let arguments = (ins
     AnyTorchIntType:$a,
@@ -513,7 +513,7 @@ def aten_NeIntOp: aten_Op<"ne.int", [NoSideEffect, DeclareOpInterfaceMethods<Tor
 // NN ops
 // -----------------------------------------------------------------------------
 
-def aten_LinearOp: aten_Op<"linear", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_LinearOp: aten_Op<"linear", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::linear";
   let arguments = (ins
     AnyTorchImmutableTensor:$input,
@@ -525,7 +525,7 @@ def aten_LinearOp: aten_Op<"linear", [NoSideEffect, DeclareOpInterfaceMethods<To
   );
 }
 
-def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::convolution_overrideable";
   let arguments = (ins
     AnyTorchImmutableTensor:$input,
@@ -543,7 +543,7 @@ def aten_ConvolutionOp: aten_Op<"convolution", [NoSideEffect, DeclareOpInterface
   );
 }
 
-def aten_Conv2dOp: aten_Op<"conv2d", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_Conv2dOp: aten_Op<"conv2d", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::conv2d";
   let arguments = (ins
     AnyTorchImmutableTensor:$input,
@@ -559,7 +559,7 @@ def aten_Conv2dOp: aten_Op<"conv2d", [NoSideEffect, DeclareOpInterfaceMethods<To
   );
 }
 
-def aten_ConvolutionBackwardOp: aten_Op<"convolution_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_ConvolutionBackwardOp: aten_Op<"convolution_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::convolution_backward_overrideable";
   let arguments = (ins
     AnyTorchImmutableTensor:$grad_output,
@@ -580,7 +580,7 @@ def aten_ConvolutionBackwardOp: aten_Op<"convolution_backward", [NoSideEffect, D
   );
 }
 
-def aten_LogSoftmaxOp: aten_Op<"log_softmax", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_LogSoftmaxOp: aten_Op<"log_softmax", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::_log_softmax";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -592,7 +592,7 @@ def aten_LogSoftmaxOp: aten_Op<"log_softmax", [NoSideEffect, DeclareOpInterfaceM
   );
 }
 
-def aten_LogSoftmaxBackwardDataOp: aten_Op<"log_softmax_backward_data", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_LogSoftmaxBackwardDataOp: aten_Op<"log_softmax_backward_data", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::_log_softmax_backward_data";
   let arguments = (ins
     AnyTorchImmutableTensor:$grad_output,
@@ -605,7 +605,7 @@ def aten_LogSoftmaxBackwardDataOp: aten_Op<"log_softmax_backward_data", [NoSideE
   );
 }
 
-def aten_MmOp: aten_Op<"mm", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_MmOp: aten_Op<"mm", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::mm";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -620,7 +620,7 @@ def aten_MmOp: aten_Op<"mm", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuild
 // Loss function ops
 // -----------------------------------------------------------------------------
 
-def aten_NllLossForwardOp: aten_Op<"nll_loss_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NllLossForwardOp: aten_Op<"nll_loss_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::nll_loss_forward";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -635,7 +635,7 @@ def aten_NllLossForwardOp: aten_Op<"nll_loss_forward", [NoSideEffect, DeclareOpI
   );
 }
 
-def aten_NllLossBackwardOp: aten_Op<"nll_loss_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NllLossBackwardOp: aten_Op<"nll_loss_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::nll_loss_backward";
   let arguments = (ins
     AnyTorchImmutableTensor:$grad_output,
@@ -651,7 +651,7 @@ def aten_NllLossBackwardOp: aten_Op<"nll_loss_backward", [NoSideEffect, DeclareO
   );
 }
 
-def aten_NllLoss2dForwardOp: aten_Op<"nll_loss2d_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NllLoss2dForwardOp: aten_Op<"nll_loss2d_forward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::nll_loss2d_forward";
   let arguments = (ins
     AnyTorchImmutableTensor:$self,
@@ -666,7 +666,7 @@ def aten_NllLoss2dForwardOp: aten_Op<"nll_loss2d_forward", [NoSideEffect, Declar
   );
 }
 
-def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::nll_loss2d_backward";
   let arguments = (ins
     AnyTorchImmutableTensor:$grad_output,
@@ -682,7 +682,7 @@ def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, Decl
   );
 }
 
-def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::copy_";
   let arguments = (ins
     AnyTorchMutableTensor:$self,
@@ -691,4 +691,3 @@ def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<Torch
   let results = (outs
   );
 }
-

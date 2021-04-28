@@ -19,6 +19,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
+#include "npcomp/Interfaces/Traits.h"
 
 #include <map>
 
