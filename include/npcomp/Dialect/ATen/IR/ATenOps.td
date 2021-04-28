@@ -13,6 +13,7 @@ include "npcomp/Dialect/ATen/IR/ATenDialect.td"
 include "npcomp/Dialect/ATen/IR/ATenOpInterface.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
+include "npcomp/Interfaces/Traits.td"
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
 

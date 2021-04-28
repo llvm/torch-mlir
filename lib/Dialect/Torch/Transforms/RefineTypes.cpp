@@ -249,77 +249,59 @@ static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
   return nullptr;
 }
 
-// Return true whether a type `v` can have its type updated in place.
-// This is a function of the value itself and also its users.
-static bool canUpdateTypeInPlace(Value v) {
-  // TODO: There are really two different predicates here, which need to be
-  // properly interface-ized or otherwise make pluggable.
-  // 1. Whether an operation allows its result to be refined to a certain type.
-  // 2. Whether an operand of an operation can be refined to a certain
-  // type.
-  //
-  // A simple first step that probably is enough in practice is a simple trait
-  // AllowsTypeRefinement which answers yes to both questions. In general, an op
-  // might allow refinement of some operands/results but not others, but that
-  // seems unlikely.
-  //
-  // Currently, we answer both with the same logic, which is just enough for our
-  // e2e bringup.
-  Dialect *atenDialect = v.getContext()->getOrLoadDialect<aten::ATenDialect>();
-  auto canValueIntrinsicallyBeUpdated = [&](Value v) {
-    // TODO: Update block arguments.
-    if (v.isa<BlockArgument>())
-      return false;
-    Operation *op = v.cast<OpResult>().getOwner();
-    if (op->getDialect() == atenDialect)
-      return true;
-    if (isa<Numpy::TensorStaticInfoCastOp>(op))
-      return true;
-    return false;
-  };
-  // TODO: Handle BranchOpInterface and RegionBranchOpInterface ops.
-  return canValueIntrinsicallyBeUpdated(v) &&
-         llvm::all_of(v.getUses(), [&](OpOperand &use) {
-           Operation *user = use.getOwner();
-           if (user->getDialect() == atenDialect)
-             return true;
-           if (isa<Numpy::TensorStaticInfoCastOp>(user))
-             return true;
-           return false;
-         });
-}
-
 void optimize(FuncOp func, TypeAnalyzer &analyzer) {
   func.walk([&](Operation *op) {
     for (Value v : op->getResults()) {
       Type refinedType = getMostRefinedStaticType(v, analyzer);
+      Type originalType = v.getType();
       // No type? Nothing to do.
       if (!refinedType)
-        return;
+        continue;
       // Type is same as existing one? Nothing to do.
-      if (refinedType == v.getType())
-        return;
-      if (canUpdateTypeInPlace(v)) {
-        // Update type in place if possible.
-        v.setType(refinedType);
-      } else if (v.getType().isa<TensorType>() && v.isa<OpResult>()) {
-        // Update the type in place, and cast the information way explicitly so
-        // that users observe the original type.
-        // TODO: Support updating !numpy.ndarray type too.
-        // TODO: Support updating block arguments.
-        // TODO: This update could be more fine-grained (RAUW with per-use
-        // canUpdateTypeInPlace information), or to get we could get the same
-        // effect by implementing a canonicalization that uses the fine-grained
-        // information used by canUpdateTypeInPlace to bypass
-        // numpy.tensor_static_info_cast when the consuming op is ok with that.
-        Operation *op = v.cast<OpResult>().getOwner();
-        OpBuilder builder(op->getBlock(), std::next(op->getIterator()));
-        auto staticInfoCast = builder.create<Numpy::TensorStaticInfoCastOp>(
-            op->getLoc(), v.getType(), v);
-        SmallPtrSet<Operation *, 1> exceptions;
-        exceptions.insert(staticInfoCast);
-        v.replaceAllUsesExcept(staticInfoCast, exceptions);
-        v.setType(refinedType);
+      if (refinedType == originalType)
+        continue;
+      // If the type is a TensorType, then we have numpy.tensor_static_info_cast
+      // to add/remove the static information. We make sure to always embed the
+      // static information in the IR, and insert the minimal number of casts
+      // needed to do so.
+      // TODO: This logic should generalize easily to other types. We just
+      // need to know which op allows us to add static information and which op
+      // allows us to remove static information (in this case, one op allows
+      // both).
+      if (originalType.isa<TensorType>()) {
+        // Save off the original uses to avoid iterator invalidation issues
+        // or other unexpected behavior since we are creating new ops here that
+        // use the value.
+        auto originalUses = llvm::to_vector<6>(
+            llvm::map_range(v.getUses(), [](OpOperand &use) { return &use; }));
+        OpBuilder b(op->getBlock(), std::next(op->getIterator()));
+        Value newTypedValue;
+        // Always make sure that the new static information is reflected in the
+        // IR, either by updating the type in place, or inserting a
+        // numpy.tensor_static_info_cast op.
+        if (allowsTypeRefinement(op)) {
+          newTypedValue = v;
+          v.setType(refinedType);
+        } else {
+          newTypedValue = b.create<Numpy::TensorStaticInfoCastOp>(
+              op->getLoc(), refinedType, v);
+        }
+
+        Value oldTypedValue;
+        for (OpOperand *use : originalUses) {
+          // If the use can be updated to the new type directly, do it!
+          if (allowsTypeRefinement(use->getOwner())) {
+            use->set(newTypedValue);
+            continue;
+          }
+          // If needed, create a value of the original type to appease users
+          // that cannot accept the new type.
+          if (!oldTypedValue) {
+            oldTypedValue = b.create<Numpy::TensorStaticInfoCastOp>(
+                op->getLoc(), originalType, newTypedValue);
+          }
+          use->set(oldTypedValue);
+        }
       }
     }
   });

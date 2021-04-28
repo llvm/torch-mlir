@@ -65,6 +65,21 @@ func @f(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
 
 // -----
 
+// Check rewriting logic in case of mixes of users that do/don't allow type
+// refinement.
+// CHECK-LABEL:   func @f
+func @f(%arg0: tensor<2x3x?xf32>) -> (tensor<*x!numpy.any_dtype>, tensor<*x!numpy.any_dtype>) {
+  // CHECK: %[[REFINED_TYPE:.*]] = "aten.tanh"(%{{.*}}) : (tensor<2x3x?xf32>) -> tensor<2x3x?xf32>
+  %1 = "aten.tanh"(%arg0) : (tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype>
+  // CHECK: %[[ORIGINAL_TYPE:.*]] = numpy.tensor_static_info_cast %[[REFINED_TYPE]] : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype>
+  // CHECK: "aten.tanh"(%[[REFINED_TYPE]]) : (tensor<2x3x?xf32>) -> tensor<2x3x?xf32>
+  %3 = "aten.tanh"(%1) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
+  // CHECK: return %[[ORIGINAL_TYPE]], %[[ORIGINAL_TYPE]] : tensor<*x!numpy.any_dtype>, tensor<*x!numpy.any_dtype>
+  return %1, %1 : tensor<*x!numpy.any_dtype>, tensor<*x!numpy.any_dtype>
+}
+
+// -----
+
 // CHECK-LABEL:   func @f
 // CHECK: %[[ATEN:.*]] = "aten.tanh"(%{{.*}}) : (tensor<*x!numpy.any_dtype>) -> tensor<2x3x?xf32>
 // CHECK: %[[CAST:.*]] = numpy.tensor_static_info_cast %[[ATEN]] : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype> 

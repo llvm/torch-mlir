@@ -11,6 +11,7 @@
 
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Dialect/Torch/IR/OpInterfaces.td"
+include "npcomp/Interfaces/Traits.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
@@ -24,7 +25,9 @@ class Torch_Op<string mnemonic, list<OpTrait> traits = []>
 // effects interface (since whether the kernel_call has side effects is
 // dependent on its metadata).
 def Torch_KernelCallOp : Torch_Op<"kernel_call", [
-    DeclareOpInterfaceMethods<TorchKernelOpInterface>]> {
+    DeclareOpInterfaceMethods<TorchKernelOpInterface>,
+    AllowsTypeRefinement
+  ]> {
   let summary = "Calls a Torch custom kernel";
   let description = [{
     Torch kernel calls are matched by the runtime based on signature, including
@@ -372,7 +375,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
   }];
 }
 
-def Torch_PrimPrintOp : Torch_Op<"prim.Print", []> {
+def Torch_PrimPrintOp : Torch_Op<"prim.Print", [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::Print op";
 
   let arguments = (ins Variadic<AnyTorchType>:$operands);
@@ -426,7 +429,8 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
   }];
 }
 
-def Torch_PrimNumToTensorOp : Torch_Op<"prim.NumToTensor", []> {
+def Torch_PrimNumToTensorOp : Torch_Op<"prim.NumToTensor",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::NumToTensor op";
 
   let arguments = (ins AnyTorchNumberType:$num);
@@ -451,7 +455,8 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", []> {
   }];
 }
 
-def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", []> {
+def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::Uninitialized op";
 
   let arguments = (ins);
@@ -463,7 +468,8 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", []> {
 }
 
 def Torch_Primunchecked_castOp : Torch_Op<"prim.unchecked_cast", [
-    NoSideEffect
+    NoSideEffect,
+    AllowsTypeRefinement,
   ]> {
   let summary = "TorchScript prim::unchecked_cast op";
   let description = [{
@@ -525,7 +531,8 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let hasCanonicalizer = 1;
 }
 
-def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", []> {
+def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::ListUnpack op";
 
   let arguments = (ins AnyTorchType:$operand);
@@ -536,7 +543,8 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", []> {
   }];
 }
 
-def Torch_PrimTupleUnpackOp: Torch_Op<"prim.TupleUnpack", []> {
+def Torch_PrimTupleUnpackOp: Torch_Op<"prim.TupleUnpack",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::TupleUnpack op";
 
   let arguments = (ins AnyTorchType:$operand);
@@ -547,7 +555,8 @@ def Torch_PrimTupleUnpackOp: Torch_Op<"prim.TupleUnpack", []> {
   }];
 }
 
-def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", []> {
+def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::TupleIndex op";
   let arguments = (ins 
       AnyTorchType:$operand,
@@ -558,7 +567,8 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", []> {
   }];
 }
 
-def Torch_PrimdtypeOp : Torch_Op<"prim.dtype", []> {
+def Torch_PrimdtypeOp : Torch_Op<"prim.dtype",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::dtype op";
   let arguments = (ins AnyTorchTensorType:$tensor);
   let results = (outs AnyTorchNumberType:$result);
@@ -567,7 +577,8 @@ def Torch_PrimdtypeOp : Torch_Op<"prim.dtype", []> {
   }];
 }
 
-def Torch_PrimlayoutOp : Torch_Op<"prim.layout", []> {
+def Torch_PrimlayoutOp : Torch_Op<"prim.layout",
+    [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::layout op";
   let arguments = (ins AnyTorchTensorType:$tensor);
   let results = (outs AnyTorchNumberType:$result);
@@ -576,7 +587,7 @@ def Torch_PrimlayoutOp : Torch_Op<"prim.layout", []> {
   }];
 }
 
-def Torch_PrimdeviceOp : Torch_Op<"prim.device", []> {
+def Torch_PrimdeviceOp : Torch_Op<"prim.device", [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::device op";
   let arguments = (ins AnyTorchTensorType:$tensor);
   let results = (outs Torch_DeviceType:$result);
@@ -585,7 +596,7 @@ def Torch_PrimdeviceOp : Torch_Op<"prim.device", []> {
   }];
 }
 
-def Torch_PrimminOp : Torch_Op<"prim.min", []> {
+def Torch_PrimminOp : Torch_Op<"prim.min", [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::min op";
   // TODO: Separate this along all the different possible signatures.
   // At the time of this writing, there are 11.
@@ -597,7 +608,7 @@ def Torch_PrimminOp : Torch_Op<"prim.min", []> {
   }];
 }
 
-def Torch_PrimmaxOp : Torch_Op<"prim.max", []> {
+def Torch_PrimmaxOp : Torch_Op<"prim.max", [AllowsTypeRefinement]> {
   let summary = "TorchScript prim::max op";
   // TODO: Separate this along all the different possible signatures.
   let arguments = (ins Variadic<AnyType>:$operands);

@@ -655,6 +655,7 @@ class OdsEmitter(EmitterBase):
     full_traits.append(
         "DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>")
     full_traits.append("DeclareOpInterfaceMethods<TorchKernelOpInterface>")
+    full_traits.append("AllowsTypeRefinement")
     identifier = f"{self.ods_def_prefix}{ods_def_name}{self.ods_def_suffix}"
     self.print(f"def {identifier}: {self.ods_template_name}"
                f"<{self.quote(mnemonic)}, ["
