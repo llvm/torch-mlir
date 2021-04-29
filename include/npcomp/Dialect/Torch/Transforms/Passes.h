@@ -22,10 +22,6 @@ std::unique_ptr<OperationPass<ModuleOp>> createGlobalizeObjectGraphPass();
 std::unique_ptr<OperationPass<ModuleOp>>
 createPrepareForGlobalizeObjectGraphPass();
 
-/// Creates a pipeline that "globalizes" the given program.
-/// See the documentation on torch-globalize-object-graph for more details.
-void createGlobalizePipeline(OpPassManager &pm);
-
 /// Creates a pipeline that lowers the object graph IR that is produced by
 /// TorchScript import into the form expected by npcomp-verify-backend-contract.
 void createLowerObjectGraphPipeline(OpPassManager &pm);
