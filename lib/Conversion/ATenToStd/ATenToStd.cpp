@@ -40,6 +40,13 @@ LogicalResult convertNeIntOp(aten::NeIntOp op, PatternRewriter &rewriter) {
   return success();
 }
 
+LogicalResult convertGtIntOp(aten::GtIntOp op, PatternRewriter &rewriter) {
+  auto i1 = rewriter.create<CmpIOp>(op->getLoc(), CmpIPredicate::sgt,
+                                    op->getOperand(0), op->getOperand(1));
+  rewriter.replaceOpWithNewOp<Basicpy::BoolCastOp>(op, op.getType(), i1);
+  return success();
+}
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -60,6 +67,7 @@ public:
     RewritePatternSet patterns(context);
     patterns.add(convertDimOp);
     patterns.add(convertNeIntOp);
+    patterns.add(convertGtIntOp);
     return std::move(patterns);
   }
 };

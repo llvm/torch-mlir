@@ -522,14 +522,6 @@ std::map<std::string, uint64_t> SumOp::getStatistics() {
   return toReturn;
 }
 
-// size op can be zero overhead
-std::map<std::string, uint64_t> SizeOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  toReturn["reads"] = toReturn["operand:0:activation_in"] = 0;
-  toReturn["writes"] = toReturn["result:0:activation_out"] = 0;
-  return toReturn;
-}
-
 // squeeze can be zero overhead
 std::map<std::string, uint64_t> SqueezeOp::getStatistics() {
   std::map<std::string, uint64_t> toReturn;

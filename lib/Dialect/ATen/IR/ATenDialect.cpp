@@ -117,6 +117,7 @@ void ATenDialect::initialize() {
 #include "npcomp/Dialect/ATen/IR/ATenOps.cpp.inc"
       >();
   getContext()->getOrLoadDialect("torch");
+  getContext()->getOrLoadDialect("std");
 }
 
 #include "npcomp/Dialect/ATen/IR/ATenOpInterfaces.cpp.inc"

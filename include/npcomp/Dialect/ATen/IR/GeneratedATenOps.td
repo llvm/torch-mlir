@@ -509,6 +509,39 @@ def aten_NeIntOp: aten_Op<"ne.int", [NoSideEffect, DeclareOpInterfaceMethods<Tor
   );
 }
 
+def aten_SizeOp: aten_Op<"size", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::size";
+  let arguments = (ins
+    AnyTorchImmutableTensor:$self
+  );
+  let results = (outs
+    AnyTorchIntListType
+  );
+  let hasCanonicalizer = 1;
+}
+
+def aten_LenTOp: aten_Op<"len.t", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::len";
+  let arguments = (ins
+    Basicpy_ListType:$a
+  );
+  let results = (outs
+    AnyTorchIntType
+  );
+  let hasCanonicalizer = 1;
+}
+
+def aten_GtIntOp: aten_Op<"gt.int", [NoSideEffect, DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::gt";
+  let arguments = (ins
+    AnyTorchIntType:$a,
+    AnyTorchIntType:$b
+  );
+  let results = (outs
+    AnyTorchBoolType
+  );
+}
+
 // -----------------------------------------------------------------------------
 // NN ops
 // -----------------------------------------------------------------------------

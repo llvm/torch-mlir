@@ -170,22 +170,6 @@ def aten_ReluUnderOp: aten_Op<"relu_", [NoSideEffect, StatisticsOpInterface]>,
   }];
 }
 
-def aten_SizeOp: aten_Op<"size", [NoSideEffect, StatisticsOpInterface]>,
-    Results<(outs AnyTensor)> {
-  let arguments = (
-  ins AnyTensor:$self,
-      AnyScalar:$dim
-  );
-  let summary = "aten size operator";
-  let description = [{
-    SizeOp
-    aten size operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_SqueezeOp: aten_Op<"squeeze", [NoSideEffect, StatisticsOpInterface]>,
     Results<(outs AnyTensor)> {
   let arguments = (
