@@ -97,6 +97,11 @@ def generate_ops(g: "OpGenerator"):
                           has_folder=True)
   g.ordinary_primitive_op("aten::dim(Tensor)", "DimOp", "dim")
   g.ordinary_primitive_op("aten::ne(int,int)", "NeIntOp", "ne.int")
+  g.ordinary_primitive_op("aten::size(Tensor)", "SizeOp", "size",
+                          has_canonicalizer=True)
+  g.ordinary_primitive_op("aten::len(t[])", "LenTOp", "len.t",
+                          has_canonicalizer=True)
+  g.ordinary_primitive_op("aten::gt(int,int)", "GtIntOp", "gt.int")
 
   # Convolution ops. Note that these are special in PyTorch and the importer,
   # and we model them after the signatures of the convolution_overrideable
@@ -314,6 +319,7 @@ class OpGenerator:
             "int[]": "AnyTorchIntListType",
             "bool": "AnyTorchBoolType",
             "bool[]": "AnyTorchBoolListType",
+            "t[]": "Basicpy_ListType",
             "t1": "AnyTorchType",
             "t2": "AnyTorchType",
         },
@@ -505,7 +511,8 @@ class InflightOpDef:
                override_return_types: Sequence[str] = None,
                drop_arg_indices: Sequence[int] = (),
                drop_return_indices: Sequence[int] = (),
-               has_folder: bool = False):
+               has_folder: bool = False,
+               has_canonicalizer: bool = False):
     super().__init__()
     self.g = g
     self.kernel_sig = kernel_sig
@@ -520,6 +527,7 @@ class InflightOpDef:
     self.drop_arg_indices = drop_arg_indices
     self.drop_return_indices = drop_return_indices
     self.has_folder = has_folder
+    self.has_canonicalizer = has_canonicalizer
     self.reg_record = g.get_reg_record(self.kernel_sig)
     self._emitted = False
     self._traceback = traceback.extract_stack()[0:-2]
@@ -603,7 +611,8 @@ class InflightOpDef:
                                   ods_ins=self.ods_ins,
                                   ods_outs=self.ods_outs,
                                   traits=self.traits,
-                                  has_folder=self.has_folder)
+                                  has_folder=self.has_folder,
+                                  has_canonicalizer=self.has_canonicalizer)
     self.g.impl_emitter.emit_kernel_methods(
         self.ods_name,
         self.reg_record,
@@ -664,7 +673,8 @@ class OdsEmitter(EmitterBase):
                  ods_outs: List[Tuple[str, str]],
                  traits: Sequence[str] = (),
                  summary: Optional[str] = None,
-                 has_folder: bool = False):
+                 has_folder: bool = False,
+                 has_canonicalizer: bool = False):
     # Def first-line.
     full_traits = list(traits)
     full_traits.append(
@@ -695,6 +705,8 @@ class OdsEmitter(EmitterBase):
 
       if has_folder:
         self.print("let hasFolder = 1;")
+      if has_canonicalizer:
+        self.print("let hasCanonicalizer = 1;")
 
     # Def last-line.
     self.print("}\n")

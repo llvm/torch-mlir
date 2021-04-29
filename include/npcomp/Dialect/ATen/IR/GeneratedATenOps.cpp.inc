@@ -961,6 +961,60 @@ const Torch::BuildKernelMetadata &NeIntOp::getTorchBuildKernelMetadata() {
   return metadata;
 }
 
+Torch::KernelMetadata SizeOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &SizeOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::size";
+    m.addArgTypes({"Tensor"});
+    m.addArgConversions({KVC::kImmutableTensor});
+    m.addReturnTypes({"int[]"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata LenTOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &LenTOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::len";
+    m.addArgTypes({"t[]"});
+    m.addArgConversions({KVC::kNone});
+    m.addReturnTypes({"int"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
+Torch::KernelMetadata GtIntOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &GtIntOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::gt";
+    m.addArgTypes({"int", "int"});
+    m.addArgConversions({KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"bool"});
+    m.addReturnConversions({KVC::kNone});
+    return m;
+  })();
+  return metadata;
+}
+
 // -----------------------------------------------------------------------------
 // NN ops
 // -----------------------------------------------------------------------------
