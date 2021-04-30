@@ -86,6 +86,9 @@ Operation *BasicpyDialect::materializeConstant(OpBuilder &builder,
       return builder.create<StrConstantOp>(loc, type, strValue);
   }
 
+  if (auto typeAttr = value.dyn_cast<TypeAttr>())
+    return builder.create<SingletonOp>(loc, typeAttr.getValue());
+
   return nullptr;
 }
 

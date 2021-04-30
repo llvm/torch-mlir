@@ -1,4 +1,4 @@
-// RUN: npcomp-opt -split-input-file %s | npcomp-opt -canonicalize | FileCheck --dump-input=fail %s
+// RUN: npcomp-opt -split-input-file -canonicalize %s | FileCheck %s
 
 // CHECK-LABEL: func @unknown_cast_elide
 func @unknown_cast_elide(%arg0 : i32) -> i32 {
@@ -79,4 +79,14 @@ func @bool_cast() -> i1 {
   %1 = basicpy.bool_cast %0 : !basicpy.BoolType -> i1
   // CHECK: return %[[CTRUE]] : i1
   return %1 : i1
+}
+
+// -----
+// CHECK-LABEL: func @singleton_coalesce
+func @singleton_coalesce() -> (!basicpy.NoneType, !basicpy.NoneType) {
+  %0 = basicpy.singleton : !basicpy.NoneType
+  %1 = basicpy.singleton : !basicpy.NoneType
+  // CHECK-NEXT: %[[RET:.*]] = basicpy.singleton
+  // CHECK-NEXT: return %[[RET]], %[[RET]]
+  return %0, %1 : !basicpy.NoneType, !basicpy.NoneType
 }
