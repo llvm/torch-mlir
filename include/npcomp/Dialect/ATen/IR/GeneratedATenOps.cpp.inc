@@ -1291,6 +1291,28 @@ const Torch::BuildKernelMetadata &NllLoss2dBackwardOp::getTorchBuildKernelMetada
   return metadata;
 }
 
+// -----------------------------------------------------------------------------
+// Mutable/view-like ops
+// -----------------------------------------------------------------------------
+
+Torch::KernelMetadata FlattenOp::getTorchKernelMetadata() {
+  return getTorchBuildKernelMetadata();
+}
+
+const Torch::BuildKernelMetadata &FlattenOp::getTorchBuildKernelMetadata() {
+  using KVC = Torch::KernelValueConversion::BitMask;
+  static Torch::BuildKernelMetadata metadata = ([]() {
+    Torch::BuildKernelMetadata m;
+    m.kernelName = "aten::flatten";
+    m.addArgTypes({"Tensor", "int", "int"});
+    m.addArgConversions({KVC::kMutableTensor, KVC::kNone, KVC::kNone});
+    m.addReturnTypes({"Tensor"});
+    m.addReturnConversions({KVC::kMutableTensor});
+    return m;
+  })();
+  return metadata;
+}
+
 Torch::KernelMetadata CopyInplaceOp::getTorchKernelMetadata() {
   return getTorchBuildKernelMetadata();
 }

@@ -759,6 +759,22 @@ def aten_NllLoss2dBackwardOp: aten_Op<"nll_loss2d_backward", [NoSideEffect, Decl
   );
 }
 
+// -----------------------------------------------------------------------------
+// Mutable/view-like ops
+// -----------------------------------------------------------------------------
+
+def aten_FlattenOp: aten_Op<"flatten", [DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
+  let summary = "Recognized op for kernel aten::flatten";
+  let arguments = (ins
+    AnyTorchMutableTensor:$self,
+    AnyTorchIntType:$start_dim,
+    AnyTorchIntType:$end_dim
+  );
+  let results = (outs
+    AnyTorchMutableTensor
+  );
+}
+
 def aten_CopyInplaceOp: aten_Op<"copy.inplace", [DeclareOpInterfaceMethods<TorchBuildableKernelOpInterface>, DeclareOpInterfaceMethods<TorchKernelOpInterface>, AllowsTypeRefinement]> {
   let summary = "Recognized op for kernel aten::copy_";
   let arguments = (ins
