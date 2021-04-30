@@ -147,3 +147,18 @@ func @inplace_variant(%arg0: !numpy.ndarray<[2,2]:f32>, %arg1: !numpy.ndarray<[2
   // CHECK:           return %[[LHS_OUT]], %[[LHS_OUT]] : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
   return %0, %arg0 : !numpy.ndarray<[2,2]:f32>, !numpy.ndarray<[2,2]:f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func @mutable_tensor(
+// CHECK-SAME:                  %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+// CHECK:           %[[CM1:.*]] = constant -1 : i64
+// CHECK:           %[[C1:.*]] = constant 1 : i64
+// CHECK:           %[[RET:.*]] = "aten.flatten"(%[[ARG]], %[[C1]], %[[CM1]]) : (!numpy.ndarray<*:!numpy.any_dtype>, i64, i64) -> !numpy.ndarray<*:!numpy.any_dtype>
+// CHECK:           return %[[RET]] : !numpy.ndarray<*:!numpy.any_dtype>
+func @mutable_tensor(%arg0: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  %c-1_i64 = constant -1 : i64
+  %c1_i64 = constant 1 : i64
+  %0 = torch.kernel_call "aten::flatten" %arg0, %c1_i64, %c-1_i64 : (!numpy.ndarray<*:!numpy.any_dtype>, i64, i64) -> !numpy.ndarray<*:!numpy.any_dtype> {sigArgTypes = ["Tensor", "int", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+  return %0 : !numpy.ndarray<*:!numpy.any_dtype>
+}

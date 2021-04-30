@@ -157,14 +157,6 @@ std::map<std::string, uint64_t> ExpandOp::getStatistics() {
   return toReturn;
 }
 
-// flatten can be zero overhead
-std::map<std::string, uint64_t> FlattenOp::getStatistics() {
-  std::map<std::string, uint64_t> toReturn;
-  toReturn["reads"] = toReturn["operand:0:activation_in"] = 0;
-  toReturn["writes"] = toReturn["result:0:activation_out"] = 0;
-  return toReturn;
-}
-
 std::map<std::string, uint64_t> GatherOp::getStatistics() {
   std::map<std::string, uint64_t> toReturn;
   // FIXME: unimplemented

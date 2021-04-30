@@ -109,6 +109,38 @@ func @f(%arg0: tensor<?x?x?x?xf32>) -> tensor<*x!numpy.any_dtype> {
 
 // -----
 
+// Also test cast insertion for array types.
+// CHECK-LABEL:   func @flatten_all(
+// CHECK:           %[[FLATTENED:.*]] = "aten.flatten"{{.*}}-> !numpy.ndarray<[?]:f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = numpy.static_info_cast %[[FLATTENED]] : !numpy.ndarray<[?]:f32> to !numpy.ndarray<*:!numpy.any_dtype>
+// CHECK:           return %[[SHAPE_ERASED]]
+func @flatten_all(%arg0: !numpy.ndarray<[3,2,?,5]:f32>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  %end = constant -1 : i64
+  %start = constant 0 : i64
+  %0 = "aten.flatten"(%arg0, %start, %end) : (!numpy.ndarray<[3,2,?,5]:f32>, i64, i64) -> !numpy.ndarray<*:!numpy.any_dtype>
+  return %0 : !numpy.ndarray<*:!numpy.any_dtype>
+}
+
+// CHECK-LABEL:   func @flatten_some(
+// CHECK:           "aten.flatten"{{.*}}-> !numpy.ndarray<[3,?,5]:f32>
+func @flatten_some(%arg0: !numpy.ndarray<[3,2,?,5]:f32>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  %end = constant -2 : i64
+  %start = constant 1 : i64
+  %0 = "aten.flatten"(%arg0, %start, %end) : (!numpy.ndarray<[3,2,?,5]:f32>, i64, i64) -> !numpy.ndarray<*:!numpy.any_dtype>
+  return %0 : !numpy.ndarray<*:!numpy.any_dtype>
+}
+
+// CHECK-LABEL:   func @flatten_rank0(
+// CHECK:           "aten.flatten"{{.*}}-> !numpy.ndarray<[?]:f32>
+func @flatten_rank0(%arg0: !numpy.ndarray<[]:f32>) -> !numpy.ndarray<*:!numpy.any_dtype> {
+  %end = constant -1 : i64
+  %start = constant 0 : i64
+  %0 = "aten.flatten"(%arg0, %start, %end) : (!numpy.ndarray<[]:f32>, i64, i64) -> !numpy.ndarray<*:!numpy.any_dtype>
+  return %0 : !numpy.ndarray<*:!numpy.any_dtype>
+}
+
+// -----
+
 // CHECK-LABEL: func @f
 func @f(%arg0: tensor<4x6x3xf32>, %arg1: tensor<1x1x3xf32>, %arg2: tensor<?x3xf32>) {
   %c1_i64 = constant 1 : i64

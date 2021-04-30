@@ -85,6 +85,15 @@ convertTorchArgType(StringRef sourceTorchType, StringRef targetTorchType,
     return None;
   }
 
+  if (flag & KVC::kMutableTensor) {
+    if (!isTorchTensorType(sourceTorchType) ||
+        !isTorchTensorType(targetTorchType))
+      return None;
+    // If the type is already mutable, passthrough.
+    if (sourceMlirType.isa<Numpy::NdArrayType>())
+      return TypeConversion{sourceMlirType, nullptr};
+  }
+
   // TODO: Special case promotions and conversions.
   return None;
 }
@@ -142,6 +151,20 @@ convertTorchReturnType(StringRef sourceTorchType, StringRef targetTorchType,
       LLVM_DEBUG(llvm::dbgs()
                  << "      * Return type is not a supported tensor type\n");
       return None;
+    }
+  }
+
+  if (flag & KVC::kMutableTensor) {
+    if (!isTorchTensorType(sourceTorchType) ||
+        !isTorchTensorType(targetTorchType)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "      * Source or target not a Tensor type\n");
+      return None;
+    }
+    // If the type is already mutable, passthrough.
+    if (sourceMlirType.isa<Numpy::NdArrayType>()) {
+      LLVM_DEBUG(llvm::dbgs() << "      * Source is already mutable\n");
+      return TypeConversion{sourceMlirType, nullptr};
     }
   }
 

@@ -164,6 +164,10 @@ def generate_ops(g: "OpGenerator"):
       "aten::nll_loss2d_backward(Tensor,Tensor,Tensor,Tensor?,int,int,Tensor)",
       "NllLoss2dBackwardOp", "nll_loss2d_backward")
 
+  g.print_banner("Mutable/view-like ops")
+  g.ordinary_mutable_op("aten::flatten(Tensor,int,int)",
+      "FlattenOp",
+      "flatten")
   # One-off in-place ops (note that many in-place arithmetic ops are handled
   # as a transformation from their immutable forms).
   g.ordinary_inplace_op("aten::copy_(Tensor,Tensor,bool)",
@@ -294,6 +298,36 @@ class OpGenerator:
         flag_transforms={
             "Tensor": ["kImmutableTensor"],
             "Tensor?": ["kImmutableTensor"],
+        },
+    )
+    opdef.emit()
+
+  def ordinary_mutable_op(self,
+                          kernel_sig: str,
+                          ods_name: str,
+                          op_name: str,
+                          traits: Sequence[str] = (),
+                          **kwargs):
+    """"An ordinary mutable-tensor based op."""
+    opdef = self.define_op(
+        kernel_sig=kernel_sig,
+        ods_name=ods_name,
+        op_name=op_name,
+        traits=list(traits),
+        **kwargs)
+    opdef.transforms(
+        type_transforms={
+            "Tensor": "AnyTorchMutableTensor",
+            "Tensor?": "AnyTorchOptionalMutableTensor",
+            "int": "AnyTorchIntType",
+            "int[]": "AnyTorchIntListType",
+            "bool": "AnyTorchBoolType",
+            "bool[]": "AnyTorchBoolListType",
+            "float": "AnyFloat",
+        },
+        flag_transforms={
+            "Tensor": ["kMutableTensor"],
+            "Tensor?": ["kMutableTensor"],
         },
     )
     opdef.emit()

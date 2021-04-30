@@ -13,6 +13,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/ATen/IR/ATenDialect.h"
@@ -75,6 +76,9 @@ struct ValueKnowledge {
       }
       result.elementType = tensorType.getElementType();
       return result;
+    }
+    if (auto ndArrayType = type.dyn_cast<Numpy::NdArrayType>()) {
+      return getKnowledgeFromType(ndArrayType.toTensorType());
     }
     return result;
   }
@@ -262,6 +266,39 @@ public:
       knowledge.elementType =
           joinElementTypes(lhs.elementType, rhs.elementType);
       return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (auto flatten = dyn_cast<aten::FlattenOp>(op)) {
+      APInt startDimAP, endDimAP;
+      auto operand = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.elementType = operand.elementType;
+      if (operand.hasRank && operand.sizes.size() == 0) {
+        // Rank 0 is special and flattens to rank 1.
+        knowledge.hasRank = true;
+        knowledge.sizes.push_back(kUnknownSize);
+      } else if (operand.hasRank &&
+                 matchPattern(flatten.start_dim(),
+                              m_ConstantInt(&startDimAP)) &&
+                 matchPattern(flatten.end_dim(), m_ConstantInt(&endDimAP))) {
+        int64_t inputRank = operand.sizes.size();
+        int64_t startDim = startDimAP.getSExtValue();
+        int64_t endDim = endDimAP.getSExtValue();
+        if (startDim < 0)
+          startDim += inputRank;
+        if (endDim < 0)
+          endDim += inputRank;
+        // Careful: dimension numbers might be out of bounds.
+        if (0 <= startDim && startDim <= (inputRank - 1) && 0 <= endDim &&
+            endDim <= (inputRank - 1) && startDim <= endDim) {
+          knowledge.hasRank = true;
+          for (auto i = 0; i < startDim; i++)
+            knowledge.sizes.push_back(operand.sizes[i]);
+          knowledge.sizes.push_back(kUnknownSize);
+          for (auto i = endDim + 1; i < inputRank; i++)
+            knowledge.sizes.push_back(operand.sizes[i]);
+        }
+      }
+      return getLatticeElement(op->getResult(0)).join(knowledge);
     }
     // Otherwise, this is an unknown operation. Just mark all results as having
     // reached a pessimistic fixpoint.
@@ -287,13 +324,29 @@ getTensorTypeFromKnowledge(MLIRContext *context,
   return RankedTensorType::get(value.sizes, value.elementType);
 }
 
+// Get the most refined Numpy::NdArrayType compatible with ValueKnowledge.
+static Numpy::NdArrayType
+getNdArrayTypeFromKnowledge(MLIRContext *context,
+                            LatticeElement<ValueKnowledge> *knowledge) {
+  if (!knowledge)
+    return Numpy::NdArrayType::get(Numpy::AnyDtypeType::get(context));
+
+  const ValueKnowledge &value = knowledge->getValue();
+  if (!value.hasRank)
+    return Numpy::NdArrayType::get(value.elementType);
+  return Numpy::NdArrayType::get(value.elementType,
+                                 llvm::makeArrayRef(value.sizes));
+}
+
 // Get a the most refined type compatible with ValueKnowledge, or null if that
 // is not possible.
 static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
   if (v.getType().isa<TensorType>())
     return getTensorTypeFromKnowledge(v.getContext(),
                                       analyzer.lookupLatticeElement(v));
-  // TODO: Support !numpy.ndarray type.
+  if (v.getType().isa<Numpy::NdArrayType>())
+    return getNdArrayTypeFromKnowledge(v.getContext(),
+                                       analyzer.lookupLatticeElement(v));
   return nullptr;
 }
 
@@ -308,15 +361,28 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
       // Type is same as existing one? Nothing to do.
       if (refinedType == originalType)
         continue;
-      // If the type is a TensorType, then we have numpy.tensor_static_info_cast
-      // to add/remove the static information. We make sure to always embed the
-      // static information in the IR, and insert the minimal number of casts
-      // needed to do so.
-      // TODO: This logic should generalize easily to other types. We just
-      // need to know which op allows us to add static information and which op
-      // allows us to remove static information (in this case, one op allows
-      // both).
+      // If we have an op that allows adding/removing static information from
+      // this type, then we can rewrite. We make sure to always embed the static
+      // information in the IR, and insert the minimal number of casts needed to
+      // do so.
+      // TODO: For some types, we will need 2 ops here: one to add static
+      // information, and the other to remove static information.
+      // (for example, torch.unchecked_cast / torch.derefine for torch.optional
+      // types).
+      std::function<Value(Location, Type, Value)> createStaticInfoCast;
+      OpBuilder b(op->getBlock(), std::next(op->getIterator()));
       if (originalType.isa<TensorType>()) {
+        createStaticInfoCast = [&](Location loc, Type newType,
+                                   Value v) -> Value {
+          return b.create<Numpy::TensorStaticInfoCastOp>(loc, newType, v);
+        };
+      } else if (originalType.isa<Numpy::NdArrayType>()) {
+        createStaticInfoCast = [&](Location loc, Type newType,
+                                   Value v) -> Value {
+          return b.create<Numpy::StaticInfoCastOp>(loc, newType, v);
+        };
+      }
+      if (createStaticInfoCast) {
         // Save off the original uses to avoid iterator invalidation issues
         // or other unexpected behavior since we are creating new ops here that
         // use the value.
@@ -325,14 +391,13 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
         OpBuilder b(op->getBlock(), std::next(op->getIterator()));
         Value newTypedValue;
         // Always make sure that the new static information is reflected in the
-        // IR, either by updating the type in place, or inserting a
-        // numpy.tensor_static_info_cast op.
+        // IR, either by updating the type in place, or inserting a static info
+        // cast.
         if (allowsTypeRefinement(op)) {
           newTypedValue = v;
           v.setType(refinedType);
         } else {
-          newTypedValue = b.create<Numpy::TensorStaticInfoCastOp>(
-              op->getLoc(), refinedType, v);
+          newTypedValue = createStaticInfoCast(op->getLoc(), refinedType, v);
         }
 
         Value oldTypedValue;
@@ -345,8 +410,8 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
           // If needed, create a value of the original type to appease users
           // that cannot accept the new type.
           if (!oldTypedValue) {
-            oldTypedValue = b.create<Numpy::TensorStaticInfoCastOp>(
-                op->getLoc(), originalType, newTypedValue);
+            oldTypedValue =
+                createStaticInfoCast(op->getLoc(), originalType, newTypedValue);
           }
           use->set(oldTypedValue);
         }

@@ -39,23 +39,6 @@ def aten_ConstantOp: aten_Op<"constant", [NoSideEffect]>,
 
 }
 
-def aten_FlattenOp: aten_Op<"flatten", [NoSideEffect, StatisticsOpInterface]>,
-                    Results<(outs AnyTensor)> {
-  let arguments = (
-    ins AnyType:$arg0,
-        AnyType:$arg1,
-        AnyType:$arg2
-  );
-
-  let summary = "Flatten operator";
-  let description = [{
-    Flatten operator
-  }];
-  let extraClassDeclaration = [{
-    std::map<std::string, uint64_t> getStatistics();
-  }];
-}
-
 def aten_TypeCastOp : aten_Op<"type_cast", [NoSideEffect]>,
                       Results<(outs AnyType)> {
   let summary = "TypeCast operator";
