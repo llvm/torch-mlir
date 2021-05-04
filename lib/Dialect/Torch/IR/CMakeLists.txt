@@ -7,7 +7,6 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
 
   DEPENDS
   MLIRTorchOpsIncGen
-  MLIRTorchOpInterfacesIncGen
   MLIRTorchTypesIncGen
 
   LINK_COMPONENTS

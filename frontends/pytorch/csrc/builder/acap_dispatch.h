@@ -78,20 +78,22 @@ public:
       c10::optional<bool> pin_memory);
 
 private:
-  /// Builds a kernel call step by step.
-  class TracedKernelCallBuilder : private KernelCallBuilder {
+  /// Builds an MLIR operation for a Torch operator step by step.
+  class TracedSchemaOpBuilder {
   public:
-    TracedKernelCallBuilder(
-        AcapController &parent, MlirContext context, MlirLocation loc,
-        const c10::OperatorHandle &opHandle,
-        c10::optional<std::string> overrideKernelName = c10::nullopt);
+    TracedSchemaOpBuilder(AcapController &parent, MlirContext context,
+                            MlirLocation loc,
+                            const c10::OperatorHandle &opHandle);
     void addOperand(const c10::IValue &value);
     void addResult(const c10::IValue &result);
     MlirOperation create();
 
   private:
     AcapController &parent;
+    MlirLocation loc;
     const c10::OperatorHandle &opHandle;
+    std::vector<MlirValue> operands;
+    std::vector<MlirType> resultTypes;
     int resultCount = 0;
     std::vector<std::pair<size_t, at::Tensor>> resultIndexToTensorMap;
   };

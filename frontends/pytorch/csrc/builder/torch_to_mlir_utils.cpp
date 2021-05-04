@@ -339,3 +339,42 @@ torch_mlir::derefineValues(c10::ArrayRef<MlirValue> values,
   }
   return ret;
 }
+
+MlirOperation
+torch_mlir::createOperationFromSchema(MlirBlock appendToBlock, MlirLocation loc,
+                                      const c10::FunctionSchema &schema,
+                                      c10::ArrayRef<MlirType> resultTypes,
+                                      c10::ArrayRef<MlirValue> operands) {
+  MlirContext context = mlirLocationGetContext(loc);
+
+  // Munge the name into the appropriate MLIR operation name.
+  // See torch_ods_gen.py:JitOperator for the logic used to construct the MLIR
+  // op name from the schema. This logic must be kept in sync with that logic.
+  std::string opNameSuffix = schema.name();
+  auto separatorPosition = opNameSuffix.find_first_of("::");
+  assert(separatorPosition != std::string::npos);
+  opNameSuffix.replace(separatorPosition, 2, ".");
+  const std::string &overloadName = schema.overload_name();
+  if (!overloadName.empty()) {
+    opNameSuffix = opNameSuffix + "." + overloadName;
+  }
+  std::string opName = "torch." + opNameSuffix;
+  // If we have a registered op, use it!
+  if (mlirContextIsRegisteredOperation(context, toMlirStringRef(opName))) {
+    return createMlirOperationAtEnd(appendToBlock, opName, loc, resultTypes,
+                                    operands);
+  }
+  // Oops, no registered op -- create an opaque wrapper so that import can
+  // still succeed. This helps a common use case of filling out registered ops
+  // support, where it is easier to iterate on an MLIR file with
+  // unregistered ops in it than to rerun import repeatedly.
+  // The alternative here would be to allow unregistered ops in the `torch`
+  // dialect, but that has the following disadvantages:
+  // - Makes the dialect overall less strict
+  // - Makes it hard to see exactly which ops from a model are registered or
+  //   not.
+  return createMlirOperationAtEnd(
+      appendToBlock, "torch.operator", loc, resultTypes, operands,
+      toMlirNamedAttribute(
+          "name", mlirStringAttrGet(context, toMlirStringRef(opNameSuffix))));
+}

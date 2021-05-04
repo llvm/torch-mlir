@@ -11,11 +11,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
-#include "npcomp/Conversion/ATenToLinalg/ATenToLinalg.h"
-#include "npcomp/Conversion/ATenToStd/ATenToStd.h"
-#include "npcomp/Conversion/ATenToTCF/Passes.h"
-#include "npcomp/Conversion/TCFToStd/TCFToStd.h"
-#include "npcomp/Dialect/ATen/Transforms/Passes.h"
+#include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "npcomp/Conversion/TorchToStd/TorchToStd.h"
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 
 //===----------------------------------------------------------------------===//
@@ -104,17 +101,16 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
     pm.addPass(createInlineGlobalSlotsPass());
   }
 
-  // Recognize ATen kernels. This is a totally local transformation that
-  // we want to run as soon as possible.
-  pm.addNestedPass<FuncOp>(aten::createRecognizeKernelsPass());
+  // Reduce variants of ops to a smaller set of primitives.
+  pm.addNestedPass<FuncOp>(createReduceOpVariantsPass());
   // Convert any operations on primitive types as soon as possible. Unlike
   // tensor compute ops, we don't need to wait for dtype/shape inference.
-  pm.addNestedPass<FuncOp>(createConvertATenToStdPass());
+  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
 
   if (options.optimize) {
     // OPT-ONLY: Right now we rely on this to eliminate certain branches that
     // guard unreachable code that backends can't handle yet, such as lists,
-    // RaiseException, unimplemented aten ops, and only-used-in-training
+    // RaiseException, unimplemented tensor ops, and only-used-in-training
     // operations on `torch.global_slot`'s.
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
     // OPT-ONLY: We may have deleted some `torch.global_slot.get` /
@@ -153,13 +149,8 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   }
 
-  // Lower to TCP (+ guards) which is the input to codegen backends.
-  // Most of this should be subsumed by aten->linalg+guards conversions.
-  // (the guard generation will be automated from the linalg Op DSL).
-  pm.addNestedPass<FuncOp>(createConvertATenToLinalgPass());
-  pm.addNestedPass<FuncOp>(createConvertATenToTCFPass());
-  pm.addNestedPass<FuncOp>(createConvertTCFToStdPass());
-  pm.addNestedPass<FuncOp>(createConvertElementwiseToLinalgPass());
+  // Lower to linalg + guards which is the input to codegen backends.
+  pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
 
   // Verify that we have lowered to the form that backends expect.
   // This fails compilation (signalPassFailure) if the IR is not in the

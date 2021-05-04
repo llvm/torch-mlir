@@ -17,10 +17,10 @@ mb = torch_mlir.ModuleBuilder()
 def prim_If(b: bool, i: int):
     # CHECK:           %[[I1:.*]] = basicpy.bool_cast %[[B]] : !basicpy.BoolType -> i1
     # CHECK:           %[[RES:.*]] = scf.if %[[I1]] -> (i64) {
-    # CHECK:             %[[ADD:.*]] = torch.kernel_call "aten::add" %[[I]], %[[I]]
+    # CHECK:             %[[ADD:.*]] = torch.aten.add.int %[[I]], %[[I]]
     # CHECK:             scf.yield %[[ADD]] : i64
     # CHECK:           } else {
-    # CHECK:             %[[MUL:.*]] = torch.kernel_call "aten::mul" %[[I]], %[[I]]
+    # CHECK:             %[[MUL:.*]] = torch.aten.mul.int %[[I]], %[[I]]
     # CHECK:             scf.yield %[[MUL]] : i64
     # CHECK:           }
     # CHECK:           return %[[RES:.*]] : i64
