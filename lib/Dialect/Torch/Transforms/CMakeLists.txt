@@ -4,6 +4,7 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
   PrepareForGlobalizeObjectGraph.cpp
+  ReduceOpVariants.cpp
   RefineTypes.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -20,10 +21,8 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   MLIRPass
   NPCOMPTorchDialect
   NPCOMPBasicpyDialect
-  NPCOMPATenPasses
   NPCOMPNumpyPasses
-  NPCOMPATenToLinalg
-  NPCOMPATenToTCF
+  NPCOMPTorchToLinalg
   NPCOMPTCFToStd
   NPCOMPInterfaces
 )

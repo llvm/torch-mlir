@@ -35,7 +35,6 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPTCFDialect
   NPCOMPTorchDialect
   NPCOMPRefbackrtDialect
-  NPCOMPATenDialect
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
   NPCOMPConversionPasses

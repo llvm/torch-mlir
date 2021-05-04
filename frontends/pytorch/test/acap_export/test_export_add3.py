@@ -26,9 +26,10 @@ with mb.capture_function("add3", [t0, t1, t2]) as f:
 # CHECK:           %[[VAL_5:.*]] = constant 1 : i64
 # CHECK:           %[[VAL_6:.*]] = constant dense<0.000000e+00> : tensor<1x2x3x4xf32>
 # CHECK:           %[[VAL_7:.*]] = numpy.create_array_from_tensor %[[VAL_4]] : (tensor<1x2x3x4xf32>) -> !numpy.ndarray<[1,2,3,4]:f32>
-# CHECK:           %[[VAL_8:.*]] = torch.kernel_call "aten::add" %[[VAL_0]], %[[VAL_1]], %[[VAL_3]], %[[VAL_7]] : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64, !numpy.ndarray<[1,2,3,4]:f32>) -> !numpy.ndarray<[1,2,3,4]:f32> {sigArgTypes = ["Tensor", "Tensor", "Scalar", "Tensor"], sigIsMutable = true, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+# CHECK:           %[[VAL_8:.*]] = torch.operator "aten.add.out"(%[[VAL_0]], %[[VAL_1]], %[[VAL_3]], %[[VAL_7]]) : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64, !numpy.ndarray<[1,2,3,4]:f32>) -> !numpy.ndarray<[1,2,3,4]:f32>
 # CHECK:           %[[VAL_9:.*]] = numpy.create_array_from_tensor %[[VAL_6]] : (tensor<1x2x3x4xf32>) -> !numpy.ndarray<[1,2,3,4]:f32>
-# CHECK:           %[[VAL_10:.*]] = torch.kernel_call "aten::add" %[[VAL_8]], %[[VAL_2]], %[[VAL_5]], %[[VAL_9]] : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64, !numpy.ndarray<[1,2,3,4]:f32>) -> !numpy.ndarray<[1,2,3,4]:f32> {sigArgTypes = ["Tensor", "Tensor", "Scalar", "Tensor"], sigIsMutable = true, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["Tensor"]}
+# CHECK:           %[[VAL_10:.*]] = torch.operator "aten.add.out"(%[[VAL_8]], %[[VAL_2]], %[[VAL_5]], %[[VAL_9]]) : (!numpy.ndarray<[1,2,3,4]:f32>, !numpy.ndarray<[1,2,3,4]:f32>, i64, !numpy.ndarray<[1,2,3,4]:f32>) -> !numpy.ndarray<[1,2,3,4]:f32>
 # CHECK:           return %[[VAL_10]] : !numpy.ndarray<[1,2,3,4]:f32>
 # CHECK:         }
+
 print(mb.module)

@@ -16,7 +16,6 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
@@ -167,11 +166,11 @@ public:
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
     if (isa<Numpy::TensorStaticInfoCastOp, Numpy::CopyToTensorOp,
-            Numpy::CreateArrayFromTensorOp, aten::TanhOp, aten::BatchNormOp,
-            aten::ReluOp>(op)) {
+            Numpy::CreateArrayFromTensorOp, AtenTanhOp, AtenBatchNormOp,
+            AtenReluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
-    if (isa<aten::MmOp>(op)) {
+    if (isa<AtenMmOp>(op)) {
       auto &lhs = operands[0]->getValue();
       auto &rhs = operands[1]->getValue();
       auto knowledge =
@@ -205,7 +204,7 @@ public:
       knowledge.elementType =
           joinElementTypes(lhs.elementType, rhs.elementType);
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<aten::LinearOp>(op)) {
+    } else if (isa<AtenLinearOp>(op)) {
       // The output shape is the input shape with the last dimension changed
       // to the weight's output dimension.
       auto knowledge = operands[0]->getValue();
@@ -220,7 +219,7 @@ public:
           joinElementTypes(operands[1]->getValue().elementType,
                            operands[2]->getValue().elementType));
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<aten::Conv2dOp>(op)) {
+    } else if (isa<AtenConv2dOp>(op)) {
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
       knowledge.hasRank = true;
@@ -231,14 +230,14 @@ public:
           joinElementTypes(operands[0]->getValue().elementType,
                            operands[1]->getValue().elementType);
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<aten::MaxPool2dOp>(op)) {
+    } else if (isa<AtenMaxPool2dOp>(op)) {
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
       knowledge.hasRank = true;
       knowledge.sizes.resize(4, kUnknownSize);
       knowledge.elementType = operands[0]->getValue().elementType;
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<aten::AdaptiveAvgPool2dOp>(op)) {
+    } else if (isa<AtenAdaptiveAvgPool2dOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
@@ -248,7 +247,7 @@ public:
       }
       knowledge.elementType = input.elementType;
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<aten::AddOp>(op)) {
+    } else if (isa<AtenAddTensorOp>(op)) {
       // This is a general binary broadcasting shape transfer function.
       // We currently don't track "size 1" in our lattice, but we might want to.
       // We could make this more precise as well. But again, as with the other
@@ -266,7 +265,7 @@ public:
       knowledge.elementType =
           joinElementTypes(lhs.elementType, rhs.elementType);
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (auto flatten = dyn_cast<aten::FlattenOp>(op)) {
+    } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
       APInt startDimAP, endDimAP;
       auto operand = operands[0]->getValue();
       auto knowledge =
@@ -423,7 +422,7 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
 namespace {
 class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<Numpy::NumpyDialect, aten::ATenDialect>();
+    registry.insert<Numpy::NumpyDialect>();
   }
   void runOnOperation() override {
     auto func = getOperation();

@@ -77,6 +77,17 @@ std::vector<MlirValue> derefineValues(c10::ArrayRef<MlirValue> values,
                                       MlirLocation loc,
                                       MlirBlock appendToBlock);
 
+/// Create the appropriate MLIR operation for the Torch operator with schema
+/// "schema".
+///
+/// The primary difficulty here is doing the appropriate name munging and
+/// checking if the have a registered op.
+MlirOperation createOperationFromSchema(MlirBlock appendToBlock,
+                                        MlirLocation loc,
+                                        const c10::FunctionSchema &schema,
+                                        c10::ArrayRef<MlirType> resultTypes,
+                                        c10::ArrayRef<MlirValue> operands);
+
 } // namespace torch_mlir
 
 #endif // NPCOMP_FRONTENDS_PYTORCH_CSRC_TORCH_TO_MLIR_UTILS_H

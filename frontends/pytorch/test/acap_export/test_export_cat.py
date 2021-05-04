@@ -38,10 +38,10 @@ with mb.capture_function("conv_cat", [inputs, target]) as f:
   result = loss(model(inputs), target)
   f.returns([result])
 
-# CHECK: "aten::convolution"
-# CHECK: "aten::convolution"
+# CHECK: "aten.convolution"
+# CHECK: "aten.convolution"
 # CHECK: basicpy.build_list
-# CHECK: "aten::_cat"
-# CHECK: "aten::_log_softmax"
-# CHECK: "aten::nll_loss2d_forward"
+# CHECK: "aten._cat"
+# CHECK: "aten._log_softmax"
+# CHECK: "aten.nll_loss2d_forward"
 mb.module.operation.print(large_elements_limit=2)

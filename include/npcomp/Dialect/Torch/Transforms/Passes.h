@@ -49,6 +49,9 @@ std::unique_ptr<OperationPass<FuncOp>> createRefineTypesPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createInlineGlobalSlotsPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createReduceOpVariantsPass();
+
+
 } // namespace Torch
 
 /// Registers all Torch transformation passes.

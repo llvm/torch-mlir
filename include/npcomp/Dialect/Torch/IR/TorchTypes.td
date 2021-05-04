@@ -132,6 +132,12 @@ def AnyTorchTensorType : AnyTypeOf<[
     AnyTorchMutableTensor,
   ], "Any tensor type legal to pass to a Torch kernel">;
 
+def AnyTorchOptionalTensor : AnyTypeOf<[
+  AnyTorchTensorType,
+  Torch_OptionalType,
+  Basicpy_NoneType,
+], "optional torch tensor">;
+
 def AnyTorchScalarType : AnyTypeOf<[
     AnySignedInteger,
     AnyFloat,

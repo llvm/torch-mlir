@@ -69,26 +69,6 @@ private:
   bool isReturn;
 };
 
-/// Builds a kernel call step by step.
-class KernelCallBuilder {
-public:
-  KernelCallBuilder(MlirContext context, MlirLocation loc,
-                    const std::string &kernelName,
-                    const c10::FunctionSchema &schema);
-  void addOperand(MlirValue operand);
-  void addResultType(MlirType resultType);
-  MlirOperation create();
-
-protected:
-  MlirContext context;
-  MlirLocation loc;
-
-private:
-  void addSchemaAttrs();
-  OperationStateHolder state;
-  const c10::FunctionSchema &schema;
-};
-
 /// Wraps a 'func' MlirOperation and provides facilities for constructing
 /// IR from some stream of Torch operations.
 class FuncBuilder {

@@ -148,4 +148,20 @@ def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
   }];
 }
 
+def ReduceOpVariants : Pass<"torch-reduce-op-variants", "FuncOp"> {
+  let summary = "Reduces variants of ops to a smaller set of ops.";
+  let constructor = "mlir::NPCOMP::Torch::createReduceOpVariantsPass()";
+  let description = [{
+    Replaces ops with other ops to reduce the number of variants that
+    need to be handled elsewhere in the code.
+
+    Examples of the transformations done in this pass are:
+    - Convert operations with value semantics to operate on immutable tensors
+    - Convert operations with in-place semantics (e.g. `add_`) or inherently
+      mutable semantics (e.g. `add.out`) to their value-semantic equivalent.
+    - Convert operations that involve a scalar promotion to the tensor
+      variant plus a scalar promotion op.
+  }];
+}
+
 #endif // NPCOMP_TORCH_PASSES

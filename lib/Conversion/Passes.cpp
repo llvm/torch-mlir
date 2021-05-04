@@ -8,14 +8,13 @@
 
 #include "npcomp/Conversion/Passes.h"
 
-#include "npcomp/Conversion/ATenToLinalg/ATenToLinalg.h"
-#include "npcomp/Conversion/ATenToStd/ATenToStd.h"
-#include "npcomp/Conversion/ATenToTCF/Passes.h"
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
 #include "npcomp/Conversion/NumpyToTCF/Passes.h"
 #include "npcomp/Conversion/TCFToLinalg/TCFToLinalg.h"
 #include "npcomp/Conversion/TCFToStd/TCFToStd.h"
 #include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
+#include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "npcomp/Conversion/TorchToStd/TorchToStd.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration

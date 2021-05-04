@@ -11,13 +11,13 @@
 // CHECK-LABEL:   func @local(
 // CHECK-SAME:                  %[[ARG:.*]]: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
 // CHECK:           %[[ERASED:.*]] = numpy.tensor_static_info_cast %[[ARG]] : tensor<2x3x?xf32> to tensor<*x!numpy.any_dtype>
-// CHECK:           %[[RET:.*]] = "aten.tanh"(%[[ERASED]]) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
+// CHECK:           %[[RET:.*]] = torch.aten.tanh %[[ERASED]] : tensor<*x!numpy.any_dtype> -> tensor<*x!numpy.any_dtype>
 // CHECK:           return %[[RET]] : tensor<*x!numpy.any_dtype>
 func @local(%arg0: tensor<2x3x?xf32>) -> tensor<*x!numpy.any_dtype> {
   %0 = numpy.create_array_from_tensor %arg0 : (tensor<2x3x?xf32>) -> !numpy.ndarray<[2,3,?]:f32>
   %1 = numpy.static_info_cast %0 : !numpy.ndarray<[2,3,?]:f32> to !numpy.ndarray<*:!numpy.any_dtype>
   %2 = numpy.copy_to_tensor %1 : (!numpy.ndarray<*:!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
-  %3 = "aten.tanh"(%2) : (tensor<*x!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
+  %3 = torch.aten.tanh %2 : tensor<*x!numpy.any_dtype> -> tensor<*x!numpy.any_dtype>
   %4 = numpy.create_array_from_tensor %3 : (tensor<*x!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype>
   %5 = numpy.copy_to_tensor %4 : (!numpy.ndarray<*:!numpy.any_dtype>) -> tensor<*x!numpy.any_dtype>
   return %5 : tensor<*x!numpy.any_dtype>

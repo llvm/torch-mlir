@@ -15,6 +15,7 @@
 #include "mlir-c/IR.h"
 #include "mlir-c/Support.h"
 
+#include "c10/util/ArrayRef.h"
 #include "c10/util/Optional.h"
 
 namespace torch_mlir {
@@ -55,12 +56,22 @@ inline void addToMlirOperationState(MlirOperationState &state,
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
+                                    c10::ArrayRef<MlirValue> values) {
+  mlirOperationStateAddOperands(&state, values.size(), values.data());
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
                                     MlirType resultType) {
   mlirOperationStateAddResults(&state, 1, &resultType);
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
                                     const std::vector<MlirType> &resultTypes) {
+  mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
+}
+
+inline void addToMlirOperationState(MlirOperationState &state,
+                                    c10::ArrayRef<MlirType> resultTypes) {
   mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
 }
 

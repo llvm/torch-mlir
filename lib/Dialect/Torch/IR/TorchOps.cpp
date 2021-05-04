@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -20,29 +21,6 @@
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
-
-static SmallVector<StringRef, 4> strArrayAttrToVector(ArrayAttr array) {
-  SmallVector<StringRef, 4> strings;
-  strings.reserve(array.size());
-  for (auto stringAttr : array) {
-    strings.push_back(stringAttr.cast<StringAttr>().getValue());
-  }
-  return strings;
-}
-
-//===----------------------------------------------------------------------===//
-// KernelCallOp
-//===----------------------------------------------------------------------===//
-
-KernelMetadata KernelCallOp::getTorchKernelMetadata() {
-  return KernelMetadata{
-      .kernelName = kernelName(),
-      .isVararg = sigIsVararg(),
-      .isVarret = sigIsVarret(),
-      .argTypes = strArrayAttrToVector(sigArgTypes()),
-      .returnTypes = strArrayAttrToVector(sigRetTypes()),
-  };
-}
 
 //===----------------------------------------------------------------------===//
 // MethodOp
@@ -204,6 +182,59 @@ void DerefineOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+//===----------------------------------------------------------------------===//
+// Aten__Is__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Is__Op::fold(ArrayRef<Attribute> operands) {
+  auto lhsType = self().getType();
+  auto rhsType = obj().getType();
+  // If either type is a NoneType, make it be the lhsType.
+  if (rhsType.isa<Basicpy::NoneType>())
+    std::swap(lhsType, rhsType);
+  // TODO: Implement and use subtype infra for this.
+  // If neither type is a subtype of the other, then the result is false.
+  if (lhsType.isa<Basicpy::NoneType>() && !rhsType.isa<Torch::OptionalType>())
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), 0);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLenTOp
+//===----------------------------------------------------------------------===//
+
+void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenLenTOp op, PatternRewriter &rewriter) {
+    auto buildList = op.getOperand().getDefiningOp<Basicpy::BuildListOp>();
+    if (!buildList)
+      return rewriter.notifyMatchFailure(op, "operand not basicpy.build_list");
+    rewriter.replaceOpWithNewOp<::mlir::ConstantOp>(
+        op, rewriter.getI64IntegerAttr(buildList.getNumOperands()));
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSizeOp
+//===----------------------------------------------------------------------===//
+
+void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
+    auto type = op.getOperand().getType().dyn_cast<RankedTensorType>();
+    if (!type)
+      return rewriter.notifyMatchFailure(op, "not a ranked tensor");
+    SmallVector<Value> listElements;
+    for (int64_t size : type.getShape()) {
+      listElements.push_back(rewriter.create<::mlir::ConstantOp>(
+          op->getLoc(), rewriter.getI64IntegerAttr(size)));
+    }
+    rewriter.replaceOpWithNewOp<Basicpy::BuildListOp>(
+        op, Basicpy::ListType::get(rewriter.getContext()), listElements);
+    return success();
+  });
+}
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"

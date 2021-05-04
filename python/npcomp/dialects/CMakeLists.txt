@@ -5,7 +5,6 @@ function(_add_dialect target td_file bind_name)
   add_dependencies(NPCOMPNativePyExt ${target})
 endfunction()
 
-_add_dialect(NPCOMPPyDialectATen ATenBind.td "aten")
 _add_dialect(NPCOMPPyDialectBasicpy BasicpyBind.td "basicpy")
 _add_dialect(NPCOMPPyDialectNumpy NumpyBind.td "numpy")
 _add_dialect(NPCOMPPyDialectTCF TCFBind.td "tcf")
