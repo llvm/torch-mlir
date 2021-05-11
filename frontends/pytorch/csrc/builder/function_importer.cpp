@@ -37,14 +37,18 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
       "func", loc, mlirRegionCreate(),
       toMlirNamedAttribute("type", mlirTypeAttrGet(functionType)),
       toMlirNamedAttribute("sym_name", symNameAttr));
+  std::vector<MlirAttribute> argAttrDicts;
   for (int i = 0, e = mlirFunctionTypeGetNumInputs(functionType); i != e; i++) {
-    MlirAttribute argAttr = getArgAttribute(i);
-    if (mlirAttributeIsNull(argAttr)) {
-      continue;
+    MlirAttribute argAttrDict = getArgAttribute(i);
+    if (mlirAttributeIsNull(argAttrDict)) {
+      argAttrDicts.push_back(mlirDictionaryAttrGet(context, 0, nullptr));
+    } else {
+      argAttrDicts.push_back(argAttrDict);
     }
-    mlirOperationSetAttributeByName(
-        func, toMlirStringRef("arg" + std::to_string(i)), argAttr);
   }
+  mlirOperationSetAttributeByName(
+      func, toMlirStringRef("arg_attrs"),
+      mlirArrayAttrGet(context, argAttrDicts.size(), argAttrDicts.data()));
   MlirRegion bodyRegion = mlirOperationGetRegion(func, 0);
   std::vector<MlirType> resultTypes;
   for (int i = 0, e = mlirFunctionTypeGetNumResults(functionType); i != e;
