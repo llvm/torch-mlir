@@ -18,6 +18,8 @@
 #include "mlir-c/Diagnostics.h"
 #include "npcomp-c/Types.h"
 
+#include "caffe2/core/scope_guard.h"
+
 using namespace torch_mlir;
 
 // Hashing functionality for IValue's.
@@ -146,7 +148,8 @@ private:
 };
 } // namespace
 
-MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
+MlirValue
+IValueImporter::importModule(torch::jit::Module currentModule) {
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
 
@@ -170,6 +173,10 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
+  auto inserter = caffe2::MakeGuard([&]() {
+    mlirBlockInsertOwnedOperationBefore(
+        importBlock, mlirBlockGetTerminator(importBlock), nnModule);
+  });
 
   if (!rootModuleName.has_value()) {
     rootModuleName = moduleTypeName;
@@ -198,8 +205,6 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   }
 
   createMlirOperationAtEnd(nnModuleBody, "torch.nn_module_terminator", loc);
-  mlirBlockInsertOwnedOperationBefore(
-      importBlock, mlirBlockGetTerminator(importBlock), nnModule);
   return mlirOperationGetResult(nnModule, 0);
 }
 
