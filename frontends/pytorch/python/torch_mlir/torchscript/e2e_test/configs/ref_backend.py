@@ -39,7 +39,10 @@ class RefBackendTestConfig(TestConfig):
             mb.import_module(scripted._c, class_annotator)
         except Exception as e:
             raise Exception(f"""
-PyTorch TorchScript module -> NPCOMP Object Graph IR import failed with the following diagnostics:
+PyTorch TorchScript module -> NPCOMP Object Graph IR import failed with:
+Exception:
+{e}
+Diagnostics:
 {sys.stderr.getvalue()}
 """) from None
         finally:
