@@ -213,6 +213,8 @@ SIGLIST_TYPE = List[Dict[str, Union[str, int, Dict[str, List[str]]]]]
 #   - SIGLIST_TYPE (e.g. {'arguments': [...], 'returns': [...]} )
 OP_INFO_DICT = Dict[str, Union[bool, Tuple[str], SIGLIST_TYPE]]
 
+# Mapping from torch types to their corresponding ODS type predicates.
+# Use `get_ods_type` instead of using this directly.
 TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor": "AnyTorchTensorType",
     "Tensor?": "AnyTorchOptionalTensor",
@@ -229,7 +231,16 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Any": "AnyTorchType",
     "Device": "Torch_DeviceType",
     "str": "Basicpy_BytesType",
+    "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
 }
+
+
+def get_ods_type(type: str):
+    ods_type = TORCH_TYPE_TO_ODS_TYPE.get(type)
+    if ods_type is None:
+        raise Exception(
+            f"{type!r} not in TORCH_TYPE_TO_ODS_TYPE mapping. Please add it!")
+    return ods_type
 
 
 def _get_main_module_name() -> str:
@@ -287,7 +298,7 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
                 p("Variadic<AnyTorchType>:$operands")
             else:
                 p(",\n".join([
-                    f"""{TORCH_TYPE_TO_ODS_TYPE[arg["type"]]}:${arg["name"]}"""
+                    f"""{get_ods_type(arg["type"])}:${arg["name"]}"""
                     for arg in operator.arguments
                 ]))
         p(");")
@@ -297,7 +308,7 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
                 p("Variadic<AnyTorchType>:$results")
             else:
                 p(",\n".join([
-                    f"""{TORCH_TYPE_TO_ODS_TYPE[ret["type"]]}:${ret["name"] or "result"}"""
+                    f"""{get_ods_type(ret["type"])}:${ret["name"] or "result"}"""
                     for ret in operator.returns
                 ]))
         p(");")
@@ -444,6 +455,19 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::len.t : (t[]) -> (int)", has_canonicalizer=True)
 
 
+def emit_quantized_ops(torch_ir_dir: str, registry: Registry):
+    td_file = os.path.join(torch_ir_dir, "GeneratedQuantizedOps.td")
+    with open(td_file, "w") as f:
+        f.write(ODS_BANNER)
+
+        def emit(key, **kwargs):
+            emit_op(registry[key], f, **kwargs)
+
+        emit(
+            "quantized::linear : (Tensor, __torch__.torch.classes.quantized.LinearPackedParamsBase, float, int) -> (Tensor)",
+            traits=["HasValueSemantics"])
+
+
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
         outfile.write(repr(v))
@@ -460,6 +484,7 @@ def main(args: argparse.Namespace):
             dump_registered_ops(debug_registry_dump, registry)
     emit_prim_ops(args.torch_ir_dir, registry)
     emit_aten_ops(args.torch_ir_dir, registry)
+    emit_quantized_ops(args.torch_ir_dir, registry)
 
 
 def _create_argparse() -> argparse.ArgumentParser:

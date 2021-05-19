@@ -7,6 +7,12 @@ func @torch.operator(%arg0: !numpy.ndarray<*:!numpy.any_dtype>, %arg1: !numpy.nd
   return %0 : !numpy.ndarray<*:!numpy.any_dtype>
 }
 
+func @torch.linear_params.create(%arg0: !numpy.ndarray<*:!numpy.any_dtype>, %arg1: !numpy.ndarray<*:!numpy.any_dtype>) -> (!torch.LinearParams, !torch.LinearParams) {
+  %with_bias = torch.linear_params.create %arg0, %arg1 : !numpy.ndarray<*:!numpy.any_dtype>, !numpy.ndarray<*:!numpy.any_dtype>
+  %without_bias = torch.linear_params.create %arg0 : !numpy.ndarray<*:!numpy.any_dtype>
+  return %with_bias, %without_bias : !torch.LinearParams, !torch.LinearParams
+}
+
 func @derefine(%arg0: tensor<f32>) -> !torch.optional<tensor<f32>> {
   %0 = torch.derefine %arg0 : tensor<f32> to !torch.optional<tensor<f32>>
   return %0 : !torch.optional<tensor<f32>>

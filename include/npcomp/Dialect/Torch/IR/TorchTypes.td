@@ -83,6 +83,37 @@ def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
 
+def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
+  let summary = "Type modeling `ScalarType::QInt8`";
+  let description = [{
+    This is intended to be a 1:1 match for the Torch `ScalarType` types.
+
+    Looking at the variety / ad-hocness (e.g. `QUInt4x2`) of that set of
+    types, it is deemed preferable to import them as one-off ad-hoc types
+    instead of a single parameterized type.
+  }];
+}
+
+def Torch_LinearParamsType : Torch_Type<"LinearParams", "LinearParams"> {
+  let summary = "Torch packed linear params type";
+  let description = [{
+    A weight and optional bias, packed into one value.
+
+    This is used to model the
+    `__torch__.torch.classes.quantized.LinearPackedParamsBase` custom C++ class
+    type which is the input to some Torch `quantized::` ops.
+
+    We may want to eventually have a full set of ops that model the
+    LinearPackedParamsBase interface, such as `apply`, `apply_relu`, etc.
+    But we instead are likely to just expand the `quantized::` ops directly
+    and fold away the instances of this type.
+    The whole LinearPackedParamsBase abstraction as it stands in PyTorch is a
+    very library-call-y, runtime-y thing that embodies a number of assumptions
+    about the structure of how the program will be executed, which need not hold
+    for npcomp backends.
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
@@ -189,6 +220,7 @@ def AnyTorchType : AnyTypeOf<[
     Torch_NnModuleType,
     Torch_OptionalType,
     Torch_DeviceType,
+    Torch_LinearParamsType,
   ], "Any type that is legal to pass to a Torch kernel">;
 
 #endif // TORCH_TYPES

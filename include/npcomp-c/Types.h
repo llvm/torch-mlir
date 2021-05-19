@@ -147,6 +147,26 @@ int npcompTypeIsADevice(MlirType t);
 /** Gets the !torch.Device type. */
 MlirType npcompDeviceTypeGet(MlirContext context);
 
+/*============================================================================*/
+/* torch.LinearParams type.                                                   */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.LinearParams type */
+int npcompTypeIsALinearParams(MlirType t);
+
+/** Gets the !torch.LinearParams type. */
+MlirType npcompLinearParamsTypeGet(MlirContext context);
+
+/*============================================================================*/
+/* torch.qint8 type.                                                          */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.qint8 type */
+int npcompTypeIsAQInt8(MlirType t);
+
+/** Gets the !torch.qint8 type. */
+MlirType npcompQInt8TypeGet(MlirContext context);
+
 #ifdef __cplusplus
 }
 #endif
