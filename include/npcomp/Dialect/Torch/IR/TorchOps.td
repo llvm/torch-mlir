@@ -22,6 +22,7 @@ class Torch_Op<string mnemonic, list<OpTrait> traits = []>
 
 include "npcomp/Dialect/Torch/IR/GeneratedAtenOps.td"
 include "npcomp/Dialect/Torch/IR/GeneratedPrimOps.td"
+include "npcomp/Dialect/Torch/IR/GeneratedQuantizedOps.td"
 
 //===----------------------------------------------------------------------===//
 // TorchScript `torch.nn.Module` object instantiation ops.
@@ -439,7 +440,9 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let hasCanonicalizer = 1;
 }
 
-def Torch_OperatorOp : Torch_Op<"operator", []> {
+def Torch_OperatorOp : Torch_Op<"operator", [
+    AllowsTypeRefinement
+  ]> {
   let summary = "Opaque torch operator";
   let description = [{
     Represents an invocation of a `torch::jit::Operator` for which we don't
@@ -455,6 +458,50 @@ def Torch_OperatorOp : Torch_Op<"operator", []> {
 
   let assemblyFormat = [{
     $name `(` $operands `)` attr-dict `:` functional-type($operands, $results)
+  }];
+}
+
+def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Create a `!torch.LinearParams`";
+  let arguments = (ins
+    AnyTorchTensorType:$weight,
+    Optional<AnyTorchTensorType>:$bias
+  );
+  let results = (outs Torch_LinearParamsType:$result);
+
+  let assemblyFormat = [{
+    $weight (`,` $bias^)? attr-dict `:` type($weight) (`,` type($bias)^)?
+  }];
+}
+
+def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Create a per-tensor-affine quantized tensor";
+  let description = [{
+    Create a quantized tensor.
+
+    Quantization formula is:
+    ```
+    Q(x, scale, zero_point) = round(x/scale + zero_point)
+    ```
+
+    See:
+    https://pytorch.org/docs/stable/quantization.html#quantized-tensors
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$int_repr,
+    AnyFloat:$scale,
+    AnyTorchIntType:$offset
+  );
+  // TODO: Limit to quantized dtypes (e.g. !torch.qint8).
+  let results = (outs AnyTorchTensorType:$result);
+
+  let assemblyFormat = [{
+    $int_repr `,` $scale `,` $offset attr-dict
+    `:` type($int_repr) `,` type($scale) `,` type($offset) `->` type($result)
   }];
 }
 
