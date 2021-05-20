@@ -20,7 +20,7 @@ compiling or TorchScript'ing).
 """
 
 import abc
-from typing import Any, Callable, List, NamedTuple, TypeVar
+from typing import Any, Callable, List, NamedTuple, Optional, TypeVar
 
 import torch
 
@@ -175,10 +175,14 @@ class TestResult(NamedTuple):
     # those reasons are stronger because we cannot simply extend this
     # class.
     unique_name: str  # Should match Test.unique_name for corresponding test.
+    # If compilation failed, a string describing the failure.
+    # If this is not None, then the `trace` and `golden_trace` fields are None,
+    # and vice-versa.
+    compilation_error: Optional[str]
     # The trace produced by the backend.
-    trace: Trace
+    trace: Optional[Trace]
     # The golden trace which `trace` is expected to match.
-    golden_trace: Trace
+    golden_trace: Optional[Trace]
 
 
 class _Tracer:
@@ -200,6 +204,9 @@ class _Tracer:
             raw_outputs = getattr(self.module, name)(*args)
             if isinstance(raw_outputs, torch.Tensor):
                 outputs = [raw_outputs]
+            else:
+                raise Exception(
+                    "unimplemented: non-Tensor output from function")
             self.trace.append(
                 TraceItem(symbol=name, inputs=args, outputs=outputs))
             return raw_outputs
@@ -222,11 +229,20 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
     for test in tests:
         golden_trace = _generate_golden_trace(test)
         # TODO: Precompile everything in parallel.
-        compiled = config.compile(test.program_factory())
+        try:
+            compiled = config.compile(test.program_factory())
+        except Exception as e:
+            results.append(
+                TestResult(unique_name=test.unique_name,
+                           compilation_error=str(e),
+                           trace=None,
+                           golden_trace=None))
+            continue
         # TODO: Run in parallel.
         trace = config.run(compiled, golden_trace)
         results.append(
             TestResult(unique_name=test.unique_name,
+                       compilation_error=None,
                        trace=trace,
                        golden_trace=golden_trace))
     return results
