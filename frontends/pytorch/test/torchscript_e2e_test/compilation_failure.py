@@ -16,27 +16,29 @@ class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, lhs, rhs):
-        return torch.mm(lhs, rhs)
+    def forward(self, t):
+        # Static type error that will fail TorchScript compilation -- function
+        # that returns tensor along one path and int along another.
+        if t.item() > 0:
+            return torch.tensor([])
+        else:
+            return 3
 
 
-# TODO: Refine messages.
-# CHECK: SUCCESS - "MmModule_basic"
+# CHECK: FAILURE - "MmModule_basic"
+# CHECK:     compilation error
+# Assume that the diagnostic from the TorchScript compiler will at least contain
+# the offending "return 3".
+# CHECK:     return 3
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4), tu.rand(4, 4))
-
-
-# CHECK: SUCCESS - "MmModule_basic2"
-@register_test_case(module_factory=lambda: MmModule())
-def MmModule_basic2(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+    module.forward(torch.ones([]))
 
 
 def main():
     config = TorchScriptTestConfig()
     results = run_tests(GLOBAL_TEST_REGISTRY, config)
-    report_results(results)
+    report_results(results, verbose=True)
 
 
 if __name__ == '__main__':

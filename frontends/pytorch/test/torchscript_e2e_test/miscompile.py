@@ -26,11 +26,12 @@ class MmModule(torch.nn.Module):
 
 
 # TODO: Refine error messages.
-# CHECK: FAILURE "MmModule_basic"
-# CHECK: Error: in call #0 into the module: result #0 not close in call to "forward"
-# CHECK: tensor stats       :  min={{.*}}, max={{.*}}, mean={{.*}}
-# CHECK: golden tensor stats:  min={{.*}}, max={{.*}}, mean={{.*}}
-# CHECK-NOT: ALL PASS
+# CHECK: FAILURE - "MmModule_basic"
+# CHECK:     @ trace item #0 - call to "forward"
+# CHECK:     @ output #0
+# CHECK:     ERROR: values mismatch
+# CHECK:     got     :  Tensor with min={{.*}}, max={{.*}}, mean={{.*}}
+# CHECK:     expected:  Tensor with min={{.*}}, max={{.*}}, mean={{.*}}
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
@@ -39,7 +40,7 @@ def MmModule_basic(module, tu: TestUtils):
 def main():
     config = TorchScriptTestConfig()
     results = run_tests(GLOBAL_TEST_REGISTRY, config)
-    report_results(results)
+    report_results(results, verbose=True)
 
 
 if __name__ == '__main__':
