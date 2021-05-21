@@ -28,7 +28,7 @@ class QuantizedMLP(nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 16], torch.float32),
+        ([1, 16], torch.float32, True),
     ])
     def forward(self, x):
         x = self.quantize(x)

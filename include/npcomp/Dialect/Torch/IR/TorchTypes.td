@@ -15,7 +15,9 @@ include "npcomp/Dialect/Torch/IR/TorchBase.td"
 // Type defs
 //===----------------------------------------------------------------------===//
 
-class Torch_Type<string name, string typeMnemonic> : TypeDef<Torch_Dialect, name> {
+class Torch_Type<string name, string typeMnemonic,
+                 string baseCppClass = "::mlir::Type">
+    : TypeDef<Torch_Dialect, name, [], baseCppClass> {
   let mnemonic = typeMnemonic;
 }
 
@@ -43,6 +45,148 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
     return get($_ctxt, className);
   }];
 }
+
+// For standard ArrayRefs, which require allocation.
+class OptionalArrayRefParameter<string arrayOf, string desc = ""> :
+    AttrOrTypeParameter<
+      "::llvm::Optional<::llvm::ArrayRef<" # arrayOf # ">>", desc> {
+  let allocator = [{
+    if ($_self.hasValue()) {
+      $_dst.getValue() = $_allocator.copyInto($_self.getValue());
+    }
+  }];
+}
+
+class AnyTorchTensorType<string name, string typeMnemonic>
+    : Torch_Type<name, typeMnemonic, "::mlir::NPCOMP::Torch::BaseTensorType"> {
+  let summary = "Multi-dimensional array modeling Torch's Tensor type";
+  let description = [{
+    Syntax:
+
+    ```
+    tensor-type ::= (`!torch.tensor` | `!torch.vtensor`) tensor-modifiers?
+    tensor-modifiers ::= `<` sizes-spec `,` dtype-spec `>`
+    sizes-spec ::= `*` | `[` size-list `]`
+    size-list ::= /*empty*/ | size-list-nonempty
+    size-list-nonempty = size (`,` size)*
+    size ::= `?` | decimal-literal
+    dtype-spec ::= `unk` | type
+    ```
+
+    Represents a multi-dimensional array to model Torch's `torch.Tensor` type.
+
+    If the type is `!torch.tensor`, it represents a general unrestricted
+    `torch.Tensor`, including potential mutability, aliasing, etc.
+    If the type is `!torch.vtensor` then the tensor is restricted to operations
+    that have value semantics ("v" = "value semantics"). This helps to maintain
+    a strict separation between the value-semantic and potentially-mutating
+    worlds, as one of our main jobs in the compiler is to isolate the mutating
+    parts as much as possible because most lower levels of the compiler stack
+    are expected to require value semantics. E.g. npcomp's backend contract
+    is mostly in terms of linalg-on-tensor for compute-heavy ops, which require
+    a conversion to the builtin `tensor` type which has value semantics.
+    Some notes about value semantics:
+      - Using the type system described in PEP 483 (which TorchScript and other
+        Python systems follow), `!torch.tensor` is a subtype of
+        `!torch.vtensor`. Specifically, both types have the same set of values,
+        but `!torch.tensor` additionally allows aliasing or mutating
+        operations.
+      - Despite being a subtype, a `!torch.tensor` carries *less* static
+        information than a corresponding `!torch.vtensor`. In particular,
+        `!torch.vtensor` carries the static information "not used in aliasing
+        or mutating operations".
+      - `!torch.vtensor` can be trivially converted to the builtin `tensor`
+        type when the dtype is known (the builtin `tensor` type does not allow
+        an unknown dtype).
+
+    In the absence of the `tensor-modifiers`, the type contains the minimal
+    amount of static information. That is, `!torch.tensor` is equivalent to
+    `!torch.tensor<*,unk>` (and similarly for `!torch.vtensor`).
+
+    If `sizes-spec` is not `*`, it indicates additional static information
+    about the sizes of the tensor. It will consist of a list of elements,
+    with length equal to the "rank" (in MLIR parlance) or "ndim"
+    (in Torch parlance). Each element represents a size, with the typical
+    MLIR representation of a number for a statically known size and `?` for a
+    size that is unknown. Thus, the lattice consists of `*` as the least static
+    information, followed by lists containing unknown sizes such as `[?,?,?]`
+    which contribute rank information, followed by statically specified sizes
+    for some dimensions such as `[?,3,?]`, followed by fully statically
+    specified sizes such as `[2,3,4]`.
+
+    If `dtype-spec` is not `unk` ("unknown"), it contains an MLIR type
+    which contributes static information about the dtype of the tensor.
+    Only types allowed by Torch are permitted.
+    ```
+    |-------------------|--------------------|
+    | Torch Type        | MLIR Type          |
+    |-------------------|--------------------|
+    | torch.float16     | f16                |
+    | torch.bfloat16    | bf16               |
+    | torch.float32     | f32                |
+    | torch.float64     | f64                |
+    | torch.uint8       | ui8                |
+    | torch.int8        | si8                |
+    | torch.int16       | si16               |
+    | torch.int32       | si32               |
+    | torch.int64       | si64               |
+    | torch.bool        | i1                 |
+    | torch.qint8       | !torch.qint8       |
+    |-------------------|--------------------|
+    ```
+
+    TODO: Support the full set of Torch dtypes.
+    TODO: Use si1?
+
+    Note: We avoid the C++ identifier `TensorType` to avoid C++ name ambiguities
+    with `mlir::TensorType`, since most code is transitively nested in
+    both `::mlir` and `::mlir::NPCOMP::Torch` namespaces.
+
+    Note: We use the Torch-aligned terminology "sizes" and "dtype" instead of
+    the MLIR-aligned terminology "rank/shape" and "element type". The cheat
+    sheet is:
+    - `hasRank()` -> `hasSizes()`
+    - `getShape()` -> `getSizes()`
+    - `getElementType()` -> `getDtype()` (but be sure that `hasDtype()` though).
+  }];
+  let parameters = (ins
+    OptionalArrayRefParameter<"int64_t", "sizes of dimensions">:$optionalSizes,
+    "::mlir::Type":$optionalDtype
+  );
+  let genVerifyDecl = 1;
+  string extraBaseClassDeclaration = [{
+  }];
+}
+
+def Torch_NonValueTensorType : AnyTorchTensorType<"NonValueTensor", "tensor"> {
+  let extraClassDeclaration = extraBaseClassDeclaration # [{
+    // Get this type, with value semantics added.
+    ValueTensorType getWithValueSemantics() const;
+    // Get the !torch.tensor type with the least static information.
+    static NonValueTensorType getWithLeastStaticInformation(MLIRContext *context);
+    // Get a NonValueTensorType with shape/dtype matching `type`.
+    static NonValueTensorType getFromShaped(ShapedType type);
+  }];
+}
+
+def Torch_ValueTensorType : AnyTorchTensorType<"ValueTensor", "vtensor"> {
+  let extraClassDeclaration = extraBaseClassDeclaration # [{
+    // Get this type, with value semantics removed.
+    NonValueTensorType getWithoutValueSemantics() const;
+    // Get the !torch.tensor type with the least static information.
+    static ValueTensorType getWithLeastStaticInformation(MLIRContext *context);
+    // Get a NonValueTensorType with shape/dtype matching `type`.
+    static ValueTensorType getFromShaped(ShapedType type);
+    // Get the builtin tensor type with the same static information as this one,
+    // or nullptr if that is not possible (i.e. when the dtype is unknown).
+    TensorType toBuiltinTensor() const;
+  }];
+}
+
+def AnyTorchTensorType : Type<
+    CPred<"$_self.isa<::mlir::NPCOMP::Torch::BaseTensorType>()">,
+    "Any Torch tensor type"
+>;
 
 // TODO: It feels like this should be something more general.
 // However, to do that, we need to agree on construction operations
@@ -117,51 +261,6 @@ def Torch_LinearParamsType : Torch_Type<"LinearParams", "LinearParams"> {
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
-
-// Torch has a fairly advanced and featureful Tensor type, and some of the
-// semantics are important to preserve in a compilation context. In the future,
-// a dedicated TorchTensor type may be introduced, but also, subsets of cases
-// and interop are well served by existing tensor-like types, which are
-// specifically permitted. Typically, on import, constraints are fairly loose
-// and based on how the program is captured. Settling on and refining to
-// specific types is done as part of lowering.
-//
-// While lowering it is useful to be able to distinguish between mutable and
-// immutable tensors:
-//   - Mutable tensors can alias.
-//   - Mutable tensors can be a view over another mutable tensor.
-//   - Mutable tensors act as if reference counted and exist for the lifetime
-//     of any reference or derived view.
-// Conversely, immutable tensors:
-//   - Are normal SSA values representing the contents of the tensor.
-//   - Cannot alias.
-//   - Cannot be a view of any mutable value.
-//   - Have undefined lifetimes.
-//
-// At the Torch dialect level, most things are modeled as an AnyTorchTensor;
-// however, when lowering to specific ops, further constraints are introduced,
-// necessitating copies, loads, and stores to be inserted to bridge worlds.
-def AnyTorchImmutableTensor : AnyTypeOf<[
-    // Normal MLIR immutable tensors.
-    AnyTensor,
-  ], "allowable torch immutable tensor">;
-
-def AnyTorchOptionalImmutableTensor : AnyTypeOf<[
-  AnyTorchImmutableTensor,
-  Basicpy_NoneType,
-], "allowable torch immutable tensor (or None)">;
-
-def AnyTorchMutableTensor : AnyTypeOf<[
-    // "Numpy-style" mutable NDArray. While not offering the full generality
-    // of a Torch tensor, it models the same access patterns and implies the
-    // same aliasing as Torch tensors.
-    Numpy_NdArrayType,
-  ], "allowable torch mutable tensor">;
-
-def AnyTorchTensorType : AnyTypeOf<[
-    AnyTorchImmutableTensor,
-    AnyTorchMutableTensor,
-  ], "Any tensor type legal to pass to a Torch kernel">;
 
 def AnyTorchOptionalTensor : AnyTypeOf<[
   AnyTorchTensorType,

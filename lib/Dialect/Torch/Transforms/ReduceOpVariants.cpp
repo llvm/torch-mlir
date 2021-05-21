@@ -9,8 +9,6 @@
 #include "PassDetail.h"
 
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/StringExtras.h"
@@ -35,23 +33,23 @@ public:
       // Convert all operands.
       SmallVector<Value> newOperands;
       for (OpOperand &opOperand : op->getOpOperands()) {
-        auto ndArrayType =
-            opOperand.get().getType().dyn_cast<Numpy::NdArrayType>();
-        if (!ndArrayType)
+        auto tensorType =
+            opOperand.get().getType().dyn_cast<NonValueTensorType>();
+        if (!tensorType)
           continue;
-        opOperand.set(rewriter.create<Numpy::CopyToTensorOp>(
-            op->getLoc(), ndArrayType.toTensorType(), opOperand.get()));
+        opOperand.set(rewriter.create<CopyTensorOp>(
+            op->getLoc(), tensorType.getWithValueSemantics(), opOperand.get()));
       }
       // Convert all results.
       rewriter.setInsertionPointAfter(op);
       for (Value result : op->getResults()) {
-        auto ndArrayType = result.getType().dyn_cast<Numpy::NdArrayType>();
-        if (!ndArrayType)
+        auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
+        if (!tensorType)
           continue;
-        auto createArray = rewriter.create<Numpy::CreateArrayFromTensorOp>(
+        auto createArray = rewriter.create<CopyTensorOp>(
             op->getLoc(), result.getType(), result);
         result.replaceAllUsesExcept(createArray, createArray);
-        result.setType(ndArrayType.toTensorType());
+        result.setType(tensorType.getWithValueSemantics());
       }
     });
     return success();
@@ -87,12 +85,13 @@ public:
            "Torch JIT operators shouldn't have regions or successors");
 
     Operation *newOp = rewriter.createOperation(state);
-    auto tensor = rewriter.create<Numpy::CopyToTensorOp>(
-        op->getLoc(),
-        newOp->getResult(0).getType().cast<Numpy::NdArrayType>().toTensorType(),
-        newOp->getResult(0));
-    rewriter.create<Numpy::OverwriteArrayOp>(op->getLoc(), tensor,
-                                             op->getOperand(0));
+    auto tensor = rewriter.create<CopyTensorOp>(op->getLoc(),
+                                                newOp->getResult(0)
+                                                    .getType()
+                                                    .cast<NonValueTensorType>()
+                                                    .getWithValueSemantics(),
+                                                newOp->getResult(0));
+    rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
 
     return success();
@@ -111,9 +110,16 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     ConversionTarget target(*context);
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
-        auto isNdArray = [](Type t) { return t.isa<Numpy::NdArrayType>(); };
-        return llvm::none_of(op->getOperandTypes(), isNdArray) &&
-               llvm::none_of(op->getResultTypes(), isNdArray);
+        auto hasValueSemantics = [](Type t) {
+          // TODO: Make this an allowlist based on a closed torch dialect
+          // type system.
+          if (auto tensorType = t.dyn_cast<NonValueTensorType>()) {
+            return false;
+          }
+          return true;
+        };
+        return llvm::all_of(op->getOperandTypes(), hasValueSemantics) &&
+               llvm::all_of(op->getResultTypes(), hasValueSemantics);
       }
       if (op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>()) {
         return false;

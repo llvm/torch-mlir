@@ -13,7 +13,6 @@
 #include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"
-#include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -94,7 +93,7 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   if (options.optimize) {
     // Inline global slots, which for most inference scenarios deletes them.
     // This also exposes more information to intraprocedural transformations
-    // below like ArrayToTensor and RefineTypes.
+    // below like MaximizeValueSemantics and RefineTypes.
     // OPT-ONLY: Don't rely on this pass to "lower" global slots by deleting.
     // Also don't rely on this pass to expose constants into the program to
     // simplify handling of "optional".
@@ -103,9 +102,6 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
 
   // Reduce variants of ops to a smaller set of primitives.
   pm.addNestedPass<FuncOp>(createReduceOpVariantsPass());
-  // Convert any operations on primitive types as soon as possible. Unlike
-  // tensor compute ops, we don't need to wait for dtype/shape inference.
-  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
 
   if (options.optimize) {
     // OPT-ONLY: Right now we rely on this to eliminate certain branches that
@@ -119,30 +115,36 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
     pm.addPass(createSymbolDCEPass());
   }
 
-  // Convert the bulk of the program to ranked tensors with known dtype.
-  // This is the input to the backend layer that we are aiming for.
+  //===--------------------------------------------------------------------===//
+  // Lowering to ranked !torch.vtensors of known dtype.
+  //===--------------------------------------------------------------------===//
 
-  // First, unilaterally convert public functions to tensor.
-  // The way this pass is currently written, this implies that
-  // as pipeline authors, we are restricting our users to not be able to see
-  // updates to "out params" on their public functions.
-  // This is deemed ok for now.
-  pm.addPass(Numpy::createPublicFunctionsToTensorPass());
   // Convert the bulk of non-ABI-visible arrays to tensors.
-  pm.addNestedPass<FuncOp>(Numpy::createArrayToTensorPass());
+  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
   // Do shape and dtype refinement.
-  // We could do it sooner, but the pass currently doesn't have transfer
-  // functions for array ops.
   pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
-  pm.addPass(Numpy::createRefinePublicReturnPass());
-  // Clean up a few stray array/tensor conversion remnants.
-  pm.addNestedPass<FuncOp>(Numpy::createArrayToTensorPass());
+  pm.addPass(Torch::createRefinePublicReturnPass());
+  // Clean up a few stray conversion remnants.
+  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
+
+  //===--------------------------------------------------------------------===//
+  // Lowering ops and the !torch.vtensor type.
+  //===--------------------------------------------------------------------===//
+
+  // Convert any operations on primitive types. These need at least basic dtype
+  // inference, otherwise we cannot interop with builtin tensors.
+  // Run this before this canonicalizer as this will expose optimization
+  // opportunities thanks to folders on std ops that we don't have on the
+  // corresponding torch ops.
+  // TODO: Improve torch op canonicalizations.
+  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
 
   if (options.optimize) {
     // RefineTypes has exposed new type information that allows folding away
-    // more stuff. OPT-ONLY: Right now we rely on this to eliminate certain
+    // more stuff.
+    // OPT-ONLY: Right now we rely on this to eliminate certain
     // branches that guard unreachable code that backends can't handle yet, such
     // as lists, RaiseException, unimplemented aten ops, and
     // only-used-in-training operations on `torch.global_slot`'s.
@@ -151,6 +153,15 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
 
   // Lower to linalg + guards which is the input to codegen backends.
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
+
+  if (options.optimize) {
+    // Clean up any non-canonical code introduced in our linalg lowering.
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+  }
+
+  // Finish the type conversion from !torch.vtensor to the builtin tensor type.
+  pm.addPass(createFuncBuiltinTensorizePass());
+  pm.addNestedPass<FuncOp>(createFinalizingBuiltinTensorizePass());
 
   // Verify that we have lowered to the form that backends expect.
   // This fails compilation (signalPassFailure) if the IR is not in the

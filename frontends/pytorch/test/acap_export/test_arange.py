@@ -13,7 +13,6 @@ with mb.capture_function("arange_test", []) as f:
   x = torch.arange(10)
   f.returns([x])
 
-# CHECK: %[[CST:.*]] = constant dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]> : tensor<10xi64>
-# CHECK: %[[R:.*]] = numpy.create_array_from_tensor %[[CST]]
-# CHECK: return %[[R]]
+# CHECK: %[[T:.*]] = torch.tensor(dense<[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]> : tensor<10xsi64>) : !torch.tensor<[10],si64>
+# CHECK: return %[[T]]
 mb.module.operation.print()

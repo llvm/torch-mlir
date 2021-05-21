@@ -12,14 +12,14 @@ import torch_mlir
 mb = torch_mlir.ModuleBuilder()
 
 # CHECK-LABEL:     func private @__torch__.TestModule.forward
-# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
-# CHECK:             %[[VAL_2:.*]] = constant @__torch__.identity : (!numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:             %[[VAL_3:.*]] = call_indirect %[[VAL_2]](%[[ARG1]]) : (!numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:             return %[[VAL_3]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !torch.tensor {
+# CHECK:             %[[VAL_2:.*]] = constant @__torch__.identity : (!torch.tensor) -> !torch.tensor
+# CHECK:             %[[VAL_3:.*]] = call_indirect %[[VAL_2]](%[[ARG1]]) : (!torch.tensor) -> !torch.tensor
+# CHECK:             return %[[VAL_3]] : !torch.tensor
 # CHECK:           }
 # CHECK-LABEL:     func private @__torch__.identity
-# CHECK-SAME:        (%[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !numpy.ndarray<*:!numpy.any_dtype> {
-# CHECK:             return %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK-SAME:        (%[[ARG:.*]]: !torch.tensor) -> !torch.tensor {
+# CHECK:             return %[[ARG]] : !torch.tensor
 # CHECK:           }
 
 # CHECK-LABEL:   torch.class_type @__torch__.TestModule  {

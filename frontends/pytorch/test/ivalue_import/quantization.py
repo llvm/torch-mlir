@@ -19,19 +19,17 @@ class TestModule(torch.nn.Module):
                                                         2,
                                                         bias_=False,
                                                         dtype=torch.qint8)
-    # CHECK-DAG:  %[[SCALE:.*]] = basicpy.numeric_constant {{.*}} : f64
-    # CHECK-DAG:  %[[ZERO_POINT:.*]] = basicpy.numeric_constant 0 : i64
-    # CHECK-DAG:  %[[INT_REPR:.*]] = constant dense<{{.*}}> : tensor<2x5xi8>
-    # CHECK-DAG:  %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %[[SCALE]], %[[ZERO_POINT]] : tensor<2x5xi8>, f64, i64 -> tensor<2x5x!torch.qint8>
-    # CHECK-DAG:  %[[WEIGHTS_ARRAY:.*]] = numpy.create_array_from_tensor %[[WEIGHTS]] : (tensor<2x5x!torch.qint8>) -> !numpy.ndarray<*:!numpy.any_dtype>
-    # CHECK-DAG:  %[[BIAS:.*]] = constant dense<{{.*}}> : tensor<2xf32>
-    # CHECK-DAG:  %[[BIAS_ARRAY:.*]] = numpy.create_array_from_tensor %[[BIAS]] : (tensor<2xf32>) -> !numpy.ndarray<*:!numpy.any_dtype>
-    # CHECK-DAG:  %[[LINEAR_PARAMS:.*]] = torch.linear_params.create %[[WEIGHTS_ARRAY]], %[[BIAS_ARRAY]] : !numpy.ndarray<*:!numpy.any_dtype>, !numpy.ndarray<*:!numpy.any_dtype>
+    # CHECK: %[[SCALE:.*]] = basicpy.numeric_constant {{.*}} : f64
+    # CHECK: %[[ZERO_POINT:.*]] = basicpy.numeric_constant 0 : i64
+    # CHECK: %[[INT_REPR:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2,5],si8>
+    # CHECK: %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %num, %num0_i64 : !torch.tensor<[2,5],si8>, f64, i64 -> !torch.tensor<[2,5],!torch.qint8>
+    # CHECK: %[[BIAS:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2],f32>
+    # CHECK: %[[LINEAR_PARAMS:.*]] = torch.linear_params.create %[[WEIGHTS]], %[[BIAS]] : !torch.tensor<[2,5],!torch.qint8>, !torch.tensor<[2],f32>
     @torch.jit.export
     def test_linear(self, t):
         return self.linear(t)
 
-    # CHECK: %[[LINEAR_PARAMS_NO_BIAS:.*]] = torch.linear_params.create %{{.*}} : !numpy.ndarray<*:!numpy.any_dtype>{{$}}
+    # CHECK: %[[LINEAR_PARAMS_NO_BIAS:.*]] = torch.linear_params.create %{{[^,]*}} : !torch.tensor<[2,6],!torch.qint8>
     @torch.jit.export
     def test_linear_no_bias(self, t):
         return self.linear_no_bias(t)

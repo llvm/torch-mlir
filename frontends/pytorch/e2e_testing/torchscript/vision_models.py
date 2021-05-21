@@ -21,7 +21,7 @@ class ResNet18Module(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, 3, -1, -1], torch.float32),
+        ([-1, 3, -1, -1], torch.float32, True),
     ])
     def forward(self, img):
         return self.resnet.forward(img)

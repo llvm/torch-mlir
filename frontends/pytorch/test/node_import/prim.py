@@ -15,9 +15,9 @@ mb = torch_mlir.ModuleBuilder()
 
 
 # CHECK-LABEL:   func @__torch__.prim_NumToTensor(
-# CHECK-SAME:                           %[[ARG:.*]]: i64) -> !numpy.ndarray<*:!numpy.any_dtype> {
-# CHECK:           %[[RET:.*]] = torch.prim.NumToTensor.Scalar %[[ARG]] : i64 -> !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:           return %[[RET]] : !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK-SAME:                           %[[ARG:.*]]: i64) -> !torch.tensor {
+# CHECK:           %[[RET:.*]] = torch.prim.NumToTensor.Scalar %[[ARG]] : i64 -> !torch.tensor
+# CHECK:           return %[[RET]] : !torch.tensor
 # CHECK:         }
 
 @mb.import_function
@@ -26,9 +26,9 @@ def prim_NumToTensor(i: int):
     return _to_tensor(i)
 
 # CHECK-LABEL:   func @__torch__.prim_Print(
-# CHECK-SAME:                     %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !basicpy.NoneType {
+# CHECK-SAME:                     %[[ARG:.*]]: !torch.tensor) -> !basicpy.NoneType {
 # CHECK:           %[[STR:.*]] = basicpy.bytes_constant "x"
-# CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !numpy.ndarray<*:!numpy.any_dtype>
+# CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !torch.tensor
 @mb.import_function
 @torch.jit.script
 def prim_Print(x):
@@ -94,8 +94,8 @@ def prim_ListUnpack(l: typing.List[int]):
     return val
 
 # CHECK-LABEL:   func @__torch__.prim_dtype(
-# CHECK-SAME:                               %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> i64 {
-# CHECK:           %[[RET:.*]] = torch.prim.dtype %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> i64
+# CHECK-SAME:                               %[[ARG:.*]]: !torch.tensor) -> i64 {
+# CHECK:           %[[RET:.*]] = torch.prim.dtype %[[ARG]] : !torch.tensor -> i64
 # CHECK:           return %[[RET]] : i64
 @mb.import_function
 @torch.jit.script
@@ -103,8 +103,8 @@ def prim_dtype(x):
     return x.dtype
 
 # CHECK-LABEL:   func @__torch__.prim_layout(
-# CHECK-SAME:                                %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> i64 {
-# CHECK:           %[[RET:.*]] = torch.prim.layout %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> i64
+# CHECK-SAME:                                %[[ARG:.*]]: !torch.tensor) -> i64 {
+# CHECK:           %[[RET:.*]] = torch.prim.layout %[[ARG]] : !torch.tensor -> i64
 # CHECK:           return %[[RET]] : i64
 @mb.import_function
 @torch.jit.script
@@ -112,8 +112,8 @@ def prim_layout(x):
     return x.layout
 
 # CHECK-LABEL:   func @__torch__.prim_device(
-# CHECK-SAME:                                %[[ARG:.*]]: !numpy.ndarray<*:!numpy.any_dtype>) -> !torch.Device {
-# CHECK:           %[[RET:.*]] = torch.prim.device %[[ARG]] : !numpy.ndarray<*:!numpy.any_dtype> -> !torch.Device
+# CHECK-SAME:                                %[[ARG:.*]]: !torch.tensor) -> !torch.Device {
+# CHECK:           %[[RET:.*]] = torch.prim.device %[[ARG]] : !torch.tensor -> !torch.Device
 # CHECK:           return %[[RET]] : !torch.Device
 @mb.import_function
 @torch.jit.script

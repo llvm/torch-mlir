@@ -216,3 +216,61 @@ int npcompTypeIsAQInt8(MlirType t) {
 MlirType npcompQInt8TypeGet(MlirContext context) {
   return wrap(Torch::QInt8Type::get(unwrap(context)));
 }
+
+/*============================================================================*/
+/* torch.tensor type. */
+/*============================================================================*/
+
+int npcompTypeIsANonValueTensor(MlirType t) {
+  return unwrap(t).isa<Torch::NonValueTensorType>();
+}
+
+MlirType npcompNonValueTensorTypeGet(MlirContext context, intptr_t numSizes,
+                                     const int64_t *optionalSizes,
+                                     MlirType optionalDtype) {
+  Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
+  if (optionalSizes)
+    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+  return wrap(Torch::NonValueTensorType::get(
+      unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
+}
+
+MlirType
+npcompNonValueTensorTypeGetWithLeastStaticInformation(MlirContext context) {
+  return wrap(Torch::NonValueTensorType::getWithLeastStaticInformation(
+      unwrap(context)));
+}
+
+MlirType npcompNonValueTensorTypeGetFromShaped(MlirType type) {
+  return wrap(Torch::NonValueTensorType::getFromShaped(
+      unwrap(type).cast<ShapedType>()));
+}
+
+/*============================================================================*/
+/* torch.vtensor type. */
+/*============================================================================*/
+
+int npcompTypeIsAValueTensor(MlirType t) {
+  return unwrap(t).isa<Torch::ValueTensorType>();
+}
+
+MlirType npcompValueTensorTypeGet(MlirContext context, intptr_t numSizes,
+                                  const int64_t *optionalSizes,
+                                  MlirType optionalDtype) {
+  Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
+  if (optionalSizes)
+    optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
+  return wrap(Torch::ValueTensorType::get(
+      unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
+}
+
+MlirType
+npcompValueTensorTypeGetWithLeastStaticInformation(MlirContext context) {
+  return wrap(
+      Torch::ValueTensorType::getWithLeastStaticInformation(unwrap(context)));
+}
+
+MlirType npcompValueTensorTypeGetFromShaped(MlirType type) {
+  return wrap(
+      Torch::ValueTensorType::getFromShaped(unwrap(type).cast<ShapedType>()));
+}

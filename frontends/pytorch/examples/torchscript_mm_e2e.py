@@ -39,7 +39,7 @@ torch.jit.save(recursivescriptmodule, '/tmp/foo.pt')
 
 class_annotator.exportNone(recursivescriptmodule._c._type())
 class_annotator.exportPath(recursivescriptmodule._c._type(), ['forward'])
-class_annotator.annotateShapesAndDtypes(recursivescriptmodule._c._type(), ['forward'], [
+class_annotator.annotateArgs(recursivescriptmodule._c._type(), ['forward'], [
     None,
     ([-1, -1], torch.float32),
     ([-1, -1], torch.float32),

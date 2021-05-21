@@ -524,24 +524,15 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
 
 MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   auto loc = getCurrentLocation();
-  MlirAttribute valueAttribute = converTensorToMlirElementsAttr(tensor, loc);
-  MlirValue constTensorValue =
-      funcBuilder->getGeneralConstant(loc, valueAttribute);
-
-  // Create an array from the tensor constant via the
-  // numpy.create_array_from_tensor op.
-  MlirType constArrayType =
-      npcompNdArrayTypeGetFromShaped(mlirAttributeGetType(valueAttribute));
-  MlirOperationState state = mlirOperationStateGet(
-      toMlirStringRef("numpy.create_array_from_tensor"), loc);
-  mlirOperationStateAddOperands(&state, 1, &constTensorValue);
-  mlirOperationStateAddResults(&state, 1, &constArrayType);
-  MlirOperation constArrayOp = mlirOperationCreate(&state);
-
-  funcBuilder->getEntryBlockBuilder().insertBeforeTerminator(constArrayOp);
-  MlirValue constArrayValue = mlirOperationGetResult(constArrayOp, 0);
-  funcBuilder->mapTensor(tensor, constArrayValue);
-  return constArrayValue;
+  MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
+  MlirOperation tensorOp = createMlirOperationAtEnd(
+      funcBuilder->getEntryBlock(), "torch.tensor", loc,
+      npcompNonValueTensorTypeGetFromShaped(
+          mlirAttributeGetType(denseElements)),
+      toMlirNamedAttribute("value", denseElements));
+  MlirValue tensorValue = mlirOperationGetResult(tensorOp, 0);
+  funcBuilder->mapTensor(tensor, tensorValue);
+  return tensorValue;
 }
 
 TORCH_LIBRARY_IMPL(aten, BackendSelect, m) {

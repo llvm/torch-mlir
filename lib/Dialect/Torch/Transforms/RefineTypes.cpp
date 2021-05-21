@@ -18,8 +18,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
@@ -32,16 +30,14 @@ using namespace mlir::NPCOMP::Torch;
 // Analysis.
 // -----------------------------------------------------------------------------
 
-constexpr int64_t kUnknownSize = -1;
-
 static Type joinElementTypes(Type lhs, Type rhs) {
-  if (lhs.isa<Numpy::AnyDtypeType>())
+  if (!lhs)
     return rhs;
-  if (rhs.isa<Numpy::AnyDtypeType>())
+  if (!rhs)
     return lhs;
   if (lhs == rhs)
     return lhs;
-  return Numpy::AnyDtypeType::get(lhs.getContext());
+  return Type();
 }
 
 namespace {
@@ -56,28 +52,20 @@ namespace {
 // This class could also be called "dataflow facts", "lattice value", etc.
 struct ValueKnowledge {
   ValueKnowledge() = delete;
-  // We enforce that `elementType` is always a valid type (possibly
-  // !numpy.any_dtype), and `sizes` is empty unless `hasRank`.
-  // So default constructing is prohibited.
-  ValueKnowledge(bool hasRank, std::vector<int64_t> sizes, Type elementType)
-      : hasRank(hasRank), sizes(sizes), elementType(elementType) {
-    assert(elementType != nullptr);
-    assert(sizes.size() == 0 || hasRank);
+  ValueKnowledge(bool hasSizes, std::vector<int64_t> sizes, Type dtype)
+      : hasSizes(hasSizes), sizes(sizes), dtype(dtype) {
+    assert(sizes.size() == 0 || hasSizes);
   }
 
   // Get the static knowledge intrinsic to `type`.
   static ValueKnowledge getKnowledgeFromType(Type type) {
     ValueKnowledge result = getPessimisticValueState(type.getContext());
-    if (auto tensorType = type.dyn_cast<TensorType>()) {
-      if (tensorType.hasRank()) {
-        result.hasRank = true;
-        result.sizes = tensorType.getShape().vec();
+    if (auto tensorType = type.dyn_cast<BaseTensorType>()) {
+      if (tensorType.hasSizes()) {
+        result.hasSizes = true;
+        result.sizes = tensorType.getSizes().vec();
       }
-      result.elementType = tensorType.getElementType();
-      return result;
-    }
-    if (auto ndArrayType = type.dyn_cast<Numpy::NdArrayType>()) {
-      return getKnowledgeFromType(ndArrayType.toTensorType());
+      result.dtype = tensorType.getOptionalDtype();
     }
     return result;
   }
@@ -85,7 +73,7 @@ struct ValueKnowledge {
   // Return a pessimistic/conservative value state without assuming any knowlege
   // about the IR.
   static ValueKnowledge getPessimisticValueState(MLIRContext *context) {
-    return ValueKnowledge(false, {}, Numpy::AnyDtypeType::get(context));
+    return ValueKnowledge(false, {}, Type());
   }
   // Return a pessimistic/conservative value state only using knowlege already
   // recorded in the IR.
@@ -94,8 +82,8 @@ struct ValueKnowledge {
   }
 
   bool operator==(const ValueKnowledge &rhs) const {
-    return std::make_tuple(hasRank, sizes, elementType) ==
-           std::make_tuple(rhs.hasRank, rhs.sizes, rhs.elementType);
+    return std::make_tuple(hasSizes, sizes, dtype) ==
+           std::make_tuple(rhs.hasSizes, rhs.sizes, rhs.dtype);
   }
 
   // Given two pieces of static knowledge, calculate conservatively the
@@ -105,18 +93,17 @@ struct ValueKnowledge {
     // Mental model: All conditions are checking how to change from the safe "no
     // knowledge" default-initialized state to a state with more knowledge
     // consistent with lhs and rhs.
-    ValueKnowledge result =
-        getPessimisticValueState(lhs.elementType.getContext());
+    ValueKnowledge result = getPessimisticValueState(nullptr);
 
-    if (lhs.hasRank && !rhs.hasRank) {
-      result.hasRank = true;
+    if (lhs.hasSizes && !rhs.hasSizes) {
+      result.hasSizes = true;
       result.sizes = lhs.sizes;
-    } else if (!lhs.hasRank && rhs.hasRank) {
-      result.hasRank = true;
+    } else if (!lhs.hasSizes && rhs.hasSizes) {
+      result.hasSizes = true;
       result.sizes = rhs.sizes;
-    } else if (lhs.hasRank && rhs.hasRank &&
+    } else if (lhs.hasSizes && rhs.hasSizes &&
                lhs.sizes.size() == rhs.sizes.size()) {
-      result.hasRank = true;
+      result.hasSizes = true;
       result.sizes.resize(lhs.sizes.size(), kUnknownSize);
       for (int i = 0, e = result.sizes.size(); i != e; i++) {
         int64_t lhsSize = lhs.sizes[i];
@@ -132,28 +119,20 @@ struct ValueKnowledge {
       }
     }
 
-    result.elementType = joinElementTypes(lhs.elementType, rhs.elementType);
+    result.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
     return result;
   }
 
-  // Whether the Value is known to have a rank.
-  bool hasRank;
-  // If `hasRank` the sizes along each rank. Unknown sizes are represented as
+  // Whether the Value is known to have a list of sizes.
+  bool hasSizes;
+  // If `hasSizes`, the sizes along each rank. Unknown sizes are represented as
   // `kUnknownSize`.
   std::vector<int64_t> sizes;
-  // The element type of a shaped type.
-  // This is equal to !numpy.any_dtype if it is not a concrete type.
-  Type elementType;
+  // The dtype of a tensor.
+  // This is equal to nullptr if we don't know that it is a specific concrete
+  // type.
+  Type dtype;
 };
-
-// static llvm::raw_ostream &operator<<(llvm::raw_ostream &os, ValueKnowledge
-// &knowledge) {
-//   os << "hasRank = " << knowledge.hasRank << ", sizes = [";
-//   llvm::interleaveComma(knowledge.sizes, os);
-//   os << "]"
-//      << ", elementType = " << knowledge.elementType;
-//   return os;
-// }
 
 // Forward intraprocedural dataflow for type information.
 class TypeAnalyzer : public ForwardDataFlowAnalysis<ValueKnowledge> {
@@ -165,8 +144,7 @@ public:
   ChangeResult
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
-    if (isa<Numpy::TensorStaticInfoCastOp, Numpy::CopyToTensorOp,
-            Numpy::CreateArrayFromTensorOp, AtenTanhOp, AtenBatchNormOp,
+    if (isa<TensorStaticInfoCastOp, CopyTensorOp, AtenTanhOp, AtenBatchNormOp,
             AtenReluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
@@ -175,7 +153,7 @@ public:
       auto &rhs = operands[1]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      knowledge.hasRank = true;
+      knowledge.hasSizes = true;
       // WARNING: We could be more precise here by calculating the output
       // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
       // at this stage in the compiler because we don't really have many static
@@ -186,8 +164,8 @@ public:
       //
       // Example: Suppose a user program calls `aten.mm` with two rank-0
       // operands. The program emits an error when invoked, but when running
-      // this pass, we will (correctly!) infer `lhs.hasRank && lhs.sizes.size()
-      // == 0 && rhs.hasRank && rhs.sizes.size() == 0` -- it's not safe to
+      // this pass, we will (correctly!) infer `lhs.hasSizes && lhs.sizes.size()
+      // == 0 && rhs.hasSizes && rhs.sizes.size() == 0` -- it's not safe to
       // access `lhs.sizes[0]` / `rhs.sizes[1]`! So when writing this transfer
       // function, it's not as simple as taking `lhs.sizes[0]` and
       // `rhs.sizes[1]`, as both of those might read out of bounds of the array.
@@ -201,51 +179,48 @@ public:
       // TODO: Investigate promotion rules if element types mismatch.
       // This is conservatively correct, assuming that if both element types are
       // the same, then the result is of that same element type.
-      knowledge.elementType =
-          joinElementTypes(lhs.elementType, rhs.elementType);
+      knowledge.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (isa<AtenLinearOp>(op)) {
       // The output shape is the input shape with the last dimension changed
       // to the weight's output dimension.
       auto knowledge = operands[0]->getValue();
-      if (knowledge.hasRank && knowledge.sizes.size() > 0)
+      if (knowledge.hasSizes && knowledge.sizes.size() > 0)
         knowledge.sizes[knowledge.sizes.size() - 1] = kUnknownSize;
       // TODO: Handle case of bias being None gracefully. Requires a lattice
       // that tracks "None" (torch.optional). See also
       // DerefineOp::getCanonicalizationPatterns for more refinement that needs
       // to be done in this pass.
-      knowledge.elementType = joinElementTypes(
-          knowledge.elementType,
-          joinElementTypes(operands[1]->getValue().elementType,
-                           operands[2]->getValue().elementType));
+      knowledge.dtype = joinElementTypes(
+          knowledge.dtype, joinElementTypes(operands[1]->getValue().dtype,
+                                            operands[2]->getValue().dtype));
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (isa<AtenConv2dOp>(op)) {
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      knowledge.hasRank = true;
+      knowledge.hasSizes = true;
       knowledge.sizes.resize(4, kUnknownSize);
       // Running some experiments in PyTorch, the bias doesn't seem to
       // contribute to the final element type.
-      knowledge.elementType =
-          joinElementTypes(operands[0]->getValue().elementType,
-                           operands[1]->getValue().elementType);
+      knowledge.dtype = joinElementTypes(operands[0]->getValue().dtype,
+                                         operands[1]->getValue().dtype);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (isa<AtenMaxPool2dOp>(op)) {
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      knowledge.hasRank = true;
+      knowledge.hasSizes = true;
       knowledge.sizes.resize(4, kUnknownSize);
-      knowledge.elementType = operands[0]->getValue().elementType;
+      knowledge.dtype = operands[0]->getValue().dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (isa<AtenAdaptiveAvgPool2dOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      if (input.hasRank) {
-        knowledge.hasRank = true;
+      if (input.hasSizes) {
+        knowledge.hasSizes = true;
         knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
       }
-      knowledge.elementType = input.elementType;
+      knowledge.dtype = input.dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (isa<AtenAddTensorOp>(op)) {
       // This is a general binary broadcasting shape transfer function.
@@ -257,25 +232,24 @@ public:
       auto rhs = operands[1]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      if (lhs.hasRank && rhs.hasRank) {
-        knowledge.hasRank = true;
+      if (lhs.hasSizes && rhs.hasSizes) {
+        knowledge.hasSizes = true;
         knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
                                kUnknownSize);
       }
-      knowledge.elementType =
-          joinElementTypes(lhs.elementType, rhs.elementType);
+      knowledge.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
       APInt startDimAP, endDimAP;
       auto operand = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
-      knowledge.elementType = operand.elementType;
-      if (operand.hasRank && operand.sizes.size() == 0) {
+      knowledge.dtype = operand.dtype;
+      if (operand.hasSizes && operand.sizes.size() == 0) {
         // Rank 0 is special and flattens to rank 1.
-        knowledge.hasRank = true;
+        knowledge.hasSizes = true;
         knowledge.sizes.push_back(kUnknownSize);
-      } else if (operand.hasRank &&
+      } else if (operand.hasSizes &&
                  matchPattern(flatten.start_dim(),
                               m_ConstantInt(&startDimAP)) &&
                  matchPattern(flatten.end_dim(), m_ConstantInt(&endDimAP))) {
@@ -289,7 +263,7 @@ public:
         // Careful: dimension numbers might be out of bounds.
         if (0 <= startDim && startDim <= (inputRank - 1) && 0 <= endDim &&
             endDim <= (inputRank - 1) && startDim <= endDim) {
-          knowledge.hasRank = true;
+          knowledge.hasSizes = true;
           for (auto i = 0; i < startDim; i++)
             knowledge.sizes.push_back(operand.sizes[i]);
           knowledge.sizes.push_back(kUnknownSize);
@@ -310,43 +284,35 @@ public:
 // Transforms.
 // -----------------------------------------------------------------------------
 
-// Get the most refined TensorType compatible with ValueKnowledge.
-static TensorType
-getTensorTypeFromKnowledge(MLIRContext *context,
-                           LatticeElement<ValueKnowledge> *knowledge) {
-  if (!knowledge)
-    return UnrankedTensorType::get(Numpy::AnyDtypeType::get(context));
-
-  const ValueKnowledge &value = knowledge->getValue();
-  if (!value.hasRank)
-    return UnrankedTensorType::get(value.elementType);
-  return RankedTensorType::get(value.sizes, value.elementType);
-}
-
-// Get the most refined Numpy::NdArrayType compatible with ValueKnowledge.
-static Numpy::NdArrayType
-getNdArrayTypeFromKnowledge(MLIRContext *context,
-                            LatticeElement<ValueKnowledge> *knowledge) {
-  if (!knowledge)
-    return Numpy::NdArrayType::get(Numpy::AnyDtypeType::get(context));
-
-  const ValueKnowledge &value = knowledge->getValue();
-  if (!value.hasRank)
-    return Numpy::NdArrayType::get(value.elementType);
-  return Numpy::NdArrayType::get(value.elementType,
-                                 llvm::makeArrayRef(value.sizes));
-}
-
 // Get a the most refined type compatible with ValueKnowledge, or null if that
 // is not possible.
 static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
-  if (v.getType().isa<TensorType>())
-    return getTensorTypeFromKnowledge(v.getContext(),
-                                      analyzer.lookupLatticeElement(v));
-  if (v.getType().isa<Numpy::NdArrayType>())
-    return getNdArrayTypeFromKnowledge(v.getContext(),
-                                       analyzer.lookupLatticeElement(v));
+  if (auto tensorType = v.getType().dyn_cast<BaseTensorType>()) {
+    LatticeElement<ValueKnowledge> *latticeElement =
+        analyzer.lookupLatticeElement(v);
+    if (!latticeElement)
+      return nullptr;
+    const ValueKnowledge &knowledge = latticeElement->getValue();
+    return tensorType.getWithSizesAndDtype(
+        knowledge.hasSizes ? llvm::makeArrayRef(knowledge.sizes)
+                           : Optional<ArrayRef<int64_t>>(),
+        knowledge.dtype);
+  }
   return nullptr;
+}
+
+// Return true if we can safely change the operands or results of `op`.
+//
+// The most trivial case is when the op has the AllowsTypeRefinement trait,
+// which allows arbitrary refinements. But some other cases are safe too,
+// such as when an op has two types that are coupled, but we know that our
+// analysis and updating logic will correctly maintain the invariants of the op.
+// The `torch.copy.tensor` is an example of the latter case, since its
+// operand and result types must have the same shape and dtype -- we know
+// that our transfer functions and updating logic will do the right thing
+// for that op.
+static bool allowsTypeRefinementOrWillBeOtherwiseSafelyRefined(Operation *op) {
+  return allowsTypeRefinement(op) || isa<CopyTensorOp>(op);
 }
 
 void optimize(FuncOp func, TypeAnalyzer &analyzer) {
@@ -370,15 +336,10 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
       // types).
       std::function<Value(Location, Type, Value)> createStaticInfoCast;
       OpBuilder b(op->getBlock(), std::next(op->getIterator()));
-      if (originalType.isa<TensorType>()) {
+      if (originalType.isa<BaseTensorType>()) {
         createStaticInfoCast = [&](Location loc, Type newType,
                                    Value v) -> Value {
-          return b.create<Numpy::TensorStaticInfoCastOp>(loc, newType, v);
-        };
-      } else if (originalType.isa<Numpy::NdArrayType>()) {
-        createStaticInfoCast = [&](Location loc, Type newType,
-                                   Value v) -> Value {
-          return b.create<Numpy::StaticInfoCastOp>(loc, newType, v);
+          return b.create<TensorStaticInfoCastOp>(loc, newType, v);
         };
       }
       if (createStaticInfoCast) {
@@ -392,7 +353,7 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
         // Always make sure that the new static information is reflected in the
         // IR, either by updating the type in place, or inserting a static info
         // cast.
-        if (allowsTypeRefinement(op)) {
+        if (allowsTypeRefinementOrWillBeOtherwiseSafelyRefined(op)) {
           newTypedValue = v;
           v.setType(refinedType);
         } else {
@@ -402,7 +363,8 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
         Value oldTypedValue;
         for (OpOperand *use : originalUses) {
           // If the use can be updated to the new type directly, do it!
-          if (allowsTypeRefinement(use->getOwner())) {
+          if (allowsTypeRefinementOrWillBeOtherwiseSafelyRefined(
+                  use->getOwner())) {
             use->set(newTypedValue);
             continue;
           }
@@ -421,9 +383,6 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
 
 namespace {
 class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
-  void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<Numpy::NumpyDialect>();
-  }
   void runOnOperation() override {
     auto func = getOperation();
     TypeAnalyzer analyzer(&getContext());

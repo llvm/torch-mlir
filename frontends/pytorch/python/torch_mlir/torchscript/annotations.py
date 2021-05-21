@@ -77,7 +77,7 @@ def _recursively_extract_annotations(
         if hasattr(method, '_npcomp_export'):
             class_annotator.exportPath(scripted._c._type(), [method_name])
         if hasattr(method, '_npcomp_arg_annotations'):
-            class_annotator.annotateShapesAndDtypes(
+            class_annotator.annotateArgs(
                 scripted._c._type(), [method_name],
                 method._npcomp_arg_annotations)
     # Recurse.

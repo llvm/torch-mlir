@@ -440,7 +440,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
 
         # Misc tensor ops.
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
-        emit("aten::dim : (Tensor) -> (int)")
+        emit("aten::dim : (Tensor) -> (int)", has_folder=True)
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
 
         # Primitive ops
@@ -452,7 +452,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::mul.float : (float, float) -> (float)")
         emit("aten::lt.float_int : (float, int) -> (bool)")
         emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
-        emit("aten::len.t : (t[]) -> (int)", has_canonicalizer=True)
+        emit("aten::len.t : (t[]) -> (int)",
+             has_folder=True,
+             has_canonicalizer=True)
 
 
 def emit_quantized_ops(torch_ir_dir: str, registry: Registry):

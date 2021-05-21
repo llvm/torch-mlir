@@ -1,4 +1,4 @@
-//===- ArrayToTensor.cpp -----------------------------------------*- C++-*-===//
+//===- MaximizeValueSemantics.cpp --------------------------------*- C++-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,24 +13,24 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
-#include "npcomp/Dialect/Numpy/Transforms/Passes.h"
+#include "npcomp/Dialect/Torch/IR/TorchOps.h"
+#include "npcomp/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Numpy;
+using namespace mlir::NPCOMP::Torch;
 
 namespace {
 
-class ArrayToTensorPass : public NumpyArrayToTensorBase<ArrayToTensorPass> {
+class MaximizeValueSemanticsPass
+    : public MaximizeValueSemanticsBase<MaximizeValueSemanticsPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     auto func = getOperation();
 
     RewritePatternSet patterns(context);
-    CopyToTensorOp::getCanonicalizationPatterns(patterns, context);
-    StaticInfoCastOp::getCanonicalizationPatterns(patterns, context);
+    CopyTensorOp::getCanonicalizationPatterns(patterns, context);
+    TensorStaticInfoCastOp::getCanonicalizationPatterns(patterns, context);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };
@@ -38,6 +38,6 @@ class ArrayToTensorPass : public NumpyArrayToTensorBase<ArrayToTensorPass> {
 } // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
-mlir::NPCOMP::Numpy::createArrayToTensorPass() {
-  return std::make_unique<ArrayToTensorPass>();
+mlir::NPCOMP::Torch::createMaximizeValueSemanticsPass() {
+  return std::make_unique<MaximizeValueSemanticsPass>();
 }

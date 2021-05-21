@@ -51,6 +51,13 @@ std::unique_ptr<OperationPass<ModuleOp>> createInlineGlobalSlotsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createReduceOpVariantsPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
+
+std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
+
+std::unique_ptr<OperationPass<ModuleOp>> createFuncBuiltinTensorizePass();
+
+std::unique_ptr<OperationPass<FuncOp>> createFinalizingBuiltinTensorizePass();
 
 } // namespace Torch
 

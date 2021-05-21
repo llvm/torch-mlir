@@ -44,19 +44,15 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
   using c10::ScalarType;
   switch (scalarType) {
   case ScalarType::Byte:
-    // TODO: convert to mlirIntegerTypeUnsignedGet once supported.
-    return mlirIntegerTypeGet(context, 8);
+    return mlirIntegerTypeUnsignedGet(context, 8);
   case ScalarType::Char:
-    return mlirIntegerTypeGet(context, 8);
+    return mlirIntegerTypeSignedGet(context, 8);
   case ScalarType::Short:
-    // TODO: convert to mlirIntegerTypeSignedGet once supported.
-    return mlirIntegerTypeGet(context, 16);
+    return mlirIntegerTypeSignedGet(context, 16);
   case ScalarType::Int:
-    // TODO: convert to mlirIntegerTypeSignedGet once supported.
-    return mlirIntegerTypeGet(context, 32);
+    return mlirIntegerTypeSignedGet(context, 32);
   case ScalarType::Long:
-    // TODO: convert to mlirIntegerTypeSignedGet once supported.
-    return mlirIntegerTypeGet(context, 64);
+    return mlirIntegerTypeSignedGet(context, 64);
   case ScalarType::Bool:
     return npcompBoolTypeGet(context);
   case ScalarType::Double:
@@ -128,19 +124,21 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
   case TypeKind::TensorType: {
     auto tensorType = torchType->cast<c10::TensorType>();
     // Element type.
-    MlirType elementType;
+    MlirType elementType = {nullptr};
     if (tensorType->scalarType()) {
       elementType = mapFromTorchScalarType(loc, *tensorType->scalarType());
       if (mlirTypeIsNull(elementType))
         return {nullptr};
-    } else {
-      elementType = npcompAnyDtypeTypeGet(context);
     }
     // Sizes.
     auto &sizes = tensorType->symbolic_sizes();
     if (!sizes.rank()) {
       // Unranked.
-      return npcompNdArrayTypeGetUnranked(elementType);
+      return npcompNonValueTensorTypeGet(context,
+                                         /*numSizes=*/0,
+                                         /*optionalSizes=*/nullptr,
+                                         /*optionalDtype=*/
+                                         elementType);
     }
     // Ranked with possibly dynamic dims.
     auto &symbolicShape = tensorType->symbolic_sizes();
@@ -150,7 +148,10 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
       auto shapeSymbol = symbolicShape[i];
       dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size() : -1;
     }
-    return npcompNdArrayTypeGetRanked(dims.size(), dims.data(), elementType);
+    return npcompNonValueTensorTypeGet(context, dims.size(),
+                                       /*optionalSizes=*/dims.data(),
+                                       /*optionalDtype=*/
+                                       elementType);
   }
   case TypeKind::ClassType: {
     const c10::ClassTypePtr &classType = torchType->cast<c10::ClassType>();
@@ -214,7 +215,8 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
   // just erase them and let the compiler decide.
 
   auto sizes = tensor.sizes();
-  return npcompNdArrayTypeGetRanked(sizes.size(), sizes.data(), elementType);
+  return npcompNonValueTensorTypeGet(context, sizes.size(), sizes.data(),
+                                     elementType);
 }
 
 MlirType
@@ -243,8 +245,8 @@ torch_mlir::getFunctionTypeFromSchema(MlirContext context,
                              outputTypes.size(), outputTypes.data());
 }
 
-MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
-                                                         MlirLocation loc) {
+MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
+                                                          MlirLocation loc) {
   MlirContext context = mlirLocationGetContext(loc);
   TypeMapper typeMapper(context);
   using at::ScalarType;
@@ -273,12 +275,12 @@ MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
     elementType = mlirIntegerTypeGet(context, 1);
   } else if (tensor.scalar_type() == ScalarType::QInt8) {
     // This function returns the underlying integer representation of the tensor
-    // as an elements attr. That underlying representation is of type i8
+    // as an elements attr. That underlying representation is of type si8
     // for a torch.qint8 tensor.
     // Caller code is responsible for materializing the proper op that
     // incorporates the quantization scheme to create a tensor of `!torch.qint8`
     // element type.
-    elementType = mlirIntegerTypeGet(context, 8);
+    elementType = mlirIntegerTypeSignedGet(context, 8);
   } else {
     elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
   }
@@ -343,7 +345,7 @@ MlirAttribute torch_mlir::importAttribute(MlirLocation loc,
   case torch::jit::AttributeKind::s:
     return mlirStringAttrGet(context, toMlirStringRef(node->s(symbol)));
   case torch::jit::AttributeKind::t:
-    return converTensorToMlirElementsAttr(node->t(symbol), loc);
+    return convertTensorToMlirElementsAttr(node->t(symbol), loc);
   default: {
     std::stringstream msg;
     msg << "unhandled: value attribute kind " << toString(kind);

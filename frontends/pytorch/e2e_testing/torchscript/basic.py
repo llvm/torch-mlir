@@ -16,8 +16,8 @@ class MmModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32),
-        ([-1, -1], torch.float32),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
@@ -39,7 +39,7 @@ class TanhModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 3, -1], torch.float32),
+        ([2, 3, -1], torch.float32, True),
     ])
     def forward(self, x):
         return torch.tanh(x)
@@ -56,8 +56,8 @@ class MmTanhModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32),
-        ([-1, -1], torch.float32),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.tanh(self.matmul(lhs, rhs))

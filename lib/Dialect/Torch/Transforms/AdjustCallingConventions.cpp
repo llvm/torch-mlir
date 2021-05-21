@@ -16,8 +16,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
@@ -51,15 +49,18 @@ public:
     // The incoporation of the torch.type_bound arg attr is context-dependent.
 
     for (auto type : llvm::enumerate(func.getArgumentTypes())) {
-      if (auto ndarray = type.value().dyn_cast<Numpy::NdArrayType>()) {
+      if (type.value().isa<NonValueTensorType>()) {
         auto typeBoundAttr =
             func.getArgAttrOfType<TypeAttr>(type.index(), typeBoundIdent);
+        Type bound = typeBoundAttr ? typeBoundAttr.getValue() : Type();
+        if (!bound.isa<ValueTensorType>())
+          return rewriter.notifyMatchFailure(
+              func, "unimplemented: preserving aliasing for non-value-semantic "
+                    "type bounds");
         conversion.addInputs(type.index(), typeBoundAttr
                                                ? typeBoundAttr.getValue()
                                                : type.value());
         continue;
-        // type is attached to ndarray type.
-        // TODO: check if more specific?
       } else if (auto none = type.value().dyn_cast<Basicpy::NoneType>()) {
         continue;
       }
@@ -108,9 +109,15 @@ public:
         continue;
       auto it = typeBoundMap.find({call.callee(), operand.index()});
       if (it != typeBoundMap.end()) {
-        newOperands.push_back(rewriter.create<Numpy::StaticInfoCastOp>(
-            call.getLoc(), it->second, operand.value()));
-        continue;
+        if (auto valueTensorType = it->second.dyn_cast<ValueTensorType>()) {
+          newOperands.push_back(copyTensorToType(
+              rewriter, call->getLoc(), valueTensorType, operand.value()));
+          continue;
+        } else {
+          return rewriter.notifyMatchFailure(
+              call, "unimplemented: preserving aliasing for non-value-semantic "
+                    "type bounds");
+        }
       }
       newOperands.push_back(operand.value());
     }
@@ -172,11 +179,11 @@ static LogicalResult adjustCallingConventions(FuncOp func,
       });
 
   typeConverter.addArgumentMaterialization(
-      [](OpBuilder &builder, Numpy::NdArrayType type, ValueRange inputs,
+      [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        assert(inputs[0].getType().isa<Numpy::NdArrayType>());
-        return builder.create<Numpy::StaticInfoCastOp>(loc, type, inputs[0]);
+        assert(inputs[0].getType().isa<BaseTensorType>());
+        return copyTensorToType(builder, loc, type, inputs[0]);
       });
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);
   patterns.add<AdjustCallingConventionForCall>(typeConverter, context,
@@ -211,7 +218,8 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   target.addDynamicallyLegalOp<ReturnOp>([&](ReturnOp op) {
     return !opsInOriginalProgram.contains(op.getOperation());
   });
-  target.addLegalOp<Numpy::StaticInfoCastOp>();
+  target.addLegalOp<CopyTensorOp>();
+  target.addLegalOp<TensorStaticInfoCastOp>();
   target.addLegalOp<Basicpy::SingletonOp>();
   // We don't know how to rewrite it, so mark it as illegal.
   target.addIllegalOp<CallIndirectOp>();
