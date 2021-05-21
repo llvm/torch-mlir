@@ -14,10 +14,10 @@ mb = torch_mlir.ModuleBuilder()
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        # CHECK: %[[A:.*]] = numpy.create_array_from_tensor
+        # CHECK: %[[T:.*]] = torch.tensor
         # CHECK: torch.nn_module {
-        # CHECK:   torch.slot "t1", %[[A]]
-        # CHECK:   torch.slot "t2", %[[A]]
+        # CHECK:   torch.slot "t1", %[[T]]
+        # CHECK:   torch.slot "t2", %[[T]]
         self.t1 = self.t2 = torch.tensor([10., 20.])
 
 

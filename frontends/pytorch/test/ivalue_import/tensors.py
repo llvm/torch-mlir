@@ -15,17 +15,15 @@ class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # TODO: Test (and make work) tensors that alias each other.
-        self.t = torch.ones(1)
-        self.p = torch.nn.Parameter(torch.arange(3.0))
+        self.ones = torch.ones(1)
+        self.arange = torch.nn.Parameter(torch.arange(3.0))
 
-# CHECK:         %[[CP:.*]] = constant dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>
-# CHECK:         %[[P:.*]] = numpy.create_array_from_tensor %[[CP]] : (tensor<3xf32>) -> !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:         %[[CT:.*]] = constant dense<1.000000e+00> : tensor<1xf32>
-# CHECK:         %[[T:.*]] = numpy.create_array_from_tensor %[[CT]] : (tensor<1xf32>) -> !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:         %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:           torch.slot "p", %[[P]] : !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:           torch.slot "t", %[[T]] : !numpy.ndarray<*:!numpy.any_dtype>
-# CHECK:         }
+# CHECK: %[[ARANGE:.*]] = torch.tensor(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.tensor<[3],f32>
+# CHECK: %[[ONES:.*]] = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor<[1],f32>
+# CHECK: %[[ROOT:.*]] = torch.nn_module  {
+# CHECK:   torch.slot "arange", %[[ARANGE]] : !torch.tensor<[3],f32>
+# CHECK:   torch.slot "ones", %[[ONES]] : !torch.tensor<[1],f32>
+# CHECK: }
 
 
 test_module = TestModule()

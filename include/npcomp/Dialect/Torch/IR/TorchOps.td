@@ -14,6 +14,7 @@ include "npcomp/Interfaces/Traits.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class Torch_Op<string mnemonic, list<OpTrait> traits = []>
@@ -46,7 +47,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
       torch.slot "b", %bool_true : !basicpy.BoolType
       torch.slot "i", %num3_i64 : i64
       torch.slot "f", %num : f64
-      torch.slot "t", %0 : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %1 : !torch.nn.Module
     } : !torch.nn.Module<"my_class_name">
     ```
@@ -126,7 +127,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
       torch.attr "b" : !basicpy.BoolType
       torch.attr "i" : i64
       torch.attr "f" : f64
-      torch.attr "t" : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.attr "t" : !torch.tensor
       torch.attr "submodule" : !torch.nn.Module<"empty">
       torch.method "method", @f
     }
@@ -135,7 +136,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
       torch.slot "b", %bool_true : !basicpy.BoolType
       torch.slot "i", %num3_i64 : i64
       torch.slot "f", %num : f64
-      torch.slot "t", %array : !numpy.ndarray<*:!numpy.any_dtype>
+      torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
     } : !torch.nn.Module<"test">
     ```
@@ -428,6 +429,8 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
 
     This op bridges that impedance mismatch. This op allows casting a value
     from one type to a type that it is a subtype of to model this behavior.
+    This op uses the TorchScript notion of subtype, which matches the
+    Python notion of subtype presented in PEP 483.
   }];
 
   let arguments = (ins AnyTorchType:$operand);
@@ -504,5 +507,166 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
     `:` type($int_repr) `,` type($scale) `,` type($offset) `->` type($result)
   }];
 }
+
+// TODO: Disaggregate this op into a value-semantic constant + val->nonval
+// conversion if needed.
+// Currently, this op can effectively hide val->nonval conversion, which makes
+// it an edge case for passes that care about that such as
+// torch-maximize-value-semantics.
+// So the suggestion would be to lower this to a `torch.vtensor` op
+// (+`torch.copy.tensor` if needed).
+// In particular, currently we end up relying on convert-torch-to-std
+// to effectively expose this (as part of lowering to `std.constant`) +
+// hoping that some canonicalization cleans it up.
+// The `torch-maximize-value-semantics` pass should be doing this
+// before we convert to std at all.
+def Torch_TensorOp : Torch_Op<"tensor", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface, ["isCompatibleReturnTypes"]>,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Create a value of !torch.tensor type from a literal";
+  let description = [{
+    Example:
+    ```
+    %0 = torch.tensor(dense<0.0> : tensor<3x5xf32>) : !torch.tensor
+    %1 = torch.tensor(dense<0.0> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+    ```
+  }];
+  let arguments = (ins ElementsAttr:$value);
+  let results = (outs AnyTorchTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $value `)` attr-dict `:` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    // InferTypeOpInterface:
+    static bool isCompatibleReturnTypes(TypeRange inferred, TypeRange actual);
+  }];
+}
+
+def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
+    AllowsTypeRefinement,
+    NoSideEffect]> {
+  let summary = "Adds/removes static information from a tensor type.";
+  let description = [{
+    This op does not imply any runtime code. Semantically it is an identity
+    function. However, it statically annotates (or erases) shape and dtype
+    information from a tensor type.
+
+    This op *cannot* be used to add/remove value semantics from a tensor.
+    For converting between the value-semantic and non-value-semantic domains,
+    use `torch.copy.tensor`. The two ops are kept separate to prevent
+    canonicalizations from accidentally dropping static information. In
+    most cases, after running the `torch-refine-types` pass, this op becomes
+    a no-op (the pass will incorporate the static information into other ops
+    that allow type refinement).
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$operand
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `to` type($result)
+  }];
+}
+
+def Torch_CopyTensorOp : Torch_Op<"copy.tensor", []> {
+  let summary = "Makes a copy of a tensor.";
+  let description = [{
+    Changes to the original tensor will not be reflected in the copy.
+
+    This op can be used to interconvert between value-semantic and
+    non-value-semantic tensors. However, this op *does not* allow
+    adding/removing static information about sizes/dtype. For that, use
+    `torch.tensor_static_info_cast`.
+
+    This op does not have the AllowsTypeRefinement trait because the operand
+    and result types are coupled. Only places that know how to simultaneously
+    update both types should be changing the type of this op.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$operand
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+  let verifier = "return ::verify(*this);";
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
+def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Ovewrite the contents of tensor with values from another.";
+  let description = [{
+    Replaces the contents of `overwritten` with corresponding values from
+    `value`.
+
+    Immediately after this op has completed, indexing `overwritten` will result
+    in identical values as indexing into `tensor`. Of course, later ops
+    might mutate `overwritten`, so this relationship need not hold for the
+    entire program.
+
+    This op has undefined behavior if the two tensors have different
+    shapes or dtypes.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$value,
+    AnyTorchTensorType:$overwritten
+  );
+  let results = (outs
+  );
+  let assemblyFormat = [{
+    $value `overwrites` $overwritten attr-dict
+      `:` type($value) `,` type($overwritten)
+  }];
+}
+
+def Torch_ToBuiltinTensorOp : Torch_Op<"to_builtin_tensor", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `!torch.vtensor` to a `tensor`";
+  let description = [{
+    This op only operates on ValueTensorType, to avoid conflating conversions
+    between value-semantic and non-value-semantic types.
+  }];
+  let arguments = (ins
+    Torch_ValueTensorType:$operand
+  );
+  let results = (outs
+    AnyTensor:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
+def Torch_FromBuiltinTensorOp : Torch_Op<"from_builtin_tensor", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `tensor` to a `!torch.vtensor`";
+  let description = [{
+    This op only operates on ValueTensorType, to avoid conflating conversions
+    between value-semantic and non-value-semantic types.
+  }];
+  let arguments = (ins
+    AnyTensor:$operand
+  );
+  let results = (outs
+    Torch_ValueTensorType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
 
 #endif // TORCH_OPS

@@ -237,6 +237,7 @@ def Torch_AtenDimOp : Torch_Op<"aten.dim", [
     AnyTorchIntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenSizeOp : Torch_Op<"aten.size", [
@@ -387,6 +388,7 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
     AnyTorchIntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 

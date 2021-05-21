@@ -44,9 +44,25 @@ struct ArgAnnotation {
   // Each entry represents the size of each dimension of a tensor with known
   // rank. `-1` represents an unknown size along that dimension.
   c10::optional<std::vector<int64_t>> shape;
+
   // If not None, represents information known about the dtype of the argument
   // (the argument must be a tensor).
   c10::optional<c10::ScalarType> dtype;
+
+  // If true, means that the user code will treat this argument as if it
+  // has value semantics (the argument must be a tensor).
+  //
+  // In particular, this means that use code:
+  // - expects the argument will not be mutated
+  // - expects that any mutation to the argument internal to the program will
+  //   not be reflected externally.
+  //
+  // A value of `false` preserves the default Torch semantics and is a
+  // safe default.
+  //
+  // TODO: Also add a "last use" / "dead" flag, which enables more powerful
+  // optimizations like reusing the input buffer for scratch space.
+  bool hasValueSemantics = false;
 
   std::string toString(int argIndex);
 };
@@ -135,14 +151,14 @@ public:
   // Annotate shapes and dtypes of the arguments of a method at path `path` from
   // `rootClassType`.
   //
-  // `argAnnotations` should be a list of 2-tuples, with the first element
+  // `argAnnotations` should be a list of 3-tuples, with the first element
   // being a list/tuple of integer sizes, and the second being a torch datatype
-  // object, such as `torch.float32`, `torch.int8`, etc.
+  // object, such as `torch.float32`, `torch.int8`, etc., and the last being
+  // a "has value semantics" boolean.
   // These will be put into an `ArgAnnotation` struct -- see there for
   // precise definitions of the promised semantics of each entry.
-  void annotateShapesAndDtypes(c10::ClassType &rootClassType,
-                               std::vector<std::string> path,
-                               py::list argAnnotations);
+  void annotateArgs(c10::ClassType &rootClassType,
+                    std::vector<std::string> path, py::list argAnnotations);
 
   // The annotations collected so far.
   const ClassAnnotationMap &getAnnotationMap();

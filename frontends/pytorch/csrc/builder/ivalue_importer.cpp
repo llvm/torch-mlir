@@ -339,11 +339,13 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
 
   // Import the bulk tensor representation.
   at::Tensor tensor = ivalue.toTensor().contiguous();
-  MlirAttribute denseElements = converTensorToMlirElementsAttr(tensor, loc);
-  MlirOperation constant = createMlirOperationAtEnd(
-      importBlock, "std.constant", loc, mlirAttributeGetType(denseElements),
-      toMlirNamedAttribute("value", denseElements));
-  MlirValue tensorReprValue = mlirOperationGetResult(constant, 0);
+  MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
+  MlirOperation tensorOp =
+      createMlirOperationAtEnd(importBlock, "torch.tensor", loc,
+                               npcompNonValueTensorTypeGetFromShaped(
+                                   mlirAttributeGetType(denseElements)),
+                               toMlirNamedAttribute("value", denseElements));
+  MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
 
   // Construct the complete tensor value. This is trivial for most tensors, but
   // for quantized tensors (and probably sparse too, TBD) there is more for us
@@ -355,9 +357,9 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     // compiler stages that are building a statically modeled quantization
     // representation will need to convert this to their representation.
     std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-    MlirType quantizedTensorType = mlirRankedTensorTypeGetChecked(
-        loc, shape.size(), shape.data(),
-        typeMapper.mapFromTorchScalarType(tensor.scalar_type()), {nullptr});
+    MlirType quantizedTensorType = npcompNonValueTensorTypeGet(
+        context, shape.size(), shape.data(),
+        typeMapper.mapFromTorchScalarType(tensor.scalar_type()));
     if (tensor.qscheme() == c10::kPerTensorAffine) {
       MlirValue qScale = importIValue(c10::IValue(tensor.q_scale()));
       MlirValue zeroPoint = importIValue(c10::IValue(tensor.q_zero_point()));
@@ -375,12 +377,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     tensorValue = tensorReprValue;
   }
 
-  // Convert the tensor to ndarray to match Torch's default-mutable semantics.
-  MlirOperation ndarray = createMlirOperationAtEnd(
-      importBlock, "numpy.create_array_from_tensor", loc,
-      npcompNdArrayTypeGetUnranked(npcompAnyDtypeTypeGet(context)),
-      tensorValue);
-  return mlirOperationGetResult(ndarray, 0);
+  return tensorValue;
 }
 
 void IValueImporter::importMethod(torch::jit::Function *function,
@@ -486,17 +483,31 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           if (!annotation || !annotation->argAnnotations.has_value()) {
             return {nullptr};
           }
-          auto &shape = annotation->argAnnotations.value()[argIndex].shape;
-          auto &dtype = annotation->argAnnotations.value()[argIndex].dtype;
+          c10::optional<std::vector<int64_t>> &maybeShape =
+              annotation->argAnnotations.value()[argIndex].shape;
+          c10::optional<c10::ScalarType> &maybeDtype =
+              annotation->argAnnotations.value()[argIndex].dtype;
+          bool hasValueSemantics =
+              annotation->argAnnotations.value()[argIndex].hasValueSemantics;
+
           // TODO: Handle unranked tensors and tensors with unknown dtype (but
           // possibly known ranks/sizes).
-          if (!shape || !dtype) {
+          if (!maybeShape || !maybeDtype) {
             return {nullptr};
           }
-          auto typeBound = npcompNdArrayTypeGetRanked(
-              shape->size(), shape->data(),
-              TypeMapper(context).mapFromTorchScalarType(
-                  mlirLocationUnknownGet(context), *dtype));
+
+          std::vector<int64_t> shape = *maybeShape;
+          MlirType dtype = TypeMapper(context).mapFromTorchScalarType(
+              mlirLocationUnknownGet(context), *maybeDtype);
+          MlirType typeBound;
+          if (hasValueSemantics) {
+            typeBound = npcompValueTensorTypeGet(context, shape.size(),
+                                                 shape.data(), dtype);
+          } else {
+            typeBound = npcompNonValueTensorTypeGet(context, shape.size(),
+                                                    shape.data(), dtype);
+          }
+
           MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(
               "torch.type_bound", mlirTypeAttrGet(typeBound));
           return mlirDictionaryAttrGet(context, 1, &typeBoundAttr);

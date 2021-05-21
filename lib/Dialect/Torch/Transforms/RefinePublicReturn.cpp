@@ -11,17 +11,17 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
-#include "npcomp/Dialect/Numpy/Transforms/Passes.h"
+#include "npcomp/Dialect/Torch/IR/TorchOps.h"
+#include "npcomp/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Numpy;
+using namespace mlir::NPCOMP::Torch;
 
 namespace {
 
 class RefinePublicReturnPass
-    : public NumpyRefinePublicReturnBase<RefinePublicReturnPass> {
+    : public RefinePublicReturnBase<RefinePublicReturnPass> {
   void runOnOperation() override {
     auto module = getOperation();
     module.walk([&](FuncOp func) {
@@ -58,11 +58,20 @@ class RefinePublicReturnPass
     // TensorStaticInfoCastOp then the pre-casted operand, which is presumed to
     // have a more precise type.
     SmallVector<Value> newOperands;
+    OpBuilder builder(returnOp);
     for (auto operand : returnOp.getOperands()) {
+      Value newOperand;
       if (auto cast = operand.getDefiningOp<TensorStaticInfoCastOp>()) {
-        newOperands.push_back(cast.getOperand());
+        newOperand = cast.getOperand();
       } else {
-        newOperands.push_back(operand);
+        newOperand = operand;
+      }
+      if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
+        newOperands.push_back(
+            copyTensorToType(builder, returnOp->getLoc(),
+                             tensorType.getWithValueSemantics(), newOperand));
+      } else {
+        newOperands.push_back(newOperand);
       }
     }
     returnOp->setOperands(newOperands);
@@ -77,6 +86,6 @@ class RefinePublicReturnPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::NPCOMP::Numpy::createRefinePublicReturnPass() {
+mlir::NPCOMP::Torch::createRefinePublicReturnPass() {
   return std::make_unique<RefinePublicReturnPass>();
 }

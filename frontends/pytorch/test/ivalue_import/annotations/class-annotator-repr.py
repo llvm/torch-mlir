@@ -30,7 +30,7 @@ class TestModule(torch.nn.Module):
         super().__init__()
         self.s = Submodule()
 
-    def forward(self, tensor):
+    def forward(self, tensor, value_tensor):
         return self.s.forward()
 
 
@@ -43,9 +43,10 @@ class_type = recursivescriptmodule._c._type()
 annotator.exportNone(class_type)
 annotator.exportPath(class_type, ['s', 'exported'])
 annotator.exportPath(class_type, ['s', 'forward'])
-annotator.annotateShapesAndDtypes(class_type, ['forward'], [
+annotator.annotateArgs(class_type, ['forward'], [
     None,
-    ((1024, 2), torch.float32),
+    ((1024, 2), torch.float32, False),
+    ((42, -1, 7), torch.int8, True),
 ])
 
 # "Change detector" test + "documentation" for the repr of `ClassAnnotator`.
@@ -91,10 +92,17 @@ annotator.annotateShapesAndDtypes(class_type, ['forward'], [
 # CHECK-NEXT:         ArgAnnotation(0) {
 # CHECK-NEXT:           dtype = <none>
 # CHECK-NEXT:           shape = <none>
+# CHECK-NEXT:           hasValueSemantics = false
 # CHECK-NEXT:         }
 # CHECK-NEXT:         ArgAnnotation(1) {
 # CHECK-NEXT:           dtype = Float
 # CHECK-NEXT:           shape = [1024, 2]
+# CHECK-NEXT:           hasValueSemantics = false
+# CHECK-NEXT:         }
+# CHECK-NEXT:         ArgAnnotation(2) {
+# CHECK-NEXT:           dtype = Char
+# CHECK-NEXT:           shape = [42, -1, 7]
+# CHECK-NEXT:           hasValueSemantics = true
 # CHECK-NEXT:         }
 # CHECK-NEXT:     }
 # CHECK-NEXT:   }

@@ -164,4 +164,74 @@ def ReduceOpVariants : Pass<"torch-reduce-op-variants", "FuncOp"> {
   }];
 }
 
+def MaximizeValueSemantics : Pass<"torch-maximize-value-semantics", "FuncOp"> {
+  let summary = "Use value-semantic tensors where possible.";
+  let description = [{
+    Use value-semantic tensors where possible to make the program more
+    analyzable by later passes (also, backends prefer value semantics as well).
+
+    This pass is analogous to an SSA-formation pass in a
+    traditional compiler, with the added complication that arrays can alias
+    each other in interesting ways.
+
+    The current code doesn't implement any fancy algorithm, and is intended
+    to be just sufficient for a first e2e spike. An algorithm inspired by the
+    SSA formation literature will need to be implemented.
+
+    Also, this pass doesn't currently handle interprocedural rewriting
+    (of private functions), which is even more complex.
+  }];
+  let constructor = "mlir::NPCOMP::Torch::createMaximizeValueSemanticsPass()";
+}
+
+
+def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
+  let summary = "Refine public return";
+  let constructor = "mlir::NPCOMP::Torch::createRefinePublicReturnPass()";
+  let description = [{
+    Refines types of values returned from public functions based on
+    intraprocedural information.
+
+    This pass effectively encodes an assumption by the pass pipeline author that
+    the public calling convention of the module can have its types refined,
+    without causing ABI mismatches. This is frequently true -- for example, in
+    many systems, `!torch.vtensor<[?,?],f32>`, `!torch.vtensor<[3,3],f32>` and
+    `!torch.vtensor` are all the same data structure on calling
+    convention boundaries.
+
+    This pass is expected to run after shape refinement has occurred to
+    otherwise resolve shapes, and is currently mainly useful to convert
+    rank/dtype-erased function boundaries to ranked, dtyped code for
+    compiler backends.
+
+    This pass also changes the return to be a value tensor. This is incorrect
+    in general because users may rely on the aliasing properties of non-value
+    tensors, but for now it is deemed expedient to include this in this pass.
+    TODO: Avoid hardcoding the value tensor assumption. In general, much
+    as the type bound of an argument can be marked as having value semantics
+    at the frontend level based on user concerns, so too should the returns
+    from the function be annotated as having value semantics.
+  }];
+}
+
+def FuncBuiltinTensorize : Pass<"torch-func-builtin-tensorize", "ModuleOp"> {
+  let summary = "Convert functions to operate on builtin tensors";
+  let constructor = "mlir::NPCOMP::Torch::createFuncBuiltinTensorizePass()";
+  let description = [{
+    Partial type conversion pass analogous in scope to the upstream
+    `func-bufferize` pass. See details there.
+  }];
+}
+
+def FinalizingBuiltinTensorize
+    : Pass<"torch-finalizing-builtin-tensorize", "FuncOp"> {
+  let summary = "Finalizes a partial conversion to builtin tensors";
+  let constructor =
+    "mlir::NPCOMP::Torch::createFinalizingBuiltinTensorizePass()";
+  let description = [{
+    Analogous in scope to the upstream `finalizing-bufferize` pass.
+    See details there.
+  }];
+}
+
 #endif // NPCOMP_TORCH_PASSES

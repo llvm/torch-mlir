@@ -17,8 +17,8 @@ class MmModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([3, 4], torch.float32),
-        ([4, 5], torch.float32),
+        ([3, 4], torch.float32, False),
+        ([4, 5], torch.float32, True),
     ])
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
@@ -40,10 +40,12 @@ print(annotator)
 # CHECK:         ArgAnnotation(1) {
 # CHECK:           dtype = Float
 # CHECK:           shape = [3, 4]
+# CHECK:           hasValueSemantics = false
 # CHECK:         }
 # CHECK:         ArgAnnotation(2) {
 # CHECK:           dtype = Float
 # CHECK:           shape = [4, 5]
+# CHECK:           hasValueSemantics = true
 # CHECK:         }
 # CHECK:     }
 # CHECK:   }

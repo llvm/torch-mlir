@@ -15,6 +15,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "npcomp/Dialect/Torch/IR/TorchTraits.h"
 #include "npcomp/Dialect/Torch/IR/TorchTypes.h"
@@ -22,6 +23,21 @@
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.h.inc"
+
+namespace mlir {
+namespace NPCOMP {
+namespace Torch {
+/// Create code to copy `tensor` to type `newType`.
+///
+/// This involves two independent steps, which we keep orthogonal in our
+/// IR representation.
+/// 1. Adding/removing static information about sizes/dtype.
+/// 2. Performing the copy, which allows us to add/remove value semantics.
+Value copyTensorToType(OpBuilder &builder, Location loc, BaseTensorType newType,
+                       Value tensor);
+} // namespace Torch
+} // namespace NPCOMP
+} // namespace mlir
 
 template <> struct llvm::DenseMapInfo<::mlir::NPCOMP::Torch::SlotOp> {
   using SlotOp = ::mlir::NPCOMP::Torch::SlotOp;

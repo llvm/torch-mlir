@@ -167,6 +167,58 @@ int npcompTypeIsAQInt8(MlirType t);
 /** Gets the !torch.qint8 type. */
 MlirType npcompQInt8TypeGet(MlirContext context);
 
+/*============================================================================*/
+/* torch.tensor type.                                                         */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.tensor type */
+int npcompTypeIsANonValueTensor(MlirType t);
+
+/** Gets a !torch.tensor type.
+ *
+ * - `optionalSizes` is allowed to be null, meaning that no size information is
+ * present (and `numSizes` is ignored in that case).
+ * - `optionalDtype` is allowed to be null, meaning that no dtype information is
+ * present.
+ *
+ */
+MlirType npcompNonValueTensorTypeGet(MlirContext context, intptr_t numSizes,
+                                     const int64_t *optionalSizes,
+                                     MlirType optionalDtype);
+
+/** Gets the !torch.tensor type with the least static information. */
+MlirType
+npcompNonValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
+
+/** Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`. */
+MlirType npcompNonValueTensorTypeGetFromShaped(MlirType type);
+
+/*============================================================================*/
+/* torch.vtensor type.                                                        */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.vtensor type */
+int npcompTypeIsAValueTensor(MlirType t);
+
+/** Gets a !torch.vtensor type.
+ *
+ * - `optionalSizes` is allowed to be null, meaning that no size information is
+ * present (and `numSizes` is ignored in that case).
+ * - `optionalDtype` is allowed to be null, meaning that no dtype information is
+ * present.
+ *
+ */
+MlirType npcompValueTensorTypeGet(MlirContext context, intptr_t numSizes,
+                                  const int64_t *optionalSizes,
+                                  MlirType optionalDtype);
+
+/** Gets the !torch.tensor type with the least static information. */
+MlirType
+npcompValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
+
+/** Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`. */
+MlirType npcompValueTensorTypeGetFromShaped(MlirType type);
+
 #ifdef __cplusplus
 }
 #endif

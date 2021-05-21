@@ -32,14 +32,13 @@ torch.class_type @parent {
 // -----
 
 torch.class_type @c {
-  torch.attr "a1" : !numpy.ndarray<*:!numpy.any_dtype>
-  torch.attr "a2" : !numpy.ndarray<*:!numpy.any_dtype>
+  torch.attr "t1" : !torch.tensor
+  torch.attr "t2" : !torch.tensor
 }
 
-%cst = constant dense<1.000000e+00> : tensor<1xf32>
 // expected-error @+1 {{potentially-aliased value used to initialize multiple slots}}
-%a = numpy.create_array_from_tensor %cst : (tensor<1xf32>) -> !numpy.ndarray<*:!numpy.any_dtype>
+%t = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
 torch.nn_module {
-  torch.slot "a1", %a : !numpy.ndarray<*:!numpy.any_dtype>
-  torch.slot "a2", %a : !numpy.ndarray<*:!numpy.any_dtype>
+  torch.slot "t1", %t : !torch.tensor
+  torch.slot "t2", %t : !torch.tensor
 } : !torch.nn.Module<"c">

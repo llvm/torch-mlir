@@ -26,19 +26,19 @@ recursivescriptmodule = torch.jit.script(test_module)
 annotator = torch_mlir.ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
 try:
-    annotator.annotateShapesAndDtypes(class_type, [], [])
+    annotator.annotateArgs(class_type, [], [])
 except Exception as e:
     # CHECK: Empty annotated path. Can only annotate shapes/dtypes of a method of a class.
     print(e)
 
 try:
-    annotator.annotateShapesAndDtypes(class_type, ['forward'], [None])
+    annotator.annotateArgs(class_type, ['forward'], [None])
 except Exception as e:
     # CHECK: Arg annotations should have one entry per function parameter (including self).
     print(e)
 
 try:
-    annotator.annotateShapesAndDtypes(class_type, ['forward'], [None, ([3, 4], 42)])
+    annotator.annotateArgs(class_type, ['forward'], [None, ([3, 4], 42, False)])
 except Exception as e:
     # This is just the raw repr of the object in quotes.
     # CHECK: unsupported scalar type '42'

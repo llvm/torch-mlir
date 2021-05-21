@@ -180,18 +180,20 @@ static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
     auto tuple = py::cast<py::tuple>(pyArgAnnotations[i]);
     auto shape = tuple[0];
     auto dtype = tuple[1];
+    auto hasValueSemantics = tuple[2];
     if (!shape.is_none()) {
       argAnnotations[i].shape = py::cast<std::vector<int64_t>>(shape);
     }
     if (!dtype.is_none()) {
       argAnnotations[i].dtype = convertToC10ScalarType(dtype);
     }
+    argAnnotations[i].hasValueSemantics = py::cast<bool>(hasValueSemantics);
   };
 }
 
-void ClassAnnotator::annotateShapesAndDtypes(c10::ClassType &rootClassType,
-                                             std::vector<std::string> path,
-                                             py::list argAnnotations) {
+void ClassAnnotator::annotateArgs(c10::ClassType &rootClassType,
+                                  std::vector<std::string> path,
+                                  py::list argAnnotations) {
   if (path.size() == 0) {
     throw std::invalid_argument("Empty annotated path. Can only annotate "
                                 "shapes/dtypes of a method of a class.");
@@ -279,6 +281,8 @@ std::string ArgAnnotation::toString(int argIndex) {
     } else {
       ss << "<none>\n";
     }
+    ss << "  hasValueSemantics = " << (hasValueSemantics ? "true" : "false")
+       << "\n";
     ss << "}\n";
     return ss.str();
 }
@@ -333,6 +337,6 @@ void torch_mlir::initClassAnnotatorBindings(py::module &m) {
       .def(py::init<>())
       .def("exportPath", &ClassAnnotator::exportPath)
       .def("exportNone", &ClassAnnotator::exportNone)
-      .def("annotateShapesAndDtypes", &ClassAnnotator::annotateShapesAndDtypes)
+      .def("annotateArgs", &ClassAnnotator::annotateArgs)
       .def("__repr__", &ClassAnnotator::toString);
 }

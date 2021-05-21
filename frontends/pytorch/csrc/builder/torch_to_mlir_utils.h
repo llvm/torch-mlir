@@ -59,8 +59,8 @@ MlirType getFunctionTypeFromSchema(MlirContext context,
                                    const c10::FunctionSchema &schema);
 
 /// Creates an appropriate MlirAttribute that holds the same values as `tensor`.
-MlirAttribute converTensorToMlirElementsAttr(at::Tensor tensor,
-                                             MlirLocation loc);
+MlirAttribute convertTensorToMlirElementsAttr(at::Tensor tensor,
+                                              MlirLocation loc);
 
 MlirAttribute importAttribute(MlirLocation loc, torch::jit::Node *node,
                               c10::Symbol symbol);

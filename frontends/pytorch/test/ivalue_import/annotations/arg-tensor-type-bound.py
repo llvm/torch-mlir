@@ -24,11 +24,11 @@ annotator = torch_mlir.ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
 # CHECK: func private @__torch__.TestModule.forward(
 # CHECK-SAME: %arg0: !torch.nn.Module<"__torch__.TestModule">,
-# CHECK-SAME: %arg1: !numpy.ndarray<*:!numpy.any_dtype> {torch.type_bound = !numpy.ndarray<[?,1024]:i8>}
+# CHECK-SAME: %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?,1024],si8>}
 # CHECK-SAME: ) -> !basicpy.NoneType             
-annotator.annotateShapesAndDtypes(class_type, ['forward'], [
+annotator.annotateArgs(class_type, ['forward'], [
     None,
-    ((-1, 1024), torch.int8),
+    ((-1, 1024), torch.int8, True),
 ])
 
 # # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.

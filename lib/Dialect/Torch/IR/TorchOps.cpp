@@ -12,15 +12,35 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
-#include "npcomp/Dialect/Numpy/IR/NumpyOps.h"
 #include "llvm/ADT/StringMap.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
+
+//===----------------------------------------------------------------------===//
+// Utilities
+//===----------------------------------------------------------------------===//
+
+Value mlir::NPCOMP::Torch::copyTensorToType(OpBuilder &builder, Location loc,
+                                            BaseTensorType newType,
+                                            Value tensor) {
+  auto originalType = tensor.getType().cast<BaseTensorType>();
+  // Adjust the static information in the type to match between the original and
+  // new types.
+  if (!originalType.hasSameSizesAndDtype(newType)) {
+    tensor = builder.create<TensorStaticInfoCastOp>(
+        loc, originalType.getWithSizesAndDtypeFrom(newType), tensor);
+  }
+  // If both the original and new types already have value semantics, a copy is
+  // pointless.
+  if (originalType.isa<ValueTensorType>() && newType.isa<ValueTensorType>())
+    return tensor;
+  return builder.create<CopyTensorOp>(loc, newType, tensor);
+}
 
 //===----------------------------------------------------------------------===//
 // MethodOp
@@ -65,12 +85,20 @@ static LogicalResult verify(NnModuleOp op) {
 // This is a restricted subset of it.
 //
 // TODO: Flesh this out.
+// TODO: Decide / properly model the distinction between PEP 483 / Python
+// subtyping vs "more static information".
 bool isValidSubtype(Type subtype, Type type) {
   if (subtype == type)
     return true;
   if (auto optional = type.dyn_cast<OptionalType>())
     return subtype == optional.getContainedType() ||
            subtype.isa<Basicpy::NoneType>();
+  // TODO: This is not subtyping according to PEP 483. See description
+  // of NonValueTensorType.
+  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
+      type ==
+          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
   return false;
 }
 
@@ -203,14 +231,44 @@ OpFoldResult Aten__Is__Op::fold(ArrayRef<Attribute> operands) {
 // AtenLenTOp
 //===----------------------------------------------------------------------===//
 
+OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
+  if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
+    if (tensorType.hasSizes())
+      return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                              tensorType.getSizes().size());
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLenTOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
+  // `len([1,1,1])` -> `3`
+  if (auto buildList = getOperand().getDefiningOp<Basicpy::BuildListOp>()) {
+    return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                            buildList.getNumOperands());
+  }
+  return nullptr;
+}
+
 void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
+  // `len(t.size())` -> `t.ndim`
   patterns.add(+[](AtenLenTOp op, PatternRewriter &rewriter) {
-    auto buildList = op.getOperand().getDefiningOp<Basicpy::BuildListOp>();
-    if (!buildList)
-      return rewriter.notifyMatchFailure(op, "operand not basicpy.build_list");
-    rewriter.replaceOpWithNewOp<::mlir::ConstantOp>(
-        op, rewriter.getI64IntegerAttr(buildList.getNumOperands()));
+    auto size = op.getOperand().getDefiningOp<AtenSizeOp>();
+    if (!size)
+      return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
+    // TODO: Normalize all the torch scalar integer types to consistently use
+    // a `!torch.int` type so that this op and others can automatically infer
+    // their type. An additional benefit is that there's already enough of a
+    // semantic gap between Python ints (which tend to be arbitrary precision)
+    // and Torch/et-al ints (fixed bit depth, usually 64), it would be nice to
+    // preserve the fact that we are working on a !torch.int and not just a
+    // thing that was prematurely pinned to an `i64`.
+    rewriter.replaceOpWithNewOp<AtenDimOp>(op, rewriter.getI64Type(),
+                                           size.getOperand());
     return success();
   });
 }
@@ -222,11 +280,11 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
-    auto type = op.getOperand().getType().dyn_cast<RankedTensorType>();
-    if (!type)
-      return rewriter.notifyMatchFailure(op, "not a ranked tensor");
+    auto type = op.getOperand().getType().dyn_cast<BaseTensorType>();
+    if (!type || !type.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(op, "all sizes not known");
     SmallVector<Value> listElements;
-    for (int64_t size : type.getShape()) {
+    for (int64_t size : type.getSizes()) {
       listElements.push_back(rewriter.create<::mlir::ConstantOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
@@ -234,6 +292,137 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         op, Basicpy::ListType::get(rewriter.getContext()), listElements);
     return success();
   });
+  // One-off pattern to erase if dead.
+  // TODO: Use the effects infra to express the semantics of this op and enable
+  // a centralized "erase if dead" canonicalization.
+  // Specifically, we need to mark the op as only MemoryEffects::Allocate
+  // so that `mlir::wouldOpBeTriviallyDead` does the right thing.
+  patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
+    if (!op.use_empty())
+      return failure();
+    rewriter.eraseOp(op);
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// TensorOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult
+TensorOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
+                           ValueRange operands, DictionaryAttr attributes,
+                           RegionRange regions,
+                           SmallVectorImpl<Type> &inferredReturnTypes) {
+  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  if (!attr)
+    return failure();
+  auto tensorType = attr.getType().cast<RankedTensorType>();
+  inferredReturnTypes.push_back(NonValueTensorType::getFromShaped(tensorType));
+  return success();
+}
+
+static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
+  if (a.hasSizes() && b.hasSizes()) {
+    if (failed(verifyCompatibleShape(a.getSizes(), b.getSizes())))
+      return false;
+  }
+  if (a.hasDtype() && b.hasDtype()) {
+    if (a.getDtype() != b.getDtype())
+      return false;
+  }
+  return true;
+}
+
+bool TensorOp::isCompatibleReturnTypes(TypeRange inferred, TypeRange actual) {
+  if (!actual[0].isa<BaseTensorType>())
+    return false;
+  return areSizesAndDtypesCompatible(inferred[0].cast<BaseTensorType>(),
+                                     actual[0].cast<BaseTensorType>());
+}
+
+//----------------------------------------------------------------------------//
+// TensorStaticInfoCast
+//----------------------------------------------------------------------------//
+
+bool TensorStaticInfoCastOp::areCastCompatible(mlir::TypeRange inputs,
+                                               mlir::TypeRange outputs) {
+  return areSizesAndDtypesCompatible(inputs[0].cast<BaseTensorType>(),
+                                     outputs[0].cast<BaseTensorType>());
+}
+
+//===----------------------------------------------------------------------===//
+// CopyTensorOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(CopyTensorOp op) {
+  auto resultType = op.getResult().getType().cast<BaseTensorType>();
+  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType)) {
+    return op.emitError()
+           << "operand and result must have same sizes and dtype";
+  }
+  return success();
+}
+
+OpFoldResult CopyTensorOp::fold(ArrayRef<Attribute> operands) {
+  // A copy between value semantic tensors is a no-op.
+  if (getType().isa<ValueTensorType>() &&
+      getOperand().getType().isa<ValueTensorType>()) {
+    return getOperand();
+  }
+  return nullptr;
+}
+
+void CopyTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  // y = torch.copy.tensor(hasOneUse@torch.copy.tensor(x)) -> x
+  // Only safe when `y` and `x` have value semantics.
+  patterns.add(+[](CopyTensorOp op, PatternRewriter &rewriter) {
+    auto otherCopy = op.getOperand().getDefiningOp<CopyTensorOp>();
+    if (!otherCopy)
+      return failure();
+    if (otherCopy.getOperand().getType().isa<ValueTensorType>() &&
+        op.getResult().getType().isa<ValueTensorType>() &&
+        op.getOperand().hasOneUse()) {
+      rewriter.replaceOp(op, {otherCopy.getOperand()});
+      // TODO: Implement MemoryEffectOpInterface to handle the value/non-value
+      // cases precisely. In this case, we specifically know that `otherCopy`
+      // is dead so eagerly clean it up.
+      rewriter.eraseOp(otherCopy);
+      return success();
+    }
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// ToBuiltinTensorOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult ToBuiltinTensorOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  auto resultType =
+      operands[0].getType().cast<ValueTensorType>().toBuiltinTensor();
+  if (!resultType)
+    return failure();
+  inferredReturnTypes.push_back(resultType);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// FromBuiltinTensorOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult FromBuiltinTensorOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  inferredReturnTypes.push_back(
+      ValueTensorType::getFromShaped(operands[0].getType().cast<TensorType>()));
+  return success();
 }
 
 #define GET_OP_CLASSES

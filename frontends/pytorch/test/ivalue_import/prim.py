@@ -27,8 +27,8 @@ class TestModule(torch.nn.Module):
         self.callee(self.t1, self.t2)
     # CHECK-LABEL:   func private @__torch__.TestModule.callee(
     # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">,
-    # CHECK-SAME:         %[[X:.*]]: !numpy.ndarray<*:!numpy.any_dtype>,
-    # CHECK-SAME:         %[[Y:.*]]: !numpy.ndarray<*:!numpy.any_dtype>
+    # CHECK-SAME:         %[[X:.*]]: !torch.tensor,
+    # CHECK-SAME:         %[[Y:.*]]: !torch.tensor
     def callee(self, x, y):
         pass
 
