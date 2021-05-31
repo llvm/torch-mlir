@@ -15,7 +15,9 @@ add_npcomp_library(NPCOMPCommonBackend
   MLIRIR
   MLIRLinalg
   MLIRMemRef
+  MLIRPass
   MLIRStandard
+  MLIRTransformUtils
   MLIRMath
   )
 

@@ -14,5 +14,6 @@ add_npcomp_conversion_library(NPCOMPTorchToStd
   MLIRIR
   MLIRPass
   MLIRStandard
+  MLIRTransformUtils
   NPCOMPTorchDialect
 )

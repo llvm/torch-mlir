@@ -21,12 +21,12 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   MLIRPass
   MLIRTransformUtils
   MLIRTransforms
+  NPCOMPCommonBackend
   NPCOMPTorchDialect
   NPCOMPBasicpyDialect
-  NPCOMPATenDialect
-  NPCOMPATenPasses
   NPCOMPNumpyPasses
   NPCOMPTorchToLinalg
+  NPCOMPTorchToStd
   NPCOMPTCFToStd
   NPCOMPInterfaces
 )
