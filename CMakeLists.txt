@@ -20,6 +20,7 @@ endif()
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
+option(NPCOMP_LINK_MLIR_DYLIB "Enables linking the MLIR dylib to the NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
 set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 set(NPCOMP_ENABLE_PYTORCH "OPTIONAL" CACHE STRING "Enables the PyTorch frontend (OFF, OPTIONAL, REQUIRED)")
 
