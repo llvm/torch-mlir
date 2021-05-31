@@ -18,6 +18,9 @@
 #include "mlir-c/Diagnostics.h"
 #include "npcomp-c/Types.h"
 
+#include "caffe2/core/scope_guard.h"
+#include "ATen/native/quantized/cpu/packed_params.h"
+
 using namespace torch_mlir;
 
 // Hashing functionality for IValue's.
@@ -99,10 +102,11 @@ public:
       : importBlock(importBlock), context(context), typeMapper(context),
         annotator(annotator) {}
 
-  MlirValue importIValue(c10::IValue value);
+  MlirValue importIValue(c10::IValue ivalue);
 
 private:
-  MlirValue rawImportIValue(c10::IValue value);
+  MlirValue rawImportIValue(c10::IValue ivalue);
+  MlirValue importTensor(c10::IValue ivalue);
   MlirValue importModule(torch::jit::Module jitModule);
   void importMethod(torch::jit::Function *function, MlirBlock classTypeBody,
                     const MethodAnnotation &methodAnnotation);
@@ -146,7 +150,8 @@ private:
 };
 } // namespace
 
-MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
+MlirValue
+IValueImporter::importModule(torch::jit::Module currentModule) {
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
 
@@ -170,6 +175,10 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
+  auto inserter = caffe2::MakeGuard([&]() {
+    mlirBlockInsertOwnedOperationBefore(
+        importBlock, mlirBlockGetTerminator(importBlock), nnModule);
+  });
 
   if (!rootModuleName.has_value()) {
     rootModuleName = moduleTypeName;
@@ -198,8 +207,6 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   }
 
   createMlirOperationAtEnd(nnModuleBody, "torch.nn_module_terminator", loc);
-  mlirBlockInsertOwnedOperationBefore(
-      importBlock, mlirBlockGetTerminator(importBlock), nnModule);
   return mlirOperationGetResult(nnModule, 0);
 }
 
@@ -279,16 +286,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTensor()) {
-    at::Tensor tensor = ivalue.toTensor().contiguous();
-    MlirAttribute denseElements = converTensorToMlirElementsAttr(tensor, loc);
-    MlirOperation constant = createMlirOperationAtEnd(
-        importBlock, "std.constant", loc, mlirAttributeGetType(denseElements),
-        toMlirNamedAttribute("value", denseElements));
-    MlirOperation ndarray = createMlirOperationAtEnd(
-        importBlock, "numpy.create_array_from_tensor", loc,
-        npcompNdArrayTypeGetUnranked(npcompAnyDtypeTypeGet(context)),
-        mlirOperationGetResult(constant, 0));
-    return mlirOperationGetResult(ndarray, 0);
+    return importTensor(ivalue);
   }
   if (ivalue.isModule()) {
     return importModule(ivalue.toModule());
@@ -308,9 +306,81 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
         importBlock, "basicpy.singleton", loc, npcompNoneTypeGet(context));
     return mlirOperationGetResult(operation, 0);
   }
+  if (ivalue.isCustomClass()) {
+    if (ivalue.type().get() ==
+        c10::getCustomClassType<c10::intrusive_ptr<LinearPackedParamsBase>>()
+            .get()) {
+      c10::intrusive_ptr<LinearPackedParamsBase> linearParams =
+          ivalue.toCustomClass<LinearPackedParamsBase>();
+      at::Tensor weight;
+      c10::optional<at::Tensor> bias;
+      std::tie(weight, bias) = linearParams->unpack();
+      MlirValue weightValue = importIValue(c10::IValue(weight));
+      c10::optional<MlirValue> biasValue = c10::nullopt;
+      if (bias.has_value()) {
+        biasValue = importIValue(c10::IValue(*bias));
+      }
+      MlirOperation operation = createMlirOperationAtEnd(
+          importBlock, "torch.linear_params.create", loc,
+          npcompLinearParamsTypeGet(context), weightValue, biasValue);
+      return mlirOperationGetResult(operation, 0);
+    }
+  }
   std::stringstream msg;
   msg << "Unsupported ivalue: " << ivalue;
   throw std::invalid_argument(msg.str());
+}
+
+MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
+  assert(ivalue.isTensor() && "expected a tensor!");
+
+  // TODO: Can we do better?
+  MlirLocation loc = mlirLocationUnknownGet(context);
+
+  // Import the bulk tensor representation.
+  at::Tensor tensor = ivalue.toTensor().contiguous();
+  MlirAttribute denseElements = converTensorToMlirElementsAttr(tensor, loc);
+  MlirOperation constant = createMlirOperationAtEnd(
+      importBlock, "std.constant", loc, mlirAttributeGetType(denseElements),
+      toMlirNamedAttribute("value", denseElements));
+  MlirValue tensorReprValue = mlirOperationGetResult(constant, 0);
+
+  // Construct the complete tensor value. This is trivial for most tensors, but
+  // for quantized tensors (and probably sparse too, TBD) there is more for us
+  // to do.
+  MlirValue tensorValue;
+  if (tensor.is_quantized()) {
+    // Note that Torch models quantization in a type-erased way. So we don't
+    // make an effort here to do any special static modeling. If desired, later
+    // compiler stages that are building a statically modeled quantization
+    // representation will need to convert this to their representation.
+    std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
+    MlirType quantizedTensorType = mlirRankedTensorTypeGetChecked(
+        loc, shape.size(), shape.data(),
+        typeMapper.mapFromTorchScalarType(tensor.scalar_type()), {nullptr});
+    if (tensor.qscheme() == c10::kPerTensorAffine) {
+      MlirValue qScale = importIValue(c10::IValue(tensor.q_scale()));
+      MlirValue zeroPoint = importIValue(c10::IValue(tensor.q_zero_point()));
+      MlirOperation quantizedTensor = createMlirOperationAtEnd(
+          importBlock, "torch.per_tensor_affine.create", loc,
+          quantizedTensorType, tensorReprValue, qScale, zeroPoint);
+      tensorValue = mlirOperationGetResult(quantizedTensor, 0);
+    } else {
+      std::stringstream msg;
+      msg << "Unsupported quantization scheme '"
+          << c10::toString(tensor.qscheme()) << "' for tensor: " << ivalue;
+      throw std::invalid_argument(msg.str());
+    }
+  } else {
+    tensorValue = tensorReprValue;
+  }
+
+  // Convert the tensor to ndarray to match Torch's default-mutable semantics.
+  MlirOperation ndarray = createMlirOperationAtEnd(
+      importBlock, "numpy.create_array_from_tensor", loc,
+      npcompNdArrayTypeGetUnranked(npcompAnyDtypeTypeGet(context)),
+      tensorValue);
+  return mlirOperationGetResult(ndarray, 0);
 }
 
 void IValueImporter::importMethod(torch::jit::Function *function,

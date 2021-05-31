@@ -21,13 +21,13 @@ class MmModule(torch.nn.Module):
 
 
 # TODO: Refine messages.
-# CHECK: SUCCESS "MmModule_basic"
+# CHECK: SUCCESS - "MmModule_basic"
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
 
-# CHECK: SUCCESS "MmModule_basic2"
+# CHECK: SUCCESS - "MmModule_basic2"
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic2(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))

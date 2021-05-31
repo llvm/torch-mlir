@@ -32,7 +32,7 @@ public:
     (void)applyPatternsAndFoldGreedily(getOperation(), getPatterns());
   }
 
-  FrozenRewritePatternList getPatterns() {
+  FrozenRewritePatternSet getPatterns() {
     // NOTE: We are keeping this pass around, even though it currently does
     // nothing, in order to avoid having to reintroduce the same
     // boilerplate.

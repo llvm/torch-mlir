@@ -25,8 +25,9 @@ from torch_mlir.torchscript.e2e_test.configs import (
 import basic
 import vision_models
 import mlp
+import quantized_models
 
-def main():
+def _get_argparse():
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('--config',
         choices=['native_torch', 'torchscript', 'refbackend'],
@@ -40,7 +41,16 @@ Meaning of options:
     parser.add_argument('--filter', default='.*', help='''
 Regular expression specifying which tests to include in this run.
 ''')
-    args = parser.parse_args()
+    parser.add_argument('-v', '--verbose',
+                        default=False,
+                        action='store_true',
+                        help='report test results with additional detail')
+    return parser
+
+def main():
+    args = _get_argparse().parse_args()
+
+    # Find the selected config.
     if args.config == 'refbackend':
         config = RefBackendTestConfig()
     elif args.config == 'native_torch':
@@ -48,6 +58,7 @@ Regular expression specifying which tests to include in this run.
     elif args.config == 'torchscript':
         config = TorchScriptTestConfig()
 
+    # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
         test for test in GLOBAL_TEST_REGISTRY
         if re.match(args.filter, test.unique_name)
@@ -60,8 +71,12 @@ Regular expression specifying which tests to include in this run.
         for test in GLOBAL_TEST_REGISTRY:
             print(test.unique_name)
         sys.exit(1)
+
+    # Run the tests.
     results = run_tests(tests, config)
-    report_results(results)
+
+    # Report the test results.
+    report_results(results, args.verbose)
 
 if __name__ == '__main__':
     main()

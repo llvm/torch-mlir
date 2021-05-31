@@ -12,8 +12,6 @@
 #include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Backend/IREE/Passes.h"
 #include "npcomp/Conversion/Passes.h"
-#include "npcomp/Dialect/ATen/IR/ATenDialect.h"
-#include "npcomp/Dialect/ATen/Transforms/Passes.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Basicpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
@@ -31,8 +29,7 @@
 
 void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
   // clang-format off
-  registry.insert<mlir::NPCOMP::aten::ATenDialect,
-                  Basicpy::BasicpyDialect,
+  registry.insert<Basicpy::BasicpyDialect,
                   Numpy::NumpyDialect,
                   refbackrt::RefbackrtDialect,
                   refback::RefbackDialect,
@@ -43,7 +40,6 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
 }
 
 void mlir::NPCOMP::registerAllPasses() {
-  mlir::NPCOMP::registerATenPasses();
   mlir::NPCOMP::registerRefBackendPasses();
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerBasicpyPasses();

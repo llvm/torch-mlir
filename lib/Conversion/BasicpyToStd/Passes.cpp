@@ -26,7 +26,7 @@ public:
     (void)applyPatternsAndFoldGreedily(func, getPatterns());
   }
 
-  FrozenRewritePatternList getPatterns() {
+  FrozenRewritePatternSet getPatterns() {
     auto *context = &getContext();
     RewritePatternSet patterns(context);
     populateBasicpyToStdPrimitiveOpPatterns(patterns);

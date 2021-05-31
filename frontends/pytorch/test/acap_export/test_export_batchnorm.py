@@ -20,6 +20,6 @@ with mb.capture_function("bn2d", [ones]) as f:
 # add, all of which should be checked individually because they have specific
 # behavior.
 # CHECK-LABEL: @bn2d
-# CHECK: %[[RESULT:.*]]:3 = torch.kernel_call "aten::native_batch_norm" %arg0
+# CHECK: %[[RESULT:.*]]:3 = torch.operator "aten.native_batch_norm"(%arg0
 # CHECK: return %[[RESULT]]#0 : !numpy.ndarray<[42,123,4,5]:f32>
 print(mb.module)

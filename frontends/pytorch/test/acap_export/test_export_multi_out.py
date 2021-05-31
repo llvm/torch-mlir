@@ -20,10 +20,9 @@ with mb.capture_function("multi_output", [t0, t1, t2]) as f:
   f.returns([t4, t5, t6])
 
 # CHECK-LABEL: func @multi_output
-# CHECK: %[[ADD0:.*]] = torch.kernel_call "aten::add" %arg0
-# CHECK: %[[ADD1:.*]] = torch.kernel_call "aten::add" %[[ADD0]]
-# CHECK: %[[ADD2:.*]] = torch.kernel_call "aten::add" %[[ADD1]]
-# CHECK: %[[ADD3:.*]] = torch.kernel_call "aten::add" %[[ADD2]]
+# CHECK: %[[ADD0:.*]] = torch.operator "aten.add.out"(%arg0
+# CHECK: %[[ADD1:.*]] = torch.operator "aten.add.out"(%[[ADD0]]
+# CHECK: %[[ADD2:.*]] = torch.operator "aten.add.out"(%[[ADD1]]
+# CHECK: %[[ADD3:.*]] = torch.operator "aten.add.out"(%[[ADD2]]
 # CHECK: return %[[ADD1]], %[[ADD2]], %[[ADD3]]
 print(mb.module)
-

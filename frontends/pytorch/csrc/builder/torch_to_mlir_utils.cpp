@@ -67,10 +67,57 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
     return mlirBF16TypeGet(context);
   case ScalarType::Half:
     return mlirF16TypeGet(context);
+  case ScalarType::QInt8:
+    return npcompQInt8TypeGet(context);
   default: {
     return {nullptr};
   }
   }
+}
+
+// Types (such as `LinearPackedParamsBase`) implemented with the
+// `torch::CustomClassHolder` mechanism described at
+// https://pytorch.org/tutorials/advanced/torch_script_custom_classes.html
+// are modeled with ordinary c10::ClassType's, but require special handling
+// for importing.
+//
+// These types correspond to c10::IValue's with `isCustomClass() == true`.
+//
+// Under the hood, Torch represents such "custom classes" using the
+// "object" variant of c10::IValue and a class type with one slot holding a
+// type-erased c10::intrusive_ptr to the custom type. One the side, it keeps
+// a registry of custom classes which is used to implement `isCustomClass()`
+// by checking names against the registry.
+//
+// There is no generic way to import custom classes (or their types), so we
+// have to name match them here (and the relevant code in the ivalue
+// importer) and create special IR constructs for them.
+static MlirType mapCustomClassType(MlirContext context, MlirLocation loc,
+                                   const c10::ClassTypePtr &classType) {
+  // If the type is unnamed, it cannot be a custom class.
+  if (!classType->name().has_value()) {
+    return {nullptr};
+  }
+  std::string name = classType->name()->qualifiedName();
+  // If the type is not stored in the custom class registry, it cannot be a
+  // custom class.
+  if (!torch::getCustomClass(name)) {
+    return {nullptr};
+  }
+
+  // Individually handle the custom classes that we know about.
+  if (name == "__torch__.torch.classes.quantized.LinearPackedParamsBase") {
+    return npcompLinearParamsTypeGet(context);
+  }
+
+  // At this point, we know that the type is indeed a custom class type, but
+  // that we don't know how to specially import it. We cannot proceed, so emit a
+  // diagnostic and halt compilation.
+  std::stringstream message;
+  message << "unable to import Torch CustomClass type '" << classType
+          << "' to MLIR type";
+  mlirEmitError(loc, message.str().c_str());
+  throw mlir_diagnostic_emitted();
 }
 
 MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
@@ -106,10 +153,14 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompNdArrayTypeGetRanked(dims.size(), dims.data(), elementType);
   }
   case TypeKind::ClassType: {
-    auto maybeName = torchType->cast<c10::ClassType>()->name();
-    return npcompNnModuleTypeGet(
-        context, toMlirStringRef(maybeName ? maybeName->qualifiedName()
-                                           : "unnamed class"));
+    const c10::ClassTypePtr &classType = torchType->cast<c10::ClassType>();
+    MlirType customClassType = mapCustomClassType(context, loc, classType);
+    if (!mlirTypeIsNull(customClassType)) {
+      return customClassType;
+    }
+    auto maybeName = classType->name();
+    std::string name = maybeName ? maybeName->qualifiedName() : "unnamed class";
+    return npcompNnModuleTypeGet(context, toMlirStringRef(name));
   }
   case TypeKind::FloatType: {
     return mlirF64TypeGet(context);
@@ -220,6 +271,14 @@ MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
     // The generalized (non-Tensor) conversion, assumes that Bool is the
     // Basicpy bool type.
     elementType = mlirIntegerTypeGet(context, 1);
+  } else if (tensor.scalar_type() == ScalarType::QInt8) {
+    // This function returns the underlying integer representation of the tensor
+    // as an elements attr. That underlying representation is of type i8
+    // for a torch.qint8 tensor.
+    // Caller code is responsible for materializing the proper op that
+    // incorporates the quantization scheme to create a tensor of `!torch.qint8`
+    // element type.
+    elementType = mlirIntegerTypeGet(context, 8);
   } else {
     elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
   }
@@ -259,6 +318,9 @@ MlirAttribute torch_mlir::converTensorToMlirElementsAttr(at::Tensor tensor,
     return mlirDenseElementsAttrBoolGet(shapedType, numElements,
                                         static_cast<const int *>(tensorData));
     break;
+  case ScalarType::QInt8:
+    return mlirDenseElementsAttrInt8Get(
+        shapedType, numElements, static_cast<const int8_t *>(tensorData));
   default:
     throwUnsupportedTensorError();
   }
@@ -338,4 +400,43 @@ torch_mlir::derefineValues(c10::ArrayRef<MlirValue> values,
     }
   }
   return ret;
+}
+
+MlirOperation
+torch_mlir::createOperationFromSchema(MlirBlock appendToBlock, MlirLocation loc,
+                                      const c10::FunctionSchema &schema,
+                                      c10::ArrayRef<MlirType> resultTypes,
+                                      c10::ArrayRef<MlirValue> operands) {
+  MlirContext context = mlirLocationGetContext(loc);
+
+  // Munge the name into the appropriate MLIR operation name.
+  // See torch_ods_gen.py:JitOperator for the logic used to construct the MLIR
+  // op name from the schema. This logic must be kept in sync with that logic.
+  std::string opNameSuffix = schema.name();
+  auto separatorPosition = opNameSuffix.find_first_of("::");
+  assert(separatorPosition != std::string::npos);
+  opNameSuffix.replace(separatorPosition, 2, ".");
+  const std::string &overloadName = schema.overload_name();
+  if (!overloadName.empty()) {
+    opNameSuffix = opNameSuffix + "." + overloadName;
+  }
+  std::string opName = "torch." + opNameSuffix;
+  // If we have a registered op, use it!
+  if (mlirContextIsRegisteredOperation(context, toMlirStringRef(opName))) {
+    return createMlirOperationAtEnd(appendToBlock, opName, loc, resultTypes,
+                                    operands);
+  }
+  // Oops, no registered op -- create an opaque wrapper so that import can
+  // still succeed. This helps a common use case of filling out registered ops
+  // support, where it is easier to iterate on an MLIR file with
+  // unregistered ops in it than to rerun import repeatedly.
+  // The alternative here would be to allow unregistered ops in the `torch`
+  // dialect, but that has the following disadvantages:
+  // - Makes the dialect overall less strict
+  // - Makes it hard to see exactly which ops from a model are registered or
+  //   not.
+  return createMlirOperationAtEnd(
+      appendToBlock, "torch.operator", loc, resultTypes, operands,
+      toMlirNamedAttribute(
+          "name", mlirStringAttrGet(context, toMlirStringRef(opNameSuffix))));
 }

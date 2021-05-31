@@ -40,6 +40,16 @@ def Torch_Dialect : Dialect {
   }];
 
   let hasRegionArgAttrVerify = 1;
+  let hasConstantMaterializer = 1;
 }
+
+class TorchOpTrait<string name> : OpTrait, NativeTrait<"", ""> {
+  let trait = name;
+  let cppNamespace = "::mlir::NPCOMP::Torch::OpTrait";
+}
+
+def HasValueSemantics : TorchOpTrait<"HasValueSemantics">;
+def IsTrailingUnderscoreInplaceVariant
+  : TorchOpTrait<"IsTrailingUnderscoreInplaceVariant">;
 
 #endif // TORCH_BASE

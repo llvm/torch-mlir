@@ -12,16 +12,16 @@
 include "mlir/Pass/PassBase.td"
 
 //===----------------------------------------------------------------------===//
-// ATen conversions
+// Torch conversions
 //===----------------------------------------------------------------------===//
 
-def ConvertATenToTCF : Pass<"convert-aten-to-tcf", "FuncOp"> {
-  let summary = "Convert recognized ATen to TCF ops";
-  let constructor = "mlir::NPCOMP::createConvertATenToTCFPass()";
+def ConvertTorchToStd : Pass<"convert-torch-to-std", "FuncOp"> {
+  let summary = "Convert recognized Torch ops to Std ops";
+  let constructor = "mlir::NPCOMP::createConvertTorchToStdPass()";
 }
 
-def ConvertATenToLinalg : Pass<"convert-aten-to-linalg", "FuncOp"> {
-  let summary = "Convert recognized ATen to Linalg ops";
+def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
+  let summary = "Convert recognized Torch ops to Linalg ops";
   let description = [{
     Convert ATen ops to linalg ops.
 
@@ -96,7 +96,7 @@ def ConvertATenToLinalg : Pass<"convert-aten-to-linalg", "FuncOp"> {
     design of having an EffectSSA that is constructed on-demand seems very
     compelling for modeling effects more broadly.
   }];
-  let constructor = "mlir::NPCOMP::createConvertATenToLinalgPass()";
+  let constructor = "mlir::NPCOMP::createConvertTorchToLinalgPass()";
 }
 
 //===----------------------------------------------------------------------===//

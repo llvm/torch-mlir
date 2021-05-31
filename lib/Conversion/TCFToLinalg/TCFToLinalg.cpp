@@ -199,7 +199,7 @@ public:
     (void)applyPatternsAndFoldGreedily(getOperation(), getPatterns());
   }
 
-  FrozenRewritePatternList getPatterns() {
+  FrozenRewritePatternSet getPatterns() {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     patterns.add<ConvertMatmul>(context);

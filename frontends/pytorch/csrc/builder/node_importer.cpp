@@ -33,9 +33,6 @@ public:
   MlirBlock importBlock(Block *jitBlock, CreateTerminatorFn createTerminator);
 
 private:
-  void importPrimNode(Node *node, MlirBlock appendToBlock);
-  void importKernelCall(Node *node, MlirBlock appendToBlock);
-
   MlirBlock createBlockFor(Block *jitBlock);
   void mapValue(Value *jitValue, MlirValue value);
   void mapResults(Node *node, MlirOperation operation);
@@ -47,7 +44,7 @@ private:
 };
 } // namespace
 
-void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
+void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   TypeMapper typeMapper(context);
   MlirLocation loc = getMlirLocationFromNode(context, node);
   auto kind = node->kind();
@@ -70,37 +67,41 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
                                  toMlirNamedAttribute(attrName.c_str(), attr));
     mapResults(node, operation);
   };
+
+  // Trivial ops with schema.
+  auto maybeSchema = node->maybeSchema();
+  if (maybeSchema) {
+    MlirOperation operation =
+        createOperationFromSchema(appendToBlock, loc, node->schema(),
+                                  getMlirTypesFromValues(loc, node->outputs()),
+                                  lookupMappedValues(node->inputs()));
+    mapResults(node, operation);
+    return;
+  }
+
+  // Builtin interpreter ops with no operator/schema.
   switch (kind) {
-  case c10::prim::TupleIndex:
-  case c10::prim::TupleUnpack:
   case c10::prim::ListUnpack:
-  case c10::prim::dtype:
-  case c10::prim::device:
-  case c10::prim::unchecked_cast:
-  case c10::prim::Uninitialized:
-  case c10::prim::RaiseException:
-  case c10::prim::Print:
-  case c10::prim::min:
-  case c10::prim::max:
-  case c10::prim::layout:
-  case c10::prim::NumToTensor: {
     createAndMapTrivialNode(node,
                             "torch.prim." + std::string(kind.toUnqualString()));
     return;
+  case c10::prim::GetAttr:
+  case c10::prim::SetAttr: {
+    createAndMapNodeWithAttribute(
+        node, "torch.prim." + std::string(kind.toUnqualString()), "name",
+        importAttribute(loc, node, c10::attr::name));
+    return;
   }
+  }
+
+  // Ops trivially lowered through `basicpy` dialect.
+  switch (kind) {
   case c10::prim::ListConstruct: {
     createAndMapTrivialNode(node, "basicpy.build_list");
     return;
   }
   case c10::prim::TupleConstruct: {
     createAndMapTrivialNode(node, "basicpy.build_tuple");
-    return;
-  }
-  case c10::prim::GetAttr:
-  case c10::prim::SetAttr: {
-    createAndMapNodeWithAttribute(
-        node, "torch.prim." + std::string(kind.toUnqualString()), "name",
-        importAttribute(loc, node, c10::attr::name));
     return;
   }
   }
@@ -226,45 +227,9 @@ void NodeImporter::importPrimNode(Node *node, MlirBlock appendToBlock) {
     return;
   }
 
-  // Unhandled.
   {
     std::stringstream msg;
-    msg << "unhandled prim operation: ";
-    node->print(msg, 0, nullptr);
-    mlirEmitError(getMlirLocationFromNode(context, node), msg.str().c_str());
-    throw mlir_diagnostic_emitted();
-  }
-}
-
-void NodeImporter::importKernelCall(Node *node, MlirBlock appendToBlock) {
-  TypeMapper typeMapper(context);
-  MlirLocation loc = getMlirLocationFromNode(context, node);
-  KernelCallBuilder kcb(context, loc, node->kind().toQualString(),
-                        node->schema());
-  for (MlirValue value : lookupMappedValues(node->inputs())) {
-    kcb.addOperand(value);
-  }
-  for (MlirType type : getMlirTypesFromValues(loc, node->outputs())) {
-    kcb.addResultType(type);
-  }
-  MlirOperation op = kcb.create();
-  mlirBlockAppendOwnedOperation(appendToBlock, op);
-  mapResults(node, op);
-}
-
-void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
-  if (node->kind().ns() == c10::namespaces::prim) {
-    importPrimNode(node, appendToBlock);
-    return;
-  }
-  if (node->maybeSchema()) {
-    importKernelCall(node, appendToBlock);
-    return;
-  }
-
-  {
-    std::stringstream msg;
-    msg << "unhandled: generic operation: ";
+    msg << "unhandled: could not import node: ";
     node->print(msg, 0, nullptr);
     mlirEmitError(getMlirLocationFromNode(context, node), msg.str().c_str());
     throw mlir_diagnostic_emitted();

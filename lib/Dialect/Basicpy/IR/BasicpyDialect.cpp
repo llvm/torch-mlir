@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
@@ -46,6 +47,7 @@ void BasicpyDialect::initialize() {
   addTypes<BoolType, BytesType, DictType, EllipsisType, ListType, NoneType,
            SlotObjectType, StrType, TupleType, UnknownType>();
   addInterfaces<BasicpyInlinerInterface>();
+  getContext()->getOrLoadDialect<StandardOpsDialect>();
 
   // TODO: Make real ops for everything we need.
   allowUnknownOperations();
@@ -54,6 +56,11 @@ void BasicpyDialect::initialize() {
 Operation *BasicpyDialect::materializeConstant(OpBuilder &builder,
                                                Attribute value, Type type,
                                                Location loc) {
+  // std.constant is used for literal i1 types (not !basicpy.BoolType).
+  if (auto integerType = type.dyn_cast<IntegerType>()) {
+    if (integerType.getWidth() == 1)
+      return builder.create<ConstantOp>(loc, value);
+  }
   // NumericConstantOp.
   // Supports IntegerType (any signedness), FloatType and ComplexType.
   if (type.isa<IntegerType>() || type.isa<FloatType>() ||
@@ -78,6 +85,9 @@ Operation *BasicpyDialect::materializeConstant(OpBuilder &builder,
     if (auto strValue = value.dyn_cast<StringAttr>())
       return builder.create<StrConstantOp>(loc, type, strValue);
   }
+
+  if (auto typeAttr = value.dyn_cast<TypeAttr>())
+    return builder.create<SingletonOp>(loc, typeAttr.getValue());
 
   return nullptr;
 }

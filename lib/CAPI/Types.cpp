@@ -188,3 +188,31 @@ int npcompTypeIsADevice(MlirType t) {
 MlirType npcompDeviceTypeGet(MlirContext context) {
   return wrap(Torch::DeviceType::get(unwrap(context)));
 }
+
+/*============================================================================*/
+/* torch.LinearParams type.                                                   */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.LinearParams type */
+int npcompTypeIsALinearParams(MlirType t) {
+  return unwrap(t).isa<Torch::LinearParamsType>();
+}
+
+/** Gets the !torch.LinearParams type. */
+MlirType npcompLinearParamsTypeGet(MlirContext context) {
+  return wrap(Torch::LinearParamsType::get(unwrap(context)));
+}
+
+/*============================================================================*/
+/* torch.qint8 type.                                                          */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.qint8 type */
+int npcompTypeIsAQInt8(MlirType t) {
+  return unwrap(t).isa<Torch::QInt8Type>();
+}
+
+/** Gets the !torch.qint8 type. */
+MlirType npcompQInt8TypeGet(MlirContext context) {
+  return wrap(Torch::QInt8Type::get(unwrap(context)));
+}

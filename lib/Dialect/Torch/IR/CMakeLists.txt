@@ -7,7 +7,6 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
 
   DEPENDS
   MLIRTorchOpsIncGen
-  MLIRTorchOpInterfacesIncGen
   MLIRTorchTypesIncGen
 
   LINK_COMPONENTS
@@ -20,4 +19,5 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
   MLIRSideEffectInterfaces
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
+  NPCOMPInterfaces
 )

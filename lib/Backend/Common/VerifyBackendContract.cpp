@@ -69,7 +69,9 @@ class VerifyBackendContractPass
 
     RewritePatternSet patterns(context);
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {
-      module.emitError()
+      // We avoid `module.emitError()` so that mlir-print-op-on-diagnostics
+      // doesn't unnecessarily spew out the entire module.
+      emitError(module.getLoc())
           << "Module does not conform to npcomp's backend contract. See "
              "dialect conversion legality information above.";
       return signalPassFailure();

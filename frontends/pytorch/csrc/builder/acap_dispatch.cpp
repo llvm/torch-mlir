@@ -43,17 +43,12 @@ static c10::DispatchKey kAcapDispatchKey = c10::DispatchKey::ACAP_DISPATCH_KEY;
 static c10::DispatchKey kAcapGradDispatchKey =
     c10::DispatchKey::ACAP_GRAD_DISPATCH_KEY;
 
-AcapController::TracedKernelCallBuilder::TracedKernelCallBuilder(
+AcapController::TracedSchemaOpBuilder::TracedSchemaOpBuilder(
     AcapController &parent, MlirContext context, MlirLocation loc,
-    const c10::OperatorHandle &opHandle,
-    c10::optional<std::string> overrideKernelName)
-    : KernelCallBuilder(context, loc,
-                        overrideKernelName ? *overrideKernelName
-                                           : opHandle.operator_name().name,
-                        opHandle.schema()),
-      parent(parent), opHandle(opHandle) {}
+    const c10::OperatorHandle &opHandle)
+    : parent(parent),  loc(loc), opHandle(opHandle) {}
 
-void AcapController::TracedKernelCallBuilder::addOperand(const IValue &value) {
+void AcapController::TracedSchemaOpBuilder::addOperand(const IValue &value) {
   MlirValue mlirValue = parent.mapIValueToMlirValue(loc, value);
   if (mlirValueIsNull(mlirValue)) {
     std::stringstream out;
@@ -62,10 +57,10 @@ void AcapController::TracedKernelCallBuilder::addOperand(const IValue &value) {
         << value.tagKind() << "): " << value;
     throw std::invalid_argument(out.str());
   }
-  KernelCallBuilder::addOperand(mlirValue);
+  operands.push_back(mlirValue);
 }
 
-void AcapController::TracedKernelCallBuilder::addResult(const IValue &value) {
+void AcapController::TracedSchemaOpBuilder::addResult(const IValue &value) {
   MlirType resultType = parent.mapIValueToMlirType(loc, value);
   if (mlirTypeIsNull(resultType)) {
     std::stringstream out;
@@ -77,13 +72,13 @@ void AcapController::TracedKernelCallBuilder::addResult(const IValue &value) {
   if (value.isTensor()) {
     resultIndexToTensorMap.emplace_back(resultCount++, value.toTensor());
   }
-  KernelCallBuilder::addResultType(resultType);
+  resultTypes.push_back(resultType);
 }
 
-MlirOperation AcapController::TracedKernelCallBuilder::create() {
-  MlirOperation op = KernelCallBuilder::create();
-  parent.funcBuilder->getEntryBlockBuilder().insertBeforeTerminator(op);
-
+MlirOperation AcapController::TracedSchemaOpBuilder::create() {
+  MlirOperation op =
+      createOperationFromSchema(parent.funcBuilder->getEntryBlock(), loc,
+                                opHandle.schema(), resultTypes, operands);
   // Map result tensors.
   for (auto &it : resultIndexToTensorMap) {
     MlirValue result = mlirOperationGetResult(op, it.first);
@@ -218,10 +213,10 @@ at::Tensor AcapController::convolutionKernel(
   MlirContext context = current->funcBuilder->getContext();
   MlirLocation loc = current->getCurrentLocation();
   std::string kernelName{"aten::convolution"};
-  TracedKernelCallBuilder callBuilder{*current, context, loc, *opHandle};
+  TracedSchemaOpBuilder opBuilder{*current, context, loc, *opHandle};
 
-  callBuilder.addOperand(IValue(input));
-  callBuilder.addOperand(IValue(weight));
+  opBuilder.addOperand(IValue(input));
+  opBuilder.addOperand(IValue(weight));
   // This is really sad: instead of storing a none in the optional, it stores
   // an undefined tensor, which cannot convert to an IValue :(
   // TODO: File PyTorch bug. Perhaps this is why they don't support boxing
@@ -232,19 +227,19 @@ at::Tensor AcapController::convolutionKernel(
   } else {
     biasIValue = IValue(c10::optional<at::Tensor>());
   }
-  callBuilder.addOperand(biasIValue);
-  callBuilder.addOperand(IValue(stride));
-  callBuilder.addOperand(IValue(padding));
-  callBuilder.addOperand(IValue(dilation));
-  callBuilder.addOperand(IValue(transposed));
-  callBuilder.addOperand(IValue(output_padding));
-  callBuilder.addOperand(IValue(groups));
+  opBuilder.addOperand(biasIValue);
+  opBuilder.addOperand(IValue(stride));
+  opBuilder.addOperand(IValue(padding));
+  opBuilder.addOperand(IValue(dilation));
+  opBuilder.addOperand(IValue(transposed));
+  opBuilder.addOperand(IValue(output_padding));
+  opBuilder.addOperand(IValue(groups));
 
   auto result = opTyped.redispatch(
       c10::DispatchKeySet({c10::DispatchKey::AutogradOther}), input, weight, bias, stride, padding,
       dilation, transposed, output_padding, groups);
-  callBuilder.addResult(result);
-  callBuilder.create();
+  opBuilder.addResult(result);
+  opBuilder.create();
   return result;
 }
 
@@ -298,29 +293,28 @@ AcapController::mklConvolutionBackward(
                                       ""};
   auto emitOpHandle = dispatcher.findOp(emitOpName);
   assert(emitOpHandle && "could not find convolution_backward_overrideable op");
-  TracedKernelCallBuilder callBuilder{*current, context, loc, *emitOpHandle,
-                                      kernelName};
+  TracedSchemaOpBuilder opBuilder{*current, context, loc, *emitOpHandle};
 
-  callBuilder.addOperand(IValue(grad_output));
-  callBuilder.addOperand(IValue(input));
-  callBuilder.addOperand(IValue(weight));
-  callBuilder.addOperand(IValue(stride));
-  callBuilder.addOperand(IValue(padding));
-  callBuilder.addOperand(IValue(dilation));
-  callBuilder.addOperand(IValue(false));
+  opBuilder.addOperand(IValue(grad_output));
+  opBuilder.addOperand(IValue(input));
+  opBuilder.addOperand(IValue(weight));
+  opBuilder.addOperand(IValue(stride));
+  opBuilder.addOperand(IValue(padding));
+  opBuilder.addOperand(IValue(dilation));
+  opBuilder.addOperand(IValue(false));
   std::vector<int64_t> output_padding(padding.size()); // Not provided.
-  callBuilder.addOperand(IValue(at::IntArrayRef(output_padding)));
-  callBuilder.addOperand(IValue(groups));
-  callBuilder.addOperand(IValue(output_mask));
+  opBuilder.addOperand(IValue(at::IntArrayRef(output_padding)));
+  opBuilder.addOperand(IValue(groups));
+  opBuilder.addOperand(IValue(output_mask));
 
   auto results = opTyped.redispatch(
       c10::DispatchKeySet({c10::DispatchKey::AutogradCPU}), input, grad_output, weight, padding,
       stride, dilation, groups, output_mask);
 
-  callBuilder.addResult(std::get<0>(results));
-  callBuilder.addResult(std::get<1>(results));
-  callBuilder.addResult(std::get<2>(results));
-  callBuilder.create();
+  opBuilder.addResult(std::get<0>(results));
+  opBuilder.addResult(std::get<1>(results));
+  opBuilder.addResult(std::get<2>(results));
+  opBuilder.create();
   return results;
 }
 
@@ -352,14 +346,14 @@ at::Tensor &AcapController::copyUnderKernel(at::Tensor &self,
 
   MlirContext context = current->funcBuilder->getContext();
   MlirLocation loc = current->getCurrentLocation();
-  TracedKernelCallBuilder callBuilder{*current, context, loc, *opHandle};
+  TracedSchemaOpBuilder opBuilder{*current, context, loc, *opHandle};
 
-  callBuilder.addOperand(IValue(self));
-  callBuilder.addOperand(IValue(src));
+  opBuilder.addOperand(IValue(self));
+  opBuilder.addOperand(IValue(src));
   auto &result = opTyped.redispatch(c10::DispatchKeySet({c10::DispatchKey::CPU}), self, src,
                                              non_blocking);
-  callBuilder.addResult(result);
-  callBuilder.create();
+  opBuilder.addResult(result);
+  opBuilder.create();
   return result;
 }
 
@@ -416,7 +410,7 @@ void AcapController::fallbackKernelImpl(
   MlirContext context = funcBuilder->getContext();
   MlirLocation loc = getCurrentLocation();
   auto kernelName = schema.name();
-  TracedKernelCallBuilder callBuilder{*this, context, loc, opHandle};
+  TracedSchemaOpBuilder opBuilder{*this, context, loc, opHandle};
 
   // Map arguments to operands.
   // This must be accumulated into the OperationState prior to re-dispatch
@@ -424,7 +418,7 @@ void AcapController::fallbackKernelImpl(
   size_t argCount = schema.arguments().size();
   assert(stack->size() >= argCount && "stack too short");
   for (auto argIt = stack->end() - argCount; argIt != stack->end(); ++argIt) {
-    callBuilder.addOperand(*argIt);
+    opBuilder.addOperand(*argIt);
   }
 
   // Invoke the original kernel.
@@ -435,10 +429,10 @@ void AcapController::fallbackKernelImpl(
   assert(stack->size() >= returnCount && "stack too short");
   for (auto returnIt = stack->end() - returnCount; returnIt != stack->end();
        ++returnIt) {
-    callBuilder.addResult(*returnIt);
+    opBuilder.addResult(*returnIt);
   }
 
-  callBuilder.create();
+  opBuilder.create();
 }
 
 MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,

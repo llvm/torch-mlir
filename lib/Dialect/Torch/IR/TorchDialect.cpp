@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Numpy/IR/NumpyDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchTypes.h"
@@ -54,6 +57,8 @@ void TorchDialect::initialize() {
 #include "npcomp/Dialect/Torch/IR/TorchTypes.cpp.inc"
       >();
   addInterfaces<TorchInlinerInterface>();
+  getContext()->loadDialect<StandardOpsDialect>();
+  getContext()->loadDialect<Basicpy::BasicpyDialect>();
 }
 
 Type TorchDialect::parseType(DialectAsmParser &parser) const {
@@ -99,4 +104,14 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
                          << "'";
 }
 
-#include "npcomp/Dialect/Torch/IR/OpInterfaces.h"
+Operation *TorchDialect::materializeConstant(OpBuilder &builder,
+                                             Attribute value, Type type,
+                                             Location loc) {
+  // Bool (i1 -> !basicpy.BoolType).
+  if (type.isa<Basicpy::BoolType>()) {
+    auto i1Value = value.dyn_cast<IntegerAttr>();
+    if (i1Value && i1Value.getType().getIntOrFloatBitWidth() == 1)
+      return builder.create<Basicpy::BoolConstantOp>(loc, type, i1Value);
+  }
+  return nullptr;
+}

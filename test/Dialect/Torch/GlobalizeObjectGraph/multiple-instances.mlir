@@ -46,20 +46,20 @@ func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.Te
 // CHECK-LABEL:   func private @s1.forward() {
 // CHECK:           %[[C1:.*]] = constant 1 : i64
 // CHECK:           %[[N:.*]] = torch.global_slot.get @s1.n : i64
-// CHECK:           %[[NEWVAL:.*]] = torch.kernel_call "aten::add" %[[N]], %[[C1]] : (i64, i64) -> i64 {sigArgTypes = ["int", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["int"]}
+// CHECK:           %[[NEWVAL:.*]] = addi %[[N]], %[[C1]] : i64
 // CHECK:           torch.global_slot.set @s1.n = %[[NEWVAL]] : i64
 // CHECK:           return
 
 // CHECK-LABEL:   func private @s2.forward() {
 // CHECK:           %[[C1:.*]] = constant 1 : i64
 // CHECK:           %[[N:.*]] = torch.global_slot.get @s2.n : i64
-// CHECK:           %[[NEWVAL:.*]] = torch.kernel_call "aten::add" %[[N]], %[[C1]] : (i64, i64) -> i64 {sigArgTypes = ["int", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["int"]}
+// CHECK:           %[[NEWVAL:.*]] = addi %[[N]], %[[C1]] : i64
 // CHECK:           torch.global_slot.set @s2.n = %[[NEWVAL]] : i64
 // CHECK:           return
 func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
   %c1_i64 = constant 1 : i64
   %5 = torch.prim.GetAttr %arg0["n"] : !torch.nn.Module<"__torch__.Submodule"> -> i64
-  %6 = torch.kernel_call "aten::add" %5, %c1_i64 : (i64, i64) -> i64 {sigArgTypes = ["int", "int"], sigIsMutable = false, sigIsVararg = false, sigIsVarret = false, sigRetTypes = ["int"]}
+  %6 = addi %5, %c1_i64 : i64
   torch.prim.SetAttr %arg0["n"] = %6 : !torch.nn.Module<"__torch__.Submodule">, i64
   return
 }
