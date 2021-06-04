@@ -132,6 +132,21 @@ LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimListConstructOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(PrimListConstructOp op) {
+  auto resultType = op.getResult().getType();
+  auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
+  auto matchResultElementType = [&](Type type) {
+    return type.classof(resultElementType);
+  };
+  if (llvm::all_of(op->getOperandTypes(), matchResultElementType))
+    return success();
+  else return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // ClassTypeOp
 //===----------------------------------------------------------------------===//
 
@@ -246,9 +261,9 @@ OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
   // `len([1,1,1])` -> `3`
-  if (auto buildList = getOperand().getDefiningOp<Basicpy::BuildListOp>()) {
+  if (auto listConstruct = getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
     return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                            buildList.getNumOperands());
+                            listConstruct.getNumOperands());
   }
   return nullptr;
 }
@@ -288,8 +303,8 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       listElements.push_back(rewriter.create<::mlir::ConstantOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
-    rewriter.replaceOpWithNewOp<Basicpy::BuildListOp>(
-        op, Basicpy::ListType::get(rewriter.getContext()), listElements);
+    rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
+        op, Torch::ListType::get(rewriter.getI64Type()), listElements);
     return success();
   });
   // One-off pattern to erase if dead.

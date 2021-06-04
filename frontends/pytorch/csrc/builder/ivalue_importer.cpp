@@ -270,8 +270,10 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
       elems.push_back(importIValue(elem));
     }
     MlirOperation operation =
-        createMlirOperationAtEnd(importBlock, "basicpy.build_list", loc,
-                                 npcompListTypeGet(context), elems);
+        createMlirOperationAtEnd(importBlock, "torch.prim.ListConstruct", loc,
+                                 npcompListTypeGet(
+                                   typeMapper.mapFromTorchType(
+                                     loc, list.elementType())), elems);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTuple()) {

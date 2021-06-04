@@ -181,8 +181,9 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompBoolTypeGet(context);
   }
   case TypeKind::ListType: {
-    // TODO: Don't lose the element type information.
-    return npcompListTypeGet(context);
+    return npcompListTypeGet(
+        mapFromTorchType(
+            loc, torchType->cast<c10::ListType>()->getElementType()));
   }
   case TypeKind::TupleType: {
     // TODO: Don't lose the element type information.

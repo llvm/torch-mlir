@@ -62,10 +62,10 @@ MlirType npcompDictTypeGet(MlirContext context);
 /*============================================================================*/
 
 /** Checks whether the given type is the Python "list" type. */
-int npcompTypeIsAList(MlirType t);
+int npcompTypeIsABasicpyList(MlirType t);
 
 /** Gets the generic Python "list" type. */
-MlirType npcompListTypeGet(MlirContext context);
+MlirType npcompBaiscpyListTypeGet(MlirContext context);
 
 /*============================================================================*/
 /* NDArray type.                                                              */
@@ -136,6 +136,16 @@ int npcompTypeIsAOptional(MlirType t);
 
 /** Gets the !torch.optional<T> type with subtype T. */
 MlirType npcompOptionalTypeGet(MlirType containedType);
+
+/*============================================================================*/
+/* torch.list type.                                                           */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.list<T> type */
+int npcompTypeIsAList(MlirType t);
+
+/** Gets the !torch.list<T> type with subtype T. */
+MlirType npcompListTypeGet(MlirType containedType);
 
 /*============================================================================*/
 /* torch.Device type.                                                         */

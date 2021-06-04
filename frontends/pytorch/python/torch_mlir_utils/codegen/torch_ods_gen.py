@@ -224,7 +224,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "bool": "AnyTorchBoolType",
     "bool[]": "AnyTorchBoolListType",
     "float": "AnyFloat",
-    "t[]": "Basicpy_ListType",
+    "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",
     "t2": "AnyTorchType",

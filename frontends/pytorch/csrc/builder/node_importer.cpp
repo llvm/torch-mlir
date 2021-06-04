@@ -82,6 +82,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   // Builtin interpreter ops with no operator/schema.
   switch (kind) {
   case c10::prim::ListUnpack:
+  case c10::prim::ListConstruct:
     createAndMapTrivialNode(node,
                             "torch.prim." + std::string(kind.toUnqualString()));
     return;
@@ -96,10 +97,6 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 
   // Ops trivially lowered through `basicpy` dialect.
   switch (kind) {
-  case c10::prim::ListConstruct: {
-    createAndMapTrivialNode(node, "basicpy.build_list");
-    return;
-  }
   case c10::prim::TupleConstruct: {
     createAndMapTrivialNode(node, "basicpy.build_tuple");
     return;

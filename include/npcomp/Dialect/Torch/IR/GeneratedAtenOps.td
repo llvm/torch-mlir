@@ -382,7 +382,7 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
   ]> {
   let summary = "Generated op for `aten::len.t : (t[]) -> (int)`";
   let arguments = (ins
-    Basicpy_ListType:$a
+    AnyTorchListType:$a
   );
   let results = (outs
     AnyTorchIntType:$result

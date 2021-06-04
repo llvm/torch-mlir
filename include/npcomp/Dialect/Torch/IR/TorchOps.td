@@ -322,6 +322,26 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
   }];
 }
 
+def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
+    NoSideEffect,
+    AllowsTypeRefinement,
+    ]> {
+  let summary = "TorchScript prim::ListConstruct op";
+
+  let arguments = (ins
+    Variadic<AnyTorchType>:$elements
+  );
+  let results = (outs
+    AnyTorchListType:$result
+  );
+
+  let verifier = "return ::verify(*this);";
+
+  let assemblyFormat = [{
+    $elements attr-dict `:` functional-type(operands, results)
+  }];
+}
+
 def Torch_PrimGetAttrOp : Torch_Op<"prim.GetAttr", []> {
   let summary = "TorchScript prim::GetAttr op";
 

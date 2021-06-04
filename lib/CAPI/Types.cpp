@@ -69,10 +69,10 @@ MlirType npcompDictTypeGet(MlirContext context) {
 /*============================================================================*/
 
 /** Checks whether the given type is the Python "list" type. */
-int npcompTypeIsAList(MlirType t) { return unwrap(t).isa<Basicpy::ListType>(); }
+int npcompTypeIsABasicpyList(MlirType t) { return unwrap(t).isa<Basicpy::ListType>(); }
 
 /** Gets the generic Python "dict" type. */
-MlirType npcompListTypeGet(MlirContext context) {
+MlirType npcompBaiscpyListTypeGet(MlirContext context) {
   return wrap(Basicpy::ListType::get(unwrap(context)));
 }
 
@@ -173,6 +173,19 @@ int npcompTypeIsAOptional(MlirType t) {
 /** Gets the !torch.optional<T> type with subtype T. */
 MlirType npcompOptionalTypeGet(MlirType containedType) {
   return wrap(Torch::OptionalType::get(unwrap(containedType)));
+}
+
+/*============================================================================*/
+/* torch.list type.                                                           */
+/*============================================================================*/
+/** Checks whether the given type is a !torch.list<T> type */
+int npcompTypeIsAList(MlirType t) {
+  return unwrap(t).isa<Torch::ListType>();
+}
+
+/** Gets the !torch.List<T> type with subtype T. */
+MlirType npcompListTypeGet(MlirType containedType) {
+  return wrap(Torch::ListType::get(unwrap(containedType)));
 }
 
 /*============================================================================*/
