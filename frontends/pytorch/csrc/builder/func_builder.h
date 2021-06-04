@@ -117,7 +117,8 @@ public:
   MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
 
   /// Builds a list with the given elements
-  MlirValue buildList(MlirLocation loc, std::vector<MlirValue> &elements);
+  MlirValue buildList(MlirLocation loc, MlirType elementType,
+                      std::vector<MlirValue> &elements);
 
 private:
   FuncBuilder(MlirContext context, MlirOperation funcOp,

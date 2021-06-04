@@ -130,10 +130,10 @@ MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
   return insertConstantOp(OpBuilder(context).createStdConstant(loc, value));
 }
 
-MlirValue FuncBuilder::buildList(MlirLocation loc,
+MlirValue FuncBuilder::buildList(MlirLocation loc, MlirType elementType,
                                  std::vector<MlirValue> &elements) {
-  MlirType resultType = npcompListTypeGet(context);
-  OperationStateHolder state{"basicpy.build_list", loc};
+  MlirType resultType = npcompListTypeGet(elementType);
+  OperationStateHolder state{"torch.prim.ListConstruct", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
   mlirOperationStateAddOperands(state, elements.size(), elements.data());
   MlirOperation op = state.createOperation();

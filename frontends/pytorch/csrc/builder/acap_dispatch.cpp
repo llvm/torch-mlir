@@ -468,7 +468,8 @@ MlirValue AcapController::mapIValueToMlirValue(MlirLocation loc,
     for (IValue element : list) {
       elements.push_back(mapIValueToMlirValue(loc, element));
     }
-    return funcBuilder->buildList(loc, elements);
+    return funcBuilder->buildList(loc,
+                typeMapper.mapFromTorchType(loc, list.elementType()), elements);
   }
   if (ival.isNone()) {
     return funcBuilder->getNoneConstant(loc);
@@ -511,7 +512,9 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
     return mlirIntegerTypeGet(funcBuilder->getContext(), 1);
   }
   if (ival.isList()) {
-    return npcompListTypeGet(funcBuilder->getContext());
+    return npcompListTypeGet(
+            typeMapper.mapFromTorchType(
+                loc, ival.toList().elementType()));
   }
   if (ival.isNone()) {
     return npcompNoneTypeGet(funcBuilder->getContext());

@@ -21,8 +21,8 @@ mb = torch_mlir.ModuleBuilder()
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        # CHECK: %[[L2:.*]] = basicpy.build_list
-        # CHECK: %[[L1:.*]] = basicpy.build_list
+        # CHECK: %[[L2:.*]] = torch.prim.ListConstruct
+        # CHECK: %[[L1:.*]] = torch.prim.ListConstruct
         # CHECK: torch.nn_module {
         # CHECK:   torch.slot "l2", %[[L2]]
         # CHECK:   torch.slot "l1", %[[L1]]

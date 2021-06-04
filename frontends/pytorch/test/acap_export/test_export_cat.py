@@ -40,7 +40,7 @@ with mb.capture_function("conv_cat", [inputs, target]) as f:
 
 # CHECK: "aten.convolution"
 # CHECK: "aten.convolution"
-# CHECK: basicpy.build_list
+# CHECK: torch.prim.ListConstruct
 # CHECK: "aten._cat"
 # CHECK: "aten._log_softmax"
 # CHECK: "aten.nll_loss2d_forward"

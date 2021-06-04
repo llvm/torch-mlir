@@ -21,6 +21,31 @@ class Torch_Type<string name, string typeMnemonic,
   let mnemonic = typeMnemonic;
 }
 
+class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type<name, typeMnemonic> {
+  let parameters = (ins "::mlir::Type":$containedType);
+
+  let printer = [{
+    $_printer << getMnemonic() << "<" << getImpl()->containedType << ">";
+  }];
+
+  let parser = [{
+    if (parser.parseLess())
+      return Type();
+    Type containedType;
+    if ($_parser.parseType(containedType))
+      return Type();
+    if ($_parser.parseGreater())
+      return Type();
+    return get($_ctxt, containedType);
+  }];
+
+  let builders = [
+    TypeBuilderWithInferredContext<(ins "::mlir::Type":$containedType), [{
+      return Base::get(containedType.getContext(), containedType);
+    }]>
+  ];
+}
+
 def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   let summary = "torch.nn.Module";
   let description = [{
@@ -195,32 +220,16 @@ def AnyTorchTensorType : Type<
 // For now, we only need it as a stand-in type to allow importing
 // the `_is_full_backward_hook` optional bool type that Torch puts on
 // all classes.
-def Torch_OptionalType : Torch_Type<"Optional", "optional"> {
+def Torch_OptionalType : Torch_TypeWithContainedType<"Optional", "optional"> {
   let summary = "!torch.optional<T>";
   let description = [{
   }];
-  let parameters = (ins "::mlir::Type":$containedType);
+}
 
-  let printer = [{
-    $_printer << "optional<" << getImpl()->containedType << ">";
+def Torch_ListType : Torch_TypeWithContainedType<"List", "list"> {
+  let summary = "!torch.list<T>";
+  let description = [{
   }];
-
-  let parser = [{
-    if (parser.parseLess())
-      return Type();
-    Type containedType;
-    if ($_parser.parseType(containedType))
-      return Type();
-    if ($_parser.parseGreater())
-      return Type();
-    return get($_ctxt, containedType);
-  }];
-
-  let builders = [
-    TypeBuilderWithInferredContext<(ins "::mlir::Type":$containedType), [{
-      return Base::get(containedType.getContext(), containedType);
-    }]>
-  ];
 }
 
 def Torch_DeviceType : Torch_Type<"Device", "Device"> {
@@ -279,6 +288,13 @@ def AnyTorchScalarType : AnyTypeOf<[
     AnySignlessInteger,
   ], "Any primitive type suitable to be passed as a Torch Scalar">;
 
+def IsListTypePred : CPred<"$_self.isa<::mlir::NPCOMP::Torch::ListType>()">;
+
+class ListOf<list<Type> allowedTypes, string descr> :
+          ContainerType<AnyTypeOf<allowedTypes>, IsListTypePred,
+            "$_self.cast<::mlir::NPCOMP::Torch::ListType>().getContainedType()",
+              descr, "::mlir::NPCOMP::Torch::ListType">;
+
 def AnyTorchNumberType : AnyTypeOf<[
     AnySignedInteger,
     AnyFloat,
@@ -293,33 +309,29 @@ def AnyTorchBoolType : AnyTypeOf<[
     Basicpy_BoolType,
 ], "Any permissible bool type">;
 
-def AnyTorchBoolListType : AnyTypeOf<[
-    Basicpy_ListType,
-    // TODO: Support typed list when available.
-], "Any bool list type (bool[])">;
+def AnyTorchBoolListType : ListOf<[AnyTorchBoolType], "Any bool list type (bool[])">;
 
 def AnyTorchIntType : AnyTypeOf<[
     AnySignedInteger,
     AnySignlessInteger,
 ], "Any primitive integer type suitable to be passed as a Torch 'int'">;
 
-def AnyTorchIntListType : AnyTypeOf<[
-    Basicpy_ListType,
-    // TODO: Support typed list when available.
-], "Any int list type (int[])">;
+def AnyTorchIntListType : ListOf<[AnyTorchIntType], "Any int list type (int[])">;
 
 def AnyTorchType : AnyTypeOf<[
     AnyTorchBoolType,
     AnyTorchScalarType,
     AnyTorchTensorType,
-    Basicpy_ListType,
     Basicpy_TupleType,
     Basicpy_NoneType,
     Basicpy_BytesType,
     Torch_NnModuleType,
     Torch_OptionalType,
+    Torch_ListType,
     Torch_DeviceType,
     Torch_LinearParamsType,
   ], "Any type that is legal to pass to a Torch kernel">;
+
+def AnyTorchListType : ListOf<[AnyType], "Any Torch list Type">;
 
 #endif // TORCH_TYPES

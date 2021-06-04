@@ -11,9 +11,9 @@ mb = torch_mlir.ModuleBuilder()
 
 # CHECK-LABEL:   func @__torch__.f(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
-# CHECK-SAME:            %[[T1:.*]]: !torch.tensor) -> !basicpy.ListType {
-# CHECK:           %[[RET:.*]] = basicpy.build_list %[[T0]], %[[T1]] : (!torch.tensor, !torch.tensor) -> !basicpy.ListType
-# CHECK:           return %[[RET]] : !basicpy.ListType
+# CHECK-SAME:            %[[T1:.*]]: !torch.tensor) -> !torch.list<!torch.tensor> {
+# CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %[[T0]], %[[T1]] : (!torch.tensor, !torch.tensor) -> !torch.list<!torch.tensor>
+# CHECK:           return %[[RET]] : !torch.list<!torch.tensor>
 
 @mb.import_function
 @torch.jit.script

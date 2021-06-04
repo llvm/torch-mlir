@@ -11,6 +11,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
@@ -132,6 +133,21 @@ LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 //===----------------------------------------------------------------------===//
+// PrimListConstructOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(PrimListConstructOp op) {
+  auto resultType = op.getResult().getType();
+  auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
+  auto matchResultElementType = [&](Type type) {
+    return type.getTypeID() == resultElementType.getTypeID();
+  };
+  if (llvm::all_of(op->getOperandTypes(), matchResultElementType))
+    return success();
+  else return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // ClassTypeOp
 //===----------------------------------------------------------------------===//
 
@@ -246,9 +262,9 @@ OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
   // `len([1,1,1])` -> `3`
-  if (auto buildList = getOperand().getDefiningOp<Basicpy::BuildListOp>()) {
+  if (auto listConstruct = getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
     return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                            buildList.getNumOperands());
+                            listConstruct.getNumOperands());
   }
   return nullptr;
 }
@@ -288,8 +304,8 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       listElements.push_back(rewriter.create<::mlir::ConstantOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
-    rewriter.replaceOpWithNewOp<Basicpy::BuildListOp>(
-        op, Basicpy::ListType::get(rewriter.getContext()), listElements);
+    rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
+        op, Torch::ListType::get(rewriter.getI64Type()), listElements);
     return success();
   });
   // One-off pattern to erase if dead.
@@ -423,6 +439,31 @@ LogicalResult FromBuiltinTensorOp::inferReturnTypes(
   inferredReturnTypes.push_back(
       ValueTensorType::getFromShaped(operands[0].getType().cast<TensorType>()));
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Getitem__TOp
+//===----------------------------------------------------------------------===//
+
+void Aten__Getitem__TOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                     MLIRContext *context) {
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto torchList = op.getOperand(0);
+    if(!torchList.hasOneUse())
+      return failure();
+
+    auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listConstruct)
+      return failure();
+
+    APInt indexAP;
+    if (!matchPattern(op.getOperand(1), m_ConstantInt(&indexAP)))
+      return failure();
+
+    auto index = indexAP.getSExtValue();
+    rewriter.replaceOp(op, {listConstruct.getOperand(index)});
+    return success();
+  });
 }
 
 #define GET_OP_CLASSES
