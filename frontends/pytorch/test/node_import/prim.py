@@ -84,8 +84,8 @@ def prim_TupleIndex(tup: typing.Tuple[int, int]):
     return tup[0]
 
 # CHECK-LABEL:   func @__torch__.prim_ListUnpack(
-# CHECK-SAME:                     %[[ARG:.*]]: !basicpy.ListType) -> i64 {
-# CHECK:           %[[RET:.*]]:3 = torch.prim.ListUnpack %[[ARG]] : !basicpy.ListType -> i64, i64
+# CHECK-SAME:                     %[[ARG:.*]]: !torch.list<i64>) -> i64 {
+# CHECK:           %[[RET:.*]]:3 = torch.prim.ListUnpack %[[ARG]] : !torch.list<i64> -> i64, i64
 # CHECK:           return %[[RET]]#1 : i64
 @mb.import_function
 @torch.jit.script
@@ -122,11 +122,11 @@ def prim_device(x):
 
 # CHECK-LABEL:   func @__torch__.prim_min(
 # CHECK-SAME:                             %[[ARG:.*]]: i64) -> !basicpy.TupleType {
-# CHECK:           %[[SINGLETON:.*]] = basicpy.build_list %[[ARG]] : (i64) -> !basicpy.ListType
-# CHECK:           %[[MIN1:.*]] = torch.prim.min.self_int %[[SINGLETON]] : !basicpy.ListType -> i64
+# CHECK:           %[[SINGLETON:.*]] = torch.prim.ListConstruct %[[ARG]] : (i64) -> !torch.list<i64>
+# CHECK:           %[[MIN1:.*]] = torch.prim.min.self_int %[[SINGLETON]] : !torch.list<i64> -> i64
 # CHECK:           %[[MIN2:.*]] = torch.prim.min.int %[[ARG]], %[[ARG]] : i64, i64 -> i64
-# CHECK:           %[[ARG_3_TIMES:.*]] = basicpy.build_list %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !basicpy.ListType
-# CHECK:           %[[MIN3:.*]] = torch.prim.min.self_int %[[ARG_3_TIMES]] : !basicpy.ListType -> i64
+# CHECK:           %[[ARG_3_TIMES:.*]] = torch.prim.ListConstruct %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !torch.list<i64>
+# CHECK:           %[[MIN3:.*]] = torch.prim.min.self_int %[[ARG_3_TIMES]] : !torch.list<i64> -> i64
 # CHECK:           %[[RET:.*]] = basicpy.build_tuple %[[MIN1]], %[[MIN2]], %[[MIN3]] : (i64, i64, i64) -> !basicpy.TupleType
 # CHECK:           return %[[RET]] : !basicpy.TupleType
 @mb.import_function
@@ -136,11 +136,11 @@ def prim_min(x: int):
 
 # CHECK-LABEL:   func @__torch__.prim_max(
 # CHECK-SAME:                             %[[ARG:.*]]: i64) -> !basicpy.TupleType {
-# CHECK:           %[[SINGLETON:.*]] = basicpy.build_list %[[ARG]] : (i64) -> !basicpy.ListType
-# CHECK:           %[[MAX1:.*]] = torch.prim.max.self_int %[[SINGLETON]] : !basicpy.ListType -> i64
+# CHECK:           %[[SINGLETON:.*]] = torch.prim.ListConstruct %[[ARG]] : (i64) -> !torch.list<i64>
+# CHECK:           %[[MAX1:.*]] = torch.prim.max.self_int %[[SINGLETON]] : !torch.list<i64> -> i64
 # CHECK:           %[[MAX2:.*]] = torch.prim.max.int %[[ARG]], %[[ARG]] : i64, i64 -> i64
-# CHECK:           %[[ARG_3_TIMES:.*]] = basicpy.build_list %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !basicpy.ListType
-# CHECK:           %[[MAX3:.*]] = torch.prim.max.self_int %[[ARG_3_TIMES]] : !basicpy.ListType -> i64
+# CHECK:           %[[ARG_3_TIMES:.*]] = torch.prim.ListConstruct %[[ARG]], %[[ARG]], %[[ARG]] : (i64, i64, i64) -> !torch.list<i64>
+# CHECK:           %[[MAX3:.*]] = torch.prim.max.self_int %[[ARG_3_TIMES]] : !torch.list<i64> -> i64
 # CHECK:           %[[RET:.*]] = basicpy.build_tuple %[[MAX1]], %[[MAX2]], %[[MAX3]] : (i64, i64, i64) -> !basicpy.TupleType
 # CHECK:           return %[[RET]] : !basicpy.TupleType
 @mb.import_function

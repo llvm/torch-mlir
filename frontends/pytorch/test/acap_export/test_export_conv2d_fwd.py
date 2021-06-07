@@ -45,11 +45,11 @@ with mb.capture_function("conv2d_fwd", [tensor]) as f:
 # CHECK:           %[[VAL_10:.*]] = constant 1 : i64
 # CHECK:           %[[VAL_11:.*]] = torch.tensor(opaque<"_", "0xDEADBEEF"> : tensor<4x16x3x3xf32>) : !torch.tensor<[4,16,3,3],f32>
 # CHECK:           %[[VAL_12:.*]] = torch.tensor(opaque<"_", "0xDEADBEEF"> : tensor<4xf32>) : !torch.tensor<[4],f32>
-# CHECK:           %[[VAL_13:.*]] = basicpy.build_list %[[VAL_1]], %[[VAL_2]] : (i64, i64) -> !basicpy.ListType
-# CHECK:           %[[VAL_14:.*]] = basicpy.build_list %[[VAL_3]], %[[VAL_4]] : (i64, i64) -> !basicpy.ListType
-# CHECK:           %[[VAL_15:.*]] = basicpy.build_list %[[VAL_5]], %[[VAL_6]] : (i64, i64) -> !basicpy.ListType
-# CHECK:           %[[VAL_16:.*]] = basicpy.build_list %[[VAL_8]], %[[VAL_9]] : (i64, i64) -> !basicpy.ListType
-# CHECK:           %[[VAL_17:.*]] = torch.operator "aten.convolution"(%[[VAL_0]], %[[VAL_11]], %[[VAL_12]], %[[VAL_13]], %[[VAL_14]], %[[VAL_15]], %[[VAL_7]], %[[VAL_16]], %[[VAL_10]]) : (!torch.tensor<[3,16,10,10],f32>, !torch.tensor<[4,16,3,3],f32>, !torch.tensor<[4],f32>, !basicpy.ListType, !basicpy.ListType, !basicpy.ListType, !basicpy.BoolType, !basicpy.ListType, i64) -> !torch.tensor<[3,4,8,8],f32>
+# CHECK:           %[[VAL_13:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_2]] : (i64, i64) -> !torch.list<i64>
+# CHECK:           %[[VAL_14:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (i64, i64) -> !torch.list<i64>
+# CHECK:           %[[VAL_15:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (i64, i64) -> !torch.list<i64>
+# CHECK:           %[[VAL_16:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (i64, i64) -> !torch.list<i64>
+# CHECK:           %[[VAL_17:.*]] = torch.operator "aten.convolution"(%[[VAL_0]], %[[VAL_11]], %[[VAL_12]], %[[VAL_13]], %[[VAL_14]], %[[VAL_15]], %[[VAL_7]], %[[VAL_16]], %[[VAL_10]]) : (!torch.tensor<[3,16,10,10],f32>, !torch.tensor<[4,16,3,3],f32>, !torch.tensor<[4],f32>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !basicpy.BoolType, !torch.list<i64>, i64) -> !torch.tensor<[3,4,8,8],f32>
 # CHECK:           return %[[VAL_17]] : !torch.tensor<[3,4,8,8],f32>
 # CHECK:         }
 
