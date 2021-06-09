@@ -440,5 +440,31 @@ LogicalResult FromBuiltinTensorOp::inferReturnTypes(
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// Aten__Getitem__TOp
+//===----------------------------------------------------------------------===//
+
+void Aten__Getitem__TOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                     MLIRContext *context) {
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto torchList = op.getOperand(0);
+    if(!torchList.hasOneUse())
+      return failure();
+
+    auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listConstruct)
+      return failure();
+
+    auto constantIndexOp = op.getOperand(1).getDefiningOp<::mlir::ConstantOp>();
+    if (!constantIndexOp)
+      return failure();
+
+    auto attr = constantIndexOp->getAttrOfType<::mlir::IntegerAttr>("value");
+    auto index = attr.getValue().getSExtValue();
+    rewriter.replaceOp(op, {listConstruct.getOperand(index)});
+    return success();
+  });
+}
+
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"

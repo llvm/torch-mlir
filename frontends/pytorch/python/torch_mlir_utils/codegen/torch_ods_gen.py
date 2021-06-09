@@ -455,6 +455,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::len.t : (t[]) -> (int)",
              has_folder=True,
              has_canonicalizer=True)
+        emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
+        emit("aten::_set_item.t : (t[], int, t) -> (t[])")
 
 
 def emit_quantized_ops(torch_ir_dir: str, registry: Registry):

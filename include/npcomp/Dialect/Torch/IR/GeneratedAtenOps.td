@@ -392,3 +392,33 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
   let hasCanonicalizer = 1;
 }
 
+def Torch_Aten__Getitem__TOp : Torch_Op<"aten.__getitem__.t", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::__getitem__.t : (t[], int) -> (t)`";
+  let arguments = (ins
+    AnyTorchListType:$list,
+    AnyTorchIntType:$idx
+  );
+  let results = (outs
+    AnyTorchType:$result
+  );
+  let assemblyFormat = "$list `,` $idx attr-dict `:` type($list) `,` type($idx) `->` type($result)";
+  let hasCanonicalizer = 1;
+}
+
+def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::_set_item.t : (t[], int, t) -> (t[])`";
+  let arguments = (ins
+    AnyTorchListType:$l,
+    AnyTorchIntType:$idx,
+    AnyTorchType:$el
+  );
+  let results = (outs
+    AnyTorchListType:$result
+  );
+  let assemblyFormat = "$l `,` $idx `,` $el attr-dict `:` type($l) `,` type($idx) `,` type($el) `->` type($result)";
+}
+
