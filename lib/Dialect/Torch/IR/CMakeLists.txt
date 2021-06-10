@@ -1,6 +1,7 @@
 add_npcomp_dialect_library(NPCOMPTorchDialect
   TorchDialect.cpp
   TorchOps.cpp
+  TorchTypes.cpp
   TorchUtils.cpp
 
   ADDITIONAL_HEADER_DIRS

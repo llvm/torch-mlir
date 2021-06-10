@@ -9,7 +9,7 @@
 #ifndef NPCOMP_DIALECT_TORCH_IR_TORCHTYPES_H
 #define NPCOMP_DIALECT_TORCH_IR_TORCHTYPES_H
 
-#include "mlir/IR/Types.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 namespace mlir {
 namespace NPCOMP {
