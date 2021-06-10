@@ -96,8 +96,8 @@ func @torch.aten.__getitem__.t() -> i64 {
 // CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %arg0 : !torch.list<i64>, i64 -> i64
 // CHECK:           return %[[ITEM]] : i64
 func @torch.aten.__getitem__.t$no_change_test0(%arg0: i64) -> i64 {
-  %c4_i64 = constant 4 : i64
   %c5_i64 = constant 5 : i64
+  %c4_i64 = constant 4 : i64
   %0 = torch.prim.ListConstruct %c4_i64, %c5_i64 : (i64, i64) -> !torch.list<i64>
   %1 = torch.aten.__getitem__.t %0, %arg0 : !torch.list<i64>, i64 -> i64
   return %1 : i64

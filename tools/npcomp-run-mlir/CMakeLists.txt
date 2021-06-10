@@ -16,7 +16,6 @@ target_link_libraries(npcomp-run-mlir PRIVATE
 
   NPCOMPCAPI
   MLIRAnalysis
-  MLIREDSC
   MLIRIR
   MLIRJitRunner
   MLIRParser

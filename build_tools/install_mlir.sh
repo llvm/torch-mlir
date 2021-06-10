@@ -75,7 +75,7 @@ cmake -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_USE_SPLIT_DWARF=ON \
   -DLLVM_ENABLE_ASSERTIONS=On \
-  -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   "$@"
 
 cmake --build "$build_mlir" --target install
