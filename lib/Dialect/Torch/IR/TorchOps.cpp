@@ -11,6 +11,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
@@ -139,7 +140,7 @@ static LogicalResult verify(PrimListConstructOp op) {
   auto resultType = op.getResult().getType();
   auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
   auto matchResultElementType = [&](Type type) {
-    return type.classof(resultElementType);
+    return type.getTypeID() == resultElementType.getTypeID();
   };
   if (llvm::all_of(op->getOperandTypes(), matchResultElementType))
     return success();
@@ -455,12 +456,11 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(RewritePatternSet &patterns
     if (!listConstruct)
       return failure();
 
-    auto constantIndexOp = op.getOperand(1).getDefiningOp<::mlir::ConstantOp>();
-    if (!constantIndexOp)
+    APInt indexAP;
+    if (!matchPattern(op.getOperand(1), m_ConstantInt(&indexAP)))
       return failure();
 
-    auto attr = constantIndexOp->getAttrOfType<::mlir::IntegerAttr>("value");
-    auto index = attr.getValue().getSExtValue();
+    auto index = indexAP.getSExtValue();
     rewriter.replaceOp(op, {listConstruct.getOperand(index)});
     return success();
   });

@@ -290,7 +290,7 @@ def AnyTorchScalarType : AnyTypeOf<[
 
 def IsListTypePred : CPred<"$_self.isa<::mlir::NPCOMP::Torch::ListType>()">;
 
-class ListOf<list<Type> allowedTypes, string descr > :
+class ListOf<list<Type> allowedTypes, string descr> :
           ContainerType<AnyTypeOf<allowedTypes>, IsListTypePred,
             "$_self.cast<::mlir::NPCOMP::Torch::ListType>().getContainedType()",
               descr, "::mlir::NPCOMP::Torch::ListType">;
