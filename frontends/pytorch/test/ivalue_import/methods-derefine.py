@@ -19,8 +19,8 @@ class TestModule(torch.nn.Module):
 
   # CHECK-LABEL:   func private @__torch__.TestModule.forward(
   # CHECK-SAME:                                               %[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">) -> !torch.optional<i64> {
-  # CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
-  # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !basicpy.NoneType to !torch.optional<i64>
+  # CHECK:           %[[NONE:.*]] = torch.constant.none
+  # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<i64>
   # CHECK:           %[[RET:.*]] = torch.prim.CallMethod %[[SELF]]["callee"] (%[[DEREFINED]]) : !torch.nn.Module<"__torch__.TestModule">, (!torch.optional<i64>) -> !torch.optional<i64>
   # CHECK:           return %[[RET]] : !torch.optional<i64>
   def forward(self):

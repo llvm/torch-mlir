@@ -13,7 +13,7 @@ mb = torch_mlir.ModuleBuilder()
 @mb.import_function
 @torch.jit.script
 def returns_none():
-    # CHECK-NEXT: %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
+    # CHECK-NEXT: %[[NONE:.*]] = torch.constant.none
     # CHECK-NEXT: return %[[NONE]]
     pass
 

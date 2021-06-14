@@ -14,20 +14,20 @@ mb = torch_mlir.ModuleBuilder()
 # Interesting test case, where a function calls a method.
 
 # CHECK-LABEL:     func private @__torch__.TestModule.forward
-# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !basicpy.NoneType {
-# CHECK:             %[[F:.*]] = constant @__torch__.calls_method : (!torch.nn.Module<"__torch__.TestModule">, !torch.tensor) -> !basicpy.NoneType
-# CHECK:             %[[RET:.*]] = call_indirect %[[F]](%[[ARG0]], %[[ARG1]]) : (!torch.nn.Module<"__torch__.TestModule">, !torch.tensor) -> !basicpy.NoneType
-# CHECK:             return %[[RET]] : !basicpy.NoneType
+# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !torch.none {
+# CHECK:             %[[F:.*]] = constant @__torch__.calls_method : (!torch.nn.Module<"__torch__.TestModule">, !torch.tensor) -> !torch.none
+# CHECK:             %[[RET:.*]] = call_indirect %[[F]](%[[ARG0]], %[[ARG1]]) : (!torch.nn.Module<"__torch__.TestModule">, !torch.tensor) -> !torch.none
+# CHECK:             return %[[RET]] : !torch.none
 # CHECK:           }
 # CHECK-LABEL:     func private @__torch__.TestModule.method
-# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !basicpy.NoneType {
-# CHECK:             %[[RET:.*]] = basicpy.singleton : !basicpy.NoneType
-# CHECK:             return %[[RET]] : !basicpy.NoneType
+# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !torch.none {
+# CHECK:             %[[RET:.*]] = torch.constant.none
+# CHECK:             return %[[RET]] : !torch.none
 # CHECK:           }
 # CHECK-LABEL:     func private @__torch__.calls_method
-# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !basicpy.NoneType {
-# CHECK:             %[[RET:.*]] = torch.prim.CallMethod %[[ARG0]]["method"] (%[[ARG1]]) : !torch.nn.Module<"__torch__.TestModule">, (!torch.tensor) -> !basicpy.NoneType
-# CHECK:             return %[[RET]] : !basicpy.NoneType
+# CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !torch.none {
+# CHECK:             %[[RET:.*]] = torch.prim.CallMethod %[[ARG0]]["method"] (%[[ARG1]]) : !torch.nn.Module<"__torch__.TestModule">, (!torch.tensor) -> !torch.none
+# CHECK:             return %[[RET]] : !torch.none
 # CHECK:           }
 
 def calls_method(c: 'TestModule', x):

@@ -175,7 +175,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return mlirIntegerTypeGet(context, 64);
   }
   case TypeKind::NoneType: {
-    return npcompNoneTypeGet(context);
+    return npcompTorchNoneTypeGet(context);
   }
   case TypeKind::BoolType: {
     return npcompBoolTypeGet(context);
@@ -208,7 +208,7 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
   if (!tensor.defined()) {
     // Undefined tensors are equivalent to None.
     // This may need to be re-evaluated at some point.
-    return npcompNoneTypeGet(context);
+    return npcompTorchNoneTypeGet(context);
   }
 
   MlirType elementType = mapFromTorchScalarType(tensor.scalar_type());

@@ -688,5 +688,17 @@ def Torch_FromBuiltinTensorOp : Torch_Op<"from_builtin_tensor", [
   }];
 }
 
+def Torch_ConstantNoneOp : Torch_Op<"constant.none",
+    [ConstantLike, NoSideEffect]> {
+  let summary = "Get the singleton None value.";
+  let description = [{
+    Not to be confused with the `mlir::NoneType`. Be careful to use
+    `Torch::NoneType` to avoid namespace ambiguity.
+  }];
+  let arguments = (ins);
+  let results = (outs Torch_NoneType:$result);
+  let assemblyFormat = "attr-dict";
+  let hasFolder = 1;
+}
 
 #endif // TORCH_OPS

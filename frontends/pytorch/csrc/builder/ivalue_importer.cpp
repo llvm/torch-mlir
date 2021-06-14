@@ -304,8 +304,9 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isNone()) {
-    MlirOperation operation = createMlirOperationAtEnd(
-        importBlock, "basicpy.singleton", loc, npcompNoneTypeGet(context));
+    MlirOperation operation =
+        createMlirOperationAtEnd(importBlock, "torch.constant.none", loc,
+                                 npcompTorchNoneTypeGet(context));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isCustomClass()) {

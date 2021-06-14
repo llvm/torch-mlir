@@ -48,7 +48,7 @@ static FailureOr<NnModuleOp> findRootNnModule(ModuleOp module) {
 
 static bool hasMeaningfulObjectIdentity(Type type) {
   return !type.isa<IntegerType, FloatType, Basicpy::BoolType,
-                   Basicpy::BytesType, Basicpy::NoneType, TensorType>();
+                   Basicpy::BytesType, Torch::NoneType, TensorType>();
 }
 
 //===----------------------------------------------------------------------===//

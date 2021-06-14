@@ -59,7 +59,7 @@ func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
 %num3_i64 = basicpy.numeric_constant 3 : i64
 %num = basicpy.numeric_constant 4.250000e+01 : f64
 %tensor = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
-%none = basicpy.singleton : !basicpy.NoneType
+%none = torch.constant.none
 func private @f(%arg0: !torch.nn.Module<"test">) {
   return
 }
@@ -82,5 +82,5 @@ torch.nn_module {
   torch.slot "f", %num : f64
   torch.slot "t", %tensor : !torch.tensor
   torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
-  torch.slot "ob", %none : !basicpy.NoneType
+  torch.slot "ob", %none : !torch.none
 } : !torch.nn.Module<"test">

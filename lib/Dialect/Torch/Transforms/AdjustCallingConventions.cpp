@@ -61,7 +61,7 @@ public:
                                                ? typeBoundAttr.getValue()
                                                : type.value());
         continue;
-      } else if (auto none = type.value().dyn_cast<Basicpy::NoneType>()) {
+      } else if (auto none = type.value().dyn_cast<Torch::NoneType>()) {
         continue;
       }
       // TODO: add tuple type.
@@ -69,7 +69,7 @@ public:
     }
     SmallVector<Type> newResultTypes;
     for (auto type : func.getType().getResults()) {
-      if (auto none = type.dyn_cast<Basicpy::NoneType>()) {
+      if (auto none = type.dyn_cast<Torch::NoneType>()) {
         continue;
       }
       newResultTypes.push_back(type);
@@ -105,7 +105,7 @@ public:
 
     SmallVector<Value> newOperands;
     for (auto operand : llvm::enumerate(operands)) {
-      if (operand.value().getType().isa<Basicpy::NoneType>())
+      if (operand.value().getType().isa<Torch::NoneType>())
         continue;
       auto it = typeBoundMap.find({call.callee(), operand.index()});
       if (it != typeBoundMap.end()) {
@@ -127,9 +127,9 @@ public:
     int newOpResultIdx = 0;
     SmallVector<Value> newResults;
     for (auto type : call.getResultTypes()) {
-      if (type.isa<Basicpy::NoneType>()) {
+      if (type.isa<Torch::NoneType>()) {
         newResults.push_back(
-            rewriter.create<Basicpy::SingletonOp>(call.getLoc(), type));
+            rewriter.create<ConstantNoneOp>(call.getLoc(), type));
         continue;
       }
       newResults.push_back(newCall.getResult(newOpResultIdx++));
@@ -155,7 +155,7 @@ public:
     for (auto operand : llvm::enumerate(operands)) {
       if (!operand.value())
         continue;
-      if (operand.value().getType().isa<Basicpy::NoneType>())
+      if (operand.value().getType().isa<Torch::NoneType>())
         continue;
       newOperands.push_back(operand.value());
     }
@@ -173,7 +173,7 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
   typeConverter.addConversion(
-      [](Basicpy::NoneType type,
+      [](Torch::NoneType type,
          SmallVectorImpl<Type> &types) -> Optional<LogicalResult> {
         return success();
       });
@@ -195,11 +195,11 @@ static LogicalResult adjustCallingConventions(FuncOp func,
     for (int i = 0, e = func.getNumArguments(); i != e; i++) {
       if (func.getArgAttr(i, "torch.type_bound"))
         return false;
-      if (func.getArgumentTypes()[i].isa<Basicpy::NoneType>())
+      if (func.getArgumentTypes()[i].isa<Torch::NoneType>())
         return false;
     }
     for (int i = 0, e = func.getNumResults(); i != e; i++) {
-      if (func.getType().getResults()[i].isa<Basicpy::NoneType>())
+      if (func.getType().getResults()[i].isa<Torch::NoneType>())
         return false;
     }
     return true;
@@ -220,7 +220,7 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   });
   target.addLegalOp<CopyTensorOp>();
   target.addLegalOp<TensorStaticInfoCastOp>();
-  target.addLegalOp<Basicpy::SingletonOp>();
+  target.addLegalOp<ConstantNoneOp>();
   // We don't know how to rewrite it, so mark it as illegal.
   target.addIllegalOp<CallIndirectOp>();
   if (failed(applyPartialConversion(func.getOperation(), target,

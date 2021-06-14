@@ -21,17 +21,17 @@ def optional_return(i: int) -> typing.Optional[int]:
     return i
 
 # CHECK-LABEL:   func @__torch__.optional_arg(
-# CHECK-SAME:                                      %[[ARG:.*]]: !torch.optional<i64>) -> !basicpy.NoneType {
+# CHECK-SAME:                                      %[[ARG:.*]]: !torch.optional<i64>) -> !torch.none {
 @mb.import_function
 @torch.jit.script
 def optional_arg(i: typing.Optional[int]) -> None:
     return
 
 # CHECK-LABEL:   func @__torch__.calls_optional_arg(
-# CHECK-SAME:                                       %[[ARG:.*]]: i64) -> !basicpy.NoneType {
-# CHECK:           %[[CALLEE:.*]] = constant @__torch__.optional_arg : (!torch.optional<i64>) -> !basicpy.NoneType
+# CHECK-SAME:                                       %[[ARG:.*]]: i64) -> !torch.none {
+# CHECK:           %[[CALLEE:.*]] = constant @__torch__.optional_arg : (!torch.optional<i64>) -> !torch.none
 # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[ARG]] : i64 to !torch.optional<i64>
-# CHECK:           %{{.*}} = call_indirect %[[CALLEE]](%[[DEREFINED]]) : (!torch.optional<i64>) -> !basicpy.NoneType
+# CHECK:           %{{.*}} = call_indirect %[[CALLEE]](%[[DEREFINED]]) : (!torch.optional<i64>) -> !torch.none
 @mb.import_function
 @torch.jit.script
 def calls_optional_arg(i: int):

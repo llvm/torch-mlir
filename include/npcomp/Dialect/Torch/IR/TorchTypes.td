@@ -236,6 +236,13 @@ def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
 
+def Torch_NoneType : Torch_Type<"None", "none"> {
+  let summary = "Torch NoneType";
+  let description = [{
+    The singleton "None" type.
+  }];
+}
+
 def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
   let summary = "Type modeling `ScalarType::QInt8`";
   let description = [{
@@ -274,7 +281,7 @@ def Torch_LinearParamsType : Torch_Type<"LinearParams", "LinearParams"> {
 def AnyTorchOptionalTensor : AnyTypeOf<[
   AnyTorchTensorType,
   Torch_OptionalType,
-  Basicpy_NoneType,
+  Torch_NoneType,
 ], "optional torch tensor">;
 
 def AnyTorchScalarType : AnyTypeOf<[
@@ -282,7 +289,7 @@ def AnyTorchScalarType : AnyTypeOf<[
     AnyFloat,
     Basicpy_BoolType,
     Basicpy_StrType,
-    Basicpy_NoneType,
+    Torch_NoneType,
     // Allow signless integers for ease of conversions. In general, this
     // dialect uses signed integers.
     AnySignlessInteger,
@@ -323,9 +330,9 @@ def AnyTorchType : AnyTypeOf<[
     AnyTorchScalarType,
     AnyTorchTensorType,
     Basicpy_TupleType,
-    Basicpy_NoneType,
     Basicpy_BytesType,
     Torch_NnModuleType,
+    Torch_NoneType,
     Torch_OptionalType,
     Torch_ListType,
     Torch_DeviceType,

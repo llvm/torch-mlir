@@ -3,8 +3,8 @@
 // CHECK-LABEL:   func @torch.aten.__is__
 // CHECK:           %[[FALSE:.*]] = basicpy.bool_constant false
 // CHECK:           return %[[FALSE]] : !basicpy.BoolType
-func @torch.aten.__is__(%arg0: !torch.list<i64>, %arg1: !basicpy.NoneType) -> !basicpy.BoolType{
-  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<i64>, !basicpy.NoneType -> !basicpy.BoolType
+func @torch.aten.__is__(%arg0: !torch.list<i64>, %arg1: !torch.none) -> !basicpy.BoolType{
+  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<i64>, !torch.none -> !basicpy.BoolType
   return %0 : !basicpy.BoolType
 }
 
@@ -112,4 +112,13 @@ func @torch.aten.__getitem__.t$no_change_test1(%arg0: !torch.list<i64>) -> i64 {
   %c5_i64 = constant 5 : i64
   %0 = torch.aten.__getitem__.t %arg0, %c5_i64 : !torch.list<i64>, i64 -> i64
   return %0 : i64
+}
+
+// CHECK-LABEL:   func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
+// CHECK:           %[[C:.*]] = torch.constant.none
+// CHECK:           return %[[C]], %[[C]] : !torch.none, !torch.none
+func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
+  %0 = torch.constant.none
+  %1 = torch.constant.none
+  return %0, %1 : !torch.none, !torch.none
 }

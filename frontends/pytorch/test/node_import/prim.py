@@ -26,7 +26,7 @@ def prim_NumToTensor(i: int):
     return _to_tensor(i)
 
 # CHECK-LABEL:   func @__torch__.prim_Print(
-# CHECK-SAME:                     %[[ARG:.*]]: !torch.tensor) -> !basicpy.NoneType {
+# CHECK-SAME:                     %[[ARG:.*]]: !torch.tensor) -> !torch.none {
 # CHECK:           %[[STR:.*]] = basicpy.bytes_constant "x"
 # CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !torch.tensor
 @mb.import_function
@@ -34,11 +34,11 @@ def prim_NumToTensor(i: int):
 def prim_Print(x):
     print("x", x)
 
-# CHECK-LABEL:   func @__torch__.prim_RaiseException() -> !basicpy.NoneType {
+# CHECK-LABEL:   func @__torch__.prim_RaiseException() -> !torch.none {
 # CHECK:           %[[ERRORSTR:.*]] = basicpy.bytes_constant "Error"
-# CHECK:           %[[NONE:.*]] = torch.prim.Uninitialized : !basicpy.NoneType
+# CHECK:           %[[NONE:.*]] = torch.prim.Uninitialized : !torch.none
 # CHECK:           torch.prim.RaiseException %[[ERRORSTR]]
-# CHECK:           return %[[NONE]] : !basicpy.NoneType
+# CHECK:           return %[[NONE]] : !torch.none
 @mb.import_function
 @torch.jit.script
 def prim_RaiseException():
@@ -46,9 +46,9 @@ def prim_RaiseException():
 
 # CHECK-LABEL:   func @__torch__.prim_unchecked_cast(
 # CHECK-SAME:                              %[[ARG:.*]]: !torch.optional<i64>) -> i64 {
-# CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
+# CHECK:           %[[NONE:.*]] = torch.constant.none
 # CHECK:           %[[C3:.*]] = constant 3 : i64
-# CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !basicpy.NoneType -> !basicpy.BoolType
+# CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !torch.none -> !basicpy.BoolType
 # CHECK:           %[[COND:.*]] = basicpy.bool_cast %[[IS_NONE]] : !basicpy.BoolType -> i1
 # CHECK:           %[[RESULT:.*]] = scf.if %[[COND]] -> (i64) {
 # CHECK:             scf.yield %[[C3]] : i64
