@@ -15,7 +15,8 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/Types.h"
+#include "npcomp-c/BasicpyTypes.h"
+#include "npcomp-c/TorchTypes.h"
 
 namespace py = pybind11;
 using namespace torch_mlir;
@@ -145,7 +146,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
                        loc, appendToBlock),
         mlirRegionCreate());
     mapResults(node, operation);
-    std::vector<MlirType> terminatorOperandTypes = {npcompBoolTypeGet(context)};
+    std::vector<MlirType> terminatorOperandTypes = {
+        npcompBasicpyBoolTypeGet(context)};
     terminatorOperandTypes.insert(terminatorOperandTypes.end(),
                                   resultTypes.begin(), resultTypes.end());
     auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,

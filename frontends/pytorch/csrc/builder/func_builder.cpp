@@ -12,7 +12,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/Types.h"
+#include "npcomp-c/TorchTypes.h"
 
 using namespace torch_mlir;
 
@@ -132,7 +132,7 @@ MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
 
 MlirValue FuncBuilder::buildList(MlirLocation loc, MlirType elementType,
                                  std::vector<MlirValue> &elements) {
-  MlirType resultType = npcompListTypeGet(elementType);
+  MlirType resultType = npcompTorchListTypeGet(elementType);
   OperationStateHolder state{"torch.prim.ListConstruct", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
   mlirOperationStateAddOperands(state, elements.size(), elements.data());

@@ -16,7 +16,8 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/Types.h"
+#include "npcomp-c/BasicpyTypes.h"
+#include "npcomp-c/TorchTypes.h"
 
 #include "caffe2/core/scope_guard.h"
 #include "ATen/native/quantized/cpu/packed_params.h"
@@ -170,7 +171,7 @@ IValueImporter::importModule(torch::jit::Module currentModule) {
 
   MlirOperation nnModule = createMlirOperation(
       "torch.nn_module", loc,
-      npcompNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
+      npcompTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
       mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
@@ -240,7 +241,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   MlirLocation loc = mlirLocationUnknownGet(context);
 
   if (ivalue.isBool()) {
-    MlirType type = npcompBoolTypeGet(context);
+    MlirType type = npcompBasicpyBoolTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "basicpy.bool_constant", loc, type,
         toMlirNamedAttribute("value",
@@ -269,11 +270,11 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     for (const c10::IValue &elem : list) {
       elems.push_back(importIValue(elem));
     }
-    MlirOperation operation =
-        createMlirOperationAtEnd(importBlock, "torch.prim.ListConstruct", loc,
-                                 npcompListTypeGet(
-                                   typeMapper.mapFromTorchType(
-                                     loc, list.elementType())), elems);
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "torch.prim.ListConstruct", loc,
+        npcompTorchListTypeGet(
+            typeMapper.mapFromTorchType(loc, list.elementType())),
+        elems);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTuple()) {
@@ -284,7 +285,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     }
     MlirOperation operation =
         createMlirOperationAtEnd(importBlock, "basicpy.build_tuple", loc,
-                                 npcompTupleTypeGet(context), elems);
+                                 npcompBasicpyTupleTypeGet(context), elems);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTensor()) {
@@ -294,7 +295,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return importModule(ivalue.toModule());
   }
   if (ivalue.isString()) {
-    MlirType type = npcompBytesTypeGet(context);
+    MlirType type = npcompBasicpyBytesTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "basicpy.bytes_constant", loc, type,
         toMlirNamedAttribute(
@@ -325,7 +326,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
       }
       MlirOperation operation = createMlirOperationAtEnd(
           importBlock, "torch.linear_params.create", loc,
-          npcompLinearParamsTypeGet(context), weightValue, biasValue);
+          npcompTorchLinearParamsTypeGet(context), weightValue, biasValue);
       return mlirOperationGetResult(operation, 0);
     }
   }
@@ -345,7 +346,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp =
       createMlirOperationAtEnd(importBlock, "torch.tensor", loc,
-                               npcompNonValueTensorTypeGetFromShaped(
+                               npcompTorchNonValueTensorTypeGetFromShaped(
                                    mlirAttributeGetType(denseElements)),
                                toMlirNamedAttribute("value", denseElements));
   MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
@@ -360,7 +361,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     // compiler stages that are building a statically modeled quantization
     // representation will need to convert this to their representation.
     std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-    MlirType quantizedTensorType = npcompNonValueTensorTypeGet(
+    MlirType quantizedTensorType = npcompTorchNonValueTensorTypeGet(
         context, shape.size(), shape.data(),
         typeMapper.mapFromTorchScalarType(tensor.scalar_type()));
     if (tensor.qscheme() == c10::kPerTensorAffine) {
@@ -504,11 +505,11 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
               mlirLocationUnknownGet(context), *maybeDtype);
           MlirType typeBound;
           if (hasValueSemantics) {
-            typeBound = npcompValueTensorTypeGet(context, shape.size(),
-                                                 shape.data(), dtype);
+            typeBound = npcompTorchValueTensorTypeGet(context, shape.size(),
+                                                      shape.data(), dtype);
           } else {
-            typeBound = npcompNonValueTensorTypeGet(context, shape.size(),
-                                                    shape.data(), dtype);
+            typeBound = npcompTorchNonValueTensorTypeGet(context, shape.size(),
+                                                         shape.data(), dtype);
           }
 
           MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(
