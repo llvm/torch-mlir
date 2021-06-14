@@ -11,7 +11,7 @@
 
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
-#include "npcomp-c/Types.h"
+#include "npcomp-c/TorchTypes.h"
 #include "npcomp/Python/PybindUtils.h"
 
 #include <ATen/core/function_schema.h>
@@ -512,9 +512,8 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
     return mlirIntegerTypeGet(funcBuilder->getContext(), 1);
   }
   if (ival.isList()) {
-    return npcompListTypeGet(
-            typeMapper.mapFromTorchType(
-                loc, ival.toList().elementType()));
+    return npcompTorchListTypeGet(
+        typeMapper.mapFromTorchType(loc, ival.toList().elementType()));
   }
   if (ival.isNone()) {
     return npcompTorchNoneTypeGet(funcBuilder->getContext());
@@ -530,7 +529,7 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp = createMlirOperationAtEnd(
       funcBuilder->getEntryBlock(), "torch.tensor", loc,
-      npcompNonValueTensorTypeGetFromShaped(
+      npcompTorchNonValueTensorTypeGetFromShaped(
           mlirAttributeGetType(denseElements)),
       toMlirNamedAttribute("value", denseElements));
   MlirValue tensorValue = mlirOperationGetResult(tensorOp, 0);

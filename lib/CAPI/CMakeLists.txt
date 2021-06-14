@@ -7,7 +7,9 @@ set(LLVM_LINK_COMPONENTS
 add_npcomp_library(NPCOMPCAPI
   InitLLVM.cpp
   Registration.cpp
-  Types.cpp
+  BasicpyTypes.cpp
+  NumpyTypes.cpp
+  TorchTypes.cpp
 
   LINK_LIBS PUBLIC
   MLIRExecutionEngine

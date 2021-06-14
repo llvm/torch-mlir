@@ -15,7 +15,8 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/Types.h"
+#include "npcomp-c/BasicpyTypes.h"
+#include "npcomp-c/TorchTypes.h"
 
 using namespace torch_mlir;
 
@@ -54,7 +55,7 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
   case ScalarType::Long:
     return mlirIntegerTypeSignedGet(context, 64);
   case ScalarType::Bool:
-    return npcompBoolTypeGet(context);
+    return npcompBasicpyBoolTypeGet(context);
   case ScalarType::Double:
     return mlirF64TypeGet(context);
   case ScalarType::Float:
@@ -64,7 +65,7 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
   case ScalarType::Half:
     return mlirF16TypeGet(context);
   case ScalarType::QInt8:
-    return npcompQInt8TypeGet(context);
+    return npcompTorchQInt8TypeGet(context);
   default: {
     return {nullptr};
   }
@@ -103,7 +104,7 @@ static MlirType mapCustomClassType(MlirContext context, MlirLocation loc,
 
   // Individually handle the custom classes that we know about.
   if (name == "__torch__.torch.classes.quantized.LinearPackedParamsBase") {
-    return npcompLinearParamsTypeGet(context);
+    return npcompTorchLinearParamsTypeGet(context);
   }
 
   // At this point, we know that the type is indeed a custom class type, but
@@ -134,11 +135,11 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     auto &sizes = tensorType->symbolic_sizes();
     if (!sizes.rank()) {
       // Unranked.
-      return npcompNonValueTensorTypeGet(context,
-                                         /*numSizes=*/0,
-                                         /*optionalSizes=*/nullptr,
-                                         /*optionalDtype=*/
-                                         elementType);
+      return npcompTorchNonValueTensorTypeGet(context,
+                                              /*numSizes=*/0,
+                                              /*optionalSizes=*/nullptr,
+                                              /*optionalDtype=*/
+                                              elementType);
     }
     // Ranked with possibly dynamic dims.
     auto &symbolicShape = tensorType->symbolic_sizes();
@@ -148,10 +149,10 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
       auto shapeSymbol = symbolicShape[i];
       dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size() : -1;
     }
-    return npcompNonValueTensorTypeGet(context, dims.size(),
-                                       /*optionalSizes=*/dims.data(),
-                                       /*optionalDtype=*/
-                                       elementType);
+    return npcompTorchNonValueTensorTypeGet(context, dims.size(),
+                                            /*optionalSizes=*/dims.data(),
+                                            /*optionalDtype=*/
+                                            elementType);
   }
   case TypeKind::ClassType: {
     const c10::ClassTypePtr &classType = torchType->cast<c10::ClassType>();
@@ -161,15 +162,14 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     }
     auto maybeName = classType->name();
     std::string name = maybeName ? maybeName->qualifiedName() : "unnamed class";
-    return npcompNnModuleTypeGet(context, toMlirStringRef(name));
+    return npcompTorchNnModuleTypeGet(context, toMlirStringRef(name));
   }
   case TypeKind::FloatType: {
     return mlirF64TypeGet(context);
   }
   case TypeKind::OptionalType: {
-    return npcompOptionalTypeGet(
-        mapFromTorchType(
-            loc, torchType->cast<c10::OptionalType>()->getElementType()));
+    return npcompTorchOptionalTypeGet(mapFromTorchType(
+        loc, torchType->cast<c10::OptionalType>()->getElementType()));
   }
   case TypeKind::IntType: {
     return mlirIntegerTypeGet(context, 64);
@@ -178,22 +178,21 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompTorchNoneTypeGet(context);
   }
   case TypeKind::BoolType: {
-    return npcompBoolTypeGet(context);
+    return npcompBasicpyBoolTypeGet(context);
   }
   case TypeKind::ListType: {
-    return npcompListTypeGet(
-        mapFromTorchType(
-            loc, torchType->cast<c10::ListType>()->getElementType()));
+    return npcompTorchListTypeGet(mapFromTorchType(
+        loc, torchType->cast<c10::ListType>()->getElementType()));
   }
   case TypeKind::TupleType: {
     // TODO: Don't lose the element type information.
-    return npcompTupleTypeGet(context);
+    return npcompBasicpyTupleTypeGet(context);
   }
   case TypeKind::StringType: {
-    return npcompBytesTypeGet(context);
+    return npcompBasicpyBytesTypeGet(context);
   }
   case TypeKind::DeviceObjType: {
-    return npcompDeviceTypeGet(context);
+    return npcompTorchDeviceTypeGet(context);
   }
   default: {
     std::stringstream message;
@@ -216,8 +215,8 @@ MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
   // just erase them and let the compiler decide.
 
   auto sizes = tensor.sizes();
-  return npcompNonValueTensorTypeGet(context, sizes.size(), sizes.data(),
-                                     elementType);
+  return npcompTorchNonValueTensorTypeGet(context, sizes.size(), sizes.data(),
+                                          elementType);
 }
 
 MlirType
