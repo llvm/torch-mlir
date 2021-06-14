@@ -44,12 +44,10 @@ MlirType npcompBasicpyBytesTypeGet(MlirContext context) {
 // Dict type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is the Python "dict" type. */
 bool npcompTypeIsABasicpyDict(MlirType t) {
   return unwrap(t).isa<Basicpy::DictType>();
 }
 
-/** Gets the generic Python "dict" type. */
 MlirType npcompBasicpyDictTypeGet(MlirContext context) {
   return wrap(Basicpy::DictType::get(unwrap(context)));
 }
@@ -58,12 +56,10 @@ MlirType npcompBasicpyDictTypeGet(MlirContext context) {
 // List type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is the Python "list" type. */
 bool npcompTypeIsABasicpyList(MlirType t) {
   return unwrap(t).isa<Basicpy::ListType>();
 }
 
-/** Gets the generic Python "dict" type. */
 MlirType npcompBasicpyListTypeGet(MlirContext context) {
   return wrap(Basicpy::ListType::get(unwrap(context)));
 }
@@ -72,12 +68,10 @@ MlirType npcompBasicpyListTypeGet(MlirContext context) {
 // !basicpy.NoneType type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is a `!basicpy.NoneType`. */
 bool npcompTypeIsANone(MlirType t) {
   return unwrap(t).isa<Basicpy::NoneType>();
 }
 
-/** Gets the `!basicpy.NoneType` type. */
 MlirType npcompBasicpyNoneTypeGet(MlirContext context) {
   return wrap(Basicpy::NoneType::get(unwrap(context)));
 }
@@ -104,13 +98,10 @@ MlirType npcompBasicPySlotObjectTypeGet(MlirContext context,
 // Tuple type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is the special "any dtype" type that is used
- * to signal an NDArray or tensor of unknown type. */
 bool npcompTypeIsABasicpyTuple(MlirType t) {
   return unwrap(t).isa<Basicpy::TupleType>();
 }
 
-/** Gets the "any dtype" type. */
 MlirType npcompBasicpyTupleTypeGet(MlirContext context) {
   return wrap(Basicpy::TupleType::get(unwrap(context)));
 }

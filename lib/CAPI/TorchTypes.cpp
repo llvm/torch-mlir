@@ -20,12 +20,10 @@ using namespace mlir::NPCOMP;
 // torch.nn.Module type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is a torch.nn.Module type */
 bool npcompTypeIsATorchNnModule(MlirType t) {
   return unwrap(t).isa<Torch::NnModuleType>();
 }
 
-/** Gets the torch.nn.Module type of the specified class. */
 MlirType npcompTorchNnModuleTypeGet(MlirContext context,
                                     MlirStringRef className) {
   return wrap(Torch::NnModuleType::get(unwrap(context), unwrap(className)));
@@ -35,12 +33,10 @@ MlirType npcompTorchNnModuleTypeGet(MlirContext context,
 // torch.optional type.
 //===----------------------------------------------------------------------===//
 
-/** Checks whether the given type is a !torch.optional<T> type */
 bool npcompTypeIsATorchOptional(MlirType t) {
   return unwrap(t).isa<Torch::OptionalType>();
 }
 
-/** Gets the !torch.optional<T> type with subtype T. */
 MlirType npcompTorchOptionalTypeGet(MlirType containedType) {
   return wrap(Torch::OptionalType::get(unwrap(containedType)));
 }
