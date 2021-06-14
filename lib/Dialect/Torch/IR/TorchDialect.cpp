@@ -140,5 +140,9 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
     if (integerType.getWidth() == 64)
       return builder.create<ConstantOp>(loc, value);
   }
+
+  if (type.isa<Torch::NoneType>())
+    return builder.create<ConstantNoneOp>(loc);
+
   return nullptr;
 }

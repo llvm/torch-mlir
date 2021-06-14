@@ -16,7 +16,7 @@ torch.class_type @__torch__.TestModule  {
   torch.method "forward", @__torch__.TestModule.forward
 }
 %bool_true = basicpy.bool_constant true
-%0 = basicpy.singleton : !basicpy.NoneType
+%0 = torch.constant.none
 torch.class_type @__torch__.Submodule  {
   torch.attr private "n" : i64
   // expected-error @+1 {{public function with multiple monomorphizations}}

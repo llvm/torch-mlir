@@ -17,8 +17,8 @@ using namespace torch_mlir;
 OpBuilder::OpBuilder(MlirContext context) : context(context) {}
 
 MlirOperation OpBuilder::createNoneConstant(MlirLocation loc) {
-  return createMlirOperation("basicpy.singleton", loc,
-                             npcompNoneTypeGet(context));
+  return createMlirOperation("torch.constant.none", loc,
+                             npcompTorchNoneTypeGet(context));
 }
 
 MlirOperation OpBuilder::createBoolConstant(MlirLocation loc, bool value) {

@@ -18,7 +18,7 @@ class TestModule(torch.nn.Module):
         self.t2 = torch.ones(1)
 
     # CHECK-LABEL:   func private @__torch__.TestModule.forward(
-    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">) -> !basicpy.NoneType {
+    # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">) -> !torch.none {
     def forward(self):
         # CHECK: %[[T2:.*]] = torch.prim.GetAttr %[[SELF]]["t2"]
         # CHECK: torch.prim.SetAttr %[[SELF]]["t1"] = %[[T2]]

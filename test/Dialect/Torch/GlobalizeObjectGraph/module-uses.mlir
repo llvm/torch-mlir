@@ -22,20 +22,20 @@ func private @get_attr_returns_module_type(%arg0: !torch.nn.Module<"parent">) ->
 }
 
 // CHECK-LABEL:   func @module_type_argument(
-// CHECK-SAME:                               %[[F:.*]]: f64) -> !basicpy.NoneType {
-func private @module_type_argument(%arg0: !torch.nn.Module<"parent">, %arg1: !torch.nn.Module<"parent">, %arg2: f64, %arg3: !torch.nn.Module<"parent">) -> !basicpy.NoneType {
-  %0 = basicpy.singleton : !basicpy.NoneType
-  return %0 : !basicpy.NoneType
+// CHECK-SAME:                               %[[F:.*]]: f64) -> !torch.none {
+func private @module_type_argument(%arg0: !torch.nn.Module<"parent">, %arg1: !torch.nn.Module<"parent">, %arg2: f64, %arg3: !torch.nn.Module<"parent">) -> !torch.none {
+  %0 = torch.constant.none
+  return %0 : !torch.none
 }
 
-// CHECK-LABEL:   func @method_call() -> !basicpy.NoneType {
-func private @method_call(%arg0: !torch.nn.Module<"parent">) -> !basicpy.NoneType {
+// CHECK-LABEL:   func @method_call() -> !torch.none {
+func private @method_call(%arg0: !torch.nn.Module<"parent">) -> !torch.none {
   // CHECK-NEXT: %[[C:.*]] = constant 4.300000e+01 : f64
   %c = constant 43.0 : f64
-  // CHECK-NEXT: %[[F:.*]] = call @module_type_argument(%[[C]]) : (f64) -> !basicpy.NoneType
-  %0 = call @module_type_argument(%arg0, %arg0, %c, %arg0) : (!torch.nn.Module<"parent">, !torch.nn.Module<"parent">, f64, !torch.nn.Module<"parent">) -> (!basicpy.NoneType)
-  // CHECK-NEXT: return %[[F]] : !basicpy.NoneType
-  return %0 : !basicpy.NoneType
+  // CHECK-NEXT: %[[F:.*]] = call @module_type_argument(%[[C]]) : (f64) -> !torch.none
+  %0 = call @module_type_argument(%arg0, %arg0, %c, %arg0) : (!torch.nn.Module<"parent">, !torch.nn.Module<"parent">, f64, !torch.nn.Module<"parent">) -> (!torch.none)
+  // CHECK-NEXT: return %[[F]] : !torch.none
+  return %0 : !torch.none
 }
 
 %c42 = constant 42.0 : f64

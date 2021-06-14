@@ -517,10 +517,10 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
                 loc, ival.toList().elementType()));
   }
   if (ival.isNone()) {
-    return npcompNoneTypeGet(funcBuilder->getContext());
+    return npcompTorchNoneTypeGet(funcBuilder->getContext());
   }
   if (ival.isDevice()) {
-    return npcompNoneTypeGet(funcBuilder->getContext());
+    return npcompTorchNoneTypeGet(funcBuilder->getContext());
   }
   return {nullptr};
 }

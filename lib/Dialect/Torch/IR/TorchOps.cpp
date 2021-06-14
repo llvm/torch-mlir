@@ -93,7 +93,7 @@ bool isValidSubtype(Type subtype, Type type) {
     return true;
   if (auto optional = type.dyn_cast<OptionalType>())
     return subtype == optional.getContainedType() ||
-           subtype.isa<Basicpy::NoneType>();
+           subtype.isa<Torch::NoneType>();
   // TODO: This is not subtyping according to PEP 483. See description
   // of NonValueTensorType.
   if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
@@ -234,11 +234,11 @@ OpFoldResult Aten__Is__Op::fold(ArrayRef<Attribute> operands) {
   auto lhsType = self().getType();
   auto rhsType = obj().getType();
   // If either type is a NoneType, make it be the lhsType.
-  if (rhsType.isa<Basicpy::NoneType>())
+  if (rhsType.isa<Torch::NoneType>())
     std::swap(lhsType, rhsType);
   // TODO: Implement and use subtype infra for this.
   // If neither type is a subtype of the other, then the result is false.
-  if (lhsType.isa<Basicpy::NoneType>() && !rhsType.isa<Torch::OptionalType>())
+  if (lhsType.isa<Torch::NoneType>() && !rhsType.isa<Torch::OptionalType>())
     return IntegerAttr::get(IntegerType::get(getContext(), 1), 0);
   return nullptr;
 }
@@ -439,6 +439,14 @@ LogicalResult FromBuiltinTensorOp::inferReturnTypes(
   inferredReturnTypes.push_back(
       ValueTensorType::getFromShaped(operands[0].getType().cast<TensorType>()));
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantNoneOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
+  return TypeAttr::get(Torch::NoneType::get(getContext()));
 }
 
 //===----------------------------------------------------------------------===//

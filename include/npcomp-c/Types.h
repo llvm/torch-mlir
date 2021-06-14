@@ -89,14 +89,14 @@ MlirType npcompNdArrayTypeGetFromShaped(MlirType shapedType);
 MlirType npcompNdArrayTypeToTensor(MlirType ndarrayType);
 
 /*============================================================================*/
-/* None type.                                                                 */
+/* !basicpy.NoneType type.                                                    */
 /*============================================================================*/
 
-/** Checks whether the given type is the type of the singleton 'None' value. */
-int npcompTypeIsANone(MlirType t);
+/** Checks whether the given type is a `!basicpy.NoneType`. */
+int npcompTypeIsABasicpyNone(MlirType t);
 
-/** Gets the type of the singleton 'None'. */
-MlirType npcompNoneTypeGet(MlirContext context);
+/** Gets the `!basicpy.NoneType` type. */
+MlirType npcompBasicpyNoneTypeGet(MlirContext context);
 
 /*============================================================================*/
 /* SlotObject type.                                                           */
@@ -228,6 +228,16 @@ npcompValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
 
 /** Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`. */
 MlirType npcompValueTensorTypeGetFromShaped(MlirType type);
+
+/*============================================================================*/
+/* !torch.none type.                                                          */
+/*============================================================================*/
+
+/** Checks whether the given type is a !torch.none type */
+int npcompTypeIsATorchNone(MlirType t);
+
+/** Gets the !torch.none type. */
+MlirType npcompTorchNoneTypeGet(MlirContext context);
 
 #ifdef __cplusplus
 }

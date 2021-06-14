@@ -25,7 +25,7 @@ class_type = recursivescriptmodule._c._type()
 # CHECK: func private @__torch__.TestModule.forward(
 # CHECK-SAME: %arg0: !torch.nn.Module<"__torch__.TestModule">,
 # CHECK-SAME: %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?,1024],si8>}
-# CHECK-SAME: ) -> !basicpy.NoneType             
+# CHECK-SAME: ) -> !torch.none
 annotator.annotateArgs(class_type, ['forward'], [
     None,
     ((-1, 1024), torch.int8, True),

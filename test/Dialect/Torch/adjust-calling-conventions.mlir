@@ -30,20 +30,20 @@ func @call(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[2,3,?],f32>}
 }
 
 // CHECK-LABEL:   func @none_return() {
-// CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
+// CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           return
-func @none_return() -> !basicpy.NoneType {
-  %1 = basicpy.singleton : !basicpy.NoneType
-  return %1 : !basicpy.NoneType
+func @none_return() -> !torch.none {
+  %1 = torch.constant.none
+  return %1 : !torch.none
 }
 
 // CHECK-LABEL:   func @none_call_return() {
 // CHECK:           call @none_return() : () -> ()
-// CHECK:           %[[NONE:.*]] = basicpy.singleton : !basicpy.NoneType
-// CHECK:           "test.use"(%[[NONE]]) : (!basicpy.NoneType) -> ()
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           "test.use"(%[[NONE]]) : (!torch.none) -> ()
 // CHECK:           return
 func @none_call_return() {
-  %0 = call @none_return() : () -> !basicpy.NoneType
-  "test.use"(%0) : (!basicpy.NoneType) -> ()
+  %0 = call @none_return() : () -> !torch.none
+  "test.use"(%0) : (!torch.none) -> ()
   return
 }
