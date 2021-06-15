@@ -301,7 +301,7 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return rewriter.notifyMatchFailure(op, "all sizes not known");
     SmallVector<Value> listElements;
     for (int64_t size : type.getSizes()) {
-      listElements.push_back(rewriter.create<::mlir::ConstantOp>(
+      listElements.push_back(rewriter.create<Torch::ConstantIntOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
     rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
@@ -449,12 +449,51 @@ OpFoldResult ConstantNoneOp::fold(ArrayRef<Attribute> operands) {
   return TypeAttr::get(Torch::NoneType::get(getContext()));
 }
 
+void ConstantNoneOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "none");
+}
+
 //===----------------------------------------------------------------------===//
 // ConstantStrOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ConstantStrOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
+}
+
+void ConstantStrOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "str");
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Torch::ConstantIntOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+void Torch::ConstantIntOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  SmallVector<char> buf;
+  llvm::raw_svector_ostream os(buf);
+  os << "int" << value();
+  setNameFn(getResult(), os.str());
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Torch::ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+void Torch::ConstantFloatOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), "float");
 }
 
 //===----------------------------------------------------------------------===//

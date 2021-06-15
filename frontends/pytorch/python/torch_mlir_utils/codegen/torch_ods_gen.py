@@ -223,7 +223,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "int[]": "AnyTorchIntListType",
     "bool": "AnyTorchBoolType",
     "bool[]": "AnyTorchBoolListType",
-    "float": "AnyFloat",
+    "float": "AnyTorchFloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",

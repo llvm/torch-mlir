@@ -70,8 +70,8 @@ func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],unk> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
 func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!torch.vtensor {
-  %c0_i64 = constant 0 : i64
-  %c1_i64 = constant 1 : i64
+  %c0_i64 = torch.constant.int 0 : i64
+  %c1_i64 = torch.constant.int 1 : i64
   %0 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
   %1 = torch.prim.ListConstruct %c0_i64, %c0_i64 : (i64, i64) -> !torch.list<i64>
   %2 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
@@ -84,8 +84,8 @@ func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!tor
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
 func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
-  %c0_i64 = constant 0 : i64
-  %c1_i64 = constant 1 : i64
+  %c0_i64 = torch.constant.int 0 : i64
+  %c1_i64 = torch.constant.int 1 : i64
   %0 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
   %1 = torch.prim.ListConstruct %c0_i64, %c0_i64 : (i64, i64) -> !torch.list<i64>
   %2 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
@@ -97,9 +97,9 @@ func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.v
 
 // CHECK-LABEL: func @f
 func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
-  %c1_i64 = constant 1 : i64
-  %c3_i64 = constant 3 : i64
-  %c2_i64 = constant 2 : i64
+  %c1_i64 = torch.constant.int 1 : i64
+  %c3_i64 = torch.constant.int 3 : i64
+  %c2_i64 = torch.constant.int 2 : i64
   %bool_false = basicpy.bool_constant false
   %21 = torch.prim.ListConstruct %c3_i64, %c3_i64 : (i64, i64) -> !torch.list<i64>
   %22 = torch.prim.ListConstruct %c2_i64, %c2_i64 : (i64, i64) -> !torch.list<i64>
@@ -114,7 +114,7 @@ func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
 
 // CHECK-LABEL: func @f
 func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
-  %c1_i64 = constant 1 : i64
+  %c1_i64 = torch.constant.int 1 : i64
   %0 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
   // CHECK: torch.aten.adaptive_avg_pool2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
   %1 = torch.aten.adaptive_avg_pool2d %arg0, %0 : !torch.vtensor<[?,?,?,?],f32>, !torch.list<i64> -> !torch.vtensor
@@ -129,8 +129,8 @@ func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[FLATTENED]] : !torch.tensor<[?],f32> to !torch.tensor
 // CHECK:           return %[[SHAPE_ERASED]]
 func @flatten_all(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
-  %end = constant -1 : i64
-  %start = constant 0 : i64
+  %end = torch.constant.int -1 : i64
+  %start = torch.constant.int 0 : i64
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[3,2,?,5],f32>, i64, i64 -> !torch.tensor
   return %0 : !torch.tensor
 }
@@ -138,8 +138,8 @@ func @flatten_all(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
 // CHECK-LABEL:   func @flatten_some(
 // CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[3,?,5],f32>
 func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
-  %end = constant -2 : i64
-  %start = constant 1 : i64
+  %end = torch.constant.int -2 : i64
+  %start = torch.constant.int 1 : i64
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[3,2,?,5],f32>, i64, i64 -> !torch.tensor
   return %0 : !torch.tensor
 }
@@ -147,8 +147,8 @@ func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
 // CHECK-LABEL:   func @flatten_rank0(
 // CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[?],f32>
 func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
-  %end = constant -1 : i64
-  %start = constant 0 : i64
+  %end = torch.constant.int -1 : i64
+  %start = torch.constant.int 0 : i64
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[],f32>, i64, i64 -> !torch.tensor
   return %0 : !torch.tensor
 }
@@ -157,7 +157,7 @@ func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
 
 // CHECK-LABEL: func @f
 func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, %arg2: !torch.vtensor<[?,3],f32>) {
-  %c1_i64 = constant 1 : i64
+  %c1_i64 = torch.constant.int 1 : i64
   // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[?,?,?],f32>
   %0 = torch.aten.add.Tensor %arg0, %arg1, %c1_i64 : !torch.vtensor<[4,6,3],f32>, !torch.vtensor<[1,1,3],f32>, i64 -> !torch.vtensor
   // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[?,?,?],f32>

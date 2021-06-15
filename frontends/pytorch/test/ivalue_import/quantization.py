@@ -19,10 +19,10 @@ class TestModule(torch.nn.Module):
                                                         2,
                                                         bias_=False,
                                                         dtype=torch.qint8)
-    # CHECK: %[[SCALE:.*]] = basicpy.numeric_constant {{.*}} : f64
-    # CHECK: %[[ZERO_POINT:.*]] = basicpy.numeric_constant 0 : i64
+    # CHECK: %[[SCALE:.*]] = torch.constant.float
+    # CHECK: %[[ZERO_POINT:.*]] = torch.constant.int 0 : i64
     # CHECK: %[[INT_REPR:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2,5],si8>
-    # CHECK: %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %num, %num0_i64 : !torch.tensor<[2,5],si8>, f64, i64 -> !torch.tensor<[2,5],!torch.qint8>
+    # CHECK: %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %[[SCALE]], %[[ZERO_POINT]] : !torch.tensor<[2,5],si8>, f64, i64 -> !torch.tensor<[2,5],!torch.qint8>
     # CHECK: %[[BIAS:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2],f32>
     # CHECK: %[[LINEAR_PARAMS:.*]] = torch.linear_params.create %[[WEIGHTS]], %[[BIAS]] : !torch.tensor<[2,5],!torch.qint8>, !torch.tensor<[2],f32>
     @torch.jit.export

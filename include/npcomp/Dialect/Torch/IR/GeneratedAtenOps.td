@@ -166,8 +166,8 @@ def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
     AnyTorchOptionalTensor:$running_mean,
     AnyTorchOptionalTensor:$running_var,
     AnyTorchBoolType:$training,
-    AnyFloat:$momentum,
-    AnyFloat:$eps,
+    AnyTorchFloatType:$momentum,
+    AnyTorchFloatType:$eps,
     AnyTorchBoolType:$cudnn_enabled
   );
   let results = (outs
@@ -321,11 +321,11 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
   ]> {
   let summary = "Generated op for `aten::add.float_int : (float, int) -> (float)`";
   let arguments = (ins
-    AnyFloat:$a,
+    AnyTorchFloatType:$a,
     AnyTorchIntType:$b
   );
   let results = (outs
-    AnyFloat:$result
+    AnyTorchFloatType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -336,11 +336,11 @@ def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
   ]> {
   let summary = "Generated op for `aten::mul.float : (float, float) -> (float)`";
   let arguments = (ins
-    AnyFloat:$a,
-    AnyFloat:$b
+    AnyTorchFloatType:$a,
+    AnyTorchFloatType:$b
   );
   let results = (outs
-    AnyFloat:$result
+    AnyTorchFloatType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -351,7 +351,7 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
   ]> {
   let summary = "Generated op for `aten::lt.float_int : (float, int) -> (bool)`";
   let arguments = (ins
-    AnyFloat:$a,
+    AnyTorchFloatType:$a,
     AnyTorchIntType:$b
   );
   let results = (outs

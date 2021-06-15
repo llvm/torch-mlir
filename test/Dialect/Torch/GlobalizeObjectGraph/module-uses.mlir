@@ -30,15 +30,15 @@ func private @module_type_argument(%arg0: !torch.nn.Module<"parent">, %arg1: !to
 
 // CHECK-LABEL:   func @method_call() -> !torch.none {
 func private @method_call(%arg0: !torch.nn.Module<"parent">) -> !torch.none {
-  // CHECK-NEXT: %[[C:.*]] = constant 4.300000e+01 : f64
-  %c = constant 43.0 : f64
+  // CHECK-NEXT: %[[C:.*]] = torch.constant.float 4.300000e+01
+  %c = torch.constant.float 43.0
   // CHECK-NEXT: %[[F:.*]] = call @module_type_argument(%[[C]]) : (f64) -> !torch.none
   %0 = call @module_type_argument(%arg0, %arg0, %c, %arg0) : (!torch.nn.Module<"parent">, !torch.nn.Module<"parent">, f64, !torch.nn.Module<"parent">) -> (!torch.none)
   // CHECK-NEXT: return %[[F]] : !torch.none
   return %0 : !torch.none
 }
 
-%c42 = constant 42.0 : f64
+%c42 = torch.constant.float 42.0
 %child = torch.nn_module {
   torch.slot "float", %c42 : f64
 } : !torch.nn.Module<"child">

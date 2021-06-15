@@ -251,7 +251,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isDouble()) {
     MlirType type = mlirF64TypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
-        importBlock, "basicpy.numeric_constant", loc, type,
+        importBlock, "torch.constant.float", loc, type,
         toMlirNamedAttribute(
             "value", mlirFloatAttrDoubleGet(context, type, ivalue.toDouble())));
     return mlirOperationGetResult(operation, 0);
@@ -259,7 +259,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isInt()) {
     MlirType type = mlirIntegerTypeGet(context, 64);
     MlirOperation operation = createMlirOperationAtEnd(
-        importBlock, "basicpy.numeric_constant", loc, type,
+        importBlock, "torch.constant.int", loc, type,
         toMlirNamedAttribute("value",
                              mlirIntegerAttrGet(type, ivalue.toInt())));
     return mlirOperationGetResult(operation, 0);

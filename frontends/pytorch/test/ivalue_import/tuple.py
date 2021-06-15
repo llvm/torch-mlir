@@ -18,8 +18,8 @@ class TestModule(torch.nn.Module):
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # TODO: Don't lose element type.
 # CHECK: }
-# CHECK: %[[N1:.*]] = basicpy.numeric_constant 1 : i64
-# CHECK: %[[N2:.*]] = basicpy.numeric_constant 2 : i64
+# CHECK: %[[N1:.*]] = torch.constant.int 1 : i64
+# CHECK: %[[N2:.*]] = torch.constant.int 2 : i64
 # CHECK: %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[N1]], %[[N2]] : i64, i64
 # CHECK: torch.nn_module  {
 # CHECK:   torch.slot "t", %[[TUPLE]] : !torch.tuple<i64, i64>

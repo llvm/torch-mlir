@@ -8,12 +8,12 @@
 // CHECK:         }
 
 // CHECK-LABEL:   torch.global_slot @i : i64  {
-// CHECK:           %[[INIT:.*]] = basicpy.numeric_constant 3 : i64
+// CHECK:           %[[INIT:.*]] = torch.constant.int 3 : i64
 // CHECK:           torch.global_slot.init %[[INIT]] : i64
 // CHECK:         }
 
 // CHECK-LABEL:   torch.global_slot @f : f64  {
-// CHECK:           %[[INIT:.*]] = basicpy.numeric_constant 4.250000e+01 : f64
+// CHECK:           %[[INIT:.*]] = torch.constant.float 4.250000e+01
 // CHECK:           torch.global_slot.init %[[INIT]] : f64
 // CHECK:         }
 
@@ -30,8 +30,8 @@ torch.class_type @c {
 }
 
 %bool_true = basicpy.bool_constant true
-%i = basicpy.numeric_constant 3 : i64
-%f = basicpy.numeric_constant 4.250000e+01 : f64
+%i = torch.constant.int 3 : i64
+%f = torch.constant.float 4.250000e+01
 %t = torch.tensor(dense<1.0> : tensor<1xf32>) : !torch.tensor
 torch.nn_module {
   torch.slot "b", %bool_true : !basicpy.BoolType

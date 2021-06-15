@@ -23,7 +23,7 @@ with mb.capture_function("foobar", [t0, t1]) as f:
 # CHECK-LABEL:   func @foobar(
 # CHECK-SAME:                 %[[VAL_0:.*]]: tensor<1x4xf32>,
 # CHECK-SAME:                 %[[VAL_1:.*]]: tensor<4x1xf32>) -> tensor<4x4xf32> {
-# CHECK:           %[[VAL_2:.*]] = constant 1 : i64
+# CHECK:           %[[VAL_2:.*]] = torch.constant.int 1 : i64
 # CHECK:           %[[VAL_3:.*]] = "aten.add"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (tensor<1x4xf32>, tensor<4x1xf32>, i64) -> tensor<4x4xf32>
 # CHECK:           return %[[VAL_3]] : tensor<4x4xf32>
 # CHECK:         }

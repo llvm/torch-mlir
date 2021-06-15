@@ -24,7 +24,7 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   let arguments = (ins
     AnyTorchTensorType:$X,
     Torch_LinearParamsType:$W_prepack,
-    AnyFloat:$Y_scale_i,
+    AnyTorchFloatType:$Y_scale_i,
     AnyTorchIntType:$Y_zero_point_i
   );
   let results = (outs

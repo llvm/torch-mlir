@@ -27,9 +27,3 @@ MlirOperation OpBuilder::createBoolConstant(MlirLocation loc, bool value) {
       "basicpy.bool_constant", loc, npcompBasicpyBoolTypeGet(context),
       toMlirNamedAttribute("value", mlirBoolAttrGet(context, value)));
 }
-
-MlirOperation OpBuilder::createStdConstant(MlirLocation loc,
-                                           MlirAttribute value) {
-  return createMlirOperation("std.constant", loc, mlirAttributeGetType(value),
-                             toMlirNamedAttribute("value", value));
-}

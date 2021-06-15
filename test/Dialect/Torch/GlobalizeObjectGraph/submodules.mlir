@@ -3,7 +3,7 @@
 // Check that linkage names consist of the dotted path from the root. 
 
 // CHECK-LABEL:   torch.global_slot @m.float : f64  {
-// CHECK:           %[[INIT:.*]] = constant 4.200000e+01 : f64
+// CHECK:           %[[INIT:.*]] = torch.constant.float 4.200000e+01
 // CHECK:           torch.global_slot.init %[[INIT]] : f64
 // CHECK:         }
 
@@ -15,7 +15,7 @@ torch.class_type @parent {
   torch.attr "m" : !torch.nn.Module<"child">
 }
 
-%c42 = std.constant 42.0 : f64
+%c42 = torch.constant.float 42.0
 %child = torch.nn_module {
   torch.slot "float", %c42 : f64
 } : !torch.nn.Module<"child">

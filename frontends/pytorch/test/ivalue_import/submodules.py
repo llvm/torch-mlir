@@ -24,13 +24,13 @@ class TestModule(torch.nn.Module):
 
 # CHECK:         %[[T:.*]] = basicpy.bool_constant true
 
-# CHECK:         %[[N0:.*]] = basicpy.numeric_constant 0 : i64
+# CHECK:         %[[N0:.*]] = torch.constant.int 0 : i64
 # CHECK:         %[[S0:.*]] = torch.nn_module  {
 # CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
 # CHECK:           torch.slot "n", %[[N0]] : i64
 # CHECK:         }
 
-# CHECK:         %[[N1:.*]] = basicpy.numeric_constant 1 : i64
+# CHECK:         %[[N1:.*]] = torch.constant.int 1 : i64
 # CHECK:         %[[S1:.*]] = torch.nn_module  {
 # CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
 # CHECK:           torch.slot "n", %[[N1]] : i64

@@ -102,12 +102,18 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
     // integers and then switch this to a signed integer.
     MlirType t = mlirIntegerTypeGet(context, 64);
     MlirAttribute value = mlirIntegerAttrGet(t, s.to<int64_t>());
-    return getGeneralConstant(loc, value);
+    MlirOperation op = createMlirOperation(
+        "torch.constant.int", loc, t, toMlirNamedAttribute("value", value));
+    insertConstantOp(op);
+    return mlirOperationGetResult(op, 0);
   }
   if (s.isFloatingPoint()) {
     MlirType t = mlirF64TypeGet(context);
     MlirAttribute value = mlirFloatAttrDoubleGet(context, t, s.to<double>());
-    return getGeneralConstant(loc, value);
+    MlirOperation op = createMlirOperation(
+        "torch.constant.float", loc, t, toMlirNamedAttribute("value", value));
+    insertConstantOp(op);
+    return mlirOperationGetResult(op, 0);
   }
   if (s.isBoolean()) {
     return getBoolConstant(loc, s.to<bool>());
@@ -123,11 +129,6 @@ MlirValue FuncBuilder::getBoolConstant(MlirLocation loc, bool v) {
 
 MlirValue FuncBuilder::getNoneConstant(MlirLocation loc) {
   return insertConstantOp(OpBuilder(context).createNoneConstant(loc));
-}
-
-MlirValue FuncBuilder::getGeneralConstant(MlirLocation loc,
-                                          MlirAttribute value) {
-  return insertConstantOp(OpBuilder(context).createStdConstant(loc, value));
 }
 
 MlirValue FuncBuilder::buildList(MlirLocation loc, MlirType elementType,
