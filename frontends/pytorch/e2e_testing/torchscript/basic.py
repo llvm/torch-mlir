@@ -67,3 +67,18 @@ class MmTanhModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
+
+class ReluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.relu(x)
+
+@register_test_case(module_factory=lambda: ReluModule())
+def ReluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2) - 0.5)
