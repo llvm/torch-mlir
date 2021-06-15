@@ -29,7 +29,6 @@ public:
   OpBuilder(MlirContext context);
   MlirOperation createNoneConstant(MlirLocation loc);
   MlirOperation createBoolConstant(MlirLocation loc, bool value);
-  MlirOperation createBytesConstant(MlirLocation loc, const std::string &value);
   MlirOperation createStdConstant(MlirLocation loc, MlirAttribute value);
 
 private:

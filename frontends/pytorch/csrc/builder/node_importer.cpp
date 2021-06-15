@@ -108,10 +108,11 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
       op = builder.createBoolConstant(
           loc, static_cast<bool>(node->i(c10::attr::value)));
     } else if (output->type()->cast<c10::StringType>()) {
-      // TODO: Are TorchScript strings bytes or str technically?
-      // For now, model it as bytes to avoid pledging more than we currently
-      // model (e.g. no unicode, etc.).
-      op = builder.createBytesConstant(loc, node->s(c10::attr::value));
+      op = createMlirOperation(
+          "torch.constant.str", loc, npcompTorchStringTypeGet(context),
+          toMlirNamedAttribute(
+              "value", mlirStringAttrGet(context, toMlirStringRef(node->s(
+                                                      c10::attr::value)))));
     } else if (auto functionType = output->type()->cast<c10::FunctionType>()) {
       torch::jit::Function *function = functionType->function();
       const std::string &symName = function->qualname().qualifiedName();

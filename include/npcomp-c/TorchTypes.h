@@ -148,6 +148,16 @@ bool npcompTypeIsATorchNone(MlirType t);
 /// Gets the !torch.none type.
 MlirType npcompTorchNoneTypeGet(MlirContext context);
 
+//===----------------------------------------------------------------------===//
+// !torch.str type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.str type
+bool npcompTypeIsATorchString(MlirType t);
+
+/// Gets the !torch.str type.
+MlirType npcompTorchStringTypeGet(MlirContext context);
+
 #ifdef __cplusplus
 }
 #endif

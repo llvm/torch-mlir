@@ -17,11 +17,11 @@ class TestModule(torch.nn.Module):
         self.s = "foo"
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # TODO: Don't lose element type.
-# CHECK:   torch.attr "s" : !basicpy.BytesType
+# CHECK:   torch.attr "s" : !torch.str
 # CHECK: }
-# CHECK: %[[BYTES:.*]] = basicpy.bytes_constant "foo"
+# CHECK: %[[STR:.*]] = torch.constant.str "foo"
 # CHECK: torch.nn_module  {
-# CHECK:   torch.slot "s", %[[BYTES]] : !basicpy.BytesType
+# CHECK:   torch.slot "s", %[[STR]] : !torch.str
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 

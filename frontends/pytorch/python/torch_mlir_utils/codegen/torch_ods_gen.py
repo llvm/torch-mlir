@@ -230,7 +230,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "t2": "AnyTorchType",
     "Any": "AnyTorchType",
     "Device": "Torch_DeviceType",
-    "str": "Basicpy_BytesType",
+    "str": "Torch_StringType",
     "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
 }
 

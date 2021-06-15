@@ -122,3 +122,14 @@ func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
   %1 = torch.constant.none
   return %0, %1 : !torch.none, !torch.none
 }
+
+// CHECK-LABEL:   func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.str) {
+// CHECK:           %[[T:.*]] = torch.constant.str "t"
+// CHECK:           %[[S:.*]] = torch.constant.str "s"
+// CHECK:           return %[[S]], %[[S]], %[[T]] : !torch.str, !torch.str, !torch.str
+func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.str) {
+  %0 = torch.constant.str "s"
+  %1 = torch.constant.str "s"
+  %2 = torch.constant.str "t"
+  return %0, %1, %2 : !torch.str, !torch.str, !torch.str
+}

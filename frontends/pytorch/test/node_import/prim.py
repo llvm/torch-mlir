@@ -27,15 +27,15 @@ def prim_NumToTensor(i: int):
 
 # CHECK-LABEL:   func @__torch__.prim_Print(
 # CHECK-SAME:                     %[[ARG:.*]]: !torch.tensor) -> !torch.none {
-# CHECK:           %[[STR:.*]] = basicpy.bytes_constant "x"
-# CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !basicpy.BytesType, !torch.tensor
+# CHECK:           %[[STR:.*]] = torch.constant.str "x"
+# CHECK:           torch.prim.Print(%[[STR]], %[[ARG]]) : !torch.str, !torch.tensor
 @mb.import_function
 @torch.jit.script
 def prim_Print(x):
     print("x", x)
 
 # CHECK-LABEL:   func @__torch__.prim_RaiseException() -> !torch.none {
-# CHECK:           %[[ERRORSTR:.*]] = basicpy.bytes_constant "Error"
+# CHECK:           %[[ERRORSTR:.*]] = torch.constant.str "Error"
 # CHECK:           %[[NONE:.*]] = torch.prim.Uninitialized : !torch.none
 # CHECK:           torch.prim.RaiseException %[[ERRORSTR]]
 # CHECK:           return %[[NONE]] : !torch.none

@@ -163,7 +163,7 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
   ]> {
   let summary = "Generated op for `prim::RaiseException : (str) -> ()`";
   let arguments = (ins
-    Basicpy_BytesType:$msg
+    Torch_StringType:$msg
   );
   let results = (outs
   );
