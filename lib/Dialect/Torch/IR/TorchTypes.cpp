@@ -10,10 +10,39 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
+
+//===----------------------------------------------------------------------===//
+// TupleType
+//===----------------------------------------------------------------------===//
+
+Type Torch::TupleType::parse(MLIRContext *context, DialectAsmParser &parser) {
+  if (parser.parseLess())
+    return Type();
+  if (!parser.parseOptionalGreater())
+    return Torch::TupleType::get(context, {});
+
+  SmallVector<Type> containedTypes;
+  do {
+    Type containedType;
+    if (parser.parseType(containedType))
+      return Type();
+    containedTypes.push_back(containedType);
+  } while (!parser.parseOptionalComma());
+  if (parser.parseGreater())
+    return Type();
+  return Torch::TupleType::get(context, containedTypes);
+}
+
+void Torch::TupleType::print(::mlir::DialectAsmPrinter &printer) const {
+  printer << "tuple<";
+  llvm::interleaveComma(getContainedTypes(), printer);
+  printer << ">";
+}
 
 //===----------------------------------------------------------------------===//
 // BaseTensorType

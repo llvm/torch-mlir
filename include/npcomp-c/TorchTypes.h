@@ -38,6 +38,18 @@ bool npcompTypeIsATorchOptional(MlirType t);
 MlirType npcompTorchOptionalTypeGet(MlirType containedType);
 
 //===----------------------------------------------------------------------===//
+// torch.tuple<T1, T2, T3> type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.tuple type
+bool npcompTypeIsATorchTuple(MlirType t);
+
+/// Gets the !torch.tuple type with contained types `containedTypes`.
+MlirType npcompTorchTupleTypeGet(MlirContext context,
+                                 intptr_t numContainedTypes,
+                                 MlirType const *containedTypes);
+
+//===----------------------------------------------------------------------===//
 // torch.list<T> type.
 //===----------------------------------------------------------------------===//
 

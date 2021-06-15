@@ -84,22 +84,16 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   switch (kind) {
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
+  case c10::prim::TupleConstruct: {
     createAndMapTrivialNode(node,
                             "torch.prim." + std::string(kind.toUnqualString()));
     return;
+  }
   case c10::prim::GetAttr:
   case c10::prim::SetAttr: {
     createAndMapNodeWithAttribute(
         node, "torch.prim." + std::string(kind.toUnqualString()), "name",
         importAttribute(loc, node, c10::attr::name));
-    return;
-  }
-  }
-
-  // Ops trivially lowered through `basicpy` dialect.
-  switch (kind) {
-  case c10::prim::TupleConstruct: {
-    createAndMapTrivialNode(node, "basicpy.build_tuple");
     return;
   }
   }

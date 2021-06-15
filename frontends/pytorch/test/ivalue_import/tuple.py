@@ -20,9 +20,9 @@ class TestModule(torch.nn.Module):
 # CHECK: }
 # CHECK: %[[N1:.*]] = basicpy.numeric_constant 1 : i64
 # CHECK: %[[N2:.*]] = basicpy.numeric_constant 2 : i64
-# CHECK: %[[TUPLE:.*]] = basicpy.build_tuple %[[N1]], %[[N2]] : (i64, i64) -> !basicpy.TupleType
+# CHECK: %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[N1]], %[[N2]] : i64, i64
 # CHECK: torch.nn_module  {
-# CHECK:   torch.slot "t", %[[TUPLE]] : !basicpy.TupleType
+# CHECK:   torch.slot "t", %[[TUPLE]] : !torch.tuple<i64, i64>
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 

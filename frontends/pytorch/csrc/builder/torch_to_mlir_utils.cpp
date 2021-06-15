@@ -185,8 +185,13 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
         loc, torchType->cast<c10::ListType>()->getElementType()));
   }
   case TypeKind::TupleType: {
-    // TODO: Don't lose the element type information.
-    return npcompBasicpyTupleTypeGet(context);
+    std::vector<MlirType> containedTypes;
+    for (const c10::TypePtr &type :
+         torchType->cast<c10::TupleType>()->containedTypes()) {
+      containedTypes.push_back(mapFromTorchType(loc, type));
+    }
+    return npcompTorchTupleTypeGet(context, containedTypes.size(),
+                                   containedTypes.data());
   }
   case TypeKind::StringType: {
     return npcompBasicpyBytesTypeGet(context);

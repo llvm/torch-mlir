@@ -322,6 +322,29 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
   }];
 }
 
+def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
+    NoSideEffect,
+    TypesMatchWith<"contained types correspond to operand types",
+    "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))">
+    ]> {
+  let summary = "TorchScript prim::TupleConstruct op";
+  let description = [{
+    Note: This op does not allow trivial type refinement, because the
+    operand types and the result types must be in correspondence.
+  }];
+
+  let arguments = (ins
+    Variadic<AnyTorchType>:$elements
+  );
+  let results = (outs
+    Torch_TupleType:$result
+  );
+
+  let assemblyFormat = [{
+    $elements attr-dict `:` type($elements)
+  }];
+}
+
 def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
     NoSideEffect,
     AllowsTypeRefinement,
