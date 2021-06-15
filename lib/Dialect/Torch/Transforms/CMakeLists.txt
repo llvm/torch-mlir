@@ -1,6 +1,6 @@
 add_npcomp_conversion_library(NPCOMPTorchPasses
   AdjustCallingConventions.cpp
-  BuiltinTensorize.cpp
+  BackendTypeConversion.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
@@ -23,8 +23,6 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   MLIRIR
   MLIRPass
   NPCOMPTorchDialect
-  NPCOMPBasicpyDialect
   NPCOMPTorchToLinalg
-  NPCOMPTCFToStd
   NPCOMPInterfaces
 )

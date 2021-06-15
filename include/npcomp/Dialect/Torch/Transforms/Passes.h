@@ -55,9 +55,10 @@ std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 
-std::unique_ptr<OperationPass<ModuleOp>> createFuncBuiltinTensorizePass();
+std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createFinalizingBuiltinTensorizePass();
+std::unique_ptr<OperationPass<FuncOp>>
+createFinalizingBackendTypeConversionPass();
 
 } // namespace Torch
 

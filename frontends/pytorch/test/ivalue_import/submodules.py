@@ -22,22 +22,22 @@ class TestModule(torch.nn.Module):
         self.s0 = Submodule(0)
         self.s1 = Submodule(1)
 
-# CHECK:         %[[T:.*]] = basicpy.bool_constant true
+# CHECK:         %[[T:.*]] = torch.constant.bool true
 
 # CHECK:         %[[N0:.*]] = torch.constant.int 0 : i64
 # CHECK:         %[[S0:.*]] = torch.nn_module  {
-# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "training", %[[T]] : !torch.bool
 # CHECK:           torch.slot "n", %[[N0]] : i64
 # CHECK:         }
 
 # CHECK:         %[[N1:.*]] = torch.constant.int 1 : i64
 # CHECK:         %[[S1:.*]] = torch.nn_module  {
-# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "training", %[[T]] : !torch.bool
 # CHECK:           torch.slot "n", %[[N1]] : i64
 # CHECK:         }
 
 # CHECK:        %[[ROOT:.*]] = torch.nn_module  {
-# CHECK:           torch.slot "training", %[[T]] : !basicpy.BoolType
+# CHECK:           torch.slot "training", %[[T]] : !torch.bool
 # CHECK:           torch.slot "s0", %[[S0]] : !torch.nn.Module
 # CHECK:           torch.slot "s1", %[[S1]] : !torch.nn.Module
 # CHECK:         }

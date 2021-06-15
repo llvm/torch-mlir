@@ -16,7 +16,6 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/BasicpyTypes.h"
 #include "npcomp-c/TorchTypes.h"
 
 #include "caffe2/core/scope_guard.h"
@@ -241,9 +240,9 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   MlirLocation loc = mlirLocationUnknownGet(context);
 
   if (ivalue.isBool()) {
-    MlirType type = npcompBasicpyBoolTypeGet(context);
+    MlirType type = npcompTorchBoolTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
-        importBlock, "basicpy.bool_constant", loc, type,
+        importBlock, "torch.constant.bool", loc, type,
         toMlirNamedAttribute("value",
                              mlirBoolAttrGet(context, ivalue.toBool())));
     return mlirOperationGetResult(operation, 0);

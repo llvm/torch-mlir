@@ -12,7 +12,6 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
@@ -47,7 +46,7 @@ static FailureOr<NnModuleOp> findRootNnModule(ModuleOp module) {
 }
 
 static bool hasMeaningfulObjectIdentity(Type type) {
-  return !type.isa<IntegerType, FloatType, Basicpy::BoolType, Torch::StringType,
+  return !type.isa<IntegerType, FloatType, Torch::BoolType, Torch::StringType,
                    Torch::NoneType, TensorType>();
 }
 

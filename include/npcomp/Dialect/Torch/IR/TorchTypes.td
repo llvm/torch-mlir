@@ -246,6 +246,13 @@ def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
 
+def Torch_BoolType : Torch_Type<"Bool", "bool"> {
+  let summary = "Torch BoolType";
+  let description = [{
+    An immutable boolean taking values 0 or 1.
+  }];
+}
+
 def Torch_NoneType : Torch_Type<"None", "none"> {
   let summary = "Torch NoneType";
   let description = [{
@@ -304,17 +311,6 @@ def AnyTorchOptionalTensor : AnyTypeOf<[
   Torch_NoneType,
 ], "optional torch tensor">;
 
-def AnyTorchScalarType : AnyTypeOf<[
-    AnySignedInteger,
-    AnyFloat,
-    Basicpy_BoolType,
-    Basicpy_StrType,
-    Torch_NoneType,
-    // Allow signless integers for ease of conversions. In general, this
-    // dialect uses signed integers.
-    AnySignlessInteger,
-  ], "Any primitive type suitable to be passed as a Torch Scalar">;
-
 def IsListTypePred : CPred<"$_self.isa<::mlir::NPCOMP::Torch::ListType>()">;
 
 class ListOf<list<Type> allowedTypes, string descr> :
@@ -322,21 +318,7 @@ class ListOf<list<Type> allowedTypes, string descr> :
             "$_self.cast<::mlir::NPCOMP::Torch::ListType>().getContainedType()",
               descr, "::mlir::NPCOMP::Torch::ListType">;
 
-def AnyTorchNumberType : AnyTypeOf<[
-    AnySignedInteger,
-    AnyFloat,
-    Basicpy_BoolType,
-    // Allow signless integers for ease of conversions. In general, this
-    // dialect uses signed integers.
-    AnySignlessInteger,
-  ], "Any primitive numeric type">;
-
-def AnyTorchBoolType : AnyTypeOf<[
-    I1,
-    Basicpy_BoolType,
-], "Any permissible bool type">;
-
-def AnyTorchBoolListType : ListOf<[AnyTorchBoolType], "Any bool list type (bool[])">;
+def AnyTorchBoolListType : ListOf<[Torch_BoolType], "Any bool list type (bool[])">;
 
 def AnyTorchIntType : TypeAlias<I64,
     "Any type usable for representing the `int` Python type">;
@@ -346,19 +328,24 @@ def AnyTorchFloatType : TypeAlias<F64,
 
 def AnyTorchIntListType : ListOf<[AnyTorchIntType], "Any int list type (int[])">;
 
+def AnyTorchScalarType : AnyTypeOf<[
+  AnyTorchIntType,
+  AnyTorchFloatType,
+  Torch_BoolType,
+], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
+
 def AnyTorchType : AnyTypeOf<[
-    AnyTorchBoolType,
-    AnyTorchScalarType,
-    AnyTorchTensorType,
-    Torch_TupleType,
-    Torch_StringType,
-    Torch_NnModuleType,
-    Torch_NoneType,
-    Torch_OptionalType,
-    Torch_ListType,
-    Torch_DeviceType,
-    Torch_LinearParamsType,
-  ], "Any type that is legal to pass to a Torch kernel">;
+  AnyTorchScalarType,
+  AnyTorchTensorType,
+  Torch_TupleType,
+  Torch_StringType,
+  Torch_NnModuleType,
+  Torch_NoneType,
+  Torch_OptionalType,
+  Torch_ListType,
+  Torch_DeviceType,
+  Torch_LinearParamsType,
+], "Any type that is legal to pass to a Torch kernel">;
 
 def AnyTorchListType : ListOf<[AnyType], "Any Torch list Type">;
 

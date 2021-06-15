@@ -10,12 +10,12 @@ import torch_mlir
 mb = torch_mlir.ModuleBuilder()
 
 # CHECK-LABEL: @__torch__.prim_If(
-# CHECK-SAME:           %[[B:.*]]: !basicpy.BoolType,
+# CHECK-SAME:           %[[B:.*]]: !torch.bool,
 # CHECK-SAME:           %[[I:.*]]: i64) -> i64 {
 @mb.import_function
 @torch.jit.script
 def prim_If(b: bool, i: int):
-    # CHECK:           %[[I1:.*]] = basicpy.bool_cast %[[B]] : !basicpy.BoolType -> i1
+    # CHECK:           %[[I1:.*]] = torch.to_i1 %[[B]]
     # CHECK:           %[[RES:.*]] = scf.if %[[I1]] -> (i64) {
     # CHECK:             %[[ADD:.*]] = torch.aten.add.int %[[I]], %[[I]]
     # CHECK:             scf.yield %[[ADD]] : i64
@@ -31,10 +31,10 @@ def prim_If(b: bool, i: int):
     # elif is modeled as a nested if, so no need to specially test it here.
 
 # CHECK-LABEL:   func @__torch__.prim_If_derefine(
-# CHECK-SAME:                           %[[B:.*]]: !basicpy.BoolType,
+# CHECK-SAME:                           %[[B:.*]]: !torch.bool,
 # CHECK-SAME:                           %[[I:.*]]: i64) -> !torch.optional<i64> {
 # CHECK:           %[[NONE:.*]] = torch.constant.none
-# CHECK:           %[[PRED:.*]] = basicpy.bool_cast %[[B]] : !basicpy.BoolType -> i1
+# CHECK:           %[[PRED:.*]] = torch.to_i1 %[[B]]
 # CHECK:           %[[RES:.*]] = scf.if %[[PRED]] -> (!torch.optional<i64>) {
 # CHECK:             %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<i64>
 # CHECK:             scf.yield %[[NONE_DEREFINED]] : !torch.optional<i64>

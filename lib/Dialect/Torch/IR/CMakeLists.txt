@@ -2,7 +2,6 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
   TorchDialect.cpp
   TorchOps.cpp
   TorchTypes.cpp
-  TorchUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/Torch
@@ -19,6 +18,5 @@ add_npcomp_dialect_library(NPCOMPTorchDialect
   MLIRSupport
   MLIRControlFlowInterfaces
   MLIRSideEffectInterfaces
-  NPCOMPBasicpyDialect
   NPCOMPInterfaces
 )

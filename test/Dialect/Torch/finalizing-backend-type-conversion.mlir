@@ -1,4 +1,4 @@
-// RUN: npcomp-opt %s -torch-finalizing-builtin-tensorize -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
+// RUN: npcomp-opt %s -torch-finalizing-backend-type-conversion -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
 
 // This test is largely copied from `finalizing-bufferize` upstream, as it
 // covers the same scope.
@@ -10,6 +10,18 @@ func @eliminate_materializations(%arg0: tensor<f32>) -> tensor<f32> {
   %0 = torch.from_builtin_tensor %arg0 : tensor<f32> -> !torch.vtensor<[],f32>
   %1 = torch.to_builtin_tensor %0 : !torch.vtensor<[],f32> -> tensor<f32>
   return %1 : tensor<f32>
+}
+
+// Do a basic check of !torch.bool type. Under the hood it takes all the same
+// code paths as for !torch.vtensor, so we just spot-check it here.
+
+// CHECK-LABEL:   func @eliminate_materializations$torch.bool(
+// CHECK-SAME:                                     %[[ARG:.*]]: i1) -> i1 {
+// CHECK:           return %[[ARG]] : i1
+func @eliminate_materializations$torch.bool(%arg0: i1) -> i1 {
+  %0 = torch.from_i1 %arg0
+  %1 = torch.to_i1 %0
+  return %1 : i1
 }
 
 // -----

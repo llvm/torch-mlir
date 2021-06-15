@@ -1,4 +1,4 @@
-// RUN: npcomp-opt %s -torch-func-builtin-tensorize -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
+// RUN: npcomp-opt %s -torch-func-backend-type-conversion -split-input-file -verify-diagnostics -allow-unregistered-dialect | FileCheck %s
 
 // This test is largely copied from `func-bufferize` upstream, as it covers
 // the same scope.
@@ -91,4 +91,16 @@ func @bwhile(%arg0: i64, %arg1: i64) -> i64 {
     scf.yield %1 : i64
   }
   return %0#1 : i64
+}
+
+// Do a basic check of !torch.bool type. Under the hood it takes all the same
+// code paths as for !torch.vtensor, so we just spot-check it here.
+
+// CHECK-LABEL:   func @identity$torch.bool(
+// CHECK-SAME:                   %[[ARG:.*]]: i1) -> i1 {
+// CHECK:           %[[TORCH_BOOL:.*]] = torch.from_i1 %[[ARG]]
+// CHECK:           %[[I1:.*]] = torch.to_i1 %[[TORCH_BOOL]]
+// CHECK:           return %[[I1]] : i1
+func @identity$torch.bool(%arg0: !torch.bool) -> !torch.bool {
+  return %arg0 : !torch.bool
 }

@@ -48,8 +48,8 @@ def prim_RaiseException():
 # CHECK-SAME:                              %[[ARG:.*]]: !torch.optional<i64>) -> i64 {
 # CHECK:           %[[NONE:.*]] = torch.constant.none
 # CHECK:           %[[C3:.*]] = torch.constant.int 3 : i64
-# CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !torch.none -> !basicpy.BoolType
-# CHECK:           %[[COND:.*]] = basicpy.bool_cast %[[IS_NONE]] : !basicpy.BoolType -> i1
+# CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !torch.none -> !torch.bool
+# CHECK:           %[[COND:.*]] = torch.to_i1 %[[IS_NONE]]
 # CHECK:           %[[RESULT:.*]] = scf.if %[[COND]] -> (i64) {
 # CHECK:             scf.yield %[[C3]] : i64
 # CHECK:           } else {

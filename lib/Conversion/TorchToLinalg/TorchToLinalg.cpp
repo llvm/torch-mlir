@@ -15,7 +15,7 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/IR/TorchUtils.h"
+#include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -337,7 +337,7 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    setupValueTensorToBuiltinTensorConversion(target, typeConverter);
+    setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenMmOp>();

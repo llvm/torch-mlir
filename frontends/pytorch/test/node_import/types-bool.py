@@ -13,7 +13,7 @@ mb = torch_mlir.ModuleBuilder()
 @mb.import_function
 @torch.jit.script
 def returns_bool():
-    # CHECK-NEXT: %[[T:.*]] = basicpy.bool_constant true
+    # CHECK-NEXT: %[[T:.*]] = torch.constant.bool true
     # CHECK-NEXT: return %[[T]]
     return True
 

@@ -14,8 +14,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"

@@ -100,13 +100,13 @@ func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %c1_i64 = torch.constant.int 1 : i64
   %c3_i64 = torch.constant.int 3 : i64
   %c2_i64 = torch.constant.int 2 : i64
-  %bool_false = basicpy.bool_constant false
+  %bool_false = torch.constant.bool false
   %21 = torch.prim.ListConstruct %c3_i64, %c3_i64 : (i64, i64) -> !torch.list<i64>
   %22 = torch.prim.ListConstruct %c2_i64, %c2_i64 : (i64, i64) -> !torch.list<i64>
   %23 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
   %24 = torch.prim.ListConstruct %c1_i64, %c1_i64 : (i64, i64) -> !torch.list<i64>
   // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
-  %27 = torch.aten.max_pool2d %arg0, %21, %22, %23, %24, %bool_false : !torch.vtensor<[?,?,?,?],f32>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !basicpy.BoolType -> !torch.vtensor
+  %27 = torch.aten.max_pool2d %arg0, %21, %22, %23, %24, %bool_false : !torch.vtensor<[?,?,?,?],f32>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !torch.bool -> !torch.vtensor
   return %27 : !torch.vtensor
 }
 

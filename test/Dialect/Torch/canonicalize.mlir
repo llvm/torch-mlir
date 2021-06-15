@@ -1,11 +1,11 @@
 // RUN: npcomp-opt %s -canonicalize | FileCheck %s
 
 // CHECK-LABEL:   func @torch.aten.__is__
-// CHECK:           %[[FALSE:.*]] = basicpy.bool_constant false
-// CHECK:           return %[[FALSE]] : !basicpy.BoolType
-func @torch.aten.__is__(%arg0: !torch.list<i64>, %arg1: !torch.none) -> !basicpy.BoolType{
-  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<i64>, !torch.none -> !basicpy.BoolType
-  return %0 : !basicpy.BoolType
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.__is__(%arg0: !torch.list<i64>, %arg1: !torch.none) -> !torch.bool {
+  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<i64>, !torch.none -> !torch.bool
+  return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.size$canonicalize_to_list(
@@ -132,4 +132,15 @@ func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.str) 
   %1 = torch.constant.str "s"
   %2 = torch.constant.str "t"
   return %0, %1, %2 : !torch.str, !torch.str, !torch.str
+}
+
+// CHECK-LABEL:   func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bool) {
+// CHECK:           %[[F:.*]] = torch.constant.bool false
+// CHECK:           %[[T:.*]] = torch.constant.bool true
+// CHECK:           return %[[T]], %[[T]], %[[F]] : !torch.bool, !torch.bool, !torch.bool
+func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bool) {
+  %0 = torch.constant.bool true
+  %1 = torch.constant.bool true
+  %2 = torch.constant.bool false
+  return %0, %1, %2 : !torch.bool, !torch.bool, !torch.bool
 }

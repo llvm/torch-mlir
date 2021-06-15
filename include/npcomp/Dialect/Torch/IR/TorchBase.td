@@ -10,7 +10,6 @@
 #define TORCH_BASE
 
 include "mlir/IR/OpBase.td"
-include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.td"
 
 def Torch_Dialect : Dialect {
   let name = "torch";
