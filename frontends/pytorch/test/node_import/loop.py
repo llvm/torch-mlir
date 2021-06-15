@@ -14,7 +14,7 @@ mb = torch_mlir.ModuleBuilder()
 # CHECK-LABEL:   func @__torch__.prim_Loop_forlike(
 # CHECK-SAME:                            %[[MAX_ITERATIONS:.*]]: i64) -> f64 {
 # CHECK:           %[[BOOL_TRUE:.*]] = basicpy.bool_constant true
-# CHECK:           %[[F_INIT:.*]] = constant 0.000000e+00 : f64
+# CHECK:           %[[F_INIT:.*]] = torch.constant.float 0.000000e+00
 # CHECK:           %[[RESULTS:.*]] = torch.prim.Loop %[[MAX_ITERATIONS]], %[[BOOL_TRUE]], init(%[[F_INIT]])  {
 # CHECK:           ^bb0(%[[IV:.*]]: i64, %[[F_ITER:.*]]: f64):
 # CHECK:             %[[F_NEXT:.*]] = torch.aten.add.float_int %[[F_ITER]], %[[IV]] : f64, i64 -> f64
@@ -31,8 +31,8 @@ def prim_Loop_forlike(n: int):
 
 # CHECK-LABEL:   func @__torch__.prim_Loop_whilelike(
 # CHECK-SAME:                              %[[VAL_0:.*]]: i64) -> f64 {
-# CHECK:           %[[F_INIT:.*]] = constant 3.200000e+00 : f64
-# CHECK:           %[[MAX_ITERATIONS:.*]] = constant 9223372036854775807 : i64
+# CHECK:           %[[F_INIT:.*]] = torch.constant.float 3.200000e+00
+# CHECK:           %[[MAX_ITERATIONS:.*]] = torch.constant.int 9223372036854775807 : i64
 # CHECK:           %[[COND_INIT:.*]] = torch.aten.lt.float_int %[[F_INIT]], %[[VAL_0]] : f64, i64 -> !basicpy.BoolType
 # CHECK:           %[[RET:.*]] = torch.prim.Loop %[[MAX_ITERATIONS]], %[[COND_INIT]], init(%[[F_INIT]])  {
 # CHECK:           ^bb0(%[[F_ITER:.*]]: i64, %[[F_ITER:.*]]: f64):

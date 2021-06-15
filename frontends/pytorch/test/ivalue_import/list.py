@@ -18,8 +18,8 @@ class TestModule(torch.nn.Module):
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # CHECK:   torch.attr "l" : !torch.list<i64>
 # CHECK: }
-# CHECK: %[[N1:.*]] = basicpy.numeric_constant 1 : i64
-# CHECK: %[[N2:.*]] = basicpy.numeric_constant 2 : i64
+# CHECK: %[[N1:.*]] = torch.constant.int 1 : i64
+# CHECK: %[[N2:.*]] = torch.constant.int 2 : i64
 # CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[N1]], %[[N2]] : (i64, i64) -> !torch.list<i64>
 # CHECK: torch.nn_module  {
 # CHECK:   torch.slot "l", %[[LIST]] : !torch.list<i64>

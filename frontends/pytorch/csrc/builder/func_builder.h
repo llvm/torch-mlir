@@ -112,10 +112,6 @@ public:
   /// Gets a None constant value.
   MlirValue getNoneConstant(MlirLocation loc);
 
-  /// Gets a general constant value representing the given value
-  /// attribute.
-  MlirValue getGeneralConstant(MlirLocation loc, MlirAttribute value);
-
   /// Builds a list with the given elements
   MlirValue buildList(MlirLocation loc, MlirType elementType,
                       std::vector<MlirValue> &elements);

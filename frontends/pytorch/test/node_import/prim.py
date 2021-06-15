@@ -47,7 +47,7 @@ def prim_RaiseException():
 # CHECK-LABEL:   func @__torch__.prim_unchecked_cast(
 # CHECK-SAME:                              %[[ARG:.*]]: !torch.optional<i64>) -> i64 {
 # CHECK:           %[[NONE:.*]] = torch.constant.none
-# CHECK:           %[[C3:.*]] = constant 3 : i64
+# CHECK:           %[[C3:.*]] = torch.constant.int 3 : i64
 # CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !torch.none -> !basicpy.BoolType
 # CHECK:           %[[COND:.*]] = basicpy.bool_cast %[[IS_NONE]] : !basicpy.BoolType -> i1
 # CHECK:           %[[RESULT:.*]] = scf.if %[[COND]] -> (i64) {

@@ -11,7 +11,7 @@ torch.class_type @c {}
 // -----
 
 torch.class_type @c {}
-%c0 = constant 0 : i64
+%c0 = torch.constant.int 0 : i64
 // expected-error @+1 {{number of 'torch.slot's in a 'torch.nn_module' must match number of 'torch.attr's in the corresponding 'torch.class_type'}}
 %0 = torch.nn_module {
   torch.slot "f", %c0 : i64
@@ -23,7 +23,7 @@ torch.class_type @c {
   // expected-note @+1 {{see torch.attr at corresponding index 0 here}}
   torch.attr "g" : i64
 }
-%c0 = constant 0 : i64
+%c0 = torch.constant.int 0 : i64
 %0 = torch.nn_module {
   // expected-error @+1 {{'torch.slot' op is expected to match type and name of 'torch.attr "g" : i64'}}
   torch.slot "f", %c0 : i64

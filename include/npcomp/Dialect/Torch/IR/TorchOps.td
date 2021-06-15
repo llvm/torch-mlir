@@ -11,6 +11,7 @@
 
 include "npcomp/Dialect/Torch/IR/TorchTypes.td"
 include "npcomp/Interfaces/Traits.td"
+include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
@@ -712,7 +713,7 @@ def Torch_FromBuiltinTensorOp : Torch_Op<"from_builtin_tensor", [
 }
 
 def Torch_ConstantNoneOp : Torch_Op<"constant.none",
-    [ConstantLike, NoSideEffect]> {
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "Get the singleton None value.";
   let description = [{
     Not to be confused with the `mlir::NoneType`. Be careful to use
@@ -725,7 +726,7 @@ def Torch_ConstantNoneOp : Torch_Op<"constant.none",
 }
 
 def Torch_ConstantStrOp : Torch_Op<"constant.str",
-    [ConstantLike, NoSideEffect]> {
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
   let summary = "Materialize a constant str value.";
   let description = [{
     Note: Strings in Python (and TorchScript) are immutable.
@@ -735,6 +736,43 @@ def Torch_ConstantStrOp : Torch_Op<"constant.str",
   );
   let results = (outs
     Torch_StringType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantIntOp : Torch_Op<"constant.int",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant `int` value.";
+  let description = [{
+    Note: TorchScript represents integers as 64-bit signed values, unlike
+    Python where they are arbitrary precision.
+
+    TODO: Add a `!torch.int` type.
+  }];
+  let arguments = (ins
+    AnyI64Attr:$value
+  );
+  let results = (outs
+    AnyTorchIntType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantFloatOp : Torch_Op<"constant.float",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant `float` value.";
+  let description = [{
+    Note: TorchScript represents `float` as 64-bit floating point values.
+
+    TODO: Add a `!torch.float` type.
+  }];
+  let arguments = (ins
+    F64Attr:$value
+  );
+  let results = (outs
+    AnyTorchFloatType:$result
   );
   let assemblyFormat = "$value attr-dict";
   let hasFolder = 1;

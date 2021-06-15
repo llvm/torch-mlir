@@ -338,10 +338,11 @@ def AnyTorchBoolType : AnyTypeOf<[
 
 def AnyTorchBoolListType : ListOf<[AnyTorchBoolType], "Any bool list type (bool[])">;
 
-def AnyTorchIntType : AnyTypeOf<[
-    AnySignedInteger,
-    AnySignlessInteger,
-], "Any primitive integer type suitable to be passed as a Torch 'int'">;
+def AnyTorchIntType : TypeAlias<I64,
+    "Any type usable for representing the `int` Python type">;
+
+def AnyTorchFloatType : TypeAlias<F64,
+    "Any type usable for representing the `float` Python type">;
 
 def AnyTorchIntListType : ListOf<[AnyTorchIntType], "Any int list type (int[])">;
 

@@ -22,11 +22,11 @@ torch.class_type @__torch__.Submodule  {
   // expected-error @+1 {{public function with multiple monomorphizations}}
   torch.method "forward", @__torch__.Submodule.forward
 }
-%num1_i64 = basicpy.numeric_constant 1 : i64
+%num1_i64 = torch.constant.int 1 : i64
 %1 = torch.nn_module  {
   torch.slot "n", %num1_i64 : i64
 } : !torch.nn.Module<"__torch__.Submodule">
-%num2_i64 = basicpy.numeric_constant 2 : i64
+%num2_i64 = torch.constant.int 2 : i64
 %2 = torch.nn_module  {
   torch.slot "n", %num2_i64 : i64
 } : !torch.nn.Module<"__torch__.Submodule">

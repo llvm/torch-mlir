@@ -107,6 +107,18 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     } else if (output->type()->cast<c10::BoolType>()) {
       op = builder.createBoolConstant(
           loc, static_cast<bool>(node->i(c10::attr::value)));
+    } else if (output->type()->cast<c10::IntType>()) {
+      op = createMlirOperation(
+          "torch.constant.int", loc,
+          typeMapper.mapFromTorchType(loc, output->type()),
+          toMlirNamedAttribute("value",
+                               importAttribute(loc, node, c10::attr::value)));
+    } else if (output->type()->cast<c10::FloatType>()) {
+      op = createMlirOperation(
+          "torch.constant.float", loc,
+          typeMapper.mapFromTorchType(loc, output->type()),
+          toMlirNamedAttribute("value",
+                               importAttribute(loc, node, c10::attr::value)));
     } else if (output->type()->cast<c10::StringType>()) {
       op = createMlirOperation(
           "torch.constant.str", loc, npcompTorchStringTypeGet(context),
@@ -123,8 +135,11 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
               "value",
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
     } else {
-      MlirAttribute valueAttr = importAttribute(loc, node, c10::attr::value);
-      op = builder.createStdConstant(loc, valueAttr);
+      std::stringstream msg;
+      msg << "unhandled prim::Constant node: ";
+      node->print(msg, 0, nullptr);
+      mlirEmitError(getMlirLocationFromNode(context, node), msg.str().c_str());
+      throw mlir_diagnostic_emitted();
     }
     mlirBlockAppendOwnedOperation(appendToBlock, op);
     mapResults(node, op);

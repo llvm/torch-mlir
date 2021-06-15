@@ -12,18 +12,18 @@ torch.class_type @__torch__.Submodule  {
   torch.method private "forward", @__torch__.Submodule.forward
 }
 
-%num1_i64 = basicpy.numeric_constant 1 : i64
+%num1_i64 = torch.constant.int 1 : i64
 %s1 = torch.nn_module  {
   // CHECK-LABEL:   torch.global_slot "private" @s1.n : i64  {
-  // CHECK:           %[[C1:.*]] = basicpy.numeric_constant 1 : i64
+  // CHECK:           %[[C1:.*]] = torch.constant.int 1 : i64
   // CHECK:           torch.global_slot.init %[[C1]] : i64
   // CHECK:         }
   torch.slot "n", %num1_i64 : i64
 } : !torch.nn.Module<"__torch__.Submodule">
-%num2_i64 = basicpy.numeric_constant 2 : i64
+%num2_i64 = torch.constant.int 2 : i64
 %s2 = torch.nn_module  {
   // CHECK-LABEL:   torch.global_slot "private" @s2.n : i64  {
-  // CHECK:           %[[C2:.*]] = basicpy.numeric_constant 2 : i64                                                                                                                                              
+  // CHECK:           %[[C2:.*]] = torch.constant.int 2 : i64
   // CHECK:           torch.global_slot.init %[[C2]] : i64
   // CHECK:         }
   torch.slot "n", %num2_i64 : i64
