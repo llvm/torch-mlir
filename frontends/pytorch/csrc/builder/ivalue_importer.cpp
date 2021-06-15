@@ -279,13 +279,16 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   }
   if (ivalue.isTuple()) {
     auto list = ivalue.toTuple()->elements();
-    std::vector<MlirValue> elems;
+    std::vector<MlirValue> operands;
+    std::vector<MlirType> types;
     for (const c10::IValue &elem : list) {
-      elems.push_back(importIValue(elem));
+      MlirValue operand = importIValue(elem);
+      operands.push_back(operand);
+      types.push_back(mlirValueGetType(operand));
     }
-    MlirOperation operation =
-        createMlirOperationAtEnd(importBlock, "basicpy.build_tuple", loc,
-                                 npcompBasicpyTupleTypeGet(context), elems);
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "torch.prim.TupleConstruct", loc,
+        npcompTorchTupleTypeGet(context, types.size(), types.data()), operands);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTensor()) {

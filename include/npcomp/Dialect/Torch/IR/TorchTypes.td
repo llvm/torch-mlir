@@ -232,6 +232,16 @@ def Torch_ListType : Torch_TypeWithContainedType<"List", "list"> {
   }];
 }
 
+def Torch_TupleType : Torch_Type<"Tuple", "tuple"> {
+  let summary = "!torch.tuple<T1, T2, T3>";
+  let description = [{
+    Tuple type with 0-N ordered contained types.
+  }];
+  let parameters = (ins
+    ArrayRefParameter<"::mlir::Type", "contained types">:$containedTypes
+  );
+}
+
 def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
@@ -329,7 +339,7 @@ def AnyTorchType : AnyTypeOf<[
     AnyTorchBoolType,
     AnyTorchScalarType,
     AnyTorchTensorType,
-    Basicpy_TupleType,
+    Torch_TupleType,
     Basicpy_BytesType,
     Torch_NnModuleType,
     Torch_NoneType,

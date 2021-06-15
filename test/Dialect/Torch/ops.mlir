@@ -41,6 +41,13 @@ func private @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
 // CHECK: @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 
+// CHECK: @tuple.empty() -> !torch.tuple<>
+func private @tuple.empty() -> !torch.tuple<>
+// CHECK: @tuple.one_element() -> !torch.tuple<!torch.tensor>
+func private @tuple.one_element() -> !torch.tuple<!torch.tensor>
+// CHECK: @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
+func private @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
+
 // CHECK-LABEL:   func @torch.tensor() {
 func @torch.tensor() {
   // CHECK: torch.tensor(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
