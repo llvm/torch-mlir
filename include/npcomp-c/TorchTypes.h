@@ -70,6 +70,16 @@ bool npcompTypeIsATorchDevice(MlirType t);
 MlirType npcompTorchDeviceTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
+// torch.bool type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.bool type
+bool npcompTypeIsATorchBool(MlirType t);
+
+/// Gets the !torch.bool type.
+MlirType npcompTorchBoolTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
 // torch.LinearParams type.
 //===----------------------------------------------------------------------===//
 

@@ -26,6 +26,13 @@ public:
   TypeMapper(MlirContext context) : context(context) {}
 
   /// Gets a corresponding MlirType for the Torch ScalarType.
+  /// `c10::`ScalarType` is used to represent tensor dtypes, and is a different
+  /// type universe from the Python-based types modeled with `c10::Type`.
+  /// Compared to the Python types, which just have `int` and `float` and
+  /// `bool` numeric types, ScalarType has detailed bit-width and precision
+  /// considerations (which matter a lot for tensors, but don't really matter
+  /// for Python code).
+  ///
   /// Throws std::invalid_argument on failure.
   MlirType mapFromTorchScalarType(c10::ScalarType scalarType);
 

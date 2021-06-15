@@ -13,24 +13,24 @@ func @aten.dim(%arg0: !torch.vtensor<*,f32>) -> i64 {
 
 // CHECK-LABEL:   func @torch.aten.ne.int(
 // CHECK-SAME:                      %[[ARG0:.*]]: i64,
-// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !basicpy.BoolType {
+// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !torch.bool {
 // CHECK:           %[[I1:.*]] = cmpi ne, %[[ARG0]], %[[ARG1]] : i64
-// CHECK:           %[[BASICPY_BOOL:.*]] = basicpy.bool_cast %[[I1]] : i1 -> !basicpy.BoolType
-// CHECK:           return %[[BASICPY_BOOL]] : !basicpy.BoolType
-func @torch.aten.ne.int(%arg0: i64, %arg1: i64) -> !basicpy.BoolType {
-  %0 = torch.aten.ne.int %arg0, %arg1 : i64, i64 -> !basicpy.BoolType
-  return %0 : !basicpy.BoolType
+// CHECK:           %[[BOOL:.*]] = torch.from_i1 %[[I1]]
+// CHECK:           return %[[BOOL]] : !torch.bool
+func @torch.aten.ne.int(%arg0: i64, %arg1: i64) -> !torch.bool {
+  %0 = torch.aten.ne.int %arg0, %arg1 : i64, i64 -> !torch.bool
+  return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.gt.int(
 // CHECK-SAME:                      %[[ARG0:.*]]: i64,
-// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !basicpy.BoolType {
+// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !torch.bool {
 // CHECK:           %[[I1:.*]] = cmpi sgt, %[[ARG0]], %[[ARG1]] : i64
-// CHECK:           %[[BASICPY_BOOL:.*]] = basicpy.bool_cast %[[I1]] : i1 -> !basicpy.BoolType
-// CHECK:           return %[[BASICPY_BOOL]] : !basicpy.BoolType
-func @torch.aten.gt.int(%arg0: i64, %arg1: i64) -> !basicpy.BoolType {
-  %0 = torch.aten.gt.int %arg0, %arg1 : i64, i64 -> !basicpy.BoolType
-  return %0 : !basicpy.BoolType
+// CHECK:           %[[BOOL:.*]] = torch.from_i1 %[[I1]]
+// CHECK:           return %[[BOOL]] : !torch.bool
+func @torch.aten.gt.int(%arg0: i64, %arg1: i64) -> !torch.bool {
+  %0 = torch.aten.gt.int %arg0, %arg1 : i64, i64 -> !torch.bool
+  return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.tensor$value() -> !torch.vtensor<[],f32> {

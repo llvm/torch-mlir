@@ -98,8 +98,6 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
   // represented as one of double or int64_t, with a special tag for whether
   // it should be interpreted as a bool.
   if (s.isIntegral(/*includeBool=*/false)) {
-    // TODO: Switch to a basicpy.constant that works properly with signed
-    // integers and then switch this to a signed integer.
     MlirType t = mlirIntegerTypeGet(context, 64);
     MlirAttribute value = mlirIntegerAttrGet(t, s.to<int64_t>());
     MlirOperation op = createMlirOperation(

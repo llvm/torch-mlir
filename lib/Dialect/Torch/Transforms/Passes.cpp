@@ -160,8 +160,8 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   }
 
   // Finish the type conversion from !torch.vtensor to the builtin tensor type.
-  pm.addPass(createFuncBuiltinTensorizePass());
-  pm.addNestedPass<FuncOp>(createFinalizingBuiltinTensorizePass());
+  pm.addPass(createFuncBackendTypeConversionPass());
+  pm.addNestedPass<FuncOp>(createFinalizingBackendTypeConversionPass());
 
   // Verify that we have lowered to the form that backends expect.
   // This fails compilation (signalPassFailure) if the IR is not in the

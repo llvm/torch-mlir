@@ -165,10 +165,10 @@ def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
     AnyTorchOptionalTensor:$bias,
     AnyTorchOptionalTensor:$running_mean,
     AnyTorchOptionalTensor:$running_var,
-    AnyTorchBoolType:$training,
+    Torch_BoolType:$training,
     AnyTorchFloatType:$momentum,
     AnyTorchFloatType:$eps,
-    AnyTorchBoolType:$cudnn_enabled
+    Torch_BoolType:$cudnn_enabled
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -187,7 +187,7 @@ def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
     AnyTorchIntListType:$stride,
     AnyTorchIntListType:$padding,
     AnyTorchIntListType:$dilation,
-    AnyTorchBoolType:$ceil_mode
+    Torch_BoolType:$ceil_mode
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -265,7 +265,7 @@ def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
     AnyTorchIntType:$b
   );
   let results = (outs
-    AnyTorchBoolType:$result
+    Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -280,7 +280,7 @@ def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
     AnyTorchIntType:$b
   );
   let results = (outs
-    AnyTorchBoolType:$result
+    Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -355,7 +355,7 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
     AnyTorchIntType:$b
   );
   let results = (outs
-    AnyTorchBoolType:$result
+    Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -370,7 +370,7 @@ def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
     AnyTorchType:$obj
   );
   let results = (outs
-    AnyTorchBoolType:$result
+    Torch_BoolType:$result
   );
   let assemblyFormat = "$self `,` $obj attr-dict `:` type($self) `,` type($obj) `->` type($result)";
   let hasFolder = 1;

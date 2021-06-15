@@ -45,7 +45,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
 
     ```mlir
     %2 = torch.nn_module {
-      torch.slot "b", %bool_true : !basicpy.BoolType
+      torch.slot "b", %bool_true : !torch.bool
       torch.slot "i", %num3_i64 : i64
       torch.slot "f", %num : f64
       torch.slot "t", %t : !torch.tensor
@@ -125,7 +125,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
 
     // A class type with many members.
     torch.class_type @test {
-      torch.attr "b" : !basicpy.BoolType
+      torch.attr "b" : !torch.bool
       torch.attr "i" : i64
       torch.attr "f" : f64
       torch.attr "t" : !torch.tensor
@@ -134,7 +134,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     }
     torch.nn_module {
       // These must match the order and names in the `torch.class_type`.
-      torch.slot "b", %bool_true : !basicpy.BoolType
+      torch.slot "b", %bool_true : !torch.bool
       torch.slot "i", %num3_i64 : i64
       torch.slot "f", %num : f64
       torch.slot "t", %t : !torch.tensor
@@ -419,7 +419,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
 
   let arguments = (ins
     I64:$maxTripCount,
-    Basicpy_BoolType:$initialCondition,
+    Torch_BoolType:$initialCondition,
     Variadic<AnyTorchType>:$iterArgsInit
   );
   let results = (outs Variadic<AnyTorchType>:$results);
@@ -442,7 +442,7 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
   }];
 
   let arguments = (ins
-    Basicpy_BoolType:$shouldContinue,
+    Torch_BoolType:$shouldContinue,
     Variadic<AnyTorchType>:$iterArgs
   );
   let results = (outs);
@@ -450,6 +450,170 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
   let assemblyFormat = [{
     $shouldContinue `,`
     `iter` `(` ($iterArgs^ `:` type($iterArgs))? `)` attr-dict
+  }];
+}
+
+
+//===----------------------------------------------------------------------===//
+// Ops corresponding to prim::Constant
+//===----------------------------------------------------------------------===//
+
+def Torch_ConstantNoneOp : Torch_Op<"constant.none",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Get the singleton None value.";
+  let description = [{
+    Not to be confused with the `mlir::NoneType`. Be careful to use
+    `Torch::NoneType` to avoid namespace ambiguity.
+  }];
+  let arguments = (ins);
+  let results = (outs Torch_NoneType:$result);
+  let assemblyFormat = "attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantStrOp : Torch_Op<"constant.str",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant str value.";
+  let description = [{
+    Note: Strings in Python (and TorchScript) are immutable.
+  }];
+  let arguments = (ins
+    StrAttr:$value
+  );
+  let results = (outs
+    Torch_StringType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantIntOp : Torch_Op<"constant.int",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant `int` value.";
+  let description = [{
+    Note: TorchScript represents integers as 64-bit signed values, unlike
+    Python where they are arbitrary precision.
+
+    TODO: Add a `!torch.int` type.
+  }];
+  let arguments = (ins
+    AnyI64Attr:$value
+  );
+  let results = (outs
+    AnyTorchIntType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantFloatOp : Torch_Op<"constant.float",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant `float` value.";
+  let description = [{
+    Note: TorchScript represents `float` as 64-bit floating point values.
+
+    TODO: Add a `!torch.float` type.
+  }];
+  let arguments = (ins
+    F64Attr:$value
+  );
+  let results = (outs
+    AnyTorchFloatType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+def Torch_ConstantBoolOp : Torch_Op<"constant.bool",
+    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+  let summary = "Materialize a constant `bool` value.";
+  let description = [{
+  }];
+  let arguments = (ins
+    I1Attr:$value
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Conversions to builtin types.
+//===----------------------------------------------------------------------===//
+
+def Torch_ToBuiltinTensorOp : Torch_Op<"to_builtin_tensor", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `!torch.vtensor` to a `tensor`";
+  let description = [{
+    This op only operates on ValueTensorType, to avoid conflating conversions
+    between value-semantic and non-value-semantic types.
+  }];
+  let arguments = (ins
+    Torch_ValueTensorType:$operand
+  );
+  let results = (outs
+    AnyTensor:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
+def Torch_FromBuiltinTensorOp : Torch_Op<"from_builtin_tensor", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `tensor` to a `!torch.vtensor`";
+  let description = [{
+    This op only operates on ValueTensorType, to avoid conflating conversions
+    between value-semantic and non-value-semantic types.
+  }];
+  let arguments = (ins
+    AnyTensor:$operand
+  );
+  let results = (outs
+    Torch_ValueTensorType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($operand) `->` type($result)
+  }];
+}
+
+def Torch_ToI1Op : Torch_Op<"to_i1", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `!torch.bool` to an `i1`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    Torch_BoolType:$operand
+  );
+  let results = (outs
+    I1:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
+  }];
+}
+
+def Torch_FromI1Op : Torch_Op<"from_i1", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert an `i1` to a `!torch.bool`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    I1:$operand
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
   }];
 }
 
@@ -672,110 +836,6 @@ def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
     $value `overwrites` $overwritten attr-dict
       `:` type($value) `,` type($overwritten)
   }];
-}
-
-def Torch_ToBuiltinTensorOp : Torch_Op<"to_builtin_tensor", [
-    DeclareOpInterfaceMethods<InferTypeOpInterface>
-  ]> {
-  let summary = "Convert a `!torch.vtensor` to a `tensor`";
-  let description = [{
-    This op only operates on ValueTensorType, to avoid conflating conversions
-    between value-semantic and non-value-semantic types.
-  }];
-  let arguments = (ins
-    Torch_ValueTensorType:$operand
-  );
-  let results = (outs
-    AnyTensor:$result
-  );
-  let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
-  }];
-}
-
-def Torch_FromBuiltinTensorOp : Torch_Op<"from_builtin_tensor", [
-    DeclareOpInterfaceMethods<InferTypeOpInterface>
-  ]> {
-  let summary = "Convert a `tensor` to a `!torch.vtensor`";
-  let description = [{
-    This op only operates on ValueTensorType, to avoid conflating conversions
-    between value-semantic and non-value-semantic types.
-  }];
-  let arguments = (ins
-    AnyTensor:$operand
-  );
-  let results = (outs
-    Torch_ValueTensorType:$result
-  );
-  let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
-  }];
-}
-
-def Torch_ConstantNoneOp : Torch_Op<"constant.none",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
-  let summary = "Get the singleton None value.";
-  let description = [{
-    Not to be confused with the `mlir::NoneType`. Be careful to use
-    `Torch::NoneType` to avoid namespace ambiguity.
-  }];
-  let arguments = (ins);
-  let results = (outs Torch_NoneType:$result);
-  let assemblyFormat = "attr-dict";
-  let hasFolder = 1;
-}
-
-def Torch_ConstantStrOp : Torch_Op<"constant.str",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
-  let summary = "Materialize a constant str value.";
-  let description = [{
-    Note: Strings in Python (and TorchScript) are immutable.
-  }];
-  let arguments = (ins
-    StrAttr:$value
-  );
-  let results = (outs
-    Torch_StringType:$result
-  );
-  let assemblyFormat = "$value attr-dict";
-  let hasFolder = 1;
-}
-
-def Torch_ConstantIntOp : Torch_Op<"constant.int",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
-  let summary = "Materialize a constant `int` value.";
-  let description = [{
-    Note: TorchScript represents integers as 64-bit signed values, unlike
-    Python where they are arbitrary precision.
-
-    TODO: Add a `!torch.int` type.
-  }];
-  let arguments = (ins
-    AnyI64Attr:$value
-  );
-  let results = (outs
-    AnyTorchIntType:$result
-  );
-  let assemblyFormat = "$value attr-dict";
-  let hasFolder = 1;
-}
-
-def Torch_ConstantFloatOp : Torch_Op<"constant.float",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
-  let summary = "Materialize a constant `float` value.";
-  let description = [{
-    Note: TorchScript represents `float` as 64-bit floating point values.
-
-    TODO: Add a `!torch.float` type.
-  }];
-  let arguments = (ins
-    F64Attr:$value
-  );
-  let results = (outs
-    AnyTorchFloatType:$result
-  );
-  let assemblyFormat = "$value attr-dict";
-  let hasFolder = 1;
 }
 
 #endif // TORCH_OPS

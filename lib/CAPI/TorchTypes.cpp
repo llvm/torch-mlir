@@ -84,6 +84,18 @@ MlirType npcompTorchDeviceTypeGet(MlirContext context) {
 }
 
 //===----------------------------------------------------------------------===//
+// torch.bool type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchBool(MlirType t) {
+  return unwrap(t).isa<Torch::BoolType>();
+}
+
+MlirType npcompTorchBoolTypeGet(MlirContext context) {
+  return wrap(Torch::BoolType::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
 // torch.LinearParams type.
 //===----------------------------------------------------------------------===//
 

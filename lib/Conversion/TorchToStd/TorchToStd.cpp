@@ -12,11 +12,9 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/IR/TorchUtils.h"
+#include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -43,17 +41,18 @@ public:
 };
 } // namespace
 
+// TODO: Use dialect conversion infra.
 LogicalResult convertNeIntOp(AtenNeIntOp op, PatternRewriter &rewriter) {
   auto i1 = rewriter.create<CmpIOp>(op->getLoc(), CmpIPredicate::ne,
                                     op->getOperand(0), op->getOperand(1));
-  rewriter.replaceOpWithNewOp<Basicpy::BoolCastOp>(op, op.getType(), i1);
+  rewriter.replaceOpWithNewOp<Torch::FromI1Op>(op, op.getType(), i1);
   return success();
 }
 
 LogicalResult convertGtIntOp(AtenGtIntOp op, PatternRewriter &rewriter) {
   auto i1 = rewriter.create<CmpIOp>(op->getLoc(), CmpIPredicate::sgt,
                                     op->getOperand(0), op->getOperand(1));
-  rewriter.replaceOpWithNewOp<Basicpy::BoolCastOp>(op, op.getType(), i1);
+  rewriter.replaceOpWithNewOp<Torch::FromI1Op>(op, op.getType(), i1);
   return success();
 }
 
@@ -74,18 +73,17 @@ namespace {
 class ConvertTorchToStd : public ConvertTorchToStdBase<ConvertTorchToStd> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<StandardOpsDialect, Basicpy::BasicpyDialect>();
+    registry.insert<StandardOpsDialect>();
   }
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect,
-                           Basicpy::BasicpyDialect>();
+    target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    setupValueTensorToBuiltinTensorConversion(target, typeConverter);
+    setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenDimOp>();

@@ -10,7 +10,6 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/BasicpyTypes.h"
 #include "npcomp-c/TorchTypes.h"
 
 using namespace torch_mlir;
@@ -24,6 +23,6 @@ MlirOperation OpBuilder::createNoneConstant(MlirLocation loc) {
 
 MlirOperation OpBuilder::createBoolConstant(MlirLocation loc, bool value) {
   return createMlirOperation(
-      "basicpy.bool_constant", loc, npcompBasicpyBoolTypeGet(context),
+      "torch.constant.bool", loc, npcompTorchBoolTypeGet(context),
       toMlirNamedAttribute("value", mlirBoolAttrGet(context, value)));
 }

@@ -15,7 +15,6 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/BasicpyTypes.h"
 #include "npcomp-c/TorchTypes.h"
 
 namespace py = pybind11;
@@ -157,7 +156,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
         mlirRegionCreate());
     mapResults(node, operation);
     std::vector<MlirType> terminatorOperandTypes = {
-        npcompBasicpyBoolTypeGet(context)};
+        npcompTorchBoolTypeGet(context)};
     terminatorOperandTypes.insert(terminatorOperandTypes.end(),
                                   resultTypes.begin(), resultTypes.end());
     auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
@@ -175,9 +174,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 
   if (kind == c10::prim::If) {
     // TorchScript will already have an explicit op to determine truthiness. So
-    // all we need to do here is launder !basicpy.BoolType to i1 for `scf.if`.
+    // all we need to do here is launder !torch.bool to i1 for `scf.if`.
     MlirOperation pred = createMlirOperationAtEnd(
-        appendToBlock, "basicpy.bool_cast", loc, mlirIntegerTypeGet(context, 1),
+        appendToBlock, "torch.to_i1", loc, mlirIntegerTypeGet(context, 1),
         lookupMappedValue(node->input()));
     std::vector<MlirType> resultTypes =
         getMlirTypesFromValues(loc, node->outputs());

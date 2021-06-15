@@ -8,14 +8,11 @@
 
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "llvm/ADT/StringMap.h"
 
 using namespace mlir;
@@ -494,6 +491,19 @@ OpFoldResult Torch::ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
 void Torch::ConstantFloatOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
   setNameFn(getResult(), "float");
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Torch::ConstantBoolOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+void Torch::ConstantBoolOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), value() ? "true" : "false");
 }
 
 //===----------------------------------------------------------------------===//

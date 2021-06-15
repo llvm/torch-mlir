@@ -7,12 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyDialect.h"
-#include "npcomp/Dialect/Basicpy/IR/BasicpyOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringExtras.h"
@@ -61,8 +58,6 @@ void TorchDialect::initialize() {
 #include "npcomp/Dialect/Torch/IR/TorchTypes.cpp.inc"
       >();
   addInterfaces<TorchInlinerInterface>();
-  getContext()->loadDialect<StandardOpsDialect>();
-  getContext()->loadDialect<Basicpy::BasicpyDialect>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -124,12 +119,6 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
 Operation *TorchDialect::materializeConstant(OpBuilder &builder,
                                              Attribute value, Type type,
                                              Location loc) {
-  // Bool (i1 -> !basicpy.BoolType).
-  if (type.isa<Basicpy::BoolType>()) {
-    auto i1Value = value.dyn_cast<IntegerAttr>();
-    if (i1Value && i1Value.getType().getIntOrFloatBitWidth() == 1)
-      return builder.create<Basicpy::BoolConstantOp>(loc, type, i1Value);
-  }
   // i64 is how we model TorchScript's "scalar integer type" (we could have a
   // proper !torch.int type in theory). None of our canonicalizers should be
   // creating any other integer type (except perhaps i1 after we resolve that
@@ -148,6 +137,11 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   // TODO: We should have a !torch.float type to model this.
   if (auto floatType = type.dyn_cast<Float64Type>())
     return builder.create<Torch::ConstantFloatOp>(loc, value.cast<FloatAttr>());
+
+  if (type.isa<Torch::BoolType>()) {
+    return builder.create<Torch::ConstantBoolOp>(loc,
+                                                 value.cast<IntegerAttr>());
+  }
 
   if (type.isa<Torch::NoneType>())
     return builder.create<ConstantNoneOp>(loc);

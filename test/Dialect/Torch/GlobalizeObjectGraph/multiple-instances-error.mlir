@@ -15,7 +15,7 @@ torch.class_type @__torch__.TestModule  {
   torch.attr private "s2" : !torch.nn.Module<"__torch__.Submodule">
   torch.method "forward", @__torch__.TestModule.forward
 }
-%bool_true = basicpy.bool_constant true
+%bool_true = torch.constant.bool true
 %0 = torch.constant.none
 torch.class_type @__torch__.Submodule  {
   torch.attr private "n" : i64

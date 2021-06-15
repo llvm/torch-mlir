@@ -62,7 +62,10 @@ func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
   return %0 : !torch.optional<!torch.tensor>
 }
 
-%bool_true = basicpy.bool_constant true
+// CHECK: %true = torch.constant.bool true
+%true = torch.constant.bool true
+// CHECK: %false = torch.constant.bool false
+%false = torch.constant.bool false
 // CHECK: %int3 = torch.constant.int 3
 %int3 = torch.constant.int 3
 // CHECK: %float = torch.constant.float 4.250000e+01
@@ -80,17 +83,17 @@ torch.class_type @empty {}
 %submodule = torch.nn_module {} : !torch.nn.Module<"empty">
 
 torch.class_type @test {
-  torch.attr "b" : !basicpy.BoolType
+  torch.attr "b" : !torch.bool
   torch.attr "i" : i64
   torch.attr "f" : f64
   torch.attr "t" : !torch.tensor
   torch.attr "submodule" : !torch.nn.Module<"empty">
-  torch.attr "ob" : !torch.optional<!basicpy.BoolType>
+  torch.attr "ob" : !torch.optional<!torch.bool>
   torch.attr "s" : !torch.str
   torch.method "method", @f
 }
 torch.nn_module {
-  torch.slot "b", %bool_true : !basicpy.BoolType
+  torch.slot "b", %true : !torch.bool
   torch.slot "i", %int3 : i64
   torch.slot "f", %float : f64
   torch.slot "t", %tensor : !torch.tensor

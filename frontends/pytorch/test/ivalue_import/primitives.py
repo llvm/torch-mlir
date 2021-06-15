@@ -18,16 +18,16 @@ class TestModule(torch.nn.Module):
         self.f = 42.5
 
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
-# CHECK:   torch.attr "training" : !basicpy.BoolType
+# CHECK:   torch.attr "training" : !torch.bool
 # CHECK:   torch.attr "i" : i64
 # CHECK:   torch.attr "f" : f64
 # CHECK: }
-# CHECK: %[[TRUE:.*]] = basicpy.bool_constant true
+# CHECK: %[[TRUE:.*]] = torch.constant.bool true
 # CHECK: %[[N3:.*]] = torch.constant.int 3 : i64
 # CHECK: %[[N42:.*]] = torch.constant.float 4.250000e+01
 # CHECK: %[[MODULE:.*]] = torch.nn_module  {
 # Note: for some reason, Torch always adds a "training" property to all modules.
-# CHECK:   torch.slot "training", %[[TRUE]] : !basicpy.BoolType
+# CHECK:   torch.slot "training", %[[TRUE]] : !torch.bool
 # CHECK:   torch.slot "i", %[[N3]] : i64
 # CHECK:   torch.slot "f", %[[N42]] : f64
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE:.*]]">

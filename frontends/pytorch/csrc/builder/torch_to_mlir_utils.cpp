@@ -15,7 +15,6 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/BasicpyTypes.h"
 #include "npcomp-c/TorchTypes.h"
 
 using namespace torch_mlir;
@@ -55,7 +54,9 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
   case ScalarType::Long:
     return mlirIntegerTypeSignedGet(context, 64);
   case ScalarType::Bool:
-    return npcompBasicpyBoolTypeGet(context);
+    // TODO: Figure out if we want to use unsigned, signed, or signless here.
+    // The thought is that we generally want it to zext, so probably unsigned.
+    return mlirIntegerTypeGet(context, 1);
   case ScalarType::Double:
     return mlirF64TypeGet(context);
   case ScalarType::Float:
@@ -178,7 +179,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompTorchNoneTypeGet(context);
   }
   case TypeKind::BoolType: {
-    return npcompBasicpyBoolTypeGet(context);
+    return npcompTorchBoolTypeGet(context);
   }
   case TypeKind::ListType: {
     return npcompTorchListTypeGet(mapFromTorchType(
@@ -272,23 +273,13 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
                   c10::Layout::Strided);
 
   // Construct the ShapedType.
-  MlirType elementType;
-  if (tensor.scalar_type() == ScalarType::Bool) {
-    // Bool is a special case. When used as an element type, it must be i1.
-    // The generalized (non-Tensor) conversion, assumes that Bool is the
-    // Basicpy bool type.
-    elementType = mlirIntegerTypeGet(context, 1);
-  } else if (tensor.scalar_type() == ScalarType::QInt8) {
-    // This function returns the underlying integer representation of the tensor
-    // as an elements attr. That underlying representation is of type si8
-    // for a torch.qint8 tensor.
-    // Caller code is responsible for materializing the proper op that
-    // incorporates the quantization scheme to create a tensor of `!torch.qint8`
-    // element type.
-    elementType = mlirIntegerTypeSignedGet(context, 8);
-  } else {
-    elementType = typeMapper.mapFromTorchScalarType(tensor.scalar_type());
-  }
+
+  // The element type is usually just the mapped ScalarType itself, but for
+  // quantized types it might differ (e.g. QInt8 becomes Char). Caller code is
+  // responsible for materializing the proper op that incorporates the
+  // quantization scheme to create a tensor of e.g. `!torch.qint8` element type.
+  MlirType elementType = typeMapper.mapFromTorchScalarType(
+      c10::toUnderlying(tensor.scalar_type()));
   std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
   MlirType shapedType = mlirRankedTensorTypeGetChecked(
       loc, shape.size(), shape.data(), elementType, {nullptr});

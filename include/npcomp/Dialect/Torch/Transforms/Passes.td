@@ -214,20 +214,20 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
   }];
 }
 
-def FuncBuiltinTensorize : Pass<"torch-func-builtin-tensorize", "ModuleOp"> {
+def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "ModuleOp"> {
   let summary = "Convert functions to operate on builtin tensors";
-  let constructor = "mlir::NPCOMP::Torch::createFuncBuiltinTensorizePass()";
+  let constructor = "mlir::NPCOMP::Torch::createFuncBackendTypeConversionPass()";
   let description = [{
     Partial type conversion pass analogous in scope to the upstream
     `func-bufferize` pass. See details there.
   }];
 }
 
-def FinalizingBuiltinTensorize
-    : Pass<"torch-finalizing-builtin-tensorize", "FuncOp"> {
+def FinalizingBackendTypeConversion
+    : Pass<"torch-finalizing-backend-type-conversion", "FuncOp"> {
   let summary = "Finalizes a partial conversion to builtin tensors";
   let constructor =
-    "mlir::NPCOMP::Torch::createFinalizingBuiltinTensorizePass()";
+    "mlir::NPCOMP::Torch::createFinalizingBackendTypeConversionPass()";
   let description = [{
     Analogous in scope to the upstream `finalizing-bufferize` pass.
     See details there.

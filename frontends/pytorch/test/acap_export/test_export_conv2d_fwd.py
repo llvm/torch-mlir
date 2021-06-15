@@ -39,7 +39,7 @@ with mb.capture_function("conv2d_fwd", [tensor]) as f:
 # CHECK:           %[[VAL_4:.*]] = torch.constant.int 0 : i64
 # CHECK:           %[[VAL_5:.*]] = torch.constant.int 1 : i64
 # CHECK:           %[[VAL_6:.*]] = torch.constant.int 1 : i64
-# CHECK:           %[[VAL_7:.*]] = basicpy.bool_constant false
+# CHECK:           %[[VAL_7:.*]] = torch.constant.bool false
 # CHECK:           %[[VAL_8:.*]] = torch.constant.int 0 : i64
 # CHECK:           %[[VAL_9:.*]] = torch.constant.int 0 : i64
 # CHECK:           %[[VAL_10:.*]] = torch.constant.int 1 : i64
@@ -49,7 +49,7 @@ with mb.capture_function("conv2d_fwd", [tensor]) as f:
 # CHECK:           %[[VAL_14:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (i64, i64) -> !torch.list<i64>
 # CHECK:           %[[VAL_15:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (i64, i64) -> !torch.list<i64>
 # CHECK:           %[[VAL_16:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (i64, i64) -> !torch.list<i64>
-# CHECK:           %[[VAL_17:.*]] = torch.operator "aten.convolution"(%[[VAL_0]], %[[VAL_11]], %[[VAL_12]], %[[VAL_13]], %[[VAL_14]], %[[VAL_15]], %[[VAL_7]], %[[VAL_16]], %[[VAL_10]]) : (!torch.tensor<[3,16,10,10],f32>, !torch.tensor<[4,16,3,3],f32>, !torch.tensor<[4],f32>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !basicpy.BoolType, !torch.list<i64>, i64) -> !torch.tensor<[3,4,8,8],f32>
+# CHECK:           %[[VAL_17:.*]] = torch.operator "aten.convolution"(%[[VAL_0]], %[[VAL_11]], %[[VAL_12]], %[[VAL_13]], %[[VAL_14]], %[[VAL_15]], %[[VAL_7]], %[[VAL_16]], %[[VAL_10]]) : (!torch.tensor<[3,16,10,10],f32>, !torch.tensor<[4,16,3,3],f32>, !torch.tensor<[4],f32>, !torch.list<i64>, !torch.list<i64>, !torch.list<i64>, !torch.bool, !torch.list<i64>, i64) -> !torch.tensor<[3,4,8,8],f32>
 # CHECK:           return %[[VAL_17]] : !torch.tensor<[3,4,8,8],f32>
 # CHECK:         }
 
