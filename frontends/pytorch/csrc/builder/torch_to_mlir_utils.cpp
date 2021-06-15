@@ -194,7 +194,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
                                    containedTypes.data());
   }
   case TypeKind::StringType: {
-    return npcompBasicpyBytesTypeGet(context);
+    return npcompTorchStringTypeGet(context);
   }
   case TypeKind::DeviceObjType: {
     return npcompTorchDeviceTypeGet(context);

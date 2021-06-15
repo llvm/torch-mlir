@@ -28,14 +28,6 @@ MlirOperation OpBuilder::createBoolConstant(MlirLocation loc, bool value) {
       toMlirNamedAttribute("value", mlirBoolAttrGet(context, value)));
 }
 
-MlirOperation OpBuilder::createBytesConstant(MlirLocation loc,
-                                             const std::string &value) {
-  return createMlirOperation(
-      "basicpy.bytes_constant", loc, npcompBasicpyBytesTypeGet(context),
-      toMlirNamedAttribute("value",
-                           mlirStringAttrGet(context, toMlirStringRef(value))));
-}
-
 MlirOperation OpBuilder::createStdConstant(MlirLocation loc,
                                            MlirAttribute value) {
   return createMlirOperation("std.constant", loc, mlirAttributeGetType(value),

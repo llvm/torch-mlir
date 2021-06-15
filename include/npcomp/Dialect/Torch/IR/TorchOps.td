@@ -724,4 +724,20 @@ def Torch_ConstantNoneOp : Torch_Op<"constant.none",
   let hasFolder = 1;
 }
 
+def Torch_ConstantStrOp : Torch_Op<"constant.str",
+    [ConstantLike, NoSideEffect]> {
+  let summary = "Materialize a constant str value.";
+  let description = [{
+    Note: Strings in Python (and TorchScript) are immutable.
+  }];
+  let arguments = (ins
+    StrAttr:$value
+  );
+  let results = (outs
+    Torch_StringType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+  let hasFolder = 1;
+}
+
 #endif // TORCH_OPS

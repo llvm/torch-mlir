@@ -253,6 +253,16 @@ def Torch_NoneType : Torch_Type<"None", "none"> {
   }];
 }
 
+def Torch_StringType : Torch_Type<"String", "str"> {
+  let summary = "Torch StringType";
+  let description = [{
+    An immutable string representing a sequence of characters.
+
+    TODO: Figure out the exact TorchScript/PyTorch string semantics.
+    E.g. is it always unicode-encoded, etc.
+  }];
+}
+
 def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
   let summary = "Type modeling `ScalarType::QInt8`";
   let description = [{
@@ -340,7 +350,7 @@ def AnyTorchType : AnyTypeOf<[
     AnyTorchScalarType,
     AnyTorchTensorType,
     Torch_TupleType,
-    Basicpy_BytesType,
+    Torch_StringType,
     Torch_NnModuleType,
     Torch_NoneType,
     Torch_OptionalType,

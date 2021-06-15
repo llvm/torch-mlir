@@ -177,3 +177,15 @@ bool npcompTypeIsATorchNone(MlirType t) {
 MlirType npcompTorchNoneTypeGet(MlirContext context) {
   return wrap(Torch::NoneType::get(unwrap(context)));
 }
+
+//===----------------------------------------------------------------------===//
+// torch.str type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchString(MlirType t) {
+  return unwrap(t).isa<Torch::StringType>();
+}
+
+MlirType npcompTorchStringTypeGet(MlirContext context) {
+  return wrap(Torch::StringType::get(unwrap(context)));
+}

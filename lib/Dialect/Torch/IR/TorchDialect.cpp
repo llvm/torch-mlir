@@ -144,5 +144,8 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   if (type.isa<Torch::NoneType>())
     return builder.create<ConstantNoneOp>(loc);
 
+  if (auto stringAttr = value.dyn_cast<StringAttr>())
+    return builder.create<ConstantStrOp>(loc, stringAttr);
+
   return nullptr;
 }

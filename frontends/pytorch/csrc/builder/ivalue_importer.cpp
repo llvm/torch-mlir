@@ -298,9 +298,9 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return importModule(ivalue.toModule());
   }
   if (ivalue.isString()) {
-    MlirType type = npcompBasicpyBytesTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
-        importBlock, "basicpy.bytes_constant", loc, type,
+        importBlock, "torch.constant.str", loc,
+        npcompTorchStringTypeGet(context),
         toMlirNamedAttribute(
             "value",
             mlirStringAttrGet(context,

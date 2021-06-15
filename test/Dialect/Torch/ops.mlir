@@ -67,6 +67,7 @@ func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
 %num = basicpy.numeric_constant 4.250000e+01 : f64
 %tensor = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
 %none = torch.constant.none
+%str = torch.constant.str "some str"
 func private @f(%arg0: !torch.nn.Module<"test">) {
   return
 }
@@ -81,6 +82,7 @@ torch.class_type @test {
   torch.attr "t" : !torch.tensor
   torch.attr "submodule" : !torch.nn.Module<"empty">
   torch.attr "ob" : !torch.optional<!basicpy.BoolType>
+  torch.attr "s" : !torch.str
   torch.method "method", @f
 }
 torch.nn_module {
@@ -90,4 +92,5 @@ torch.nn_module {
   torch.slot "t", %tensor : !torch.tensor
   torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
   torch.slot "ob", %none : !torch.none
+  torch.slot "s", %str : !torch.str
 } : !torch.nn.Module<"test">
