@@ -27,6 +27,31 @@
 namespace mlir {
 namespace NPCOMP {
 namespace Torch {
+
+namespace detail {
+/// Matches the integer stored in a `torch.constant.int`.
+struct torch_constant_int_op_binder {
+  int64_t *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  torch_constant_int_op_binder(int64_t *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    if (auto constantInt = dyn_cast<Torch::ConstantIntOp>(op)) {
+      *bind_value = constantInt.value().getSExtValue();
+      return true;
+    }
+    return false;
+  }
+};
+} // namespace detail
+
+/// Matches the integer stored in a `torch.constant.int`.
+inline detail::torch_constant_int_op_binder
+m_TorchConstantInt(int64_t *bind_value) {
+  return detail::torch_constant_int_op_binder(bind_value);
+}
+
 /// Create code to copy `tensor` to type `newType`.
 ///
 /// This involves two independent steps, which we keep orthogonal in our

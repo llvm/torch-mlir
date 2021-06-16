@@ -219,7 +219,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor": "AnyTorchTensorType",
     "Tensor?": "AnyTorchOptionalTensor",
     "Scalar": "AnyTorchScalarType",
-    "int": "AnyTorchIntType",
+    "int": "Torch_IntType",
     "int[]": "AnyTorchIntListType",
     "bool": "Torch_BoolType",
     "bool[]": "AnyTorchBoolListType",

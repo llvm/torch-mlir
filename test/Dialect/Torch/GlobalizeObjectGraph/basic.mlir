@@ -7,9 +7,9 @@
 // CHECK:           torch.global_slot.init %[[INIT]] : !torch.bool
 // CHECK:         }
 
-// CHECK-LABEL:   torch.global_slot @i : i64  {
-// CHECK:           %[[INIT:.*]] = torch.constant.int 3 : i64
-// CHECK:           torch.global_slot.init %[[INIT]] : i64
+// CHECK-LABEL:   torch.global_slot @i : !torch.int  {
+// CHECK:           %[[INIT:.*]] = torch.constant.int 3
+// CHECK:           torch.global_slot.init %[[INIT]] : !torch.int
 // CHECK:         }
 
 // CHECK-LABEL:   torch.global_slot @f : f64  {
@@ -24,18 +24,18 @@
 
 torch.class_type @c {
   torch.attr "b" : !torch.bool
-  torch.attr "i" : i64
+  torch.attr "i" : !torch.int
   torch.attr "f" : f64
   torch.attr "t" : !torch.tensor
 }
 
 %bool_true = torch.constant.bool true
-%i = torch.constant.int 3 : i64
+%i = torch.constant.int 3
 %f = torch.constant.float 4.250000e+01
 %t = torch.tensor(dense<1.0> : tensor<1xf32>) : !torch.tensor
 torch.nn_module {
   torch.slot "b", %bool_true : !torch.bool
-  torch.slot "i", %i : i64
+  torch.slot "i", %i : !torch.int
   torch.slot "f", %f : f64
   torch.slot "t", %t : !torch.tensor
 } : !torch.nn.Module<"c">

@@ -1,35 +1,41 @@
 // RUN: npcomp-opt <%s -convert-torch-to-std | FileCheck %s
 
-// CHECK-LABEL:   func @aten.dim(
-// CHECK-SAME:                   %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> i64 {
-// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch.to_builtin_tensor %[[ARG0]] : !torch.vtensor<*,f32> -> tensor<*xf32>
-// CHECK:           %[[RANK_INDEX:.*]] = rank %[[BUILTIN_TENSOR]] : tensor<*xf32>
-// CHECK:           %[[RANK_I64:.*]] = index_cast %[[RANK_INDEX]] : index to i64
-// CHECK:           return %[[RANK_I64]] : i64
-func @aten.dim(%arg0: !torch.vtensor<*,f32>) -> i64 {
-  %0 = torch.aten.dim %arg0 : !torch.vtensor<*,f32> -> i64
-  return %0 : i64
+
+// CHECK-LABEL:   func @torch.aten.dim(
+// CHECK-SAME:                         %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.int {
+// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch.to_builtin_tensor %[[ARG]] : !torch.vtensor<*,f32> -> tensor<*xf32>
+// CHECK:           %[[RANK:.*]] = rank %[[BUILTIN_TENSOR]] : tensor<*xf32>
+// CHECK:           %[[RANK_I64:.*]] = index_cast %[[RANK]] : index to i64
+// CHECK:           %[[RANK_TORCH_INT:.*]] = torch.from_i64 %[[RANK_I64]]
+// CHECK:           return %[[RANK_TORCH_INT]] : !torch.int
+func @torch.aten.dim(%arg0: !torch.vtensor<*,f32>) -> !torch.int {
+  %0 = torch.aten.dim %arg0 : !torch.vtensor<*,f32> -> !torch.int
+  return %0 : !torch.int
 }
 
 // CHECK-LABEL:   func @torch.aten.ne.int(
-// CHECK-SAME:                      %[[ARG0:.*]]: i64,
-// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !torch.bool {
-// CHECK:           %[[I1:.*]] = cmpi ne, %[[ARG0]], %[[ARG1]] : i64
-// CHECK:           %[[BOOL:.*]] = torch.from_i1 %[[I1]]
-// CHECK:           return %[[BOOL]] : !torch.bool
-func @torch.aten.ne.int(%arg0: i64, %arg1: i64) -> !torch.bool {
-  %0 = torch.aten.ne.int %arg0, %arg1 : i64, i64 -> !torch.bool
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
+// CHECK:           %[[LHS_I64:.*]] = torch.to_i64 %[[LHS]]
+// CHECK:           %[[RHS_I64:.*]] = torch.to_i64 %[[RHS]]
+// CHECK:           %[[CMP:.*]] = cmpi ne, %[[LHS_I64]], %[[RHS_I64]] : i64
+// CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch.from_i1 %[[CMP]]
+// CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
+func @torch.aten.ne.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.bool {
+  %0 = torch.aten.ne.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.gt.int(
-// CHECK-SAME:                      %[[ARG0:.*]]: i64,
-// CHECK-SAME:                      %[[ARG1:.*]]: i64) -> !torch.bool {
-// CHECK:           %[[I1:.*]] = cmpi sgt, %[[ARG0]], %[[ARG1]] : i64
-// CHECK:           %[[BOOL:.*]] = torch.from_i1 %[[I1]]
-// CHECK:           return %[[BOOL]] : !torch.bool
-func @torch.aten.gt.int(%arg0: i64, %arg1: i64) -> !torch.bool {
-  %0 = torch.aten.gt.int %arg0, %arg1 : i64, i64 -> !torch.bool
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
+// CHECK:           %[[LHS_I64:.*]] = torch.to_i64 %[[LHS]]
+// CHECK:           %[[RHS_I64:.*]] = torch.to_i64 %[[RHS]]
+// CHECK:           %[[CMP:.*]] = cmpi sgt, %[[LHS_I64]], %[[RHS_I64]] : i64
+// CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch.from_i1 %[[CMP]]
+// CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
+func @torch.aten.gt.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.bool {
+  %0 = torch.aten.gt.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
 

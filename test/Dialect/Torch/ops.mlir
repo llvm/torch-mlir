@@ -62,15 +62,15 @@ func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
   return %0 : !torch.optional<!torch.tensor>
 }
 
-func @torch.prim.If(%arg0: !torch.bool, %arg1: i64) -> i64 {
-  %0 = torch.prim.If %arg0 -> (i64) {
-    %1 = torch.aten.add.int %arg1, %arg1 : i64, i64 -> i64
-    torch.prim.If.yield %1 : i64
+func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
+  %0 = torch.prim.If %arg0 -> (!torch.int) {
+    %1 = torch.aten.add.int %arg1, %arg1 : !torch.int, !torch.int -> !torch.int
+    torch.prim.If.yield %1 : !torch.int
   } else {
-    %1 = torch.aten.mul.int %arg1, %arg1 : i64, i64 -> i64
-    torch.prim.If.yield %1 : i64
+    %1 = torch.aten.mul.int %arg1, %arg1 : !torch.int, !torch.int -> !torch.int
+    torch.prim.If.yield %1 : !torch.int
   }
-  return %0 : i64
+  return %0 : !torch.int
 }
 
 // CHECK: %true = torch.constant.bool true
@@ -95,7 +95,7 @@ torch.class_type @empty {}
 
 torch.class_type @test {
   torch.attr "b" : !torch.bool
-  torch.attr "i" : i64
+  torch.attr "i" : !torch.int
   torch.attr "f" : f64
   torch.attr "t" : !torch.tensor
   torch.attr "submodule" : !torch.nn.Module<"empty">
@@ -105,7 +105,7 @@ torch.class_type @test {
 }
 torch.nn_module {
   torch.slot "b", %true : !torch.bool
-  torch.slot "i", %int3 : i64
+  torch.slot "i", %int3 : !torch.int
   torch.slot "f", %float : f64
   torch.slot "t", %tensor : !torch.tensor
   torch.slot "submodule", %submodule : !torch.nn.Module<"empty">

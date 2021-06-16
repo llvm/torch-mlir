@@ -119,17 +119,8 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
 Operation *TorchDialect::materializeConstant(OpBuilder &builder,
                                              Attribute value, Type type,
                                              Location loc) {
-  // i64 is how we model TorchScript's "scalar integer type" (we could have a
-  // proper !torch.int type in theory). None of our canonicalizers should be
-  // creating any other integer type (except perhaps i1 after we resolve that
-  // situation). All other integer types live inside tensors (that is, they are
-  // never the direct result of an operation, and are thus never candidates for
-  // constant materialization).
-  if (auto integerType = type.dyn_cast<IntegerType>()) {
-    if (integerType.getWidth() == 64)
-      return builder.create<Torch::ConstantIntOp>(loc,
-                                                  value.cast<IntegerAttr>());
-  }
+  if (auto integerType = type.dyn_cast<Torch::IntType>())
+    return builder.create<Torch::ConstantIntOp>(loc, value.cast<IntegerAttr>());
 
   // We currently use the builtin `f64` type to model the Python `float` type.
   // This semantically matches how TorchScript represents it, but is still

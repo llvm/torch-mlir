@@ -256,11 +256,12 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isInt()) {
-    MlirType type = mlirIntegerTypeGet(context, 64);
+    MlirType type = npcompTorchIntTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.int", loc, type,
         toMlirNamedAttribute("value",
-                             mlirIntegerAttrGet(type, ivalue.toInt())));
+                             mlirIntegerAttrGet(mlirIntegerTypeGet(context, 64),
+                                                ivalue.toInt())));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isList()) {

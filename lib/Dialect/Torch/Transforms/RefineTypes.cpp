@@ -237,7 +237,8 @@ public:
       knowledge.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
-      APInt startDimAP, endDimAP;
+      int64_t startDim;
+      int64_t endDim;
       auto operand = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getPessimisticValueState(op->getContext());
@@ -248,11 +249,9 @@ public:
         knowledge.sizes.push_back(kUnknownSize);
       } else if (operand.hasSizes &&
                  matchPattern(flatten.start_dim(),
-                              m_ConstantInt(&startDimAP)) &&
-                 matchPattern(flatten.end_dim(), m_ConstantInt(&endDimAP))) {
+                              m_TorchConstantInt(&startDim)) &&
+                 matchPattern(flatten.end_dim(), m_TorchConstantInt(&endDim))) {
         int64_t inputRank = operand.sizes.size();
-        int64_t startDim = startDimAP.getSExtValue();
-        int64_t endDim = endDimAP.getSExtValue();
         if (startDim < 0)
           startDim += inputRank;
         if (endDim < 0)

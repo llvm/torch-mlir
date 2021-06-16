@@ -43,7 +43,8 @@ public:
   /// Gets a corresponding MlirType for the Torch ScalarType.
   /// Torch ScalarType is used to represent the possible element types of Torch
   /// tensors, which is different from the set of types used to represent
-  /// Python numeric scalar values (which are always either f64 or i64).
+  /// Python numeric scalar values (which are always either f64 or !torch.int).
+  ///
   /// Returns a null type on failure and emits a diagnostic.
   MlirType mapFromTorchScalarType(MlirLocation loc, c10::ScalarType scalarType);
 

@@ -93,8 +93,8 @@ func @bwhile(%arg0: i64, %arg1: i64) -> i64 {
   return %0#1 : i64
 }
 
-// Do a basic check of !torch.bool type. Under the hood it takes all the same
-// code paths as for !torch.vtensor, so we just spot-check it here.
+// Do a basic check of other types. Under the hood they all take the same
+// code paths as for !torch.vtensor, so we just spot-check them here.
 
 // CHECK-LABEL:   func @identity$torch.bool(
 // CHECK-SAME:                   %[[ARG:.*]]: i1) -> i1 {
@@ -103,4 +103,13 @@ func @bwhile(%arg0: i64, %arg1: i64) -> i64 {
 // CHECK:           return %[[I1]] : i1
 func @identity$torch.bool(%arg0: !torch.bool) -> !torch.bool {
   return %arg0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @identity$torch.int(
+// CHECK-SAME:                             %[[ARG:.*]]: i64) -> i64 {
+// CHECK:           %[[TORCH_INT:.*]] = torch.from_i64 %[[ARG]]
+// CHECK:           %[[I64:.*]] = torch.to_i64 %[[TORCH_INT]]
+// CHECK:           return %[[I64]] : i64
+func @identity$torch.int(%arg0: !torch.int) -> !torch.int {
+  return %arg0 : !torch.int
 }

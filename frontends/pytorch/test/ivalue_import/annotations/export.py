@@ -26,12 +26,12 @@ recursivescriptmodule = torch.jit.script(test_module)
 
 annotator = torch_mlir.ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
-# CHECK-LABEL:   torch.class_type @__torch__.TestModule  {                       
-# CHECK:           torch.attr "exported" : i64                                                                                                                                                                   
-# CHECK:           torch.attr private "not_exported" : i64
+# CHECK-LABEL:   torch.class_type @__torch__.TestModule  {
+# CHECK:           torch.attr "exported" : !torch.int
+# CHECK:           torch.attr private "not_exported" : !torch.int
 # CHECK:           torch.method "forward", @{{.*}}
 # CHECK:           torch.method private "not_exported_method", @{{.*}}
-# CHECK:         }              
+# CHECK:         }
 annotator.exportNone(class_type)
 annotator.exportPath(class_type, ['exported'])
 annotator.exportPath(class_type, ['forward'])

@@ -139,9 +139,12 @@ static LogicalResult verify(PrimListConstructOp op) {
   auto matchResultElementType = [&](Type type) {
     return type.getTypeID() == resultElementType.getTypeID();
   };
-  if (llvm::all_of(op->getOperandTypes(), matchResultElementType))
-    return success();
-  else return failure();
+  if (!llvm::all_of(op->getOperandTypes(), matchResultElementType)) {
+    return op.emitError() << "operand types should have the same type as the "
+                             "list contained type";
+  }
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -366,15 +369,7 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     auto size = op.getOperand().getDefiningOp<AtenSizeOp>();
     if (!size)
       return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
-    // TODO: Normalize all the torch scalar integer types to consistently use
-    // a `!torch.int` type so that this op and others can automatically infer
-    // their type. An additional benefit is that there's already enough of a
-    // semantic gap between Python ints (which tend to be arbitrary precision)
-    // and Torch/et-al ints (fixed bit depth, usually 64), it would be nice to
-    // preserve the fact that we are working on a !torch.int and not just a
-    // thing that was prematurely pinned to an `i64`.
-    rewriter.replaceOpWithNewOp<AtenDimOp>(op, rewriter.getI64Type(),
-                                           size.getOperand());
+    rewriter.replaceOpWithNewOp<AtenDimOp>(op, size.getOperand());
     return success();
   });
 }
@@ -395,7 +390,8 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
     rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
-        op, Torch::ListType::get(rewriter.getI64Type()), listElements);
+        op, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        listElements);
     return success();
   });
   // One-off pattern to erase if dead.
@@ -591,6 +587,25 @@ void ConstantStrOp::getAsmResultNames(
 // ConstantIntOp
 //===----------------------------------------------------------------------===//
 
+static ParseResult parseConstantIntOp(OpAsmParser &parser,
+                                      OperationState &result) {
+  Builder builder(result.getContext());
+  result.addTypes(builder.getType<Torch::IntType>());
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  int64_t value;
+  if (parser.parseInteger(value))
+    return failure();
+  result.addAttribute("value", builder.getI64IntegerAttr(value));
+  return success();
+}
+
+static void print(OpAsmPrinter &p, Torch::ConstantIntOp op) {
+  p << Torch::ConstantIntOp::getOperationName() << " ";
+  p << op.value().getSExtValue();
+  p.printOptionalAttrDict(op->getAttrs(), {"value"});
+}
+
 OpFoldResult Torch::ConstantIntOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
 }
@@ -644,11 +659,10 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(RewritePatternSet &patterns
     if (!listConstruct)
       return failure();
 
-    APInt indexAP;
-    if (!matchPattern(op.getOperand(1), m_ConstantInt(&indexAP)))
+    int64_t index;
+    if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&index)))
       return failure();
 
-    auto index = indexAP.getSExtValue();
     rewriter.replaceOp(op, {listConstruct.getOperand(index)});
     return success();
   });

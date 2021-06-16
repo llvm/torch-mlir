@@ -16,13 +16,13 @@ class TestModule(torch.nn.Module):
         super().__init__()
         self.l = [1, 2]
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
-# CHECK:   torch.attr "l" : !torch.list<i64>
+# CHECK:   torch.attr "l" : !torch.list<!torch.int>
 # CHECK: }
-# CHECK: %[[N1:.*]] = torch.constant.int 1 : i64
-# CHECK: %[[N2:.*]] = torch.constant.int 2 : i64
-# CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[N1]], %[[N2]] : (i64, i64) -> !torch.list<i64>
+# CHECK: %[[N1:.*]] = torch.constant.int 1
+# CHECK: %[[N2:.*]] = torch.constant.int 2
+# CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[N1]], %[[N2]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
 # CHECK: torch.nn_module  {
-# CHECK:   torch.slot "l", %[[LIST]] : !torch.list<i64>
+# CHECK:   torch.slot "l", %[[LIST]] : !torch.list<!torch.int>
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 
