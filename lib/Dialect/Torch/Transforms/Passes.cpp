@@ -129,6 +129,16 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   // Clean up a few stray conversion remnants.
   pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
+  if (options.optimize) {
+    // All the type refinement we've done above has exposed new information
+    // that allows folding away more stuff.
+    // OPT-ONLY: Right now we rely on this to eliminate certain
+    // branches that guard unreachable code that backends can't handle yet, such
+    // as lists, RaiseException, unimplemented aten ops, and
+    // only-used-in-training operations on `torch.global_slot`'s.
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+  }
+
   //===--------------------------------------------------------------------===//
   // Lowering ops and the !torch.vtensor type.
   //===--------------------------------------------------------------------===//
@@ -140,16 +150,6 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   // corresponding torch ops.
   // TODO: Improve torch op canonicalizations.
   pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
-
-  if (options.optimize) {
-    // RefineTypes has exposed new type information that allows folding away
-    // more stuff.
-    // OPT-ONLY: Right now we rely on this to eliminate certain
-    // branches that guard unreachable code that backends can't handle yet, such
-    // as lists, RaiseException, unimplemented aten ops, and
-    // only-used-in-training operations on `torch.global_slot`'s.
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
-  }
 
   // Lower to linalg + guards which is the input to codegen backends.
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());

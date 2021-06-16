@@ -412,6 +412,36 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenGtIntOp
+//===----------------------------------------------------------------------===//
+
+static IntegerAttr getI1IntegerAttr(MLIRContext *context, bool value) {
+  return IntegerAttr::get(IntegerType::get(context, 1),
+                          static_cast<int64_t>(value));
+}
+
+OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
+  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (lhs && rhs) {
+    if (lhs.getValue().getSExtValue() > rhs.getValue().getSExtValue())
+      return getI1IntegerAttr(getContext(), true);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenNeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
+  // `torch.aten.ne.int %x, %x` -> `false`
+  if (getOperand(0) == getOperand(1))
+    return getI1IntegerAttr(getContext(), false);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // TensorOp
 //===----------------------------------------------------------------------===//
 

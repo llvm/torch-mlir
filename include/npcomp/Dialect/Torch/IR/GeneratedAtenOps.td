@@ -268,6 +268,7 @@ def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
     Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
@@ -283,6 +284,7 @@ def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
     Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenAddIntOp : Torch_Op<"aten.add.int", [
