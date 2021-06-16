@@ -24,7 +24,7 @@ def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AnyTorchTensorType:$a
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
 }
@@ -36,7 +36,7 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
   let summary = "Generated op for `prim::TupleIndex : (Any, int) -> (Any)`";
   let arguments = (ins
     AnyTorchType:$tup,
-    AnyTorchIntType:$i
+    Torch_IntType:$i
   );
   let results = (outs
     AnyTorchType:$result
@@ -67,7 +67,7 @@ def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
     AnyTorchTensorType:$a
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
 }
@@ -108,7 +108,7 @@ def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
     AnyTorchIntListType:$self
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
 }
@@ -119,11 +119,11 @@ def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
   ]> {
   let summary = "Generated op for `prim::min.int : (int, int) -> (int)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -137,7 +137,7 @@ def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
     AnyTorchIntListType:$self
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
 }
@@ -148,11 +148,11 @@ def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
   ]> {
   let summary = "Generated op for `prim::max.int : (int, int) -> (int)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -208,4 +208,3 @@ def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
   );
   let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands)";
 }
-

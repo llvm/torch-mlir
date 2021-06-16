@@ -80,6 +80,16 @@ bool npcompTypeIsATorchBool(MlirType t);
 MlirType npcompTorchBoolTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
+// torch.int type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.int type
+bool npcompTypeIsATorchInt(MlirType t);
+
+/// Gets the !torch.int type.
+MlirType npcompTorchIntTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
 // torch.LinearParams type.
 //===----------------------------------------------------------------------===//
 

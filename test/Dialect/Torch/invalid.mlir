@@ -11,22 +11,22 @@ torch.class_type @c {}
 // -----
 
 torch.class_type @c {}
-%c0 = torch.constant.int 0 : i64
+%c0 = torch.constant.int 0
 // expected-error @+1 {{number of 'torch.slot's in a 'torch.nn_module' must match number of 'torch.attr's in the corresponding 'torch.class_type'}}
 %0 = torch.nn_module {
-  torch.slot "f", %c0 : i64
+  torch.slot "f", %c0 : !torch.int
 } : !torch.nn.Module<"c">
 
 // -----
 
 torch.class_type @c {
   // expected-note @+1 {{see torch.attr at corresponding index 0 here}}
-  torch.attr "g" : i64
+  torch.attr "g" : !torch.int
 }
-%c0 = torch.constant.int 0 : i64
+%c0 = torch.constant.int 0
 %0 = torch.nn_module {
-  // expected-error @+1 {{'torch.slot' op is expected to match type and name of 'torch.attr "g" : i64'}}
-  torch.slot "f", %c0 : i64
+  // expected-error @+1 {{'torch.slot' op is expected to match type and name of 'torch.attr "g" : !torch.int'}}
+  torch.slot "f", %c0 : !torch.int
 } : !torch.nn.Module<"c">
 
 // -----
@@ -41,9 +41,9 @@ torch.class_type @c {
 // expected-error @+1 {{has duplicate attr/method with name 'a'}}
 torch.class_type @c {
   // expected-note @+1 {{see first conflicting attr/method here}}
-  torch.attr "a" : i64
+  torch.attr "a" : !torch.int
   // expected-note @+1 {{see second conflicting attr/method here}}
-  torch.attr "a" : i64
+  torch.attr "a" : !torch.int
 }
 
 // -----
@@ -150,5 +150,14 @@ func @torch.tensor() {
   // Incompatible type.
   // expected-error@+1 {{incompatible}}
   %0 = torch.tensor(dense<42.0> : tensor<f32>) : i1
+  return
+}
+
+// -----
+
+func @torch.prim.ListConstruct() {
+  %int2 = torch.constant.int 2
+  // expected-error@+1 {{operand types should have the same type as the list contained type}}
+  torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<!torch.tensor>
   return
 }

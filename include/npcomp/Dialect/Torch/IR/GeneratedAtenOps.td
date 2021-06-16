@@ -146,7 +146,7 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
     AnyTorchIntListType:$stride,
     AnyTorchIntListType:$padding,
     AnyTorchIntListType:$dilation,
-    AnyTorchIntType:$groups
+    Torch_IntType:$groups
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -216,8 +216,8 @@ def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
   let summary = "Generated op for `aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
-    AnyTorchIntType:$start_dim,
-    AnyTorchIntType:$end_dim
+    Torch_IntType:$start_dim,
+    Torch_IntType:$end_dim
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -234,7 +234,7 @@ def Torch_AtenDimOp : Torch_Op<"aten.dim", [
     AnyTorchTensorType:$self
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
   let hasFolder = 1;
@@ -261,8 +261,8 @@ def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
   ]> {
   let summary = "Generated op for `aten::gt.int : (int, int) -> (bool)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
     Torch_BoolType:$result
@@ -277,8 +277,8 @@ def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
   ]> {
   let summary = "Generated op for `aten::ne.int : (int, int) -> (bool)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
     Torch_BoolType:$result
@@ -293,11 +293,11 @@ def Torch_AtenAddIntOp : Torch_Op<"aten.add.int", [
   ]> {
   let summary = "Generated op for `aten::add.int : (int, int) -> (int)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -308,11 +308,11 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
   ]> {
   let summary = "Generated op for `aten::mul.int : (int, int) -> (int)`";
   let arguments = (ins
-    AnyTorchIntType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$a,
+    Torch_IntType:$b
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
@@ -324,7 +324,7 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
   let summary = "Generated op for `aten::add.float_int : (float, int) -> (float)`";
   let arguments = (ins
     AnyTorchFloatType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$b
   );
   let results = (outs
     AnyTorchFloatType:$result
@@ -354,7 +354,7 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
   let summary = "Generated op for `aten::lt.float_int : (float, int) -> (bool)`";
   let arguments = (ins
     AnyTorchFloatType:$a,
-    AnyTorchIntType:$b
+    Torch_IntType:$b
   );
   let results = (outs
     Torch_BoolType:$result
@@ -387,7 +387,7 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
     AnyTorchListType:$a
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
   let hasFolder = 1;
@@ -400,7 +400,7 @@ def Torch_Aten__Getitem__TOp : Torch_Op<"aten.__getitem__.t", [
   let summary = "Generated op for `aten::__getitem__.t : (t[], int) -> (t)`";
   let arguments = (ins
     AnyTorchListType:$list,
-    AnyTorchIntType:$idx
+    Torch_IntType:$idx
   );
   let results = (outs
     AnyTorchType:$result
@@ -415,7 +415,7 @@ def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
   let summary = "Generated op for `aten::_set_item.t : (t[], int, t) -> (t[])`";
   let arguments = (ins
     AnyTorchListType:$l,
-    AnyTorchIntType:$idx,
+    Torch_IntType:$idx,
     AnyTorchType:$el
   );
   let results = (outs
@@ -423,4 +423,3 @@ def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
   );
   let assemblyFormat = "$l `,` $idx `,` $el attr-dict `:` type($l) `,` type($idx) `,` type($el) `->` type($result)";
 }
-

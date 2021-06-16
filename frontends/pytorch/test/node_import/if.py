@@ -15,18 +15,18 @@ mb = torch_mlir.ModuleBuilder()
 
 # CHECK-LABEL: @__torch__.prim_If(
 # CHECK-SAME:           %[[B:.*]]: !torch.bool,
-# CHECK-SAME:           %[[I:.*]]: i64) -> i64 {
+# CHECK-SAME:           %[[I:.*]]: !torch.int) -> !torch.int {
 @mb.import_function
 @torch.jit.script
 def prim_If(b: bool, i: int):
-    # CHECK:           %[[RES:.*]] = torch.prim.If %[[B]] -> (i64) {
+    # CHECK:           %[[RES:.*]] = torch.prim.If %[[B]] -> (!torch.int) {
     # CHECK:             %[[ADD:.*]] = torch.aten.add.int %[[I]], %[[I]]
-    # CHECK:             torch.prim.If.yield %[[ADD]] : i64
+    # CHECK:             torch.prim.If.yield %[[ADD]] : !torch.int
     # CHECK:           } else {
     # CHECK:             %[[MUL:.*]] = torch.aten.mul.int %[[I]], %[[I]]
-    # CHECK:             torch.prim.If.yield %[[MUL]] : i64
+    # CHECK:             torch.prim.If.yield %[[MUL]] : !torch.int
     # CHECK:           }
-    # CHECK:           return %[[RES:.*]] : i64
+    # CHECK:           return %[[RES:.*]] : !torch.int
     if b:
         return i + i
     else:
@@ -34,16 +34,16 @@ def prim_If(b: bool, i: int):
 
 # CHECK-LABEL:   func @__torch__.prim_If_derefine(
 # CHECK-SAME:                           %[[B:.*]]: !torch.bool,
-# CHECK-SAME:                           %[[I:.*]]: i64) -> !torch.optional<i64> {
+# CHECK-SAME:                           %[[I:.*]]: !torch.int) -> !torch.optional<!torch.int> {
 # CHECK:           %[[NONE:.*]] = torch.constant.none
-# CHECK:           %[[RES:.*]] = torch.prim.If %[[B]] -> (!torch.optional<i64>) {
-# CHECK:             %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<i64>
-# CHECK:             torch.prim.If.yield %[[NONE_DEREFINED]] : !torch.optional<i64>
+# CHECK:           %[[RES:.*]] = torch.prim.If %[[B]] -> (!torch.optional<!torch.int>) {
+# CHECK:             %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<!torch.int>
+# CHECK:             torch.prim.If.yield %[[NONE_DEREFINED]] : !torch.optional<!torch.int>
 # CHECK:           } else {
-# CHECK:             %[[I_DEREFINED:.*]] = torch.derefine %[[I]] : i64 to !torch.optional<i64>
-# CHECK:             torch.prim.If.yield %[[I_DEREFINED]] : !torch.optional<i64>
+# CHECK:             %[[I_DEREFINED:.*]] = torch.derefine %[[I]] : !torch.int to !torch.optional<!torch.int>
+# CHECK:             torch.prim.If.yield %[[I_DEREFINED]] : !torch.optional<!torch.int>
 # CHECK:           }
-# CHECK:           return %[[RES:.*]] : !torch.optional<i64>
+# CHECK:           return %[[RES:.*]] : !torch.optional<!torch.int>
 @mb.import_function
 @torch.jit.script
 def prim_If_derefine(b: bool, i: int):

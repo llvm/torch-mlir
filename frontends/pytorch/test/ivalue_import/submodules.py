@@ -24,16 +24,16 @@ class TestModule(torch.nn.Module):
 
 # CHECK:         %[[T:.*]] = torch.constant.bool true
 
-# CHECK:         %[[N0:.*]] = torch.constant.int 0 : i64
+# CHECK:         %[[N0:.*]] = torch.constant.int 0
 # CHECK:         %[[S0:.*]] = torch.nn_module  {
 # CHECK:           torch.slot "training", %[[T]] : !torch.bool
-# CHECK:           torch.slot "n", %[[N0]] : i64
+# CHECK:           torch.slot "n", %[[N0]] : !torch.int
 # CHECK:         }
 
-# CHECK:         %[[N1:.*]] = torch.constant.int 1 : i64
+# CHECK:         %[[N1:.*]] = torch.constant.int 1
 # CHECK:         %[[S1:.*]] = torch.nn_module  {
 # CHECK:           torch.slot "training", %[[T]] : !torch.bool
-# CHECK:           torch.slot "n", %[[N1]] : i64
+# CHECK:           torch.slot "n", %[[N1]] : !torch.int
 # CHECK:         }
 
 # CHECK:        %[[ROOT:.*]] = torch.nn_module  {

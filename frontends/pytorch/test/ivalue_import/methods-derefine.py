@@ -18,11 +18,11 @@ class TestModule(torch.nn.Module):
     super().__init__()
 
   # CHECK-LABEL:   func private @__torch__.TestModule.forward(
-  # CHECK-SAME:                                               %[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">) -> !torch.optional<i64> {
+  # CHECK-SAME:                                               %[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">) -> !torch.optional<!torch.int> {
   # CHECK:           %[[NONE:.*]] = torch.constant.none
-  # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<i64>
-  # CHECK:           %[[RET:.*]] = torch.prim.CallMethod %[[SELF]]["callee"] (%[[DEREFINED]]) : !torch.nn.Module<"__torch__.TestModule">, (!torch.optional<i64>) -> !torch.optional<i64>
-  # CHECK:           return %[[RET]] : !torch.optional<i64>
+  # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<!torch.int>
+  # CHECK:           %[[RET:.*]] = torch.prim.CallMethod %[[SELF]]["callee"] (%[[DEREFINED]]) : !torch.nn.Module<"__torch__.TestModule">, (!torch.optional<!torch.int>) -> !torch.optional<!torch.int>
+  # CHECK:           return %[[RET]] : !torch.optional<!torch.int>
   def forward(self):
     return self.callee(None)
   def callee(self, o: typing.Optional[int]):

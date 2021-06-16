@@ -6,25 +6,25 @@ torch.class_type @__torch__.TestModule  {
   torch.method "forward", @__torch__.TestModule.forward
 }
 torch.class_type @__torch__.Submodule  {
-  torch.attr private "n" : i64
+  torch.attr private "n" : !torch.int
   torch.method private "forward", @__torch__.Submodule.forward
 }
 
-%num1_i64 = torch.constant.int 1 : i64
+%int1 = torch.constant.int 1
 %s1 = torch.nn_module  {
-  // CHECK-LABEL:   torch.global_slot "private" @s1.n : i64  {
-  // CHECK:           %[[C1:.*]] = torch.constant.int 1 : i64
-  // CHECK:           torch.global_slot.init %[[C1]] : i64
+  // CHECK-LABEL:   torch.global_slot "private" @s1.n : !torch.int  {
+  // CHECK:           %[[C1:.*]] = torch.constant.int 1
+  // CHECK:           torch.global_slot.init %[[C1]] : !torch.int
   // CHECK:         }
-  torch.slot "n", %num1_i64 : i64
+  torch.slot "n", %int1 : !torch.int
 } : !torch.nn.Module<"__torch__.Submodule">
-%num2_i64 = torch.constant.int 2 : i64
+%int2 = torch.constant.int 2
 %s2 = torch.nn_module  {
-  // CHECK-LABEL:   torch.global_slot "private" @s2.n : i64  {
-  // CHECK:           %[[C2:.*]] = torch.constant.int 2 : i64
-  // CHECK:           torch.global_slot.init %[[C2]] : i64
+  // CHECK-LABEL:   torch.global_slot "private" @s2.n : !torch.int  {
+  // CHECK:           %[[C2:.*]] = torch.constant.int 2
+  // CHECK:           torch.global_slot.init %[[C2]] : !torch.int
   // CHECK:         }
-  torch.slot "n", %num2_i64 : i64
+  torch.slot "n", %int2 : !torch.int
 } : !torch.nn.Module<"__torch__.Submodule">
 %3 = torch.nn_module  {
   torch.slot "s1", %s1 : !torch.nn.Module<"__torch__.Submodule">
@@ -44,22 +44,22 @@ func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.Te
   return
 }
 // CHECK-LABEL:   func private @s1.forward() {
-// CHECK:           %[[C1:.*]] = torch.constant.int 1 : i64
-// CHECK:           %[[N:.*]] = torch.global_slot.get @s1.n : i64
-// CHECK:           %[[NEWVAL:.*]] = addi %[[N]], %[[C1]] : i64
-// CHECK:           torch.global_slot.set @s1.n = %[[NEWVAL]] : i64
+// CHECK:           %[[C3:.*]] = torch.constant.int 3
+// CHECK:           %[[N:.*]] = torch.global_slot.get @s1.n : !torch.int
+// CHECK:           %[[NEWVAL:.*]] = torch.aten.add.int %[[N]], %[[C3]] : !torch.int, !torch.int -> !torch.int
+// CHECK:           torch.global_slot.set @s1.n = %[[NEWVAL]] : !torch.int
 // CHECK:           return
 
 // CHECK-LABEL:   func private @s2.forward() {
-// CHECK:           %[[C1:.*]] = torch.constant.int 1 : i64
-// CHECK:           %[[N:.*]] = torch.global_slot.get @s2.n : i64
-// CHECK:           %[[NEWVAL:.*]] = addi %[[N]], %[[C1]] : i64
-// CHECK:           torch.global_slot.set @s2.n = %[[NEWVAL]] : i64
+// CHECK:           %[[C3:.*]] = torch.constant.int 3
+// CHECK:           %[[N:.*]] = torch.global_slot.get @s2.n : !torch.int
+// CHECK:           %[[NEWVAL:.*]] = torch.aten.add.int %[[N]], %[[C3]] : !torch.int, !torch.int -> !torch.int
+// CHECK:           torch.global_slot.set @s2.n = %[[NEWVAL]] : !torch.int
 // CHECK:           return
 func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
-  %c1_i64 = torch.constant.int 1 : i64
-  %5 = torch.prim.GetAttr %arg0["n"] : !torch.nn.Module<"__torch__.Submodule"> -> i64
-  %6 = addi %5, %c1_i64 : i64
-  torch.prim.SetAttr %arg0["n"] = %6 : !torch.nn.Module<"__torch__.Submodule">, i64
+  %int3 = torch.constant.int 3
+  %5 = torch.prim.GetAttr %arg0["n"] : !torch.nn.Module<"__torch__.Submodule"> -> !torch.int
+  %6 = torch.aten.add.int %5, %int3 : !torch.int, !torch.int -> !torch.int
+  torch.prim.SetAttr %arg0["n"] = %6 : !torch.nn.Module<"__torch__.Submodule">, !torch.int
   return
 }

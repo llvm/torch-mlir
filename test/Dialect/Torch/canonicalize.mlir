@@ -3,31 +3,31 @@
 // CHECK-LABEL:   func @torch.aten.__is__
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           return %[[FALSE]] : !torch.bool
-func @torch.aten.__is__(%arg0: !torch.list<i64>, %arg1: !torch.none) -> !torch.bool {
-  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<i64>, !torch.none -> !torch.bool
+func @torch.aten.__is__(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !torch.bool {
+  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.list<!torch.int>, !torch.none -> !torch.bool
   return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.size$canonicalize_to_list(
-// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.list<i64> {
-// CHECK:           %[[C2:.*]] = torch.constant.int 2 : i64
-// CHECK:           %[[C3:.*]] = torch.constant.int 3 : i64
-// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C2]], %[[C3]] : (i64, i64) -> !torch.list<i64>
-// CHECK:           return %[[LIST]] : !torch.list<i64>
-func @torch.aten.size$canonicalize_to_list(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.list<i64> {
-  %0 = torch.aten.size %arg0 : !torch.vtensor<[2,3],f32> -> !torch.list<i64>
-  return %0 : !torch.list<i64>
+// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.list<!torch.int> {
+// CHECK:           %[[C2:.*]] = torch.constant.int 2
+// CHECK:           %[[C3:.*]] = torch.constant.int 3
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C2]], %[[C3]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           return %[[LIST]] : !torch.list<!torch.int>
+func @torch.aten.size$canonicalize_to_list(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.list<!torch.int> {
+  %0 = torch.aten.size %arg0 : !torch.vtensor<[2,3],f32> -> !torch.list<!torch.int>
+  return %0 : !torch.list<!torch.int>
 }
 
 // One size unknown, so cannot canonicalize.
 // TODO: For unknown sizes, insert the equivalent of a "dim" op.
 // Then this will only require static rank.
 // CHECK-LABEL:   func @torch.aten.size$unknown_size(
-// CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor<[?,3],f32>) -> !torch.list<i64> {
-// CHECK:           %[[SIZE:.*]] = torch.aten.size %[[ARG]] : !torch.vtensor<[?,3],f32> -> !torch.list<i64>
-func @torch.aten.size$unknown_size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.list<i64> {
-  %0 = torch.aten.size %arg0 : !torch.vtensor<[?,3],f32> -> !torch.list<i64>
-  return %0 : !torch.list<i64>
+// CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor<[?,3],f32>) -> !torch.list<!torch.int> {
+// CHECK:           %[[SIZE:.*]] = torch.aten.size %[[ARG]] : !torch.vtensor<[?,3],f32> -> !torch.list<!torch.int>
+func @torch.aten.size$unknown_size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.list<!torch.int> {
+  %0 = torch.aten.size %arg0 : !torch.vtensor<[?,3],f32> -> !torch.list<!torch.int>
+  return %0 : !torch.list<!torch.int>
 }
 
 // CHECK-LABEL:   func @torch.aten.gt.int$evaluate() -> !torch.bool {
@@ -36,46 +36,46 @@ func @torch.aten.size$unknown_size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.l
 func @torch.aten.gt.int$evaluate() -> !torch.bool {
   %int2 = torch.constant.int 2
   %int4 = torch.constant.int 4
-  %0 = torch.aten.gt.int %int4, %int2 : i64, i64 -> !torch.bool
+  %0 = torch.aten.gt.int %int4, %int2 : !torch.int, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.ne.int$same_value(
-// CHECK-SAME:                                       %{{.*}}: i64) -> !torch.bool {
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
 // CHECK-NEXT:       %[[F:.*]] = torch.constant.bool false
 // CHECK-NEXT:       return %[[F]] : !torch.bool
-func @torch.aten.ne.int$same_value(%arg0: i64) -> !torch.bool {
-  %0 = torch.aten.ne.int %arg0, %arg0 : i64, i64 -> !torch.bool
+func @torch.aten.ne.int$same_value(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.aten.ne.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.len.t$of_size(
-// CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<*,f32>) -> i64 {
-// CHECK:           %[[DIM:.*]] = torch.aten.dim %[[ARG]] : !torch.vtensor<*,f32> -> i64
-// CHECK:           return %[[DIM]] : i64
-func @torch.aten.len.t$of_size(%arg0: !torch.vtensor<*,f32>) -> i64 {
-  %0 = torch.aten.size %arg0 : !torch.vtensor<*,f32> -> !torch.list<i64>
-  %1 = torch.aten.len.t %0 : !torch.list<i64> -> i64
-  return %1 : i64
+// CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.int {
+// CHECK:           %[[DIM:.*]] = torch.aten.dim %[[ARG]] : !torch.vtensor<*,f32> -> !torch.int
+// CHECK:           return %[[DIM]] : !torch.int
+func @torch.aten.len.t$of_size(%arg0: !torch.vtensor<*,f32>) -> !torch.int {
+  %0 = torch.aten.size %arg0 : !torch.vtensor<*,f32> -> !torch.list<!torch.int>
+  %1 = torch.aten.len.t %0 : !torch.list<!torch.int> -> !torch.int
+  return %1 : !torch.int
 }
 
 // CHECK-LABEL:   func @torch.aten.dim$with_shape(
-// CHECK-SAME:                                    %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> i64 {
-// CHECK:           %[[DIM:.*]] = torch.constant.int 3 : i64
-// CHECK:           return %[[DIM]] : i64
-func @torch.aten.dim$with_shape(%arg0: !torch.vtensor<[?,?,?],f32>) -> i64 {
-  %0 = torch.aten.dim %arg0 : !torch.vtensor<[?,?,?],f32> -> i64
-  return %0 : i64
+// CHECK-SAME:                                    %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.int {
+// CHECK:           %[[DIM:.*]] = torch.constant.int 3
+// CHECK:           return %[[DIM]] : !torch.int
+func @torch.aten.dim$with_shape(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.int {
+  %0 = torch.aten.dim %arg0 : !torch.vtensor<[?,?,?],f32> -> !torch.int
+  return %0 : !torch.int
 }
 
 // CHECK-LABEL:   func @torch.aten.len.t$of_build_list(
-// CHECK-SAME:                                         %[[ARG:.*]]: i64) -> i64 {
-// CHECK:           %[[LEN:.*]] = torch.constant.int 4 : i64
-// CHECK:           return %[[LEN]] : i64
-func @torch.aten.len.t$of_build_list(%arg0: i64) -> i64 {
-  %0 = torch.prim.ListConstruct %arg0, %arg0, %arg0, %arg0 : (i64, i64, i64, i64) -> !torch.list<i64>
-  %1 = torch.aten.len.t %0 : !torch.list<i64> -> i64
-  return %1 : i64
+// CHECK-SAME:                                         %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[LEN:.*]] = torch.constant.int 4
+// CHECK:           return %[[LEN]] : !torch.int
+func @torch.aten.len.t$of_build_list(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.prim.ListConstruct %arg0, %arg0, %arg0, %arg0 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.len.t %0 : !torch.list<!torch.int> -> !torch.int
+  return %1 : !torch.int
 }
 
 // CHECK-LABEL:   func @torch.copy.tensor$value_copy_is_noop(
@@ -96,41 +96,41 @@ func @torch.copy.tensor$unnecessary_intermediate_nonval_tensor(%arg0: !torch.vte
 }
 
 // CHECK-LABEL:   func @torch.aten.__getitem__.t(
-// CHECK:           %[[C5:.*]] = torch.constant.int 5 : i64
-// CHECK:           return %[[C5]] : i64
-func @torch.aten.__getitem__.t() -> i64 {
-    %c4_i64 = torch.constant.int 4 : i64
-    %c5_i64 = torch.constant.int 5 : i64
-    %c1_i64 = torch.constant.int 1 : i64
-    %0 = torch.prim.ListConstruct %c4_i64, %c5_i64 : (i64, i64) -> !torch.list<i64>
-    %1 = torch.aten.__getitem__.t %0, %c1_i64 : !torch.list<i64>, i64 -> i64
-    return %1 : i64
+// CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           return %[[C5]] : !torch.int
+func @torch.aten.__getitem__.t() -> !torch.int {
+    %int4 = torch.constant.int 4
+    %int5 = torch.constant.int 5
+    %int1 = torch.constant.int 1
+    %0 = torch.prim.ListConstruct %int4, %int5 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+    %1 = torch.aten.__getitem__.t %0, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    return %1 : !torch.int
 }
 
 // Not canonicalized because of passed in index
 // CHECK-LABEL:   func @torch.aten.__getitem__.t$no_change_test0(
-// CHECK:           %[[C4:.*]] = torch.constant.int 4 : i64
-// CHECK:           %[[C5:.*]] = torch.constant.int 5 : i64
-// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C4]], %[[C5]] : (i64, i64) -> !torch.list<i64>
-// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %arg0 : !torch.list<i64>, i64 -> i64
-// CHECK:           return %[[ITEM]] : i64
-func @torch.aten.__getitem__.t$no_change_test0(%arg0: i64) -> i64 {
-  %c5_i64 = torch.constant.int 5 : i64
-  %c4_i64 = torch.constant.int 4 : i64
-  %0 = torch.prim.ListConstruct %c4_i64, %c5_i64 : (i64, i64) -> !torch.list<i64>
-  %1 = torch.aten.__getitem__.t %0, %arg0 : !torch.list<i64>, i64 -> i64
-  return %1 : i64
+// CHECK:           %[[C4:.*]] = torch.constant.int 4
+// CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C4]], %[[C5]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %arg0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+// CHECK:           return %[[ITEM]] : !torch.int
+func @torch.aten.__getitem__.t$no_change_test0(%arg0: !torch.int) -> !torch.int {
+  %int5 = torch.constant.int 5
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4, %int5 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.__getitem__.t %0, %arg0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+  return %1 : !torch.int
 }
 
 // Not canonicalized because of passed in list
 // CHECK-LABEL:   func @torch.aten.__getitem__.t$no_change_test1(
-// CHECK:           %[[C5:.*]] = torch.constant.int 5 : i64
-// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %arg0, %[[C5]] : !torch.list<i64>, i64 -> i64
-// CHECK:           return %[[ITEM]] : i64
-func @torch.aten.__getitem__.t$no_change_test1(%arg0: !torch.list<i64>) -> i64 {
-  %c5_i64 = torch.constant.int 5 : i64
-  %0 = torch.aten.__getitem__.t %arg0, %c5_i64 : !torch.list<i64>, i64 -> i64
-  return %0 : i64
+// CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %arg0, %[[C5]] : !torch.list<!torch.int>, !torch.int -> !torch.int
+// CHECK:           return %[[ITEM]] : !torch.int
+func @torch.aten.__getitem__.t$no_change_test1(%arg0: !torch.list<!torch.int>) -> !torch.int {
+  %int5 = torch.constant.int 5
+  %0 = torch.aten.__getitem__.t %arg0, %int5 : !torch.list<!torch.int>, !torch.int -> !torch.int
+  return %0 : !torch.int
 }
 
 // CHECK-LABEL:   func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
@@ -165,17 +165,17 @@ func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bo
 }
 
 // CHECK-LABEL:   func @torch.prim.If$erase_dead_branch(
-// CHECK-SAME:                                          %[[ARG:.*]]: i64) -> i64 {
-// CHECK-NEXT:       %[[RET:.*]] = torch.aten.add.int %[[ARG]], %[[ARG]] : i64, i64 -> i64
-// CHECK-NEXT:       return %[[RET]] : i64
-func @torch.prim.If$erase_dead_branch(%arg0: i64) -> i64 {
+// CHECK-SAME:                                          %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK-NEXT:       %[[RET:.*]] = torch.aten.add.int %[[ARG]], %[[ARG]] : !torch.int, !torch.int -> !torch.int
+// CHECK-NEXT:       return %[[RET]] : !torch.int
+func @torch.prim.If$erase_dead_branch(%arg0: !torch.int) -> !torch.int {
   %true = torch.constant.bool true
-  %0 = torch.prim.If %true -> (i64) {
-    %1 = torch.aten.add.int %arg0, %arg0 : i64, i64 -> i64
-    torch.prim.If.yield %1 : i64
+  %0 = torch.prim.If %true -> (!torch.int) {
+    %1 = torch.aten.add.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.int
+    torch.prim.If.yield %1 : !torch.int
   } else {
-    %1 = torch.aten.mul.int %arg0, %arg0 : i64, i64 -> i64
-    torch.prim.If.yield %1 : i64
+    %1 = torch.aten.mul.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.int
+    torch.prim.If.yield %1 : !torch.int
   }
-  return %0 : i64
+  return %0 : !torch.int
 }

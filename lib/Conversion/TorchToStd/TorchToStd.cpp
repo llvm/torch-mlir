@@ -35,26 +35,40 @@ public:
   matchAndRewrite(AtenDimOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto rank = rewriter.create<RankOp>(op->getLoc(), operands[0]);
-    rewriter.replaceOpWithNewOp<IndexCastOp>(op, op.getType(), rank);
+    rewriter.replaceOpWithNewOp<IndexCastOp>(
+        op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
   }
 };
 } // namespace
 
-// TODO: Use dialect conversion infra.
-LogicalResult convertNeIntOp(AtenNeIntOp op, PatternRewriter &rewriter) {
-  auto i1 = rewriter.create<CmpIOp>(op->getLoc(), CmpIPredicate::ne,
-                                    op->getOperand(0), op->getOperand(1));
-  rewriter.replaceOpWithNewOp<Torch::FromI1Op>(op, op.getType(), i1);
-  return success();
-}
+namespace {
+class ConvertAtenNeIntOp : public OpConversionPattern<AtenNeIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNeIntOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ne, operands[0],
+                                        operands[1]);
+    return success();
+  }
+};
+} // namespace
 
-LogicalResult convertGtIntOp(AtenGtIntOp op, PatternRewriter &rewriter) {
-  auto i1 = rewriter.create<CmpIOp>(op->getLoc(), CmpIPredicate::sgt,
-                                    op->getOperand(0), op->getOperand(1));
-  rewriter.replaceOpWithNewOp<Torch::FromI1Op>(op, op.getType(), i1);
-  return success();
-}
+namespace {
+class ConvertAtenGtIntOp : public OpConversionPattern<AtenGtIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenGtIntOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::sgt, operands[0],
+                                        operands[1]);
+    return success();
+  }
+};
+} // namespace
 
 LogicalResult convertTensorOp(TensorOp op, PatternRewriter &rewriter) {
   auto constant = rewriter.create<ConstantOp>(op->getLoc(), op.value());
@@ -89,9 +103,9 @@ public:
     target.addIllegalOp<AtenDimOp>();
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp>();
-    patterns.add(convertNeIntOp);
+    patterns.add<ConvertAtenNeIntOp>(typeConverter, context);
     target.addIllegalOp<AtenGtIntOp>();
-    patterns.add(convertGtIntOp);
+    patterns.add<ConvertAtenGtIntOp>(typeConverter, context);
     target.addIllegalOp<TensorOp>();
     patterns.add(convertTensorOp);
     if (failed(applyPartialConversion(getOperation(), target,

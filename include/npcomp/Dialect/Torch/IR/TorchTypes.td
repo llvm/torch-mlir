@@ -253,6 +253,14 @@ def Torch_BoolType : Torch_Type<"Bool", "bool"> {
   }];
 }
 
+def Torch_IntType : Torch_Type<"Int", "int"> {
+  let summary = "Torch IntType";
+  let description = [{
+    The integer type used to model the Python `int` type in TorchScript.
+    TorchScript itself models this type as a 64-bit signed integer.
+  }];
+}
+
 def Torch_NoneType : Torch_Type<"None", "none"> {
   let summary = "Torch NoneType";
   let description = [{
@@ -320,16 +328,13 @@ class ListOf<list<Type> allowedTypes, string descr> :
 
 def AnyTorchBoolListType : ListOf<[Torch_BoolType], "Any bool list type (bool[])">;
 
-def AnyTorchIntType : TypeAlias<I64,
-    "Any type usable for representing the `int` Python type">;
-
 def AnyTorchFloatType : TypeAlias<F64,
     "Any type usable for representing the `float` Python type">;
 
-def AnyTorchIntListType : ListOf<[AnyTorchIntType], "Any int list type (int[])">;
+def AnyTorchIntListType : ListOf<[Torch_IntType], "Any int list type (int[])">;
 
 def AnyTorchScalarType : AnyTypeOf<[
-  AnyTorchIntType,
+  Torch_IntType,
   AnyTorchFloatType,
   Torch_BoolType,
 ], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;

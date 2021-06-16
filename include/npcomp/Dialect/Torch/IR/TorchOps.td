@@ -46,8 +46,8 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
     ```mlir
     %2 = torch.nn_module {
       torch.slot "b", %bool_true : !torch.bool
-      torch.slot "i", %num3_i64 : i64
-      torch.slot "f", %num : f64
+      torch.slot "i", %int3 : !torch.int
+      torch.slot "f", %float : f64
       torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %1 : !torch.nn.Module
     } : !torch.nn.Module<"my_class_name">
@@ -126,7 +126,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     // A class type with many members.
     torch.class_type @test {
       torch.attr "b" : !torch.bool
-      torch.attr "i" : i64
+      torch.attr "i" : !torch.int
       torch.attr "f" : f64
       torch.attr "t" : !torch.tensor
       torch.attr "submodule" : !torch.nn.Module<"empty">
@@ -135,8 +135,8 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     torch.nn_module {
       // These must match the order and names in the `torch.class_type`.
       torch.slot "b", %bool_true : !torch.bool
-      torch.slot "i", %num3_i64 : i64
-      torch.slot "f", %num : f64
+      torch.slot "i", %int3 : !torch.int
+      torch.slot "f", %float : f64
       torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
     } : !torch.nn.Module<"test">
@@ -418,7 +418,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
   }];
 
   let arguments = (ins
-    I64:$maxTripCount,
+    Torch_IntType:$maxTripCount,
     Torch_BoolType:$initialCondition,
     Variadic<AnyTorchType>:$iterArgsInit
   );
@@ -538,16 +538,15 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int",
   let description = [{
     Note: TorchScript represents integers as 64-bit signed values, unlike
     Python where they are arbitrary precision.
-
-    TODO: Add a `!torch.int` type.
   }];
   let arguments = (ins
     AnyI64Attr:$value
   );
   let results = (outs
-    AnyTorchIntType:$result
+    Torch_IntType:$result
   );
-  let assemblyFormat = "$value attr-dict";
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parseConstantIntOp(parser, result); }];
   let hasFolder = 1;
 }
 
@@ -662,6 +661,42 @@ def Torch_FromI1Op : Torch_Op<"from_i1", [
   }];
 }
 
+def Torch_ToI64Op : Torch_Op<"to_i64", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `!torch.int` to an `i64`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    Torch_IntType:$operand
+  );
+  let results = (outs
+    I64:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
+  }];
+}
+
+def Torch_FromI64Op : Torch_Op<"from_i64", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert an `i64` to a `!torch.int`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    I64:$operand
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Additional ops used to model TorchScript's Graph's / Node's.
 //===----------------------------------------------------------------------===//
@@ -750,7 +785,7 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
   let arguments = (ins
     AnyTorchTensorType:$int_repr,
     AnyFloat:$scale,
-    AnyTorchIntType:$offset
+    Torch_IntType:$offset
   );
   // TODO: Limit to quantized dtypes (e.g. !torch.qint8).
   let results = (outs AnyTorchTensorType:$result);

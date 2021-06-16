@@ -98,8 +98,9 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
   // represented as one of double or int64_t, with a special tag for whether
   // it should be interpreted as a bool.
   if (s.isIntegral(/*includeBool=*/false)) {
-    MlirType t = mlirIntegerTypeGet(context, 64);
-    MlirAttribute value = mlirIntegerAttrGet(t, s.to<int64_t>());
+    MlirType t = npcompTorchIntTypeGet(context);
+    MlirAttribute value =
+        mlirIntegerAttrGet(mlirIntegerTypeGet(context, 64), s.to<int64_t>());
     MlirOperation op = createMlirOperation(
         "torch.constant.int", loc, t, toMlirNamedAttribute("value", value));
     insertConstantOp(op);

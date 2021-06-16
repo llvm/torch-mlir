@@ -73,10 +73,37 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
+static void setupTorchIntToI64Conversion(ConversionTarget &target,
+                                         TypeConverter &typeConverter) {
+  target.addLegalOp<Torch::ToI64Op, Torch::FromI64Op>();
+  typeConverter.addConversion([](Torch::IntType type) -> Optional<Type> {
+    return IntegerType::get(type.getContext(), 64);
+  });
+  typeConverter.addTargetMaterialization([](OpBuilder &builder,
+                                            IntegerType type, ValueRange inputs,
+                                            Location loc) -> Optional<Value> {
+    // Other builtin integer types could be handled by other materializers.
+    if (!(type.getWidth() == 64 && type.isSignless()))
+      return None;
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<Torch::IntType>());
+    return builder.create<ToI64Op>(loc, inputs[0]).getResult();
+  });
+  auto sourceMaterialization = [](OpBuilder &builder, Torch::IntType type,
+                                  ValueRange inputs, Location loc) -> Value {
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<IntegerType>());
+    return builder.create<FromI64Op>(loc, inputs[0]);
+  };
+  typeConverter.addSourceMaterialization(sourceMaterialization);
+  typeConverter.addArgumentMaterialization(sourceMaterialization);
+}
+
 void mlir::NPCOMP::Torch::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
   setupValueTensorToBuiltinTensorConversion(target, typeConverter);
   setupTorchBoolToI1Conversion(target, typeConverter);
+  setupTorchIntToI64Conversion(target, typeConverter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -134,14 +161,15 @@ mlir::NPCOMP::Torch::createFuncBackendTypeConversionPass() {
 //===----------------------------------------------------------------------===//
 
 namespace {
-// In a finalizing conversion, we know that all `!torch.vtensor` have been
-// converted to `tensor`, thus, this op becomes an identity.
-class FinalizeToBuiltinTensorOp
-    : public OpConversionPattern<ToBuiltinTensorOp> {
+// In a finalizing conversion, we know that all of the source types have been
+// converted to the destination types, so the materialization becomes an
+// identity.
+template <typename OpTy>
+class FinalizeMaterialization : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ToBuiltinTensorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOp(op, operands[0]);
     return success();
@@ -149,51 +177,22 @@ public:
 };
 } // namespace
 
-namespace {
-// In a finalizing conversion, we know that all `!torch.vtensor` have been
-// converted to `tensor`, thus, this op becomes an identity.
-class FinalizeFromBuiltinTensorOp
-    : public OpConversionPattern<FromBuiltinTensorOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(FromBuiltinTensorOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, operands[0]);
-    return success();
-  }
-};
-} // namespace
+template <typename OpTy>
+static void setupFinalization(ConversionTarget &target,
+                              RewritePatternSet &patterns,
+                              TypeConverter &typeConverter) {
+  target.addIllegalOp<OpTy>();
+  patterns.add<FinalizeMaterialization<OpTy>>(typeConverter,
+                                              patterns.getContext());
+}
 
-namespace {
-// In a finalizing conversion, we know that all `!torch.bool` have been
-// converted to `i1`, thus, this op becomes an identity.
-class FinalizeToI1Op : public OpConversionPattern<ToI1Op> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(ToI1Op op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, operands[0]);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-// In a finalizing conversion, we know that all `!torch.bool` have been
-// converted to `i1`, thus, this op becomes an identity.
-class FinalizeFromI1Op : public OpConversionPattern<FromI1Op> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(FromI1Op op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, operands[0]);
-    return success();
-  }
-};
-} // namespace
+template <typename OpTy, typename OpTy2, typename... OpTys>
+static void setupFinalization(ConversionTarget &target,
+                              RewritePatternSet &patterns,
+                              TypeConverter &typeConverter) {
+  setupFinalization<OpTy>(target, patterns, typeConverter);
+  setupFinalization<OpTy2, OpTys...>(target, patterns, typeConverter);
+}
 
 namespace {
 struct FinalizingBackendTypeConversionPass
@@ -215,10 +214,8 @@ struct FinalizingBackendTypeConversionPass
 
     // Mark materializations as illegal in this pass (since we are finalizing)
     // and add patterns that eliminate them.
-    target.addIllegalOp<ToBuiltinTensorOp, FromBuiltinTensorOp, FromI1Op,
-                        ToI1Op>();
-    patterns.add<FinalizeFromBuiltinTensorOp, FinalizeToBuiltinTensorOp,
-                 FinalizeFromI1Op, FinalizeToI1Op>(typeConverter, context);
+    setupFinalization<ToBuiltinTensorOp, FromBuiltinTensorOp, FromI1Op, ToI1Op,
+                      FromI64Op, ToI64Op>(target, patterns, typeConverter);
 
     // If all result types are legal, and all block arguments are legal, then
     // all types in the program are legal.

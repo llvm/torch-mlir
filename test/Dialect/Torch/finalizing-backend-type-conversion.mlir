@@ -12,8 +12,8 @@ func @eliminate_materializations(%arg0: tensor<f32>) -> tensor<f32> {
   return %1 : tensor<f32>
 }
 
-// Do a basic check of !torch.bool type. Under the hood it takes all the same
-// code paths as for !torch.vtensor, so we just spot-check it here.
+// Do a basic check of other types. Under the hood they all take the same
+// code paths as for !torch.vtensor, so we just spot-check them here.
 
 // CHECK-LABEL:   func @eliminate_materializations$torch.bool(
 // CHECK-SAME:                                     %[[ARG:.*]]: i1) -> i1 {
@@ -22,6 +22,15 @@ func @eliminate_materializations$torch.bool(%arg0: i1) -> i1 {
   %0 = torch.from_i1 %arg0
   %1 = torch.to_i1 %0
   return %1 : i1
+}
+
+// CHECK-LABEL:   func @eliminate_materializations$torch.int(
+// CHECK-SAME:                                     %[[ARG:.*]]: i64) -> i64 {
+// CHECK:           return %[[ARG]] : i64
+func @eliminate_materializations$torch.int(%arg0: i64) -> i64 {
+  %0 = torch.from_i64 %arg0
+  %1 = torch.to_i64 %0
+  return %1 : i64
 }
 
 // -----

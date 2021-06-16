@@ -173,7 +173,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
         loc, torchType->cast<c10::OptionalType>()->getElementType()));
   }
   case TypeKind::IntType: {
-    return mlirIntegerTypeGet(context, 64);
+    return npcompTorchIntTypeGet(context);
   }
   case TypeKind::NoneType: {
     return npcompTorchNoneTypeGet(context);
