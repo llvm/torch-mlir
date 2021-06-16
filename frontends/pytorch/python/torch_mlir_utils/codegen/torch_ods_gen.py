@@ -444,8 +444,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
 
         # Primitive ops
-        emit("aten::gt.int : (int, int) -> (bool)")
-        emit("aten::ne.int : (int, int) -> (bool)")
+        emit("aten::gt.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::ne.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::add.int : (int, int) -> (int)")
         emit("aten::mul.int : (int, int) -> (int)")
         emit("aten::add.float_int : (float, int) -> (float)")

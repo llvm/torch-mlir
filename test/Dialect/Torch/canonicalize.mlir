@@ -30,6 +30,25 @@ func @torch.aten.size$unknown_size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.l
   return %0 : !torch.list<i64>
 }
 
+// CHECK-LABEL:   func @torch.aten.gt.int$evaluate() -> !torch.bool {
+// CHECK-NEXT:       %[[T:.*]] = torch.constant.bool true
+// CHECK-NEXT:       return %[[T]] : !torch.bool
+func @torch.aten.gt.int$evaluate() -> !torch.bool {
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %0 = torch.aten.gt.int %int4, %int2 : i64, i64 -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ne.int$same_value(
+// CHECK-SAME:                                       %{{.*}}: i64) -> !torch.bool {
+// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool false
+// CHECK-NEXT:       return %[[F]] : !torch.bool
+func @torch.aten.ne.int$same_value(%arg0: i64) -> !torch.bool {
+  %0 = torch.aten.ne.int %arg0, %arg0 : i64, i64 -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.len.t$of_size(
 // CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<*,f32>) -> i64 {
 // CHECK:           %[[DIM:.*]] = torch.aten.dim %[[ARG]] : !torch.vtensor<*,f32> -> i64
