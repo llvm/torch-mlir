@@ -42,29 +42,128 @@ using namespace mlir::NPCOMP::Torch;
 
 static LogicalResult verifyLinalgCompatibleTypes(Operation *op,
                                                  PatternRewriter &rewriter) {
-  // For now, use a small allowlist of types we don't reject.
-  // The main culprit in practice is an unknown dtype
-  // when RefineTypes isn't smart enough to propagate it everywhere.
-  // For tensors, we consider the post-conversion tensor type (this pass is
-  // doing a type conversion).
+  // Check the value tensor is ranked as expected by Linalg.
+  // TODO: Remove this check but use a separate verification pass to verify the
+  // invariants expected by later passes.
   auto isValidLinalgType = [](Type type) {
-    if (auto tensor = type.dyn_cast<ValueTensorType>()) {
-      if (auto rankedTensor =
-              tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>()) {
-        if (BaseMemRefType::isValidElementType(rankedTensor.getElementType()))
-          return true;
-      }
-    }
-    if (type.isa<mlir::FloatType, IntegerType, IndexType>())
-      return true;
-    return false;
+    auto tensor = type.dyn_cast<ValueTensorType>();
+    return !tensor ||
+           tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
   };
+
   bool valid = llvm::all_of(op->getOperandTypes(), isValidLinalgType) &&
                llvm::all_of(op->getResultTypes(), isValidLinalgType);
   if (!valid)
     return rewriter.notifyMatchFailure(op, "type cannot be lowered to linalg");
   return success();
 }
+
+namespace {
+class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenBatchNormOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    AtenBatchNormOp::Adaptor adaptor(operands);
+    MLIRContext *context = op->getContext();
+    Location loc = op->getLoc();
+    Value input = adaptor.input();
+    Value weight = adaptor.weight();
+    Value bias = adaptor.bias();
+    Value runningMean = adaptor.running_mean();
+    Value runningVar = adaptor.running_var();
+    Value training = adaptor.training();
+    Value eps = adaptor.eps();
+
+    // TODO: Handle the None cases for the optional parameters:
+    // weight, bias, running_mean, running_var.
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto weightType = weight.getType().cast<RankedTensorType>();
+    auto biasType = bias.getType().cast<RankedTensorType>();
+    auto runningMeanType = runningMean.getType().cast<RankedTensorType>();
+    auto runningVarType = runningVar.getType().cast<RankedTensorType>();
+
+    auto inputRank = inputType.getRank();
+    if (inputRank <= 2)
+      return rewriter.notifyMatchFailure(
+          op, "input should have rank larger than 2");
+
+    if (weightType.getRank() != 1 || biasType.getRank() != 1 ||
+        runningMeanType.getRank() != 1 || runningVarType.getRank() != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "expect weight, bias, running_mean and running_var to be rank 1");
+    }
+
+    // TODO: Add support for training.
+    auto constFalse = rewriter.create<ConstantOp>(
+        loc, IntegerAttr::get(IntegerType::get(context, 1), 0));
+    auto trainingFalse =
+        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, training, constFalse);
+    rewriter.create<AssertOp>(
+        loc, trainingFalse,
+        rewriter.getStringAttr("training is not supported for now"));
+
+    // num_features – C from an expected input of size (N,C,D,H,W ...)
+    Value numFeatures = rewriter.create<memref::DimOp>(loc, input, 1);
+    auto contractingDim0EqualsNumFeatures = [&](Value v) {
+      auto dim0 = rewriter.create<memref::DimOp>(loc, v, 0);
+      auto dim0Equal =
+          rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, numFeatures, dim0);
+      rewriter.create<AssertOp>(
+          loc, dim0Equal,
+          rewriter.getStringAttr(
+              "expect the size of dim 0 equal to the number of features"));
+    };
+    contractingDim0EqualsNumFeatures(weight);
+    contractingDim0EqualsNumFeatures(bias);
+    contractingDim0EqualsNumFeatures(runningMean);
+    contractingDim0EqualsNumFeatures(runningVar);
+
+    auto indexingMap = AffineMap::get(
+        /*dimCount=*/inputRank,
+        /*symbolCount=*/0, rewriter.getAffineDimExpr(1), context);
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), // input
+        indexingMap,                                // weight
+        indexingMap,                                // bias
+        indexingMap,                                // runningMean
+        indexingMap,                                // runningVar
+        rewriter.getMultiDimIdentityMap(inputRank), // output
+    };
+    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    Value batchNorm =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(),
+                ValueRange{input, weight, bias, runningMean, runningVar}, input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0], weight = args[1], bias = args[2],
+                        mean = args[3], var = args[4];
+                  // ((input - mean) / sqrt(var + eps)) * weight + bias
+                  Value inputSubMean = b.create<SubFOp>(loc, input, mean);
+                  // The eps is always f64.
+                  Value truncatedEps =
+                      b.create<FPTruncOp>(loc, var.getType(), eps);
+                  Value varPlusEps = b.create<AddFOp>(loc, var, truncatedEps);
+                  Value rSTD = b.create<math::RsqrtOp>(loc, varPlusEps);
+                  Value temp = b.create<MulFOp>(loc, inputSubMean, rSTD);
+                  Value timesWeight = b.create<MulFOp>(loc, temp, weight);
+                  Value plusBias = b.create<AddFOp>(loc, timesWeight, bias);
+                  b.create<linalg::YieldOp>(loc, plusBias);
+                })
+            .getResult(0);
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, batchNorm);
+    return success();
+  }
+};
+} // namespace
 
 namespace {
 class ConvertAtenMmOp : public OpConversionPattern<AtenMmOp> {
@@ -344,6 +443,8 @@ public:
     patterns.add<ConvertAtenMmOp>(typeConverter, context);
     target.addIllegalOp<AtenLinearOp>();
     patterns.add<ConvertAtenLinearOp>(typeConverter, context);
+    target.addIllegalOp<AtenBatchNormOp>();
+    patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target.addIllegalOp<AtenTanhOp>();
     patterns.add<ConvertUnaryOp>(typeConverter, context);
     if (failed(applyPartialConversion(getOperation(), target,

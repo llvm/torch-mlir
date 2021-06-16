@@ -25,6 +25,7 @@ from torch_mlir.torchscript.e2e_test.configs import (
 import basic
 import vision_models
 import mlp
+import batchnorm
 import quantized_models
 
 def _get_argparse():
