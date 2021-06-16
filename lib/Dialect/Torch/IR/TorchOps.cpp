@@ -199,6 +199,99 @@ void PrimLoopOp::getSuccessorRegions(
 }
 
 //===----------------------------------------------------------------------===//
+// PrimIfOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parsePrimIfOp(OpAsmParser &parser, OperationState &result) {
+  // Create the regions.
+  result.regions.reserve(2);
+  Region *thenRegion = result.addRegion();
+  Region *elseRegion = result.addRegion();
+
+  auto &builder = parser.getBuilder();
+  OpAsmParser::OperandType cond;
+  Type boolType = builder.getType<Torch::BoolType>();
+  if (parser.parseOperand(cond) ||
+      parser.resolveOperand(cond, boolType, result.operands))
+    return failure();
+  // Parse results type list.
+  if (parser.parseArrowTypeList(result.types))
+    return failure();
+  // Parse the 'then' region.
+  if (parser.parseRegion(*thenRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+  // Parse the 'else' region.
+  if (parser.parseKeyword("else"))
+    return failure();
+  if (parser.parseRegion(*elseRegion, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+  // Parse the optional attribute list.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  return success();
+}
+
+static void print(OpAsmPrinter &p, PrimIfOp op) {
+  p << PrimIfOp::getOperationName() << " " << op.condition();
+  p << " -> (" << op.getResultTypes() << ")";
+  p.printRegion(op.thenRegion(), /*printEntryBlockArgs=*/false);
+  p << " else";
+  p.printRegion(op.elseRegion(), /*printEntryBlockArgs=*/false);
+
+  p.printOptionalAttrDict(op->getAttrs());
+}
+
+void PrimIfOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // The `then` and the `else` region branch back to the parent operation.
+  if (index.hasValue()) {
+    regions.push_back(RegionSuccessor(getResults()));
+    return;
+  }
+
+  // If the condition is constant, we can give a more precise answer.
+  if (auto condAttr = operands.front().dyn_cast_or_null<IntegerAttr>()) {
+    Region *executedRegion =
+        condAttr.getValue().isOneValue() ? &thenRegion() : &elseRegion();
+    regions.push_back(RegionSuccessor(executedRegion));
+    return;
+  }
+
+  // If the condition isn't constant, both regions may be executed.
+  regions.push_back(RegionSuccessor(&thenRegion()));
+  regions.push_back(RegionSuccessor(&elseRegion()));
+  return;
+}
+
+/// Replaces the given op with the contents of the given single-block region,
+/// using the operands of the block terminator to replace operation results.
+static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
+                                Region &region, ValueRange blockArgs = {}) {
+  assert(llvm::hasSingleElement(region) && "expected single-region block");
+  Block *block = &region.front();
+  Operation *terminator = block->getTerminator();
+  ValueRange results = terminator->getOperands();
+  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.replaceOp(op, results);
+  rewriter.eraseOp(terminator);
+}
+
+void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                           MLIRContext *context) {
+  // If the condition is constant, delete the dead branch and inline the live
+  // branch.
+  patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
+    auto constantBool = op.condition().getDefiningOp<Torch::ConstantBoolOp>();
+    if (!constantBool)
+      return rewriter.notifyMatchFailure(op, "non-constant condition");
+    replaceOpWithRegion(
+        rewriter, op, constantBool.value() ? op.thenRegion() : op.elseRegion());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // DerefineOp
 //===----------------------------------------------------------------------===//
 

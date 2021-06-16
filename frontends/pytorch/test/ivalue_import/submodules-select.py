@@ -27,7 +27,7 @@ class TestModule(torch.nn.Module):
     # CHECK-LABEL: func private @{{.*}}TestModule.forward
     def forward(self, b: bool):
         # Modules with the same class can be selected between.
-        # CHECK: %[[MOD:.*]] = scf.if
+        # CHECK: %[[MOD:.*]] = torch.prim.If
         s = self.s1 if b else self.s2
         # CHECK: %[[N:.*]] = torch.prim.CallMethod %[[MOD]]["forward"] ()
         # CHECK: return %[[N]]

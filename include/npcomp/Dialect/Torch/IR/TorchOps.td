@@ -453,6 +453,51 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
   }];
 }
 
+def Torch_PrimIfOp : Torch_Op<"prim.If", [
+  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  let summary = "TorchScript prim::If op";
+  let description = [{
+    This op (together with prim.If.yield) define a conditional control flow
+    construct. It is analogous to `scf.if` for MLIR folks that are familiar
+    with that. The main differences from that op are:
+
+    - `!torch.bool` condition value.
+    - The "else" region is always present. This is reflective of invariants of
+      the TorchScript IR.
+    - No special prettiness for the "no yielded values" case. These are
+      interesting for modeling mostly-non-SSA programs, but TorchScript IR
+      is already in SSA form.
+
+    See: https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#if
+  }];
+
+  let arguments = (ins Torch_BoolType:$condition);
+  let results = (outs Variadic<AnyTorchType>:$results);
+  let regions = (region SizedRegion<1>:$thenRegion, SizedRegion<1>:$elseRegion);
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parsePrimIfOp(parser, result); }];
+  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+  let hasCanonicalizer = 1;
+}
+
+def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
+    Terminator,
+    HasParent<"::mlir::NPCOMP::Torch::PrimIfOp">]> {
+  let summary = "yield-like terminator for torch.prim.If";
+  let description = [{
+    Does not correspond to any torch prim op directly (the way that they model
+    blocks has a built-in notion of yield-like terminator).
+  }];
+
+  let arguments = (ins
+    Variadic<AnyTorchType>:$results
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    attr-dict ($results^ `:` type($results))?
+  }];
+}
 
 //===----------------------------------------------------------------------===//
 // Ops corresponding to prim::Constant

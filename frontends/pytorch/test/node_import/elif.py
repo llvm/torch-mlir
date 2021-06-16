@@ -13,10 +13,10 @@ mb = torch_mlir.ModuleBuilder()
 @mb.import_function
 @torch.jit.script
 def f(b: bool, i: int):
-    # elif is modeled as a nested if
-    # CHECK: scf.if{{.*}}{
+    # elif is modeled as a nested if, so we only need to do cursory checking.
+    # CHECK: torch.prim.If {{.*}} {
     # CHECK: } else {
-    # CHECK:   scf.if{{.*}}{
+    # CHECK:   torch.prim.If {{.*}} {
     # CHECK:   } else {
     # CHECK:   }
     # CHECK: }
