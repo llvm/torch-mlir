@@ -62,6 +62,17 @@ func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
   return %0 : !torch.optional<!torch.tensor>
 }
 
+func @torch.prim.If(%arg0: !torch.bool, %arg1: i64) -> i64 {
+  %0 = torch.prim.If %arg0 -> (i64) {
+    %1 = torch.aten.add.int %arg1, %arg1 : i64, i64 -> i64
+    torch.prim.If.yield %1 : i64
+  } else {
+    %1 = torch.aten.mul.int %arg1, %arg1 : i64, i64 -> i64
+    torch.prim.If.yield %1 : i64
+  }
+  return %0 : i64
+}
+
 // CHECK: %true = torch.constant.bool true
 %true = torch.constant.bool true
 // CHECK: %false = torch.constant.bool false

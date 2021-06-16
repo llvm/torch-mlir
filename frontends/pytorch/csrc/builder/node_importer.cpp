@@ -173,21 +173,16 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   }
 
   if (kind == c10::prim::If) {
-    // TorchScript will already have an explicit op to determine truthiness. So
-    // all we need to do here is launder !torch.bool to i1 for `scf.if`.
-    MlirOperation pred = createMlirOperationAtEnd(
-        appendToBlock, "torch.to_i1", loc, mlirIntegerTypeGet(context, 1),
-        lookupMappedValue(node->input()));
     std::vector<MlirType> resultTypes =
         getMlirTypesFromValues(loc, node->outputs());
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "scf.if", loc, mlirOperationGetResult(pred, 0),
+        appendToBlock, "torch.prim.If", loc, lookupMappedValue(node->input()),
         resultTypes, mlirRegionCreate(), mlirRegionCreate());
     mapResults(node, operation);
     auto createTerminator =
         [&](c10::ArrayRef<MlirValue> yieldedValues, MlirBlock appendToBlock) {
           createMlirOperationAtEnd(
-              appendToBlock, "scf.yield", loc,
+              appendToBlock, "torch.prim.If.yield", loc,
               derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
         };
     mlirRegionAppendOwnedBlock(

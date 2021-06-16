@@ -144,3 +144,19 @@ func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bo
   %2 = torch.constant.bool false
   return %0, %1, %2 : !torch.bool, !torch.bool, !torch.bool
 }
+
+// CHECK-LABEL:   func @torch.prim.If$erase_dead_branch(
+// CHECK-SAME:                                          %[[ARG:.*]]: i64) -> i64 {
+// CHECK-NEXT:       %[[RET:.*]] = torch.aten.add.int %[[ARG]], %[[ARG]] : i64, i64 -> i64
+// CHECK-NEXT:       return %[[RET]] : i64
+func @torch.prim.If$erase_dead_branch(%arg0: i64) -> i64 {
+  %true = torch.constant.bool true
+  %0 = torch.prim.If %true -> (i64) {
+    %1 = torch.aten.add.int %arg0, %arg0 : i64, i64 -> i64
+    torch.prim.If.yield %1 : i64
+  } else {
+    %1 = torch.aten.mul.int %arg0, %arg0 : i64, i64 -> i64
+    torch.prim.If.yield %1 : i64
+  }
+  return %0 : i64
+}

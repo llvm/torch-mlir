@@ -49,12 +49,11 @@ def prim_RaiseException():
 # CHECK:           %[[NONE:.*]] = torch.constant.none
 # CHECK:           %[[C3:.*]] = torch.constant.int 3 : i64
 # CHECK:           %[[IS_NONE:.*]] = torch.aten.__is__ %[[ARG]], %[[NONE]] : !torch.optional<i64>, !torch.none -> !torch.bool
-# CHECK:           %[[COND:.*]] = torch.to_i1 %[[IS_NONE]]
-# CHECK:           %[[RESULT:.*]] = scf.if %[[COND]] -> (i64) {
-# CHECK:             scf.yield %[[C3]] : i64
+# CHECK:           %[[RESULT:.*]] = torch.prim.If %[[IS_NONE]] -> (i64) {
+# CHECK:             torch.prim.If.yield %[[C3]] : i64
 # CHECK:           } else {
 # CHECK:             %[[CASTED:.*]] = torch.prim.unchecked_cast %[[ARG]] : !torch.optional<i64> -> i64
-# CHECK:             scf.yield %[[CASTED]] : i64
+# CHECK:             torch.prim.If.yield %[[CASTED]] : i64
 # CHECK:           }
 # CHECK:           return %[[RESULT:.*]] : i64
 @mb.import_function
