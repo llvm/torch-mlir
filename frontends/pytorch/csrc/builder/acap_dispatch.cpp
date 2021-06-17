@@ -528,7 +528,7 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   auto loc = getCurrentLocation();
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp = createMlirOperationAtEnd(
-      funcBuilder->getEntryBlock(), "torch.tensor", loc,
+      funcBuilder->getEntryBlock(), "torch.tensor.literal", loc,
       npcompTorchNonValueTensorTypeGetFromShaped(
           mlirAttributeGetType(denseElements)),
       toMlirNamedAttribute("value", denseElements));

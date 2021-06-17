@@ -349,7 +349,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   at::Tensor tensor = ivalue.toTensor().contiguous();
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp =
-      createMlirOperationAtEnd(importBlock, "torch.tensor", loc,
+      createMlirOperationAtEnd(importBlock, "torch.tensor.literal", loc,
                                npcompTorchNonValueTensorTypeGetFromShaped(
                                    mlirAttributeGetType(denseElements)),
                                toMlirNamedAttribute("value", denseElements));

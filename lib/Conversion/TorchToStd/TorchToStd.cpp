@@ -70,14 +70,19 @@ public:
 };
 } // namespace
 
-LogicalResult convertTensorOp(TensorOp op, PatternRewriter &rewriter) {
-  auto constant = rewriter.create<ConstantOp>(op->getLoc(), op.value());
-  auto vtensor = rewriter.create<FromBuiltinTensorOp>(op->getLoc(), constant);
-  Value result = copyTensorToType(rewriter, op->getLoc(),
-                                  op.getType().cast<BaseTensorType>(), vtensor);
-  rewriter.replaceOp(op, {result});
-  return success();
-}
+namespace {
+class ConvertValueTensorLiteralOp
+    : public OpConversionPattern<ValueTensorLiteralOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(ValueTensorLiteralOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, op.value());
+    return success();
+  }
+};
+} // namespace
 
 // -----------------------------------------------------------------------------
 // The pass
@@ -106,8 +111,8 @@ public:
     patterns.add<ConvertAtenNeIntOp>(typeConverter, context);
     target.addIllegalOp<AtenGtIntOp>();
     patterns.add<ConvertAtenGtIntOp>(typeConverter, context);
-    target.addIllegalOp<TensorOp>();
-    patterns.add(convertTensorOp);
+    target.addIllegalOp<ValueTensorLiteralOp>();
+    patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();
