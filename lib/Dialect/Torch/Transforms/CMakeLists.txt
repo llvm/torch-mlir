@@ -25,4 +25,5 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   NPCOMPTorchDialect
   NPCOMPTorchToLinalg
   NPCOMPInterfaces
+  MLIRMemRefTransforms
 )
