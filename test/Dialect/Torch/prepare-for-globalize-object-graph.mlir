@@ -8,24 +8,24 @@ torch.class_type @c {
 
 // CHECK-LABEL:   func private @test_call_method(
 // CHECK-SAME:                            %[[RECEIVER:.*]]: !torch.nn.Module<"c">,
-// CHECK-SAME:                            %[[F:.*]]: f64) -> f64 {
-// CHECK:           %[[RET:.*]] = call @test_call_method(%[[RECEIVER]], %[[F]]) : (!torch.nn.Module<"c">, f64) -> f64
-// CHECK:           return %[[RET]] : f64
-func private @test_call_method(%arg0: !torch.nn.Module<"c">, %arg1: f64) -> f64 {
-  %0 = torch.prim.CallMethod %arg0["test_call_method"] (%arg1) : !torch.nn.Module<"c">, (f64) -> f64
-  return %0 : f64
+// CHECK-SAME:                            %[[F:.*]]: !torch.float) -> !torch.float {
+// CHECK:           %[[RET:.*]] = call @test_call_method(%[[RECEIVER]], %[[F]]) : (!torch.nn.Module<"c">, !torch.float) -> !torch.float
+// CHECK:           return %[[RET]] : !torch.float
+func private @test_call_method(%arg0: !torch.nn.Module<"c">, %arg1: !torch.float) -> !torch.float {
+  %0 = torch.prim.CallMethod %arg0["test_call_method"] (%arg1) : !torch.nn.Module<"c">, (!torch.float) -> !torch.float
+  return %0 : !torch.float
 }
 
 // CHECK-LABEL:   func private @test_call_indirect(
 // CHECK-SAME:                                     %[[RECEIVER:.*]]: !torch.nn.Module<"c">,
-// CHECK-SAME:                                     %[[F:.*]]: f64) -> f64 {
+// CHECK-SAME:                                     %[[F:.*]]: !torch.float) -> !torch.float {
 // Ensure no std.constant.
-// CHECK-NEXT:      %[[VAL_2:.*]] = call @test_call_method(%[[RECEIVER]], %[[F]]) : (!torch.nn.Module<"c">, f64) -> f64
-// CHECK-NEXT:      return %[[VAL_2]] : f64
-func private @test_call_indirect(%arg0: !torch.nn.Module<"c">, %arg1: f64) -> f64 {
-  %0 = constant @test_call_method : (!torch.nn.Module<"c">, f64) -> f64
-  %1 = call_indirect %0(%arg0, %arg1) : (!torch.nn.Module<"c">, f64) -> f64
-  return %1 : f64
+// CHECK-NEXT:      %[[VAL_2:.*]] = call @test_call_method(%[[RECEIVER]], %[[F]]) : (!torch.nn.Module<"c">, !torch.float) -> !torch.float
+// CHECK-NEXT:      return %[[VAL_2]] : !torch.float
+func private @test_call_indirect(%arg0: !torch.nn.Module<"c">, %arg1: !torch.float) -> !torch.float {
+  %0 = constant @test_call_method : (!torch.nn.Module<"c">, !torch.float) -> !torch.float
+  %1 = call_indirect %0(%arg0, %arg1) : (!torch.nn.Module<"c">, !torch.float) -> !torch.float
+  return %1 : !torch.float
 }
 
 torch.nn_module {

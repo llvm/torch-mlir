@@ -47,7 +47,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
     %2 = torch.nn_module {
       torch.slot "b", %bool_true : !torch.bool
       torch.slot "i", %int3 : !torch.int
-      torch.slot "f", %float : f64
+      torch.slot "f", %float : !torch.float
       torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %1 : !torch.nn.Module
     } : !torch.nn.Module<"my_class_name">
@@ -127,7 +127,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     torch.class_type @test {
       torch.attr "b" : !torch.bool
       torch.attr "i" : !torch.int
-      torch.attr "f" : f64
+      torch.attr "f" : !torch.float
       torch.attr "t" : !torch.tensor
       torch.attr "submodule" : !torch.nn.Module<"empty">
       torch.method "method", @f
@@ -136,7 +136,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
       // These must match the order and names in the `torch.class_type`.
       torch.slot "b", %bool_true : !torch.bool
       torch.slot "i", %int3 : !torch.int
-      torch.slot "f", %float : f64
+      torch.slot "f", %float : !torch.float
       torch.slot "t", %t : !torch.tensor
       torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
     } : !torch.nn.Module<"test">
@@ -562,7 +562,7 @@ def Torch_ConstantFloatOp : Torch_Op<"constant.float",
     F64Attr:$value
   );
   let results = (outs
-    AnyTorchFloatType:$result
+    Torch_FloatType:$result
   );
   let assemblyFormat = "$value attr-dict";
   let hasFolder = 1;
@@ -697,6 +697,42 @@ def Torch_FromI64Op : Torch_Op<"from_i64", [
   }];
 }
 
+def Torch_ToF64Op : Torch_Op<"to_f64", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert a `!torch.float` to an `f64`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    Torch_FloatType:$operand
+  );
+  let results = (outs
+    F64:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
+  }];
+}
+
+def Torch_FromF64Op : Torch_Op<"from_f64", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>
+  ]> {
+  let summary = "Convert an `f64` to a `!torch.float`";
+  let description = [{
+    This op is primarily useful as a materialization during dialect conversion.
+  }];
+  let arguments = (ins
+    F64:$operand
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Additional ops used to model TorchScript's Graph's / Node's.
 //===----------------------------------------------------------------------===//
@@ -784,7 +820,7 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
   }];
   let arguments = (ins
     AnyTorchTensorType:$int_repr,
-    AnyFloat:$scale,
+    Torch_FloatType:$scale,
     Torch_IntType:$offset
   );
   // TODO: Limit to quantized dtypes (e.g. !torch.qint8).

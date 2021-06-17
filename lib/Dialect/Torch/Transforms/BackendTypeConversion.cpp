@@ -99,11 +99,35 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
+static void setupTorchFloatToF64Conversion(ConversionTarget &target,
+                                           TypeConverter &typeConverter) {
+  target.addLegalOp<Torch::ToF64Op, Torch::FromF64Op>();
+  typeConverter.addConversion([](Torch::FloatType type) -> Optional<Type> {
+    return Float64Type::get(type.getContext());
+  });
+  typeConverter.addTargetMaterialization([](OpBuilder &builder,
+                                            Float64Type type, ValueRange inputs,
+                                            Location loc) -> Optional<Value> {
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<Torch::FloatType>());
+    return builder.create<ToF64Op>(loc, inputs[0]).getResult();
+  });
+  auto sourceMaterialization = [](OpBuilder &builder, Torch::FloatType type,
+                                  ValueRange inputs, Location loc) -> Value {
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<Float64Type>());
+    return builder.create<FromF64Op>(loc, inputs[0]);
+  };
+  typeConverter.addSourceMaterialization(sourceMaterialization);
+  typeConverter.addArgumentMaterialization(sourceMaterialization);
+}
+
 void mlir::NPCOMP::Torch::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
   setupValueTensorToBuiltinTensorConversion(target, typeConverter);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
+  setupTorchFloatToF64Conversion(target, typeConverter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -215,7 +239,8 @@ struct FinalizingBackendTypeConversionPass
     // Mark materializations as illegal in this pass (since we are finalizing)
     // and add patterns that eliminate them.
     setupFinalization<ToBuiltinTensorOp, FromBuiltinTensorOp, FromI1Op, ToI1Op,
-                      FromI64Op, ToI64Op>(target, patterns, typeConverter);
+                      FromI64Op, ToI64Op, FromF64Op, ToF64Op>(target, patterns,
+                                                              typeConverter);
 
     // If all result types are legal, and all block arguments are legal, then
     // all types in the program are legal.

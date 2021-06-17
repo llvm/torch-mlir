@@ -248,11 +248,12 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isDouble()) {
-    MlirType type = mlirF64TypeGet(context);
+    MlirType type = npcompTorchFloatTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.float", loc, type,
         toMlirNamedAttribute(
-            "value", mlirFloatAttrDoubleGet(context, type, ivalue.toDouble())));
+            "value", mlirFloatAttrDoubleGet(context, mlirF64TypeGet(context),
+                                            ivalue.toDouble())));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isInt()) {

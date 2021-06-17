@@ -20,7 +20,7 @@ class TestModule(torch.nn.Module):
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # CHECK:   torch.attr "training" : !torch.bool
 # CHECK:   torch.attr "i" : !torch.int
-# CHECK:   torch.attr "f" : f64
+# CHECK:   torch.attr "f" : !torch.float
 # CHECK: }
 # CHECK: %[[TRUE:.*]] = torch.constant.bool true
 # CHECK: %[[N3:.*]] = torch.constant.int 3
@@ -29,7 +29,7 @@ class TestModule(torch.nn.Module):
 # Note: for some reason, Torch always adds a "training" property to all modules.
 # CHECK:   torch.slot "training", %[[TRUE]] : !torch.bool
 # CHECK:   torch.slot "i", %[[N3]] : !torch.int
-# CHECK:   torch.slot "f", %[[N42]] : f64
+# CHECK:   torch.slot "f", %[[N42]] : !torch.float
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE:.*]]">
 
 

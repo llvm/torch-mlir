@@ -122,11 +122,7 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   if (auto integerType = type.dyn_cast<Torch::IntType>())
     return builder.create<Torch::ConstantIntOp>(loc, value.cast<IntegerAttr>());
 
-  // We currently use the builtin `f64` type to model the Python `float` type.
-  // This semantically matches how TorchScript represents it, but is still
-  // a little bit ugly.
-  // TODO: We should have a !torch.float type to model this.
-  if (auto floatType = type.dyn_cast<Float64Type>())
+  if (auto floatType = type.dyn_cast<Torch::FloatType>())
     return builder.create<Torch::ConstantFloatOp>(loc, value.cast<FloatAttr>());
 
   if (type.isa<Torch::BoolType>()) {

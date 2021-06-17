@@ -166,7 +166,7 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompTorchNnModuleTypeGet(context, toMlirStringRef(name));
   }
   case TypeKind::FloatType: {
-    return mlirF64TypeGet(context);
+    return npcompTorchFloatTypeGet(context);
   }
   case TypeKind::OptionalType: {
     return npcompTorchOptionalTypeGet(mapFromTorchType(

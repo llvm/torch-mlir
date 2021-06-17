@@ -96,7 +96,7 @@ torch.class_type @empty {}
 torch.class_type @test {
   torch.attr "b" : !torch.bool
   torch.attr "i" : !torch.int
-  torch.attr "f" : f64
+  torch.attr "f" : !torch.float
   torch.attr "t" : !torch.tensor
   torch.attr "submodule" : !torch.nn.Module<"empty">
   torch.attr "ob" : !torch.optional<!torch.bool>
@@ -106,7 +106,7 @@ torch.class_type @test {
 torch.nn_module {
   torch.slot "b", %true : !torch.bool
   torch.slot "i", %int3 : !torch.int
-  torch.slot "f", %float : f64
+  torch.slot "f", %float : !torch.float
   torch.slot "t", %tensor : !torch.tensor
   torch.slot "submodule", %submodule : !torch.nn.Module<"empty">
   torch.slot "ob", %none : !torch.none

@@ -12,15 +12,15 @@ import typing
 mb = torch_mlir.ModuleBuilder()
 
 # CHECK-LABEL:   func @__torch__.prim_Loop_forlike(
-# CHECK-SAME:                            %[[MAX_ITERATIONS:.*]]: !torch.int) -> f64 {
+# CHECK-SAME:                            %[[MAX_ITERATIONS:.*]]: !torch.int) -> !torch.float {
 # CHECK:           %[[BOOL_TRUE:.*]] = torch.constant.bool true
 # CHECK:           %[[F_INIT:.*]] = torch.constant.float 0.000000e+00
 # CHECK:           %[[RESULTS:.*]] = torch.prim.Loop %[[MAX_ITERATIONS]], %[[BOOL_TRUE]], init(%[[F_INIT]])  {
-# CHECK:           ^bb0(%[[IV:.*]]: !torch.int, %[[F_ITER:.*]]: f64):
-# CHECK:             %[[F_NEXT:.*]] = torch.aten.add.float_int %[[F_ITER]], %[[IV]] : f64, !torch.int -> f64
-# CHECK:             torch.prim.Loop.condition %[[BOOL_TRUE]], iter(%[[F_NEXT]] : f64)
-# CHECK:           } : (!torch.int, !torch.bool, f64) -> f64
-# CHECK:           return %[[RESULTS:.*]] : f64
+# CHECK:           ^bb0(%[[IV:.*]]: !torch.int, %[[F_ITER:.*]]: !torch.float):
+# CHECK:             %[[F_NEXT:.*]] = torch.aten.add.float_int %[[F_ITER]], %[[IV]] : !torch.float, !torch.int -> !torch.float
+# CHECK:             torch.prim.Loop.condition %[[BOOL_TRUE]], iter(%[[F_NEXT]] : !torch.float)
+# CHECK:           } : (!torch.int, !torch.bool, !torch.float) -> !torch.float
+# CHECK:           return %[[RESULTS:.*]] : !torch.float
 @mb.import_function
 @torch.jit.script
 def prim_Loop_forlike(n: int):
@@ -30,17 +30,17 @@ def prim_Loop_forlike(n: int):
     return f
 
 # CHECK-LABEL:   func @__torch__.prim_Loop_whilelike(
-# CHECK-SAME:                              %[[VAL_0:.*]]: !torch.int) -> f64 {
+# CHECK-SAME:                              %[[VAL_0:.*]]: !torch.int) -> !torch.float {
 # CHECK:           %[[F_INIT:.*]] = torch.constant.float 3.200000e+00
 # CHECK:           %[[MAX_ITERATIONS:.*]] = torch.constant.int 9223372036854775807
-# CHECK:           %[[COND_INIT:.*]] = torch.aten.lt.float_int %[[F_INIT]], %[[VAL_0]] : f64, !torch.int -> !torch.bool
+# CHECK:           %[[COND_INIT:.*]] = torch.aten.lt.float_int %[[F_INIT]], %[[VAL_0]] : !torch.float, !torch.int -> !torch.bool
 # CHECK:           %[[RET:.*]] = torch.prim.Loop %[[MAX_ITERATIONS]], %[[COND_INIT]], init(%[[F_INIT]])  {
-# CHECK:           ^bb0(%[[F_ITER:.*]]: !torch.int, %[[F_ITER:.*]]: f64):
-# CHECK:             %[[F_NEXT:.*]] = torch.aten.mul.float %[[F_ITER]], %[[F_ITER]] : f64, f64 -> f64
-# CHECK:             %[[COND_ITER:.*]] = torch.aten.lt.float_int %[[F_NEXT]], %[[VAL_0]] : f64, !torch.int -> !torch.bool
-# CHECK:             torch.prim.Loop.condition %[[COND_ITER]], iter(%[[F_NEXT]] : f64)
-# CHECK:           } : (!torch.int, !torch.bool, f64) -> f64
-# CHECK:           return %[[RET:.*]] : f64
+# CHECK:           ^bb0(%[[F_ITER:.*]]: !torch.int, %[[F_ITER:.*]]: !torch.float):
+# CHECK:             %[[F_NEXT:.*]] = torch.aten.mul.float %[[F_ITER]], %[[F_ITER]] : !torch.float, !torch.float -> !torch.float
+# CHECK:             %[[COND_ITER:.*]] = torch.aten.lt.float_int %[[F_NEXT]], %[[VAL_0]] : !torch.float, !torch.int -> !torch.bool
+# CHECK:             torch.prim.Loop.condition %[[COND_ITER]], iter(%[[F_NEXT]] : !torch.float)
+# CHECK:           } : (!torch.int, !torch.bool, !torch.float) -> !torch.float
+# CHECK:           return %[[RET:.*]] : !torch.float
 @mb.import_function
 @torch.jit.script
 def prim_Loop_whilelike(n: int):

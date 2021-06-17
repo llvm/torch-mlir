@@ -11,7 +11,7 @@ torch.nn_module {} : !torch.nn.Module<"c2">
 // -----
 
 torch.class_type @child {
-  torch.attr "float" : f64
+  torch.attr "float" : !torch.float
 }
 torch.class_type @parent {
   torch.attr "m" : !torch.nn.Module<"child">
@@ -19,10 +19,10 @@ torch.class_type @parent {
 
 }
 
-%c42 = std.constant 42.0 : f64
+%c42 = torch.constant.float 42.0
 // expected-error @+1 {{reachable by multiple paths from root object: '<root>.m' and '<root>.m2'}}
 %child = torch.nn_module {
-  torch.slot "float", %c42 : f64
+  torch.slot "float", %c42 : !torch.float
 } : !torch.nn.Module<"child">
 %parent = torch.nn_module {
   torch.slot "m", %child : !torch.nn.Module<"child">

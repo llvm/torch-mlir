@@ -108,6 +108,18 @@ MlirType npcompTorchIntTypeGet(MlirContext context) {
 }
 
 //===----------------------------------------------------------------------===//
+// torch.float type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchFloat(MlirType t) {
+  return unwrap(t).isa<Torch::FloatType>();
+}
+
+MlirType npcompTorchFloatTypeGet(MlirContext context) {
+  return wrap(Torch::FloatType::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
 // torch.LinearParams type.
 //===----------------------------------------------------------------------===//
 
