@@ -922,7 +922,9 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
   }];
 }
 
-def Torch_CopyTensorOp : Torch_Op<"copy.tensor", []> {
+def Torch_CopyTensorOp : Torch_Op<"copy.tensor", [
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+  ]> {
   let summary = "Makes a copy of a tensor.";
   let description = [{
     Changes to the original tensor will not be reflected in the copy.

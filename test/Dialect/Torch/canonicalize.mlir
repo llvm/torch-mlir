@@ -179,3 +179,13 @@ func @torch.prim.If$erase_dead_branch(%arg0: !torch.int) -> !torch.int {
   }
   return %0 : !torch.int
 }
+
+// CHECK-LABEL:   func @torch.copy.tensor$untouched_nonval(
+// CHECK-SAME:                                             %[[ARG:.*]]: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+// CHECK-NEXT:      return %[[ARG]], %[[ARG]] : !torch.vtensor, !torch.vtensor
+func @torch.copy.tensor$untouched_nonval(%arg0: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+  %0 = torch.copy.tensor %arg0 : !torch.vtensor -> !torch.tensor
+  %1 = torch.copy.tensor %0 : !torch.tensor -> !torch.vtensor
+  %2 = torch.copy.tensor %0 : !torch.tensor -> !torch.vtensor
+  return %1, %2 : !torch.vtensor, !torch.vtensor
+}
