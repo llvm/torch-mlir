@@ -8,6 +8,7 @@
 
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+#include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
@@ -157,6 +158,11 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   if (options.optimize) {
     // Clean up any non-canonical code introduced in our linalg lowering.
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    // Resolve `dim` ops on tensors (which currently live in the `memref`
+    // dialect for some reason -- we don't have memrefs at this level).
+    pm.addNestedPass<FuncOp>(memref::createResolveShapedTypeResultDimsPass());
+    // The resolution of `dim` ops tends to create identical ops. CSE them.
+    pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
   // Finish the type conversion from !torch.vtensor to the builtin tensor type.
