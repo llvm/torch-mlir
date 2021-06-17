@@ -55,7 +55,7 @@ static LogicalResult verifyLinalgCompatibleTypes(Operation *op,
           return true;
       }
     }
-    if (type.isa<FloatType, IntegerType, IndexType>())
+    if (type.isa<mlir::FloatType, IntegerType, IndexType>())
       return true;
     return false;
   };

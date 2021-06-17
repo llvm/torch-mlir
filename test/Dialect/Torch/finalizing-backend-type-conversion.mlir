@@ -33,6 +33,15 @@ func @eliminate_materializations$torch.int(%arg0: i64) -> i64 {
   return %1 : i64
 }
 
+// CHECK-LABEL:   func @eliminate_materializations$torch.float(
+// CHECK-SAME:                                                 %[[ARG:.*]]: f64) -> f64 {
+// CHECK:           return %[[ARG]] : f64
+func @eliminate_materializations$torch.float(%arg0: f64) -> f64 {
+  %0 = torch.from_f64 %arg0
+  %1 = torch.to_f64 %0
+  return %1 : f64
+}
+
 // -----
 
 func @unable_to_convert_lone_buffer_cast() -> tensor<f32> {

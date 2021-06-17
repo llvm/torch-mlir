@@ -113,3 +113,12 @@ func @identity$torch.bool(%arg0: !torch.bool) -> !torch.bool {
 func @identity$torch.int(%arg0: !torch.int) -> !torch.int {
   return %arg0 : !torch.int
 }
+
+// CHECK-LABEL:   func @identity$torch.float(
+// CHECK-SAME:                               %[[ARG:.*]]: f64) -> f64 {
+// CHECK:           %[[TORCH_FLOAT:.*]] = torch.from_f64 %[[ARG]]
+// CHECK:           %[[F64:.*]] = torch.to_f64 %[[TORCH_FLOAT]]
+// CHECK:           return %[[F64]] : f64
+func @identity$torch.float(%arg0: !torch.float) -> !torch.float {
+  return %arg0 : !torch.float
+}

@@ -46,7 +46,7 @@ static FailureOr<NnModuleOp> findRootNnModule(ModuleOp module) {
 }
 
 static bool hasMeaningfulObjectIdentity(Type type) {
-  return !type.isa<Torch::IntType, FloatType, Torch::BoolType,
+  return !type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
                    Torch::StringType, Torch::NoneType,
                    Torch::ValueTensorType>();
 }

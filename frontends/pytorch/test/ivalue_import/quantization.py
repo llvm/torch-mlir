@@ -22,7 +22,7 @@ class TestModule(torch.nn.Module):
     # CHECK: %[[SCALE:.*]] = torch.constant.float
     # CHECK: %[[ZERO_POINT:.*]] = torch.constant.int 0
     # CHECK: %[[INT_REPR:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2,5],si8>
-    # CHECK: %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %[[SCALE]], %[[ZERO_POINT]] : !torch.tensor<[2,5],si8>, f64, !torch.int -> !torch.tensor<[2,5],!torch.qint8>
+    # CHECK: %[[WEIGHTS:.*]] = torch.per_tensor_affine.create %[[INT_REPR]], %[[SCALE]], %[[ZERO_POINT]] : !torch.tensor<[2,5],si8>, !torch.float, !torch.int -> !torch.tensor<[2,5],!torch.qint8>
     # CHECK: %[[BIAS:.*]] = torch.tensor({{.*}}) : !torch.tensor<[2],f32>
     # CHECK: %[[LINEAR_PARAMS:.*]] = torch.linear_params.create %[[WEIGHTS]], %[[BIAS]] : !torch.tensor<[2,5],!torch.qint8>, !torch.tensor<[2],f32>
     @torch.jit.export

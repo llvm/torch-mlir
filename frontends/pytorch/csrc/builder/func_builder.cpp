@@ -107,8 +107,9 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
     return mlirOperationGetResult(op, 0);
   }
   if (s.isFloatingPoint()) {
-    MlirType t = mlirF64TypeGet(context);
-    MlirAttribute value = mlirFloatAttrDoubleGet(context, t, s.to<double>());
+    MlirType t = npcompTorchFloatTypeGet(context);
+    MlirAttribute value = mlirFloatAttrDoubleGet(
+        context, mlirF64TypeGet(context), s.to<double>());
     MlirOperation op = createMlirOperation(
         "torch.constant.float", loc, t, toMlirNamedAttribute("value", value));
     insertConstantOp(op);
