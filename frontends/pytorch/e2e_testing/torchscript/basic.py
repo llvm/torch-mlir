@@ -33,6 +33,25 @@ def MmModule_chained(module, tu: TestUtils):
 
 # ==============================================================================
 
+# A subgraph with multiple mm ops.
+class MmDagModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([4, 4], torch.float32, True),
+        ([4, 4], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.mm(lhs, torch.mm(lhs, rhs))
+
+@register_test_case(module_factory=lambda: MmDagModule())
+def MmDagModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+
+# ==============================================================================
+
 class TanhModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

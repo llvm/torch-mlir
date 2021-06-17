@@ -528,24 +528,39 @@ OpFoldResult CopyTensorOp::fold(ArrayRef<Attribute> operands) {
 
 void CopyTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                MLIRContext *context) {
-  // y = torch.copy.tensor(hasOneUse@torch.copy.tensor(x)) -> x
-  // Only safe when `y` and `x` have value semantics.
+  // y = torch.copy.tensor(torch.copy.tensor(x)) -> x
+  // Only safe when `y` and `x` have value semantics, and
+  // all users of the intermediate tensor op treat the tensor as if it
+  // had value semantics (even if it is a NonValueTensorType).
   patterns.add(+[](CopyTensorOp op, PatternRewriter &rewriter) {
     auto otherCopy = op.getOperand().getDefiningOp<CopyTensorOp>();
     if (!otherCopy)
       return failure();
-    if (otherCopy.getOperand().getType().isa<ValueTensorType>() &&
-        op.getResult().getType().isa<ValueTensorType>() &&
-        op.getOperand().hasOneUse()) {
+    if (!otherCopy.getOperand().getType().isa<ValueTensorType>() ||
+        !op.getResult().getType().isa<ValueTensorType>())
+      return failure();
+    // TODO: Use a proper interface here.
+    // MemoryEffectOpInterface is not powerful enough because it cannot model
+    // aliasing. We don't just care that the user is readonly -- we care also
+    // whether it creates an alias. Basically, we care if the user "treats the
+    // tensor as if it has value semantics".
+    // For now, just hardcode the important case of multiple CopyTensorOp users.
+    if (llvm::all_of(op.getOperand().getUsers(),
+                     [](Operation *op) { return isa<CopyTensorOp>(op); })) {
       rewriter.replaceOp(op, {otherCopy.getOperand()});
-      // TODO: Implement MemoryEffectOpInterface to handle the value/non-value
-      // cases precisely. In this case, we specifically know that `otherCopy`
-      // is dead so eagerly clean it up.
-      rewriter.eraseOp(otherCopy);
       return success();
     }
     return failure();
   });
+}
+
+void CopyTensorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<::mlir::MemoryEffects::Effect>>
+        &effects) {
+  if (getResult().getType().isa<NonValueTensorType>())
+    effects.emplace_back(MemoryEffects::Allocate::get(), getResult());
+  if (getOperand().getType().isa<NonValueTensorType>())
+    effects.emplace_back(MemoryEffects::Read::get(), getOperand());
 }
 
 //===----------------------------------------------------------------------===//
