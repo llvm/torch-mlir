@@ -832,32 +832,27 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
   }];
 }
 
-// TODO: Disaggregate this op into a value-semantic constant + val->nonval
-// conversion if needed.
-// Currently, this op can effectively hide val->nonval conversion, which makes
-// it an edge case for passes that care about that such as
-// torch-maximize-value-semantics.
-// So the suggestion would be to lower this to a `torch.vtensor` op
-// (+`torch.copy.tensor` if needed).
-// In particular, currently we end up relying on convert-torch-to-std
-// to effectively expose this (as part of lowering to `std.constant`) +
-// hoping that some canonicalization cleans it up.
-// The `torch-maximize-value-semantics` pass should be doing this
-// before we convert to std at all.
-def Torch_TensorOp : Torch_Op<"tensor", [
+def Torch_NonValueTensorLiteralOp : Torch_Op<"tensor.literal", [
     DeclareOpInterfaceMethods<InferTypeOpInterface, ["isCompatibleReturnTypes"]>,
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
   ]> {
   let summary = "Create a value of !torch.tensor type from a literal";
   let description = [{
     Example:
     ```
-    %0 = torch.tensor(dense<0.0> : tensor<3x5xf32>) : !torch.tensor
-    %1 = torch.tensor(dense<0.0> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+    %0 = torch.tensor.literal(dense<0.0> : tensor<3x5xf32>) : !torch.tensor
+    %1 = torch.tensor.literal(dense<0.0> : tensor<3xf32>) : !torch.tensor<[3],f32>
     ```
+
+    This op covers a typical frontend use case of creating a type-erased
+    `!torch.tensor`. Inside the compiler, we decompose it into
+    `torch.vtensor.literal` which is easier to analyze and transform.
+
+    Note: This op is not called "constant" because the created tensor is not
+    "constant" in any meaning of that word.
   }];
   let arguments = (ins ElementsAttr:$value);
-  let results = (outs AnyTorchTensorType:$result);
+  let results = (outs Torch_NonValueTensorType:$result);
 
   let assemblyFormat = [{
     `(` $value `)` attr-dict `:` type($result)
@@ -867,6 +862,35 @@ def Torch_TensorOp : Torch_Op<"tensor", [
     // InferTypeOpInterface:
     static bool isCompatibleReturnTypes(TypeRange inferred, TypeRange actual);
   }];
+}
+
+def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>,
+    ConstantLike,
+    NoSideEffect,
+  ]> {
+  let summary = "Create a value of !torch.vtensor type from a literal";
+  let description = [{
+    Example:
+    ```
+    %0 = torch.vtensor.literal(dense<0.0> : tensor<3x5xf32>) : !torch.vtensor<[3,5],f32>
+    %1 = torch.vtensor.literal(dense<0.0> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+    ```
+
+    Unlike `torch.tensor.literal`, which covers a typical frontend use case
+    and allows type refinement, this op always has a maximally resolved type
+    (which is always possible, because it is created from a literal). This
+    has a stronger set of invariants that better fit the needs of the
+    compiler internals.
+  }];
+  let arguments = (ins ElementsAttr:$value);
+  let results = (outs Torch_ValueTensorType:$result);
+
+  let assemblyFormat = [{
+    `(` $value `)` attr-dict `:` type($result)
+  }];
+
+  let hasFolder = 1;
 }
 
 def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [

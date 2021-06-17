@@ -2,24 +2,24 @@
 
 // CHECK-NOT: @readonly
 torch.global_slot "private" @readonly : !torch.tensor  {
-  %0 = torch.tensor(dense<0.0> : tensor<1xf32>) : !torch.tensor
+  %0 = torch.tensor.literal(dense<0.0> : tensor<1xf32>) : !torch.tensor
   torch.global_slot.init %0 : !torch.tensor
 }
 // CHECK-LABEL: torch.global_slot @public
 torch.global_slot @public : !torch.tensor  {
-  %0 = torch.tensor(dense<0.0> : tensor<2xf32>) : !torch.tensor
+  %0 = torch.tensor.literal(dense<0.0> : tensor<2xf32>) : !torch.tensor
   torch.global_slot.init %0 : !torch.tensor
 }
 // CHECK-LABEL: torch.global_slot "private" @mutated
 torch.global_slot "private" @mutated : !torch.tensor  {
-  %0 = torch.tensor(dense<0.0> : tensor<3xf32>) : !torch.tensor
+  %0 = torch.tensor.literal(dense<0.0> : tensor<3xf32>) : !torch.tensor
   torch.global_slot.init %0 : !torch.tensor
 }
 
 // CHECK-LABEL:   func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
 func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
   // Inlined.
-  // CHECK:           %[[READONLY:.*]] = torch.tensor(dense<0.000000e+00> : tensor<1xf32>) : !torch.tensor
+  // CHECK:           %[[READONLY:.*]] = torch.tensor.literal(dense<0.000000e+00> : tensor<1xf32>) : !torch.tensor
   %0 = torch.global_slot.get @readonly : !torch.tensor
 
   // Not inlined: potentially mutated by externals.

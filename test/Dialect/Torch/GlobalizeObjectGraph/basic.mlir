@@ -18,7 +18,7 @@
 // CHECK:         }
 
 // CHECK-LABEL:   torch.global_slot @t : !torch.tensor  {
-// CHECK:           %[[T:.*]] = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+// CHECK:           %[[T:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
 // CHECK:           torch.global_slot.init %[[T]] : !torch.tensor
 // CHECK:         }
 
@@ -32,7 +32,7 @@ torch.class_type @c {
 %bool_true = torch.constant.bool true
 %i = torch.constant.int 3
 %f = torch.constant.float 4.250000e+01
-%t = torch.tensor(dense<1.0> : tensor<1xf32>) : !torch.tensor
+%t = torch.tensor.literal(dense<1.0> : tensor<1xf32>) : !torch.tensor
 torch.nn_module {
   torch.slot "b", %bool_true : !torch.bool
   torch.slot "i", %i : !torch.int

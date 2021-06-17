@@ -48,12 +48,19 @@ func private @tuple.one_element() -> !torch.tuple<!torch.tensor>
 // CHECK: @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
 func private @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
 
-// CHECK-LABEL:   func @torch.tensor() {
-func @torch.tensor() {
-  // CHECK: torch.tensor(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
-  %0 = torch.tensor(dense<42.0> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
-  // CHECK: torch.tensor(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.tensor<[3,2],f32>
-  %1 = torch.tensor(dense<42.0> : tensor<3x2xf32>) : !torch.tensor<[3,2],f32>
+// CHECK-LABEL:   func @torch.tensor.literal() {
+func @torch.tensor.literal() {
+  // CHECK: torch.tensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.tensor
+  %0 = torch.tensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.tensor
+  // CHECK: torch.tensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.tensor<[3,2],f32>
+  %1 = torch.tensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.tensor<[3,2],f32>
+  return
+}
+
+// CHECK-LABEL:   func @torch.vtensor.literal() {
+func @torch.vtensor.literal() {
+  // CHECK: torch.vtensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
+  %0 = torch.vtensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
   return
 }
 
@@ -81,7 +88,7 @@ func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
 %int3 = torch.constant.int 3
 // CHECK: %float = torch.constant.float 4.250000e+01
 %float = torch.constant.float 4.250000e+01
-%tensor = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+%tensor = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
 // CHECK: %none = torch.constant.none
 %none = torch.constant.none
 // CHECK: %str = torch.constant.str "some str"

@@ -136,5 +136,12 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   if (auto stringAttr = value.dyn_cast<StringAttr>())
     return builder.create<ConstantStrOp>(loc, stringAttr);
 
+  if (auto elementsAttr = value.dyn_cast<ElementsAttr>()) {
+    // Only !torch.vtensor can be constant folded. !torch.tensor has
+    // non-trivial aliasing semantics which prevent deduplicating it.
+    assert(type.isa<ValueTensorType>() && "should be a vtensor type!");
+    return builder.create<ValueTensorLiteralOp>(loc, elementsAttr);
+  }
+
   return nullptr;
 }

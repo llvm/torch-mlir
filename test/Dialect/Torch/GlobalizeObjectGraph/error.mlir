@@ -37,7 +37,7 @@ torch.class_type @c {
 }
 
 // expected-error @+1 {{potentially-aliased value used to initialize multiple slots}}
-%t = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+%t = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
 torch.nn_module {
   torch.slot "t1", %t : !torch.tensor
   torch.slot "t2", %t : !torch.tensor

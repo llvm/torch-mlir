@@ -438,14 +438,13 @@ OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// TensorOp
+// NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult
-TensorOp::inferReturnTypes(MLIRContext *context, Optional<Location> location,
-                           ValueRange operands, DictionaryAttr attributes,
-                           RegionRange regions,
-                           SmallVectorImpl<Type> &inferredReturnTypes) {
+LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
@@ -466,11 +465,32 @@ static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
   return true;
 }
 
-bool TensorOp::isCompatibleReturnTypes(TypeRange inferred, TypeRange actual) {
+bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
+                                                      TypeRange actual) {
   if (!actual[0].isa<BaseTensorType>())
     return false;
   return areSizesAndDtypesCompatible(inferred[0].cast<BaseTensorType>(),
                                      actual[0].cast<BaseTensorType>());
+}
+
+//===----------------------------------------------------------------------===//
+// ValueTensorLiteralOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult ValueTensorLiteralOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
+  if (!attr)
+    return failure();
+  auto tensorType = attr.getType().cast<RankedTensorType>();
+  inferredReturnTypes.push_back(ValueTensorType::getFromShaped(tensorType));
+  return success();
+}
+
+OpFoldResult ValueTensorLiteralOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
 }
 
 //----------------------------------------------------------------------------//

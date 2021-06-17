@@ -39,21 +39,11 @@ func @torch.aten.gt.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.bool {
   return %0 : !torch.bool
 }
 
-// CHECK-LABEL:   func @torch.tensor$value() -> !torch.vtensor<[],f32> {
+// CHECK-LABEL:   func @torch.vtensor.literal() -> !torch.vtensor<[],f32> {
 // CHECK:           %[[CST:.*]] = constant dense<0.000000e+00> : tensor<f32>
 // CHECK:           %[[VTENSOR:.*]] = torch.from_builtin_tensor %[[CST]] : tensor<f32> -> !torch.vtensor<[],f32>
 // CHECK:           return %[[VTENSOR]] : !torch.vtensor<[],f32>
-func @torch.tensor$value() -> !torch.vtensor<[],f32> {
-  %0 = torch.tensor(dense<0.0> : tensor<f32>) : !torch.vtensor<[],f32>
+func @torch.vtensor.literal() -> !torch.vtensor<[],f32> {
+  %0 = torch.vtensor.literal(dense<0.0> : tensor<f32>) : !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
-}
-
-// CHECK-LABEL:   func @torch.tensor$nonval() -> !torch.tensor<[],f32> {
-// CHECK:           %[[CST:.*]] = constant dense<0.000000e+00> : tensor<f32>
-// CHECK:           %[[VTENSOR:.*]] = torch.from_builtin_tensor %[[CST]] : tensor<f32> -> !torch.vtensor<[],f32>
-// CHECK:           %[[NONVAL:.*]] = torch.copy.tensor %[[VTENSOR]] : !torch.vtensor<[],f32> -> !torch.tensor<[],f32>
-// CHECK:           return %[[NONVAL]] : !torch.tensor<[],f32>
-func @torch.tensor$nonval() -> !torch.tensor<[],f32> {
-  %0 = torch.tensor(dense<0.0> : tensor<f32>) : !torch.tensor<[],f32>
-  return %0 : !torch.tensor<[],f32>
 }

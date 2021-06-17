@@ -31,3 +31,13 @@ func @reduce_trailing_underscore_inplace_variant(%arg0: !torch.tensor<[2,2],f32>
   %0 = torch.aten.add_.Tensor %arg0, %arg1, %c1 : !torch.tensor<[2,2],f32>, !torch.tensor<[2,2],f32>, !torch.int -> !torch.tensor<[2,2],f32>
   return %0, %arg0 : !torch.tensor<[2,2],f32>, !torch.tensor<[2,2],f32>
 }
+
+// CHECK-LABEL:   func @torch.tensor.literal() -> !torch.tensor {
+// CHECK:           %[[VTENSOR:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<7xf32>) : !torch.vtensor<[7],f32>
+// CHECK:           %[[SIZES_ERASED:.*]] = torch.tensor_static_info_cast %[[VTENSOR]] : !torch.vtensor<[7],f32> to !torch.vtensor
+// CHECK:           %[[TENSOR:.*]] = torch.copy.tensor %[[SIZES_ERASED]] : !torch.vtensor -> !torch.tensor
+// CHECK:           return %[[TENSOR]] : !torch.tensor
+func @torch.tensor.literal() -> !torch.tensor {
+  %0 = torch.tensor.literal(dense<0.0> : tensor<7xf32>) : !torch.tensor
+  return %0 : !torch.tensor
+}

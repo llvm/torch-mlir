@@ -99,6 +99,17 @@ public:
 };
 } // namespace
 
+static LogicalResult
+reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
+                                                    PatternRewriter &rewriter) {
+  Value valueTensor =
+      rewriter.create<ValueTensorLiteralOp>(op->getLoc(), op.value());
+  Value tensor =
+      copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
+  rewriter.replaceOp(op, {tensor});
+  return success();
+}
+
 namespace {
 class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
   void runOnOperation() override {
@@ -106,8 +117,10 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     RewritePatternSet patterns(context);
     patterns.add<ConvertToImmutableTensors>(context);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
+    patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
 
     ConversionTarget target(*context);
+    target.addIllegalOp<NonValueTensorLiteralOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {

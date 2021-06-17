@@ -18,8 +18,8 @@ class TestModule(torch.nn.Module):
         self.ones = torch.ones(1)
         self.arange = torch.nn.Parameter(torch.arange(3.0))
 
-# CHECK: %[[ARANGE:.*]] = torch.tensor(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.tensor<[3],f32>
-# CHECK: %[[ONES:.*]] = torch.tensor(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor<[1],f32>
+# CHECK: %[[ARANGE:.*]] = torch.tensor.literal(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.tensor<[3],f32>
+# CHECK: %[[ONES:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor<[1],f32>
 # CHECK: %[[ROOT:.*]] = torch.nn_module  {
 # CHECK:   torch.slot "arange", %[[ARANGE]] : !torch.tensor<[3],f32>
 # CHECK:   torch.slot "ones", %[[ONES]] : !torch.tensor<[1],f32>
