@@ -13,6 +13,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"
 
 //===----------------------------------------------------------------------===//
@@ -149,6 +150,8 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   // corresponding torch ops.
   // TODO: Improve torch op canonicalizations.
   pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
+
+  pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
 
   // Lower to linalg + guards which is the input to codegen backends.
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());

@@ -1,4 +1,5 @@
 add_subdirectory(TorchToLinalg)
+add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToStd)
 add_subdirectory(BasicpyToStd)
 add_subdirectory(NumpyToTCF)
