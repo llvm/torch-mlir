@@ -15,12 +15,12 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // CHECK-LABEL:   func @f(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
 // CHECK:           %[[CASTED:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor<[2,3,?],f32>
-// CHECK:           %[[NONVAL_TENSOR:.*]] = torch.copy.tensor %[[CASTED]] : !torch.vtensor<[2,3,?],f32> -> !torch.tensor<[2,3,?],f32>
+// CHECK:           %[[NONVAL_TENSOR:.*]] = torch.copy.to_tensor %[[CASTED]] : !torch.tensor<[2,3,?],f32>
 // CHECK:           %[[ERASED:.*]] = torch.tensor_static_info_cast %[[NONVAL_TENSOR]] : !torch.tensor<[2,3,?],f32> to !torch.tensor
 // CHECK:           return %[[ERASED]] : !torch.tensor
 func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
-  %1 = torch.copy.tensor %0 : !torch.vtensor -> !torch.tensor
+  %1 = torch.copy.to_tensor %0 : !torch.tensor
   return %1 : !torch.tensor
 }
 

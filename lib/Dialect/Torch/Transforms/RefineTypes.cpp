@@ -141,8 +141,8 @@ public:
   ChangeResult
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
-    if (isa<TensorStaticInfoCastOp, CopyTensorOp, AtenTanhOp, AtenBatchNormOp,
-            AtenReluOp>(op)) {
+    if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
+            AtenTanhOp, AtenBatchNormOp, AtenReluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
     if (isa<AtenMmOp>(op)) {
@@ -303,12 +303,13 @@ static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
 // which allows arbitrary refinements. But some other cases are safe too,
 // such as when an op has two types that are coupled, but we know that our
 // analysis and updating logic will correctly maintain the invariants of the op.
-// The `torch.copy.tensor` is an example of the latter case, since its
-// operand and result types must have the same shape and dtype -- we know
-// that our transfer functions and updating logic will do the right thing
-// for that op.
+// The `torch.copy.to_tensor` / `torch.copy.to_vtensor` are examples of the
+// latter case, since their operand and result types must have the same shape
+// and dtype -- we know that our transfer functions and updating logic will do
+// the right thing forthose ops.
 static bool allowsTypeRefinementOrWillBeOtherwiseSafelyRefined(Operation *op) {
-  return allowsTypeRefinement(op) || isa<CopyTensorOp>(op);
+  return allowsTypeRefinement(op) ||
+         isa<CopyToNonValueTensorOp, CopyToValueTensorOp>(op);
 }
 
 void optimize(FuncOp func, TypeAnalyzer &analyzer) {

@@ -33,11 +33,17 @@ Value mlir::NPCOMP::Torch::copyTensorToType(OpBuilder &builder, Location loc,
     tensor = builder.create<TensorStaticInfoCastOp>(
         loc, originalType.getWithSizesAndDtypeFrom(newType), tensor);
   }
-  // If both the original and new types already have value semantics, a copy is
-  // pointless.
-  if (originalType.isa<ValueTensorType>() && newType.isa<ValueTensorType>())
-    return tensor;
-  return builder.create<CopyTensorOp>(loc, newType, tensor);
+
+  // Unless both the original and new types are both value tensors, we end
+  // up creating one op that converts between the value and non-value tensor
+  // domains. If both the original and new types are both non-value tensors,
+  // then we do the copy by going to a value tensor and back.
+  if (tensor.getType().isa<NonValueTensorType>())
+    tensor = builder.create<CopyToValueTensorOp>(loc, tensor);
+  if (newType.isa<NonValueTensorType>())
+    tensor = builder.create<CopyToNonValueTensorOp>(loc, tensor);
+
+  return tensor;
 }
 
 //===----------------------------------------------------------------------===//
@@ -504,10 +510,10 @@ bool TensorStaticInfoCastOp::areCastCompatible(mlir::TypeRange inputs,
 }
 
 //===----------------------------------------------------------------------===//
-// CopyTensorOp
+// CopyToNonValueTensorOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CopyTensorOp op) {
+static LogicalResult verify(CopyToNonValueTensorOp op) {
   auto resultType = op.getResult().getType().cast<BaseTensorType>();
   auto operandType = op.getOperand().getType().cast<BaseTensorType>();
   if (!resultType.hasSameSizesAndDtype(operandType)) {
@@ -517,50 +523,48 @@ static LogicalResult verify(CopyTensorOp op) {
   return success();
 }
 
-OpFoldResult CopyTensorOp::fold(ArrayRef<Attribute> operands) {
-  // A copy between value semantic tensors is a no-op.
-  if (getType().isa<ValueTensorType>() &&
-      getOperand().getType().isa<ValueTensorType>()) {
-    return getOperand();
-  }
-  return nullptr;
+LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  auto resultType = operands[0].getType().cast<ValueTensorType>();
+  inferredReturnTypes.push_back(resultType.getWithoutValueSemantics());
+  return success();
 }
 
-void CopyTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                               MLIRContext *context) {
-  // y = torch.copy.tensor(torch.copy.tensor(x)) -> x
-  // Only safe when `y` and `x` have value semantics, and
-  // all users of the intermediate tensor op treat the tensor as if it
-  // had value semantics (even if it is a NonValueTensorType).
-  patterns.add(+[](CopyTensorOp op, PatternRewriter &rewriter) {
-    auto otherCopy = op.getOperand().getDefiningOp<CopyTensorOp>();
-    if (!otherCopy)
-      return failure();
-    if (!otherCopy.getOperand().getType().isa<ValueTensorType>() ||
-        !op.getResult().getType().isa<ValueTensorType>())
-      return failure();
-    // TODO: Use a proper interface here.
-    // MemoryEffectOpInterface is not powerful enough because it cannot model
-    // aliasing. We don't just care that the user is readonly -- we care also
-    // whether it creates an alias. Basically, we care if the user "treats the
-    // tensor as if it has value semantics".
-    // For now, just hardcode the important case of multiple CopyTensorOp users.
-    if (llvm::all_of(op.getOperand().getUsers(),
-                     [](Operation *op) { return isa<CopyTensorOp>(op); })) {
-      rewriter.replaceOp(op, {otherCopy.getOperand()});
-      return success();
-    }
-    return failure();
-  });
-}
-
-void CopyTensorOp::getEffects(
-    SmallVectorImpl<SideEffects::EffectInstance<::mlir::MemoryEffects::Effect>>
+void CopyToNonValueTensorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
-  if (getResult().getType().isa<NonValueTensorType>())
-    effects.emplace_back(MemoryEffects::Allocate::get(), getResult());
-  if (getOperand().getType().isa<NonValueTensorType>())
-    effects.emplace_back(MemoryEffects::Read::get(), getOperand());
+  effects.emplace_back(MemoryEffects::Allocate::get(), getResult());
+}
+
+//===----------------------------------------------------------------------===//
+// CopyToValueTensorOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(CopyToValueTensorOp op) {
+  auto resultType = op.getResult().getType().cast<BaseTensorType>();
+  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType)) {
+    return op.emitError()
+           << "operand and result must have same sizes and dtype";
+  }
+  return success();
+}
+
+LogicalResult CopyToValueTensorOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  auto resultType = operands[0].getType().cast<NonValueTensorType>();
+  inferredReturnTypes.push_back(resultType.getWithValueSemantics());
+  return success();
+}
+
+void CopyToValueTensorOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), getOperand());
 }
 
 //===----------------------------------------------------------------------===//
