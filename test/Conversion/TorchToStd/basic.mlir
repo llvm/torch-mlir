@@ -47,3 +47,30 @@ func @torch.vtensor.literal() -> !torch.vtensor<[],f32> {
   %0 = torch.vtensor.literal(dense<0.0> : tensor<f32>) : !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// CHECK-LABEL:   func @torch.constant.bool() -> !torch.bool {
+// CHECK:           %[[CST:.*]] = constant true
+// CHECK:           %[[BOOL:.*]] = torch.from_i1 %[[CST]]
+// CHECK:           return %[[BOOL]] : !torch.bool
+func @torch.constant.bool() -> !torch.bool {
+  %true = torch.constant.bool true
+  return %true : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.constant.float() -> !torch.float {
+// CHECK:           %[[CST:.*]] = constant 1.000000e+00 : f64
+// CHECK:           %[[FLOAT:.*]] = torch.from_f64 %[[CST]]
+// CHECK:           return %[[FLOAT]] : !torch.float
+func @torch.constant.float() -> !torch.float {
+  %float = torch.constant.float 1.000000e+00
+  return %float : !torch.float
+}
+
+// CHECK-LABEL:  func @torch.constant.int() -> !torch.int {
+// CHECK:          %[[CST:.*]]  = constant 1 : i64
+// CHECK:          %[[INT:.*]] = torch.from_i64 %[[CST]]
+// CHECK:          return %[[INT]] : !torch.int
+func @torch.constant.int() -> !torch.int {
+  %int1 = torch.constant.int 1
+  return %int1 : !torch.int
+}
