@@ -71,14 +71,14 @@ public:
 } // namespace
 
 namespace {
-class ConvertValueTensorLiteralOp
-    : public OpConversionPattern<ValueTensorLiteralOp> {
+template <typename OpTy>
+class ConvertTorchConstantOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ValueTensorLiteralOp op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, op.value());
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, op.valueAttr());
     return success();
   }
 };
@@ -112,7 +112,17 @@ public:
     target.addIllegalOp<AtenGtIntOp>();
     patterns.add<ConvertAtenGtIntOp>(typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
-    patterns.add<ConvertValueTensorLiteralOp>(typeConverter, context);
+    patterns.add<ConvertTorchConstantOp<ValueTensorLiteralOp>>(typeConverter,
+                                                               context);
+    target.addIllegalOp<ConstantBoolOp>();
+    patterns.add<ConvertTorchConstantOp<ConstantBoolOp>>(typeConverter,
+                                                         context);
+    target.addIllegalOp<Torch::ConstantFloatOp>();
+    patterns.add<ConvertTorchConstantOp<Torch::ConstantFloatOp>>(typeConverter,
+                                                                 context);
+    target.addIllegalOp<Torch::ConstantIntOp>();
+    patterns.add<ConvertTorchConstantOp<Torch::ConstantIntOp>>(typeConverter,
+                                                               context);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();
