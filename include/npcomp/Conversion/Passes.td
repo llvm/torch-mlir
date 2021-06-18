@@ -20,6 +20,11 @@ def ConvertTorchToStd : Pass<"convert-torch-to-std", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createConvertTorchToStdPass()";
 }
 
+def ConvertTorchToSCF: Pass<"convert-torch-to-scf", "FuncOp"> {
+  let summary = "Convert recognized Torch ops to SCF ops";
+  let constructor = "mlir::NPCOMP::createConvertTorchToSCFPass()";
+}
+
 def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
   let summary = "Convert recognized Torch ops to Linalg ops";
   let description = [{
