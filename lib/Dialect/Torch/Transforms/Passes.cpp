@@ -120,14 +120,12 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   // Lowering to ranked !torch.vtensors of known dtype.
   //===--------------------------------------------------------------------===//
 
-  // Convert the bulk of non-ABI-visible arrays to tensors.
-  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
   // Do shape and dtype refinement.
   pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());
-  // Clean up a few stray conversion remnants.
+  // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
   pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
   if (options.optimize) {

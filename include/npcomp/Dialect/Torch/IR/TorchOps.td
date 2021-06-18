@@ -905,11 +905,11 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
 
     This op *cannot* be used to add/remove value semantics from a tensor.
     For converting between the value-semantic and non-value-semantic domains,
-    use `torch.copy.tensor`. The two ops are kept separate to prevent
-    canonicalizations from accidentally dropping static information. In
-    most cases, after running the `torch-refine-types` pass, this op becomes
-    a no-op (the pass will incorporate the static information into other ops
-    that allow type refinement).
+    use `torch.copy.to_tensor` and `torch.copy.from_tensor`. This op is kept
+    separate to prevent canonicalizations from accidentally dropping static
+    information. In most cases, after running the `torch-refine-types` pass,
+    this op becomes a no-op (the pass will incorporate the static information
+    into other ops that allow type refinement).
   }];
   let arguments = (ins
     AnyTorchTensorType:$operand
@@ -922,34 +922,66 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
   }];
 }
 
-def Torch_CopyTensorOp : Torch_Op<"copy.tensor", [
+def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+    DeclareOpInterfaceMethods<InferTypeOpInterface>,
+    TypesMatchWith<"operand is corresponding !torch.vtensor",
+                   "result", "operand",
+                   "$_self.cast<NonValueTensorType>().getWithValueSemantics()">,
   ]> {
-  let summary = "Makes a copy of a tensor.";
+  let summary = "Create a !torch.tensor with the same contents as the operand";
   let description = [{
-    Changes to the original tensor will not be reflected in the copy.
+    This op is used to convert from !torch.vtensor to !torch.tensor.
+    It does so by allocating a new !torch.tensor and filling it with
+    the contents of the operand.
 
-    This op can be used to interconvert between value-semantic and
-    non-value-semantic tensors. However, this op *does not* allow
-    adding/removing static information about sizes/dtype. For that, use
-    `torch.tensor_static_info_cast`.
+    However, this op *does not* allow adding/removing static information about
+    sizes/dtype. For that, use `torch.tensor_static_info_cast`.
 
     This op does not have the AllowsTypeRefinement trait because the operand
     and result types are coupled. Only places that know how to simultaneously
     update both types should be changing the type of this op.
   }];
   let arguments = (ins
-    AnyTorchTensorType:$operand
+    Torch_ValueTensorType:$operand
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    Torch_NonValueTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
+    $operand attr-dict `:` type($result)
   }];
   let verifier = "return ::verify(*this);";
-  let hasFolder = 1;
-  let hasCanonicalizer = 1;
+}
+
+def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+    DeclareOpInterfaceMethods<InferTypeOpInterface>,
+    TypesMatchWith<"operand is corresponding !torch.tensor",
+                   "result", "operand",
+                   "$_self.cast<ValueTensorType>().getWithoutValueSemantics()">,
+  ]> {
+  let summary = "Create a !torch.vtensor with the same contents as the operand";
+  let description = [{
+    This op is used to convert from !torch.tensor to !torch.vtensor.
+
+    However, this op *does not* allow adding/removing static information about
+    sizes/dtype. For that, use `torch.tensor_static_info_cast`.
+
+    This op does not have the AllowsTypeRefinement trait because the operand
+    and result types are coupled. Only places that know how to simultaneously
+    update both types should be changing the type of this op.
+  }];
+  let arguments = (ins
+    Torch_NonValueTensorType:$operand
+  );
+  let results = (outs
+    Torch_ValueTensorType:$result
+  );
+  let assemblyFormat = [{
+    $operand attr-dict `:` type($result)
+  }];
+  let verifier = "return ::verify(*this);";
 }
 
 def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
@@ -961,7 +993,7 @@ def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
     `value`.
 
     Immediately after this op has completed, indexing `overwritten` will result
-    in identical values as indexing into `tensor`. Of course, later ops
+    in identical values as indexing into `value`. Of course, later ops
     might mutate `overwritten`, so this relationship need not hold for the
     entire program.
 
@@ -969,8 +1001,8 @@ def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
     shapes or dtypes.
   }];
   let arguments = (ins
-    AnyTorchTensorType:$value,
-    AnyTorchTensorType:$overwritten
+    Torch_ValueTensorType:$value,
+    Torch_NonValueTensorType:$overwritten
   );
   let results = (outs
   );

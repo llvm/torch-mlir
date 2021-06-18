@@ -37,8 +37,8 @@ public:
             opOperand.get().getType().dyn_cast<NonValueTensorType>();
         if (!tensorType)
           continue;
-        opOperand.set(rewriter.create<CopyTensorOp>(
-            op->getLoc(), tensorType.getWithValueSemantics(), opOperand.get()));
+        opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
+                                                           opOperand.get()));
       }
       // Convert all results.
       rewriter.setInsertionPointAfter(op);
@@ -46,10 +46,10 @@ public:
         auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
         if (!tensorType)
           continue;
-        auto createArray = rewriter.create<CopyTensorOp>(
-            op->getLoc(), result.getType(), result);
-        result.replaceAllUsesExcept(createArray, createArray);
         result.setType(tensorType.getWithValueSemantics());
+        auto nonValueTensor =
+            rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
+        result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
       }
     });
     return success();
@@ -85,12 +85,8 @@ public:
            "Torch JIT operators shouldn't have regions or successors");
 
     Operation *newOp = rewriter.createOperation(state);
-    auto tensor = rewriter.create<CopyTensorOp>(op->getLoc(),
-                                                newOp->getResult(0)
-                                                    .getType()
-                                                    .cast<NonValueTensorType>()
-                                                    .getWithValueSemantics(),
-                                                newOp->getResult(0));
+    auto tensor =
+        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
     rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
 

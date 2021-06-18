@@ -216,7 +216,7 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   target.addDynamicallyLegalOp<ReturnOp>([&](ReturnOp op) {
     return !opsInOriginalProgram.contains(op.getOperation());
   });
-  target.addLegalOp<CopyTensorOp>();
+  target.addLegalOp<CopyToNonValueTensorOp, CopyToValueTensorOp>();
   target.addLegalOp<TensorStaticInfoCastOp>();
   target.addLegalOp<ConstantNoneOp>();
   // We don't know how to rewrite it, so mark it as illegal.
