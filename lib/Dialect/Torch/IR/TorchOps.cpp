@@ -250,9 +250,9 @@ static void print(OpAsmPrinter &p, PrimIfOp op) {
   p.printOptionalAttrDict(op->getAttrs());
 }
 
-void PrimIfOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
+void PrimIfOp::getSuccessorRegions(Optional<unsigned> index,
+                                   ArrayRef<Attribute> operands,
+                                   SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (index.hasValue()) {
     regions.push_back(RegionSuccessor(getResults()));
@@ -361,7 +361,8 @@ OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
   // `len([1,1,1])` -> `3`
-  if (auto listConstruct = getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
+  if (auto listConstruct =
+          getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
     return IntegerAttr::get(IntegerType::get(getContext(), 64),
                             listConstruct.getNumOperands());
   }
@@ -426,8 +427,8 @@ OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
   auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
   auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
   if (lhs && rhs) {
-    if (lhs.getValue().getSExtValue() > rhs.getValue().getSExtValue())
-      return getI1IntegerAttr(getContext(), true);
+    return getI1IntegerAttr(getContext(), lhs.getValue().getSExtValue() >
+                                              rhs.getValue().getSExtValue());
   }
   return nullptr;
 }
@@ -440,6 +441,12 @@ OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
   // `torch.aten.ne.int %x, %x` -> `false`
   if (getOperand(0) == getOperand(1))
     return getI1IntegerAttr(getContext(), false);
+  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (lhs && rhs) {
+    return getI1IntegerAttr(getContext(), lhs.getValue().getSExtValue() !=
+                                              rhs.getValue().getSExtValue());
+  }
   return nullptr;
 }
 
@@ -687,11 +694,15 @@ void Torch::ConstantBoolOp::getAsmResultNames(
 // Aten__Getitem__TOp
 //===----------------------------------------------------------------------===//
 
-void Aten__Getitem__TOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                     MLIRContext *context) {
+void Aten__Getitem__TOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
     auto torchList = op.getOperand(0);
-    if(!torchList.hasOneUse())
+    // TODO: Use a proper effects interface when more operands taking a list
+    // are implemented.
+    if (!llvm::all_of(torchList.getUsers(), [](Operation *op) {
+          return isa<Aten__Getitem__TOp, AtenLenTOp>(op);
+        }))
       return failure();
 
     auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();
