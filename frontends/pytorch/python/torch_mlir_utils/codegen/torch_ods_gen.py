@@ -393,7 +393,8 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::max.int : (int, int) -> (int)")
         emit("prim::RaiseException : (str) -> ()")
         emit("prim::Uninitialized : () -> (Any)")
-        emit("prim::unchecked_cast : (t) -> (t)")
+        emit("prim::unchecked_cast : (t) -> (t)",
+             traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
         emit("prim::Print : (...) -> ()")
 
 

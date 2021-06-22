@@ -184,6 +184,7 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
 }
 
 def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
+    DeclareOpInterfaceMethods<CastOpInterface>,
     AllowsTypeRefinement,
     HasValueSemantics
   ]> {
