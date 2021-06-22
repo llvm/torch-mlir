@@ -691,6 +691,15 @@ void Torch::ConstantBoolOp::getAsmResultNames(
 }
 
 //===----------------------------------------------------------------------===//
+// PrimUncheckedCastOp
+//===----------------------------------------------------------------------===//
+
+bool PrimUncheckedCastOp::areCastCompatible(mlir::TypeRange inputs,
+                                            mlir::TypeRange outputs) {
+  return isValidSubtype(outputs[0], inputs[0]);
+}
+
+//===----------------------------------------------------------------------===//
 // Aten__Getitem__TOp
 //===----------------------------------------------------------------------===//
 
