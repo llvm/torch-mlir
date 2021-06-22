@@ -663,7 +663,24 @@ OpFoldResult Torch::ConstantFloatOp::fold(ArrayRef<Attribute> operands) {
 
 void Torch::ConstantFloatOp::getAsmResultNames(
     function_ref<void(Value, StringRef)> setNameFn) {
-  setNameFn(getResult(), "float");
+  // Calculate a stringified version of the number, compatible with MLIR
+  // identifier syntax. (in practice, this just removes the '+' from 'e+' in
+  // float string representation).
+  SmallVector<char> buf;
+  value().toString(buf, /*FormatPrecision=*/6, /*FormatMaxPadding=*/0,
+                   /*TruncateZero=*/false);
+  auto isValidMLIRIdentifierChar = [](char c) {
+    return isalpha(c) || isdigit(c) || c == '_' || c == '$' || c == '.' ||
+           c == '-';
+  };
+  auto numberStr = llvm::to_vector<16>(
+      llvm::make_filter_range(buf, isValidMLIRIdentifierChar));
+
+  // Construct the identifier string.
+  buf.clear();
+  llvm::append_range(buf, StringRef("float"));
+  llvm::append_range(buf, numberStr);
+  setNameFn(getResult(), StringRef(buf.data(), buf.size()));
 }
 
 //===----------------------------------------------------------------------===//
