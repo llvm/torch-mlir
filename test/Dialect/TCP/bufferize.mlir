@@ -18,7 +18,7 @@ func @tcp_broadcast_to(%arg0: tensor<?xf32>, %arg1: tensor<?xindex>) -> tensor<?
 // CHECK-SAME:                       %[[SPLAT_VAL:.*]]: f32,
 // CHECK-SAME:                       %[[SHAPE:.*]]: tensor<?xindex>) -> tensor<?x?xf32> {
 // CHECK:           %[[RESULT:.*]] = refback.alloc_memref %[[SHAPE]] : memref<?x?xf32>
-// CHECK:           linalg.fill(%[[RESULT]], %[[SPLAT_VAL]]) : memref<?x?xf32>, f32
+// CHECK:           linalg.fill(%[[SPLAT_VAL]], %[[RESULT]]) : f32, memref<?x?xf32>
 // CHECK:           %[[RESULT_TENSOR:.*]] = memref.tensor_load %[[RESULT]] : memref<?x?xf32>
 // CHECK:           return %[[RESULT_TENSOR]] : tensor<?x?xf32>
 func @tcp_splatted(%arg0: f32, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
@@ -48,7 +48,7 @@ func @tcp_splatted(%arg0: f32, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
 // CHECK:           %[[LOWER_EXTENT_D1_1:.*]] = tensor.extract %[[LOWER_EXPANSION]][%[[C0_1]]] : tensor<?xindex>
 // CHECK:           %[[C0_2:.*]] = constant 0 : index
 // CHECK:           %[[D1_1:.*]] = memref.dim %[[TENSOR]], %[[C0_2]] : tensor<?xf32>
-// CHECK:           linalg.fill(%[[D1_OUT_MREF]], %[[FILL_VAL]]) : memref<?xf32>, f32
+// CHECK:           linalg.fill(%[[FILL_VAL]], %[[D1_OUT_MREF]]) : f32, memref<?xf32>
 // CHECK:           %[[SUBVIEW:.*]] = memref.subview %[[D1_OUT_MREF]][%[[LOWER_EXTENT_D1_1]]] [%[[D1_1]]] [%[[C1]]] : memref<?xf32> to memref<?xf32, #map>
 // CHECK:           linalg.copy(%0, %[[SUBVIEW]]) : memref<?xf32>, memref<?xf32, #map>
 // CHECK:           %[[RESULT_TENSOR:.*]] = memref.tensor_load %[[D1_OUT_MREF]] : memref<?xf32>

@@ -212,7 +212,7 @@ public:
     Value c0 =
         rewriter.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
     Value zeroFill =
-        rewriter.create<linalg::FillOp>(loc, initTensor, c0).getResult(0);
+        rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
     Value matmul = rewriter
                        .create<linalg::MatmulOp>(loc, zeroFill.getType(),
                                                  ValueRange{lhs, rhs}, zeroFill)

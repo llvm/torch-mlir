@@ -176,7 +176,7 @@ public:
     if (failed(resultsOrFailure))
       return failure();
     auto results = *resultsOrFailure;
-    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], op.splatVal());
+    rewriter.create<linalg::FillOp>(op.getLoc(), op.splatVal(), results[0]);
     rewriter.replaceOp(op, results);
     return success();
   }
@@ -210,7 +210,7 @@ public:
       sizes.push_back(size);
       strides.push_back(stride);
     }
-    rewriter.create<linalg::FillOp>(op.getLoc(), results[0], op.fillVal());
+    rewriter.create<linalg::FillOp>(op.getLoc(), op.fillVal(), results[0]);
     auto unpadded = rewriter.create<memref::SubViewOp>(
         op.getLoc(), results[0], ValueRange(offsets), ValueRange(sizes),
         ValueRange(strides));

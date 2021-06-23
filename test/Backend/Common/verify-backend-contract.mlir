@@ -1,21 +1,21 @@
 // RUN: npcomp-opt -npcomp-verify-backend-contract -split-input-file -verify-diagnostics -allow-unregistered-dialect %s | FileCheck %s
 
 // CHECK: func @mm
-func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> attributes {iree.module.export} {                                                                                              
-  %c0 = constant 0 : index                                                                    
-  %c1 = constant 1 : index                                                                                                                                                                                      
-  %cst = constant 0.000000e+00 : f32                                                          
-  %0 = memref.dim %arg0, %c0 : tensor<?x?xf32>                                                
-  %1 = memref.dim %arg0, %c1 : tensor<?x?xf32>                                                
-  %2 = memref.dim %arg1, %c0 : tensor<?x?xf32>                                                                                                                                                                  
-  %3 = memref.dim %arg1, %c1 : tensor<?x?xf32>                        
-  %4 = cmpi eq, %1, %2 : index                                                         
-  assert %4, "mismatching contracting dimension for aten.mm"                                                    
-  %5 = linalg.init_tensor [%0, %3] : tensor<?x?xf32>                                                                              
-  %6 = linalg.fill(%5, %cst) : tensor<?x?xf32>, f32 -> tensor<?x?xf32>                                                 
-  %7 = linalg.matmul ins(%arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32>) outs(%6 : tensor<?x?xf32>) -> tensor<?x?xf32>                                                                                         
-  return %7 : tensor<?x?xf32>                                                                                                                              
-}     
+func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> attributes {iree.module.export} {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %cst = constant 0.000000e+00 : f32
+  %0 = memref.dim %arg0, %c0 : tensor<?x?xf32>
+  %1 = memref.dim %arg0, %c1 : tensor<?x?xf32>
+  %2 = memref.dim %arg1, %c0 : tensor<?x?xf32>
+  %3 = memref.dim %arg1, %c1 : tensor<?x?xf32>
+  %4 = cmpi eq, %1, %2 : index
+  assert %4, "mismatching contracting dimension for aten.mm"
+  %5 = linalg.init_tensor [%0, %3] : tensor<?x?xf32>
+  %6 = linalg.fill(%cst, %5) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
+  %7 = linalg.matmul ins(%arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32>) outs(%6 : tensor<?x?xf32>) -> tensor<?x?xf32>
+  return %7 : tensor<?x?xf32>
+}
 
 // -----
 
