@@ -508,12 +508,18 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           MlirType dtype = TypeMapper(context).mapFromTorchScalarType(
               mlirLocationUnknownGet(context), *maybeDtype);
           MlirType typeBound;
+          // `std::vector`'s `.data()` method can return nullptr when the
+          // size is 0. This triggers the "nothing known about sizes" case in
+          // the C API constructor, when we want the "we know we have 0 sizes"
+          // case. So use a dummy data pointer.
+          int64_t dummy;
+          int64_t *shapeData = shape.size() == 0 ? &dummy : shape.data();
           if (hasValueSemantics) {
             typeBound = npcompTorchValueTensorTypeGet(context, shape.size(),
-                                                      shape.data(), dtype);
+                                                      shapeData, dtype);
           } else {
             typeBound = npcompTorchNonValueTensorTypeGet(context, shape.size(),
-                                                         shape.data(), dtype);
+                                                         shapeData, dtype);
           }
 
           MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(
