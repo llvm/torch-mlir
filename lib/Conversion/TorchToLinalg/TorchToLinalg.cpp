@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h" // TODO: For `memref.dim`.
 #include "mlir/Dialect/Traits.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
@@ -348,64 +349,296 @@ public:
 };
 } // namespace
 
-static Value createScalarRelu(OpBuilder &b, Location loc, ValueRange args) {
-  Type elementType = args[0].getType();
-  // TODO: Add support for integer types.
-  assert(elementType.isa<::mlir::FloatType>() &&
-         "Only support float case for relu");
+static Value createLinalgPayloadCalculationForElementwiseOp(
+    OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
+    ArrayRef<Value> operands) {
+  if (isa<AtenTanhOp>(op))
+    return b.create<math::TanhOp>(loc, payloadArgs[0]);
+  if (auto relu = dyn_cast<AtenReluOp>(op)) {
+    if (!relu.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      relu.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type elementType = payloadArgs[0].getType();
+    Value constZero =
+        b.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+    Value pred =
+        b.create<CmpFOp>(loc, CmpFPredicate::UGT, payloadArgs[0], constZero);
+    return b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+  }
+  if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
+    AtenAddTensorOp::Adaptor adaptor(operands);
+    if (add.alpha().getType().isa<Torch::FloatType>()) {
+      add.emitError("unimplemented: !torch.float 'alpha'");
+      return nullptr;
+    }
+    if (!add.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      add.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value alphaFloat = b.create<mlir::SIToFPOp>(loc, payloadArgs[0].getType(),
+                                                adaptor.alpha());
+    Value scaled = b.create<mlir::MulFOp>(loc, payloadArgs[1], alphaFloat);
+    return b.create<mlir::AddFOp>(loc, payloadArgs[0], scaled);
+  }
+  if (auto sub = dyn_cast<AtenSubTensorOp>(op)) {
+    AtenSubTensorOp::Adaptor adaptor(operands);
+    if (sub.alpha().getType().isa<Torch::FloatType>()) {
+      sub.emitError("unimplemented: !torch.float 'alpha'");
+      return nullptr;
+    }
+    if (!sub.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      sub.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value alphaFloat = b.create<mlir::SIToFPOp>(loc, payloadArgs[0].getType(),
+                                                adaptor.alpha());
+    Value scaled = b.create<mlir::MulFOp>(loc, payloadArgs[1], alphaFloat);
 
-  Value constZero = b.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
-  Value pred = b.create<CmpFOp>(loc, CmpFPredicate::UGT, args[0], constZero);
-  return b.create<SelectOp>(loc, pred, args[0], constZero);
+    return b.create<mlir::SubFOp>(loc, payloadArgs[0], scaled);
+  }
+  if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
+    if (!mul.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      mul.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    return b.create<mlir::MulFOp>(loc, payloadArgs[0], payloadArgs[1]);
+  }
+  if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
+    if (!div.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      div.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    return b.create<DivFOp>(loc, payloadArgs[0], payloadArgs[1]);
+  }
+  if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
+    if (!lerp.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      lerp.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    AtenLerpTensorOp::Adaptor adaptor(payloadArgs);
+    auto start = adaptor.self();
+    auto end = adaptor.end();
+    auto weight = adaptor.weight();
+    auto delta = b.create<SubFOp>(loc, end, start);
+    auto weightedDelta = b.create<MulFOp>(loc, delta, weight);
+    return b.create<AddFOp>(loc, start, weightedDelta);
+  }
+  op->emitError("unimplemented lowering in "
+                "createLinalgPayloadCalculationForElementwiseOp");
+  return nullptr;
 }
 
 namespace {
 
-// Converts a unary op. There is no implicit broadcasting behavior, so these can
-// be trivially lowered to linalg.
-// TODO: For binary ops, we will need a "linalg.generic-like" op that models
-// N-ary broadcasting and allows us to do multiversioning techniques for
-// lowering to linalg. We can trivially handle this as through that
-// abstraction instead.
-struct ConvertUnaryOp : ConversionPattern {
-  ConvertUnaryOp(TypeConverter &typeConverter, MLIRContext *context)
+// Converts an elementwise op.
+// This specifically includes:
+// - converting elementwise ops of any tensor arity
+// - converting elementwise ops with any number of scalar captures (such as a
+//   scalar alpha to torch.aten.Add)
+// - broadcasting of static size-1 dimensions
+//
+// Currently, we adopt the behavior that "size 1" broadcasting is a runtime
+// error if it happens dynamically.
+//
+// Looking forward a bit, eventually, it probably makes sense to have
+// a "linalg.generic-like" op for modeling a fused subgraph of numpy-broadcasted
+// operands. Modeling elementwise ops that way is potentially useful to allow a
+// more centralized reasoning about multiversioning. However a cost model will
+// be needed for "pre-fusing" elementwise ops that way, as it can potentially be
+// a pessimization. A mild extension of this pattern should work for such a
+// general op.
+struct ConvertElementwiseOp : ConversionPattern {
+  ConvertElementwiseOp(TypeConverter &typeConverter, MLIRContext *context)
       : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
                           context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp>(op) && !isa<AtenReluOp>(op))
-      return rewriter.notifyMatchFailure(op, "not a unary op");
+    if (!isa<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
+             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp>(op))
+      return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    Value operand = operands[0];
-    auto type = getTypeConverter()
-                    ->convertType(op->getResult(0).getType())
-                    .cast<RankedTensorType>();
-    auto rank = type.getRank();
+    Location loc = op->getLoc();
+    auto tensorOperands = llvm::to_vector<6>(llvm::make_filter_range(
+        operands, [](Value v) { return v.getType().isa<RankedTensorType>(); }));
+    auto resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    auto resultRank = resultType.getRank();
 
-    SmallVector<StringRef> iteratorTypes(rank, "parallel");
-    SmallVector<AffineMap> indexingMaps = {
-        rewriter.getMultiDimIdentityMap(rank),
-        rewriter.getMultiDimIdentityMap(rank)};
+    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    // The overall error handling strategy here is best viewed by thinking about
+    // what happens for a single result dimension. This loop not structured that
+    // way because it is hard to create the affine maps for each operand unless
+    // we structure the loop to iterate over tensor operands as the outer loop
+    // instead of inner loop. This pseudocode gives better intuition:
+    // ```
+    // for each result dimension:
+    //   for each tensor operand:
+    //     if it doesn't even have high enough rank relative to the result:
+    //       continue
+    //     if it is a static size-1 along this result dimension:
+    //       continue
+    //     if this is the first tensor operand that didn't continue above:
+    //       take its dimension size as the size of the non-broadcasted
+    //       traversal along this dimension (this may include a dynamic size-1,
+    //       **non-broadcasted** traversal!)
+    //     emit error check "if the size does not match the non-broadcasted
+    //     traversal size along this dimension, error"
+    // ```
+    // Initialize the resultShape to all 1's, as a fallback in case
+    // all sizes along that result dimension are statically 1.
+    SmallVector<Value> resultShape(resultRank, c1);
+    SmallVector<AffineMap> indexingMaps;
+    for (Value tensorOperand : tensorOperands) {
+      SmallVector<AffineExpr> exprs;
+      auto type = tensorOperand.getType().cast<RankedTensorType>();
+      for (auto size : llvm::enumerate(type.getShape())) {
+        // If the size is statically known to be 1, we don't want any
+        // error guards to be spuriously emitted, since we are specifically
+        // allowing size-1 broadcasts in this case, as they correspond to a
+        // constant-0 indexing map.
+        if (size.value() == 1) {
+          exprs.push_back(rewriter.getAffineConstantExpr(0));
+          continue;
+        }
 
-    rewriter.replaceOpWithNewOp<linalg::GenericOp>(
-        op, type, operand, operand,
+        // The rank of this operand might be smaller than the overall rank of
+        // the broadcast. Add an offset to correlate it to the correct
+        // dimension of the result.
+        auto resultDim = size.index() + (resultRank - type.getRank());
+
+        // The generated linalg op will now be iterating along the full size
+        // of this dimension. Record that fact.
+        exprs.push_back(rewriter.getAffineDimExpr(resultDim));
+
+        // Now, we need to ensure that such iteration is not going to trigger
+        // undefined behavior, by doing appropriate checks against the current
+        // dimension size.
+        auto currentDimSize =
+            rewriter.create<memref::DimOp>(loc, tensorOperand, size.index());
+
+        // If the result size of this dimension has so far only hit the
+        // statically-known-to-be-1 case above (i.e., we have not yet assigned a
+        // new Value to `resultShape[resultDim]`), then we have no other dynamic
+        // values to check against, and merely need to record the current
+        // dimension size.
+        if (resultShape[resultDim] == c1) {
+          resultShape[resultDim] = currentDimSize;
+          continue;
+        }
+
+        // We prohibit the size-1 dynamic broadcasting scenario, so just check
+        // for exact equality with the running result size.
+        // This is the check which protects against the undefined behavior of
+        // the generated linalg op in the case of iterating two operands with
+        // dimensions sizes that are expected to match.
+        auto equalToRunning = rewriter.create<CmpIOp>(
+            loc, CmpIPredicate::eq, resultShape[resultDim], currentDimSize);
+        rewriter.create<AssertOp>(loc, equalToRunning,
+                                  "mismatched size for broadcast");
+      }
+      indexingMaps.push_back(AffineMap::get(
+          /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, getContext()));
+    }
+
+    SmallVector<StringRef> iteratorTypes(resultRank, "parallel");
+    // Add the indexing map for the outs init tensor.
+    indexingMaps.push_back(rewriter.getMultiDimIdentityMap(resultRank));
+
+    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultShape, resultType.getElementType());
+    bool hadErrorCreatingPayload = false;
+    auto generic = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/initTensor.getType(),
+        /*inputs=*/tensorOperands,
+        /*outputs=*/initTensor,
         /*indexingMaps=*/indexingMaps,
         /*iteratorTypes=*/iteratorTypes,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value result;
-          if (isa<AtenTanhOp>(op))
-            result = b.create<math::TanhOp>(loc, args[0]);
-          else if (isa<AtenReluOp>(op))
-            result = createScalarRelu(b, loc, args);
-
+        [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+          Value result = createLinalgPayloadCalculationForElementwiseOp(
+              b, loc, payloadArgs, op, operands);
+          if (!result) {
+            hadErrorCreatingPayload = true;
+            return;
+          }
           b.create<linalg::YieldOp>(loc, result);
         });
+    if (hadErrorCreatingPayload)
+      return failure();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                generic.getResult(0));
+    return success();
+  }
+};
+} // namespace
 
+namespace {
+class ConvertAtenUnsqueezeOp : public OpConversionPattern<AtenUnsqueezeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenUnsqueezeOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+    auto inputRank = operands[0].getType().cast<RankedTensorType>().getRank();
+    if (dim < 0)
+      dim += inputRank + 1;
+    if (!(0 <= dim && dim <= inputRank))
+      return rewriter.notifyMatchFailure(op, "statically invalid");
+
+    SmallVector<linalg::ReassociationIndices> reassociationMap(inputRank);
+    // From the perspective of the reassociation map, the situation of
+    // unsqueezing before or after the last dimension is symmetrical.
+    // Normalize it to the "before" case.
+    // The 0 case is special here, since there is no last dimension to insert
+    // before -- we simply rely on the loop below iterating 0 times.
+    if (dim == inputRank && inputRank != 0)
+      dim = inputRank - 1;
+    bool alreadyCrossedExpandedDim = false;
+    for (int i = 0; i != inputRank; i++) {
+      if (alreadyCrossedExpandedDim) {
+        reassociationMap[i].push_back(i + 1);
+      } else {
+        reassociationMap[i].push_back(i);
+        if (i == dim) {
+          reassociationMap[i].push_back(i + 1);
+          alreadyCrossedExpandedDim = true;
+        }
+      }
+    }
+    auto resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+        op, resultType, operands[0], reassociationMap);
     return success();
   }
 };
@@ -445,8 +678,12 @@ public:
     patterns.add<ConvertAtenLinearOp>(typeConverter, context);
     target.addIllegalOp<AtenBatchNormOp>();
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-    target.addIllegalOp<AtenTanhOp>();
-    patterns.add<ConvertUnaryOp>(typeConverter, context);
+    target
+        .addIllegalOp<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
+                      AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp>();
+    patterns.add<ConvertElementwiseOp>(typeConverter, context);
+    target.addIllegalOp<AtenUnsqueezeOp>();
+    patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();

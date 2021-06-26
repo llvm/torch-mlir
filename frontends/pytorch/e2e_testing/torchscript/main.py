@@ -27,6 +27,7 @@ import vision_models
 import mlp
 import batchnorm
 import quantized_models
+import elementwise
 
 def _get_argparse():
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')

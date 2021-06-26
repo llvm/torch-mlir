@@ -422,6 +422,10 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::tanh : (Tensor) -> (Tensor)",
                 "aten::relu : (Tensor) -> (Tensor)",
                 "aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
+                "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
+                "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
+                "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
+                "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
         ]:
             emit_with_mutating_variants(key)
 
@@ -440,6 +444,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
 
         # Misc tensor ops.
+        emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
         emit("aten::dim : (Tensor) -> (int)", has_folder=True)
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)

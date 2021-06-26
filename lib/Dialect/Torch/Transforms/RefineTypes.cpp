@@ -219,7 +219,8 @@ public:
       }
       knowledge.dtype = input.dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
-    } else if (isa<AtenAddTensorOp>(op)) {
+    } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
+                   AtenDivTensorOp>(op)) {
       // This is a general binary broadcasting shape transfer function.
       // We currently don't track "size 1" in our lattice, but we might want to.
       // We could make this more precise as well. But again, as with the other
@@ -235,6 +236,26 @@ public:
                                kUnknownSize);
       }
       knowledge.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (isa<AtenLerpTensorOp>(op)) {
+      // This is a general broadcasting shape transfer function.
+      // We currently don't track "size 1" in our lattice, but we might want to.
+      // We could make this more precise as well. But again, as with the other
+      // shape transfer functions, handling the statically-invalid case is
+      // tricky, so we defer that until we need it.
+      auto a = operands[0]->getValue();
+      auto b = operands[1]->getValue();
+      auto c = operands[1]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      if (a.hasSizes && b.hasSizes && c.hasSizes) {
+        knowledge.hasSizes = true;
+        knowledge.sizes.resize(
+            std::max(std::max(a.sizes.size(), b.sizes.size()), c.sizes.size()),
+            kUnknownSize);
+      }
+      knowledge.dtype =
+          joinElementTypes(joinElementTypes(a.dtype, b.dtype), c.dtype);
       return getLatticeElement(op->getResult(0)).join(knowledge);
     } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
       int64_t startDim;
@@ -265,6 +286,29 @@ public:
           knowledge.sizes.push_back(kUnknownSize);
           for (auto i = endDim + 1; i < inputRank; i++)
             knowledge.sizes.push_back(operand.sizes[i]);
+        }
+      }
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    } else if (auto unsqueeze = dyn_cast<AtenUnsqueezeOp>(op)) {
+      auto operand = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.dtype = operand.dtype;
+      int64_t dim;
+      if (operand.hasSizes &&
+          matchPattern(unsqueeze.dim(), m_TorchConstantInt(&dim))) {
+        int64_t inputRank = operand.sizes.size();
+        // Careful, it's easy to be off by one here for negative values.
+        // The dim value is allowed to be in the range
+        // `[-inputRank - 1, inputRank]`.
+        // And negative values have `inputRank + 1` added to them rather
+        // than the more typical `inputRank`.
+        if (dim < 0)
+          dim += inputRank + 1;
+        if (0 <= dim && dim <= inputRank) {
+          knowledge.hasSizes = true;
+          knowledge.sizes = operand.sizes;
+          knowledge.sizes.insert(knowledge.sizes.begin() + dim, 1);
         }
       }
       return getLatticeElement(op->getResult(0)).join(knowledge);

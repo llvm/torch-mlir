@@ -140,21 +140,20 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
   }
 
   //===--------------------------------------------------------------------===//
-  // Lowering ops and the !torch.vtensor type.
+  // Lowering ops and the !torch.vtensor type to the npcomp backend contract.
   //===--------------------------------------------------------------------===//
 
-  // Convert any operations on primitive types. These need at least basic dtype
-  // inference, otherwise we cannot interop with builtin tensors.
-  // Run this before this canonicalizer as this will expose optimization
-  // opportunities thanks to folders on std ops that we don't have on the
-  // corresponding torch ops.
-  // TODO: Improve torch op canonicalizations.
-  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
-
-  pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
+  // Check some invariants to catch errors in a clear way.
+  pm.addPass(Torch::createVerifyInvariantsBeforeBackendLoweringPass());
 
   // Lower to linalg + guards which is the input to codegen backends.
+  // We do this first as it tends to involve pattern-matching against constants,
+  // (e.g. dimensions which must be constant in a ranked programming model)
+  // and those constants get somewhat obscured by TorchToStd.
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
+
+  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
+  pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced in our linalg lowering.
