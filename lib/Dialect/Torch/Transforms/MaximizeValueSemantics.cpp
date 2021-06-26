@@ -19,6 +19,7 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
 
+namespace {
 class AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock
     : public OpRewritePattern<CopyToNonValueTensorOp> {
 public:
@@ -58,25 +59,59 @@ public:
     return success();
   }
 };
+} // namespace
 
-class RewriteNonValueTensorNeverMutatedOrAliased
+namespace {
+// Calculate a forward slice starting from a CopyToNonValueTensorOp
+// and ending at CopyToValueTensorOp's. If all intervening ops
+// are just view-like operations (i.e. no mutation), then we can trivially
+// convert them all to value semantics.
+class RewriteViewLikeSubgraph
     : public OpRewritePattern<CopyToNonValueTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(CopyToNonValueTensorOp copy,
                                 PatternRewriter &rewriter) const override {
-    SmallVector<Operation *> users;
-    // See if our limited form of analysis is even applicatble.
-    for (Operation *user : copy.getResult().getUsers()) {
-      if (!isa<CopyToValueTensorOp>(user))
-        return failure();
-      users.push_back(user);
+    // Find a subgraph starting with this CopyToNonValueTensorOp, and
+    // terminating at CopyToValueTensorOp's, possibly with intervening view-like
+    // ops.
+    // This also catches the special case of a CopyToNonValueTensorOp that
+    // trivially feeds into CopyToValueTensorOp's.
+    SmallVector<Operation *> viewLikeOps;
+    SmallVector<CopyToValueTensorOp> copyToValueTensorOps;
+    auto workList = llvm::to_vector<6>(copy.getResult().getUsers());
+    // We currently only support view-like ops with one tensor input and one
+    // tensor output, meaning that the tensor use-def chains form a tree.
+    // This will not be the case for an op like `torch.aten.view_as`, so
+    // we will need to add a set to prune duplicate visitation.
+    while (!workList.empty()) {
+      Operation *op = workList.pop_back_val();
+      if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
+        copyToValueTensorOps.push_back(copyToValueTensor);
+      } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp>(op)) {
+        viewLikeOps.push_back(op);
+        llvm::append_range(workList, op->getResult(0).getUsers());
+      } else {
+        return rewriter.notifyMatchFailure(
+            copy, "can only handle these transitive user ops");
+      }
     }
-    for (Operation *user : users)
-      rewriter.replaceOp(user, copy.getOperand());
+
+    copy.replaceAllUsesWith(copy.getOperand());
+    for (CopyToValueTensorOp op : copyToValueTensorOps)
+      rewriter.replaceOp(op, op.getOperand());
+    for (Operation *op : viewLikeOps) {
+      rewriter.updateRootInPlace(op, [&]() {
+        if (auto nonValueTensorType =
+                op->getResult(0).getType().dyn_cast<NonValueTensorType>()) {
+          op->getResult(0).setType(nonValueTensorType.getWithValueSemantics());
+        }
+      });
+    }
     return success();
   }
 };
+} // namespace
 
 namespace {
 
@@ -88,7 +123,7 @@ class MaximizeValueSemanticsPass
 
     RewritePatternSet patterns(context);
     patterns.insert<AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock,
-                    RewriteNonValueTensorNeverMutatedOrAliased>(context);
+                    RewriteViewLikeSubgraph>(context);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };

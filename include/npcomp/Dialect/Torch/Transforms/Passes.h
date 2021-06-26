@@ -55,6 +55,9 @@ std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 
+std::unique_ptr<OperationPass<ModuleOp>>
+createVerifyInvariantsBeforeBackendLoweringPass();
+
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<FuncOp>>

@@ -9,6 +9,7 @@
 #include "PassDetail.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
+#include "mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -706,6 +707,7 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     // TODO: Move these "std to std" legalizations to their own pass if we grow
     // lots of these patterns.
     populateExpandTanhPattern(patterns);
+    populateLinalgToLLVMConversionPatterns(converter, patterns);
 
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {
       return signalPassFailure();

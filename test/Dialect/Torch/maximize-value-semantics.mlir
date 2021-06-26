@@ -70,3 +70,81 @@ func @unimplemented_control_flow(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %
   %equal_to_arg1 = torch.copy.to_vtensor %tensor : !torch.vtensor
   return %equal_to_arg0, %equal_to_arg1 : !torch.vtensor, !torch.vtensor
 }
+
+// CHECK-LABEL:   func @viewlike$basic_unsqueeze(
+// CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[ARG]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           return %[[UNSQUEEZE]] : !torch.vtensor
+func @viewlike$basic_unsqueeze(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.aten.unsqueeze %0, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  %2 = torch.copy.to_vtensor %1 : !torch.vtensor
+  return %2 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @viewlike$basic_flatten(
+// CHECK-SAME:                                 %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[INTM1:.*]] = torch.constant.int -1
+// CHECK:           %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[ARG]], %[[INT0]], %[[INTM1]] : !torch.vtensor, !torch.int, !torch.int -> !torch.vtensor
+// CHECK:           return %[[FLATTEN]] : !torch.vtensor
+func @viewlike$basic_flatten(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %start = torch.constant.int 0
+  %end = torch.constant.int -1
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.aten.flatten.using_ints %0, %start, %end : !torch.tensor, !torch.int, !torch.int -> !torch.tensor
+  %2 = torch.copy.to_vtensor %1 : !torch.vtensor
+  return %2 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @viewlike$transitive(
+// CHECK-SAME:                              %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[UNSQUEEZE0:.*]] = torch.aten.unsqueeze %[[ARG]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           %[[UNSQUEEZE1:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE0]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           return %[[UNSQUEEZE1]] : !torch.vtensor
+func @viewlike$transitive(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.aten.unsqueeze %0, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  %2 = torch.aten.unsqueeze %1, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  %3 = torch.copy.to_vtensor %2 : !torch.vtensor
+  return %3 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @viewlike$transitive_tree(
+// CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[UNSQUEEZE0:.*]] = torch.aten.unsqueeze %[[ARG]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           %[[RET0:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE0]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           %[[RET1:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE0]], %[[INT0]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           return %[[RET0]], %[[RET1]] : !torch.vtensor, !torch.vtensor
+func @viewlike$transitive_tree(%arg0: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+  %int0 = torch.constant.int 0
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  // %1 has two users.
+  %1 = torch.aten.unsqueeze %0, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+
+  %2 = torch.aten.unsqueeze %1, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  %3 = torch.copy.to_vtensor %2 : !torch.vtensor
+
+  %4 = torch.aten.unsqueeze %1, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  %5 = torch.copy.to_vtensor %4 : !torch.vtensor
+
+  return %3, %5 : !torch.vtensor, !torch.vtensor
+}
+
+// CHECK-LABEL:   func @viewlike$unmodeled_op(
+// CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze {{.*}} : !torch.tensor, !torch.int -> !torch.tensor
+// CHECK:           "some.op"(%[[UNSQUEEZE]]) : (!torch.tensor) -> ()
+func @viewlike$unmodeled_op(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.aten.unsqueeze %0, %int0 : !torch.tensor, !torch.int -> !torch.tensor
+  "some.op"(%1) : (!torch.tensor) -> ()
+  %2 = torch.copy.to_vtensor %1 : !torch.vtensor
+  return %2 : !torch.vtensor
+}

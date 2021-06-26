@@ -18,6 +18,7 @@ add_npcomp_library(NPCOMPRefBackend
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRLinalg
+  MLIRLinalgToLLVM
   MLIRSCFToStandard
   MLIRSCFTransforms
   MLIRShapeToStandard

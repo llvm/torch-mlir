@@ -155,6 +155,71 @@ func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
 
 // -----
 
+// CHECK-LABEL:   func @torch.aten.unsqueeze$basic(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1],f32>
+func @torch.aten.unsqueeze$basic(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.unsqueeze %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$basic_negative(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1],f32>
+func @torch.aten.unsqueeze$basic_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+  %int-1 = torch.constant.int -1
+  %0 = torch.aten.unsqueeze %arg0, %int-1 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$invalid(
+// CHECK:           torch.aten.unsqueeze {{.*}} !torch.tensor<*,f32>
+func @torch.aten.unsqueeze$invalid(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.unsqueeze %arg0, %int1 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$invalid_negative(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<*,f32>
+func @torch.aten.unsqueeze$invalid_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+  %int-2 = torch.constant.int -2
+  %0 = torch.aten.unsqueeze %arg0, %int-2 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_front(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1,2,3,4],f32>
+func @torch.aten.unsqueeze$higher_rank_front(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.unsqueeze %arg0, %int0 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_back(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[2,3,4,1],f32>
+func @torch.aten.unsqueeze$higher_rank_back(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+  %int-1 = torch.constant.int -1
+  %0 = torch.aten.unsqueeze %arg0, %int-1 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_middle(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[2,3,1,4],f32>
+func @torch.aten.unsqueeze$higher_rank_middle(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.unsqueeze %arg0, %int2 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.aten.unsqueeze$unknown_position(
+// CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<*,f32>
+func @torch.aten.unsqueeze$unknown_position(%arg0: !torch.tensor<[2],f32>, %arg1: !torch.int) -> !torch.tensor {
+  %0 = torch.aten.unsqueeze %arg0, %arg1 : !torch.tensor<[2],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// -----
+
 // CHECK-LABEL: func @f
 func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, %arg2: !torch.vtensor<[?,3],f32>) {
   %int1 = torch.constant.int 1

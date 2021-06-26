@@ -27,22 +27,6 @@ func @torch.aten.mm$basic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtenso
   return %0 : !torch.vtensor<[?,2],f32>
 }
 
-// Unary op example.
-// CHECK-LABEL:   func @torch.aten.tanh(
-// CHECK-SAME:                          %[[ARG_VTENSOR:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-// CHECK:           %[[ARG:.*]] = torch.to_builtin_tensor %[[ARG_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:           %[[RESULT:.*]] = linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel", "parallel"]} ins(%[[ARG]] : tensor<?x?xf32>) outs(%[[ARG]] : tensor<?x?xf32>) {
-// CHECK:           ^bb0(%[[BBARG:.*]]: f32, %{{.*}}: f32):
-// CHECK:             %[[YIELDED:.*]] = math.tanh %[[BBARG]] : f32
-// CHECK:             linalg.yield %[[YIELDED]] : f32
-// CHECK:           } -> tensor<?x?xf32>
-// CHECK:           %[[RESULT_VTENSOR:.*]] = torch.from_builtin_tensor %[[RESULT]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
-// CHECK:           return %[[RESULT_VTENSOR:.*]] : !torch.vtensor<[?,?],f32>
-func @torch.aten.tanh(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-  %0 = torch.aten.tanh %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
-  return %0 : !torch.vtensor<[?,?],f32>
-}
-
 // -----
 
 // If the operands are missing dtype, we cannot lower it.
