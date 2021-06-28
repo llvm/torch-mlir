@@ -56,7 +56,7 @@ jobs:
         python3 -m pip install pytest pybind11 numpy
     - name: Install pytorch_nightly depends
       run: |
-        python3 -m pip install --pre 'torch==1.10.0.dev20210617+cpu' 'torchvision==0.11.0.dev20210617+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+        python3 -m pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
