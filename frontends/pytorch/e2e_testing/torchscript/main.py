@@ -29,6 +29,7 @@ from .xfail_sets import XFAIL_SETS
 from . import basic
 from . import vision_models
 from . import mlp
+from . import conv
 from . import batchnorm
 from . import quantized_models
 from . import elementwise

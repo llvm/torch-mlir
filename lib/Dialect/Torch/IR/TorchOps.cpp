@@ -10,7 +10,6 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/ADT/StringMap.h"
@@ -95,7 +94,7 @@ bool isValidSubtype(Type subtype, Type type) {
   if (subtype == type)
     return true;
   if (auto optional = type.dyn_cast<OptionalType>())
-    return subtype == optional.getContainedType() ||
+    return isValidSubtype(subtype, optional.getContainedType()) ||
            subtype.isa<Torch::NoneType>();
   // TODO: This is not subtyping according to PEP 483. See description
   // of NonValueTensorType.

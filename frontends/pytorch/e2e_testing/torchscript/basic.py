@@ -69,3 +69,20 @@ class MmTanhModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
+
+class AdaptiveAvgPool2dModule(torch.nn.Module):
+  def __init__(self):
+    super().__init__()
+    self.aap2d = torch.nn.AdaptiveAvgPool2d((1,1))
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1, -1], torch.float32, True),
+  ])
+  def forward(self, x):
+    return self.aap2d(x)
+
+@register_test_case(module_factory=lambda: AdaptiveAvgPool2dModule())
+def AdaptiveAvgPool2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 3, 8, 9))
