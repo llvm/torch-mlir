@@ -10,6 +10,7 @@
 #define NPCOMP_DIALECT_TORCH_IR_TORCHOPS_H
 
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/SymbolTable.h"
@@ -50,6 +51,36 @@ struct torch_constant_int_op_binder {
 inline detail::torch_constant_int_op_binder
 m_TorchConstantInt(int64_t *bind_value) {
   return detail::torch_constant_int_op_binder(bind_value);
+}
+
+namespace detail {
+/// Matches the constant integers stored in a `torch.ListConstruct`.
+struct torch_list_construct_op_binder {
+  SmallVectorImpl<int64_t> &bind_values;
+
+  /// Creates a matcher instance that binds the value to bvs if match succeeds.
+  torch_list_construct_op_binder(SmallVectorImpl<int64_t> &bvs)
+      : bind_values(bvs) {}
+
+  bool match(Operation *op) {
+    if (auto constantNums = dyn_cast<Torch::PrimListConstructOp>(op)) {
+      for (Value value : constantNums.elements()) {
+        int64_t num;
+        if (matchPattern(value, m_TorchConstantInt(&num)))
+          bind_values.push_back(num);
+        else
+          return false;
+      }
+    }
+    return true;
+  }
+};
+} // namespace detail
+
+/// Matches the constant integers stored in a `torch.prim.ListConstruct`.
+inline detail::torch_list_construct_op_binder
+m_TorchConstantIntList(SmallVectorImpl<int64_t> &bind_values) {
+  return detail::torch_list_construct_op_binder(bind_values);
 }
 
 /// Create code to copy `tensor` to type `newType`.

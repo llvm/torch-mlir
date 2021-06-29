@@ -22,8 +22,12 @@ _common_npcomp_lowering_xfails = {
 XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
 
 XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails | {
-    # https://github.com/google/iree/issues/6368
+    # https://github.com/google/iree/pull/6407
     'MmDagModule_basic',
     'Mlp1LayerModule_basic',
     'Mlp2LayerModule_basic',
+    'Conv2dNoPaddingModule_basic',
+    'AdaptiveAvgPool2dModule_basic',
+    # https://github.com/google/iree/issues/6416
+    'Conv2dWithPaddingModule_basic',
 }
