@@ -164,6 +164,37 @@ cd /src/mlir-npcomp
 cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 ```
 
+### IREE Backend (from IREE packages)
+
+```shell
+# We currently track and require the latest snapshot.
+pip3 install iree-compiler-snapshot iree-runtime-snapshot -f https://github.com/google/iree/releases
+
+
+
+# Run TorchScript E2E tests targeting IREE.
+# Make sure to run "PyTorch Frontend" setup instructions first.
+python frontends/pytorch/e2e_testing/torchscript/main.py --config=iree
+```
+
+### IREE Backend (from local IREE build)
+
+This configuration is useful for iterating locally, as you can
+poke/debug/rebuild things in IREE.
+
+```shell
+# Locally build IREE.
+# See https://google.github.io/iree/building-from-source/getting-started/
+# Make sure IREE is configured with `-DIREE_BUILD_PYTHON_BINDINGS=ON`.
+
+echo 'PYTHONPATH="${PYTHONPATH}:/path/to/iree-build/bindings/python"' >> .env
+
+# Run TorchScript E2E tests targeting IREE.
+# Make sure to run "PyTorch Frontend" setup instructions first.
+python frontends/pytorch/e2e_testing/torchscript/main.py --config=iree
+```
+
+
 ### VSCode with a Docker Dev Image
 
 #### Start a docker dev container based on our image

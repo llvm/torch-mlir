@@ -10,10 +10,11 @@ from mlir.ir import *
 from mlir.passmanager import *
 from npcomp.compiler.generic.backend import refjit as refjit_backend
 from npcomp.compiler.utils import logging
+from .abc import NpcompBackend
 
 __all__ = [
     "is_enabled",
-    "CompilerBackend",
+    "RefjitNpcompBackend",
 ]
 
 # Re-export.
@@ -34,7 +35,7 @@ class TorchJitModuleInvoker(refjit_backend.JitModuleInvoker):
     return invoke
 
 
-class CompilerBackend:
+class RefjitNpcompBackend(NpcompBackend):
   """Main entry-point for the backend."""
 
   def __init__(self):

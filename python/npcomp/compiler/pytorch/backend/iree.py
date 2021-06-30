@@ -5,6 +5,7 @@
 import os
 
 import torch
+import numpy as np
 
 from mlir.ir import *
 from mlir.passmanager import *
@@ -12,8 +13,10 @@ from npcomp.compiler.utils import logging
 import iree.runtime as ireert
 import iree.compiler as ireec
 
+from .abc import NpcompBackend
+
 __all__ = [
-    "CompilerBackend",
+    "IreeNpcompBackend",
 ]
 
 PREPARE_FOR_IREE_PASSES = (
@@ -34,6 +37,8 @@ class IreeModuleInvoker:
 
     def invoke(*args):
       results = self._iree_module[function_name](*args)
+      if isinstance(results, np.ndarray):
+        return results
       if len(results) == 1:
         # De-tuple.
         return results[0]
@@ -58,7 +63,7 @@ class TorchIreeModuleInvoker(IreeModuleInvoker):
     return invoke
 
 
-class CompilerBackend:
+class IreeNpcompBackend(NpcompBackend):
   """Main entry-point for the backend."""
 
   def __init__(self):
@@ -67,9 +72,8 @@ class CompilerBackend:
 
   def compile(self, imported_module: Module):
     """Compiles an imported module, with a flat list of functions.
-    The module is expected to be in "TCP + scalar code" form.
-    TODO: More clearly define the backend contract. Generally this will
-    extend to support globals, lists, and other stuff.
+    The module is expected to conform to the npcomp backend contract.
+    See the VerifyBackendContract pass for more details.
 
     Args:
       imported_module: The MLIR module consisting of funcs in the torch
@@ -97,12 +101,13 @@ class CompilerBackend:
       # Backend.
       binary = ireec.compile_str(str(imported_module),
                                  target_backends=["dylib-llvm-aot"])
-      iree_config = ireert.Config(driver_name="dylib")
-
-      iree_module = ireert.load_module(ireert.VmModule.from_flatbuffer(binary),
-                                       config=iree_config)
-    return iree_module
+    return binary
 
   def load(self, iree_module) -> TorchIreeModuleInvoker:
     """Loads a compiled artifact into the runtime."""
-    return TorchIreeModuleInvoker(iree_module)
+    vm_module = ireert.VmModule.from_flatbuffer(iree_module)
+
+    iree_config = ireert.Config(driver_name="dylib")
+    ctx = ireert.SystemContext(config=iree_config)
+    ctx.add_vm_module(vm_module)
+    return TorchIreeModuleInvoker(ctx.modules.module)

@@ -40,7 +40,7 @@ class_annotator.annotateArgs(recursivescriptmodule._c._type(), ['forward'], [
 mb.import_module(recursivescriptmodule._c, class_annotator)
 #mb.module.operation.print()
 
-backend = refjit.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 compiled = backend.compile(frontend_lowering.lower_object_graph(mb.module))
 jit_module = backend.load(compiled)
 

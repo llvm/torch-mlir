@@ -22,7 +22,7 @@ with mb.capture_function("mm", [lhs, rhs]) as f:
   result = torch.mm(lhs, rhs)
   f.returns([result])
 
-backend = refjit.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 test_utils.compare_outputs(torch.mm, jit_module.mm, lhs, rhs)
