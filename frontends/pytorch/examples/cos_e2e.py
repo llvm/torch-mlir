@@ -21,7 +21,7 @@ with mb.capture_function("cos", [input]) as f:
   result = torch.cos(input)
   f.returns([result])
 
-backend = refjit.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 logging.debug(f"Executing jit_module.cos")

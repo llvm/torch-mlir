@@ -26,7 +26,7 @@ class MmModule(torch.nn.Module):
 
 
 # TODO: Refine error messages.
-# CHECK: FAILURE - "MmModule_basic"
+# CHECK: FAIL - "MmModule_basic"
 # CHECK:     @ trace item #0 - call to "forward"
 # CHECK:     @ output #0
 # CHECK:     ERROR: values mismatch
@@ -40,7 +40,7 @@ def MmModule_basic(module, tu: TestUtils):
 def main():
     config = TorchScriptTestConfig()
     results = run_tests(GLOBAL_TEST_REGISTRY, config)
-    report_results(results, verbose=True)
+    report_results(results, set(), verbose=True)
 
 
 if __name__ == '__main__':

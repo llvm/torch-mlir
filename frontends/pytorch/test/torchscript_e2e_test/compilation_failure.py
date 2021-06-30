@@ -25,7 +25,7 @@ class MmModule(torch.nn.Module):
             return 3
 
 
-# CHECK: FAILURE - "MmModule_basic"
+# CHECK: FAIL - "MmModule_basic"
 # CHECK:     compilation error
 # Assume that the diagnostic from the TorchScript compiler will at least contain
 # the offending "return 3".
@@ -38,7 +38,7 @@ def MmModule_basic(module, tu: TestUtils):
 def main():
     config = TorchScriptTestConfig()
     results = run_tests(GLOBAL_TEST_REGISTRY, config)
-    report_results(results, verbose=True)
+    report_results(results, set(), verbose=True)
 
 
 if __name__ == '__main__':

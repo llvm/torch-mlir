@@ -26,7 +26,7 @@ mb = torch_mlir.ModuleBuilder()
 with mb.capture_function("test", [arg0]) as f:
   f.returns([fun(arg0)])
 
-backend = refjit.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 test_utils.compare_outputs(torch.mm, jit_module.test, arg0, arg1)

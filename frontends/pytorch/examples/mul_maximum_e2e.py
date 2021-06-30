@@ -28,7 +28,7 @@ with mb.capture_function("mul_maximum", [lhs, rhs, threshold, bias]) as f:
   result = mul_maximum(lhs, rhs, threshold, bias)
   f.returns([result])
 
-backend = refjit.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 jit_module = backend.load(backend.compile(frontend_lowering.lower_module(mb.module)))
 
 test_utils.compare_outputs(mul_maximum, jit_module.mul_maximum, lhs, rhs,

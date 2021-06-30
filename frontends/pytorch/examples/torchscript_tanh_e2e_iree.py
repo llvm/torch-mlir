@@ -34,13 +34,13 @@ class_annotator.exportNone(recursivescriptmodule._c._type())
 class_annotator.exportPath(recursivescriptmodule._c._type(), ['forward'])
 class_annotator.annotateArgs(recursivescriptmodule._c._type(), ['forward'], [
     None,
-    ([2, 3, -1], torch.float32)
+    ([2, 3, -1], torch.float32, True)
 ])
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
 mb.import_module(recursivescriptmodule._c, class_annotator)
 #mb.module.operation.print()
 
-backend = iree.CompilerBackend()
+backend = iree.IreeNpcompBackend()
 compiled = backend.compile(frontend_lowering.lower_object_graph(mb.module))
 jit_module = backend.load(compiled)
 

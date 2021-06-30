@@ -5,8 +5,9 @@
 Utilities for reporting the results of the test framework.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
+import collections
 import io
 import textwrap
 
@@ -70,7 +71,7 @@ class ValueReport:
         assert self.failed
         if self.value.size() != self.golden_value.size():
             return self.context.format_error(
-                f'tensor shape mismatch: got {tensor.size()!r}, expected {golden_tensor.size()!r}'
+                f'tensor shape mismatch: got {self.value.size()!r}, expected {self.golden_value.size()!r}'
             )
         f = io.StringIO()
         p = lambda *x: print(*x, file=f)
@@ -167,17 +168,60 @@ class SingleTestReport:
         return f.getvalue()
 
 
-def report_results(results: List[TestResult], verbose: bool = False):
-    """Provide a basic error report summarizing various TestResult's.
+def report_results(results: List[TestResult],
+                   expected_failures: Set[str],
+                   verbose: bool = False):
+    """Print a basic error report summarizing various TestResult's.
+
+    This report uses the PASS/FAIL/XPASS/XFAIL nomenclature of LLVM's
+    "lit" testing utility. See
+    https://llvm.org/docs/CommandGuide/lit.html#test-status-results
+
+    The `expected_failures` set should contain the names of tests
+    (according to their `unique_name`) which are expected to fail.
+    The overall passing/failing status of the report requires these to fail
+    in order to succeed (this catches cases where things suddenly
+    start working).
 
     If `verbose` is True, then provide an explanation of what failed.
+
+    Returns True if the run resulted in any unexpected pass/fail behavior.
+    Otherwise False.
     """
+    summary = collections.Counter()
     for result in results:
         report = SingleTestReport(result, ErrorContext.empty())
-        if not report.failed:
-            print(f'SUCCESS - "{result.unique_name}"')
+        expected_failure = result.unique_name in expected_failures
+        if expected_failure:
+            if report.failed:
+                error_str = ''
+                if verbose:
+                    error_str = '\n' + textwrap.indent(report.error_str(), '    ')
+                print(f'XFAIL - "{result.unique_name}"' + error_str)
+                summary['XFAIL'] += 1
+            else:
+                print(f'XPASS - "{result.unique_name}"')
+                summary['XPASS'] += 1
         else:
-            error_str = ''
-            if verbose:
-                error_str = '\n' + textwrap.indent(report.error_str(), '    ')
-            print(f'FAILURE - "{result.unique_name}"' + error_str)
+            if not report.failed:
+                print(f'PASS - "{result.unique_name}"')
+                summary['PASS'] += 1
+            else:
+                error_str = ''
+                if verbose:
+                    error_str = '\n' + textwrap.indent(report.error_str(), '    ')
+                print(f'FAIL - "{result.unique_name}"' + error_str)
+                summary['FAIL'] += 1
+
+    # Print a summary for easy scanning.
+    print('\nSummary:')
+    KEY_MEANINGS = {
+        'PASS': 'Passed',
+        'FAIL': 'Failed',
+        'XFAIL': 'Expectedly Failed',
+        'XPASS': 'Unexpectedly Passed',
+    }
+    for key in ['PASS', 'FAIL', 'XFAIL', 'XPASS']:
+        if summary[key]:
+            print(f'    {KEY_MEANINGS[key]}: {summary[key]}')
+    return summary['FAIL'] != 0 or summary['XPASS'] != 0
