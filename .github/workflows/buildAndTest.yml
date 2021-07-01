@@ -57,6 +57,9 @@ jobs:
     - name: Install pytorch_nightly depends
       run: |
         python3 -m pip install --pre 'torch==1.10.0.dev20210630+cpu' 'torchvision==0.11.0.dev20210630+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+    - name: Install IREE snapshot depends
+      run: |
+        python3 -m pip install iree-compiler-snapshot iree-runtime-snapshot -f https://github.com/google/iree/releases
     - name: Get LLVM Hash
       id: get-llvm-hash
       run: echo "::set-output name=hash::$(git submodule status)"
@@ -91,3 +94,12 @@ jobs:
         cd build_release
         cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
         make check-npcomp check-frontends-pytorch -j$(nproc)
+    - name: Set up .env file.
+      run: |
+        echo "PYTHONPATH=\"$(realpath build_release/python):$(realpath ${LLVM}/install/python)\"" >.env
+    - name: Run RefBackend E2E Tests
+      run: |
+        tools/torchscript_e2e_test.sh --config=refbackend
+    - name: Run IREE E2E Tests
+      run: |
+        tools/torchscript_e2e_test.sh --config=iree
