@@ -170,11 +170,9 @@ cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 # We currently track and require the latest snapshot.
 pip3 install iree-compiler-snapshot iree-runtime-snapshot -f https://github.com/google/iree/releases
 
-
-
 # Run TorchScript E2E tests targeting IREE.
 # Make sure to run "PyTorch Frontend" setup instructions first.
-python frontends/pytorch/e2e_testing/torchscript/main.py --config=iree
+tools/torchscript_e2e_test.sh --config=iree
 ```
 
 ### IREE Backend (from local IREE build)
@@ -187,11 +185,12 @@ poke/debug/rebuild things in IREE.
 # See https://google.github.io/iree/building-from-source/getting-started/
 # Make sure IREE is configured with `-DIREE_BUILD_PYTHON_BINDINGS=ON`.
 
+# Add IREE's Python bindings to PYTHONPATH.
 echo 'PYTHONPATH="${PYTHONPATH}:/path/to/iree-build/bindings/python"' >> .env
 
 # Run TorchScript E2E tests targeting IREE.
 # Make sure to run "PyTorch Frontend" setup instructions first.
-python frontends/pytorch/e2e_testing/torchscript/main.py --config=iree
+tools/torchscript_e2e_test.sh --config=iree
 ```
 
 
