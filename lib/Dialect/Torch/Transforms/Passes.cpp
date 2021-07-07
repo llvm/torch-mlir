@@ -9,6 +9,7 @@
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
@@ -154,6 +155,7 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
 
   pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
   pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
+  pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced in our linalg lowering.

@@ -10,9 +10,11 @@ from torch_mlir_torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     @export
     @annotate_args([
         None,
@@ -22,21 +24,26 @@ class MmModule(torch.nn.Module):
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
 
+
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
+
 
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_chained(module, tu: TestUtils):
     res = module.forward(tu.rand(4, 4), tu.rand(4, 4))
     module.forward(res, res)
 
+
 # ==============================================================================
+
 
 # A subgraph with multiple mm ops.
 class MmDagModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     @export
     @annotate_args([
         None,
@@ -46,15 +53,19 @@ class MmDagModule(torch.nn.Module):
     def forward(self, lhs, rhs):
         return torch.mm(lhs, torch.mm(lhs, rhs))
 
+
 @register_test_case(module_factory=lambda: MmDagModule())
 def MmDagModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
+
 # ==============================================================================
+
 
 class MmTanhModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     @export
     @annotate_args([
         None,
@@ -63,26 +74,109 @@ class MmTanhModule(torch.nn.Module):
     ])
     def forward(self, lhs, rhs):
         return torch.tanh(self.matmul(lhs, rhs))
+
     def matmul(self, lhs, rhs):
         return torch.mm(lhs, rhs)
+
 
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
 
-class AdaptiveAvgPool2dModule(torch.nn.Module):
-  def __init__(self):
-    super().__init__()
-    self.aap2d = torch.nn.AdaptiveAvgPool2d((1,1))
 
-  @export
-  @annotate_args([
-      None,
-      ([-1, -1, -1, -1], torch.float32, True),
-  ])
-  def forward(self, x):
-    return self.aap2d(x)
+class AdaptiveAvgPool2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((1, 1))
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.aap2d(x)
+
 
 @register_test_case(module_factory=lambda: AdaptiveAvgPool2dModule())
 def AdaptiveAvgPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9))
+
+
+class FlattenStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flat = torch.nn.Flatten(2, 4)
+
+    @export
+    @annotate_args([
+        None,
+        ([10, 3, 8, 9, 3, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.flat(x)
+
+
+@register_test_case(module_factory=lambda: FlattenStaticModule())
+def FlattenStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 3, 8, 9, 3, 4))
+
+
+class FlattenRank0Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flat = torch.nn.Flatten(-1, -1)
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.flat(x)
+
+
+@register_test_case(module_factory=lambda: FlattenRank0Module())
+def FlattenRank0Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4.0))
+
+
+class FlattenDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.flat = torch.nn.Flatten(2, 4)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, 9, 3, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.flat(x)
+
+
+@register_test_case(module_factory=lambda: FlattenDynamicModule())
+def FlattenDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 3, 8, 9, 3, 4))
+
+
+class MaxPool2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       dilation=2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool2dModule())
+def MaxPool2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20) - 0.5)

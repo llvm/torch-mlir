@@ -145,7 +145,7 @@ func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
 }
 
 // CHECK-LABEL:   func @flatten_rank0(
-// CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[?],f32>
+// CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[1],f32>
 func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %end = torch.constant.int -1
   %start = torch.constant.int 0
