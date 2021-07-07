@@ -13,6 +13,8 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::refback;
 
+#include "npcomp/Dialect/Refback/IR/RefbackOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // RefbackDialect Dialect Interfaces
 //===----------------------------------------------------------------------===//

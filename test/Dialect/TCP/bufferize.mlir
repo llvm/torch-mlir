@@ -38,7 +38,7 @@ func @tcp_splatted(%arg0: f32, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
 // CHECK:           %[[LOWER_EXTENT_D1:.*]] = tensor.extract %[[LOWER_EXPANSION]][%[[C0]]] : tensor<?xindex>
 // CHECK:           %[[UPPER_EXTENT_D1:.*]] = tensor.extract %[[UPPER_EXPANSION]][%[[C0]]] : tensor<?xindex>
 // CHECK:           %[[C0_0:.*]] = constant 0 : index
-// CHECK:           %[[D1:.*]] = memref.dim %[[TENSOR]], %[[C0_0]] : tensor<?xf32>
+// CHECK:           %[[D1:.*]] = tensor.dim %[[TENSOR]], %[[C0_0]] : tensor<?xf32>
 // CHECK:           %[[D1_EXPANSION:.*]] = addi %[[LOWER_EXTENT_D1]], %[[UPPER_EXTENT_D1]] : index
 // CHECK:           %[[D1_OUT:.*]] = addi %[[D1_EXPANSION]], %[[D1]] : index
 // CHECK:           %[[D1_OUT_TENSOR:.*]] = tensor.from_elements %[[D1_OUT]] : tensor<1xindex>
@@ -47,7 +47,7 @@ func @tcp_splatted(%arg0: f32, %arg1: tensor<?xindex>) -> tensor<?x?xf32> {
 // CHECK:           %[[C0_1:.*]] = constant 0 : index
 // CHECK:           %[[LOWER_EXTENT_D1_1:.*]] = tensor.extract %[[LOWER_EXPANSION]][%[[C0_1]]] : tensor<?xindex>
 // CHECK:           %[[C0_2:.*]] = constant 0 : index
-// CHECK:           %[[D1_1:.*]] = memref.dim %[[TENSOR]], %[[C0_2]] : tensor<?xf32>
+// CHECK:           %[[D1_1:.*]] = tensor.dim %[[TENSOR]], %[[C0_2]] : tensor<?xf32>
 // CHECK:           linalg.fill(%[[FILL_VAL]], %[[D1_OUT_MREF]]) : f32, memref<?xf32>
 // CHECK:           %[[SUBVIEW:.*]] = memref.subview %[[D1_OUT_MREF]][%[[LOWER_EXTENT_D1_1]]] [%[[D1_1]]] [%[[C1]]] : memref<?xf32> to memref<?xf32, #map>
 // CHECK:           linalg.copy(%0, %[[SUBVIEW]]) : memref<?xf32>, memref<?xf32, #map>

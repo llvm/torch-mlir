@@ -13,6 +13,8 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::tcp;
 
+#include "npcomp/Dialect/TCP/IR/TCPOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // TCPDialect Dialect Interfaces
 //===----------------------------------------------------------------------===//

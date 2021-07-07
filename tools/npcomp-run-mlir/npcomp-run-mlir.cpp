@@ -210,6 +210,12 @@ struct Options {
 } // namespace
 
 int main(int argc, char **argv) {
+  mlir::registerMLIRContextCLOptions();
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerPassManagerCLOptions();
+  Options options;
+  llvm::cl::ParseCommandLineOptions(argc, argv, "npcomp compile+run utility\n");
+
   mlir::DialectRegistry registry;
   mlir::registerAllDialects(registry);
   mlir::registerAllPasses();
@@ -221,11 +227,6 @@ int main(int argc, char **argv) {
 
   llvm::InitLLVM y(argc, argv);
   npcompInitializeLLVMCodegen();
-
-  mlir::registerAsmPrinterCLOptions();
-  mlir::registerPassManagerCLOptions();
-  Options options;
-  llvm::cl::ParseCommandLineOptions(argc, argv, "npcomp compile+run utility\n");
 
   SmallVector<StringRef, 6> sharedLibs(options.sharedLibs.begin(),
                                        options.sharedLibs.end());

@@ -14,7 +14,7 @@ add_npcomp_library(NPCOMPCommonBackend
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRLinalg
-  MLIRMemRef
+  MLIRTensor
   MLIRStandard
   MLIRMath
   )

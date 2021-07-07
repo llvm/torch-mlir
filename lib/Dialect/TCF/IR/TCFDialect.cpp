@@ -12,6 +12,8 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::tcf;
 
+#include "npcomp/Dialect/TCF/IR/TCFOpsDialect.cpp.inc"
+
 void TCFDialect::initialize() {
   addOperations<
 #define GET_OP_LIST

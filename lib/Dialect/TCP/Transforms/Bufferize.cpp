@@ -50,7 +50,7 @@ static SmallVector<Value, 6> bypassResultShapes(Operation &op) {
         builder.create<tensor::ExtractOp>(op.getLoc(), pad.upperExpansion(),
             ValueRange({dimIndex}));
       auto operandDim =
-          builder.create<memref::DimOp>(op.getLoc(), pad.operand(), i);
+          builder.create<tensor::DimOp>(op.getLoc(), pad.operand(), i);
       auto totalExpansion =
         builder.create<AddIOp>(op.getLoc(), lowerExpansion, upperExpansion);
       auto outDim =
@@ -119,7 +119,7 @@ public:
     for (int i = 0, e = inputType.getRank(); i < e; i++) {
       // Calculate the relevant extents.
       Value inputExtent =
-          rewriter.create<memref::DimOp>(op.getLoc(), op.operand(), i);
+          rewriter.create<tensor::DimOp>(op.getLoc(), op.operand(), i);
       inputDimRequiresBroadcasting.push_back(
           rewriter.create<CmpIOp>(op.getLoc(), CmpIPredicate::ne, inputExtent,
                                   outputExtents[rankDiff + i]));
@@ -204,7 +204,7 @@ public:
       auto offset =
         rewriter.create<tensor::ExtractOp>(op.getLoc(), op.lowerExpansion(),
             ValueRange({dimIndex}));
-      auto size = rewriter.create<memref::DimOp>(op.getLoc(), op.operand(), i);
+      auto size = rewriter.create<tensor::DimOp>(op.getLoc(), op.operand(), i);
       auto stride   = c1;
       offsets.push_back(offset);
       sizes.push_back(size);

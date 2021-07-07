@@ -5,10 +5,10 @@ func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> attr
   %c0 = constant 0 : index
   %c1 = constant 1 : index
   %cst = constant 0.000000e+00 : f32
-  %0 = memref.dim %arg0, %c0 : tensor<?x?xf32>
-  %1 = memref.dim %arg0, %c1 : tensor<?x?xf32>
-  %2 = memref.dim %arg1, %c0 : tensor<?x?xf32>
-  %3 = memref.dim %arg1, %c1 : tensor<?x?xf32>
+  %0 = tensor.dim %arg0, %c0 : tensor<?x?xf32>
+  %1 = tensor.dim %arg0, %c1 : tensor<?x?xf32>
+  %2 = tensor.dim %arg1, %c0 : tensor<?x?xf32>
+  %3 = tensor.dim %arg1, %c1 : tensor<?x?xf32>
   %4 = cmpi eq, %1, %2 : index
   assert %4, "mismatching contracting dimension for aten.mm"
   %5 = linalg.init_tensor [%0, %3] : tensor<?x?xf32>

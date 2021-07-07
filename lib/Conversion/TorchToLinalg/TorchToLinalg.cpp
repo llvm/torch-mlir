@@ -11,7 +11,7 @@
 #include "../PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h" // TODO: For `memref.dim`.
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -109,9 +109,9 @@ public:
         rewriter.getStringAttr("training is not supported for now"));
 
     // num_features – C from an expected input of size (N,C,D,H,W ...)
-    Value numFeatures = rewriter.create<memref::DimOp>(loc, input, 1);
+    Value numFeatures = rewriter.create<tensor::DimOp>(loc, input, 1);
     auto contractingDim0EqualsNumFeatures = [&](Value v) {
-      auto dim0 = rewriter.create<memref::DimOp>(loc, v, 0);
+      auto dim0 = rewriter.create<tensor::DimOp>(loc, v, 0);
       auto dim0Equal =
           rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, numFeatures, dim0);
       rewriter.create<AssertOp>(
@@ -195,10 +195,10 @@ public:
           op, "expected both operands to aten.mm to be rank 2");
     }
 
-    Value lhsDim0 = rewriter.create<memref::DimOp>(loc, lhs, 0);
-    Value lhsDim1 = rewriter.create<memref::DimOp>(loc, lhs, 1);
-    Value rhsDim0 = rewriter.create<memref::DimOp>(loc, rhs, 0);
-    Value rhsDim1 = rewriter.create<memref::DimOp>(loc, rhs, 1);
+    Value lhsDim0 = rewriter.create<tensor::DimOp>(loc, lhs, 0);
+    Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
+    Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
+    Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
     Value contractingDimEqual =
         rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, lhsDim1, rhsDim0);
     rewriter.create<AssertOp>(
@@ -276,7 +276,7 @@ public:
           op, "unimplemented: size-1 broadcasting for aten::LinearOp");
 
     auto getDimOp = [&](Value v, int dimension) {
-      return rewriter.create<memref::DimOp>(loc, v, dimension);
+      return rewriter.create<tensor::DimOp>(loc, v, dimension);
     };
     Value inputDim0 = getDimOp(input, 0);
     Value inputDim1 = getDimOp(input, 1);
@@ -539,7 +539,7 @@ struct ConvertElementwiseOp : ConversionPattern {
         // undefined behavior, by doing appropriate checks against the current
         // dimension size.
         auto currentDimSize =
-            rewriter.create<memref::DimOp>(loc, tensorOperand, size.index());
+            rewriter.create<tensor::DimOp>(loc, tensorOperand, size.index());
 
         // If the result size of this dimension has so far only hit the
         // statically-known-to-be-1 case above (i.e., we have not yet assigned a
@@ -614,7 +614,7 @@ public:
     if (!(0 <= dim && dim <= inputRank))
       return rewriter.notifyMatchFailure(op, "statically invalid");
 
-    SmallVector<linalg::ReassociationIndices> reassociationMap(inputRank);
+    SmallVector<ReassociationIndices> reassociationMap(inputRank);
     // From the perspective of the reassociation map, the situation of
     // unsqueezing before or after the last dimension is symmetrical.
     // Normalize it to the "before" case.
