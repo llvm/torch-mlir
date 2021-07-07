@@ -131,6 +131,28 @@ def ElementwiseUnsqueezeBroadcastModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseFlattenBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return a * b.flatten(-1, -1)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFlattenBroadcastModule())
+def ElementwiseFlattenBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6), tu.rand())
+
+
+# ==============================================================================
+
+
 class ElementwiseReluModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

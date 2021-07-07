@@ -15,19 +15,16 @@ XFAIL_SETS = {}
 # These represent further work needed in npcomp to lower them properly
 # to the backend contract.
 _common_npcomp_lowering_xfails = {
-    'ResNet18Module_basic',
     'QuantizedMLP_basic',
 }
 
 XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
 
 XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails | {
-    # https://github.com/google/iree/pull/6407
-    'MmDagModule_basic',
-    'Mlp1LayerModule_basic',
-    'Mlp2LayerModule_basic',
-    'Conv2dNoPaddingModule_basic',
-    'AdaptiveAvgPool2dModule_basic',
-    # https://github.com/google/iree/issues/6416
-    'Conv2dWithPaddingModule_basic',
+    #https://reviews.llvm.org/D106658 to reach iree release
+    'MaxPool2dModule_basic',
+    'Conv2dWithPaddingDilationStrideModule_basic',
+    #https://github.com/google/iree/issues/6420
+    'FlattenDynamicModule_basic',
+    'ResNet18Module_basic'
 }

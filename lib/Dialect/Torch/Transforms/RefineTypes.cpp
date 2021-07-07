@@ -265,9 +265,9 @@ public:
           ValueKnowledge::getPessimisticValueState(op->getContext());
       knowledge.dtype = operand.dtype;
       if (operand.hasSizes && operand.sizes.size() == 0) {
-        // Rank 0 is special and flattens to rank 1.
+        // Rank 0 is special and flattens to rank 1 with size 1.
         knowledge.hasSizes = true;
-        knowledge.sizes.push_back(kUnknownSize);
+        knowledge.sizes.push_back(1);
       } else if (operand.hasSizes &&
                  matchPattern(flatten.start_dim(),
                               m_TorchConstantInt(&startDim)) &&
