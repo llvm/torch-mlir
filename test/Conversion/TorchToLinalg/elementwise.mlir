@@ -25,11 +25,11 @@ func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
 // CHECK:           %[[BUILTIN_ARG0:.*]] = torch.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
 // CHECK:           %[[BUILTIN_ARG1:.*]] = torch.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
 // CHECK:           %[[C0:.*]] = constant 0 : index
-// CHECK:           %[[ARG0_DIM0:.*]] = memref.dim %[[BUILTIN_ARG0]], %[[C0]] : tensor<?x?xf32>
+// CHECK:           %[[ARG0_DIM0:.*]] = tensor.dim %[[BUILTIN_ARG0]], %[[C0]] : tensor<?x?xf32>
 // CHECK:           %[[C1:.*]] = constant 1 : index
-// CHECK:           %[[ARG0_DIM1:.*]] = memref.dim %[[BUILTIN_ARG0]], %[[C1]] : tensor<?x?xf32>
+// CHECK:           %[[ARG0_DIM1:.*]] = tensor.dim %[[BUILTIN_ARG0]], %[[C1]] : tensor<?x?xf32>
 // CHECK:           %[[C0_2:.*]] = constant 0 : index
-// CHECK:           %[[ARG1_DIM0:.*]] = memref.dim %[[BUILTIN_ARG1]], %[[C0_2]] : tensor<?xf32>
+// CHECK:           %[[ARG1_DIM0:.*]] = tensor.dim %[[BUILTIN_ARG1]], %[[C0_2]] : tensor<?xf32>
 // CHECK:           %[[LEGAL_SIZES:.*]] = cmpi eq, %[[ARG0_DIM1]], %[[ARG1_DIM0]] : index
 // CHECK:           assert %[[LEGAL_SIZES]], "mismatched size for broadcast"
 // CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [%[[ARG0_DIM0]], %[[ARG0_DIM1]]] : tensor<?x?xf32>

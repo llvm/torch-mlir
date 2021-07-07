@@ -19,6 +19,8 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
 
+#include "npcomp/Dialect/Torch/IR/TorchDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // Dialect Interfaces
 //===----------------------------------------------------------------------===//

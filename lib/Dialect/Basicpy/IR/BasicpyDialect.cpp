@@ -17,6 +17,8 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Basicpy;
 
+#include "npcomp/Dialect/Basicpy/IR/BasicpyOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // Dialect Interfaces
 //===----------------------------------------------------------------------===//

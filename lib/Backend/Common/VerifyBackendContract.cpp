@@ -9,7 +9,7 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Backend/Common/Passes.h"
@@ -60,7 +60,7 @@ class VerifyBackendContractPass
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
     // DimOp is used to query tensor sizes.
-    target.addDynamicallyLegalOp<memref::DimOp>(opHasLegalTypes);
+    target.addDynamicallyLegalOp<tensor::DimOp>(opHasLegalTypes);
 
     // AssertOp is used to terminate the program for error guards.
     target.addLegalOp<AssertOp>();

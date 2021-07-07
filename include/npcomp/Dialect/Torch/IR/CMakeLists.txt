@@ -2,6 +2,7 @@ set(LLVM_TARGET_DEFINITIONS TorchOps.td)
 mlir_tablegen(TorchOps.h.inc -gen-op-decls)
 mlir_tablegen(TorchOps.cpp.inc -gen-op-defs)
 mlir_tablegen(TorchDialect.h.inc -gen-dialect-decls -dialect=torch)
+mlir_tablegen(TorchDialect.cpp.inc -gen-dialect-defs -dialect=torch)
 add_public_tablegen_target(MLIRTorchOpsIncGen)
 add_dependencies(mlir-headers MLIRTorchOpsIncGen)
 

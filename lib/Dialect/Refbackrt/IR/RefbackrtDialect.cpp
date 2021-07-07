@@ -14,6 +14,8 @@
 using namespace mlir;
 using namespace mlir::NPCOMP::refbackrt;
 
+#include "npcomp/Dialect/Refbackrt/IR/RefbackrtOpsDialect.cpp.inc"
+
 void RefbackrtDialect::initialize() {
   addOperations<
 #define GET_OP_LIST

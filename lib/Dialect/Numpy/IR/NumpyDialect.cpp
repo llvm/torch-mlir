@@ -18,6 +18,8 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Numpy;
 
+#include "npcomp/Dialect/Numpy/IR/NumpyOpsDialect.cpp.inc"
+
 void NumpyDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
