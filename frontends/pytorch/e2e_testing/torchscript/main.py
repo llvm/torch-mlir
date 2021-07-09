@@ -3,15 +3,17 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import os
+import pickle
 import re
 import sys
 
-from torch_mlir.torchscript.e2e_test.framework import run_tests
-from torch_mlir.torchscript.e2e_test.reporting import report_results
-from torch_mlir.torchscript.e2e_test.registry import GLOBAL_TEST_REGISTRY
+from torch_mlir_torchscript.e2e_test.framework import run_tests
+from torch_mlir_torchscript.e2e_test.reporting import report_results
+from torch_mlir_torchscript.e2e_test.registry import GLOBAL_TEST_REGISTRY
 
 # Available test configs.
-from torch_mlir.torchscript.e2e_test.configs import (
+from torch_mlir_torchscript_e2e_test_configs import (
     NpcompBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig
 )
 
@@ -56,6 +58,14 @@ Regular expression specifying which tests to include in this run.
                         default=False,
                         action='store_true',
                         help='report test results with additional detail')
+    parser.add_argument('--serialized-test-dir', default=None, type=str, help='''
+The directory containing serialized pre-built tests.
+Right now, these are additional tests which require heavy Python dependencies
+to generate (or cannot even be generated with the version of PyTorch used by
+npcomp).
+See `build_tools/torchscript_e2e_heavydep_tests/generate_serialized_tests.sh`
+for more information on building these artifacts.
+''')
     return parser
 
 def main():
@@ -71,9 +81,16 @@ def main():
     elif args.config == 'torchscript':
         config = TorchScriptTestConfig()
 
+    all_tests = list(GLOBAL_TEST_REGISTRY)
+    if args.serialized_test_dir:
+        for root, dirs, files in os.walk(args.serialized_test_dir):
+            for filename in files:
+                with open(os.path.join(root, filename), 'rb') as f:
+                    all_tests.append(pickle.load(f).as_test())
+
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
-        test for test in GLOBAL_TEST_REGISTRY
+        test for test in all_tests
         if re.match(args.filter, test.unique_name)
     ]
     if len(tests) == 0:
@@ -81,7 +98,7 @@ def main():
             f'ERROR: the provided filter {args.filter!r} does not match any tests'
         )
         print('The available tests are:')
-        for test in GLOBAL_TEST_REGISTRY:
+        for test in all_tests:
             print(test.unique_name)
         sys.exit(1)
 

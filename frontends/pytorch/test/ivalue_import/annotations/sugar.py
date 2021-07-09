@@ -7,9 +7,8 @@
 import torch
 
 import torch_mlir
-from torch_mlir.torchscript.annotations import (
-    annotate_args, export, extract_annotations
-)
+from torch_mlir_torchscript.annotations import annotate_args, export
+from torch_mlir.torchscript_annotations import extract_annotations
 
 class MmModule(torch.nn.Module):
     def __init__(self):

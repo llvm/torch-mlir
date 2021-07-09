@@ -161,7 +161,7 @@ class SingleTestReport:
         f = io.StringIO()
         p = lambda *x: print(*x, file=f)
         if self.result.compilation_error is not None:
-            return 'compilation error' + self.result.compilation_error
+            return 'Compilation error: ' + self.result.compilation_error
         for report in self.item_reports:
             if report.failed:
                 p(report.error_str())

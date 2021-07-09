@@ -7,7 +7,7 @@ from typing import Any
 
 import torch
 
-from torch_mlir.torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
+from torch_mlir_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
 
 
 class NativeTorchTestConfig(TestConfig):
