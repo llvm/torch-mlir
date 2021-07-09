@@ -11,26 +11,29 @@ from torch_mlir_torchscript.e2e_test.reporting import report_results
 from torch_mlir_torchscript.e2e_test.registry import register_test_case, GLOBAL_TEST_REGISTRY
 from torch_mlir_torchscript_e2e_test_configs import TorchScriptTestConfig
 
-
-class MmModule(torch.nn.Module):
+class Submodule2(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
 
-
-# TODO: Refine messages.
-# CHECK: PASS - "MmModule_basic"
-@register_test_case(module_factory=lambda: MmModule())
-def MmModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+class Submodule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.m2 = Submodule2()
 
 
-# CHECK: PASS - "MmModule_basic2"
-@register_test_case(module_factory=lambda: MmModule())
-def MmModule_basic2(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+class ModuleWithSubmodule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.m = Submodule()
+
+
+# CHECK: PASS - "ModuleWithSubmodule_basic"
+@register_test_case(module_factory=lambda: ModuleWithSubmodule())
+def ModuleWithSubmodule_basic(module, tu: TestUtils):
+    module.m.m2.forward(tu.rand(4, 4), tu.rand(4, 4))
 
 
 def main():

@@ -15,8 +15,8 @@ from mlir.passmanager import PassManager
 import torch_mlir
 from npcomp.compiler.pytorch.backend import refjit
 from npcomp.compiler.pytorch.backend.abc import NpcompBackend
-from torch_mlir.torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
-from torch_mlir.torchscript.annotations import extract_annotations
+from torch_mlir_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
+from torch_mlir.torchscript_annotations import extract_annotations
 
 class PrettyErrorReportForIrOperation(object):
     def __init__(self, module, module_name_for_ir_dump: str):

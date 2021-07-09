@@ -22,7 +22,12 @@ compiling or TorchScript'ing).
 import abc
 from typing import Any, Callable, List, NamedTuple, Optional, TypeVar
 
+import io
+import pickle
+
 import torch
+
+from ..annotations import apply_serializable_annotations
 
 
 class TraceItem(NamedTuple):
@@ -162,6 +167,57 @@ class Test(NamedTuple):
     program_invoker: Callable[[Any, TestUtils], None]
 
 
+class SerializableTest(NamedTuple):
+    """A self-contained representation of a test that can be pickled.
+
+    We use serialized TorchScript programs here for two reasons:
+    1. The PyTorch pickling story isn't great, so in order to reliably pickle
+       this class, we rely on having the serialized bytes for the TorchScript
+       module already given to us.
+    2. The choice of a TorchScript module vs `torch.nn.Module` boils down to
+       the fact that `torch.nn.Module` cannot be deserialized without pulling
+       in the same set of Python dependencies that were used to serialize it
+       in the first place. This would defeat one of the
+       main use cases of this class, which is to transport a test from an
+       environment with a set of heavy dependencies to a dependency-light one.
+       Since TorchScript modules are self-contained, they fit the bill
+       perfectly.
+    """
+    # See unique_name on `Test`.
+    unique_name: str
+    # Serialized TorchScript program.
+    program: bytes
+    # Trace for execution testing.
+    trace: Trace
+
+    def as_test(self) -> Test:
+        """Create a `Test` from this class."""
+        # Conform the serialized program to the interface expected by Test.
+        # This is a bit of a hack, but it's the only way to keep the layering
+        # straight.
+        def factory():
+            _extra_files = {"annotations.pkl": ""}
+            module = torch.jit.load(io.BytesIO(self.program),
+                                    _extra_files=_extra_files)
+            # Load the pickled annotations.
+            annotations = pickle.loads(_extra_files["annotations.pkl"])
+            apply_serializable_annotations(module, annotations)
+            return module
+
+        def invoker(module, tu):
+            for item in self.trace:
+                attr = module
+                for part in item.symbol.split("."):
+                    attr = getattr(attr, part)
+                attr(*item.inputs)
+
+        return Test(
+            unique_name=self.unique_name,
+            program_factory=factory,
+            program_invoker=invoker,
+        )
+
+
 class TestResult(NamedTuple):
     # Stable unique name for error reporting and test suite configuration.
     #
@@ -188,39 +244,44 @@ class TestResult(NamedTuple):
 class _Tracer:
     """Wrapper around a `torch.nn.Module` that records calls into it.
 
-    The inputs and outputs of each call are recorded in a Trace.
+    The inputs and outputs of each call are recorded in a Trace. Recursive
+    property accesses are also traced.
     """
-    module: torch.nn.Module
-    trace: Trace
+    def __init__(self, wrapped, property_base_path: List[str], trace: Trace):
+        self.__wrapped__ = wrapped
+        self.__trace__ = trace
+        self.__property_base_path__ = property_base_path
 
-    def __init__(self, module: torch.nn.Module):
-        self.module = module
-        self.trace = []
+    def __call__(self, *args, **kwargs):
+        raw_outputs = self.__wrapped__(*args, **kwargs)
+        if isinstance(raw_outputs, torch.Tensor):
+            outputs = [raw_outputs]
+        elif isinstance(raw_outputs, tuple) and all(
+                isinstance(o, torch.Tensor) for o in raw_outputs):
+            outputs = raw_outputs
+        else:
+            raise Exception("unimplemented: non-Tensor output from function")
+        self.__trace__.append(
+            TraceItem(symbol=".".join(self.__property_base_path__),
+                      inputs=args,
+                      outputs=outputs))
+        return raw_outputs
 
     def __getattr__(self, name):
-        # TODO: Handle `module.foo.bar.baz` nesting.
-        # For now, we are limited to attributes of the top-level module.
-        def invoke(*args):
-            raw_outputs = getattr(self.module, name)(*args)
-            if isinstance(raw_outputs, torch.Tensor):
-                outputs = [raw_outputs]
-            else:
-                raise Exception(
-                    "unimplemented: non-Tensor output from function")
-            self.trace.append(
-                TraceItem(symbol=name, inputs=args, outputs=outputs))
-            return raw_outputs
-
-        return invoke
-
-    def get_trace(self):
-        return self.trace
+        return _Tracer(getattr(self.__wrapped__, name),
+                       self.__property_base_path__ + [name], self.__trace__)
 
 
-def _generate_golden_trace(test: Test) -> Trace:
-    tracer = _Tracer(test.program_factory())
+def generate_golden_trace(test: Test) -> Trace:
+    """Generate a trace with the original program.
+
+    If the original program is deterministic, then this the produced trace is
+    suitable as a golden trace to compare against.
+    """
+    trace = []
+    tracer = _Tracer(test.program_factory(), [], trace)
     test.program_invoker(tracer, TestUtils())
-    return tracer.get_trace()
+    return trace
 
 
 def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
@@ -229,9 +290,16 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
     for test in tests:
         # TODO: Precompile everything in parallel.
         try:
-            golden_trace = _generate_golden_trace(test)
+            golden_trace = generate_golden_trace(test)
             compiled = config.compile(test.program_factory())
         except Exception as e:
+            # Useful for debugging:
+            # ```
+            # raise
+            # ```
+            # This will give the full traceback rather than giving just
+            # the stringified exception in the report.
+            # TODO: Capture the traceback and make it available in the report.
             results.append(
                 TestResult(unique_name=test.unique_name,
                            compilation_error=str(e),
