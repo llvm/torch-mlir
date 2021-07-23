@@ -11,6 +11,7 @@
 #define NPCOMP_C_NUMPYTYPES_H
 
 #include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,31 +23,34 @@ extern "C" {
 
 /// Checks whether the given type is the special "any dtype" type that is used
 // to signal an NDArray or tensor of unknown type.
-bool npcompTypeIsANumpyAnyDtype(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsANumpyAnyDtype(MlirType t);
 
 /// Gets the "any dtype" type.
-MlirType npcompAnyDtypeTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompAnyDtypeTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // NDArray type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is an NdArray type.
-bool npcompTypeIsANumpyNdArray(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsANumpyNdArray(MlirType t);
 
 /// Gets a numpy.NdArray type that is unranked.
-MlirType npcompNumpyNdArrayTypeGetUnranked(MlirType elementType);
+MLIR_CAPI_EXPORTED MlirType
+npcompNumpyNdArrayTypeGetUnranked(MlirType elementType);
 
 /// Gets a numpy.NdArray type that is ranked. Any dimensions that are -1 are
 /// unknown.
-MlirType npcompNumpyNdArrayTypeGetRanked(intptr_t rank, const int64_t *shape,
-                                         MlirType elementType);
+MLIR_CAPI_EXPORTED MlirType npcompNumpyNdArrayTypeGetRanked(
+    intptr_t rank, const int64_t *shape, MlirType elementType);
 
 /// Helper that gets an equivalent NdArrayType from a ShapedType.
-MlirType npcompNumpyNdArrayTypeGetFromShaped(MlirType shapedType);
+MLIR_CAPI_EXPORTED MlirType
+npcompNumpyNdArrayTypeGetFromShaped(MlirType shapedType);
 
 /// Helper that converts an NdArrayType to a TensorType.
-MlirType npcompNumpyNdArrayTypeToTensor(MlirType ndarrayType);
+MLIR_CAPI_EXPORTED MlirType
+npcompNumpyNdArrayTypeToTensor(MlirType ndarrayType);
 
 #ifdef __cplusplus
 }

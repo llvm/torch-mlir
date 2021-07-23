@@ -18,9 +18,10 @@ def get_refjit():
   global _refjit
   if _refjit is not None:
     return _refjit
+  from .... import _cext
   try:
-    from _npcomp.backend import refjit as imported_refjit
-  except ImportError:
+    imported_refjit = _cext.backend.refjit
+  except AttributeError:
     raise ImportError(
         "The npcomp native module was not compiled with refjit support")
   _refjit = imported_refjit

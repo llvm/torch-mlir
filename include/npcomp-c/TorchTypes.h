@@ -11,6 +11,7 @@
 #define NPCOMP_C_TORCHTYPES_H
 
 #include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,110 +22,110 @@ extern "C" {
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a torch.nn.Module type
-bool npcompTypeIsATorchNnModule(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchNnModule(MlirType t);
 
 /// Gets the !torch.nn.Module type of the specified class.
-MlirType npcompTorchNnModuleTypeGet(MlirContext context,
-                                    MlirStringRef className);
+MLIR_CAPI_EXPORTED MlirType npcompTorchNnModuleTypeGet(MlirContext context,
+                                                       MlirStringRef className);
 
 //===----------------------------------------------------------------------===//
 // torch.optional type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.optional<T> type
-bool npcompTypeIsATorchOptional(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchOptional(MlirType t);
 
 /// Gets the !torch.optional<T> type with subtype T.
-MlirType npcompTorchOptionalTypeGet(MlirType containedType);
+MLIR_CAPI_EXPORTED MlirType npcompTorchOptionalTypeGet(MlirType containedType);
 
 //===----------------------------------------------------------------------===//
 // torch.tuple<T1, T2, T3> type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.tuple type
-bool npcompTypeIsATorchTuple(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchTuple(MlirType t);
 
 /// Gets the !torch.tuple type with contained types `containedTypes`.
-MlirType npcompTorchTupleTypeGet(MlirContext context,
-                                 intptr_t numContainedTypes,
-                                 MlirType const *containedTypes);
+MLIR_CAPI_EXPORTED MlirType
+npcompTorchTupleTypeGet(MlirContext context, intptr_t numContainedTypes,
+                        MlirType const *containedTypes);
 
 //===----------------------------------------------------------------------===//
 // torch.list<T> type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.list<T> type
-bool npcompTypeIsATorchList(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchList(MlirType t);
 
 /// Gets the !torch.list<T> type with contained T.
-MlirType npcompTorchListTypeGet(MlirType containedType);
+MLIR_CAPI_EXPORTED MlirType npcompTorchListTypeGet(MlirType containedType);
 
 //===----------------------------------------------------------------------===//
 // torch.Device type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.Device type
-bool npcompTypeIsATorchDevice(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchDevice(MlirType t);
 
 /// Gets the !torch.Device type.
-MlirType npcompTorchDeviceTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchDeviceTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.bool type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.bool type
-bool npcompTypeIsATorchBool(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchBool(MlirType t);
 
 /// Gets the !torch.bool type.
-MlirType npcompTorchBoolTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchBoolTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.int type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.int type
-bool npcompTypeIsATorchInt(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchInt(MlirType t);
 
 /// Gets the !torch.int type.
-MlirType npcompTorchIntTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchIntTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.float type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.float type
-bool npcompTypeIsATorchFloat(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchFloat(MlirType t);
 
 /// Gets the !torch.float type.
-MlirType npcompTorchFloatTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchFloatTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.LinearParams type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.LinearParams type
-bool npcompTypeIsATorchLinearParams(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchLinearParams(MlirType t);
 
 /// Gets the !torch.LinearParams type.
-MlirType npcompTorchLinearParamsTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchLinearParamsTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.qint8 type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.qint8 type
-bool npcompTypeIsATorchQInt8(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchQInt8(MlirType t);
 
 /// Gets the !torch.qint8 type.
-MlirType npcompTorchQInt8TypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchQInt8TypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // torch.tensor type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.tensor type
-bool npcompTypeIsATorchNonValueTensor(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchNonValueTensor(MlirType t);
 
 /// Gets a !torch.tensor type.
 ///
@@ -132,24 +133,24 @@ bool npcompTypeIsATorchNonValueTensor(MlirType t);
 /// information is present (and `numSizes` is ignored in that case).  -
 /// `optionalDtype` is allowed to be null, meaning that no dtype
 /// information is present.
-MlirType npcompTorchNonValueTensorTypeGet(MlirContext context,
-                                          intptr_t numSizes,
-                                          const int64_t *optionalSizes,
-                                          MlirType optionalDtype);
+MLIR_CAPI_EXPORTED MlirType npcompTorchNonValueTensorTypeGet(
+    MlirContext context, intptr_t numSizes, const int64_t *optionalSizes,
+    MlirType optionalDtype);
 
 /// Gets the !torch.tensor type with the least static information.
-MlirType
+MLIR_CAPI_EXPORTED MlirType
 npcompTorchNonValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
 
 /// Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`.
-MlirType npcompTorchNonValueTensorTypeGetFromShaped(MlirType type);
+MLIR_CAPI_EXPORTED MlirType
+npcompTorchNonValueTensorTypeGetFromShaped(MlirType type);
 
 //===----------------------------------------------------------------------===//
 // torch.vtensor type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.vtensor type
-bool npcompTypeIsATorchValueTensor(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchValueTensor(MlirType t);
 
 /// Gets a !torch.vtensor type.
 ///
@@ -157,36 +158,37 @@ bool npcompTypeIsATorchValueTensor(MlirType t);
 /// information is present (and `numSizes` is ignored in that case).
 /// - `optionalDtype` is allowed to be null, meaning that no dtype
 /// information is present.
-MlirType npcompTorchValueTensorTypeGet(MlirContext context, intptr_t numSizes,
-                                       const int64_t *optionalSizes,
-                                       MlirType optionalDtype);
+MLIR_CAPI_EXPORTED MlirType npcompTorchValueTensorTypeGet(
+    MlirContext context, intptr_t numSizes, const int64_t *optionalSizes,
+    MlirType optionalDtype);
 
 /// Gets the !torch.tensor type with the least static information.
-MlirType
+MLIR_CAPI_EXPORTED MlirType
 npcompTorchValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
 
 /// Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`.
-MlirType npcompTorchValueTensorTypeGetFromShaped(MlirType type);
+MLIR_CAPI_EXPORTED MlirType
+npcompTorchValueTensorTypeGetFromShaped(MlirType type);
 
 //===----------------------------------------------------------------------===//
 // !torch.none type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.none type
-bool npcompTypeIsATorchNone(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchNone(MlirType t);
 
 /// Gets the !torch.none type.
-MlirType npcompTorchNoneTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchNoneTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // !torch.str type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a !torch.str type
-bool npcompTypeIsATorchString(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchString(MlirType t);
 
 /// Gets the !torch.str type.
-MlirType npcompTorchStringTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompTorchStringTypeGet(MlirContext context);
 
 #ifdef __cplusplus
 }

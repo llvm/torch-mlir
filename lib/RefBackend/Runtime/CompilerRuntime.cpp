@@ -20,7 +20,12 @@
 
 using namespace refbackrt;
 
-extern "C" void __npcomp_compiler_rt_abort_if(bool b, const char *msg) {
+extern "C" {
+__attribute__((visibility("default"))) void
+__npcomp_compiler_rt_abort_if(bool b, const char *msg);
+}
+
+void __npcomp_compiler_rt_abort_if(bool b, const char *msg) {
   if (b) {
     std::fprintf(stderr, "NPCOMP: aborting: %s\n", msg);
     std::exit(1);

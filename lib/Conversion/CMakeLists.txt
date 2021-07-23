@@ -7,6 +7,8 @@ add_subdirectory(TCFToLinalg)
 add_subdirectory(TCFToStd)
 add_subdirectory(TCFToTCP)
 
+get_property(npcomp_conversion_libs GLOBAL PROPERTY NPCOMP_CONVERSION_LIBS)
+
 add_npcomp_library(NPCOMPConversionPasses
   Passes.cpp
 
@@ -17,7 +19,5 @@ add_npcomp_library(NPCOMPConversionPasses
   Core
 
   LINK_LIBS PUBLIC
-  NPCOMPBasicpyToSTD
-  NPCOMPNumpyToTCF
-  NPCOMPTCFToTCP
+  ${npcomp_conversion_libs}
 )

@@ -12,7 +12,6 @@ print(f"PYTHONPATH={sys.path}")
 
 import mlir
 import npcomp
-import _npcomp
-import _torch_mlir
+import torch_mlir
 
 print("Extensions all loaded")

@@ -11,6 +11,7 @@
 #define NPCOMP_C_BASICPYTYPES_H
 
 #include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,69 +22,68 @@ extern "C" {
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is the Python "bool" type.
-bool npcompTypeIsABasicpyBool(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyBool(MlirType t);
 
 /// Gets the Python "bool" type.
-MlirType npcompBasicpyBoolTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyBoolTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // !basicpy.BytesType
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is the Python "bytes" type.
-bool npcompTypeIsABasicpyBytes(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyBytes(MlirType t);
 
 /// Gets the Python "bytes" type.
-MlirType npcompBasicpyBytesTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyBytesTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // !basicpy.DictType
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is the Python "dict" type.
-bool npcompTypeIsABasicpyDict(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyDict(MlirType t);
 
 /// Gets the generic Python "dict" type.
-MlirType npcompBasicpyDictTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyDictTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // List type
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is the Python "list" type.
-bool npcompTypeIsABasicpyList(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyList(MlirType t);
 
 /// Gets the generic Python "list" type.
-MlirType npcompBasicpyListTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyListTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // !basicpy.NoneType type.
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a `!basicpy.NoneType`.
-bool npcompTypeIsABasicpyNone(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyNone(MlirType t);
 
 /// Gets the `!basicpy.NoneType` type.
-MlirType npcompBasicpyNoneTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyNoneTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
 // SlotObject type.
 //===----------------------------------------------------------------------===//
 
-MlirType npcompBasicPySlotObjectTypeGet(MlirContext context,
-                                        MlirStringRef className,
-                                        intptr_t slotTypeCount,
-                                        const MlirType *slotTypes);
+MLIR_CAPI_EXPORTED MlirType npcompBasicPySlotObjectTypeGet(
+    MlirContext context, MlirStringRef className, intptr_t slotTypeCount,
+    const MlirType *slotTypes);
 
 //===----------------------------------------------------------------------===//
 // !basicpy.TupleType
 //===----------------------------------------------------------------------===//
 
 /// Checks whether the given type is a `!basicpy.TupleType`.
-bool npcompTypeIsABasicpyTuple(MlirType t);
+MLIR_CAPI_EXPORTED bool npcompTypeIsABasicpyTuple(MlirType t);
 
 /// Gets the generic Python "tuple" type.
-MlirType npcompBasicpyTupleTypeGet(MlirContext context);
+MLIR_CAPI_EXPORTED MlirType npcompBasicpyTupleTypeGet(MlirContext context);
 
 #ifdef __cplusplus
 }

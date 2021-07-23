@@ -9,6 +9,9 @@
 #include <cstddef>
 #include <unordered_map>
 
+#include "./NpcompModule.h"
+#include "./NpcompPybindUtils.h"
+
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
@@ -16,11 +19,6 @@
 #include "npcomp-c/InitLLVM.h"
 #include "npcomp-c/NumpyTypes.h"
 #include "npcomp-c/Registration.h"
-#include "npcomp/Python/PybindUtils.h"
-
-#ifdef NPCOMP_ENABLE_REFJIT
-#include "npcomp/Backend/RefJIT/PythonModule.h"
-#endif
 
 namespace {
 

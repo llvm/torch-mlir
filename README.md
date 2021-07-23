@@ -101,16 +101,18 @@ LLVM_VERSION=10
 export CC=clang-$LLVM_VERSION
 export CXX=clang++-$LLVM_VERSION
 export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
-
-# Build and install LLVM/MLIR into the ./install-mlir directory
-./build_tools/install_mlir.sh
 ```
 
 ### Vanilla - numpy-only, no pytorch
 
 ```shell
-# Follow common prep above.
-./build_tools/cmake_configure.sh
+# Install PyTorch. We currently track and require the nighly build.
+# If a usable PyTorch package is installed, the default cmake settings will
+# enable the PyTorch frontend.
+pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+
+# Configure npcomp.
+cmake -GNinja -Bbuild -DCMAKE_BUILD_TYPE=Release .
 
 # Build and run tests
 # ./build_tools/test_all.sh runs all of these commands.
@@ -123,14 +125,11 @@ ninja check-npcomp
 source .env
 ```
 
-### PyTorch Frontend
+### With PyTorch integration
 
 ```shell
-# Install PyTorch. We currently track and require the nighly build.
-pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-# Build/test npcomp.
-./build_tools/cmake_configure.sh
-cmake --build build --target check-npcomp check-frontends-pytorch
+cmake -DNPCOMP_ENABLE_PYTORCH=ON ...
+ninja check-frontends-pytorch  # If building with PyTorch
 ```
 
 ### PyTorch Frontend (via docker container)
@@ -159,8 +158,7 @@ Build/test npcomp (from within docker image):
 ```shell
 # From within the docker image.
 cd /src/mlir-npcomp
-./build_tools/install_mlir.sh
-./build_tools/cmake_configure.sh
+cmake -GNinja -Bbuild -DCMAKE_BUILD_TYPE=Release -DNPCOMP_ENABLE_PYTORCH=ON .
 cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 ```
 

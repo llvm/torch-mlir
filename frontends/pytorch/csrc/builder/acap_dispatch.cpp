@@ -12,7 +12,6 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "npcomp-c/TorchTypes.h"
-#include "npcomp/Python/PybindUtils.h"
 
 #include <ATen/core/function_schema.h>
 #include <ATen/core/ivalue.h>
@@ -107,8 +106,7 @@ void AcapController::contextExit(py::object exc_type, py::object exc_val,
                                  py::object exc_tb) {
   auto &stack = getThreadLocalActiveStack();
   if (stack.empty() || stack.front().controller.get() != this) {
-    throw py::raisePyError(PyExc_RuntimeError,
-                           "Mismatched context manager __exit__");
+    throw std::runtime_error("Mismatched context manager __exit__");
   }
   stack.pop_front();
 

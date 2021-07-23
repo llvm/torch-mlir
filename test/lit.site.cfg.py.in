@@ -6,13 +6,15 @@ config.host_triple = "@LLVM_HOST_TRIPLE@"
 config.target_triple = "@TARGET_TRIPLE@"
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
-config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+# TODO: Fix tools dir to find FileCheck.
+#config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
+config.llvm_tools_dir = "@LLVM_BINARY_DIR@/bin"
 config.llvm_lib_dir = "@LLVM_LIBRARY_DIR@"
 config.llvm_shlib_dir = "@SHLIBDIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
 config.llvm_exe_ext = "@EXEEXT@"
 config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
-config.python_executable = "@PYTHON_EXECUTABLE@"
+config.python_executable = "@Python3_EXECUTABLE@"
 config.gold_executable = "@GOLD_EXECUTABLE@"
 config.ld64_executable = "@LD64_EXECUTABLE@"
 config.enable_shared = @ENABLE_SHARED@
@@ -31,6 +33,7 @@ config.host_arch = "@HOST_ARCH@"
 config.npcomp_src_root = "@CMAKE_SOURCE_DIR@"
 config.npcomp_obj_root = "@CMAKE_BINARY_DIR@"
 config.npcomp_built_standalone = bool("@NPCOMP_BUILT_STANDALONE@")
+config.npcomp_python_packages_dir = "@MLIR_NPCOMP_PYTHON_PACKAGES_DIR@"
 
 # Optional features.
 config.npcomp_enable_iree = @NPCOMP_ENABLE_IREE@

@@ -1,3 +1,5 @@
+include(NpcompPython)
+
 # Sharp edge: Torch extensions need to use the same pybind11 that torch
 # was compiled with, or else there will be issues in cross module exception
 # handling (which will abort instead of raise). We circumvent the possibility
@@ -26,24 +28,15 @@ add_library(NPCOMPTorchMLIRExt SHARED
   )
 
 target_link_libraries(NPCOMPTorchMLIRExt
-  # NPCOMP shared library.
-  # TODO: Debug why order matters here (if NPCOMP is included last a large
-  # amount of LLVM/MLIR/NPCOMP ends up compiled into this library).
-  NPCOMP
-
+  NPCOMPPythonCAPI
   ${TORCH_LIBRARIES}
   ${Python3_LIBRARIES}
   torch_python
 )
-add_dependencies(NPCOMPTorchMLIRExt
-  # Uses of the torch_mlir extension also require the npcomp extension to
-  # be built.
-  NPCOMPNativePyExt
-)
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
 set_target_properties(NPCOMPTorchMLIRExt PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/python
+  LIBRARY_OUTPUT_DIRECTORY "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_torch"
   OUTPUT_NAME _torch_mlir
   PREFIX "${PYTHON_MODULE_PREFIX}"
   SUFFIX "${PYTHON_MODULE_EXTENSION}"

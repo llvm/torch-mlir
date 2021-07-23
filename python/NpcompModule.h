@@ -1,4 +1,4 @@
-//===- PythonModule.h - IREE python bindings ------------------------------===//
+//===- NpcompModule.h - Headers for the python module ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H
-#define NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H
+#ifndef NPCOMP_PYTHON_NPCOMP_MODULE_H
+#define NPCOMP_PYTHON_NPCOMP_MODULE_H
 
-#include "npcomp/Python/PybindUtils.h"
+#include "./NpcompPybindUtils.h"
 
 namespace npcomp {
 namespace python {
@@ -20,4 +20,4 @@ void defineBackendRefJitModule(py::module &m);
 } // namespace python
 } // namespace npcomp
 
-#endif // NPCOMP_BACKEND_REFJIT_PYTHON_MODULE_H
+#endif // NPCOMP_PYTHON_NPCOMP_MODULE_H

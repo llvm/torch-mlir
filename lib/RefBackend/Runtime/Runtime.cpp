@@ -493,7 +493,10 @@ RtValue refbackrt::createRtValueFromOutputArgInfo(const OutputArgInfo &info) {
       return RtValue(Tensor::create(shape, ElementType::F32, data));
       break;
     }
-    default: { assert(false && "unknown output tensor type"); }
+    default: {
+      assert(false && "unknown output tensor type");
+      return RtValue();
+    }
     }
 
     // The Tensor::create function will malloc and memcpy the data
