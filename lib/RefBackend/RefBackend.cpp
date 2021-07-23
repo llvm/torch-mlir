@@ -207,7 +207,7 @@ void mlir::NPCOMP::createRefBackendLoweringPipeline(
   pm.addNestedPass<FuncOp>(createConvertElementwiseToLinalgPass());
 
   if (options.optimize) {
-    pm.addNestedPass<FuncOp>(createLinalgFusionOfTensorOpsPass());
+    pm.addNestedPass<FuncOp>(createLinalgElementwiseOpFusionPass());
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
     pm.addNestedPass<FuncOp>(createCSEPass());
   }

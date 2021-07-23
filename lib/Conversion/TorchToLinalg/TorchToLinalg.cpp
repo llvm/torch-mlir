@@ -236,6 +236,9 @@ public:
       return rewriter.notifyMatchFailure(op, "only support stride [1, 1]");
     if (!isConstantIntListMatching(dilation, expects))
       return rewriter.notifyMatchFailure(op, "only support dilation [1, 1]");
+    // Unit strides and dilations.
+    auto linalgStrides = rewriter.getI64VectorAttr({1, 1});
+    auto linalgDilations = rewriter.getI64VectorAttr({1, 1});
 
     if (!op.bias().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(op, "only support None bias");
@@ -288,9 +291,9 @@ public:
 
     Value conv2d =
         rewriter
-            .create<linalg::ConvNCHWOp>(loc, ranked4DTensorType,
-                                        ValueRange{paddedInput, weight},
-                                        ValueRange{initTensor0})
+            .create<linalg::Conv2DNchwOp>(
+                loc, ranked4DTensorType, ValueRange{paddedInput, weight},
+                ValueRange{initTensor0}, linalgStrides, linalgDilations)
             .getResult(0);
     Type newResultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv2d);

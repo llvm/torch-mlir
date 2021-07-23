@@ -42,7 +42,7 @@ llvm_add_library(
   ${_OBJECTS}
   LINK_LIBS PUBLIC
   # Public dependencies on the MLIR public API and impl shared libraries.
-  MLIRPublicAPI
+  MLIRPythonCAPI
   MLIR
   ${_DEPS}
 )

@@ -19,6 +19,8 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRIR
   MLIRLinalg
   MLIRLinalgToLLVM
+  MLIRMathToLLVM
+  MLIRMemRefToLLVM
   MLIRSCFToStandard
   MLIRSCFTransforms
   MLIRShapeToStandard
