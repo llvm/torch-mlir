@@ -9,7 +9,11 @@
 #include "PassDetail.h"
 #include "npcomp/RefBackend/RefBackend.h"
 
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -702,6 +706,8 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
     populateCompilerRuntimePatterns(module, patterns, converter);
     target.addLegalOp<ModuleOp>();
     populateStdToLLVMConversionPatterns(converter, patterns);
+    populateMathToLLVMConversionPatterns(converter, patterns);
+    populateMemRefToLLVMConversionPatterns(converter, patterns);
     patterns.add<LowerModuleMetadata>(context);
 
     // TODO: Move these "std to std" legalizations to their own pass if we grow
