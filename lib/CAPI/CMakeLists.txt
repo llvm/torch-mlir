@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_npcomp_library(NPCOMPCAPI
   InitLLVM.cpp
+  RefJITBackend.cpp
   Registration.cpp
   BasicpyTypes.cpp
   NumpyTypes.cpp
@@ -18,5 +19,11 @@ add_npcomp_library(NPCOMPCAPI
   NPCOMPInitAll
   NPCOMPBasicpyDialect
   NPCOMPNumpyDialect
+  NPCOMPRefBackendJITHelpers
+  NPCOMPRuntime
   NPCOMPTorchDialect
-  )
+
+  # MLIR CAPI deps
+  MLIRCAPIIR
+  MLIRCAPIRegistration  # TODO: Remove
+)

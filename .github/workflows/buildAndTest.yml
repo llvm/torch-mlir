@@ -2,104 +2,44 @@ name: Build and Test
 
 on: [push, pull_request]
 
-env:
-  LLVM: external/llvm-project
 jobs:
-  build-llvm:
-    name: Build LLVM
-    runs-on: ubuntu-20.04
-    steps:
-    - name: Configure Environment
-      run: echo "$GITHUB_WORKSPACE/${LLVM}/install/bin" >> $GITHUB_PATH
-    - name: Get npcomp
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - name: Install python depends
-      run: |
-        python3 -m pip install pytest pybind11 numpy
-    - name: Get LLVM Hash
-      id: get-llvm-hash
-      run: echo "::set-output name=hash::$(git submodule status)"
-      shell: bash
-    - name: Get workflow spec hash
-      id: get-workflow-hash
-      run: echo "::set-output name=hash::$(md5sum $GITHUB_WORKSPACE/.github/workflows/buildAndTest.yml)"
-      shell: bash
-    - name: Cache LLVM
-      id: cache-llvm
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}-${{ steps.get-workflow-hash.outputs.hash }}
-    - name: Rebuild and Install LLVM
-      if: steps.cache-llvm.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ${LLVM}/build
-        mkdir -p ${LLVM}/install
-        cd ${LLVM}/build
-        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON -DMLIR_ENABLE_BINDINGS_PYTHON=ON
-        cmake --build . --target install -- -j$(nproc)
   build:
-    name: Build and Test
-    needs: build-llvm
+    name: Build and Test (Release Asserts)
     runs-on: ubuntu-20.04
     steps:
-    - name: Configure Environment
-      run: echo "$GITHUB_WORKSPACE/${LLVM}/install/bin" >> $GITHUB_PATH
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
         submodules: 'true'
     - name: Install python depends
       run: |
-        python3 -m pip install pytest pybind11 numpy
+        python3 -m pip install -r $GITHUB_WORKSPACE/external/llvm-project/mlir/python/requirements.txt
     - name: Install pytorch_nightly depends
       run: |
         python3 -m pip install --pre 'torch==1.10.0.dev20210630+cpu' 'torchvision==0.11.0.dev20210630+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-    - name: Install IREE snapshot depends
-      run: |
-        python3 -m pip install iree-compiler-snapshot iree-runtime-snapshot -f https://github.com/google/iree/releases
-    - name: Get LLVM Hash
-      id: get-llvm-hash
-      run: echo "::set-output name=hash::$(git submodule status)"
+    - name: Install Ninja
+      uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
+    - name: Get Submodule Hash
+      id: get-submodule-hash
+      run: echo "::set-output name=hash::$(md5sum $(git submodule status))"
       shell: bash
-    - name: Get workflow spec hash
-      id: get-workflow-hash
-      run: echo "::set-output name=hash::$(md5sum $GITHUB_WORKSPACE/.github/workflows/buildAndTest.yml)"
-      shell: bash
-    - name: Cache LLVM
-      id: cache-llvm
-      uses: actions/cache@v2
+    - name: Ccache for C++ compilation
+      uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
       with:
-        path: ${{ env.LLVM }}
-        key: ${{ runner.os }}-llvm-20.04-install-${{ steps.get-llvm-hash.outputs.hash }}-${{ steps.get-workflow-hash.outputs.hash }}
-    - name: Rebuild and Install LLVM
-      if: steps.cache-llvm.outputs.cache-hit != 'true'
-      run: |
-        mkdir ${LLVM}/build
-        mkdir ${LLVM}/install
-        cd ${LLVM}/build
-        cmake ../llvm -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=../install -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_LINK_LLVM_DYLIB=ON -DMLIR_ENABLE_BINDINGS_PYTHON=ON
-        cmake --build . --target install -- -j$(nproc)
+        key: ${{ runner.os }}-${{ steps.get-submodule-hash.outputs.hash }}
     - name: Build and Test npcomp (Assert)
       run: |
-        mkdir build_assert
-        cd build_assert
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_ASSERTIONS=ON -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
-        make check-npcomp check-frontends-pytorch -j$(nproc)
-    - name: Build and Test npcomp (Release)
-      run: |
-        mkdir build_release
-        cd build_release
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DMLIR_DIR=../${LLVM}/install/lib/cmake/mlir/ -DLLVM_DIR=../${LLVM}/install/lib/cmake/llvm/ -DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DPYTHON_EXECUTABLE=/usr/bin/python3 -DLLVM_EXTERNAL_LIT=`pwd`/../${LLVM}/build/bin/llvm-lit
-        make check-npcomp check-frontends-pytorch -j$(nproc)
-    - name: Set up .env file.
-      run: |
-        echo "PYTHONPATH=\"$(realpath build_release/python):$(realpath ${LLVM}/install/python)\"" >.env
-    - name: Run RefBackend E2E Tests
-      run: |
-        tools/torchscript_e2e_test.sh --config=refbackend
-    - name: Run IREE E2E Tests
-      run: |
-        tools/torchscript_e2e_test.sh --config=iree
+        cd $GITHUB_WORKSPACE
+        mkdir build
+        cd build
+        cmake .. -GNinja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DPython3_EXECUTABLE=/usr/bin/python3 \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          -DNPCOMP_ENABLE_PYTORCH=ON
+        ninja
+        ninja check-npcomp check-frontends-pytorch

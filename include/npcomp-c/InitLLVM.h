@@ -10,13 +10,15 @@
 #ifndef NPCOMP_C_INITLLVM_H
 #define NPCOMP_C_INITLLVM_H
 
+#include "mlir-c/Support.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /** Initializes LLVM codegen infrastructure and related MLIR bridge components.
  */
-void npcompInitializeLLVMCodegen();
+MLIR_CAPI_EXPORTED void npcompInitializeLLVMCodegen();
 
 #ifdef __cplusplus
 }

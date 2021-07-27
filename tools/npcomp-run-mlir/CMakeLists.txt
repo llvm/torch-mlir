@@ -10,11 +10,8 @@ add_npcomp_executable(npcomp-run-mlir
 
 llvm_update_compile_flags(npcomp-run-mlir)
 target_link_libraries(npcomp-run-mlir PRIVATE
-  # Shared library deps first ensure we get most of what we need from libraries.
-  NPCOMP
-  MLIR
-
   NPCOMPCAPI
+  NPCOMPInitAll
   MLIRAnalysis
   MLIRIR
   MLIRJitRunner
@@ -22,6 +19,8 @@ target_link_libraries(npcomp-run-mlir PRIVATE
   MLIRSupport
   NPCOMPInitAll
   NPCOMPRefBackendJITHelpers
+
+  # TODO: Remove these in favor of interface deps.
   ${conversion_libs}
   ${dialect_libs}
 )

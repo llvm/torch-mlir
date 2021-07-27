@@ -6,8 +6,7 @@ import sys
 
 print(f"PYTHONPATH={sys.path}")
 
-import mlir
+import mlir.ir
 import npcomp
-import _npcomp
 
 print("Extensions all loaded")

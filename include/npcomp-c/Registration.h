@@ -11,6 +11,7 @@
 #define NPCOMP_C_REGISTRATION_H
 
 #include "mlir-c/IR.h"
+#include "mlir-c/Support.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,10 +20,10 @@ extern "C" {
 /** Registers all NPComp dialects with a context.
  * This is needed before creating IR for these Dialects.
  */
-void npcompRegisterAllDialects(MlirContext context);
+MLIR_CAPI_EXPORTED void npcompRegisterAllDialects(MlirContext context);
 
 /** Registers all NPComp passes for symbolic access with the global registry. */
-void npcompRegisterAllPasses();
+MLIR_CAPI_EXPORTED void npcompRegisterAllPasses();
 
 #ifdef __cplusplus
 }

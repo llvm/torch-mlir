@@ -20,6 +20,7 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRLinalg
   MLIRLinalgToLLVM
   MLIRMathToLLVM
+  MLIRMathTransforms
   MLIRMemRefToLLVM
   MLIRSCFToStandard
   MLIRSCFTransforms

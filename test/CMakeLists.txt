@@ -16,7 +16,8 @@ set(NPCOMP_TEST_DEPENDS
         npcomp-capi-ir-test
         npcomp-opt
         npcomp-run-mlir
-        NPCOMPNativePyExt
+        NPCOMPPythonModules
+        NPCOMPMLIRPythonModules
 )
 
 add_lit_testsuite(check-npcomp-lit "Running the npcomp regression tests"

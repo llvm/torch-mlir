@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13.4)
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -16,12 +16,11 @@ endif()
 #-------------------------------------------------------------------------------
 # Options and settings
 #-------------------------------------------------------------------------------
-
+set(NPCOMP_MINIMUM_PYTHON_VERSION 3.6)
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
-option(NPCOMP_BUILD_NPCOMP_DYLIB "Enables shared build of NPCOMP dylib (depends on LLVM/MLIR dylib support)" ON)
 set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
-set(NPCOMP_ENABLE_PYTORCH "OPTIONAL" CACHE STRING "Enables the PyTorch frontend (OFF, OPTIONAL, REQUIRED)")
+option(NPCOMP_ENABLE_PYTORCH "Enables PyTorch integration." OFF)
 
 # Turn on -gsplit-dwarf if requested in debug builds.
 if (NPCOMP_USE_SPLIT_DWARF AND
@@ -46,9 +45,10 @@ if(MSVC)
     )
 endif()
 
-if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # If we are not building as a part of LLVM, build NPCOMP as a standalone
-  # project, using LLVM as an external library.
+  # project, including LLVM as a subdirectory. This gives us the most control
+  # and is used for standalone releases.
 
   #-------------------------------------------------------------------------------
   # Project setup and globals
@@ -59,15 +59,83 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   set(CMAKE_CXX_STANDARD 14)
 
   #-------------------------------------------------------------------------------
-  # MLIR/LLVM Configuration
+  # Default and required options.
   #-------------------------------------------------------------------------------
 
-  find_package(MLIR REQUIRED CONFIG)
-  message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
-  message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+  # CMake library generation settings.
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "We are actually building a static mondo-lib")
+  set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON CACHE BOOL "Python soname linked libraries are bad")
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN ON CACHE BOOL "Hide inlines")
+  set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 
-  #set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
+  # Improved LLVM defaults for a standalone build.
+  set(LLVM_ENABLE_PROJECTS mlir CACHE STRING "LLVM projects")
+  set(LLVM_ENABLE_Z3_SOLVER OFF CACHE BOOL "Disable Z3")
+  set(LLVM_ENABLE_ZLIB OFF CACHE BOOL "Disable ZLIB")
+  set(LLVM_TARGETS_TO_BUILD "host" CACHE STRING "Only build for the host")
+  set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "Disable examples")
+  # TODO: MLIR is a "tool"
+  set(LLVM_INCLUDE_TOOLS ON CACHE BOOL "Disable tools")
+  set(LLVM_INCLUDE_TESTS ON CACHE BOOL "Disable tests")
+  set(MLIR_BINDINGS_PYTHON_LOCK_VERSION ON CACHE BOOL "Link against libpython for development (should be disabled for production)")
+
+  # Required LLVM settings.
+  set(MLIR_ENABLE_BINDINGS_PYTHON ON CACHE BOOL "Enable MLIR python bindings" FORCE)
+
+  #-------------------------------------------------------------------------------
+  # MLIR/LLVM Build Setup
+  # TODO: It would be nice to have a better setup than this for sub including
+  # MLIR.
+  #-------------------------------------------------------------------------------
+  if(NOT LLVM_MAIN_SRC_DIR)
+    set(LLVM_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-project/llvm")
+  endif()
+  if(NOT MLIR_MAIN_SRC_DIR)
+    set(MLIR_MAIN_SRC_DIR "${LLVM_MAIN_SRC_DIR}/../mlir")
+  endif()
+
+  set(LLVM_MAIN_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/llvm")
+  set(MLIR_MAIN_BINARY_DIR "${LLVM_MAIN_BINARY_DIR}/tools/mlir")
+
+  set(LLVM_INCLUDE_DIR "${LLVM_MAIN_SRC_DIR}/include")
+  set(LLVM_GENERATED_INCLUDE_DIR "${LLVM_MAIN_BINARY_DIR}/include")
+  set(MLIR_INCLUDE_DIR "${MLIR_MAIN_SRC_DIR}/include")
+  set(MLIR_GENERATED_INCLUDE_DIR "${MLIR_MAIN_BINARY_DIR}/include")
+  set(MLIR_TABLEGEN_EXE "$<TARGET_FILE:mlir-tblgen>")
+  include_directories(SYSTEM "${LLVM_INCLUDE_DIR}")
+  include_directories(SYSTEM "${LLVM_GENERATED_INCLUDE_DIR}")
+  include_directories(SYSTEM "${MLIR_INCLUDE_DIR}")
+  include_directories(SYSTEM "${MLIR_GENERATED_INCLUDE_DIR}")
+  list(APPEND CMAKE_MODULE_PATH "${MLIR_MAIN_SRC_DIR}/cmake/modules")
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_MAIN_SRC_DIR}/cmake/modules")
+
+  # Pre-configure the Python environment using the MLIR macros so that they
+  # are in scope and subsequent include of LLVM will match them.
+  include(MLIRDetectPythonEnv)
+  find_package(Python3 ${NPCOMP_MINIMUM_PYTHON_VERSION}
+    COMPONENTS Interpreter Development NumPy REQUIRED)
+  message(STATUS "Found python include dirs: ${Python3_INCLUDE_DIRS}")
+  message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
+  mlir_detect_pybind11_install()
+  find_package(pybind11 2.6 CONFIG REQUIRED)
+  message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIR}")
+  message(STATUS "Python prefix = '${PYTHON_MODULE_PREFIX}', "
+                 "suffix = '${PYTHON_MODULE_SUFFIX}', "
+                 "extension = '${PYTHON_MODULE_EXTENSION}")
+
+  # LLVM configuration.
+  message(STATUS "*** ADDING LLVM ***")
+  add_subdirectory(
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-project/llvm"
+    "${LLVM_MAIN_BINARY_DIR}"
+    EXCLUDE_FROM_ALL)
+  message(STATUS "*** LLVM DONE ***")
+
+  set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
   set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
+
+  set(LLVM_EXTERNAL_LIT "${LLVM_MAIN_BINARY_DIR}/bin/llvm-lit")
+  set(LLVM_TOOLS_DIR "${LLVM_MAIN_BINARY_DIR}/bin")
 
   # Define the default arguments to use with 'lit', and an option for the user to
   # override.
@@ -77,33 +145,29 @@ if( CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   endif()
   set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
-  list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
-  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   include(TableGen)
   include(AddLLVM)
   include(AddMLIR)
+  include(AddMLIRPython)
   include(HandleLLVMOptions)
-
   set(NPCOMP_BUILT_STANDALONE 1)
-  set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
+  # TODO: RE-ENABLE EXTERNAL UNIFIED BUILD
+  message(FATAL_ERROR "External project builds of npcomp are currently not available")
   # Otherwise, we are building as a part of LLVM, and we need to set up some
   # variables and includes.
+  # set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --src-root
+  # set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --includedir
+  # set(MLIR_TABLEGEN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/tools/mlir/include)
+  # set(MLIR_TABLEGEN_EXE $<TARGET_FILE:mlir-tblgen>)
+  # include_directories(SYSTEM ${MLIR_INCLUDE_DIR})
+  # include_directories(SYSTEM ${MLIR_TABLEGEN_OUTPUT_DIR})
 
-  set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --src-root
-  set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --includedir
-  set(MLIR_TABLEGEN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/tools/mlir/include)
-  set(MLIR_TABLEGEN_EXE $<TARGET_FILE:mlir-tblgen>)
-  include_directories(SYSTEM ${MLIR_INCLUDE_DIR})
-  include_directories(SYSTEM ${MLIR_TABLEGEN_OUTPUT_DIR})
-
-  set(BACKEND_PACKAGE_STRING "${PACKAGE_STRING}")
+  # set(BACKEND_PACKAGE_STRING "${PACKAGE_STRING}")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddNPCOMP)
-include(NpcompDetectPythonEnv)
-include(ConfigurePyTorch)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -158,39 +222,12 @@ if(NPCOMP_ENABLE_IREE)
 endif()
 
 #-------------------------------------------------------------------------------
-# Python Configuration
-#-------------------------------------------------------------------------------
-
-set(NPCOMP_PYTHON_BINDINGS_VERSION_LOCKED 1 CACHE BOOL
-       "Links to specific python libraries, resolving all symbols.")
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-message(STATUS "Found python include dirs: ${Python3_INCLUDE_DIRS}")
-message(STATUS "Found python libraries: ${Python3_LIBRARIES}")
-
-#-------------------------------------------------------------------------------
-# Pytorch Configuration
-#-------------------------------------------------------------------------------
-
-NpcompFindPyTorch(${NPCOMP_ENABLE_PYTORCH})
-
-#-------------------------------------------------------------------------------
-# Pybind11 Configuration
-#-------------------------------------------------------------------------------
-
-npcomp_detect_pybind11_install()
-find_package(pybind11 2.6 CONFIG REQUIRED)
-set(pybind11_INCLUDE_DIR ${pybind11_INCLUDE_DIR})
-message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIR}")
-message(STATUS "Python prefix = '${PYTHON_MODULE_PREFIX}', "
-               "suffix = '${PYTHON_MODULE_SUFFIX}', "
-               "extension = '${PYTHON_MODULE_EXTENSION}")
-
-#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
 set(MLIR_NPCOMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MLIR_NPCOMP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(MLIR_NPCOMP_PYTHON_PACKAGES_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_packages)
 
 add_custom_target(check-npcomp)
 add_custom_target(check-npcomp-all)
@@ -200,13 +237,9 @@ add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)
 add_subdirectory(test)
-
-# Tools needs to come late to ensure that NPCOMP_ALL_LIBS is populated.
-# Generally things after this point may depend on NPCOMP_ALL_LIBS or libNPCOMP.so.
 add_subdirectory(tools)
 
-if(${TORCH_FOUND})
+if(NPCOMP_ENABLE_PYTORCH)
+  message(STATUS "Adding PyTorch frontent support...")
   add_subdirectory(frontends/pytorch)
-else()
-  message("Skipping pytorch frontend, because PyTorch not found!")
 endif()
