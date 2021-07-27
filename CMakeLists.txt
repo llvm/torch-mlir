@@ -58,13 +58,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(CMAKE_C_STANDARD 11)
   set(CMAKE_CXX_STANDARD 14)
 
-  # Some niceties.
-  # TODO: Remove before merging.
-  find_program(CCACHE_PROGRAM ccache)
-  if(CCACHE_PROGRAM)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
-  endif()
-
   #-------------------------------------------------------------------------------
   # Default and required options.
   #-------------------------------------------------------------------------------
