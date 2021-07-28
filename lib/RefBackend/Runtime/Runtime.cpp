@@ -488,7 +488,8 @@ RtValue refbackrt::createRtValueFromOutputArgInfo(const OutputArgInfo &info) {
     switch (info.elementType) {
     case ElementType::F32: {
       auto byteSize = numel * sizeof(float);
-      data = static_cast<void *>(aligned_alloc(32, byteSize));
+      data = static_cast<void *>(malloc(byteSize));
+      assert(data && "could not allocate tensor");
       memset(data, 0, byteSize);
       return RtValue(Tensor::create(shape, ElementType::F32, data));
       break;
