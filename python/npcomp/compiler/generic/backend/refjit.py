@@ -3,6 +3,7 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
+import platform
 
 _refjit = None
 
@@ -40,7 +41,11 @@ def is_enabled() -> bool:
 def get_runtime_libs():
   # The _refjit_resources directory is at the npcomp.compiler level.
   resources_dir = os.path.join(os.path.dirname(__file__))
-  return [os.path.join(resources_dir, "libNPCOMPCompilerRuntimeShlib.so")]
+  suffix = ".so"
+  if platform.system() == "Darwin":
+    suffix = ".dylib"
+  shlib_name = f"libNPCOMPCompilerRuntimeShlib{suffix}"
+  return [os.path.join(resources_dir, shlib_name)]
 
 
 class JitModuleInvoker:

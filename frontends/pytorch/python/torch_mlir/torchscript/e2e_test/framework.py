@@ -227,9 +227,9 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
     results = []
     for test in tests:
-        golden_trace = _generate_golden_trace(test)
         # TODO: Precompile everything in parallel.
         try:
+            golden_trace = _generate_golden_trace(test)
             compiled = config.compile(test.program_factory())
         except Exception as e:
             results.append(
