@@ -60,10 +60,15 @@ The cmake configuration populates symlinks in the `build/python` directory
 mirroring the source layout. This allows edit-run without rebuilding (unless
 if files are added/removed).
 
-Configuring the `PYTHONPATH` as above should be sufficient to run any
-interactive tooling (`python3`, Jupyter/Colab, etc).
+For using with any interactive tooling (`python3`, Jupyter/Colab, etc) it should be
+sufficient to add `python_packages/npcomp_torch/` and `python_packages/npcomp_core/`
+directories under `build` directory to `PYTHONPATH`
 
-Note that running the `cmake_configure.sh` script will also output a `.env`
+```shell
+export PYTHONPATH=$(cd build && pwd)/python_packages/npcomp_torch:$(cd build && pwd)/python_packages/npcomp_core
+```
+
+Note that running the `build_tools/write_env_file.sh` script will output a `.env`
 file in the workspace folder with the correct PYTHONPATH set. This allows
 tools like VSCode to work by default for debugging.
 
@@ -101,6 +106,10 @@ LLVM_VERSION=10
 export CC=clang-$LLVM_VERSION
 export CXX=clang++-$LLVM_VERSION
 export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
+
+# run write_env_file.sh to emit a .env file with needed
+# PYTHONPATH setup.
+./build_tools/write_env_file.sh
 ```
 
 ### Vanilla - numpy-only, no pytorch
@@ -119,10 +128,6 @@ cmake -GNinja -Bbuild -DCMAKE_BUILD_TYPE=Release .
 cd build
 ninja
 ninja check-npcomp
-
-# cmake_configure.sh should emit a .env file with needed
-# PYTHONPATH setup.
-source .env
 ```
 
 ### With PyTorch integration
