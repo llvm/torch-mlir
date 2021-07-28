@@ -9,3 +9,8 @@ install-mlir
 __pycache__
 
 .pytype
+
+
+# Pip artifacts.
+*.egg-info
+*.whl
