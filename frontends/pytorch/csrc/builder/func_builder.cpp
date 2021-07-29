@@ -33,7 +33,7 @@ FuncBuilder::createFunction(FuncBuilder::Inserter &inserter,
                       context, mlirStringRefCreate(name.data(), name.size()))));
 
   MlirOperationState state =
-      mlirOperationStateGet(toMlirStringRef("func"), location);
+      mlirOperationStateGet(toMlirStringRef("builtin.func"), location);
   mlirOperationStateAddAttributes(&state, funcAttrs.size(), funcAttrs.data());
   {
     // Don't access these once ownership transferred.

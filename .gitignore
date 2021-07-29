@@ -3,7 +3,8 @@
 .env
 *.code-workspace
 
-build
+/build
+/build_*
 build-mlir
 install-mlir
 __pycache__

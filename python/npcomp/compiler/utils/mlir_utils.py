@@ -6,6 +6,7 @@
 from typing import Optional, Tuple
 
 from mlir import ir as _ir
+from mlir.dialects import builtin as builtin_ops
 from npcomp import _cext
 
 __all__ = [
@@ -96,19 +97,18 @@ class ImportContext:
              create_entry_block: bool) -> Tuple[_ir.Operation, _ir.Block]:
     """Creates a |func| op.
 
-    TODO: This should really be in the MLIR API.
     Returns:
       (operation, entry_block)
     """
-    with self.context, self.loc:
-      attrs = {
-          "type": _ir.TypeAttr.get(func_type),
-          "sym_name": _ir.StringAttr.get(name),
-      }
-      op = _ir.Operation.create("func", regions=1, attributes=attrs, ip=self.ip)
-      body_region = op.regions[0]
-      entry_block = body_region.blocks.append(*func_type.inputs)
-      return op, entry_block
+    assert self.loc is not None
+    # TODO: Fix upstream FuncOp constructor to not require an implicit
+    # context.
+    with self.context:
+      func = builtin_ops.FuncOp(name, func_type, loc=self.loc, ip=self.ip)
+    entry_block = None
+    if create_entry_block:
+      entry_block = func.add_entry_block()
+    return (func, entry_block)
 
   def basicpy_ExecOp(self):
     """Creates a basicpy.exec op.

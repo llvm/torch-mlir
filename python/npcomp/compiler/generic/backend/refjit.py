@@ -8,9 +8,9 @@ import platform
 _refjit = None
 
 BACKEND_PASSES = (
-    "func(convert-scf-to-std)",
-    "func(canonicalize)",
-    "func(tcf-shape-refinement)",
+    "builtin.func(convert-scf-to-std)",
+    "builtin.func(canonicalize)",
+    "builtin.func(tcf-shape-refinement)",
 )
 
 

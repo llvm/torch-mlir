@@ -15,12 +15,12 @@ __all__ = [
 ]
 
 FRONTEND_PASSES = (
-    "func(npcomp-cpa-type-inference)",
+    "builtin.func(npcomp-cpa-type-inference)",
     "numpy-public-functions-to-tensor",
-    "func(convert-numpy-to-tcf)",
-    "func(convert-scf-to-std)",
-    "func(canonicalize)",
-    "func(tcf-shape-refinement)",
+    "builtin.func(convert-numpy-to-tcf)",
+    "builtin.func(convert-scf-to-std)",
+    "builtin.func(canonicalize)",
+    "builtin.func(tcf-shape-refinement)",
 )
 
 # Re-export.
