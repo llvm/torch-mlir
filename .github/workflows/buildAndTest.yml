@@ -7,16 +7,20 @@ jobs:
     name: Build and Test (Release Asserts)
     runs-on: ubuntu-20.04
     steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
     - name: Get npcomp
       uses: actions/checkout@v2
       with:
         submodules: 'true'
     - name: Install python depends
       run: |
-        python3 -m pip install -r $GITHUB_WORKSPACE/external/llvm-project/mlir/python/requirements.txt
+        python -m pip install -r $GITHUB_WORKSPACE/external/llvm-project/mlir/python/requirements.txt
     - name: Install pytorch_nightly depends
       run: |
-        python3 -m pip install --pre 'torch==1.10.0.dev20210630+cpu' 'torchvision==0.11.0.dev20210630+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+        python -m pip install --pre 'torch==1.10.0.dev20210630+cpu' 'torchvision==0.11.0.dev20210630+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
     - name: Install Ninja
       uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
     - name: Get Submodule Hash
@@ -26,7 +30,7 @@ jobs:
     - name: Ccache for C++ compilation
       uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
       with:
-        key: ${{ runner.os }}-${{ steps.get-submodule-hash.outputs.hash }}
+        key: ${{ runner.os }}-clangreleaseasserts-${{ steps.get-submodule-hash.outputs.hash }}
     - name: Build and Test npcomp (Assert)
       run: |
         cd $GITHUB_WORKSPACE
@@ -37,9 +41,44 @@ jobs:
           -DCMAKE_LINKER=lld \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=/usr/bin/python3 \
+          -DPython3_EXECUTABLE=$(which python) \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DLLVM_TARGETS_TO_BUILD=host \
           -DNPCOMP_ENABLE_PYTORCH=ON
         ninja
         ninja check-npcomp check-frontends-pytorch
+
+  build_wheels:
+    name: Build Wheels and Smoketest
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Get npcomp
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Install python dependencies
+      run: |
+        python -m pip install --pre 'torch==1.10.0.dev20210630+cpu' 'torchvision==0.11.0.dev20210630+cpu' -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+        python -m pip install wheel
+    - name: Install Ninja
+      uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
+    - name: Get Submodule Hash
+      id: get-submodule-hash
+      run: echo "::set-output name=hash::$(md5sum $(git submodule status))"
+      shell: bash
+    - name: Ccache for C++ compilation
+      uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
+      with:
+        key: ${{ runner.os }}-wheel-${{ steps.get-submodule-hash.outputs.hash }}
+    - name: Build wheels
+      run: |
+        cd $GITHUB_WORKSPACE
+        ./build_tools/build_python_wheels.sh
+    - uses: actions/upload-artifact@v2
+      with:
+        name: ubuntu-20.04-wheels
+        path: wheelhouse/

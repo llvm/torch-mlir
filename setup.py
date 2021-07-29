@@ -77,6 +77,7 @@ setup(
     author_email="stellaraccident@gmail.com",
     description="NPComp Core",
     long_description="",
+    include_package_data=True,
     ext_modules=[
         CMakeExtension("mlir._mlir_libs._mlir"),
         CMakeExtension("mlir._mlir_libs._npcomp"),
