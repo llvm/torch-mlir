@@ -24,15 +24,14 @@ add_dependencies(NPCOMPPythonResources
 # Declare sources
 ################################################################################
 
-set(_addl_extension_sources)
-if(NPCOMP_ENABLE_REFJIT)
-  list(APPEND _addl_extension_sources "${CMAKE_CURRENT_SOURCE_DIR}/RefJITBackend.cpp")
-endif()
+declare_mlir_python_sources(NPCOMPPythonSources)
 
-declare_mlir_python_sources(NPCOMPPythonSources
+declare_mlir_python_sources(NPCOMPPythonSources.Core
+  ADD_TO_PARENT NPCOMPPythonSources
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
   SOURCES
     npcomp/__init__.py
+    npcomp/build.py
     npcomp/decorators.py
     npcomp/exporter.py
     npcomp/smoketest.py
@@ -45,10 +44,26 @@ declare_mlir_python_sources(NPCOMPPythonSources
     npcomp/tracing/*.py
     npcomp/utils/*.py
 )
+
 declare_mlir_python_sources(NPCOMPPythonSources.Dialects
   ADD_TO_PARENT NPCOMPPythonSources
 )
 declare_mlir_python_sources(NPCOMPPythonExtensions)
+
+declare_mlir_python_sources(NPCOMPPythonCAPIHeaderSources
+  ROOT_DIR "${MLIR_NPCOMP_SOURCE_DIR}/include"
+  SOURCES_GLOB "npcomp-c/*.h"
+  DEST_PREFIX "_mlir_libs/include"
+)
+
+################################################################################
+# Extensions
+################################################################################
+
+set(_addl_extension_sources)
+if(NPCOMP_ENABLE_REFJIT)
+  list(APPEND _addl_extension_sources "${CMAKE_CURRENT_SOURCE_DIR}/RefJITBackend.cpp")
+endif()
 
 declare_mlir_python_extension(NPCOMPPythonExtensions.Core
   MODULE_NAME _npcomp
@@ -126,7 +141,9 @@ add_mlir_python_modules(NPCOMPMLIRPythonModules
     MLIRPythonExtension.AllPassesRegistration
     # We need the npcomp extensions co-located with the MLIR extensions. When
     # the namespace is unified, this moves to the below.
+    MLIRPythonCAPIHeaderSources
     NPCOMPPythonExtensions
+    NPCOMPPythonCAPIHeaderSources
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )

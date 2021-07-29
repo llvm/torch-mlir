@@ -6,6 +6,11 @@
 # and binds names locally. It exists to allow for customization of behavior
 # prior to loading shared objects.
 
+import torch
+import npcomp
+
+# Our native extension is not self-contained. It references libraries which
+# must come in via the above first.
 from _torch_mlir import *
 
 

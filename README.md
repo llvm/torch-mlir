@@ -9,6 +9,20 @@ The NPComp project aims to provide tooling for compiling numerical python progra
 
 In addition to providing a bridge to a variety of Python based numerical programming frameworks, NPComp also directly develops components for tracing and compilation of generic Python program fragments.
 
+## Quick Build and Install with PyTorch
+
+Instructions below go in to detail about how to get a functioning development
+setup. But to just build and install into a local python instance, the
+instructions are simple. This support is new and we still need to get
+dependencies pinned and make these packages distributable. This should work
+locally, though:
+
+```
+python -m pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+
+./build_tools/build_python_wheels.sh
+```
+
 ## Project Communication
 
 - `#mlir-npcomp` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
