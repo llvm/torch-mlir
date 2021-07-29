@@ -16,10 +16,10 @@ __all__ = [
 ]
 
 FRONTEND_PASSES = (
-    "func(basicpy-type-inference)",
-    "func(convert-basicpy-to-std)",
-    "func(canonicalize)",
-    "func(convert-scf-to-std)",
+    "builtin.func(basicpy-type-inference)",
+    "builtin.func(convert-basicpy-to-std)",
+    "builtin.func(canonicalize)",
+    "builtin.func(convert-scf-to-std)",
 )
 
 _ireert = None

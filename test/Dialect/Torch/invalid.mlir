@@ -4,7 +4,7 @@
 
 torch.class_type @c {}
 %0 = torch.nn_module {
-  // expected-error @+1 {{'func' op is not allowed inside 'torch.nn_module'}}
+  // expected-error @+1 {{'builtin.func' op is not allowed inside 'torch.nn_module'}}
   func @f()
 } : !torch.nn.Module<"c">
 
@@ -32,7 +32,7 @@ torch.class_type @c {
 // -----
 
 torch.class_type @c {
-  // expected-error @+1 {{'func' op is not allowed inside `torch.class_type`}}
+  // expected-error @+1 {{'builtin.func' op is not allowed inside `torch.class_type`}}
   func @f()
 }
 
