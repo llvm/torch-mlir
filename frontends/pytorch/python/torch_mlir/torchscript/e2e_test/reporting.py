@@ -65,7 +65,7 @@ class ValueReport:
 
     @property
     def failed(self):
-        return not torch.allclose(self.value, self.golden_value, rtol=1e-03, atol=1e-08)
+        return not torch.allclose(self.value, self.golden_value, rtol=1e-03, atol=1e-07)
 
     def error_str(self):
         assert self.failed
