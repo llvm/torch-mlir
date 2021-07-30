@@ -47,6 +47,11 @@ jobs:
           -DNPCOMP_ENABLE_PYTORCH=ON
         ninja
         ninja check-npcomp check-frontends-pytorch
+    - name: Refbackend integration tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/npcomp_core:$GITHUB_WORKSPACE/build/python_packages/npcomp_torch"
+        python -m frontends.pytorch.e2e_testing.torchscript.main --config=refbackend
 
   build_wheels:
     name: Build Wheels and Smoketest
