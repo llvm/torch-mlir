@@ -30,11 +30,11 @@ def lower_module(imported_module: Module):
         # Frontend.
         pipeline_str = "torch-globalized-module-to-npcomp-backend-pipeline"
         if logging.debug_enabled():
-            logging.debug("Running Torch->TCP pipeline '{}'", pipeline_str)
+            logging.debug("Running Torch->backend pipeline '{}'", pipeline_str)
         pm = PassManager.parse(pipeline_str)
         pm.run(imported_module)
         if logging.debug_enabled():
-            logging.debug("TCP IR:\n{}", imported_module)
+            logging.debug("Backend IR:\n{}", imported_module)
     return imported_module
 
 def lower_object_graph(imported_module: Module):

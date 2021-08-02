@@ -1,5 +1,8 @@
 # RUN: %PYTHON %s | FileCheck %s --dump-input=fail
 
+# TODO: Rebase this path on linalg-on-tensors or Torch dialect.
+# XFAIL: *
+
 import numpy as np
 
 from npcomp.compiler.numpy.backend import refjit

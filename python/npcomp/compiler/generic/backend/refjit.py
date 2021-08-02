@@ -10,7 +10,6 @@ _refjit = None
 BACKEND_PASSES = (
     "builtin.func(convert-scf-to-std)",
     "builtin.func(canonicalize)",
-    "builtin.func(tcf-shape-refinement)",
 )
 
 

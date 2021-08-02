@@ -8,6 +8,5 @@
 // CHECK-SAME: actual (provided by user): Float
 // CHECK-SAME: expected (from compiler): kTensor
 func @expects_one_tensor(%arg0: tensor<?xf32>) -> tensor<?xf32> {
-  %0 = tcf.add %arg0, %arg0 : (tensor<?xf32>, tensor<?xf32>) -> tensor<?xf32>
-  return %0 : tensor<?xf32>
+  return %arg0 : tensor<?xf32>
 }

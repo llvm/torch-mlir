@@ -98,13 +98,6 @@ declare_mlir_dialect_python_bindings(
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT NPCOMPPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-  TD_FILE npcomp/dialects/TCFBind.td
-  SOURCES npcomp/dialects/tcf.py
-  DIALECT_NAME tcf)
-
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
   TD_FILE npcomp/dialects/TorchBind.td
   SOURCES npcomp/dialects/torch.py
   DIALECT_NAME torch)
@@ -157,4 +150,3 @@ add_mlir_python_modules(NPCOMPPythonModules
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )
-
