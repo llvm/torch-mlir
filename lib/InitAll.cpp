@@ -18,10 +18,6 @@
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
-#include "npcomp/Dialect/TCF/IR/TCFDialect.h"
-#include "npcomp/Dialect/TCF/Transforms/Passes.h"
-#include "npcomp/Dialect/TCP/IR/TCPDialect.h"
-#include "npcomp/Dialect/TCP/Transforms/Passes.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "npcomp/RefBackend/RefBackend.h"
@@ -33,8 +29,6 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
                   Numpy::NumpyDialect,
                   refbackrt::RefbackrtDialect,
                   refback::RefbackDialect,
-                  tcf::TCFDialect,
-                  tcp::TCPDialect,
                   mlir::NPCOMP::Torch::TorchDialect>();
   // clang-format on
 }
@@ -44,8 +38,6 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerBasicpyPasses();
   mlir::NPCOMP::registerNumpyPasses();
-  mlir::NPCOMP::registerTCFPasses();
-  mlir::NPCOMP::registerTCPPasses();
   mlir::NPCOMP::registerTorchPasses();
   mlir::NPCOMP::registerTypingPasses();
   mlir::NPCOMP::IREEBackend::registerIREEBackendPasses();

@@ -45,7 +45,7 @@ class RefjitNpcompBackend(NpcompBackend):
 
   def compile(self, imported_module: Module):
     """Compiles an imported module, with a flat list of functions.
-    The module is expected to be in "TCP + scalar code" form.
+    The module is expected to be in linalg-on-tensors + scalar code form.
     TODO: More clearly define the backend contract. Generally this will
     extend to support globals, lists, and other stuff.
 

@@ -36,8 +36,8 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
 
     To model the termination of the program for implementing error guards,
     we use the `std.assert` op.
-    This is a design decision that is at variance from other passes in npcomp,
-    such as `convert-tcf-to-std` and `convert-tcf-to-linalg` which use the
+    This is a design decision that is at variance from other passes in the
+    ecosystem, which use the
     `shape` dialect's witness system (`shape.cstr_*` family of ops feeding into
     `shape.assuming` regions). This is a change in design decisions
     from those passes (which will be subsumed by this one). The reasons for this
@@ -111,48 +111,6 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
 def ConvertBasicpyToStd : Pass<"convert-basicpy-to-std", "FuncOp"> {
   let summary = "Convert representable Basicpy ops to std";
   let constructor = "mlir::NPCOMP::createConvertBasicpyToStdPass()";
-}
-
-//===----------------------------------------------------------------------===//
-// Numpy conversions
-//===----------------------------------------------------------------------===//
-
-def ConvertNumpyToTCF : Pass<"convert-numpy-to-tcf", "FuncOp"> {
-  let summary = "Convert the numpy dialect to supported TCF ops";
-  let constructor = "mlir::NPCOMP::createConvertNumpyToTCFPass()";
-}
-
-//===----------------------------------------------------------------------===//
-// TCFToTCP
-//===----------------------------------------------------------------------===//
-
-def ConvertTCFToLinalg : Pass<"convert-tcf-to-linalg", "FuncOp"> {
-  let summary = "Convert TCF to Linalg";
-  let description = [{
-    The intention is for this pass to convert mainly to linalg named ops.
-
-    Because linalg is at the "TCP" layer of abstraction, this pass has to
-    concern itself with generating guards for error cases.
-  }];
-  let constructor = "mlir::NPCOMP::createConvertTCFToLinalgPass()";
-}
-
-//===----------------------------------------------------------------------===//
-// TCFToStd
-//===----------------------------------------------------------------------===//
-
-def ConvertTCFToStd : Pass<"convert-tcf-to-std", "FuncOp"> {
-  let summary = "Convert TCF to Std";
-  let constructor = "mlir::NPCOMP::createConvertTCFToStdPass()";
-}
-
-//===----------------------------------------------------------------------===//
-// TCFToTCP
-//===----------------------------------------------------------------------===//
-
-def ConvertTCFToTCP : Pass<"convert-tcf-to-tcp", "FuncOp"> {
-  let summary = "Convert TCF to TCP";
-  let constructor = "mlir::NPCOMP::createConvertTCFToTCPPass()";
 }
 
 #endif // NPCOMP_CONVERSION_PASSES

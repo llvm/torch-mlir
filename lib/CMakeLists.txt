@@ -31,8 +31,6 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPIREEBackend
   NPCOMPRefBackend
   NPCOMPRefbackDialect
-  NPCOMPTCPDialect
-  NPCOMPTCFDialect
   NPCOMPTorchDialect
   NPCOMPRefbackrtDialect
   NPCOMPBasicpyDialect
@@ -40,7 +38,6 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPConversionPasses
   NPCOMPNumpyDialect
   NPCOMPNumpyPasses
-  NPCOMPTCFPasses
   NPCOMPTypingPasses
 
   # TODO: We shouldn't need npcomp_conversion_libs here, but we have

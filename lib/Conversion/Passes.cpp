@@ -9,10 +9,6 @@
 #include "npcomp/Conversion/Passes.h"
 
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
-#include "npcomp/Conversion/NumpyToTCF/Passes.h"
-#include "npcomp/Conversion/TCFToLinalg/TCFToLinalg.h"
-#include "npcomp/Conversion/TCFToStd/TCFToStd.h"
-#include "npcomp/Conversion/TCFToTCP/TCFToTCP.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"

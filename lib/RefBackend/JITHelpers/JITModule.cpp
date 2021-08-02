@@ -33,7 +33,7 @@ void JITModule::buildBackendCompilationPipeline(PassManager &pm,
                                                 bool optimize) {
   NPCOMP::RefBackendLoweringPipelineOptions options;
   options.optimize = optimize;
-  NPCOMP::createTCFRefBackendLoweringPipeline(pm, options);
+  NPCOMP::createRefBackendLoweringPipeline(pm, options);
 }
 
 llvm::Expected<std::unique_ptr<JITModule>>
