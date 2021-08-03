@@ -232,12 +232,11 @@ build_tools/torchscript_e2e_heavydep_tests/generate_serialized_tests.sh \
 # Add the --serialized-test-dir flag to point at the directory containing the
 # serialized tests. All other functionality is the same as the normal invocation
 # of torchscript_e2e_test.sh, but the serialized tests will be available.
-tools/torchscript_e2e_test.sh --serialized-test-dir=/t/heavydep_serialized_tests
+tools/torchscript_e2e_test.sh --serialized-test-dir=path/to/heavydep_serialized_tests
 ```
 
-Note that the heavy dep tests are generally quite challenging, and we don't have
-any that work yet. The tests use the same (pure-Python) test framework as the
-normal torchscript_e2e_test.sh, but the tests are added in
+The tests use the same (pure-Python) test framework as the normal
+torchscript_e2e_test.sh, but the tests are added in
 `build_tools/torchscript_e2e_heavydep_tests` instead of
 `frontends/pytorch/e2e_testing/torchscript`.
 
