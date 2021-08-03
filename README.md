@@ -167,7 +167,7 @@ Shell into docker image:
 
 ```shell
 docker run \
-  --mount type=bind,source=$HOME/src/mlir-npcomp,target=/src/mlir-npcomp \
+  --mount type=bind,source=path/to/mlir-npcomp,target=/src/mlir-npcomp \
   --mount source=npcomp-build,target=/build \
   --rm -it local/npcomp:build-pytorch-nightly /bin/bash
 ```
@@ -177,7 +177,7 @@ Build/test npcomp (from within docker image):
 ```shell
 # From within the docker image.
 cd /src/mlir-npcomp
-cmake -GNinja -Bbuild -DCMAKE_BUILD_TYPE=Release -DNPCOMP_ENABLE_PYTORCH=ON .
+cmake -GNinja -B/build/npcomp -DCMAKE_BUILD_TYPE=Release -DNPCOMP_ENABLE_PYTORCH=ON .
 cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 ```
 
