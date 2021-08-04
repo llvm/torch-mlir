@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir %s \
+// RUN: refback-run %s \
 // RUN:   -invoke multi_output \
 // RUN:   -arg-value="dense<1.0> : tensor<1xf32>" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \

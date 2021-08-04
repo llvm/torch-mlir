@@ -15,7 +15,7 @@ set(NPCOMP_TEST_DEPENDS
         FileCheck count not
         npcomp-capi-ir-test
         npcomp-opt
-        npcomp-run-mlir
+        refback-run
         NPCOMPPythonModules
         NPCOMPMLIRPythonModules
 )

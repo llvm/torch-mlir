@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir %s \
+// RUN: refback-run %s \
 // RUN:   -invoke forward \
 // RUN:   -arg-value="dense<[[1.0, 2.0], [3.0, 4.0]]> : tensor<2x2xf32>" \
 // RUN:   -arg-value="dense<[10.0, 20.0]> : tensor<2xf32>" \

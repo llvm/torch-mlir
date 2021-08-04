@@ -1,4 +1,4 @@
-// RUN: not npcomp-run-mlir %s \
+// RUN: not refback-run %s \
 // RUN:   -invoke expects_one_tensor \
 // RUN:   -arg-value="1.0 : f32" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \

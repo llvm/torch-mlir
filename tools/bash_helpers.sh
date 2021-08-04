@@ -18,16 +18,16 @@ npcomp-opt() {
     "$@"
 }
 
-npcomp-run-mlir() {
-  # Helper for building and invoking npcomp-run-mlir.
+refback-run() {
+  # Helper for building and invoking refback-run.
   #
   # This also automatically builds and adds the npcomp runtime shared
   # library.
   #
   # Usage:
-  # $ npcomp-run-mlir <regular npcomp-run-mlir options>
-  ninja -C "$build_dir" npcomp-run-mlir NPCOMPCompilerRuntimeShlib 1>&2 || return 1
-  "$build_dir/bin/npcomp-run-mlir" \
+  # $ refback-run <regular refback-run options>
+  ninja -C "$build_dir" refback-run NPCOMPCompilerRuntimeShlib 1>&2 || return 1
+  "$build_dir/bin/refback-run" \
     -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
 }
 
