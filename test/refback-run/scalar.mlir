@@ -1,4 +1,4 @@
-// RUN: npcomp-run-mlir %s \
+// RUN: refback-run %s \
 // RUN:   -invoke scalar_arg \
 // RUN:   -arg-value="2.5 : f32" \
 // RUN:   -shared-libs=%npcomp_runtime_shlib 2>&1 \

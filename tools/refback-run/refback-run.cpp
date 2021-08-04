@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 //
 // Utility binary for compiling and running code through the npcomp
-// compiler/runtime stack.
+// RefBackend. The accepted input is the npcomp backend contract
+// (roughly, linalg-on-tensors + std).
 //
 //===----------------------------------------------------------------------===//
 

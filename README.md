@@ -66,7 +66,7 @@ The project is roughly split into the following areas of code:
     infra from Python
   * [backend_test](backend_test): Lit test suites conditionally enabled for
     each backend
-* [tools](tools): Scripts and binaries (npcomp-opt, npcomp-run-mlir, etc)
+* [tools](tools): Scripts and binaries (npcomp-opt, refback-run, etc)
 
 ## Interactive Use
 
