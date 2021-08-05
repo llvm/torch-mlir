@@ -41,7 +41,7 @@ def _get_argparse():
     if IREE_ENABLED:
         config_choices += ['iree']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
-    parser.add_argument('--config',
+    parser.add_argument('-c', '--config',
         choices=config_choices,
         default='refbackend',
         help=f'''

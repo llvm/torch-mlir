@@ -21,10 +21,9 @@ _common_npcomp_lowering_xfails = {
 XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
 
 XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails | {
-    #https://reviews.llvm.org/D106658 to reach iree release
-    'MaxPool2dModule_basic',
+    # https://github.com/google/iree/issues/6629
+    'Conv2dWithPaddingModule_basic',
     'Conv2dWithPaddingDilationStrideModule_basic',
-    #https://github.com/google/iree/issues/6420
-    'FlattenDynamicModule_basic',
-    'ResNet18Module_basic'
+    'ResNet18Module_basic',
+    'MaxPool2dModule_basic',
 }
