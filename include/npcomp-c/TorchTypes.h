@@ -190,6 +190,37 @@ MLIR_CAPI_EXPORTED bool npcompTypeIsATorchString(MlirType t);
 /// Gets the !torch.str type.
 MLIR_CAPI_EXPORTED MlirType npcompTorchStringTypeGet(MlirContext context);
 
+//===----------------------------------------------------------------------===//
+// !torch.any type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.any type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchAny(MlirType t);
+
+/// Gets the !torch.str type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchAnyTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
+// !torch.number type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.number type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchNumber(MlirType t);
+
+/// Gets the !torch.number type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchNumberTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
+// !torch.dict type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.dict type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchDict(MlirType t);
+
+/// Gets the !torch.dict type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchDictTypeGet(MlirType keyType,
+                                                   MlirType valueType);
+
 #ifdef __cplusplus
 }
 #endif

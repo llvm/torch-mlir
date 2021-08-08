@@ -93,9 +93,31 @@ static LogicalResult verify(NnModuleOp op) {
 bool isValidSubtype(Type subtype, Type type) {
   if (subtype == type)
     return true;
+
+  if (auto any = type.dyn_cast<AnyType>())
+    return true;
+
+  if (auto number = type.dyn_cast<NumberType>())
+    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
+
   if (auto optional = type.dyn_cast<OptionalType>())
     return isValidSubtype(subtype, optional.getContainedType()) ||
            subtype.isa<Torch::NoneType>();
+
+  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+    if (!subtype.isa<Torch::TupleType>())
+      return false;
+    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
+    auto types = tuple.getContainedTypes();
+    if (subtypes.size() != types.size())
+      return false;
+    for (auto t : llvm::zip(subtypes, types)) {
+      if (!isValidSubtype(std::get<0>(t), std::get<1>(t)))
+        return false;
+    }
+    return true;
+  }
+
   // TODO: This is not subtyping according to PEP 483. See description
   // of NonValueTensorType.
   if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
@@ -142,13 +164,34 @@ static LogicalResult verify(PrimListConstructOp op) {
   auto resultType = op.getResult().getType();
   auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
   auto matchResultElementType = [&](Type type) {
-    return type.getTypeID() == resultElementType.getTypeID();
+    return isValidSubtype(type, resultElementType);
   };
   if (!llvm::all_of(op->getOperandTypes(), matchResultElementType)) {
     return op.emitError() << "operand types should have the same type as the "
                              "list contained type";
   }
 
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// PrimDictConstructOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(PrimDictConstructOp op) {
+  auto isValidSubTypeOf = [](Type expectedType) {
+    return [=](Type type) { return isValidSubtype(type, expectedType); };
+  };
+
+  Type keyType = op.getKeyType();
+  if (!llvm::all_of(op.keys().getTypes(), isValidSubTypeOf(keyType))) {
+    return op.emitError() << "keys should be of Dict key type";
+  }
+
+  Type valueType = op.getValueType();
+  if (!llvm::all_of(op.values().getTypes(), isValidSubTypeOf(valueType))) {
+    return op.emitError() << "values  should be of Dict value type";
+  }
   return success();
 }
 

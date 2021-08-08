@@ -321,6 +321,56 @@ def Torch_LinearParamsType : Torch_Type<"LinearParams", "LinearParams"> {
   }];
 }
 
+def Torch_AnyType : Torch_Type<"Any", "any"> {
+  let summary = "Torch any type";
+  let description = [{
+    Represent any torch type. All the other types are sub types of Any type.
+  }];
+}
+
+def Torch_NumberType : Torch_Type<"Number", "number"> {
+  let summary = "Torch number type";
+  let description = [{
+    The Int, Float and Complex type are sub types of Number type.
+  }];
+}
+
+def Torch_DictType : Torch_Type<"Dict", "dict"> {
+
+  let summary = "!torch.dict[KT, VT] ";
+  let parameters = (ins "::mlir::Type":$keyType, "::mlir::Type":$valueType);
+  let description = [{
+    Torch Dict type with key and value type.
+  }];
+
+  let printer = [{
+    $_printer << getMnemonic() << "<" << getImpl()->keyType << ", " << getImpl()->valueType << ">";
+  }];
+
+  let parser = [{
+    if (parser.parseLess())
+      return Type();
+    Type keyType;
+    if ($_parser.parseType(keyType))
+      return Type();
+    if ($_parser.parseComma())
+      return Type();
+    Type valueType;
+    if ($_parser.parseType(valueType))
+      return Type();
+    if ($_parser.parseGreater())
+      return Type();
+    return get($_ctxt, keyType, valueType);
+  }];
+
+  let builders = [
+    TypeBuilderWithInferredContext<(ins "::mlir::Type":$keyType,
+                                        "::mlir::Type":$valueType), [{
+      return Base::get(keyType.getContext(), keyType, valueType);
+    }]>
+  ];
+}
+
 //===----------------------------------------------------------------------===//
 // Type predicates
 //===----------------------------------------------------------------------===//
@@ -348,17 +398,33 @@ def AnyTorchScalarType : AnyTypeOf<[
   Torch_BoolType,
 ], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
 
+// See function `DictTypePtr create(TypePtr key, TypePtr value)`
+// in aten/src/ATen/core/jit_type.h.
+def AnyTorchDictKeyType : AnyTypeOf<[
+  Torch_AnyType,
+  Torch_IntType,
+  Torch_BoolType,
+  Torch_FloatType,
+  Torch_StringType,
+  Torch_FloatType,
+  AnyTorchTensorType,
+], "Allowed dict key types">;
+
+// In alphabetic order.
 def AnyTorchType : AnyTypeOf<[
   AnyTorchScalarType,
   AnyTorchTensorType,
-  Torch_TupleType,
-  Torch_StringType,
+  Torch_AnyType,
+  Torch_DictType,
+  Torch_DeviceType,
+  Torch_ListType,
+  Torch_LinearParamsType,
+  Torch_NumberType,
   Torch_NnModuleType,
   Torch_NoneType,
   Torch_OptionalType,
-  Torch_ListType,
-  Torch_DeviceType,
-  Torch_LinearParamsType,
+  Torch_StringType,
+  Torch_TupleType,
 ], "Any type that is legal to pass to a Torch kernel">;
 
 def AnyTorchListType : ListOf<[AnyType], "Any Torch list Type">;

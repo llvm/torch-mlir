@@ -225,3 +225,39 @@ bool npcompTypeIsATorchString(MlirType t) {
 MlirType npcompTorchStringTypeGet(MlirContext context) {
   return wrap(Torch::StringType::get(unwrap(context)));
 }
+
+//===----------------------------------------------------------------------===//
+// torch.any type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchAny(MlirType t) {
+  return unwrap(t).isa<Torch::AnyType>();
+}
+
+MlirType npcompTorchAnyTypeGet(MlirContext context) {
+  return wrap(Torch::AnyType::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
+// torch.number type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchNumber(MlirType t) {
+  return unwrap(t).isa<Torch::NumberType>();
+}
+
+MlirType npcompTorchNumberTypeGet(MlirContext context) {
+  return wrap(Torch::NumberType::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
+// torch.Dict type.
+//===----------------------------------------------------------------------===//
+
+bool npcompTypeIsATorchDict(MlirType t) {
+  return unwrap(t).isa<Torch::DictType>();
+}
+
+MlirType npcompTorchDictTypeGet(MlirType keyType, MlirType valueType) {
+  return wrap(Torch::DictType::get(unwrap(keyType), unwrap(valueType)));
+}
