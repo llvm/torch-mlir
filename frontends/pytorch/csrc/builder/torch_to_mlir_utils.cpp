@@ -155,35 +155,26 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
                                             /*optionalDtype=*/
                                             elementType);
   }
-  case TypeKind::ClassType: {
-    const c10::ClassTypePtr &classType = torchType->cast<c10::ClassType>();
-    MlirType customClassType = mapCustomClassType(context, loc, classType);
-    if (!mlirTypeIsNull(customClassType)) {
-      return customClassType;
-    }
-    auto maybeName = classType->name();
-    std::string name = maybeName ? maybeName->qualifiedName() : "unnamed class";
-    return npcompTorchNnModuleTypeGet(context, toMlirStringRef(name));
+  case TypeKind::IntType: {
+    return npcompTorchIntTypeGet(context);
   }
   case TypeKind::FloatType: {
     return npcompTorchFloatTypeGet(context);
   }
-  case TypeKind::OptionalType: {
-    return npcompTorchOptionalTypeGet(mapFromTorchType(
-        loc, torchType->cast<c10::OptionalType>()->getElementType()));
-  }
-  case TypeKind::IntType: {
-    return npcompTorchIntTypeGet(context);
-  }
-  case TypeKind::NoneType: {
-    return npcompTorchNoneTypeGet(context);
-  }
   case TypeKind::BoolType: {
     return npcompTorchBoolTypeGet(context);
   }
-  case TypeKind::ListType: {
-    return npcompTorchListTypeGet(mapFromTorchType(
-        loc, torchType->cast<c10::ListType>()->getElementType()));
+  case TypeKind::NumberType: {
+    return npcompTorchNumberTypeGet(context);
+  }
+  case TypeKind::StringType: {
+    return npcompTorchStringTypeGet(context);
+  }
+  case TypeKind::OptionalType: {
+    return npcompTorchOptionalTypeGet(
+        context,
+        mapFromTorchType(
+            loc, torchType->cast<c10::OptionalType>()->getElementType()));
   }
   case TypeKind::TupleType: {
     std::vector<MlirType> containedTypes;
@@ -194,8 +185,33 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return npcompTorchTupleTypeGet(context, containedTypes.size(),
                                    containedTypes.data());
   }
-  case TypeKind::StringType: {
-    return npcompTorchStringTypeGet(context);
+  case TypeKind::ListType: {
+    return npcompTorchListTypeGet(
+        context, mapFromTorchType(
+                     loc, torchType->cast<c10::ListType>()->getElementType()));
+  }
+  case TypeKind::DictType: {
+    auto dictType = torchType->cast<c10::DictType>();
+    return npcompTorchDictTypeGet(
+        context, mapFromTorchType(loc, dictType->getKeyType()),
+        mapFromTorchType(loc, dictType->getValueType()));
+  }
+  case TypeKind::NoneType: {
+    return npcompTorchNoneTypeGet(context);
+  }
+  case TypeKind::AnyType: {
+    auto anyType = torchType->cast<c10::AnyType>();
+    return npcompTorchAnyTypeGet(context);
+  }
+  case TypeKind::ClassType: {
+    const c10::ClassTypePtr &classType = torchType->cast<c10::ClassType>();
+    MlirType customClassType = mapCustomClassType(context, loc, classType);
+    if (!mlirTypeIsNull(customClassType)) {
+      return customClassType;
+    }
+    auto maybeName = classType->name();
+    std::string name = maybeName ? maybeName->qualifiedName() : "unnamed class";
+    return npcompTorchNnModuleTypeGet(context, toMlirStringRef(name));
   }
   case TypeKind::DeviceObjType: {
     return npcompTorchDeviceTypeGet(context);
@@ -235,7 +251,7 @@ torch_mlir::getFunctionTypeFromSchema(MlirContext context,
     if (mlirTypeIsNull(type)) {
       std::stringstream msg;
       msg << "unsupported type in function schema: '"
-              << c10::toString(torchType) << "'";
+          << c10::toString(torchType) << "'";
       throw std::invalid_argument(msg.str());
     }
     return type;

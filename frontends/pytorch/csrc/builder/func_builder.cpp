@@ -133,7 +133,8 @@ MlirValue FuncBuilder::getNoneConstant(MlirLocation loc) {
 
 MlirValue FuncBuilder::buildList(MlirLocation loc, MlirType elementType,
                                  std::vector<MlirValue> &elements) {
-  MlirType resultType = npcompTorchListTypeGet(elementType);
+  auto context = mlirLocationGetContext(loc);
+  MlirType resultType = npcompTorchListTypeGet(context, elementType);
   OperationStateHolder state{"torch.prim.ListConstruct", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
   mlirOperationStateAddOperands(state, elements.size(), elements.data());

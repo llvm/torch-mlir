@@ -44,18 +44,40 @@ private:
 };
 } // namespace
 
+using InputsTransformFn =
+    std::function<std::vector<MlirValue>(std::vector<MlirValue> &)>;
+
+// The inputs of `DictConstruct` in TorchScript IR are in the order
+// like k0, v0, k1, v1. Rearrange them to put the key operands together and
+// then the value operands like k0, k1,v0, v1. This is the expected format by
+// the corresponding MLIR op.
+static std::vector<MlirValue>
+rearrangeDictConstructInputs(std::vector<MlirValue> &inputs) {
+  std::vector<MlirValue> rearranged;
+  std::vector<MlirValue> values;
+  for (auto it = inputs.begin(); it != inputs.end(); it++) {
+    rearranged.push_back(*it);
+    values.push_back(*++it);
+  }
+  rearranged.insert(rearranged.end(), values.begin(), values.end());
+  return rearranged;
+}
+
 void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   TypeMapper typeMapper(context);
   MlirLocation loc = getMlirLocationFromNode(context, node);
   auto kind = node->kind();
 
-  auto createAndMapTrivialNode = [&](Node *node, const std::string &opName) {
+  auto createAndMapTrivialNode = [&](Node *node, const std::string &opName,
+                                     InputsTransformFn t) {
+    std::vector<MlirValue> mappedInputs = lookupMappedValues(node->inputs());
     MlirOperation operation =
         createMlirOperationAtEnd(appendToBlock, opName, loc,
                                  getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()));
+                                 t ? t(mappedInputs) : mappedInputs);
     mapResults(node, operation);
   };
+
   auto createAndMapNodeWithAttribute = [&](Node *node,
                                            const std::string &opName,
                                            const std::string &attrName,
@@ -80,12 +102,15 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   }
 
   // Builtin interpreter ops with no operator/schema.
+  InputsTransformFn transformer =
+      kind != c10::prim::DictConstruct ? nullptr : rearrangeDictConstructInputs;
   switch (kind) {
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
-  case c10::prim::TupleConstruct: {
-    createAndMapTrivialNode(node,
-                            "torch.prim." + std::string(kind.toUnqualString()));
+  case c10::prim::TupleConstruct:
+  case c10::prim::DictConstruct: {
+    createAndMapTrivialNode(
+        node, "torch.prim." + std::string(kind.toUnqualString()), transformer);
     return;
   }
   case c10::prim::GetAttr:

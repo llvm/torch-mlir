@@ -36,7 +36,8 @@ MLIR_CAPI_EXPORTED MlirType npcompTorchNnModuleTypeGet(MlirContext context,
 MLIR_CAPI_EXPORTED bool npcompTypeIsATorchOptional(MlirType t);
 
 /// Gets the !torch.optional<T> type with subtype T.
-MLIR_CAPI_EXPORTED MlirType npcompTorchOptionalTypeGet(MlirType containedType);
+MLIR_CAPI_EXPORTED MlirType npcompTorchOptionalTypeGet(MlirContext context,
+                                                       MlirType containedType);
 
 //===----------------------------------------------------------------------===//
 // torch.tuple<T1, T2, T3> type.
@@ -58,7 +59,8 @@ npcompTorchTupleTypeGet(MlirContext context, intptr_t numContainedTypes,
 MLIR_CAPI_EXPORTED bool npcompTypeIsATorchList(MlirType t);
 
 /// Gets the !torch.list<T> type with contained T.
-MLIR_CAPI_EXPORTED MlirType npcompTorchListTypeGet(MlirType containedType);
+MLIR_CAPI_EXPORTED MlirType npcompTorchListTypeGet(MlirContext context,
+                                                   MlirType containedType);
 
 //===----------------------------------------------------------------------===//
 // torch.Device type.
@@ -189,6 +191,38 @@ MLIR_CAPI_EXPORTED bool npcompTypeIsATorchString(MlirType t);
 
 /// Gets the !torch.str type.
 MLIR_CAPI_EXPORTED MlirType npcompTorchStringTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
+// !torch.any type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.any type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchAny(MlirType t);
+
+/// Gets the !torch.str type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchAnyTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
+// !torch.number type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.number type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchNumber(MlirType t);
+
+/// Gets the !torch.number type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchNumberTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
+// !torch.dict type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.dict type.
+MLIR_CAPI_EXPORTED bool npcompTypeIsATorchDict(MlirType t);
+
+/// Gets the !torch.dict type.
+MLIR_CAPI_EXPORTED MlirType npcompTorchDictTypeGet(MlirContext context,
+                                                   MlirType keyType,
+                                                   MlirType valueType);
 
 #ifdef __cplusplus
 }

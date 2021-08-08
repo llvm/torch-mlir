@@ -326,7 +326,8 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
 def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
     NoSideEffect,
     TypesMatchWith<"contained types correspond to operand types",
-    "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))">
+    "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))",
+    "isValidSubtype">
     ]> {
   let summary = "TorchScript prim::TupleConstruct op";
   let description = [{
@@ -342,7 +343,7 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
   );
 
   let assemblyFormat = [{
-    $elements attr-dict `:` type($elements)
+    $elements attr-dict `:` type($elements) `->` type($result)
   }];
 }
 
@@ -363,6 +364,34 @@ def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
 
   let assemblyFormat = [{
     $elements attr-dict `:` functional-type(operands, results)
+  }];
+}
+
+def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
+    NoSideEffect,
+    AllowsTypeRefinement,
+    SameVariadicOperandSize,
+    ]> {
+  let summary = "TorchScript prim::DictConstruct op";
+
+  let arguments = (ins
+    Variadic<AnyTorchDictKeyType>:$keys,
+    Variadic<AnyTorchType>:$values
+  );
+
+  let results = (outs
+    Torch_DictType:$result
+  );
+
+  let verifier = "return ::verify(*this);";
+
+  let assemblyFormat = [{
+    (`(``keys` $keys^ `values` $values`)`)? attr-dict `:` functional-type(operands, results)
+  }];
+
+  let extraClassDeclaration = [{
+    Type getKeyType() { return getType().cast<DictType>().getKeyType(); }
+    Type getValueType() { return getType().cast<DictType>().getValueType(); }
   }];
 }
 

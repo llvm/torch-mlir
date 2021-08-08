@@ -511,6 +511,7 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
   }
   if (ival.isList()) {
     return npcompTorchListTypeGet(
+        funcBuilder->getContext(),
         typeMapper.mapFromTorchType(loc, ival.toList().elementType()));
   }
   if (ival.isNone()) {
