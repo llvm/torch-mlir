@@ -48,7 +48,7 @@ using namespace torch_mlir;
 namespace {
 struct IValueHasher {
   size_t operator()(const c10::IValue &ivalue) const {
-    if (ivalue.isObject() || ivalue.isList()) {
+    if (ivalue.isObject() || ivalue.isList() || ivalue.isGenericDict()) {
       return std::hash<const void *>()(
           static_cast<const void *>(ivalue.internalToPointer()));
     }
@@ -276,6 +276,22 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
         npcompTorchListTypeGet(
             typeMapper.mapFromTorchType(loc, list.elementType())),
         elems);
+    return mlirOperationGetResult(operation, 0);
+  }
+  if (ivalue.isGenericDict()) {
+    c10::Dict<c10::IValue, c10::IValue> dict = ivalue.toGenericDict();
+    std::vector<MlirValue> keys;
+    std::vector<MlirValue> values;
+    for (auto it = dict.begin(); it != dict.end(); it++) {
+      keys.push_back(importIValue(it->key()));
+      values.push_back(importIValue(it->value()));
+    }
+    MlirOperation operation = createMlirOperationAtEnd(
+        importBlock, "torch.prim.DictConstruct", loc,
+        npcompTorchDictTypeGet(
+            typeMapper.mapFromTorchType(loc, dict.keyType()),
+            typeMapper.mapFromTorchType(loc, dict.valueType())),
+        keys, values);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTuple()) {
