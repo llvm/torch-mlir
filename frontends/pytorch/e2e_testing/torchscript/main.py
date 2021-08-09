@@ -51,7 +51,7 @@ Meaning of options:
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 ''')
-    parser.add_argument('--filter', default='.*', help='''
+    parser.add_argument('-f', '--filter', default='.*', help='''
 Regular expression specifying which tests to include in this run.
 ''')
     parser.add_argument('-v', '--verbose',

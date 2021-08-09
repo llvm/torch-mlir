@@ -19,9 +19,6 @@ __all__ = [
     "IreeNpcompBackend",
 ]
 
-PREPARE_FOR_IREE_PASSES = (
-  "npcomp-iree-backend-lower-linkage",
-)
 
 class IreeModuleInvoker:
   """Wrapper around a native IREE module for calling functions."""
@@ -88,7 +85,7 @@ class IreeNpcompBackend(NpcompBackend):
       if self._debug:
         logging.debug("IR passed to IREE compiler backend:\n{}",
                       imported_module)
-      pipeline_str = ",".join(PREPARE_FOR_IREE_PASSES)
+      pipeline_str = "npcomp-backend-to-iree-frontend-pipeline"
       if self._debug:
         logging.debug("Running Prepare For IREE pipeline '{}'", pipeline_str)
       pm = PassManager.parse(pipeline_str)
