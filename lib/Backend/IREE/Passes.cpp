@@ -21,9 +21,7 @@ namespace {
 } // end namespace
 
 void mlir::NPCOMP::IREEBackend::createNpcompBackendToIreeFrontendPipeline(
-    OpPassManager &pm) {
-  pm.addPass(createLowerLinkagePass());
-}
+    OpPassManager &pm) {}
 
 void mlir::NPCOMP::IREEBackend::registerIREEBackendPasses() {
   ::registerPasses();

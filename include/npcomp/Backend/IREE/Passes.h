@@ -22,8 +22,6 @@ void registerIREEBackendPasses();
 /// contract to IREE's frontend contract.
 void createNpcompBackendToIreeFrontendPipeline(OpPassManager &pm);
 
-std::unique_ptr<OperationPass<ModuleOp>> createLowerLinkagePass();
-
 } // namespace IREEBackend
 } // namespace NPCOMP
 } // namespace mlir

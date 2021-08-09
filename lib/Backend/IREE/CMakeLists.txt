@@ -1,5 +1,4 @@
 add_npcomp_library(NPCOMPIREEBackend
-  LowerLinkage.cpp
   Passes.cpp
 
   ADDITIONAL_HEADER_DIRS
