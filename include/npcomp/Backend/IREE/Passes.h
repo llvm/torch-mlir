@@ -18,6 +18,10 @@ namespace IREEBackend {
 /// Registers all IREEBackend passes.
 void registerIREEBackendPasses();
 
+/// Create a pipeline that runs all passes needed to lower the npcomp backend
+/// contract to IREE's frontend contract.
+void createNpcompBackendToIreeFrontendPipeline(OpPassManager &pm);
+
 std::unique_ptr<OperationPass<ModuleOp>> createLowerLinkagePass();
 
 } // namespace IREEBackend

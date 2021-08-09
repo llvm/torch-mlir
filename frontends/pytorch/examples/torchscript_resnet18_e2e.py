@@ -15,21 +15,24 @@ import npcomp
 from npcomp.compiler.pytorch.backend import refjit, frontend_lowering, iree
 from npcomp.compiler.utils import logging
 
-logging.enable()
-
 mb = torch_mlir.ModuleBuilder()
 
+
 def load_and_preprocess_image(url: str):
-    img = Image.open(requests.get(url, stream=True).raw).convert("RGB")
+    headers = {
+        'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'
+    }
+    img = Image.open(requests.get(url, headers=headers,
+                                  stream=True).raw).convert("RGB")
     # preprocessing pipeline
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
+    preprocess = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
+    ])
     img_preprocessed = preprocess(img)
     return torch.unsqueeze(img_preprocessed, 0)
 
@@ -78,6 +81,15 @@ class TestModule(torch.nn.Module):
         return self.s.forward(x)
 
 
+image_url = (
+    "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
+)
+import sys
+
+print("load image from " + image_url, file=sys.stderr)
+img = load_and_preprocess_image(image_url)
+labels = load_labels()
+
 test_module = TestModule()
 class_annotator = torch_mlir.ClassAnnotator()
 recursivescriptmodule = torch.jit.script(test_module)
@@ -88,7 +100,10 @@ class_annotator.exportPath(recursivescriptmodule._c._type(), ["forward"])
 class_annotator.annotateArgs(
     recursivescriptmodule._c._type(),
     ["forward"],
-    [None, ([-1, -1, -1, -1], torch.float32, True),],
+    [
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ],
 )
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
 mb.import_module(recursivescriptmodule._c, class_annotator)
@@ -97,10 +112,4 @@ backend = refjit.RefjitNpcompBackend()
 compiled = backend.compile(frontend_lowering.lower_object_graph(mb.module))
 jit_module = backend.load(compiled)
 
-image_url = (
-    "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
-)
-print("load image from " + image_url)
-img = load_and_preprocess_image(image_url)
-labels = load_labels()
 predictions(test_module.forward, jit_module.forward, img, labels)
