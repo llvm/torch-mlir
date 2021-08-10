@@ -27,11 +27,9 @@ class TorchScriptTestConfig(TestConfig):
             attr = artifact
             for part in item.symbol.split('.'):
                 attr = getattr(attr, part)
-            outputs = attr(*item.inputs)
-            if isinstance(outputs, torch.Tensor):
-                outputs = [outputs]
+            output = attr(*item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
-                          outputs=outputs))
+                          output=output))
         return result

@@ -23,11 +23,9 @@ class NativeTorchTestConfig(TestConfig):
         # stateful then it does not mutate the original compiled program.
         result: Trace = []
         for item in trace:
-            outputs = getattr(artifact, item.symbol)(*item.inputs)
-            if isinstance(outputs, torch.Tensor):
-                outputs = [outputs]
+            output = getattr(artifact, item.symbol)(*item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
-                          outputs=outputs))
+                          output=output))
         return result

@@ -20,7 +20,7 @@ compiling or TorchScript'ing).
 """
 
 import abc
-from typing import Any, Callable, List, NamedTuple, Optional, TypeVar
+from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Dict
 
 import io
 import pickle
@@ -30,17 +30,24 @@ import torch
 from ..annotations import apply_serializable_annotations
 
 
+TorchScriptValue = Union[int, float, List['TorchScriptValue'],
+                         Dict['TorchScriptValue',
+                              'TorchScriptValue'], torch.Tensor]
+
+
 class TraceItem(NamedTuple):
     # The externally visible symbol name that is called.
     # For example `"forward"` or `"submodule.forward"`.
     symbol: str
-    # The list of inputs to the call.
-    inputs: List[torch.Tensor]  # TODO: Support more types.
-    # The outputs from the call.
+    # The inputs to the call.
+    inputs: List[TorchScriptValue]
+    # The output from the call.
+    # In Python, there is only one output from a function. It might be a tuple
+    # in case of "multiple results".
     # Sometimes this field is treated as golden outputs from a test.
     # Sometimes this field is treated as ignored, such as the input trace
     # provided to `TestConfig.run`.
-    outputs: List[torch.Tensor]  # TODO: Support more types
+    output: TorchScriptValue
 
 
 # A trace of invocations to the program.
@@ -253,19 +260,12 @@ class _Tracer:
         self.__property_base_path__ = property_base_path
 
     def __call__(self, *args, **kwargs):
-        raw_outputs = self.__wrapped__(*args, **kwargs)
-        if isinstance(raw_outputs, torch.Tensor):
-            outputs = [raw_outputs]
-        elif isinstance(raw_outputs, tuple) and all(
-                isinstance(o, torch.Tensor) for o in raw_outputs):
-            outputs = raw_outputs
-        else:
-            raise Exception("unimplemented: non-Tensor output from function")
+        output = self.__wrapped__(*args, **kwargs)
         self.__trace__.append(
             TraceItem(symbol=".".join(self.__property_base_path__),
                       inputs=args,
-                      outputs=outputs))
-        return raw_outputs
+                      output=output))
+        return output
 
     def __getattr__(self, name):
         return _Tracer(getattr(self.__wrapped__, name),

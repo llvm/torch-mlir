@@ -36,7 +36,7 @@ def MmModule_basic2(module, tu: TestUtils):
 def main():
     config = TorchScriptTestConfig()
     results = run_tests(GLOBAL_TEST_REGISTRY, config)
-    report_results(results, set())
+    report_results(results, set(), verbose=True)
 
 
 if __name__ == '__main__':

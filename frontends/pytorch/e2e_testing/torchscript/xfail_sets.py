@@ -16,6 +16,7 @@ XFAIL_SETS = {}
 # to the backend contract.
 _common_npcomp_lowering_xfails = {
     'QuantizedMLP_basic',
+    'ListLiteralModule_basic',
 }
 
 XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
@@ -27,3 +28,7 @@ XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails | {
     'ResNet18Module_basic',
     'MaxPool2dModule_basic',
 }
+
+XFAIL_SETS['torchscript'] = {}
+
+XFAIL_SETS['native_torch'] = {}
