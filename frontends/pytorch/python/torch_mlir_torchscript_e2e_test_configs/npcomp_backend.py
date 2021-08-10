@@ -126,11 +126,16 @@ NPCOMP Backend lowering for {self.backend.__class__.__name__} failed with the fo
         for item in trace:
             numpy_inputs = [t.numpy() for t in item.inputs]
             outputs = getattr(backend_module, item.symbol)(*numpy_inputs)
-            if isinstance(outputs, np.ndarray):
-                outputs = [outputs]
-            torch_outputs = [torch.tensor(ndarray) for ndarray in outputs]
+            # TODO: Properly handle recursively nested objects.
+            # We probably want to push this kind of unpacking/normalizing
+            # back to true Python values further down into the backends
+            # themselves.
+            if isinstance(outputs, list):
+                output = [torch.tensor(ndarray) for ndarray in outputs]
+            else:
+                output = torch.tensor(outputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
-                          outputs=torch_outputs))
+                          output=output))
         return result

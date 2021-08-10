@@ -5,7 +5,7 @@
 Utilities for reporting the results of the test framework.
 """
 
-from typing import List, Optional, Set
+from typing import Any, List, Optional, Set
 
 import collections
 import io
@@ -54,34 +54,118 @@ class ErrorContext:
 
 class ValueReport:
     """A report for a single value processed by the program.
-
-    This is currently limited to tensors, but eventually will support
-    all legal TorchScript types.
     """
     def __init__(self, value, golden_value, context: ErrorContext):
         self.value = value
         self.golden_value = golden_value
         self.context = context
+        self.failure_reasons = []
+        self._evaluate_outcome()
 
     @property
     def failed(self):
-        if self.value.size() != self.golden_value.size():
-            return True
-        return not torch.allclose(
-            self.value, self.golden_value, rtol=1e-03, atol=1e-07)
+        return len(self.failure_reasons) != 0
 
     def error_str(self):
-        assert self.failed
-        if self.value.size() != self.golden_value.size():
-            return self.context.format_error(
-                f'tensor shape mismatch: got {self.value.size()!r}, expected {self.golden_value.size()!r}'
-            )
-        f = io.StringIO()
-        p = lambda *x: print(*x, file=f)
-        p('values mismatch')
-        p('got     : ', TensorSummary(self.value))
-        p('expected: ', TensorSummary(self.golden_value))
-        return self.context.format_error(f.getvalue())
+        return '\n'.join(self.failure_reasons)
+
+    def _evaluate_outcome(self):
+        value, golden = self.value, self.golden_value
+        if isinstance(golden, float):
+            if not isinstance(value, float):
+                return self._record_mismatch_type_failure('float', value)
+            if abs(value - golden) / golden > 1e-4:
+                return self._record_failure(
+                    f'value ({value!r}) is not close to golden value ({golden!r})'
+                )
+            return
+        if isinstance(golden, int):
+            if not isinstance(value, int):
+                return self._record_mismatch_type_failure('int', value)
+            if value != golden:
+                return self._record_failure(
+                    f'value ({value!r}) is not equal to golden value ({golden!r})'
+                )
+            return
+        if isinstance(golden, str):
+            if not isinstance(value, str):
+                return self._record_mismatch_type_failure('str', value)
+            if value != golden:
+                return self._record_failure(
+                    f'value ({value!r}) is not equal to golden value ({golden!r})'
+                )
+            return
+        if isinstance(golden, tuple):
+            if not isinstance(value, tuple):
+                return self._record_mismatch_type_failure('tuple', value)
+            if len(value) != len(golden):
+                return self._record_failure(
+                    f'value ({len(value)!r}) is not equal to golden value ({len(golden)!r})'
+                )
+            reports = [
+                ValueReport(v, g, self.context.chain(f'tuple element {i}'))
+                for i, (v, g) in enumerate(zip(value, golden))
+            ]
+            for report in reports:
+                if report.failed:
+                    self.failure_reasons.extend(report.failure_reasons)
+            return
+        if isinstance(golden, list):
+            if not isinstance(value, list):
+                return self._record_mismatch_type_failure('list', value)
+            if len(value) != len(golden):
+                return self._record_failure(
+                    f'value ({len(value)!r}) is not equal to golden value ({len(golden)!r})'
+                )
+            reports = [
+                ValueReport(v, g, self.context.chain(f'list element {i}'))
+                for i, (v, g) in enumerate(zip(value, golden))
+            ]
+            for report in reports:
+                if report.failed:
+                    self.failure_reasons.extend(report.failure_reasons)
+            return
+        if isinstance(golden, dict):
+            if not isinstance(value, dict):
+                return self._record_mismatch_type_failure('dict', value)
+            gkeys = list(sorted(golden.keys()))
+            vkeys = list(sorted(value.keys()))
+            if gkeys != vkeys:
+                return self._record_failure(
+                    f'dict keys ({vkeys!r}) are not equal to golden keys ({gkeys!r})'
+                )
+            reports = [
+                ValueReport(value[k], golden[k],
+                            self.context.chain(f'dict element at key {k!r}'))
+                for k in gkeys
+            ]
+            for report in reports:
+                if report.failed:
+                    self.failure_reasons.extend(report.failure_reasons)
+            return
+        if isinstance(golden, torch.Tensor):
+            if not isinstance(value, torch.Tensor):
+                return self._record_mismatch_type_failure('torch.Tensor', value)
+            if value.shape != golden.shape:
+                return self._record_failure(
+                    f'shape ({value.shape}) is not equal to golden shape ({golden.shape})'
+                )
+            if not torch.allclose(value, golden, rtol=1e-03, atol=1e-07):
+                return self._record_failure(
+                    f'value ({TensorSummary(value)}) is not close to golden value ({TensorSummary(golden)})'
+                )
+            return
+        return self._record_failure(
+            f'unexpected golden value of type `{golden.__class__.__name__}`')
+
+    def _record_failure(self, s: str):
+        self.failure_reasons.append(self.context.format_error(s))
+
+    def _record_mismatch_type_failure(self, expected: str, actual: Any):
+        self._record_failure(
+            f'expected a value of type `{expected}` but got `{actual.__class__.__name__}`'
+        )
+
 
 
 class TraceItemReport:
@@ -114,11 +198,6 @@ class TraceItemReport:
                 self.context.format_error(
                     f'different number of inputs: got "{len(self.item.inputs)}", expected "{len(self.golden_item.inputs)}"'
                 ))
-        if len(self.item.outputs) != len(self.golden_item.outputs):
-            self.failure_reasons.append(
-                self.context.format_error(
-                    f'different number of outputs: got "{len(self.item.outputs)}", expected "{len(self.golden_item.outputs)}"'
-                ))
         for i, (input, golden_input) in enumerate(
                 zip(self.item.inputs, self.golden_item.inputs)):
             value_report = ValueReport(
@@ -127,12 +206,11 @@ class TraceItemReport:
                     f'input #{i} of call to "{self.item.symbol}"'))
             if value_report.failed:
                 self.failure_reasons.append(value_report.error_str())
-        for i, (output, golden_output) in enumerate(
-                zip(self.item.outputs, self.golden_item.outputs)):
-            value_report = ValueReport(output, golden_output,
-                                       self.context.chain(f'output #{i}'))
-            if value_report.failed:
-                self.failure_reasons.append(value_report.error_str())
+        value_report = ValueReport(
+            self.item.output, self.golden_item.output,
+            self.context.chain(f'output of call to "{self.item.symbol}"'))
+        if value_report.failed:
+            self.failure_reasons.append(value_report.error_str())
 
 
 class SingleTestReport:
@@ -199,7 +277,8 @@ def report_results(results: List[TestResult],
             if report.failed:
                 error_str = ''
                 if verbose:
-                    error_str = '\n' + textwrap.indent(report.error_str(), '    ')
+                    error_str = '\n' + textwrap.indent(report.error_str(),
+                                                       '    ')
                 print(f'XFAIL - "{result.unique_name}"' + error_str)
                 summary['XFAIL'] += 1
             else:
@@ -212,7 +291,8 @@ def report_results(results: List[TestResult],
             else:
                 error_str = ''
                 if verbose:
-                    error_str = '\n' + textwrap.indent(report.error_str(), '    ')
+                    error_str = '\n' + textwrap.indent(report.error_str(),
+                                                       '    ')
                 print(f'FAIL - "{result.unique_name}"' + error_str)
                 summary['FAIL'] += 1
 
