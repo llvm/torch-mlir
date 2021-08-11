@@ -105,7 +105,7 @@ def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
   ]> {
   let summary = "Generated op for `prim::min.self_int : (int[]) -> (int)`";
   let arguments = (ins
-    AnyTorchIntListType:$self
+    TorchIntListType:$self
   );
   let results = (outs
     Torch_IntType:$result
@@ -134,7 +134,7 @@ def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
   ]> {
   let summary = "Generated op for `prim::max.self_int : (int[]) -> (int)`";
   let arguments = (ins
-    AnyTorchIntListType:$self
+    TorchIntListType:$self
   );
   let results = (outs
     Torch_IntType:$result
@@ -185,8 +185,7 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
 
 def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    AllowsTypeRefinement,
-    HasValueSemantics
+    AllowsTypeRefinement
   ]> {
   let summary = "Generated op for `prim::unchecked_cast : (t) -> (t)`";
   let arguments = (ins
@@ -208,5 +207,18 @@ def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
   let results = (outs
   );
   let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands)";
+}
+
+def Torch_PrimTolistOp : Torch_Op<"prim.tolist", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `prim::tolist : (...) -> (...)`";
+  let arguments = (ins
+    Variadic<AnyTorchType>:$operands
+  );
+  let results = (outs
+    Variadic<AnyTorchType>:$results
+  );
+  let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands) `->` type($results)";
 }
 

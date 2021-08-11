@@ -42,3 +42,29 @@ torch.nn_module {
   torch.slot "t1", %t : !torch.tensor
   torch.slot "t2", %t : !torch.tensor
 } : !torch.nn.Module<"c">
+builtin.func private @use_slot(%arg0 : !torch.nn.Module<"c">) -> !torch.tensor {
+  %t1 = torch.prim.GetAttr %arg0["t1"] : !torch.nn.Module<"c"> -> !torch.tensor
+  %t2 = torch.prim.GetAttr %arg0["t2"] : !torch.nn.Module<"c"> -> !torch.tensor
+  %cst = torch.constant.int 1
+  %ret = torch.aten.add.Tensor %t1, %t2, %cst : !torch.tensor, !torch.tensor, !torch.int -> !torch.tensor
+  return %ret : !torch.tensor
+}
+
+// -----
+
+torch.class_type @c {
+  torch.attr "t1" : !torch.tensor
+  torch.attr "t2" : !torch.tensor
+}
+
+// expected-error @+1 {{potentially-aliased value used to initialize multiple slots}}
+%t = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+torch.nn_module {
+  torch.slot "t1", %t : !torch.tensor
+  torch.slot "t2", %t : !torch.tensor
+} : !torch.nn.Module<"c">
+builtin.func private @set_slot(%arg0 : !torch.nn.Module<"c">, %arg1 : !torch.tensor) {
+  torch.prim.SetAttr %arg0["t1"] = %arg1: !torch.nn.Module<"c">, !torch.tensor
+  torch.prim.SetAttr %arg0["t2"] = %arg1: !torch.nn.Module<"c">, !torch.tensor
+  return
+}

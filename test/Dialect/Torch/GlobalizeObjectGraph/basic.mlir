@@ -39,3 +39,24 @@ torch.nn_module {
   torch.slot "f", %f : !torch.float
   torch.slot "t", %t : !torch.tensor
 } : !torch.nn.Module<"c">
+
+
+// -----
+
+// CHECK-LABEL:   torch.global_slot @t1 : !torch.tensor  {
+// CHECK:           %[[T:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+// CHECK:           torch.global_slot.init %[[T]] : !torch.tensor
+
+// CHECK-LABEL:   torch.global_slot @t2 : !torch.tensor  {
+// CHECK:           %[[T:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+// CHECK:           torch.global_slot.init %[[T]] : !torch.tensor
+
+%t = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+torch.class_type @c {
+  torch.attr "t1" : !torch.tensor
+  torch.attr "t2" : !torch.tensor
+}
+torch.nn_module {
+  torch.slot "t1", %t : !torch.tensor
+  torch.slot "t2", %t : !torch.tensor
+} : !torch.nn.Module<"c">

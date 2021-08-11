@@ -47,10 +47,34 @@ struct torch_constant_int_op_binder {
 };
 } // namespace detail
 
-/// Matches the integer stored in a `torch.constant.int`.
+/// Matches the integer stored in a `torch.constant.bool`.
 inline detail::torch_constant_int_op_binder
 m_TorchConstantInt(int64_t *bind_value) {
   return detail::torch_constant_int_op_binder(bind_value);
+}
+
+namespace detail {
+/// Matches the bool stored in a `torch.constant.bool`.
+struct torch_constant_bool_op_binder {
+  bool *bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  torch_constant_bool_op_binder(bool *bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    if (auto constantBool = dyn_cast<Torch::ConstantBoolOp>(op)) {
+      *bind_value = constantBool.value();
+      return true;
+    }
+    return false;
+  }
+};
+} // namespace detail
+
+/// Matches the bool stored in a `torch.constant.bool`.
+inline detail::torch_constant_bool_op_binder
+m_TorchConstantBool(bool *bind_value) {
+  return detail::torch_constant_bool_op_binder(bind_value);
 }
 
 namespace detail {

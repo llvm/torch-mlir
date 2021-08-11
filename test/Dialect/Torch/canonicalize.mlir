@@ -8,6 +8,30 @@ func @torch.aten.__is__(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func @torch.aten.__is__$none_is_none
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.__is__$none_is_none(%arg0: !torch.none, %arg1: !torch.none) -> !torch.bool {
+  %0 = torch.aten.__is__ %arg0, %arg1 : !torch.none, !torch.none -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.__isnot__
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.__isnot__(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !torch.bool {
+  %0 = torch.aten.__isnot__ %arg0, %arg1 : !torch.list<!torch.int>, !torch.none -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.__isnot__$none_isnot_none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.__isnot__$none_isnot_none(%arg0: !torch.none, %arg1: !torch.none) -> !torch.bool {
+  %0 = torch.aten.__isnot__ %arg0, %arg1 : !torch.none, !torch.none -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.size$canonicalize_to_list(
 // CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.list<!torch.int> {
 // CHECK:           %[[C2:.*]] = torch.constant.int 2
@@ -30,6 +54,122 @@ func @torch.aten.size$unknown_size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.l
   return %0 : !torch.list<!torch.int>
 }
 
+// CHECK-LABEL:   func @torch.aten.ne.int$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
+// CHECK-NEXT:       %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-NEXT:       return %[[FALSE]] : !torch.bool
+func @torch.aten.ne.int$same_operand(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.aten.ne.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ne.int$same_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.ne.int$same_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %2 = torch.aten.ne.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ne.int$different_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ne.int$different_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %2 = torch.aten.ne.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.eq.int$different_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %2 = torch.aten.eq.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
+// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool true
+// CHECK-NEXT:       return %[[F]] : !torch.bool
+func @torch.aten.eq.int$same_operand(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.aten.eq.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.eq.int$same_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %2 = torch.aten.eq.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.lt.int$evaluate_to_true() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.lt.int$evaluate_to_true() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %2 = torch.aten.lt.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.lt.int$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.lt.int$same_operand(%arg0: !torch.int) -> !torch.bool {
+  %2 = torch.aten.lt.int %arg0, %arg0: !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.lt.int$same_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.lt.int$same_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %2 = torch.aten.lt.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.le.int$evaluate_to_true() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.le.int$evaluate_to_true() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %2 = torch.aten.le.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.le.int$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.le.int$same_operand(%arg0: !torch.int) -> !torch.bool {
+  %2 = torch.aten.le.int %arg0, %arg0: !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.le.int$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.le.int$same_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %2 = torch.aten.le.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.gt.int$evaluate_to_true() -> !torch.bool {
 // CHECK-NEXT:       %[[T:.*]] = torch.constant.bool true
 // CHECK-NEXT:       return %[[T]] : !torch.bool
@@ -50,33 +190,42 @@ func @torch.aten.gt.int$evaluate_to_false() -> !torch.bool {
   return %0 : !torch.bool
 }
 
-// CHECK-LABEL:   func @torch.aten.ne.int$same_operand(
-// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
-// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool false
-// CHECK-NEXT:       return %[[F]] : !torch.bool
-func @torch.aten.ne.int$same_operand(%arg0: !torch.int) -> !torch.bool {
-  %0 = torch.aten.ne.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.bool
-  return %0 : !torch.bool
-}
-
-// CHECK-LABEL:   func @torch.aten.ne.int$same_value() -> !torch.bool {
-// CHECK:           %[[VAL_0:.*]] = torch.constant.bool false
-// CHECK:           return %[[VAL_0]] : !torch.bool
-func @torch.aten.ne.int$same_value() -> !torch.bool {
-  %int4 = torch.constant.int 4
-  %int4_0 = torch.constant.int 4
-  %2 = torch.aten.ne.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
-  return %2 : !torch.bool
-}
-
-// CHECK-LABEL:   func @torch.aten.ne.int$different_value() -> !torch.bool {
-// CHECK:           %[[VAL_0:.*]] = torch.constant.bool true
-// CHECK:           return %[[VAL_0]] : !torch.bool
-func @torch.aten.ne.int$different_value() -> !torch.bool {
+// CHECK-LABEL:   func @torch.aten.ge.int$evaluate_to_false() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.ge.int$evaluate_to_false() -> !torch.bool {
   %int4 = torch.constant.int 4
   %int5 = torch.constant.int 5
-  %2 = torch.aten.ne.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
+  %2 = torch.aten.ge.int %int4, %int5 : !torch.int, !torch.int -> !torch.bool
   return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.int$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.int) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.int$same_operand(%arg0: !torch.int) -> !torch.bool {
+  %2 = torch.aten.ge.int %arg0, %arg0: !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.int$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.int$same_value() -> !torch.bool {
+  %int4 = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %2 = torch.aten.ge.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.__not__
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.__not__() -> !torch.bool {
+  %false = torch.constant.bool false
+  %ret = torch.aten.__not__ %false : !torch.bool -> !torch.bool
+  return %ret: !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.len.t$of_size(

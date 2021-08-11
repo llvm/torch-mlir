@@ -184,14 +184,13 @@ static LogicalResult verify(PrimDictConstructOp op) {
   };
 
   Type keyType = op.getKeyType();
-  if (!llvm::all_of(op.keys().getTypes(), isValidSubTypeOf(keyType))) {
+  if (!llvm::all_of(op.keys().getTypes(), isValidSubTypeOf(keyType)))
     return op.emitError() << "keys should be of Dict key type";
-  }
 
   Type valueType = op.getValueType();
-  if (!llvm::all_of(op.values().getTypes(), isValidSubTypeOf(valueType))) {
+  if (!llvm::all_of(op.values().getTypes(), isValidSubTypeOf(valueType)))
     return op.emitError() << "values  should be of Dict value type";
-  }
+
   return success();
 }
 
@@ -367,21 +366,52 @@ void DerefineOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+template <typename OpTy>
+static OpFoldResult atenIsOrIsNotFoldHelper(OpTy op, bool equalIsTrue) {
+  Type lhsType = op.self().getType();
+  Type rhsType = op.obj().getType();
+
+  // If either type is a NoneType, make it be the lhsType.
+  if (rhsType.template isa<Torch::NoneType>())
+    std::swap(lhsType, rhsType);
+  // TODO: Implement and use subtype infra for this.
+  // If neither type is a subtype of the other, then the result is false.
+  if (lhsType.template isa<Torch::NoneType>() &&
+      rhsType.template isa<Torch::NoneType>())
+    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), equalIsTrue);
+
+  if (lhsType.template isa<Torch::NoneType>() &&
+      !rhsType.template isa<Torch::OptionalType>())
+    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), !equalIsTrue);
+
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // Aten__Is__Op
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten__Is__Op::fold(ArrayRef<Attribute> operands) {
-  auto lhsType = self().getType();
-  auto rhsType = obj().getType();
-  // If either type is a NoneType, make it be the lhsType.
-  if (rhsType.isa<Torch::NoneType>())
-    std::swap(lhsType, rhsType);
-  // TODO: Implement and use subtype infra for this.
-  // If neither type is a subtype of the other, then the result is false.
-  if (lhsType.isa<Torch::NoneType>() && !rhsType.isa<Torch::OptionalType>())
-    return IntegerAttr::get(IntegerType::get(getContext(), 1), 0);
-  return nullptr;
+  return atenIsOrIsNotFoldHelper(*this, /*equalIsTrue=*/true);
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Isnot__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Isnot__Op::fold(ArrayRef<Attribute> operands) {
+  return atenIsOrIsNotFoldHelper(*this, /*equalIsTrue=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Not__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Not__Op::fold(ArrayRef<Attribute> operands) {
+  bool value;
+  if (!matchPattern(getOperand(), m_TorchConstantBool(&value)))
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), !value);
 }
 
 //===----------------------------------------------------------------------===//
@@ -465,14 +495,19 @@ static IntegerAttr getI1IntegerAttr(MLIRContext *context, bool value) {
                           static_cast<int64_t>(value));
 }
 
-OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
-  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
-  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
-  if (lhs && rhs) {
-    return getI1IntegerAttr(getContext(), lhs.getValue().getSExtValue() >
-                                              rhs.getValue().getSExtValue());
-  }
-  return nullptr;
+using ConstantIntComparator = std::function<bool(int64_t, int64_t)>;
+template <typename OpTy>
+static OpFoldResult comparatorFoldHelper(OpTy op,
+                                         ConstantIntComparator comparator) {
+  if (op.getOperand(0) == op.getOperand(1))
+    return getI1IntegerAttr(op.getContext(), comparator(0, 0));
+
+  int64_t lhs, rhs;
+  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
+      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
+    return nullptr;
+
+  return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
 }
 
 //===----------------------------------------------------------------------===//
@@ -480,16 +515,53 @@ OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
-  // `torch.aten.ne.int %x, %x` -> `false`
-  if (getOperand(0) == getOperand(1))
-    return getI1IntegerAttr(getContext(), false);
-  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
-  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
-  if (lhs && rhs) {
-    return getI1IntegerAttr(getContext(), lhs.getValue().getSExtValue() !=
-                                              rhs.getValue().getSExtValue());
-  }
-  return nullptr;
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a != b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqIntOp::fold(ArrayRef<Attribute> operands) {
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a == b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLtIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLtIntOp::fold(ArrayRef<Attribute> operands) {
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a < b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLeIntOp::fold(ArrayRef<Attribute> operands) {
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a <= b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGtIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a > b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGeIntOp::fold(ArrayRef<Attribute> operands) {
+  return comparatorFoldHelper(*this,
+                              [](int64_t a, int64_t b) { return a >= b; });
 }
 
 //===----------------------------------------------------------------------===//
