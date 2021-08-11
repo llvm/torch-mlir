@@ -7,15 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "npcomp/Dialect/Torch/Transforms/Passes.h"
-#include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
-#include "npcomp/Backend/Common/Passes.h"
-#include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
-#include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
-#include "npcomp/Conversion/TorchToStd/TorchToStd.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -29,16 +22,16 @@ namespace {
 void mlir::NPCOMP::registerTorchPasses() {
   ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-to-npcomp-backend-pipeline",
-      "Pipeline lowering torch object graph to npcomp backend format.",
-      mlir::NPCOMP::Torch::createLowerObjectGraphPipeline);
+      "torchscript-to-torch-backend-pipeline",
+      "Pipeline lowering TorchScript object graph IR to Torch backend form.",
+      mlir::NPCOMP::Torch::createTorchScriptToTorchBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torch-globalized-module-to-npcomp-backend-pipeline",
-      "Pipeline lowering to npcomp backend form.",
-      mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline);
+      "torch-globalized-module-to-torch-backend-pipeline",
+      "Pipeline lowering a globalized Torch program to Torch backend form.",
+      mlir::NPCOMP::Torch::createGlobalizedModuleToTorchBackendPipeline);
 }
 
-void mlir::NPCOMP::Torch::createLowerObjectGraphPipeline(
+void mlir::NPCOMP::Torch::createTorchScriptToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // When we import TorchScript IR, we import their entire "compilation unit",
   // which can contain numerous functions unrelated to the current program,
@@ -66,10 +59,10 @@ void mlir::NPCOMP::Torch::createLowerObjectGraphPipeline(
   // Incorporate user annotations and remove signature Python-isms.
   pm.addPass(createAdjustCallingConventionsPass());
 
-  createLowerToNpcompBackendPipeline(pm, options);
+  createGlobalizedModuleToTorchBackendPipeline(pm, options);
 }
 
-void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
+void mlir::NPCOMP::Torch::createGlobalizedModuleToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // General considerations: As a matter of bring-up, we are simultaneously
   // building out the frontend pipeline and also co-developing the backend
@@ -140,39 +133,5 @@ void mlir::NPCOMP::Torch::createLowerToNpcompBackendPipeline(
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   }
 
-  //===--------------------------------------------------------------------===//
-  // Lowering ops and the !torch.vtensor type to the npcomp backend contract.
-  //===--------------------------------------------------------------------===//
-
-  // Check some invariants to catch errors in a clear way.
-  pm.addPass(Torch::createVerifyInvariantsBeforeBackendLoweringPass());
-
-  // Lower to linalg + guards which is the input to codegen backends.
-  // We do this first as it tends to involve pattern-matching against constants,
-  // (e.g. dimensions which must be constant in a ranked programming model)
-  // and those constants get somewhat obscured by TorchToStd.
-  pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
-
-  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
-  pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
-  pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
-
-  if (options.optimize) {
-    // Clean up any non-canonical code introduced in our linalg lowering.
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
-    // Resolve `dim` ops on tensors (which currently live in the `memref`
-    // dialect for some reason -- we don't have memrefs at this level).
-    pm.addNestedPass<FuncOp>(memref::createResolveShapedTypeResultDimsPass());
-    // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<FuncOp>(createCSEPass());
-  }
-
-  // Finish the type conversion from !torch.vtensor to the builtin tensor type.
-  pm.addPass(createFuncBackendTypeConversionPass());
-  pm.addNestedPass<FuncOp>(createFinalizingBackendTypeConversionPass());
-
-  // Verify that we have lowered to the form that backends expect.
-  // This fails compilation (signalPassFailure) if the IR is not in the
-  // correct form.
-  pm.addPass(CommonBackend::createVerifyBackendContractPass());
+  // TODO: VerifyTorchBackendContractPass.
 }

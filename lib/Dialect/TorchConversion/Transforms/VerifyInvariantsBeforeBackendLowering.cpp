@@ -11,17 +11,18 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/Transforms/Passes.h"
+#include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Torch;
+using namespace mlir::NPCOMP::TorchConversion;
 
 static LogicalResult checkValueInvariants(Operation *errorReportOp, Value v) {
   // TODO: Make this an allowlist instead of a denylist.
   // TODO: Make this stricter.
   auto type = v.getType();
-  if (auto valueTensorType = type.dyn_cast<ValueTensorType>()) {
+  if (auto valueTensorType = type.dyn_cast<Torch::ValueTensorType>()) {
     if (!valueTensorType.hasDtype() || !valueTensorType.hasSizes())
       return errorReportOp->emitError()
           .append("unsupported by backend lowering: tensor with unknown rank "
@@ -77,7 +78,7 @@ class VerifyInvariantsBeforeBackendLoweringPass
 
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::NPCOMP::Torch::createVerifyInvariantsBeforeBackendLoweringPass() {
+std::unique_ptr<OperationPass<ModuleOp>> mlir::NPCOMP::TorchConversion::
+    createVerifyInvariantsBeforeBackendLoweringPass() {
   return std::make_unique<VerifyInvariantsBeforeBackendLoweringPass>();
 }

@@ -8,24 +8,36 @@
 
 #include "PassDetail.h"
 
+#include "iree-dialects/Dialect/IREE/IREEDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
-#include "npcomp/Dialect/Torch/Transforms/Passes.h"
+#include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Torch;
+using namespace mlir::NPCOMP::TorchConversion;
+
+void mlir::NPCOMP::TorchConversion::getBackendTypeConversionDependentDialects(
+    DialectRegistry &registry) {
+  registry.insert<TorchConversionDialect>();
+  registry.insert<iree::IREEDialect>();
+}
+
+//===----------------------------------------------------------------------===//
+// Type conversion setup.
+//===----------------------------------------------------------------------===//
 
 static void
 setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
                                           TypeConverter &typeConverter) {
-  target.addLegalOp<Torch::ToBuiltinTensorOp, Torch::FromBuiltinTensorOp>();
+  target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
+                    TorchConversion::FromBuiltinTensorOp>();
   typeConverter.addConversion(
       [](Torch::ValueTensorType type) -> Optional<Type> {
         return type.toBuiltinTensor();
@@ -34,10 +46,11 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
                                             ValueRange inputs,
                                             Location loc) -> Value {
     assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<BaseTensorType>());
+    assert(inputs[0].getType().isa<Torch::BaseTensorType>());
     return builder.create<ToBuiltinTensorOp>(loc, inputs[0]);
   });
-  auto sourceMaterialization = [](OpBuilder &builder, ValueTensorType type,
+  auto sourceMaterialization = [](OpBuilder &builder,
+                                  Torch::ValueTensorType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<TensorType>());
@@ -49,7 +62,7 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
 
 static void setupTorchBoolToI1Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
-  target.addLegalOp<Torch::ToI1Op, Torch::FromI1Op>();
+  target.addLegalOp<TorchConversion::ToI1Op, TorchConversion::FromI1Op>();
   typeConverter.addConversion([](Torch::BoolType type) -> Optional<Type> {
     return IntegerType::get(type.getContext(), 1);
   });
@@ -75,7 +88,7 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
 
 static void setupTorchIntToI64Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
-  target.addLegalOp<Torch::ToI64Op, Torch::FromI64Op>();
+  target.addLegalOp<TorchConversion::ToI64Op, TorchConversion::FromI64Op>();
   typeConverter.addConversion([](Torch::IntType type) -> Optional<Type> {
     return IntegerType::get(type.getContext(), 64);
   });
@@ -101,7 +114,7 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
 
 static void setupTorchFloatToF64Conversion(ConversionTarget &target,
                                            TypeConverter &typeConverter) {
-  target.addLegalOp<Torch::ToF64Op, Torch::FromF64Op>();
+  target.addLegalOp<TorchConversion::ToF64Op, TorchConversion::FromF64Op>();
   typeConverter.addConversion([](Torch::FloatType type) -> Optional<Type> {
     return Float64Type::get(type.getContext());
   });
@@ -122,12 +135,38 @@ static void setupTorchFloatToF64Conversion(ConversionTarget &target,
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
-void mlir::NPCOMP::Torch::setupBackendTypeConversion(
+static void setupTorchListToIREEListConversion(ConversionTarget &target,
+                                               TypeConverter &typeConverter) {
+  target.addLegalOp<TorchConversion::ToIREEListOp,
+                    TorchConversion::FromIREEListOp>();
+  typeConverter.addConversion([&](Torch::ListType type) -> Optional<Type> {
+    return iree::ListType::get(
+        type.getContext(), typeConverter.convertType(type.getContainedType()));
+  });
+  typeConverter.addTargetMaterialization(
+      [](OpBuilder &builder, iree::ListType type, ValueRange inputs,
+         Location loc) -> Optional<Value> {
+        assert(inputs.size() == 1);
+        assert(inputs[0].getType().isa<Torch::ListType>());
+        return builder.create<ToIREEListOp>(loc, type, inputs[0]).getResult();
+      });
+  auto sourceMaterialization = [](OpBuilder &builder, Torch::ListType type,
+                                  ValueRange inputs, Location loc) -> Value {
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<iree::ListType>());
+    return builder.create<FromIREEListOp>(loc, type, inputs[0]);
+  };
+  typeConverter.addSourceMaterialization(sourceMaterialization);
+  typeConverter.addArgumentMaterialization(sourceMaterialization);
+}
+
+void mlir::NPCOMP::TorchConversion::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
   setupValueTensorToBuiltinTensorConversion(target, typeConverter);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);
+  setupTorchListToIREEListConversion(target, typeConverter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -139,6 +178,9 @@ struct FuncBackendTypeConversionPass
     : public FuncBackendTypeConversionBase<FuncBackendTypeConversionPass> {
   using FuncBackendTypeConversionBase<
       FuncBackendTypeConversionPass>::FuncBackendTypeConversionBase;
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<TorchConversion::TorchConversionDialect>();
+  }
   void runOnOperation() override {
     auto module = getOperation();
     auto *context = &getContext();
@@ -147,7 +189,7 @@ struct FuncBackendTypeConversionPass
     RewritePatternSet patterns(context);
     ConversionTarget target(*context);
     typeConverter.addConversion([](Type type) { return type; });
-    setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     populateFuncOpTypeConversionPattern(patterns, typeConverter);
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
@@ -176,7 +218,7 @@ struct FuncBackendTypeConversionPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::NPCOMP::Torch::createFuncBackendTypeConversionPass() {
+mlir::NPCOMP::TorchConversion::createFuncBackendTypeConversionPass() {
   return std::make_unique<FuncBackendTypeConversionPass>();
 }
 
@@ -234,13 +276,13 @@ struct FinalizingBackendTypeConversionPass
     ConversionTarget target(*context);
 
     typeConverter.addConversion([](Type type) { return type; });
-    setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     // Mark materializations as illegal in this pass (since we are finalizing)
     // and add patterns that eliminate them.
     setupFinalization<ToBuiltinTensorOp, FromBuiltinTensorOp, FromI1Op, ToI1Op,
-                      FromI64Op, ToI64Op, FromF64Op, ToF64Op>(target, patterns,
-                                                              typeConverter);
+                      FromI64Op, ToI64Op, FromF64Op, ToF64Op, FromIREEListOp,
+                      ToIREEListOp>(target, patterns, typeConverter);
 
     // If all result types are legal, and all block arguments are legal, then
     // all types in the program are legal.
@@ -259,6 +301,6 @@ struct FinalizingBackendTypeConversionPass
 } // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
-mlir::NPCOMP::Torch::createFinalizingBackendTypeConversionPass() {
+mlir::NPCOMP::TorchConversion::createFinalizingBackendTypeConversionPass() {
   return std::make_unique<FinalizingBackendTypeConversionPass>();
 }

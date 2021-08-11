@@ -9,6 +9,7 @@
 #include "npcomp/Conversion/Passes.h"
 
 #include "npcomp/Conversion/BasicpyToStd/Passes.h"
+#include "npcomp/Conversion/TorchToIREE/TorchToIREE.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"

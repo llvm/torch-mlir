@@ -16,7 +16,8 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
+#include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -63,7 +64,7 @@ static LogicalResult verifyLinalgCompatibleTypes(Operation *op,
 // to end. Constant values can be be extracted directly and non constant
 // list values are not supported.
 // TODO: loose this constraint when properly support list type
-static bool isConstantIntListMatching(Value &value,
+static bool isConstantIntListMatching(Value value,
                                       llvm::SmallVectorImpl<int64_t> &expects) {
   llvm::SmallVector<int64_t> intValues;
   if (!matchPattern(value, m_TorchConstantIntList(intValues)))
@@ -171,7 +172,6 @@ public:
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
     AtenAdaptiveAvgPool2dOp::Adaptor adaptor(operands);
-    Value outputSize = adaptor.output_size();
     Value input = adaptor.self(); /* in form of N*C*H*W */
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     Type elementType = inputType.getElementType();
@@ -183,7 +183,10 @@ public:
       return rewriter.notifyMatchFailure(op, "input should be rank 4");
 
     SmallVector<int64_t, 2> expects{1, 1};
-    if (!isConstantIntListMatching(outputSize, expects))
+    // Pattern match against the op's original operands, because otherwise we
+    // will get the lowered version of the operands which is harder to pattern
+    // match.
+    if (!isConstantIntListMatching(op.output_size(), expects))
       return rewriter.notifyMatchFailure(
           op, "only support output_size with H and W both equal to constant 1");
 
@@ -269,9 +272,6 @@ public:
     AtenConv2dOp::Adaptor adaptor(operands);
     Value input = adaptor.input();   /* in form of N*C*H*W */
     Value weight = adaptor.weight(); /* in form of F*C*H*W */
-    Value padding = adaptor.padding();
-    Value stride = adaptor.stride();
-    Value dilation = adaptor.dilation();
     Value groups = adaptor.groups();
 
     Type elementType =
@@ -291,18 +291,21 @@ public:
     Value weightH = getDimOp(rewriter, loc, weight, 2);
     Value weightW = getDimOp(rewriter, loc, weight, 3);
 
+    // Pattern match against the op's original operands, because otherwise we
+    // will get the lowered version of the operands which is harder to pattern
+    // match.
     llvm::SmallVector<int64_t> paddingInts;
-    if (!matchPattern(padding, m_TorchConstantIntList(paddingInts))) {
+    if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts))) {
       return rewriter.notifyMatchFailure(
           op, "only support constant padding values");
     }
 
     llvm::SmallVector<int64_t, 2> strideInts;
-    if (!matchPattern(stride, m_TorchConstantIntList(strideInts)))
+    if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
     llvm::SmallVector<int64_t, 2> dilationInts;
-    if (!matchPattern(dilation, m_TorchConstantIntList(dilationInts)))
+    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     if (!op.bias().getType().isa<Torch::NoneType>())
@@ -905,30 +908,29 @@ public:
     Location loc = op->getLoc();
     AtenMaxPool2dOp::Adaptor adaptor(operands);
     Value self = adaptor.self();
-    Value kernelSize = adaptor.kernel_size();
-    Value stride = adaptor.stride();
-    Value padding = adaptor.padding();
-    Value dilation = adaptor.dilation();
     Value ceilMode = adaptor.ceil_mode();
 
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
     if (!elementType.isa<mlir::FloatType>())
       op.emitError("unimplemented: non-floating point type");
 
+    // Pattern match against the op's original operands, because otherwise we
+    // will get the lowered version of the operands which is harder to pattern
+    // match.
     llvm::SmallVector<int64_t, 2> strideInts;
-    if (!matchPattern(stride, m_TorchConstantIntList(strideInts)))
+    if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
     llvm::SmallVector<int64_t, 2> dilationInts;
-    if (!matchPattern(dilation, m_TorchConstantIntList(dilationInts)))
+    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     llvm::SmallVector<int64_t, 2> paddingInts;
-    if (!matchPattern(padding, m_TorchConstantIntList(paddingInts)))
+    if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int paddings");
     llvm::SmallVector<int64_t, 2> kernelSizeInts;
-    if (!matchPattern(kernelSize, m_TorchConstantIntList(kernelSizeInts)))
+    if (!matchPattern(op.kernel_size(), m_TorchConstantIntList(kernelSizeInts)))
       return rewriter.notifyMatchFailure(op, "only support kernel size ints");
 
     Value falseValue = rewriter.create<ConstantOp>(
@@ -1113,6 +1115,7 @@ public:
     registry.insert<math::MathDialect>();
     registry.insert<StandardOpsDialect>();
     registry.insert<tensor::TensorDialect>();
+    TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
   void runOnOperation() override {
@@ -1123,7 +1126,7 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenMmOp>();

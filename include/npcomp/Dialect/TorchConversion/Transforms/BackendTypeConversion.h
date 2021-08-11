@@ -6,21 +6,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef NPCOMP_DIALECT_TORCH_TRANSFORMS_BACKENDTYPECONVERSION_H
-#define NPCOMP_DIALECT_TORCH_TRANSFORMS_BACKENDTYPECONVERSION_H
+#ifndef NPCOMP_DIALECT_TORCHCONVERSION_TRANSFORMS_BACKENDTYPECONVERSION_H
+#define NPCOMP_DIALECT_TORCHCONVERSION_TRANSFORMS_BACKENDTYPECONVERSION_H
 
 #include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
 namespace NPCOMP {
-namespace Torch {
+namespace TorchConversion {
+
+/// Get the dependent dialects which might be involved in a backend type
+/// conversion.
+void getBackendTypeConversionDependentDialects(DialectRegistry &registry);
+
 /// Set up the provided ConversionTarget and TypeConverter for converting
 /// from `torch` dialect types to the types along the npcomp backend boundary
 /// (which currently consist only of builtin types).
 void setupBackendTypeConversion(ConversionTarget &target,
                                 TypeConverter &typeConverter);
-} // namespace Torch
+} // namespace TorchConversion
 } // namespace NPCOMP
 } // namespace mlir
 
-#endif // NPCOMP_DIALECT_TORCH_TRANSFORMS_BACKENDTYPECONVERSION_H
+#endif // NPCOMP_DIALECT_TORCHCONVERSION_TRANSFORMS_BACKENDTYPECONVERSION_H

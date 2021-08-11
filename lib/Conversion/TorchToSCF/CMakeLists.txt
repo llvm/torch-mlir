@@ -16,4 +16,5 @@ add_npcomp_conversion_library(NPCOMPTorchToSCF
   MLIRSCF
   MLIRStandard
   NPCOMPTorchDialect
+  NPCOMPTorchConversionDialect
 )

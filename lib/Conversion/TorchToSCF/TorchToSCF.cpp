@@ -13,7 +13,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "npcomp/Dialect/Torch/IR/TorchDialect.h"
 #include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/Torch/Transforms/BackendTypeConversion.h"
+#include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -63,6 +64,7 @@ class ConvertTorchToSCF : public ConvertTorchToSCFBase<ConvertTorchToSCF> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<scf::SCFDialect>();
+    TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
   void runOnOperation() override {
@@ -72,7 +74,7 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<PrimIfOp>();
