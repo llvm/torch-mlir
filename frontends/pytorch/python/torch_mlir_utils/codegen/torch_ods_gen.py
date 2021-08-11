@@ -81,7 +81,7 @@ class JitOperator:
 
     def create_unique_key(self) -> str:
         """Create a unique, human-readable key for this JitOperator.
-        
+
         The key consists of the operator name and its overload name, which
         together form a unique identifier. We also redundantly
         append a signature to the end, which gives some robustness to changes
@@ -217,12 +217,16 @@ OP_INFO_DICT = Dict[str, Union[bool, Tuple[str], SIGLIST_TYPE]]
 # Use `get_ods_type` instead of using this directly.
 TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor": "AnyTorchTensorType",
-    "Tensor?": "AnyTorchOptionalTensor",
+    "Tensor?": "AnyTorchOptionalTensorType",
+    "Tensor?[]": "AnyTorchOptionalTensorListType",
+    "Tensor[]": "AnyTorchTensorListType",
     "Scalar": "AnyTorchScalarType",
     "int": "Torch_IntType",
-    "int[]": "AnyTorchIntListType",
+    "int[]": "TorchIntListType",
+    "int?": "TorchOptionalIntType",
     "bool": "Torch_BoolType",
-    "bool[]": "AnyTorchBoolListType",
+    "bool[]": "TorchBoolListType",
+    "bool?": "TorchOptionalBoolType",
     "float": "Torch_FloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
@@ -230,12 +234,18 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "t2": "AnyTorchType",
     "Any": "AnyTorchType",
     "Device": "Torch_DeviceType",
+    "Device?": "TorchOptionalDeviceType",
     "str": "Torch_StringType",
+    "str[]": "TorchStringListType",
+    "Dict": "Torch_DictType",
     "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
 }
 
 
 def get_ods_type(type: str):
+    # TODO: Increase precision on dict type modeling.
+    if type.startswith("Dict("):
+      type = "Dict"
     ods_type = TORCH_TYPE_TO_ODS_TYPE.get(type)
     if ods_type is None:
         raise Exception(
@@ -364,7 +374,11 @@ def emit_op(operator: JitOperator,
     if not operator.is_vararg and not operator.is_varret and all(
             "alias_info" not in x
             for x in itertools.chain(operator.arguments, operator.returns)):
-        traits += ["HasValueSemantics"]
+      # It seems the FunctionSchema of "prim::unchecked_cast : (t) -> (t)" has
+      # incorrect alias information. The result can alias with other tensors
+      # but the alias annotation is empty.
+      if operator.unique_key != "prim::unchecked_cast : (t) -> (t)":
+          traits += ["HasValueSemantics"]
 
     raw_emit_op(operator,
                 f,
@@ -396,6 +410,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::unchecked_cast : (t) -> (t)",
              traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
         emit("prim::Print : (...) -> ()")
+        emit("prim::tolist : (...) -> (...)")
 
 
 def emit_aten_ops(torch_ir_dir: str, registry: Registry):
@@ -421,11 +436,27 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         for key in [
                 "aten::tanh : (Tensor) -> (Tensor)",
                 "aten::relu : (Tensor) -> (Tensor)",
+                "aten::sin : (Tensor) -> (Tensor)",
+                "aten::exp : (Tensor) -> (Tensor)",
+                "aten::cos : (Tensor) -> (Tensor)",
+                "aten::neg : (Tensor) -> (Tensor)",
+                "aten::bitwise_not : (Tensor) -> (Tensor)",
                 "aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
                 "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
                 "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
                 "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
                 "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
+                "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
+                "aten::ne.Tensor : (Tensor, Tensor) -> (Tensor)",
+                "aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)",
+                "aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)",
+                "aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::div.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
         ]:
             emit_with_mutating_variants(key)
 
@@ -442,22 +473,109 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
             "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
         )
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
+        emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
+        emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
+        emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
+        emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
+        emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
+        emit("aten::mean.dim : (Tensor, int[], bool, int?) -> (Tensor)")
+        emit("aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)")
 
         # Misc tensor ops.
         emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
         emit("aten::dim : (Tensor) -> (int)", has_folder=True)
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
+        emit("aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)")
+        emit("aten::Bool.Tensor : (Tensor) -> (bool)")
+        emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
+        emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
+        emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")
+        emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)")
+        emit("aten::all : (Tensor) -> (Tensor)")
+        emit("aten::any : (Tensor) -> (Tensor)")
+        emit("aten::any.dim : (Tensor, int, bool) -> (Tensor)")
+        emit("aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::arange.start : (Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::contiguous : (Tensor, int) -> (Tensor)")
+        emit("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)")
+        emit("aten::detach : (Tensor) -> (Tensor)")
+        emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
+        emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
+        emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
+        emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
+        emit("aten::index_put_ : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
+        emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
+        emit("aten::item : (Tensor) -> (Scalar)")
+        emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::numel : (Tensor) -> (int)")
+        emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
+        emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
+        emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
+        emit("aten::size.int : (Tensor, int) -> (int)")
+        emit("aten::stack : (Tensor[], int) -> (Tensor)")
+        emit("aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)")
+        emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)")
+        emit("aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)")
+        emit("aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)")
+        emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::view : (Tensor, int[]) -> (Tensor)")
+        emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
+        emit("aten::len.Tensor : (Tensor) -> (int)")
+        emit("aten::cpu : (Tensor) -> (Tensor)")
+        emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
+        emit("aten::IntImplicit : (Tensor) -> (int)")
+
+        # Dict ops.
+        emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)")
+        emit("aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)")
+        emit("aten::_set_item.str : (Dict(str, t), str, t) -> ()")
+        emit("aten::keys.str : (Dict(str, t)) -> (str[])")
+        emit("aten::get.default_str : (Dict(str, t), str, t) -> (t)")
+
+        # List ops.
+        emit("aten::cat : (Tensor[], int) -> (Tensor)")
+        emit("aten::append.t : (t[], t) -> (t[])")
+        emit("aten::add.t : (t[], t[]) -> (t[])")
+        emit("aten::eq.int_list : (int[], int[]) -> (bool)")
+        emit("aten::list.t : (t[]) -> (t[])")
+        emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
+
+        # Str ops.
+        emit("aten::add.str : (str, str) -> (str)")
+        emit("aten::str : (t) -> (str)")
+        emit("aten::format : (...) -> (str)")
+        emit("aten::join : (str, str[]) -> (str)")
+
+        # Type conversion ops.
+        emit("aten::Float.Scalar : (Scalar) -> (float)")
+        emit("aten::Float.str : (str) -> (float)")
+        emit("aten::Int.float : (float) -> (int)")
 
         # Primitive ops
         emit("aten::gt.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::ge.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::lt.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::le.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::ne.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::eq.int : (int, int) -> (bool)", has_folder=True)
+        emit("aten::floordiv.int : (int, int) -> (int)")
+        emit("aten::remainder.int : (int, int) -> (int)")
         emit("aten::add.int : (int, int) -> (int)")
+        emit("aten::sub.int : (int, int) -> (int)")
         emit("aten::mul.int : (int, int) -> (int)")
+        emit("aten::log.int : (int) -> (float)")
         emit("aten::add.float_int : (float, int) -> (float)")
         emit("aten::mul.float : (float, float) -> (float)")
+        emit("aten::neg.float : (float) -> (float)")
         emit("aten::lt.float_int : (float, int) -> (bool)")
+        emit("aten::__and__.bool : (bool, bool) -> (bool)")
         emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
+        emit("aten::__isnot__ : (t1, t2) -> (bool)", has_folder=True)
+        emit("aten::__not__ : (bool) -> (bool)", has_folder=True)
         emit("aten::len.t : (t[]) -> (int)",
              has_folder=True,
              has_canonicalizer=True)

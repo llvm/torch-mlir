@@ -18,6 +18,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
@@ -73,8 +75,10 @@ public:
   ObjectGraphInfo(ModuleOp module)
       : globalSlotBuilder(module.getBodyRegion()), symbolTable(module) {}
 
-  LogicalResult initialize(NnModuleOp root) {
-    return recursivelyTraverse(root);
+  LogicalResult initialize(NnModuleOp rootNnModule) {
+    if (failed(collectUsedSlots()))
+      return failure();
+    return recursivelyTraverse(rootNnModule);
   }
 
   LinkageInfo getSlotLinkageInfo(SlotOp op) {
@@ -97,6 +101,51 @@ public:
   }
 
 private:
+  LogicalResult collectUsedSlots() {
+    // Collect all the slots in each module.
+    llvm::StringMap<llvm::StringMap<SlotOp>> moduleClassNameToSlots;
+    symbolTable.getOp()->walk([&](NnModuleOp moduleOp) {
+      llvm::StringMap<SlotOp> nameToSlot;
+      for (auto attrOp : moduleOp.getOps<SlotOp>())
+        nameToSlot[attrOp.name()] = attrOp;
+      moduleClassNameToSlots[moduleOp.getClassName()] = nameToSlot;
+    });
+
+    // Find all the module slots that are accessed through `PrimGetAttrOp` or
+    // `PrimSetAttrOp`.
+    symbolTable.getOp()->walk([&](Operation *op) {
+      if (!isa<PrimGetAttrOp, PrimSetAttrOp>(op))
+        return;
+
+      Value module;
+      StringRef slotName;
+      if (auto getAttrOp = llvm::dyn_cast<PrimGetAttrOp>(op)) {
+        module = getAttrOp.receiver();
+        slotName = getAttrOp.name();
+      } else {
+        auto setAttrOp = cast<PrimSetAttrOp>(op);
+        module = setAttrOp.receiver();
+        slotName = setAttrOp.name();
+      }
+
+      auto moduleType = module.getType().cast<NnModuleType>();
+      auto slots = moduleClassNameToSlots.find(moduleType.getClassName());
+      // TODO: Improve verifier so that this can never happen
+      if (slots == moduleClassNameToSlots.end())
+        op->emitError() << "Reference to non-existing module type "
+                        << moduleType.getClassName();
+
+      llvm::StringMap<SlotOp> nameToSlot = slots->getValue();
+      auto slotIt = nameToSlot.find(slotName);
+      // TODO: Improve verifier so that this can never happen
+      if (slotIt == nameToSlot.end())
+        op->emitError() << "Reference to non-existing module slot " << slotName
+                        << "in " << moduleType.getClassName();
+      usedSlots.insert(slotIt->getValue());
+    });
+    return success();
+  }
+
   LogicalResult recursivelyTraverse(NnModuleOp nnModule) {
     std::string pathToClassFromRoot = llvm::join(nameStack, ".");
     if (!seenNnModules.insert({nnModule, pathToClassFromRoot}).second) {
@@ -127,7 +176,7 @@ private:
         assert(slotToGlobalSlot.find(slot) == slotToGlobalSlot.end());
         slotToGlobalSlot[slot] = globalSlot;
         slotLinkageInfo[slot] = LinkageInfo{linkageName, attr.isPrivate()};
-        if (failed(populateGlobalSlotInitializer(globalSlot, slot.value())))
+        if (failed(populateGlobalSlotInitializer(globalSlot, slot)))
           return failure();
       }
       nameStack.pop_back();
@@ -142,11 +191,12 @@ private:
     return success();
   }
   LogicalResult populateGlobalSlotInitializer(GlobalSlotOp globalSlot,
-                                              Value initialValue) {
+                                              SlotOp slot) {
     OpBuilder builder(globalSlot.getContext());
     builder.createBlock(&globalSlot.getRegion());
 
     SmallPtrSet<Operation *, 6> needToClone;
+    Value initialValue = slot.value();
     SmallVector<Operation *> worklist = {initialValue.getDefiningOp()};
     while (!worklist.empty()) {
       Operation *op = worklist.pop_back_val();
@@ -166,6 +216,8 @@ private:
       builder.clone(*op, mapping);
       for (Value result : op->getResults()) {
         if (!hasMeaningfulObjectIdentity(result.getType()))
+          continue;
+        if (usedSlots.find(slot) == usedSlots.end())
           continue;
         if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
                  .second) {
@@ -205,6 +257,9 @@ private:
   // which cannot be used in multiple initializers because their object
   // identity is important.
   DenseSet<Value> objectsWithIdentityAlreadyCopiedIntoInitializers;
+  // Used to keep track of all the used torch slots so that the restrictions can
+  // be applied to those slots only.
+  DenseSet<SlotOp> usedSlots;
 };
 } // namespace
 

@@ -6,8 +6,7 @@ set -e
 
 td="$(realpath $(dirname $0)/..)"
 build_dir="$td/build"
-install_mlir="$td/install-mlir"
-build_mlir="$td/external/llvm-project/build"
+build_mlir="$build_dir/llvm"
 
 lit_exe="$build_mlir/bin/llvm-lit"
 if ! [ -f "$lit_exe" ]; then

@@ -375,27 +375,38 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
 // Type predicates
 //===----------------------------------------------------------------------===//
 
-def AnyTorchOptionalTensor : AnyTypeOf<[
-  AnyTorchTensorType,
-  Torch_OptionalType,
-  Torch_NoneType,
-], "optional torch tensor">;
+class OptionalOf<Type type, string descr> :
+    AnyTypeOf<[type, Torch_OptionalType, Torch_NoneType], descr> ;
+
+def AnyTorchOptionalTensorType :
+      OptionalOf<AnyTorchTensorType, "Optional torch tensor type">;
+def TorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
+def TorchOptionalBoolType:
+      OptionalOf<Torch_BoolType, "Optional torch bool type">;
+def TorchOptionalDeviceType:
+      OptionalOf<Torch_DeviceType, "Optional torch device type">;
 
 def IsListTypePred : CPred<"$_self.isa<::mlir::NPCOMP::Torch::ListType>()">;
-
 class ListOf<list<Type> allowedTypes, string descr> :
-          ContainerType<AnyTypeOf<allowedTypes>, IsListTypePred,
+    ContainerType<AnyTypeOf<allowedTypes>,
+            IsListTypePred,
             "$_self.cast<::mlir::NPCOMP::Torch::ListType>().getContainedType()",
-              descr, "::mlir::NPCOMP::Torch::ListType">;
+            descr, "::mlir::NPCOMP::Torch::ListType">;
 
-def AnyTorchBoolListType : ListOf<[Torch_BoolType], "Any bool list type (bool[])">;
-
-def AnyTorchIntListType : ListOf<[Torch_IntType], "Any int list type (int[])">;
+def TorchBoolListType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
+def TorchIntListType : ListOf<[Torch_IntType], "Int list type (int[])">;
+def TorchStringListType : ListOf<[Torch_StringType], "Str list type (str[])">;
+def AnyTorchTensorListType:
+      ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
+def AnyTorchOptionalTensorListType :
+      ListOf<[AnyTorchOptionalTensorType],
+             "Any optional tensor list type (Tensor?[])">;
 
 def AnyTorchScalarType : AnyTypeOf<[
   Torch_IntType,
   Torch_FloatType,
   Torch_BoolType,
+  Torch_NumberType,
 ], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
 
 // See function `DictTypePtr create(TypePtr key, TypePtr value)`
