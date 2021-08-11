@@ -1,3 +1,4 @@
+add_subdirectory(TorchToIREE)
 add_subdirectory(TorchToLinalg)
 add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToStd)

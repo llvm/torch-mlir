@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "iree-dialects/Dialect/IREE/IREEOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -32,6 +33,7 @@ class VerifyBackendContractPass
         return type;
       return nullptr;
     });
+    converter.addConversion([](iree::ListType type) { return type; });
     TypeConverter scalarConverter;
     for (TypeConverter *c : {&converter, &scalarConverter}) {
       c->addConversion([](FloatType type) { return type; });
@@ -59,8 +61,7 @@ class VerifyBackendContractPass
     // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
-    // DimOp is used to query tensor sizes.
-    target.addDynamicallyLegalOp<tensor::DimOp>(opHasLegalTypes);
+    target.addDynamicallyLegalDialect<iree::IREEDialect>(opHasLegalTypes);
 
     // AssertOp is used to terminate the program for error guards.
     target.addLegalOp<AssertOp>();

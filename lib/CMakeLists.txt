@@ -32,6 +32,7 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPRefBackend
   NPCOMPRefbackDialect
   NPCOMPTorchDialect
+  NPCOMPTorchConversionDialect
   NPCOMPRefbackrtDialect
   NPCOMPBasicpyDialect
   NPCOMPBasicpyPasses
@@ -39,6 +40,7 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPNumpyDialect
   NPCOMPNumpyPasses
   NPCOMPTypingPasses
+  IREEDialectsIREEDialect
 
   # TODO: We shouldn't need npcomp_conversion_libs here, but we have
   # some dialect transform libraries accumulating into that property.

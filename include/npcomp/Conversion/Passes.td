@@ -104,6 +104,14 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createConvertTorchToLinalgPass()";
 }
 
+def ConvertTorchToIREE : Pass<"convert-torch-to-iree", "FuncOp"> {
+  let summary = "Convert recognized Torch ops to IREE ops";
+  let description = [{
+    TODO
+  }];
+  let constructor = "mlir::NPCOMP::createConvertTorchToIREEPass()";
+}
+
 //===----------------------------------------------------------------------===//
 // Basicpy conversions
 //===----------------------------------------------------------------------===//

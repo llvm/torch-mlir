@@ -214,40 +214,4 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
   }];
 }
 
-def VerifyInvariantsBeforeBackendLowering
-    : Pass<"torch-verify-invariants-before-backend-lowering", "ModuleOp"> {
-  let summary = "Verify invariants required by backend lowering";
-  let constructor =
-    "mlir::NPCOMP::Torch::createVerifyInvariantsBeforeBackendLoweringPass()";
-  let description = [{
-    This pass checks any invariants needed by the process of lowering the
-    `torch` dialect to the npcomp backend contract.
-
-    The most important invariant is that all tensors should be ranked and have
-    a known dtype. It is useful to catch this early because it usually
-    represents a simple bug in RefineTypes, but can manifest as many different
-    kinds of obscure symptoms during lowering.
-  }];
-}
-
-def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "ModuleOp"> {
-  let summary = "Convert functions to operate on builtin tensors";
-  let constructor = "mlir::NPCOMP::Torch::createFuncBackendTypeConversionPass()";
-  let description = [{
-    Partial type conversion pass analogous in scope to the upstream
-    `func-bufferize` pass. See details there.
-  }];
-}
-
-def FinalizingBackendTypeConversion
-    : Pass<"torch-finalizing-backend-type-conversion", "FuncOp"> {
-  let summary = "Finalizes a partial conversion to builtin tensors";
-  let constructor =
-    "mlir::NPCOMP::Torch::createFinalizingBackendTypeConversionPass()";
-  let description = [{
-    Analogous in scope to the upstream `finalizing-bufferize` pass.
-    See details there.
-  }];
-}
-
 #endif // NPCOMP_TORCH_PASSES

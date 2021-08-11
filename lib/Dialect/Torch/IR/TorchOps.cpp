@@ -689,35 +689,6 @@ void CopyToValueTensorOp::getEffects(
 }
 
 //===----------------------------------------------------------------------===//
-// ToBuiltinTensorOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult ToBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto resultType =
-      operands[0].getType().cast<ValueTensorType>().toBuiltinTensor();
-  if (!resultType)
-    return failure();
-  inferredReturnTypes.push_back(resultType);
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// FromBuiltinTensorOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult FromBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(
-      ValueTensorType::getFromShaped(operands[0].getType().cast<TensorType>()));
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // ConstantNoneOp
 //===----------------------------------------------------------------------===//
 

@@ -1,6 +1,5 @@
 add_npcomp_conversion_library(NPCOMPTorchPasses
   AdjustCallingConventions.cpp
-  BackendTypeConversion.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
@@ -9,7 +8,6 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   ReduceOpVariants.cpp
   RefinePublicReturn.cpp
   RefineTypes.cpp
-  VerifyInvariantsBeforeBackendLowering.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/Torch/Transforms
@@ -24,7 +22,5 @@ add_npcomp_conversion_library(NPCOMPTorchPasses
   MLIRIR
   MLIRPass
   NPCOMPTorchDialect
-  NPCOMPTorchToLinalg
   NPCOMPInterfaces
-  MLIRMemRefTransforms
 )

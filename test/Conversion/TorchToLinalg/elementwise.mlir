@@ -3,7 +3,7 @@
 
 // CHECK-LABEL:   func @elementwise$unary(
 // CHECK-SAME:                            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
-// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
 // CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [] : tensor<f32>
 // CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>], iterator_types = []} ins(%[[BUILTIN_TENSOR]] : tensor<f32>) outs(%[[INIT_TENSOR]] : tensor<f32>) {
 // CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: f32):
@@ -11,7 +11,7 @@
 // CHECK:             linalg.yield %[[TANH]] : f32
 // CHECK:           } -> tensor<f32>
 // CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<f32> to tensor<f32>
-// CHECK:           %[[RESULT:.*]] = torch.from_builtin_tensor %[[CASTED]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<f32> -> !torch.vtensor<[],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
 // CHECK:         }
 func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
@@ -22,8 +22,8 @@ func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
 // CHECK-LABEL:   func @elementwise$binary(
 // CHECK-SAME:                             %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                             %[[ARG1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
-// CHECK:           %[[BUILTIN_ARG0:.*]] = torch.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:           %[[BUILTIN_ARG1:.*]] = torch.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
+// CHECK:           %[[BUILTIN_ARG0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:           %[[BUILTIN_ARG1:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
 // CHECK:           %[[C0:.*]] = constant 0 : index
 // CHECK:           %[[ARG0_DIM0:.*]] = tensor.dim %[[BUILTIN_ARG0]], %[[C0]] : tensor<?x?xf32>
 // CHECK:           %[[C1:.*]] = constant 1 : index
@@ -39,7 +39,7 @@ func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
 // CHECK:             linalg.yield %[[MUL]] : f32
 // CHECK:           } -> tensor<?x?xf32>
 // CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<?x?xf32> to tensor<?x?xf32>
-// CHECK:           %[[RESULT:.*]] = torch.from_builtin_tensor %[[CASTED]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[?,?],f32>
 func @elementwise$binary(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
   %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
@@ -61,7 +61,7 @@ func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vten
 // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                                          %[[VAL_1:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],f32> {
 // CHECK:           %[[C1:.*]] = torch.constant.int 1
-// CHECK:           %[[BUILTIN_C1:.*]] = torch.to_i64 %[[C1]]
+// CHECK:           %[[BUILTIN_C1:.*]] = torch_c.to_i64 %[[C1]]
 // CHECK:           linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> (d0)>]
 // CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[ALPHA:.*]] = sitofp %[[BUILTIN_C1]] : i64 to f32

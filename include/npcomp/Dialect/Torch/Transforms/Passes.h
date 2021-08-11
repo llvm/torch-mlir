@@ -31,16 +31,14 @@ struct TorchLoweringPipelineOptions
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
-/// TorchScript import into the form expected by npcomp-verify-backend-contract.
-void createLowerObjectGraphPipeline(
+/// TorchScript import into the form expected by torch-verify-backend-contract.
+void createTorchScriptToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
 /// Creates a pipeline that lowers a flat list of funcs and global slots
 /// with the torch and aten dialects and mutable arrays and converts it to
-/// the form required by npcomp-verify-backend-contract, in particular
-/// lowering most arrays to ranked tensors of known dtype, lowering aten ops to
-/// linalg, converting torch.prim.* ops to elementary math operations.
-void createLowerToNpcompBackendPipeline(
+/// the form required by torch-verify-backend-contract.
+void createGlobalizedModuleToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
@@ -54,14 +52,6 @@ std::unique_ptr<OperationPass<FuncOp>> createReduceOpVariantsPass();
 std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
-
-std::unique_ptr<OperationPass<ModuleOp>>
-createVerifyInvariantsBeforeBackendLoweringPass();
-
-std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
-
-std::unique_ptr<OperationPass<FuncOp>>
-createFinalizingBackendTypeConversionPass();
 
 } // namespace Torch
 

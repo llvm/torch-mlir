@@ -13,19 +13,6 @@ func @torch.linear_params.create(%arg0: !torch.tensor, %arg1: !torch.tensor) -> 
   return %with_bias, %without_bias : !torch.LinearParams, !torch.LinearParams
 }
 
-// CHECK-LABEL: func @builtin_tensor_interop(
-func @builtin_tensor_interop(%arg0: tensor<*xf32>, %arg1: tensor<3x?xsi8>, %arg2: !torch.vtensor<*,f32>, %arg3: !torch.vtensor<[3,?],si8>) {
-  // CHECK: torch.from_builtin_tensor %arg0 : tensor<*xf32> -> !torch.vtensor<*,f32>
-  %0 = torch.from_builtin_tensor %arg0 : tensor<*xf32> -> !torch.vtensor<*,f32>
-  // CHECK: torch.from_builtin_tensor %arg1 : tensor<3x?xsi8> -> !torch.vtensor<[3,?],si8>
-  %1 = torch.from_builtin_tensor %arg1 : tensor<3x?xsi8> -> !torch.vtensor<[3,?],si8>
-  // CHECK: torch.to_builtin_tensor %arg2 : !torch.vtensor<*,f32> -> tensor<*xf32>
-  %2 = torch.to_builtin_tensor %arg2 : !torch.vtensor<*,f32> -> tensor<*xf32>
-  // CHECK: torch.to_builtin_tensor %arg3 : !torch.vtensor<[3,?],si8> -> tensor<3x?xsi8>
-  %3 = torch.to_builtin_tensor %arg3 : !torch.vtensor<[3,?],si8> -> tensor<3x?xsi8>
-  return
-}
-
 // CHECK: @tensor.default() -> !torch.tensor
 func private @tensor.default() -> !torch.tensor
 // CHECK: @tensor.default_explicit() -> !torch.tensor{{$}}
