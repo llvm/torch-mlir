@@ -21,13 +21,7 @@ _common_npcomp_lowering_xfails = {
 
 XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
 
-XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails | {
-    # https://github.com/google/iree/issues/6629
-    'Conv2dWithPaddingModule_basic',
-    'Conv2dWithPaddingDilationStrideModule_basic',
-    'ResNet18Module_basic',
-    'MaxPool2dModule_basic',
-}
+XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails
 
 XFAIL_SETS['torchscript'] = {}
 
