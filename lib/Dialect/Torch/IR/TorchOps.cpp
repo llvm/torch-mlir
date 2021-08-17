@@ -45,6 +45,10 @@ Value mlir::NPCOMP::Torch::copyTensorToType(OpBuilder &builder, Location loc,
   return tensor;
 }
 
+static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
+  return IntegerAttr::get(IntegerType::get(context, 64), value);
+}
+
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -827,6 +831,132 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     rewriter.replaceOp(op, {listConstruct.getOperand(index)});
     return success();
   });
+}
+
+//===----------------------------------------------------------------------===//
+// PrimTupleUnpackOp
+//===----------------------------------------------------------------------===//
+
+void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](PrimTupleUnpackOp op, PatternRewriter &rewriter) {
+    auto torchTuple = op.tup();
+    auto tupleConstruct =
+        torchTuple.getDefiningOp<Torch::PrimTupleConstructOp>();
+    if (!tupleConstruct)
+      return failure();
+
+    rewriter.replaceOp(op, tupleConstruct.elements());
+    return success();
+  });
+}
+
+static PrimDictConstructOp getDictConstructIfNotModified(Value torchDict) {
+  if (!llvm::all_of(torchDict.getUsers(), [](Operation *op) {
+        return isa<Aten__Getitem__DictStrOp, Aten__Contains__StrOp,
+                   AtenKeysStrOp, AtenGetDefaultStrOp>(op);
+      }))
+    return nullptr;
+
+  return torchDict.getDefiningOp<Torch::PrimDictConstructOp>();
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Getitem__DictStrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Getitem__DictStrOp::fold(ArrayRef<Attribute> operands) {
+  auto dictConstruct = getDictConstructIfNotModified(self());
+  if (!dictConstruct)
+    return nullptr;
+
+  auto targetKey = key();
+  for (auto i : llvm::zip(dictConstruct.keys(), dictConstruct.values())) {
+    auto k = std::get<0>(i);
+    if (k == targetKey)
+      return std::get<1>(i);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Contains__StrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Contains__StrOp::fold(ArrayRef<Attribute> operands) {
+  auto dictConstruct = getDictConstructIfNotModified(dict());
+  if (!dictConstruct)
+    return nullptr;
+
+  auto targetKey = key();
+  for (auto key : dictConstruct.keys()) {
+    if (key == targetKey)
+      return getI1IntegerAttr(getContext(), true);
+  }
+  return nullptr;
+}
+
+using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
+template <typename OpTy>
+static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,
+                                                    BinaryIntOperatorFn f) {
+  int64_t lhs, rhs;
+  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
+      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
+    return nullptr;
+
+  return getI64IntegerAttr(op.getContext(), f(lhs, rhs));
+}
+
+//===----------------------------------------------------------------------===//
+// AtenFloordivIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFloordivIntOp::fold(ArrayRef<Attribute> operands) {
+  return atenBinaryIntOperatorFoldHelper(
+      *this, [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenRemainderIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRemainderIntOp::fold(ArrayRef<Attribute> operands) {
+  return atenBinaryIntOperatorFoldHelper(
+      *this, [](int64_t a, int64_t b) { return a % b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddIntOp::fold(ArrayRef<Attribute> operands) {
+  return atenBinaryIntOperatorFoldHelper(
+      *this, [](int64_t a, int64_t b) { return a + b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSubIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSubIntOp::fold(ArrayRef<Attribute> operands) {
+  return atenBinaryIntOperatorFoldHelper(
+      *this, [](int64_t a, int64_t b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulIntOp::fold(ArrayRef<Attribute> operands) {
+  int64_t lhs, rhs;
+  bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
+  bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
+  if ((lConstant && lhs == 0) || (rConstant && rhs == 0))
+    return getI64IntegerAttr(getContext(), 0);
+  if (lConstant && rConstant)
+    return getI64IntegerAttr(getContext(), lhs * rhs);
+  return nullptr;
 }
 
 #define GET_OP_CLASSES

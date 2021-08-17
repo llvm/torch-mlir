@@ -399,7 +399,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::TupleIndex : (Any, int) -> (Any)")
         emit("prim::device : (Tensor) -> (Device)")
         emit("prim::dtype : (Tensor) -> (int)")
-        emit("prim::TupleUnpack : (Any) -> (...)")
+        emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
         emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")
         emit("prim::min.self_int : (int[]) -> (int)")
         emit("prim::min.int : (int, int) -> (int)")
@@ -457,8 +457,11 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)"
         ]:
             emit_with_mutating_variants(key)
+
+        emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
 
         # Non-elementwise tensor compute ops
         emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
@@ -528,13 +531,15 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::cpu : (Tensor) -> (Tensor)")
         emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
         emit("aten::IntImplicit : (Tensor) -> (int)")
+        emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
 
         # Dict ops.
-        emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)")
-        emit("aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)")
+        emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
+        emit("aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)", has_folder=True)
         emit("aten::_set_item.str : (Dict(str, t), str, t) -> ()")
         emit("aten::keys.str : (Dict(str, t)) -> (str[])")
         emit("aten::get.default_str : (Dict(str, t), str, t) -> (t)")
+        emit("aten::Delete.Dict_str : (Dict(str, t), str) -> ()")
 
         # List ops.
         emit("aten::cat : (Tensor[], int) -> (Tensor)")
@@ -562,11 +567,11 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::le.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::ne.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::eq.int : (int, int) -> (bool)", has_folder=True)
-        emit("aten::floordiv.int : (int, int) -> (int)")
-        emit("aten::remainder.int : (int, int) -> (int)")
-        emit("aten::add.int : (int, int) -> (int)")
-        emit("aten::sub.int : (int, int) -> (int)")
-        emit("aten::mul.int : (int, int) -> (int)")
+        emit("aten::floordiv.int : (int, int) -> (int)", has_folder=True)
+        emit("aten::remainder.int : (int, int) -> (int)", has_folder=True)
+        emit("aten::add.int : (int, int) -> (int)", has_folder=True)
+        emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
+        emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
         emit("aten::log.int : (int) -> (float)")
         emit("aten::add.float_int : (float, int) -> (float)")
         emit("aten::mul.float : (float, float) -> (float)")
@@ -581,7 +586,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
              has_canonicalizer=True)
         emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
         emit("aten::_set_item.t : (t[], int, t) -> (t[])")
-
+        emit("aten::div : (Scalar, Scalar) -> (float)")
+        emit("aten::eq.device : (Device, Device) -> (bool)")
 
 def emit_quantized_ops(torch_ir_dir: str, registry: Registry):
     td_file = os.path.join(torch_ir_dir, "GeneratedQuantizedOps.td")
