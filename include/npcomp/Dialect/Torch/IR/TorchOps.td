@@ -510,6 +510,7 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
 
 def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
     Terminator,
+    ReturnLike,
     HasParent<"::mlir::NPCOMP::Torch::PrimIfOp">]> {
   let summary = "yield-like terminator for torch.prim.If";
   let description = [{

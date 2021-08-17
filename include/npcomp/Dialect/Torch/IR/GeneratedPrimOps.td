@@ -83,6 +83,7 @@ def Torch_PrimTupleUnpackOp : Torch_Op<"prim.TupleUnpack", [
     Variadic<AnyTorchType>:$results
   );
   let assemblyFormat = "$tup attr-dict `:` type($tup) `->` type($results)";
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimNumToTensorScalarOp : Torch_Op<"prim.NumToTensor.Scalar", [
