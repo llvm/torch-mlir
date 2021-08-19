@@ -253,6 +253,17 @@ void PrimLoopOp::getSuccessorRegions(
 }
 
 //===----------------------------------------------------------------------===//
+// PrimLoopConditionOp
+//===----------------------------------------------------------------------===//
+
+MutableOperandRange
+PrimLoopConditionOp::getMutableSuccessorOperands(Optional<unsigned> index) {
+  // Pass all operands except the condition to the successor which is the
+  // parent loop op.
+  return iterArgsMutable();
+}
+
+//===----------------------------------------------------------------------===//
 // PrimIfOp
 //===----------------------------------------------------------------------===//
 
@@ -357,10 +368,11 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
 void DerefineOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](DerefineOp op, PatternRewriter &rewriter) {
-    // TODO: Extend RefineTypes for this case and delete this canonicalization,
-    // since we don't want control flow or calls to randomly block this fold
-    // (this canonicalization pattern makes the compiler brittle to control flow
-    // and calls).
+    // TODO: This pattern should be removed because type refine does a better
+    // job dealing with control flow. However, removing this would expose an
+    // issue with ReduceOpVariants. DerefineOp doesn't have value semantics and
+    // if not removed eagerly by canonicalizer would prevent ReduceOpVariants
+    // from converting certain tensors value semantics.
     bool allAllowRefinement =
         llvm::all_of(op.getResult().getUsers(), allowsTypeRefinement);
     if (!allAllowRefinement)
