@@ -461,6 +461,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
 }
 
 def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
     Terminator,
     HasParent<"::mlir::NPCOMP::Torch::PrimLoopOp">]> {
   let summary = "yield-like terminator for torch.prim.Loop";
