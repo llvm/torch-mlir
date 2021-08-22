@@ -8,10 +8,9 @@ from enum import Enum
 import sys
 from typing import List, Optional, Sequence, Tuple, Union
 
-from mlir import ir as _ir
-
 from .target import *
 from ..utils.mlir_utils import *
+from ... import ir as _ir
 
 __all__ = [
     "Configuration",

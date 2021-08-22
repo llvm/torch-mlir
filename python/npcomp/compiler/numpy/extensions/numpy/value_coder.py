@@ -6,14 +6,13 @@
 import numpy as np
 from typing import Union
 
-from mlir import ir as _ir
-from mlir.dialects import std as std_ops
-
-from npcomp import _cext
-from npcomp.dialects import numpy as numpy_ops
+from ...interfaces import *
 
 from ....utils import logging
-from ...interfaces import *
+
+from ..... import ir as _ir
+from .....dialects import std as std_ops, numpy as numpy_ops
+from ....._mlir_libs import _npcomp as _cext
 
 __all__ = [
     "CreateNumpyValueCoder",

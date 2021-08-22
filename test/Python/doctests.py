@@ -24,9 +24,6 @@ def run_doctest(mod):
 
 TEST_MODULES = (
     "npcomp.compiler.numpy.py_value_utils",
-    "npcomp.tracing.context",
-    "npcomp.tracing.emitters",
-    "npcomp.tracing.mlir_trace",
     "npcomp.types",
     "npcomp.exporter",
 )

@@ -52,10 +52,10 @@ void emitError(MlirLocation loc, std::string message) {
 
 PYBIND11_MODULE(_npcomp, m) {
   m.doc() = "Npcomp native python bindings";
+  ::npcompRegisterAllPasses();
+  ::npcompInitializeLLVMCodegen();
 
   m.def("register_all_dialects", ::npcompRegisterAllDialects);
-  m.def("_register_all_passes", ::npcompRegisterAllPasses);
-  m.def("_initialize_llvm_codegen", ::npcompInitializeLLVMCodegen);
   m.def("shaped_to_ndarray_type", shapedToNdArrayArrayType);
   m.def("ndarray_to_tensor_type", ndarrayToTensorType);
   m.def("slot_object_type", slotObjectType);

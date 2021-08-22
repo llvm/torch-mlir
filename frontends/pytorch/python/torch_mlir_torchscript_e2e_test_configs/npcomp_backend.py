@@ -10,9 +10,9 @@ import tempfile
 
 import numpy as np
 import torch
-from mlir.passmanager import PassManager
 
 import torch_mlir
+from npcomp.passmanager import PassManager
 from npcomp.compiler.pytorch.backend import refjit
 from npcomp.compiler.pytorch.backend.abc import NpcompBackend
 from torch_mlir_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem

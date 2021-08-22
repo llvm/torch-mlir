@@ -8,14 +8,14 @@ from typing import Callable, Iterator, Sequence, Tuple
 import functools
 import numpy as np
 
-from mlir import ir as _ir
-
-from npcomp import _cext
-from npcomp.dialects import numpy as numpy_ops
-
-from ....utils import logging
 from ...interfaces import *
 from ...partial_eval_base import *
+
+from ....utils import logging
+
+from ..... import ir as _ir
+from ....._mlir_libs import _npcomp as _cext
+from .....dialects import numpy as numpy_ops
 
 __all__ = [
     "get_ufuncs_from_module",

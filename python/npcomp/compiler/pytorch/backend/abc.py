@@ -7,7 +7,7 @@ from typing import TypeVar
 
 import torch
 
-from mlir.ir import Module
+from npcomp.ir import Module
 
 # A type shared between the result of `NpcompBackend.compile` and the input
 # to `NpcompBackend.load`. Each backend will likely have a different definition
@@ -26,7 +26,7 @@ class NpcompBackend(abc.ABC):
     @abc.abstractmethod
     def compile(self, module: Module) -> CompiledArtifact:
         """Compile the provided MLIR module into a compiled artifact.
-        
+
         The module adheres to the npcomp backend contract
         (see the VerifyBackendContract pass).
 

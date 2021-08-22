@@ -5,9 +5,9 @@
 
 from typing import Optional, Tuple
 
-from mlir import ir as _ir
-from mlir.dialects import builtin as builtin_ops
-from npcomp import _cext
+from ... import ir as _ir
+from ...dialects import builtin as builtin_ops
+from ..._mlir_libs import _npcomp as _cext
 
 __all__ = [
     "ImportContext",

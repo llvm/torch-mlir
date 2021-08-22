@@ -5,11 +5,10 @@
 
 from typing import Union
 
-from mlir import ir as _ir
-from mlir.dialects import std as std_ops
-from npcomp.dialects import basicpy as basicpy_ops
-
 from .interfaces import *
+
+from ... import ir as _ir
+from ...dialects import std as std_ops, basicpy as basicpy_ops
 
 __all__ = [
     "BuiltinsValueCoder",
