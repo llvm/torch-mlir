@@ -351,7 +351,7 @@ public:
     auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
     Value conv2d =
         rewriter
-            .create<linalg::Conv2DNchwOp>(
+            .create<linalg::Conv2DNchwFchwOp>(
                 loc, initTensor0.getType(), ValueRange{paddedInput, weight},
                 initTensor0, stridesAttr, dilationAttr)
             .getResult(0);
