@@ -3,9 +3,10 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import *
-from mlir import ir as _ir
 
 from ..utils.mlir_utils import *
+
+from ... import ir as _ir
 
 __all__ = [
     "GenericTarget32",

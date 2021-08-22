@@ -22,6 +22,9 @@ extension_sources = [str(p) for p in this_dir.joinpath("csrc").rglob("*.cpp")]
 include_dirs = npcomp_build.get_include_dirs()
 lib_dirs = npcomp_build.get_lib_dirs()
 npcomp_libs = [npcomp_build.get_capi_link_library_name()]
+# TODO: Export this in some way from an npcomp config file include vs needing
+# it loose here.
+compile_args = ["-DMLIR_PYTHON_PACKAGE_PREFIX=npcomp."]
 
 setup(
   name="npcomp-torch",
@@ -31,7 +34,8 @@ setup(
       sources=extension_sources,
       include_dirs=include_dirs,
       library_dirs=lib_dirs,
-      libraries=npcomp_libs),
+      libraries=npcomp_libs,
+      extra_compile_args=compile_args),
   ],
   cmdclass={
     "build_ext": cpp_extension.BuildExtension

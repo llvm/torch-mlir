@@ -7,7 +7,7 @@
 import os
 import platform
 
-from mlir._mlir_libs import get_include_dirs, get_lib_dirs
+from ._mlir_libs import get_include_dirs, get_lib_dirs
 
 __all__ = [
   "get_include_dirs",

@@ -17,7 +17,6 @@ set(NPCOMP_TEST_DEPENDS
         npcomp-opt
         refback-run
         NPCOMPPythonModules
-        NPCOMPMLIRPythonModules
 )
 
 add_lit_testsuite(check-npcomp-lit "Running the npcomp regression tests"

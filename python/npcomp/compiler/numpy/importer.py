@@ -8,14 +8,12 @@ import ast
 import sys
 import traceback
 
-from mlir import ir as _ir
-from mlir.dialects import std as std_ops
-
-from npcomp import _cext
-from npcomp.dialects import basicpy as basicpy_ops
-
-from ..utils import logging
 from .interfaces import *
+from ..utils import logging
+
+from ... import ir as _ir
+from ...dialects import std as std_ops, basicpy as basicpy_ops
+from ..._mlir_libs import _npcomp as _cext
 
 __all__ = [
     "FunctionContext",

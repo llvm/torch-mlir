@@ -17,9 +17,19 @@ import shutil
 import subprocess
 import sys
 
-from setuptools import find_packages, setup, Extension
+from distutils.command.build import build as _build
+from setuptools import find_namespace_packages, setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
+
+
+# Build phase discovery is unreliable. Just tell it what phases to run.
+class CustomBuild(_build):
+
+  def run(self):
+    self.run_command("build_py")
+    self.run_command("build_ext")
+    self.run_command("build_scripts")
 
 
 class CMakeExtension(Extension):
@@ -79,21 +89,25 @@ setup(
     long_description="",
     include_package_data=True,
     ext_modules=[
-        CMakeExtension("mlir._mlir_libs._mlir"),
-        CMakeExtension("mlir._mlir_libs._npcomp"),
+        CMakeExtension("npcomp._mlir_libs._mlir"),
+        CMakeExtension("npcomp._mlir_libs._npcomp"),
         # TODO: We don't really want these but they are along for the ride.
-        CMakeExtension("mlir._mlir_libs._mlirAsyncPasses"),
-        CMakeExtension("mlir._mlir_libs._mlirConversions"),
-        CMakeExtension("mlir._mlir_libs._mlirTransforms"),
-        CMakeExtension("mlir._mlir_libs._mlirSparseTensorPasses"),
-        CMakeExtension("mlir._mlir_libs._mlirAllPassesRegisration"),
-        CMakeExtension("mlir._mlir_libs._mlirLinalgPasses"),
-        CMakeExtension("mlir._mlir_libs._mlirGPUPasses"),
+        CMakeExtension("npcomp._mlir_libs._mlirAsyncPasses"),
+        CMakeExtension("npcomp._mlir_libs._mlirConversions"),
+        CMakeExtension("npcomp._mlir_libs._mlirTransforms"),
+        CMakeExtension("npcomp._mlir_libs._mlirSparseTensorPasses"),
+        CMakeExtension("npcomp._mlir_libs._mlirAllPassesRegisration"),
+        CMakeExtension("npcomp._mlir_libs._mlirLinalgPasses"),
+        CMakeExtension("npcomp._mlir_libs._mlirGPUPasses"),
     ],
     cmdclass={
+        "build": CustomBuild,
         "built_ext": NoopBuildExtension,
         "build_py": CMakeBuild,
     },
     zip_safe=False,
-    packages=find_packages(),
+    packages=find_namespace_packages(include=[
+        "npcomp",
+        "npcomp.*",
+    ]),
 )

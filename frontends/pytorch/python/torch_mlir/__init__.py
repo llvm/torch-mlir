@@ -7,7 +7,7 @@
 # prior to loading shared objects.
 
 import torch
-import npcomp
+import npcomp._mlir_libs._npcomp
 
 # Our native extension is not self-contained. It references libraries which
 # must come in via the above first.

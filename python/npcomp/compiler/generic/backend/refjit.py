@@ -18,7 +18,7 @@ def get_refjit():
   global _refjit
   if _refjit is not None:
     return _refjit
-  from .... import _cext
+  from ...._mlir_libs import _npcomp as _cext
   try:
     imported_refjit = _cext.backend.refjit
   except AttributeError:

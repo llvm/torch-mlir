@@ -6,13 +6,13 @@
 import ast
 import functools
 
-from ..utils import logging
 from .frontend import *
 from .interfaces import *
 from .partial_eval_base import *
 from .target import *
 from .value_coder_base import *
 from .extensions import numpy as npc
+from ..utils import logging
 
 
 def create_import_dump_decorator(*,

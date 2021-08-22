@@ -5,8 +5,9 @@
 
 from typing import Optional
 
-from mlir import ir as _ir
 from .interfaces import *
+
+from ... import ir as _ir
 
 __all__ = [
     "ConstModuleNameResolver",

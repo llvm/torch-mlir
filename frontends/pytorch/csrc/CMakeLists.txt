@@ -1,5 +1,9 @@
 include(NpcompPython)
 
+# TODO: Add this to an npcomp header of some kind so it doesn't need to be
+# passed loose.
+add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=npcomp.")
+
 # Sharp edge: Torch extensions need to use the same pybind11 that torch
 # was compiled with, or else there will be issues in cross module exception
 # handling (which will abort instead of raise). We circumvent the possibility

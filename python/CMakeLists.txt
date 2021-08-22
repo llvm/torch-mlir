@@ -1,6 +1,10 @@
 include(AddMLIRPython)
 include(MLIRDetectPythonEnv)
 
+# Specifies that all MLIR packages are co-located under npcomp.
+# TODO: Add an upstream cmake param for this vs having a global here.
+add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=npcomp.")
+
 ################################################################################
 # Resources that must be packaged into the python tree
 ################################################################################
@@ -28,21 +32,18 @@ declare_mlir_python_sources(NPCOMPPythonSources)
 
 declare_mlir_python_sources(NPCOMPPythonSources.Core
   ADD_TO_PARENT NPCOMPPythonSources
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
   SOURCES
-    npcomp/__init__.py
-    npcomp/build.py
-    npcomp/decorators.py
-    npcomp/exporter.py
-    npcomp/smoketest.py
-    npcomp/types.py
-    npcomp/dialects/_ods_common.py
+    build.py
+    decorators.py
+    exporter.py
+    smoketest.py
+    types.py
   SOURCES_GLOB
-    npcomp/compiler/*.py
-    npcomp/frontends/*.py
-    npcomp/torch/*.py
-    npcomp/tracing/*.py
-    npcomp/utils/*.py
+    compiler/*.py
+    frontends/*.py
+    torch/*.py
+    utils/*.py
 )
 
 declare_mlir_python_sources(NPCOMPPythonSources.Dialects
@@ -83,23 +84,23 @@ declare_mlir_python_extension(NPCOMPPythonExtensions.Core
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-  TD_FILE npcomp/dialects/BasicpyBind.td
-  SOURCES npcomp/dialects/basicpy.py
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
+  TD_FILE dialects/BasicpyBind.td
+  SOURCES dialects/basicpy.py
   DIALECT_NAME basicpy)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-  TD_FILE npcomp/dialects/NumpyBind.td
-  SOURCES npcomp/dialects/numpy.py
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
+  TD_FILE dialects/NumpyBind.td
+  SOURCES dialects/numpy.py
   DIALECT_NAME numpy)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
-  TD_FILE npcomp/dialects/TorchBind.td
-  SOURCES npcomp/dialects/torch.py
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
+  TD_FILE dialects/TorchBind.td
+  SOURCES dialects/torch.py
   DIALECT_NAME torch)
 
 ################################################################################
@@ -109,44 +110,30 @@ declare_mlir_dialect_python_bindings(
 # Bundle our own, self-contained CAPI library with all of our deps.
 add_mlir_python_common_capi_library(NPCOMPPythonCAPI
   INSTALL_COMPONENT NPCOMPPythonModules
-  INSTALL_DESTINATION python_packages/npcomp_core/mlir/_mlir_libs
-  # NOTE: When the MLIR API is relocated under npcomp, this would change to
-  # .../npcomp/_mlir_libs
-  OUTPUT_DIRECTORY "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core/mlir/_mlir_libs"
+  INSTALL_DESTINATION python_packages/npcomp_core/npcomp/_mlir_libs
+  OUTPUT_DIRECTORY "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core/npcomp/_mlir_libs"
   RELATIVE_INSTALL_ROOT "../../../.."
   DECLARED_SOURCES
-    # TODO: This can be chopped down significantly for size.
-    MLIRPythonSources
+    # TODO: Common MLIR deps can be reduced substantially.
+    MLIRPythonSources.Core
+    MLIRPythonSources.Dialects
+    MLIRPythonSources.ExecutionEngine
     MLIRPythonExtension.AllPassesRegistration
     NPCOMPPythonSources
     NPCOMPPythonExtensions
 )
 
-# Bundle the MLIR python sources into our package.
-# The MLIR API is position independent, so we explicitly output it to the mlir/
-# folder as a temporary measure. It will eventually migrate under the npcomp/
-# folder and be accessible under the unified "import npcomp..." namespace.
-add_mlir_python_modules(NPCOMPMLIRPythonModules
-  ROOT_PREFIX "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core/mlir"
-  INSTALL_PREFIX "python_packages/npcomp_core/mlir"
+# Bundle MLIR and NPCOMP into the top-level npcomp package.
+add_mlir_python_modules(NPCOMPPythonModules
+  ROOT_PREFIX "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core/npcomp"
+  INSTALL_PREFIX "python_packages/npcomp_core/npcomp"
   DECLARED_SOURCES
     MLIRPythonSources
     MLIRPythonExtension.AllPassesRegistration
-    # We need the npcomp extensions co-located with the MLIR extensions. When
-    # the namespace is unified, this moves to the below.
     MLIRPythonCAPIHeaderSources
+    NPCOMPPythonSources
     NPCOMPPythonExtensions
     NPCOMPPythonCAPIHeaderSources
-  COMMON_CAPI_LINK_LIBS
-    NPCOMPPythonCAPI
-)
-
-# Bundle the NPCOMP python sources into our package.
-add_mlir_python_modules(NPCOMPPythonModules
-  ROOT_PREFIX "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core"
-  INSTALL_PREFIX "python_packages/npcomp_core"
-  DECLARED_SOURCES
-    NPCOMPPythonSources
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )

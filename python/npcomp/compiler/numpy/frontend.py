@@ -10,14 +10,16 @@ import inspect
 import textwrap
 from typing import Optional
 
-from mlir import ir as _ir
 from ..utils import logging
 from .importer import *
 from .interfaces import *
 from .name_resolver_base import *
 from .value_coder_base import *
 from .target import *
+
 from ..utils.mlir_utils import *
+
+from ... import ir as _ir
 
 __all__ = [
     "ImportFrontend",
