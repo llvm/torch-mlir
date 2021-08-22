@@ -19,6 +19,7 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRIR
   MLIRLinalg
   MLIRLinalgToLLVM
+  MLIRLinalgTransforms
   MLIRMathToLLVM
   MLIRMathTransforms
   MLIRMemRefToLLVM
@@ -28,6 +29,7 @@ add_npcomp_library(NPCOMPRefBackend
   MLIRStandard
   MLIRStandardOpsTransforms
   MLIRStandardToLLVM
+  MLIRTensorTransforms
   )
 
 mlir_check_all_link_libraries(NPCOMPRefBackend)

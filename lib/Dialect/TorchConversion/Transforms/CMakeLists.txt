@@ -16,6 +16,7 @@ add_npcomp_conversion_library(NPCOMPTorchConversionPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRStandardOpsTransforms
   NPCOMPTorchConversionDialect
   NPCOMPTorchDialect
   NPCOMPTorchPasses
