@@ -42,6 +42,6 @@ with mb.capture_function("conv_cat", [inputs, target]) as f:
 # CHECK: "aten.convolution"
 # CHECK: torch.prim.ListConstruct
 # CHECK: "aten._cat"
-# CHECK: "aten._log_softmax"
+# CHECK: "aten._log_softmax.out"
 # CHECK: "aten.nll_loss2d_forward"
 mb.module.operation.print(large_elements_limit=2)
