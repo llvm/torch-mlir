@@ -104,10 +104,11 @@ def main():
         sys.exit(1)
 
     # Run the tests.
-    results = run_tests(tests, config)
+    results = run_tests(tests, config, verbose=args.verbose)
 
     # Report the test results.
-    failed = report_results(results, XFAIL_SETS[args.config], args.verbose)
+    failed = report_results(
+        results, XFAIL_SETS[args.config], verbose=args.verbose)
     sys.exit(1 if failed else 0)
 
 if __name__ == '__main__':
