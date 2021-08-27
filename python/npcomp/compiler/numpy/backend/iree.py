@@ -5,8 +5,8 @@
 import io
 import subprocess
 
-from mlir.ir import *
-from mlir.passmanager import *
+from npcomp.ir import *
+from npcomp.passmanager import *
 from npcomp.compiler.generic.backend import iree as iree_backend
 from npcomp.compiler.utils import logging
 

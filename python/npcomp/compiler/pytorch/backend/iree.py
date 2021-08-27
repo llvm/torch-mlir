@@ -7,8 +7,8 @@ import os
 import torch
 import numpy as np
 
-from mlir.ir import *
-from mlir.passmanager import *
+from npcomp.ir import *
+from npcomp.passmanager import *
 from npcomp.compiler.utils import logging
 import iree.runtime as ireert
 import iree.compiler as ireec
