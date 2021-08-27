@@ -463,6 +463,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
             emit_with_mutating_variants(key)
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
+        emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
 
         # Non-elementwise tensor compute ops
         emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
@@ -511,7 +512,6 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
         emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
-        emit("aten::index_put_ : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
         emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
         emit("aten::item : (Tensor) -> (Scalar)")
         emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")
