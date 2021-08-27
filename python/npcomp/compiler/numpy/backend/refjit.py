@@ -4,8 +4,8 @@
 
 import os
 
-from mlir.ir import *
-from mlir.passmanager import *
+from npcomp.ir import *
+from npcomp.passmanager import *
 from npcomp.compiler.generic.backend import refjit as refjit_backend
 from npcomp.compiler.utils import logging
 

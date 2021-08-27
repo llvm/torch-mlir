@@ -6,8 +6,8 @@ import os
 
 import torch
 
-from mlir.ir import *
-from mlir.passmanager import *
+from npcomp.ir import *
+from npcomp.passmanager import *
 from npcomp.compiler.utils import logging
 
 __all__ = [
