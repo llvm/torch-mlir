@@ -284,16 +284,13 @@ def generate_golden_trace(test: Test) -> Trace:
     return trace
 
 
-def run_tests(tests: List[Test], config: TestConfig,
-              verbose=False) -> List[TestResult]:
+def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
     results = []
     for test in tests:
         # TODO: Precompile everything in parallel.
         try:
-            print(f"GENERATE TRACE: {test}")
             golden_trace = generate_golden_trace(test)
-            print(f"COMPILE: {test}")
             compiled = config.compile(test.program_factory())
         except Exception as e:
             # Useful for debugging:
@@ -310,11 +307,7 @@ def run_tests(tests: List[Test], config: TestConfig,
                            golden_trace=None))
             continue
         # TODO: Run in parallel.
-        if verbose:
-            print(f"RUN: {test}")
         trace = config.run(compiled, golden_trace)
-        if verbose:
-            print(f"FINISHED: {test}")
         results.append(
             TestResult(unique_name=test.unique_name,
                        compilation_error=None,
