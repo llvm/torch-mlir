@@ -866,7 +866,7 @@ void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 static PrimDictConstructOp getDictConstructIfNotModified(Value torchDict) {
   if (!llvm::all_of(torchDict.getUsers(), [](Operation *op) {
         return isa<Aten__Getitem__DictStrOp, Aten__Contains__StrOp,
-                   AtenKeysStrOp, AtenGetDefaultStrOp>(op);
+                   AtenKeysStrOp, AtenGetDefaultStrOp, PrimDictConstructOp>(op);
       }))
     return nullptr;
 

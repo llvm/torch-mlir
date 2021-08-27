@@ -42,10 +42,23 @@ static Type getTypeFromDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
   switch (dtypeInt) {
   case 6:
     return Float32Type::get(context);
-    break;
+  case 4:
+    return IntegerType::get(context, 64, IntegerType::Signed);
+  case 11:
+    return IntegerType::get(context, 1);
   default:
     return Type();
   }
+}
+
+static Type getDTypeFromTorchType(MLIRContext *context, Type type) {
+  if (type.isa<Torch::FloatType>())
+    return Float32Type::get(context);
+  if (type.isa<Torch::IntType>())
+    return IntegerType::get(context, 64, IntegerType::Signed);
+  if (type.isa<Torch::BoolType>())
+    return IntegerType::get(context, 1);
+  return Type();
 }
 
 namespace {
@@ -174,11 +187,15 @@ public:
             AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenAddScalarOp,
             AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp, AtenFmodScalarOp,
             AtenFloorDivideScalarOp, AtenEqScalarOp, AtenGeScalarOp,
-            AtenNeScalarOp, AtenBitwiseNotOp, AtenToDtypeOp, AtenExpOp,
-            AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp>(op)) {
+            AtenGtScalarOp, AtenNeScalarOp, AtenBitwiseNotOp, AtenToDtypeOp,
+            AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
+            AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
+            AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
+            AtenCopy_Op, AtenCumsumOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
+    // Resize to [1, 1] with integer dtype.
     if (isa<AtenAnyOp, AtenAllOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
@@ -186,6 +203,34 @@ public:
       knowledge.hasSizes = true;
       knowledge.sizes.resize(1, 1);
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    }
+    // `torch.aten.masked_select` returns a new 1-D tensor which indexes the
+    // input tensor according to the boolean mask which is a BoolTensor.
+    // Resize to [unknown] with same dtype as the input.
+    if (auto maskedSelect = dyn_cast<AtenMaskedSelectOp>(op)) {
+      auto input = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      knowledge.hasSizes = true;
+      knowledge.sizes.resize(1, kUnknownSize);
+      knowledge.dtype = input.dtype;
+      return getLatticeElement(op->getResult(0)).join(knowledge);
+    }
+    // `torch.aten.index.Tensor` return tensors elements selected by the index
+    // tensors. Each index tensor in the list corresponds to each dim in the
+    // input tensor.
+    // Same number of dims but unknown size along each dim. Same dtype as the
+    // input.
+    if (auto indexTensor = dyn_cast<AtenIndexTensorOp>(op)) {
+      auto input = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getPessimisticValueState(op->getContext());
+      if (input.hasSizes) {
+        knowledge.hasSizes = true;
+        knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+      }
+      knowledge.dtype = input.dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
     }
 
@@ -222,13 +267,88 @@ public:
     } else if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
       return visitAtenAnyDimOp(anyDim, operands);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
-      return visitAtenViewOp(view, operands);
+      return visitReshapeLikeOp(view, operands);
+    } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
+      return visitReshapeLikeOp(resize, operands);
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
       return visitAtenTransposeIntOp(transposeInt, operands);
+    } else if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
+      return visitScalarToTensorConversionOp<AtenTensorFloatOp>(tensorFloat);
+    } else if (auto tensorInt = dyn_cast<AtenTensorIntOp>(op)) {
+      return visitScalarToTensorConversionOp<AtenTensorIntOp>(tensorInt);
+    } else if (auto tensorBool = dyn_cast<AtenTensorBoolOp>(op)) {
+      return visitScalarToTensorConversionOp<AtenTensorBoolOp>(tensorBool);
+    } else if (auto tensor = dyn_cast<AtenTensorOp>(op)) {
+      return visitAtenTensorOp(tensor);
+    } else if (auto zeros = dyn_cast<AtenZerosOp>(op)) {
+      return visitConstantTensorAllocOp<AtenZerosOp>(zeros);
+    } else if (auto ones = dyn_cast<AtenOnesOp>(op)) {
+      return visitConstantTensorAllocOp<AtenOnesOp>(ones);
+    } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
+      return visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(
+          emptyMemoryFormat);
+    } else if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
+      return visitTypeConversionOp<AtenToOtherOp>(toOther, operands);
+    } else if (auto typeAs = dyn_cast<AtenTypeAsOp>(op)) {
+      return visitTypeConversionOp<AtenTypeAsOp>(typeAs, operands);
+    } else if (auto indexSelect = dyn_cast<AtenIndexSelectOp>(op)) {
+      // The index tensor index into the dimension specified by the dim. The dim
+      // of output is the same size as the length of index (index must be one
+      // dimensional)
+      auto setDim = [](int64_t &targetDim, int64_t dim,
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+        auto indexes = operands[2]->getValue();
+        targetDim = indexes.hasSizes && indexes.sizes.size() != 0
+                        ? indexes.sizes[0]
+                        : kUnknownSize;
+      };
+      return visitSliceLikeOp(indexSelect, operands, setDim);
+    } else if (auto selectInt = dyn_cast<AtenSelectIntOp>(op)) {
+      // Select one element from the target dim. All the other dims are the same
+      // as input.
+      auto setDim = [](int64_t &targetDim, int64_t dim,
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+        targetDim = 1;
+      };
+      return visitSliceLikeOp(selectInt, operands, setDim);
+    } else if (auto sliceTensor = dyn_cast<AtenSliceTensorOp>(op)) {
+      // Select several elements from the target dim according to the start,
+      // end, step. All the other dims are the same as input.
+      auto setDim = [](int64_t &targetDim, int64_t dim,
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+        targetDim = kUnknownSize;
+      };
+      return visitSliceLikeOp(sliceTensor, operands, setDim);
+    } else if (auto gather = dyn_cast<AtenGatherOp>(op)) {
+      return visitAtenGatherOp(gather, operands);
+    } else if (auto expand = dyn_cast<AtenExpandOp>(op)) {
+      // `torch.aten.expand` Broadcast dimensions of size 1 withs sizes
+      // spcecified by the `size` operand. -1 in the `size` list means the
+      // dimension is kept unchanged.
+      auto setDim = [](int64_t &targetDim, int64_t inputDim, int64_t size) {
+        targetDim = size == -1 ? inputDim : size;
+      };
+      return visitExpandLikeOp(expand, expand.size(), operands, setDim);
+    } else if (auto repeat = dyn_cast<AtenRepeatOp>(op)) {
+      // The repeats list specify the number of times to repeat along each dim
+      // of the original tensor.
+      auto setDim = [](int64_t &targetDim, int64_t inputDim, int64_t repeat) {
+        if (inputDim != kUnknownSize)
+          targetDim = inputDim * repeat;
+      };
+      return visitExpandLikeOp(repeat, repeat.repeats(), operands, setDim);
+    } else if (auto cat = dyn_cast<AtenCatOp>(op)) {
+      return visitAtenCatOp(cat, operands);
+    } else if (auto shapeAsTensor = dyn_cast<Aten_ShapeAsTensorOp>(op)) {
+      return visitAtenShapeAsTensorOp(shapeAsTensor, operands);
+    } else if (auto embedding = dyn_cast<AtenEmbeddingOp>(op)) {
+      return visitAtenEmbeddingOp(embedding, operands);
+    } else if (auto bmm = dyn_cast<AtenBmmOp>(op)) {
+      return visitAtenBmmOp(bmm, operands);
     }
 
-    // Otherwise, this is an unknown operation. Just mark all results as having
-    // reached a pessimistic fixpoint.
+    // Otherwise, this is an unknown operation. Just mark all results as
+    // having reached a pessimistic fixpoint.
     return markAllPessimisticFixpoint(op->getResults());
   }
 
@@ -271,12 +391,50 @@ private:
   ChangeResult
   visitAtenAnyDimOp(AtenAnyDimOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy>
   ChangeResult
-  visitAtenViewOp(AtenViewOp op,
-                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  visitReshapeLikeOp(OpTy op,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenTransposeIntOp(AtenTransposeIntOp op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy>
+  ChangeResult visitScalarToTensorConversionOp(OpTy op);
+  ChangeResult visitAtenTensorOp(AtenTensorOp op);
+  template <typename OpTy> ChangeResult visitConstantTensorAllocOp(OpTy op);
+  template <typename OpTy>
+  ChangeResult
+  visitTypeConversionOp(OpTy op,
+                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  using SetDimSizeFn =
+      std::function<void(int64_t &targetDim, int64_t dim,
+                         ArrayRef<LatticeElement<ValueKnowledge> *> operands)>;
+  template <typename OpTy>
+  ChangeResult
+  visitSliceLikeOp(OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+                   SetDimSizeFn setDim);
+  ChangeResult
+  visitAtenGatherOp(AtenGatherOp op,
+                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
+  using SetDimSizePerListItemFn = std::function<void(
+      int64_t &targetDim, int64_t inputDim, int64_t listValue)>;
+  ChangeResult
+  visitExpandLikeOp(Operation *op, Value list,
+                    ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+                    SetDimSizePerListItemFn setDim);
+  ChangeResult
+  visitAtenCatOp(AtenCatOp op,
+                 ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenShapeAsTensorOp(Aten_ShapeAsTensorOp op,
+                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenEmbeddingOp(AtenEmbeddingOp op,
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenBmmOp(AtenBmmOp op,
+                 ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -286,6 +444,34 @@ static int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
 
 static bool isValidDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 && dim < inputRank;
+}
+
+// Get the MLIR type of the tensor dtype given the dtype integer value and data
+// type. When DType is None the type is inferred from the data type.
+static void fillInDTypeGivenDTypeAndDataType(MLIRContext *context,
+                                             ValueKnowledge &knowledge,
+                                             Value dtype, Type dataType) {
+  int64_t dtypeInt;
+  if (dtype.getType().isa<Torch::NoneType>())
+    knowledge.dtype = getDTypeFromTorchType(context, dataType);
+  else if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    knowledge.dtype = getTypeFromDTypeInteger(context, dtypeInt);
+}
+
+static void fillInSizesGivenSizesList(ValueKnowledge &knowledge, Value sizes) {
+  // TODO: This is not safe. Need to check the list users and use aliasing
+  // info to safely detect the list is not modified.
+  if (auto listConstruct = sizes.getDefiningOp<PrimListConstructOp>()) {
+    knowledge.hasSizes = true;
+    auto sizes = listConstruct.elements();
+    int64_t size;
+    for (auto sizeValue : sizes) {
+      if (matchPattern(sizeValue, m_TorchConstantInt(&size)))
+        knowledge.sizes.push_back(size);
+      else
+        knowledge.sizes.push_back(kUnknownSize);
+    }
+  }
 }
 
 ChangeResult TypeAnalyzer::visitAtenMmOp(
@@ -472,6 +658,7 @@ ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
   }
   return getLatticeElement(op.getResult()).join(knowledge);
 }
+
 // Arange like ops returns a 1-D tensor of size ceil(end - start).
 ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
     Operation *op, llvm::Optional<Value> start, Value end, Value dtype) {
@@ -571,25 +758,16 @@ ChangeResult TypeAnalyzer::visitAtenAnyDimOp(
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
-ChangeResult TypeAnalyzer::visitAtenViewOp(
-    AtenViewOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+// Reshape like ops are given a size list which specify the shape of the
+// result tensor.
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitReshapeLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
 
-  // TODO: This is not safe. Need to check the list users and use aliasing
-  // info to safely detect the list is not modified.
-  if (auto listConstruct = op.size().getDefiningOp<PrimListConstructOp>()) {
-    knowledge.hasSizes = true;
-    auto sizes = listConstruct.elements();
-    int64_t size;
-    for (auto sizeValue : sizes) {
-      if (matchPattern(sizeValue, m_TorchConstantInt(&size)))
-        knowledge.sizes.push_back(size);
-      else
-        knowledge.sizes.push_back(kUnknownSize);
-    }
-  }
+  fillInSizesGivenSizesList(knowledge, op.size());
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
@@ -620,6 +798,226 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  Value t = op.t();
+  Value dtype = op.dtype();
+  knowledge.hasSizes = true;
+  knowledge.sizes.resize(1, 1);
+  fillInDTypeGivenDTypeAndDataType(op->getContext(), knowledge, dtype,
+                                   t.getType());
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// `torch.aten.tensor` get a tensor from a list. Each layer of the list
+// corresponds to one dim of the tensor.
+ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  Value data = op.data();
+  Value dtype = op.dtype();
+  Type type = data.getType();
+  int64_t rank = 0;
+  bool rankIsUnknown = false;
+  while (auto listType = type.dyn_cast<ListType>()) {
+    type = listType.getContainedType();
+    rank++;
+  }
+
+  if (!rankIsUnknown) {
+    knowledge.hasSizes = true;
+    knowledge.sizes.resize(rank, kUnknownSize);
+  }
+  fillInDTypeGivenDTypeAndDataType(op->getContext(), knowledge, dtype, type);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  fillInSizesGivenSizesList(knowledge, op.size());
+  fillInDTypeGivenDTypeAndDataType(op->getContext(), knowledge, op.dtype(),
+                                   Torch::FloatType::get(op->getContext()));
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// Convert input tensor type to the same as the other tensor.
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitTypeConversionOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.hasSizes = input.hasSizes;
+  knowledge.sizes = input.sizes;
+  Value other = op.other();
+  BaseTensorType type = other.getType().cast<BaseTensorType>();
+  if (type.hasDtype())
+    knowledge.dtype = type.getDtype();
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+// The returned tensor has the same number of dimensions as the input tensor.
+// The dimension specified by dim has size decided by \p setDim and other
+// dimensions have the same size as in the original tensor.
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitSliceLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+    SetDimSizeFn setDim) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = input.dtype;
+  if (!input.hasSizes)
+    return getLatticeElement(op.getResult()).join(knowledge);
+
+  knowledge.hasSizes = true;
+  bool dimIsUnknown = false;
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    dimIsUnknown = true;
+  else {
+    int64_t inputRank = input.sizes.size();
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      dimIsUnknown = true;
+  }
+
+  if (dimIsUnknown) {
+    knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+    return getLatticeElement(op.getResult()).join(knowledge);
+  }
+  knowledge.sizes = input.sizes;
+  setDim(knowledge.sizes[dim], dim, operands);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// For `torch.aten.gather` input and index must have the same number of
+// dimensions. Out will have the same shape as index. Note that input and index
+// do not broadcast against each other.
+ChangeResult TypeAnalyzer::visitAtenGatherOp(
+    AtenGatherOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto index = operands[2]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = input.dtype;
+  knowledge.hasSizes = index.hasSizes;
+  knowledge.sizes = index.sizes;
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// A list is given for setting dims of the output tensor. Each item in the list
+// corresponds to each dim and specifies how to transform the dim from input to
+// the output.
+ChangeResult TypeAnalyzer::visitExpandLikeOp(
+    Operation *op, Value list,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+    SetDimSizePerListItemFn setDim) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = input.dtype;
+  if (!input.hasSizes)
+    return getLatticeElement(op->getResult(0)).join(knowledge);
+
+  knowledge.hasSizes = true;
+  knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+  auto listConstruct = list.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return getLatticeElement(op->getResult(0)).join(knowledge);
+
+  auto listItems = listConstruct.elements();
+  for (auto en : llvm::enumerate(listItems)) {
+    int64_t dim = en.index();
+    if (!isValidDim(dim, input.sizes.size()))
+      break;
+    int64_t size;
+    if (matchPattern(en.value(), m_TorchConstantInt(&size))) {
+      setDim(knowledge.sizes[dim], input.sizes[dim], size);
+    }
+  }
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+// `torch.aten.cat` concatenates the given sequence of seq tensors in the given
+// dimension. The output has the same sizes as the input for all dimensions
+// except the given dimension.
+ChangeResult TypeAnalyzer::visitAtenCatOp(
+    AtenCatOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto tensorList = op.tensors();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return getLatticeElement(op.getResult()).join(knowledge);
+
+  auto tensors = llvm::to_vector<4>(
+      llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
+        return getLatticeElement(v).getValue();
+      }));
+  for (auto tensor : tensors)
+    knowledge = ValueKnowledge::join(knowledge, tensor);
+  if (!knowledge.hasSizes)
+    return getLatticeElement(op.getResult()).join(knowledge);
+
+  int64_t dim;
+  bool dimIsUnknown = false;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+    dimIsUnknown = true;
+  } else {
+    int64_t inputRank = knowledge.sizes.size();
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      dimIsUnknown = true;
+  }
+
+  if (dimIsUnknown) {
+    knowledge.sizes.assign(knowledge.sizes.size(), kUnknownSize);
+    return getLatticeElement(op.getResult()).join(knowledge);
+  }
+  knowledge.sizes[dim] = kUnknownSize;
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// Get the shape of the input tensor as a 1-D tensor.
+ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
+    Aten_ShapeAsTensorOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  if (input.hasSizes)
+    knowledge.sizes.resize(1, input.sizes.size());
+  else
+    knowledge.sizes.push_back(kUnknownSize);
+  knowledge.hasSizes = true;
+  knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
+    AtenEmbeddingOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto weight = operands[0]->getValue();
+  auto indices = operands[1]->getValue();
+  if (indices.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes = indices.sizes;
+    // Weight's shape is [num_embedding, embedding_dim] and the last dim of the
+    // output should also be embedding_dim.
+    if (weight.hasSizes && weight.sizes.size() == 2)
+      knowledge.sizes.push_back(weight.sizes[1]);
+    else
+      knowledge.sizes.push_back(kUnknownSize);
+  }
+  knowledge.dtype = Float32Type::get(op->getContext());
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenBmmOp(
+    AtenBmmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto self = operands[0]->getValue();
+  auto mat2 = operands[1]->getValue();
+  knowledge.sizes.resize(3, kUnknownSize);
+  knowledge.dtype = joinElementTypes(self.dtype, mat2.dtype);
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------
