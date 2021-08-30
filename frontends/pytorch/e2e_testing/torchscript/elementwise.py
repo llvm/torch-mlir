@@ -149,7 +149,6 @@ class ElementwiseFlattenBroadcastModule(torch.nn.Module):
 def ElementwiseFlattenBroadcastModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6), tu.rand())
 
-
 # ==============================================================================
 
 
@@ -169,3 +168,24 @@ class ElementwiseReluModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseReluModule())
 def ElementwiseReluModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2) - 0.5)
+
+# ==============================================================================
+
+
+class ElementwiseSigmoidModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.sigmoid(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSigmoidModule())
+def ElementwiseSigmoidModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+

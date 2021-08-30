@@ -175,7 +175,7 @@ public:
             AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp, AtenFmodScalarOp,
             AtenFloorDivideScalarOp, AtenEqScalarOp, AtenGeScalarOp,
             AtenNeScalarOp, AtenBitwiseNotOp, AtenToDtypeOp, AtenExpOp,
-            AtenSinOp, AtenCosOp, DerefineOp>(op)) {
+            AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 

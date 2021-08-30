@@ -654,6 +654,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     ArrayRef<Value> operands) {
   if (isa<AtenTanhOp>(op))
     return b.create<math::TanhOp>(loc, payloadArgs[0]);
+  if (isa<AtenSigmoidOp>(op)){
+    Type elementType = payloadArgs[0].getType();
+    auto one = b.create<ConstantOp>(loc, FloatAttr::get(elementType, 1));
+    auto negate = b.create<NegFOp>(loc, payloadArgs[0]);
+    auto exp = b.create<math::ExpOp>(loc, negate);
+    auto added = b.create<AddFOp>(loc, exp, one);
+    return b.create<DivFOp>(loc, one, added);
+  }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
     if (!relu.getType()
              .cast<ValueTensorType>()
@@ -775,7 +783,8 @@ struct ConvertElementwiseOp : ConversionPattern {
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
-             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp>(op))
+             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp,
+             AtenSigmoidOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1137,7 +1146,8 @@ public:
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target
         .addIllegalOp<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
-                      AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp>();
+                      AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp,
+                      AtenSigmoidOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
