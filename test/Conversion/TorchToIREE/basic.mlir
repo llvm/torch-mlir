@@ -7,6 +7,7 @@
 // CHECK:           %[[ALSO_ARG:.*]] = torch_c.to_f64 %[[ARG_TORCH]]
 // CHECK:           %[[C2:.*]] = constant 2 : index
 // CHECK:           %[[LIST:.*]] = iree.list.create %[[C2]] : !iree.list<f64>
+// CHECK:           iree.list.resize %[[LIST]], %[[C2]] : !iree.list<f64>
 // CHECK:           %[[C0:.*]] = constant 0 : index
 // CHECK:           iree.list.set %[[LIST]][%[[C0]]], %[[ARG]] : !iree.list<f64>, f64
 // CHECK:           %[[C1:.*]] = constant 1 : index

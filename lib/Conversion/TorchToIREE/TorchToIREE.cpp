@@ -35,10 +35,11 @@ public:
   matchAndRewrite(PrimListConstructOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto type = getTypeConverter()->convertType(op.getType());
-    auto capacity =
+    auto size =
         rewriter.create<ConstantIndexOp>(op.getLoc(), op->getNumOperands());
     auto ireeList =
-        rewriter.replaceOpWithNewOp<iree::ListCreateOp>(op, type, capacity);
+        rewriter.replaceOpWithNewOp<iree::ListCreateOp>(op, type, size);
+    rewriter.create<iree::ListResizeOp>(op.getLoc(), ireeList, size);
     for (int i = 0, e = operands.size(); i != e; ++i) {
       auto index = rewriter.create<ConstantIndexOp>(op.getLoc(), i);
       rewriter.create<iree::ListSetOp>(op.getLoc(), ireeList, index,
