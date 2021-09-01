@@ -398,7 +398,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::layout : (Tensor) -> (int)")
         emit("prim::TupleIndex : (Any, int) -> (Any)")
         emit("prim::device : (Tensor) -> (Device)")
-        emit("prim::dtype : (Tensor) -> (int)")
+        emit("prim::dtype : (Tensor) -> (int)", has_folder=True)
         emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
         emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")
         emit("prim::min.self_int : (int[]) -> (int)")

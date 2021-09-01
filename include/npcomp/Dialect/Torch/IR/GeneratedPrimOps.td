@@ -70,6 +70,7 @@ def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_PrimTupleUnpackOp : Torch_Op<"prim.TupleUnpack", [

@@ -18,6 +18,20 @@ using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::Torch;
 
+// see https://github.com/pytorch/pytorch/blob/master/c10/core/ScalarType.h#L28
+static int64_t getDtypeIntegerFromMlirType(Type dtype) {
+  if (dtype.isa<Float32Type>())
+    return 6;
+
+  if (auto integerType = dtype.dyn_cast<IntegerType>()) {
+    if (integerType.isSignedInteger(64))
+      return 4;
+    if (integerType.isSignlessInteger(1))
+      return 11;
+  }
+  return -1;
+}
+
 //===----------------------------------------------------------------------===//
 // Utilities
 //===----------------------------------------------------------------------===//
@@ -128,6 +142,10 @@ bool isValidSubtype(Type subtype, Type type) {
   if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
       type ==
           NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
+
+  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
+      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
     return true;
   return false;
 }
@@ -972,5 +990,18 @@ OpFoldResult AtenMulIntOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// PrimDtypeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimDtypeOp::fold(ArrayRef<Attribute> operands) {
+  BaseTensorType tensorType = a().getType().cast<BaseTensorType>();
+  if (tensorType.hasDtype()) {
+    int64_t dtypeInt = getDtypeIntegerFromMlirType(tensorType.getDtype());
+    if (dtypeInt != -1)
+      return getI64IntegerAttr(getContext(), dtypeInt);
+  }
+  return nullptr;
+}
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/Torch/IR/TorchOps.cpp.inc"
