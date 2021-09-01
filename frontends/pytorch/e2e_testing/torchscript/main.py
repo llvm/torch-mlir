@@ -36,6 +36,7 @@ from . import batchnorm
 from . import quantized_models
 from . import elementwise
 from . import list_programs
+from . import reduction
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend']
