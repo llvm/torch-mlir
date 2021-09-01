@@ -791,6 +791,40 @@ def Torch_AtenTriu_Op : Torch_Op<"aten.triu_", [
   let assemblyFormat = "$self `,` $diagonal attr-dict `:` type($self) `,` type($diagonal) `->` type($result)";
 }
 
+def Torch_AtenIndexPutOp : Torch_Op<"aten.index_put", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchTensorType:$values,
+    Torch_BoolType:$accumulate
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` type($self) `,` type($indices) `,` type($values) `,` type($accumulate) `->` type($result)";
+}
+
+def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::index_put_ : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchTensorType:$values,
+    Torch_BoolType:$accumulate
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` type($self) `,` type($indices) `,` type($values) `,` type($accumulate) `->` type($result)";
+}
+
 def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -1402,22 +1436,6 @@ def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $indices attr-dict `:` type($self) `,` type($indices) `->` type($result)";
-}
-
-def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
-    AllowsTypeRefinement
-  ]> {
-  let summary = "Generated op for `aten::index_put_ : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchOptionalTensorListType:$indices,
-    AnyTorchTensorType:$values,
-    Torch_BoolType:$accumulate
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` type($self) `,` type($indices) `,` type($values) `,` type($accumulate) `->` type($result)";
 }
 
 def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [

@@ -114,6 +114,10 @@ struct ValueKnowledge {
     return getKnowledgeFromType(value.getType());
   }
 
+  static ValueKnowledge getNotNonePessimisticValueState(MLIRContext *context) {
+    return ValueKnowledge(false, {}, Type(), OptionalKnowledge::notNone);
+  }
+
   bool operator==(const ValueKnowledge &rhs) const {
     return std::make_tuple(hasSizes, sizes, dtype, optional) ==
            std::make_tuple(rhs.hasSizes, rhs.sizes, rhs.dtype, rhs.optional);
@@ -199,7 +203,7 @@ public:
     if (isa<AtenAnyOp, AtenAllOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
-          ValueKnowledge::getPessimisticValueState(op->getContext());
+          ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
       knowledge.hasSizes = true;
       knowledge.sizes.resize(1, 1);
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
@@ -211,7 +215,7 @@ public:
     if (auto maskedSelect = dyn_cast<AtenMaskedSelectOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
-          ValueKnowledge::getPessimisticValueState(op->getContext());
+          ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
       knowledge.hasSizes = true;
       knowledge.sizes.resize(1, kUnknownSize);
       knowledge.dtype = input.dtype;
@@ -225,7 +229,7 @@ public:
     if (auto indexTensor = dyn_cast<AtenIndexTensorOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
-          ValueKnowledge::getPessimisticValueState(op->getContext());
+          ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
       if (input.hasSizes) {
         knowledge.hasSizes = true;
         knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
@@ -482,7 +486,8 @@ ChangeResult TypeAnalyzer::visitAtenMmOp(
     AtenMmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto &lhs = operands[0]->getValue();
   auto &rhs = operands[1]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
   // WARNING: We could be more precise here by calculating the output
   // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
@@ -532,7 +537,8 @@ ChangeResult TypeAnalyzer::visitAtenLinearOp(
 
 ChangeResult TypeAnalyzer::visitAtenConv2dOp(
     AtenConv2dOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
   knowledge.sizes.resize(4, kUnknownSize);
   // Running some experiments in PyTorch, the bias doesn't seem to
@@ -544,7 +550,8 @@ ChangeResult TypeAnalyzer::visitAtenConv2dOp(
 
 ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
     AtenMaxPool2dOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
   knowledge.sizes.resize(4, kUnknownSize);
   knowledge.dtype = operands[0]->getValue().dtype;
@@ -555,7 +562,8 @@ ChangeResult TypeAnalyzer::visitAtenAdaptiveAvgPool2dOp(
     AtenAdaptiveAvgPool2dOp op,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   if (input.hasSizes) {
     knowledge.hasSizes = true;
     knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
@@ -573,7 +581,8 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   // tricky, so we defer that until we need it.
   auto lhs = operands[0]->getValue();
   auto rhs = operands[1]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   if (lhs.hasSizes && rhs.hasSizes) {
     knowledge.hasSizes = true;
     knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
@@ -593,7 +602,8 @@ ChangeResult TypeAnalyzer::visitAtenLerpTensorOp(
   auto a = operands[0]->getValue();
   auto b = operands[1]->getValue();
   auto c = operands[1]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   if (a.hasSizes && b.hasSizes && c.hasSizes) {
     knowledge.hasSizes = true;
     knowledge.sizes.resize(
@@ -611,7 +621,8 @@ ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
   int64_t startDim;
   int64_t endDim;
   auto operand = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
   if (operand.hasSizes && operand.sizes.size() == 0) {
     // Rank 0 is special and flattens to rank 1 with size 1.
@@ -642,7 +653,8 @@ ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
 ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
     AtenUnsqueezeOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto operand = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
   int64_t dim;
   if (operand.hasSizes && matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
@@ -666,7 +678,8 @@ ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
 // Arange like ops returns a 1-D tensor of size ceil(end - start).
 ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
     Operation *op, llvm::Optional<Value> start, Value end, Value dtype) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.sizes.resize(1, kUnknownSize);
   knowledge.hasSizes = true;
   int64_t dtypeInt;
@@ -716,7 +729,8 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
     Operation *op, Value dim, Value keepdim,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   llvm::SmallVector<int64_t> dimList;
   bool keepdimBool;
@@ -749,7 +763,8 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
 ChangeResult TypeAnalyzer::visitAtenAnyDimOp(
     AtenAnyDimOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   int64_t dim;
   bool keepdimBool;
@@ -779,7 +794,8 @@ template <typename OpTy>
 ChangeResult TypeAnalyzer::visitReshapeLikeOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
 
   fillInSizesGivenSizesList(knowledge, op.size());
@@ -790,7 +806,8 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
     AtenTransposeIntOp op,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
   knowledge.hasSizes = input.hasSizes;
   auto dim0 = op.dim0();
@@ -815,7 +832,8 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
 
 template <typename OpTy>
 ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   Value t = op.t();
   Value dtype = op.dtype();
   knowledge.hasSizes = true;
@@ -828,18 +846,18 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
 // `torch.aten.tensor` get a tensor from a list. Each layer of the list
 // corresponds to one dim of the tensor.
 ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op.getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   Value data = op.data();
   Value dtype = op.dtype();
   Type type = data.getType();
   int64_t rank = 0;
-  bool rankIsUnknown = false;
   while (auto listType = type.dyn_cast<ListType>()) {
     type = listType.getContainedType();
     rank++;
   }
 
-  if (!rankIsUnknown) {
+  if (rank != 0) {
     knowledge.hasSizes = true;
     knowledge.sizes.resize(rank, kUnknownSize);
   }
@@ -849,7 +867,8 @@ ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
 
 template <typename OpTy>
 ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeAndDataType(op->getContext(), knowledge, op.dtype(),
                                    Torch::FloatType::get(op->getContext()));
@@ -861,7 +880,8 @@ template <typename OpTy>
 ChangeResult TypeAnalyzer::visitTypeConversionOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = input.hasSizes;
   knowledge.sizes = input.sizes;
   Value other = op.other();
@@ -879,7 +899,8 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
     SetDimSizeFn setDim) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
     return getLatticeElement(op.getResult()).join(knowledge);
@@ -912,7 +933,8 @@ ChangeResult TypeAnalyzer::visitAtenGatherOp(
     AtenGatherOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto index = operands[2]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   knowledge.hasSizes = index.hasSizes;
   knowledge.sizes = index.sizes;
@@ -927,7 +949,8 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
     ArrayRef<LatticeElement<ValueKnowledge> *> operands,
     SetDimSizePerListItemFn setDim) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
     return getLatticeElement(op->getResult(0)).join(knowledge);
@@ -957,7 +980,8 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
 ChangeResult TypeAnalyzer::visitAtenCatOp(
     AtenCatOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto tensorList = op.tensors();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
     return getLatticeElement(op.getResult()).join(knowledge);
@@ -995,7 +1019,8 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
     Aten_ShapeAsTensorOp op,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   if (input.hasSizes)
     knowledge.sizes.resize(1, input.sizes.size());
   else
@@ -1007,7 +1032,8 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
 
 ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
     AtenEmbeddingOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto weight = operands[0]->getValue();
   auto indices = operands[1]->getValue();
   if (indices.hasSizes) {
@@ -1026,13 +1052,15 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
 
 ChangeResult TypeAnalyzer::visitAtenBmmOp(
     AtenBmmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto self = operands[0]->getValue();
   auto mat2 = operands[1]->getValue();
   knowledge.sizes.resize(3, kUnknownSize);
   knowledge.dtype = joinElementTypes(self.dtype, mat2.dtype);
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
+
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------

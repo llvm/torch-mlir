@@ -406,7 +406,6 @@ func @torch.aten.__getitem__.Dict_str(%k0 : !torch.str, %v0: !torch.tensor, %k1:
 // CHECK-LABEL:   func @torch.aten.add.int() -> !torch.int {
 // CHECK:           %[[CST9:.*]] = torch.constant.int 9
 // CHECK:           return %[[CST9]] : !torch.int
-// CHECK:         }
 func @torch.aten.add.int() -> !torch.int {
     %cst4 = torch.constant.int 4
     %cst5 = torch.constant.int 5
@@ -417,7 +416,6 @@ func @torch.aten.add.int() -> !torch.int {
 // CHECK-LABEL:   func @torch.aten.sub.int() -> !torch.int {
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           return %[[CST1]] : !torch.int
-// CHECK:         }
 func @torch.aten.sub.int() -> !torch.int {
     %cst6 = torch.constant.int 6
     %cst5 = torch.constant.int 5
@@ -428,7 +426,6 @@ func @torch.aten.sub.int() -> !torch.int {
 // CHECK-LABEL:   func @torch.aten.mul.int() -> !torch.int {
 // CHECK:           %[[CST30:.*]] = torch.constant.int 30
 // CHECK:           return %[[CST30]] : !torch.int
-// CHECK:         }
 func @torch.aten.mul.int() -> !torch.int {
     %cst6 = torch.constant.int 6
     %cst5 = torch.constant.int 5
@@ -439,7 +436,6 @@ func @torch.aten.mul.int() -> !torch.int {
 // CHECK-LABEL:   func @torch.aten.mul.int$with_zero() -> !torch.int {
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           return %[[CST0]] : !torch.int
-// CHECK:         }
 func @torch.aten.mul.int$with_zero() -> !torch.int {
     %cst6 = torch.constant.int 6
     %cst0 = torch.constant.int 0
@@ -450,7 +446,6 @@ func @torch.aten.mul.int$with_zero() -> !torch.int {
 // CHECK-LABEL:   func @torch.aten.floordiv.int() -> !torch.int {
 // CHECK:           %[[CST3:.*]] = torch.constant.int 3
 // CHECK:           return %[[CST3]] : !torch.int
-// CHECK:         }
 func @torch.aten.floordiv.int() -> !torch.int {
     %cst18 = torch.constant.int 18
     %cst5 = torch.constant.int 5
@@ -461,10 +456,36 @@ func @torch.aten.floordiv.int() -> !torch.int {
 // CHECK-LABEL:   func @torch.aten.remainder.int() -> !torch.int {
 // CHECK:           %[[CST3:.*]] = torch.constant.int 3
 // CHECK:           return %[[CST3]] : !torch.int
-// CHECK:         }
 func @torch.aten.remainder.int() -> !torch.int {
     %cst18 = torch.constant.int 18
     %cst5 = torch.constant.int 5
     %ret = torch.aten.remainder.int %cst18, %cst5: !torch.int, !torch.int -> !torch.int
+    return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.prim.dtype$float(
+// CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,f32>) -> !torch.int {
+// CHECK:           %[[CST:.*]] = torch.constant.int 6
+// CHECK:           return %[[CST]] : !torch.int
+func @torch.prim.dtype$float(%t : !torch.tensor<*,f32>) -> !torch.int {
+    %ret = torch.prim.dtype %t: !torch.tensor<*,f32> -> !torch.int
+    return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.prim.dtype$bool(
+// CHECK-SAME:              %[[T:.*]]: !torch.tensor<*,i1>) -> !torch.int {
+// CHECK:           %[[CST:.*]] = torch.constant.int 11
+// CHECK:           return %[[CST]] : !torch.int
+func @torch.prim.dtype$bool(%t : !torch.tensor<*,i1>) -> !torch.int {
+    %ret = torch.prim.dtype %t: !torch.tensor<*,i1> -> !torch.int
+    return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.prim.dtype$int64(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor<*,si64>) -> !torch.int {
+// CHECK:           %[[CST:.*]] = torch.constant.int 4
+// CHECK:           return %[[CST]] : !torch.int
+func @torch.prim.dtype$int64(%t : !torch.tensor<*,si64>) -> !torch.int {
+    %ret = torch.prim.dtype %t: !torch.tensor<*,si64> -> !torch.int
     return %ret : !torch.int
 }
