@@ -257,13 +257,15 @@ public:
       return visitAtenArangeOp(arange);
     } else if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
       return visitAtenArangeStartOp(arangeStart);
+    } else if (auto sum = dyn_cast<AtenSumOp>(op)) {
+      return visitReductionAlongAllDimsOp(sum, operands);
     } else if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
-      return visitCalculationAlongDimIntListOp(
+      return visitReductionAlongDimIntListOp(
           sumDimIntList, sumDimIntList.dim(), sumDimIntList.keepdim(),
           operands);
     } else if (auto meanDim = dyn_cast<AtenMeanDimOp>(op)) {
-      return visitCalculationAlongDimIntListOp(meanDim, meanDim.dim(),
-                                               meanDim.keepdim(), operands);
+      return visitReductionAlongDimIntListOp(meanDim, meanDim.dim(),
+                                             meanDim.keepdim(), operands);
     } else if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
       return visitAtenAnyDimOp(anyDim, operands);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
@@ -385,7 +387,9 @@ private:
                                            Value end, Value dtype);
   ChangeResult visitAtenArangeStartOp(AtenArangeStartOp op);
   ChangeResult visitAtenArangeOp(AtenArangeOp op);
-  ChangeResult visitCalculationAlongDimIntListOp(
+  ChangeResult visitReductionAlongAllDimsOp(
+      Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitReductionAlongDimIntListOp(
       Operation *op, Value dim, Value keepdim,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
@@ -695,9 +699,20 @@ ChangeResult TypeAnalyzer::visitAtenArangeOp(AtenArangeOp op) {
   return visitAtenArangeLikeOpHelper(op, {}, op.end(), op.dtype());
 }
 
+ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = input.dtype;
+  // Reduction along all dims always results in a tensor of rank zero,
+  // which is represented by the default empty `knowledge.sizes` vector
+  knowledge.hasSizes = true;
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
 // These ops do caculation along the dims given by the integer list and reduce
 // each dim to size one. If \p keepdim is false, the dims are squeezed.
-ChangeResult TypeAnalyzer::visitCalculationAlongDimIntListOp(
+ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
     Operation *op, Value dim, Value keepdim,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();

@@ -521,6 +521,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
         emit("aten::size.int : (Tensor, int) -> (int)")
         emit("aten::stack : (Tensor[], int) -> (Tensor)")
+        emit("aten::sum : (Tensor, int?) -> (Tensor)")
         emit("aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)")
         emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)")
         emit("aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)")

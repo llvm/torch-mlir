@@ -755,6 +755,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   return nullptr;
 }
 
+static Value createLinalgPayloadCalculationForReduceOp(
+    OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
+    ArrayRef<Value> operands, Type elementType) {
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
+      elementType.isa<mlir::FloatType>())
+    return b.create<AddFOp>(loc, payloadArgs);
+
+  op->emitError("unimplemented lowering in "
+                "createLinalgPayloadCalculationForReduceOp");
+  return nullptr;
+}
+
 namespace {
 
 // Converts an elementwise op.
@@ -901,6 +913,140 @@ struct ConvertElementwiseOp : ConversionPattern {
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 generic.getResult(0));
     return success();
+  }
+};
+} // namespace
+
+namespace {
+struct ConvertReductionOp : ConversionPattern {
+  ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
+      : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
+                          context) {}
+
+  // This function is in charge of all the rewriting that will take
+  // place in `matchAndRewrite`. In particular, it converts
+  // the reduce operation into an `linalg.generic` operation
+  // to reduce the input tensor along the dimensions specified in
+  // `dimeSet`.
+  LogicalResult createReductionLinalgGeneric(
+      Operation *op,
+      ArrayRef<Value> operands,
+      const DenseSet<int64_t> &dimSet,
+      bool keepDim,
+      ConversionPatternRewriter &rewriter) const {
+    Location loc = op->getLoc();
+    auto tensorOperand = operands[0];
+    auto inputType = tensorOperand.getType().cast<RankedTensorType>();
+    auto resultType = getTypeConverter()
+      ->convertType(op->getResult(0).getType())
+      .cast<RankedTensorType>();
+
+    // Get the result shape by obtaining the size of each
+    // dimension in the input tensor that is not getting reduced.
+    // If `keepDim` is true, the rank of the output tensor
+    // is kept the same as the rank of the input tensor, and the
+    // reduced dimensions are set to have size 1.
+    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < inputType.getRank(); i++) {
+      auto currentDimSize =
+        rewriter.create<tensor::DimOp>(loc, tensorOperand, i);
+      if (!dimSet.contains(i))
+        resultShape.push_back(currentDimSize);
+      else if (keepDim)
+        resultShape.push_back(c1);
+    }
+
+    // Create the affine expressions that will be used to
+    // iterate over the input and output tensors.
+    // Here we also set the type of iterator: parallel or reduction.
+    SmallVector<AffineExpr> exprs;
+    SmallVector<StringRef> iteratorTypes;
+    SmallVector<AffineExpr> resultExprs;
+    for (auto size : llvm::enumerate(inputType.getShape())) {
+      exprs.push_back(rewriter.getAffineDimExpr(size.index()));
+
+      if (dimSet.contains(size.index())) {
+        iteratorTypes.push_back(getReductionIteratorTypeName());
+        // If `keepDim`, create affine map to the first element
+        // in the current dimension.
+        if (keepDim)
+          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
+      } else {
+        iteratorTypes.push_back(getParallelIteratorTypeName());
+        resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+      }
+    }
+
+    auto indexingMaps = AffineMap::inferFromExprList({exprs, resultExprs});
+    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultShape, resultType.getElementType());
+    bool hadErrorCreatingPayload = false;
+    auto generic = rewriter.create<linalg::GenericOp>(
+        loc, /*resultTensorTypes=*/initTensor.getType(),
+        /*inputs=*/tensorOperand,
+        /*outputs=*/initTensor,
+        /*indexingMaps=*/indexingMaps,
+        /*iteratorTypes=*/iteratorTypes,
+        [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+          Value result = createLinalgPayloadCalculationForReduceOp(
+              b, loc, payloadArgs, op, operands, resultType.getElementType());
+          if (!result) {
+            hadErrorCreatingPayload = true;
+            return;
+          }
+          b.create<linalg::YieldOp>(loc, result);
+        });
+
+    if (hadErrorCreatingPayload)
+      return failure();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                generic.getResult(0));
+    return success();
+  }
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // Every reduce operation must set a value for the `dimSet` and
+    // `keepDim` in accordance with their specification.
+    DenseSet<int64_t> dimSet;
+    bool keepDim = false;
+    if (isa<AtenSumOp>(op)) {
+      auto tensorOperand = operands[0];
+      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
+
+      // `AtenSumOp` reduces along all the dimensiosn of the input tensor.
+      for (int64_t i = 0; i < inputType.getRank(); i++)
+        dimSet.insert(i);
+    } else if (auto sumDimIntListOp = dyn_cast<AtenSumDimIntListOp>(op)) {
+      auto tensorOperand = operands[0];
+      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
+
+      if (!matchPattern(sumDimIntListOp.keepdim(),
+                        m_TorchConstantBool(&keepDim)))
+        return failure();
+
+      SmallVector<int64_t> dimList;
+      if (!matchPattern(sumDimIntListOp.dim(), m_TorchConstantIntList(dimList)))
+        return failure();
+      for (auto dim : dimList) {
+        // Torch allows for negative values in dimSet to go in reverse
+        // order in the dimensions of the input tensor.
+        dim = dim >= 0 ? dim : dim + inputType.getRank();
+        // Drop invalid dimensions
+        if (dim < inputType.getRank())
+          dimSet.insert(dim);
+      }
+    } else {
+      return rewriter.notifyMatchFailure(op, "not a supported reduce op");
+    }
+
+    return createReductionLinalgGeneric(op, operands, dimSet,
+                                        keepDim, rewriter);
   }
 };
 } // namespace
@@ -1159,6 +1305,8 @@ public:
     patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
+    target.addIllegalOp<AtenSumOp>();
+    patterns.add<ConvertReductionOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

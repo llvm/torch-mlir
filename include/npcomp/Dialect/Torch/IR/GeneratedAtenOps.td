@@ -1554,6 +1554,21 @@ def Torch_AtenStackOp : Torch_Op<"aten.stack", [
   let assemblyFormat = "$tensors `,` $dim attr-dict `:` type($tensors) `,` type($dim) `->` type($result)";
 }
 
+def Torch_AtenSumOp : Torch_Op<"aten.sum", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::sum : (Tensor, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalIntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dtype attr-dict `:` type($self) `,` type($dtype) `->` type($result)";
+}
+
 def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
     AllowsTypeRefinement,
     HasValueSemantics
