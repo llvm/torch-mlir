@@ -16,10 +16,10 @@ class ListLiteralModule(torch.nn.Module):
         super().__init__()
 
     @export
-    def forward(self, x: float):
+    def forward(self, x: int):
         return [x, x]
 
 
 @register_test_case(module_factory=lambda: ListLiteralModule())
 def ListLiteralModule_basic(module, tu: TestUtils):
-    module.forward(3.0)
+    module.forward(3)

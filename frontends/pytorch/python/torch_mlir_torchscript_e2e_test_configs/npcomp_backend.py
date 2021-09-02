@@ -18,18 +18,41 @@ from npcomp.compiler.pytorch.backend.abc import NpcompBackend
 from torch_mlir_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir.torchscript_annotations import extract_annotations
 
-class PrettyErrorReportForIrOperation(object):
-    def __init__(self, module, module_name_for_ir_dump: str):
-        sys.stderr = StringIO()
-        self.filename_for_ir_dump = os.path.join(tempfile.gettempdir(),
-                                module_name_for_ir_dump + '.mlir')
-        self.asm_for_error_report = module.get_asm(
-            large_elements_limit=10, enable_debug_info=True)
-    def __enter__(self):
-        pass
-    def __exit__(self, type, value, traceback):
-        with open(self.filename_for_ir_dump, 'w') as f:
-            f.write(self.asm_for_error_report)
+def _recursively_convert_to_numpy(o: Any):
+    if isinstance(o, torch.Tensor):
+        return o.numpy()
+    if isinstance(o, tuple):
+        return tuple(_recursively_convert_to_numpy(x) for x in o)
+    if isinstance(o, list):
+        return [_recursively_convert_to_numpy(x) for x in o]
+    if isinstance(o, dict):
+        return {k: _recursively_convert_to_numpy(v) for k, v in o.items()}
+    # No-op cases. Explicitly enumerated to avoid things sneaking through.
+    if isinstance(o, str):
+        return o
+    if isinstance(o, float):
+        return o
+    if isinstance(o, int):
+        return o
+    raise Exception(f"Unexpected Python function input: {o}")
+
+def _recursively_convert_from_numpy(o: Any):
+    if isinstance(o, np.ndarray):
+        return torch.from_numpy(o)
+    if isinstance(o, tuple):
+        return tuple(_recursively_convert_from_numpy(x) for x in o)
+    if isinstance(o, list):
+        return [_recursively_convert_from_numpy(x) for x in o]
+    if isinstance(o, dict):
+        return {k: _recursively_convert_from_numpy(v) for k, v in o.items()}
+    # No-op cases. Explicitly enumerated to avoid things sneaking through.
+    if isinstance(o, str):
+        return o
+    if isinstance(o, float):
+        return o
+    if isinstance(o, int):
+        return o
+    raise Exception(f"Unexpected Python function output: {o}")
 
 class NpcompBackendTestConfig(TestConfig):
     """Base class for TestConfig's that are implemented with npcomp.
@@ -124,16 +147,9 @@ NPCOMP Backend lowering for {self.backend.__class__.__name__} failed with the fo
         backend_module = self.backend.load(artifact)
         result: Trace = []
         for item in trace:
-            numpy_inputs = [t.numpy() for t in item.inputs]
+            numpy_inputs = _recursively_convert_to_numpy(item.inputs)
             outputs = getattr(backend_module, item.symbol)(*numpy_inputs)
-            # TODO: Properly handle recursively nested objects.
-            # We probably want to push this kind of unpacking/normalizing
-            # back to true Python values further down into the backends
-            # themselves.
-            if isinstance(outputs, list):
-                output = [torch.tensor(ndarray) for ndarray in outputs]
-            else:
-                output = torch.tensor(outputs)
+            output = _recursively_convert_from_numpy(outputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,

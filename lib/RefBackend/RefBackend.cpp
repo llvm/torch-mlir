@@ -38,6 +38,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Dialect/Refback/IR/RefbackOps.h"
 
 using namespace mlir;
@@ -122,6 +123,11 @@ mlir::NPCOMP::createLowerAllocMemRefOpsPass() {
 
 void mlir::NPCOMP::createRefBackendLoweringPipeline(
     OpPassManager &pm, const RefBackendLoweringPipelineOptions &options) {
+
+  // Delete dead lists. RefBackend doesn't support lists, but in some cases
+  // we can get by if all the lists are dead.
+  pm.addNestedPass<FuncOp>(
+      NPCOMP::CommonBackend::createDeleteDeadIREEListsPass());
 
   // Convert all elementwise ops to linalg.
   //

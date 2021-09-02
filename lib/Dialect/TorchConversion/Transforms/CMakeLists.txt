@@ -1,7 +1,7 @@
 add_npcomp_conversion_library(NPCOMPTorchConversionPasses
+  AnnotateABI.cpp
   BackendTypeConversion.cpp
   Passes.cpp
-  TmpDeleteDeadIREELists.cpp
   VerifyInvariantsBeforeBackendLowering.cpp
 
   ADDITIONAL_HEADER_DIRS

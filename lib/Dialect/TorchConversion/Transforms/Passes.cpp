@@ -46,6 +46,10 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   // contract.
   Torch::createTorchScriptToTorchBackendPipeline(pm, options);
 
+  // Annotate the ABI of the original Torch functions before we lower them and
+  // lose information.
+  pm.addPass(TorchConversion::createAnnotateABIPass());
+
   // Check some invariants to catch errors in a clear way.
   pm.addPass(
       TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
@@ -84,11 +88,6 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
   pm.addNestedPass<FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
-
-  // Temporarily delete dead list ops until IREE can run them e2e.
-  // TODO: Remove this pass once IREE can run them e2e.
-  // TODO: Add support to IREE to run these ops E2E.
-  pm.addNestedPass<FuncOp>(TorchConversion::createTmpDeleteDeadIREEListsPass());
 
   // Verify that we have lowered to the form that npcomp backends expect.
   // This fails compilation (signalPassFailure) if the IR is not in the

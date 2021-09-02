@@ -1,4 +1,4 @@
-//===- TmpDeleteDeadIREELists.cpp --------------------------------*- C++-*-===//
+//===- DeleteDeadIREELists.cpp -----------------------------------*- C++-*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,17 +11,15 @@
 #include "iree-dialects/Dialect/IREE/IREEOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "npcomp/Dialect/Torch/IR/TorchOps.h"
-#include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
+#include "npcomp/Backend/Common/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::TorchConversion;
+using namespace mlir::NPCOMP::CommonBackend;
 
 namespace {
-class TmpDeleteDeadIREEListsPass
-    : public TmpDeleteDeadIREEListsBase<TmpDeleteDeadIREEListsPass> {
+class DeleteDeadIREEListsPass
+    : public DeleteDeadIREEListsBase<DeleteDeadIREEListsPass> {
   void runOnOperation() override {
     SmallVector<Operation *> toErase;
     // Delete lists that are only set (but not read from).
@@ -51,6 +49,6 @@ class TmpDeleteDeadIREEListsPass
 } // namespace
 
 std::unique_ptr<OperationPass<FuncOp>>
-mlir::NPCOMP::TorchConversion::createTmpDeleteDeadIREEListsPass() {
-  return std::make_unique<TmpDeleteDeadIREEListsPass>();
+mlir::NPCOMP::CommonBackend::createDeleteDeadIREEListsPass() {
+  return std::make_unique<DeleteDeadIREEListsPass>();
 }

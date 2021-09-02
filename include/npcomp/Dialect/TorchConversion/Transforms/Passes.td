@@ -52,24 +52,25 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-
-def TmpDeleteDeadIREELists
-    : Pass<"torch-tmp-delete-dead-lists", "FuncOp"> {
-  let summary = "Delete dead !iree.list ops";
-  let constructor =
-    "mlir::NPCOMP::TorchConversion::createTmpDeleteDeadIREEListsPass()";
+def AnnotateABI : Pass<"torch-annotate-abi", "ModuleOp"> {
+  let summary = "Annotate `torch` types before lowering to backend types";
   let description = [{
-    Runs a few patterns to delete dead !iree.list ops until IREE can support
-    running them. Currently, these will get materialized as part of conversions
-    for ops like AtenConv2dOp that have list operands, even though they are dead
-    (for those ops, we pattern match a specific case of static constant lists).
-    Currently, this will break execution of those tests because the IREE
-    side of these ops still doesn't work (nor is IREE able to delete them
-    itself).
+    Populates `iree.abi` metadata to allow runtime reflection of
+    arguments and results.
 
-    TODO: Add support to IREE to run these ops E2E.
-    TODO: Remove this pass once IREE can run them e2e.
+    See IREE's `docs/developers/design_docs/function_abi.md` for information
+    about this annotation format.
+
+    This information must be annotated before we lower types to the backend
+    contract, since that lowering is not generally reversible to recover the
+    correct Python signature.
+
+    TODO: Reconsider the passes in the Torch lowering pipeline in light of this.
+    We want to provide a faithful ABI up to the user, so the None handling (and
+    unimplemented tuple handling) in AdjustCallingConventions and the ClassType
+    handling in GlobalizeObjectGraph will need to be considered.
   }];
+  let constructor = "mlir::NPCOMP::TorchConversion::createAnnotateABIPass()";
 }
 
 
