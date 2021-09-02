@@ -1,4 +1,5 @@
 add_npcomp_library(NPCOMPCommonBackend
+  DeleteDeadIREELists.cpp
   VerifyBackendContract.cpp
   Passes.cpp
 

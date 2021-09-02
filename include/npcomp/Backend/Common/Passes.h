@@ -20,6 +20,8 @@ void registerCommonBackendPasses();
 
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyBackendContractPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createDeleteDeadIREEListsPass();
+
 } // namespace CommonBackend
 } // namespace NPCOMP
 } // namespace mlir
