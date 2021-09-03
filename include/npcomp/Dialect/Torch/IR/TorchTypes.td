@@ -62,7 +62,7 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   let parser = [{
     if (parser.parseLess())
       return Type();
-    StringRef className;
+    std::string className;
     if ($_parser.parseOptionalString(&className))
       return Type();
     if ($_parser.parseGreater())

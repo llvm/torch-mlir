@@ -95,7 +95,8 @@ def CompareOperationAttr : StrEnumAttr<
 //===----------------------------------------------------------------------===//
 
 def Basicpy_NumericConstantOp : Basicpy_Op<"numeric_constant", [
-    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "A constant from the Python3 numeric type hierarchy";
   let description = [{
     Basicpy re-uses core MLIR types to represent the Python3 numeric type
@@ -141,7 +142,8 @@ def Basicpy_NumericConstantOp : Basicpy_Op<"numeric_constant", [
 }
 
 def Basicpy_BoolConstantOp : Basicpy_Op<"bool_constant", [
-    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "A boolean constant";
   let description = [{
     A constant of type !basicpy.BoolType that can take either an i1 value
@@ -220,7 +222,8 @@ def Basicpy_BuildTupleOp : Basicpy_Op<"build_tuple", [NoSideEffect]> {
 }
 
 def Basicpy_BytesConstantOp : Basicpy_Op<"bytes_constant", [
-    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Constant bytes value";
   let description = [{
     A bytes value of BytesType. The value is represented by a StringAttr.
@@ -251,7 +254,8 @@ def Basicpy_SingletonOp : Basicpy_Op<"singleton", [
 }
 
 def Basicpy_StrConstantOp : Basicpy_Op<"str_constant", [
-    ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Constant string value";
   let description = [{
     A string value of StrType. The value is represented by a StringAttr

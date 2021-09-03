@@ -1,6 +1,6 @@
 // RUN: npcomp-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
 
-// CHECK-LABEL: builtin.func @forward
+// CHECK-LABEL: func @forward
 builtin.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
   %int1 = torch.constant.int 1
   %int2 = torch.constant.int 2

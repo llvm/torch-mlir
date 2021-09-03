@@ -36,7 +36,7 @@ func @torch.aten.flatten.using_ints$basic_negative(%arg0: !torch.vtensor<[3,3,2,
 
 // -----
 
-// CHECK-LABEL:   builtin.func @torch.aten.flatten.using_ints$flatten_front(
+// CHECK-LABEL:   func @torch.aten.flatten.using_ints$flatten_front(
 // CHECK-SAME:                                                              %[[TENSOR:.*]]: !torch.vtensor<[3,3,2,2],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[TENSOR]] : !torch.vtensor<[3,3,2,2],f32> -> tensor<3x3x2x2xf32>
 // CHECK:           %[[COLLAPSED:.*]] = linalg.tensor_collapse_shape %[[BUILTIN_TENSOR]] {{\[\[}}0, 1, 2], [3]] : tensor<3x3x2x2xf32> into tensor<18x2xf32>
@@ -53,7 +53,7 @@ func @torch.aten.flatten.using_ints$flatten_front(%arg0: !torch.vtensor<[3,3,2,2
 
 // -----
 
-// CHECK-LABEL:   builtin.func @torch.aten.flatten.using_ints$flatten_back(
+// CHECK-LABEL:   func @torch.aten.flatten.using_ints$flatten_back(
 // CHECK-SAME:                                                              %[[TENSOR:.*]]: !torch.vtensor<[3,3,2,2],f32>) -> !torch.vtensor<[?,12],f32> {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[TENSOR]] : !torch.vtensor<[3,3,2,2],f32> -> tensor<3x3x2x2xf32>
 // CHECK:           %[[COLLAPSED:.*]] = linalg.tensor_collapse_shape %[[BUILTIN_TENSOR]] {{\[\[}}0], [1, 2, 3]] : tensor<3x3x2x2xf32> into tensor<3x12xf32>

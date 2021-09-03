@@ -33,7 +33,7 @@ class TmpDeleteDeadIREEListsPass
       SmallVector<Operation *> deadOps;
       deadOps.push_back(op);
       for (auto &use : op.getResult().getUses()) {
-        if (isa<iree::ListSetOp>(use.getOwner())) {
+        if (isa<iree::ListSetOp, iree::ListResizeOp>(use.getOwner())) {
           deadOps.push_back(use.getOwner());
         } else {
           // We can't analyze the list op if it is used by something else.

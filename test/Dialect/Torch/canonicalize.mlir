@@ -342,7 +342,7 @@ func @torch.prim.If$erase_dead_branch(%arg0: !torch.int) -> !torch.int {
   return %0 : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.prim.TupleUnpack(
+// CHECK-LABEL:   func @torch.prim.TupleUnpack(
 // CHECK-SAME:                                         %[[ARG0:.*]]: !torch.tensor,
 // CHECK-SAME:                                         %[[ARG1:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           return %[[ARG0]] : !torch.tensor
@@ -353,7 +353,7 @@ func @torch.prim.TupleUnpack(%arg0: !torch.tensor, %arg1: !torch.tensor) -> !tor
 }
 
 
-// CHECK-LABEL:   builtin.func @torch.aten.__contains__.str(
+// CHECK-LABEL:   func @torch.aten.__contains__.str(
 // CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
 // CHECK-SAME:        %[[K1:.*]]: !torch.str,
 // CHECK-SAME:        %[[V1:.*]]: !torch.tensor) -> !torch.bool {
@@ -369,7 +369,7 @@ func @torch.aten.__contains__.str(%k0 : !torch.str, %v0: !torch.tensor, %k1: !to
   return %pred : !torch.bool
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.__contains__.str$with_dict_modified(
+// CHECK-LABEL:   func @torch.aten.__contains__.str$with_dict_modified(
 // CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
 // CHECK-SAME:        %[[K1:.*]]: !torch.str, %[[V1:.*]]: !torch.tensor) -> !torch.bool {
 // CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct
@@ -389,7 +389,7 @@ func @torch.aten.__contains__.str$with_dict_modified(%k0 : !torch.str, %v0: !tor
   return %pred : !torch.bool
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.__getitem__.Dict_str(
+// CHECK-LABEL:   func @torch.aten.__getitem__.Dict_str(
 // CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
 // CHECK-SAME:        %[[K1:.*]]: !torch.str, %[[V1:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct
@@ -403,7 +403,7 @@ func @torch.aten.__getitem__.Dict_str(%k0 : !torch.str, %v0: !torch.tensor, %k1:
   return %v : !torch.tensor
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.add.int() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.add.int() -> !torch.int {
 // CHECK:           %[[CST9:.*]] = torch.constant.int 9
 // CHECK:           return %[[CST9]] : !torch.int
 // CHECK:         }
@@ -414,7 +414,7 @@ func @torch.aten.add.int() -> !torch.int {
     return %ret : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.sub.int() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.sub.int() -> !torch.int {
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           return %[[CST1]] : !torch.int
 // CHECK:         }
@@ -425,7 +425,7 @@ func @torch.aten.sub.int() -> !torch.int {
     return %ret : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.mul.int() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.mul.int() -> !torch.int {
 // CHECK:           %[[CST30:.*]] = torch.constant.int 30
 // CHECK:           return %[[CST30]] : !torch.int
 // CHECK:         }
@@ -436,7 +436,7 @@ func @torch.aten.mul.int() -> !torch.int {
     return %ret : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.mul.int$with_zero() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.mul.int$with_zero() -> !torch.int {
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           return %[[CST0]] : !torch.int
 // CHECK:         }
@@ -447,7 +447,7 @@ func @torch.aten.mul.int$with_zero() -> !torch.int {
     return %ret : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.floordiv.int() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.floordiv.int() -> !torch.int {
 // CHECK:           %[[CST3:.*]] = torch.constant.int 3
 // CHECK:           return %[[CST3]] : !torch.int
 // CHECK:         }
@@ -458,7 +458,7 @@ func @torch.aten.floordiv.int() -> !torch.int {
     return %ret : !torch.int
 }
 
-// CHECK-LABEL:   builtin.func @torch.aten.remainder.int() -> !torch.int {
+// CHECK-LABEL:   func @torch.aten.remainder.int() -> !torch.int {
 // CHECK:           %[[CST3:.*]] = torch.constant.int 3
 // CHECK:           return %[[CST3]] : !torch.int
 // CHECK:         }

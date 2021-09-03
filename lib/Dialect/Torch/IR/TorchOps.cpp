@@ -54,7 +54,8 @@ static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto func = symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, function());
+  auto func =
+      symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, functionAttr());
   if (!func)
     return emitError() << "'@" << function()
                        << "' does not reference a valid function";
@@ -132,8 +133,8 @@ bool isValidSubtype(Type subtype, Type type) {
 }
 
 LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto classType =
-      symbolTable.lookupNearestSymbolFrom<ClassTypeOp>(*this, getClassName());
+  auto classType = symbolTable.lookupNearestSymbolFrom<ClassTypeOp>(
+      *this, SymbolRefAttr::get(getContext(), getClassName()));
   if (!classType)
     return emitError() << "'" << getClassName()
                        << "' does not reference a valid class type";
@@ -297,7 +298,7 @@ static ParseResult parsePrimIfOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &p, PrimIfOp op) {
-  p << PrimIfOp::getOperationName() << " " << op.condition();
+  p << " " << op.condition();
   p << " -> (" << op.getResultTypes() << ")";
   p.printRegion(op.thenRegion(), /*printEntryBlockArgs=*/false);
   p << " else";
@@ -748,7 +749,7 @@ static ParseResult parseConstantIntOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, Torch::ConstantIntOp op) {
-  p << Torch::ConstantIntOp::getOperationName() << " ";
+  p << " ";
   p << op.value().getSExtValue();
   p.printOptionalAttrDict(op->getAttrs(), {"value"});
 }

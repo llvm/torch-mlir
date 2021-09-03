@@ -1,7 +1,7 @@
 
 // RUN: npcomp-opt <%s -convert-torch-to-iree -split-input-file -verify-diagnostics | FileCheck %s
 
-// CHECK-LABEL:   builtin.func @forward(
+// CHECK-LABEL: func @forward(
 // CHECK-SAME:                          %[[ARG_TORCH:.*]]: !torch.float) -> !torch.list<!torch.float> {
 // CHECK:           %[[ARG:.*]] = torch_c.to_f64 %[[ARG_TORCH]]
 // CHECK:           %[[ALSO_ARG:.*]] = torch_c.to_f64 %[[ARG_TORCH]]

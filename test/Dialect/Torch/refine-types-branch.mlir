@@ -2,7 +2,7 @@
 
 // -----
 
-// CHECK-LABEL:   builtin.func @prim.if$branch_merge_type_tensor(
+// CHECK-LABEL:   func @prim.if$branch_merge_type_tensor(
 // CHECK-SAME:                                                   %[[PRED:.*]]: !torch.bool,
 // CHECK-SAME:                                                   %[[T1:.*]]: !torch.tensor,
 // CHECK-SAME:                                                   %[[T2:.*]]: !torch.tensor) -> !torch.bool {
@@ -33,7 +33,7 @@ func @prim.if$branch_merge_type_tensor(%pred: !torch.bool, %t0: !torch.tensor, %
 
 // -----
 
-// CHECK-LABEL:   builtin.func @prim.if$branch_merge_type_optional(
+// CHECK-LABEL:   func @prim.if$branch_merge_type_optional(
 // CHECK-SAME:                                                     %[[PRED:.*]]: !torch.bool,
 // CHECK-SAME:                                                     %[[T:.*]]: !torch.tensor) -> !torch.optional<!torch.tensor> {
 // CHECK:           %[[MERGED:.*]] = torch.prim.If %[[PRED]] -> (!torch.optional<!torch.tensor>) {
@@ -60,7 +60,7 @@ func @prim.if$branch_merge_type_optional(%pred: !torch.bool, %t1: !torch.tensor)
 
 // -----
 
-// CHECK-LABEL:   builtin.func @prim.loop$region_arg_to_internal(
+// CHECK-LABEL:   func @prim.loop$region_arg_to_internal(
 // CHECK-SAME:                            %[[ARG_NONE:.*]]: !torch.none) -> !torch.optional<!torch.tensor> {
 // CHECK:           %[[INT10:.*]] = torch.constant.int 10
 // CHECK:           %[[INDV:.*]] = torch.constant.int 0
