@@ -5,7 +5,7 @@
 // CHECK:           %[[SHAPED:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor<[2,3,?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[SHAPED]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
   return %0 : !torch.vtensor
 }
@@ -18,7 +18,7 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // CHECK:           %[[NONVAL_TENSOR:.*]] = torch.copy.to_tensor %[[CASTED]] : !torch.tensor<[2,3,?],f32>
 // CHECK:           %[[ERASED:.*]] = torch.tensor_static_info_cast %[[NONVAL_TENSOR]] : !torch.tensor<[2,3,?],f32> to !torch.tensor
 // CHECK:           return %[[ERASED]] : !torch.tensor
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
   %1 = torch.copy.to_tensor %0 : !torch.tensor
   return %1 : !torch.tensor
@@ -31,7 +31,7 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
 // CHECK:           %[[SHAPED:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor<[2,3,?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[SHAPED]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
   %1 = torch.aten.tanh %arg0 : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
@@ -44,7 +44,7 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[MM]] : !torch.vtensor<[?,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor {
   %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
@@ -58,7 +58,7 @@ func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !
 // CHECK:           %[[LINEAR:.*]] = torch.aten.linear %[[INPUT]], %[[WEIGHT]], %[[BIAS]] : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[?,?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[LINEAR]] : !torch.vtensor<[?,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor {
   %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
@@ -69,7 +69,7 @@ func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg
 // CHECK:           %[[CONV2D:.*]] = torch.aten.conv2d{{.*}} -> !torch.vtensor<[?,?,?,?],unk>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],unk> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!torch.vtensor {
+builtin.func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!torch.vtensor {
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
   %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
@@ -83,7 +83,7 @@ func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!tor
 // CHECK:           %[[CONV2D:.*]] = torch.aten.conv2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
+builtin.func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
   %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
@@ -96,7 +96,7 @@ func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.v
 // -----
 
 // CHECK-LABEL: func @f
-func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %int3 = torch.constant.int 3
   %int2 = torch.constant.int 2
@@ -113,7 +113,7 @@ func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
 // -----
 
 // CHECK-LABEL: func @f
-func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
   // CHECK: torch.aten.adaptive_avg_pool2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
@@ -128,7 +128,7 @@ func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
 // CHECK:           %[[FLATTENED:.*]] = torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[?],f32>
 // CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[FLATTENED]] : !torch.tensor<[?],f32> to !torch.tensor
 // CHECK:           return %[[SHAPE_ERASED]]
-func @flatten_all(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
+builtin.func @flatten_all(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
   %end = torch.constant.int -1
   %start = torch.constant.int 0
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[3,2,?,5],f32>, !torch.int, !torch.int -> !torch.tensor
@@ -137,7 +137,7 @@ func @flatten_all(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
 
 // CHECK-LABEL:   func @flatten_some(
 // CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[3,?,5],f32>
-func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
+builtin.func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
   %end = torch.constant.int -2
   %start = torch.constant.int 1
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[3,2,?,5],f32>, !torch.int, !torch.int -> !torch.tensor
@@ -146,7 +146,7 @@ func @flatten_some(%arg0: !torch.tensor<[3,2,?,5],f32>) -> !torch.tensor {
 
 // CHECK-LABEL:   func @flatten_rank0(
 // CHECK:           torch.aten.flatten.using_ints{{.*}}-> !torch.tensor<[1],f32>
-func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+builtin.func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %end = torch.constant.int -1
   %start = torch.constant.int 0
   %0 = torch.aten.flatten.using_ints %arg0, %start, %end : !torch.tensor<[],f32>, !torch.int, !torch.int -> !torch.tensor
@@ -157,7 +157,7 @@ func @flatten_rank0(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$basic(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1],f32>
-func @torch.aten.unsqueeze$basic(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$basic(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %int0 = torch.constant.int 0
   %0 = torch.aten.unsqueeze %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -165,7 +165,7 @@ func @torch.aten.unsqueeze$basic(%arg0: !torch.tensor<[],f32>) -> !torch.tensor 
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$basic_negative(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1],f32>
-func @torch.aten.unsqueeze$basic_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$basic_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %int-1 = torch.constant.int -1
   %0 = torch.aten.unsqueeze %arg0, %int-1 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -173,7 +173,7 @@ func @torch.aten.unsqueeze$basic_negative(%arg0: !torch.tensor<[],f32>) -> !torc
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$invalid(
 // CHECK:           torch.aten.unsqueeze {{.*}} !torch.tensor<*,f32>
-func @torch.aten.unsqueeze$invalid(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$invalid(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %int1 = torch.constant.int 1
   %0 = torch.aten.unsqueeze %arg0, %int1 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -181,7 +181,7 @@ func @torch.aten.unsqueeze$invalid(%arg0: !torch.tensor<[],f32>) -> !torch.tenso
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$invalid_negative(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<*,f32>
-func @torch.aten.unsqueeze$invalid_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$invalid_negative(%arg0: !torch.tensor<[],f32>) -> !torch.tensor {
   %int-2 = torch.constant.int -2
   %0 = torch.aten.unsqueeze %arg0, %int-2 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -189,7 +189,7 @@ func @torch.aten.unsqueeze$invalid_negative(%arg0: !torch.tensor<[],f32>) -> !to
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_front(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[1,2,3,4],f32>
-func @torch.aten.unsqueeze$higher_rank_front(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$higher_rank_front(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
   %int0 = torch.constant.int 0
   %0 = torch.aten.unsqueeze %arg0, %int0 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -197,7 +197,7 @@ func @torch.aten.unsqueeze$higher_rank_front(%arg0: !torch.tensor<[2,3,4],f32>) 
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_back(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[2,3,4,1],f32>
-func @torch.aten.unsqueeze$higher_rank_back(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$higher_rank_back(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
   %int-1 = torch.constant.int -1
   %0 = torch.aten.unsqueeze %arg0, %int-1 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -205,7 +205,7 @@ func @torch.aten.unsqueeze$higher_rank_back(%arg0: !torch.tensor<[2,3,4],f32>) -
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$higher_rank_middle(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<[2,3,1,4],f32>
-func @torch.aten.unsqueeze$higher_rank_middle(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$higher_rank_middle(%arg0: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
   %int2 = torch.constant.int 2
   %0 = torch.aten.unsqueeze %arg0, %int2 : !torch.tensor<[2,3,4],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
@@ -213,7 +213,7 @@ func @torch.aten.unsqueeze$higher_rank_middle(%arg0: !torch.tensor<[2,3,4],f32>)
 
 // CHECK-LABEL:   func @torch.aten.unsqueeze$unknown_position(
 // CHECK:           torch.aten.unsqueeze {{.*}} -> !torch.tensor<*,f32>
-func @torch.aten.unsqueeze$unknown_position(%arg0: !torch.tensor<[2],f32>, %arg1: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.unsqueeze$unknown_position(%arg0: !torch.tensor<[2],f32>, %arg1: !torch.int) -> !torch.tensor {
   %0 = torch.aten.unsqueeze %arg0, %arg1 : !torch.tensor<[2],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
 }
@@ -221,7 +221,7 @@ func @torch.aten.unsqueeze$unknown_position(%arg0: !torch.tensor<[2],f32>, %arg1
 // -----
 
 // CHECK-LABEL: func @f
-func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, %arg2: !torch.vtensor<[?,3],f32>) {
+builtin.func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, %arg2: !torch.vtensor<[?,3],f32>) {
   %int1 = torch.constant.int 1
   // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[?,?,?],f32>
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[4,6,3],f32>, !torch.vtensor<[1,1,3],f32>, !torch.int -> !torch.vtensor
@@ -233,7 +233,7 @@ func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, 
 // -----
 
 // CHECK-LABEL:   func @f
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
   // Check propagation through multiple ops.
   // CHECK:           torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor<[2,3,?],f32>
   // CHECK:           torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor<[2,3,?],f32>
@@ -249,7 +249,7 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // Check rewriting logic in case of mixes of users that do/don't allow type
 // refinement.
 // CHECK-LABEL:   func @f
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> (!torch.vtensor, !torch.vtensor) {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> (!torch.vtensor, !torch.vtensor) {
   // CHECK: %[[REFINED_TYPE:.*]] = torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor<[2,3,?],f32>
   %1 = torch.aten.tanh %arg0 : !torch.vtensor<[2,3,?],f32> -> !torch.vtensor
   // CHECK: %[[ORIGINAL_TYPE:.*]] = torch.tensor_static_info_cast %[[REFINED_TYPE]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
@@ -265,7 +265,7 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> (!torch.vtensor, !torch.vtensor) 
 // CHECK: %[[ATEN:.*]] = torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<[2,3,?],f32>
 // CHECK: %[[CAST:.*]] = torch.tensor_static_info_cast %[[ATEN]] : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
 // CHECK: return %[[CAST]] : !torch.vtensor
-func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
+builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
   %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
   br ^bb1(%cast: !torch.vtensor)
 ^bb1(%arg1: !torch.vtensor):
@@ -278,13 +278,13 @@ func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // CHECK-LABEL:   func @f
 // CHECK: func private @callee
 // CHECK-NEXT: torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<[2,3,?],f32>
-func @f() {
-  module {
-    func private @callee(%arg0: !torch.vtensor) {
+builtin.func @f() {
+  builtin.module {
+    builtin.func private @callee(%arg0: !torch.vtensor) {
       %1 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
       return
     }
-    func @caller(%arg0: !torch.vtensor<[2,3,?],f32>) {
+    builtin.func @caller(%arg0: !torch.vtensor<[2,3,?],f32>) {
       %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
       call @callee(%cast) : (!torch.vtensor) -> ()
       return
@@ -295,14 +295,14 @@ func @f() {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @f(
+// CHECK-LABEL: func @f(
 // CHECK-SAME:                    %[[TENSOR:.*]]: !torch.tensor) -> !torch.bool {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[OPTIONAL:.*]] = torch.derefine %[[TENSOR]] : !torch.tensor to !torch.optional<!torch.tensor>
 // CHECK:           %[[RET:.*]] = torch.aten.__isnot__ %[[TENSOR]], %[[NONE]] : !torch.tensor, !torch.none -> !torch.bool
 // CHECK:           return %[[RET]] : !torch.bool
 
-func @f(%arg : !torch.tensor) -> !torch.bool {
+builtin.func @f(%arg : !torch.tensor) -> !torch.bool {
   %none = torch.constant.none
   %optional = "torch.derefine"(%arg) : (!torch.tensor) -> !torch.optional<!torch.tensor>
   %ret = "torch.aten.__isnot__"(%optional, %none) : (!torch.optional<!torch.tensor>, !torch.none) -> !torch.bool
@@ -311,7 +311,7 @@ func @f(%arg : !torch.tensor) -> !torch.bool {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.arange.start$int64_dtype(
+// CHECK-LABEL:   func @aten.arange.start$int64_dtype(
 // CHECK-SAME:                    %[[START:.*]]: !torch.int,
 // CHECK-SAME:                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -322,7 +322,7 @@ func @f(%arg : !torch.tensor) -> !torch.bool {
 // CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<[?],si64> to !torch.vtensor
 // CHECK:           return %[[RET]] : !torch.vtensor
 
-func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !torch.vtensor {
+builtin.func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !torch.vtensor {
   %none = torch.constant.none
   %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
   return %ret : !torch.vtensor
@@ -330,7 +330,7 @@ func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !to
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.arange.start$float32_dtype(
+// CHECK-LABEL:   func @aten.arange.start$float32_dtype(
 // CHECK-SAME:                    %[[START:.*]]: !torch.float,
 // CHECK-SAME:                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -341,7 +341,7 @@ func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !to
 // CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<[?],f32> to !torch.vtensor
 // CHECK:           return %[[RET]] : !torch.vtensor
 
-func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) -> !torch.vtensor {
+builtin.func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) -> !torch.vtensor {
   %none = torch.constant.none
   %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.float, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
   return %ret : !torch.vtensor
@@ -349,7 +349,7 @@ func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) ->
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.arange.start$specified_dtype(
+// CHECK-LABEL:   func @aten.arange.start$specified_dtype(
 // CHECK-SAME:                                                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[CST6:.*]] = torch.constant.int 6
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -360,7 +360,7 @@ func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) ->
 // CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<[?],f32> to !torch.vtensor
 // CHECK:           return %[[RET]] : !torch.vtensor
 
-func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor {
+builtin.func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor {
   %int6 = torch.constant.int 6
   %none = torch.constant.none
   %ret = torch.aten.arange %end, %int6, %none, %none, %none: !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor
@@ -369,7 +369,7 @@ func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.sum.dim_IntList(
+// CHECK-LABEL:   func @aten.sum.dim_IntList(
 // CHECK-SAME:                                       %[[T:.*]]: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -383,7 +383,7 @@ func @aten.arange.start$specified_dtype(%end: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[3],si64> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.sum.dim_IntList(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
+builtin.func @aten.sum.dim_IntList(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
   %false = torch.constant.bool false
   %none = torch.constant.none
   %int0 = torch.constant.int 0
@@ -395,7 +395,7 @@ func @aten.sum.dim_IntList(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.sum.dim_IntList$keepdim(
+// CHECK-LABEL:   func @aten.sum.dim_IntList$keepdim(
 // CHECK-SAME:                                               %[[T:.*]]: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
 // CHECK:           %[[KEEPDIM:.*]] = torch.constant.bool true
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -411,7 +411,7 @@ func @aten.sum.dim_IntList(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
 // CHECK-SAME:        !torch.vtensor<[1,3,1],si64> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.sum.dim_IntList$keepdim(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
+builtin.func @aten.sum.dim_IntList$keepdim(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.vtensor {
   %true = torch.constant.bool true
   %none = torch.constant.none
   %int0 = torch.constant.int 0
@@ -422,7 +422,7 @@ func @aten.sum.dim_IntList$keepdim(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.v
 }
 
 // -----
-// CHECK-LABEL:   builtin.func @aten.sum.dim_IntList$unknown_position(
+// CHECK-LABEL:   func @aten.sum.dim_IntList$unknown_position(
 // CHECK-SAME:                                       %[[T:.*]]: !torch.vtensor<[2,3,?],si64>,
 // CHECK-SAME:                                       %[[DIM:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[KEEPDIM:.*]] = torch.constant.bool false
@@ -433,7 +433,7 @@ func @aten.sum.dim_IntList$keepdim(%t: !torch.vtensor<[2,3,?],si64>) -> !torch.v
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[?],si64> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.sum.dim_IntList$unknown_position(%t: !torch.vtensor<[2,3,?],si64>, %dim0: !torch.int) -> !torch.vtensor {
+builtin.func @aten.sum.dim_IntList$unknown_position(%t: !torch.vtensor<[2,3,?],si64>, %dim0: !torch.int) -> !torch.vtensor {
   %false = torch.constant.bool false
   %none = torch.constant.none
   %int-1 = torch.constant.int -1
@@ -444,7 +444,7 @@ func @aten.sum.dim_IntList$unknown_position(%t: !torch.vtensor<[2,3,?],si64>, %d
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.any.dim(
+// CHECK-LABEL:   func @aten.any.dim(
 // CHECK-SAME:                               %[[T:.*]]: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -452,7 +452,7 @@ func @aten.sum.dim_IntList$unknown_position(%t: !torch.vtensor<[2,3,?],si64>, %d
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[2,3],i1> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.any.dim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
+builtin.func @aten.any.dim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
   %false = torch.constant.bool false
   %int-1 = torch.constant.int -1
   %ret = torch.aten.any.dim %t, %int-1, %false : !torch.vtensor<[2,3,?],i1>, !torch.int, !torch.bool -> !torch.vtensor
@@ -461,7 +461,7 @@ func @aten.any.dim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.any.dim$keepdim(
+// CHECK-LABEL:   func @aten.any.dim$keepdim(
 // CHECK-SAME:                               %[[T:.*]]: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -469,7 +469,7 @@ func @aten.any.dim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[2,3,1],i1> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.any.dim$keepdim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
+builtin.func @aten.any.dim$keepdim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int-1 = torch.constant.int -1
   %ret = torch.aten.any.dim %t, %int-1, %true : !torch.vtensor<[2,3,?],i1>, !torch.int, !torch.bool -> !torch.vtensor
@@ -478,7 +478,7 @@ func @aten.any.dim$keepdim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.any.dim$unknown_position(
+// CHECK-LABEL:   func @aten.any.dim$unknown_position(
 // CHECK-SAME:                               %[[T:.*]]: !torch.vtensor<[2,3,?],i1>,
 // CHECK-SAME:                               %[[DIM:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
@@ -486,7 +486,7 @@ func @aten.any.dim$keepdim(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[?,?,?],i1> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.any.dim$unknown_position(%t: !torch.vtensor<[2,3,?],i1>, %dim: !torch.int) -> !torch.vtensor {
+builtin.func @aten.any.dim$unknown_position(%t: !torch.vtensor<[2,3,?],i1>, %dim: !torch.int) -> !torch.vtensor {
   %true = torch.constant.bool true
   %ret = torch.aten.any.dim %t, %dim, %true : !torch.vtensor<[2,3,?],i1>, !torch.int, !torch.bool -> !torch.vtensor
   return %ret : !torch.vtensor
@@ -494,20 +494,20 @@ func @aten.any.dim$unknown_position(%t: !torch.vtensor<[2,3,?],i1>, %dim: !torch
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.any(
+// CHECK-LABEL:   func @aten.any(
 // CHECK-SAME:                           %[[T:.*]]: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[RET:.*]] = torch.aten.any %[[T]] : !torch.vtensor<[2,3,?],i1> -> !torch.vtensor<[1],i1>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.vtensor<[1],i1> to !torch.vtensor
 // CHECK:           return %[[CAST]] : !torch.vtensor
 
-func @aten.any(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
+builtin.func @aten.any(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
   %ret = torch.aten.any %t: !torch.vtensor<[2,3,?],i1> -> !torch.vtensor
   return %ret : !torch.vtensor
 }
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.transpose.int(
+// CHECK-LABEL:   func @aten.transpose.int(
 // CHECK-SAME:                                     %[[T:.*]]: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -515,7 +515,7 @@ func @aten.any(%t: !torch.vtensor<[2,3,?],i1>) -> !torch.vtensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,5,4,3],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @aten.transpose.int(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
+builtin.func @aten.transpose.int(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
     %int1 = torch.constant.int 1
     %int-1 = torch.constant.int -1
     %ret = torch.aten.transpose.int %t, %int1, %int-1 : !torch.tensor<[2,3,4,5],si64>, !torch.int, !torch.int -> !torch.tensor
@@ -524,7 +524,7 @@ func @aten.transpose.int(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.transpose.int$unknown_position(
+// CHECK-LABEL:   func @aten.transpose.int$unknown_position(
 // CHECK-SAME:                                     %[[T:.*]]: !torch.tensor<[2,3,4,5],si64>,
 // CHECK-SAME:                                     %[[DIM0:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -532,7 +532,7 @@ func @aten.transpose.int(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?,?,?,?],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @aten.transpose.int$unknown_position(%t: !torch.tensor<[2,3,4,5],si64>, %dim0: !torch.int) -> !torch.tensor {
+builtin.func @aten.transpose.int$unknown_position(%t: !torch.tensor<[2,3,4,5],si64>, %dim0: !torch.int) -> !torch.tensor {
     %int-1 = torch.constant.int -1
     %ret = torch.aten.transpose.int %t, %dim0, %int-1 : !torch.tensor<[2,3,4,5],si64>, !torch.int, !torch.int -> !torch.tensor
     return %ret: !torch.tensor
@@ -540,7 +540,7 @@ func @aten.transpose.int$unknown_position(%t: !torch.tensor<[2,3,4,5],si64>, %di
 
 // -----
 
-// CHECK-LABEL:   builtin.func @aten.view(
+// CHECK-LABEL:   func @aten.view(
 // CHECK-SAME:                            %[[T:.*]]: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 // CHECK:           %[[INT2:.*]] = torch.constant.int 2
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -551,7 +551,7 @@ func @aten.transpose.int$unknown_position(%t: !torch.tensor<[2,3,4,5],si64>, %di
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @aten.view(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
+builtin.func @aten.view(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
     %int2 = torch.constant.int 2
     %int-1 = torch.constant.int -1
     %sizes = torch.prim.ListConstruct %int2, %int-1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
@@ -561,7 +561,7 @@ func @aten.view(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 
 // -----
 
-// CHECK-LABEL:   builtin.func @prim.if$refined_type_conflicting(
+// CHECK-LABEL:   func @prim.if$refined_type_conflicting(
 // CHECK-SAME:                                                   %[[NONE:.*]]: !torch.none) -> !torch.tensor {
 // CHECK:           %[[OPTIONAL:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<!torch.tensor>
 // CHECK:           %[[NOT_NONE:.*]] = torch.aten.__isnot__ %[[NONE]], %[[NONE]] : !torch.none, !torch.none -> !torch.bool
@@ -574,7 +574,7 @@ func @aten.view(%t: !torch.tensor<[2,3,4,5],si64>) -> !torch.tensor {
 // CHECK:           }
 // CHECK:           return %[[PRED:.*]] : !torch.tensor
 
-func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.tensor {
+builtin.func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.tensor {
   %optional = torch.derefine %none: !torch.none to !torch.optional<!torch.tensor>
   %pred = torch.aten.__isnot__ %optional, %none : !torch.optional<!torch.tensor>, !torch.none -> !torch.bool
   %res = torch.prim.If %pred -> (!torch.tensor) {
@@ -589,7 +589,7 @@ func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.tensor {
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.tensor.float(
+// CHECK-LABEL:   func @torch.aten.tensor.float(
 // CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -597,7 +597,7 @@ func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[1],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
+builtin.func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
   %none = torch.constant.none
   %false = torch.constant.bool false
   %ret = "torch.aten.tensor.float"(%t, %none, %none, %false) : (!torch.float, !torch.none, !torch.none, !torch.bool) -> !torch.tensor
@@ -606,7 +606,7 @@ func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.tensor.float$specified_dtype(
+// CHECK-LABEL:   func @torch.aten.tensor.float$specified_dtype(
 // CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
@@ -615,7 +615,7 @@ func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[1],i1> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor {
+builtin.func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor {
   %none = torch.constant.none
   %int11 = torch.constant.int 11
   %false = torch.constant.bool false
@@ -625,7 +625,7 @@ func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.tensor(
+// CHECK-LABEL:   func @torch.aten.tensor(
 // CHECK-SAME:        %[[DATA:.*]]: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -635,7 +635,7 @@ func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?,?],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.tensor(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
+builtin.func @torch.aten.tensor(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
     %none = torch.constant.none
     %false = torch.constant.bool false
     %ret = torch.aten.tensor %t, %none, %none, %false : !torch.list<!torch.list<!torch.float>>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
@@ -643,7 +643,7 @@ func @torch.aten.tensor(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.te
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.tensor$empty_list() -> !torch.tensor {
+// CHECK-LABEL:   func @torch.aten.tensor$empty_list() -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[DATA:.*]] = torch.prim.ListConstruct  : () -> !torch.list<!torch.float>
@@ -651,7 +651,7 @@ func @torch.aten.tensor(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.te
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.tensor$empty_list() -> !torch.tensor {
+builtin.func @torch.aten.tensor$empty_list() -> !torch.tensor {
     %none = torch.constant.none
     %false = torch.constant.bool false
     %data = torch.prim.ListConstruct : () -> !torch.list<!torch.float>
@@ -661,7 +661,7 @@ func @torch.aten.tensor$empty_list() -> !torch.tensor {
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.tensor$specified_dtype(
+// CHECK-LABEL:   func @torch.aten.tensor$specified_dtype(
 // CHECK-SAME:        %[[DATA:.*]]: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[INT4:.*]] = torch.constant.int 4
@@ -670,7 +670,7 @@ func @torch.aten.tensor$empty_list() -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?,?],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.tensor$specified_dtype(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
+builtin.func @torch.aten.tensor$specified_dtype(%t: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
     %none = torch.constant.none
     %int4 = torch.constant.int 4
     %false = torch.constant.bool false
@@ -680,7 +680,7 @@ func @torch.aten.tensor$specified_dtype(%t: !torch.list<!torch.list<!torch.float
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.zeros(
+// CHECK-LABEL:   func @torch.aten.zeros(
 // CHECK-SAME:        %[[DIM0:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[INT2:.*]] = torch.constant.int 2
@@ -689,7 +689,7 @@ func @torch.aten.tensor$specified_dtype(%t: !torch.list<!torch.list<!torch.float
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ZEROS]] : !torch.tensor<[?,2],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
     %none = torch.constant.none
     %int2 = torch.constant.int 2
     %sizesList = torch.prim.ListConstruct %dim0, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
@@ -699,7 +699,7 @@ func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.index_select(
+// CHECK-LABEL:   func @torch.aten.index_select(
 // CHECK-SAME:                                          %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                          %[[INDEXES:.*]]: !torch.tensor<[2],si64>) -> !torch.tensor {
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
@@ -707,7 +707,7 @@ func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,2,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.index_select(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.tensor<[2], si64>) -> !torch.tensor {
+builtin.func @torch.aten.index_select(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.tensor<[2], si64>) -> !torch.tensor {
       %dim = torch.constant.int 1
       %ret = torch.aten.index_select %input, %dim, %index : !torch.tensor<[2,3,4], f32>, !torch.int, !torch.tensor<[2], si64> -> !torch.tensor
       return %ret : !torch.tensor
@@ -715,7 +715,7 @@ func @torch.aten.index_select(%input: !torch.tensor<[2,3,4], f32>, %index: !torc
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.index_select$unknown_indexes(
+// CHECK-LABEL:   func @torch.aten.index_select$unknown_indexes(
 // CHECK-SAME:                                                      %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                                      %[[INDEXES:.*]]: !torch.tensor<[?],si64>) -> !torch.tensor {
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
@@ -723,7 +723,7 @@ func @torch.aten.index_select(%input: !torch.tensor<[2,3,4], f32>, %index: !torc
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.index_select$unknown_indexes(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.tensor<[?], si64>) -> !torch.tensor {
+builtin.func @torch.aten.index_select$unknown_indexes(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.tensor<[?], si64>) -> !torch.tensor {
       %dim = torch.constant.int 1
       %ret = torch.aten.index_select %input, %dim, %index : !torch.tensor<[2,3,4], f32>, !torch.int, !torch.tensor<[?], si64> -> !torch.tensor
       return %ret : !torch.tensor
@@ -731,7 +731,7 @@ func @torch.aten.index_select$unknown_indexes(%input: !torch.tensor<[2,3,4], f32
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.index_select$unknown_dim(
+// CHECK-LABEL:   func @torch.aten.index_select$unknown_dim(
 // CHECK-SAME:                                                          %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                                          %[[DIM:.*]]: !torch.int,
 // CHECK-SAME:                                                          %[[INDEXES:.*]]: !torch.tensor<[?],si64>) -> !torch.tensor {
@@ -739,14 +739,14 @@ func @torch.aten.index_select$unknown_indexes(%input: !torch.tensor<[2,3,4], f32
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?,?,?],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.index_select$unknown_dim(%input: !torch.tensor<[2,3,4], f32>, %dim: !torch.int, %index: !torch.tensor<[?], si64>) -> !torch.tensor {
+builtin.func @torch.aten.index_select$unknown_dim(%input: !torch.tensor<[2,3,4], f32>, %dim: !torch.int, %index: !torch.tensor<[?], si64>) -> !torch.tensor {
       %ret = torch.aten.index_select %input, %dim, %index : !torch.tensor<[2,3,4], f32>, !torch.int, !torch.tensor<[?], si64> -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.select.int(
+// CHECK-LABEL:   func @torch.aten.select.int(
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                        %[[INDEX:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
@@ -754,28 +754,28 @@ func @torch.aten.index_select$unknown_dim(%input: !torch.tensor<[2,3,4], f32>, %
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,1,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.select.int(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.select.int(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.int) -> !torch.tensor {
       %dim = torch.constant.int 1
       %ret = torch.aten.select.int %input, %dim, %index : !torch.tensor<[2,3,4], f32>, !torch.int, !torch.int -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.type_as(
+// CHECK-LABEL:   func @torch.aten.type_as(
 // CHECK-SAME:                                     %[[INPUT:.*]]: !torch.tensor<[?],si64>,
 // CHECK-SAME:                                     %[[OTHER:.*]]: !torch.tensor<[?,2],f32>) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten.type_as %[[INPUT]], %[[OTHER]] : !torch.tensor<[?],si64>, !torch.tensor<[?,2],f32> -> !torch.tensor<[?],f32>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.type_as(%self: !torch.tensor<[?], si64>, %other: !torch.tensor<[?,2],f32>) -> !torch.tensor {
+builtin.func @torch.aten.type_as(%self: !torch.tensor<[?], si64>, %other: !torch.tensor<[?,2],f32>) -> !torch.tensor {
       %ret = torch.aten.type_as %self, %other : !torch.tensor<[?], si64>, !torch.tensor<[?,2],f32> -> !torch.tensor
       return %ret: !torch.tensor
 }
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.gather(
+// CHECK-LABEL:   func @torch.aten.gather(
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                        %[[DIM:.*]]: !torch.int,
 // CHECK-SAME:                                        %[[INDEXES:.*]]: !torch.tensor<[1,2,3],si64>) -> !torch.tensor {
@@ -784,14 +784,14 @@ func @torch.aten.type_as(%self: !torch.tensor<[?], si64>, %other: !torch.tensor<
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[1,2,3],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.gather(%input: !torch.tensor<[2,3,4], f32>, %dim: !torch.int, %index: !torch.tensor<[1,2,3], si64>) -> !torch.tensor {
+builtin.func @torch.aten.gather(%input: !torch.tensor<[2,3,4], f32>, %dim: !torch.int, %index: !torch.tensor<[1,2,3], si64>) -> !torch.tensor {
       %false = torch.constant.bool false
       %ret = torch.aten.gather %input, %dim, %index, %false : !torch.tensor<[2,3,4], f32>, !torch.int, !torch.tensor<[1,2,3], si64>, !torch.bool -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.expand(
+// CHECK-LABEL:   func @torch.aten.expand(
 // CHECK-SAME:                                    %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>) -> !torch.tensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
@@ -802,7 +802,7 @@ func @torch.aten.gather(%input: !torch.tensor<[2,3,4], f32>, %dim: !torch.int, %
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,5,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.tensor {
+builtin.func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.tensor {
       %false = torch.constant.bool false
       %int-1 = torch.constant.int -1
       %int5 = torch.constant.int 5
@@ -813,7 +813,7 @@ func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.tensor {
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.expand$unknown_sizes(
+// CHECK-LABEL:   func @torch.aten.expand$unknown_sizes(
 // CHECK-SAME:                                                  %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>,
 // CHECK-SAME:                                                  %[[SIZEX:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -824,7 +824,7 @@ func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.tensor {
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 // CHECK:         }
-func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32>, %index: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32>, %index: !torch.int) -> !torch.tensor {
       %false = torch.constant.bool false
       %int-1 = torch.constant.int -1
       %int4 = torch.constant.int 4
@@ -834,7 +834,7 @@ func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32>, %inde
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.repeat(
+// CHECK-LABEL:   func @torch.aten.repeat(
 // CHECK-SAME:                                    %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>,
 // CHECK-SAME:                                    %[[REPEATX:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
@@ -844,7 +844,7 @@ func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32>, %inde
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?,16],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.repeat(%input: !torch.tensor<[2,1,4], f32>, %repeat: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.repeat(%input: !torch.tensor<[2,1,4], f32>, %repeat: !torch.int) -> !torch.tensor {
       %int1 = torch.constant.int 1
       %int4 = torch.constant.int 4
       %repeats = torch.prim.ListConstruct %int1, %repeat, %int4: (!torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
@@ -854,7 +854,7 @@ func @torch.aten.repeat(%input: !torch.tensor<[2,1,4], f32>, %repeat: !torch.int
 
 // ----
 
-// CHECK-LABEL:   builtin.func @torch.aten.cat(
+// CHECK-LABEL:   func @torch.aten.cat(
 // CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[?,1,4],f32>,
 // CHECK-SAME:                                 %[[T2:.*]]: !torch.tensor<[2,3,4],f32>) -> !torch.tensor {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
@@ -863,7 +863,7 @@ func @torch.aten.repeat(%input: !torch.tensor<[2,1,4], f32>, %repeat: !torch.int
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4], f32>) -> !torch.tensor {
+builtin.func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4], f32>) -> !torch.tensor {
       %int1 = torch.constant.int 1
       %tensorList = torch.prim.ListConstruct %t0, %t1: (!torch.tensor<[?,1,4], f32>, !torch.tensor<[2,3,4], f32>) -> !torch.list<!torch.tensor>
       %ret = torch.aten.cat %tensorList, %int1 : !torch.list<!torch.tensor>, !torch.int -> !torch.tensor
@@ -871,7 +871,7 @@ func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.cat$unknown_dim(
+// CHECK-LABEL:   func @torch.aten.cat$unknown_dim(
 // CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[?,1,4],f32>,
 // CHECK-SAME:                                 %[[T2:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor {
@@ -880,38 +880,38 @@ func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?,?,?],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
-func @torch.aten.cat$unknown_dim(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4], f32>, %dim: !torch.int) -> !torch.tensor {
+builtin.func @torch.aten.cat$unknown_dim(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tensor<[2,3,4], f32>, %dim: !torch.int) -> !torch.tensor {
       %tensorList = torch.prim.ListConstruct %t0, %t1: (!torch.tensor<[?,1,4], f32>, !torch.tensor<[2,3,4], f32>) -> !torch.list<!torch.tensor>
       %ret = torch.aten.cat %tensorList, %dim: !torch.list<!torch.tensor>, !torch.int -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten._shape_as_tensor(
+// CHECK-LABEL:   func @torch.aten._shape_as_tensor(
 // CHECK-SAME:                                 %[[INPUT:.*]]: !torch.tensor<[?,1,4],f32>) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor<[?,1,4],f32> -> !torch.tensor<[3],si64>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[3],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 // CHECK:         }
-func @torch.aten._shape_as_tensor(%input: !torch.tensor<[?,1,4], f32>) -> !torch.tensor {
+builtin.func @torch.aten._shape_as_tensor(%input: !torch.tensor<[?,1,4], f32>) -> !torch.tensor {
       %ret= torch.aten._shape_as_tensor %input : !torch.tensor<[?,1,4], f32> -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten._shape_as_tensor$unknown_input_shape(
+// CHECK-LABEL:   func @torch.aten._shape_as_tensor$unknown_input_shape(
 // CHECK-SAME:                                 %[[INPUT:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor -> !torch.tensor<[?],si64>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 // CHECK:         }
-func @torch.aten._shape_as_tensor$unknown_input_shape(%input: !torch.tensor) -> !torch.tensor {
+builtin.func @torch.aten._shape_as_tensor$unknown_input_shape(%input: !torch.tensor) -> !torch.tensor {
       %ret= torch.aten._shape_as_tensor %input : !torch.tensor -> !torch.tensor
       return %ret : !torch.tensor
 }
 
 // ----
-// CHECK-LABEL:   builtin.func @torch.aten.embedding(
+// CHECK-LABEL:   func @torch.aten.embedding(
 // CHECK-SAME:                                       %[[INPUT:.*]]: !torch.tensor<[104,512],f32>,
 // CHECK-SAME:                                       %[[INDEXES:.*]]: !torch.tensor<[2,3],si64>) -> !torch.tensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -919,7 +919,7 @@ func @torch.aten._shape_as_tensor$unknown_input_shape(%input: !torch.tensor) -> 
 // CHECK:           %[[RET:.*]] = torch.aten.embedding %[[INPUT]], %[[INDEXES]], %[[PADDING_IDX]], %[[FALSE]], %[[FALSE]] : !torch.tensor<[104,512],f32>, !torch.tensor<[2,3],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.tensor<[2,3,512],f32>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,3,512],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
-func @torch.aten.embedding(%weight: !torch.tensor<[104,512],f32>, %indices: !torch.tensor<[2,3], si64>) -> !torch.tensor {
+builtin.func @torch.aten.embedding(%weight: !torch.tensor<[104,512],f32>, %indices: !torch.tensor<[2,3], si64>) -> !torch.tensor {
        %false = torch.constant.bool false
        %int1 = torch.constant.int 1
        %ret = torch.aten.embedding %weight, %indices, %int1, %false, %false : !torch.tensor<[104,512],f32>, !torch.tensor<[2,3], si64>, !torch.int, !torch.bool, !torch.bool -> !torch.tensor

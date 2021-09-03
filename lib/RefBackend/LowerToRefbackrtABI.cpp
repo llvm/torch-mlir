@@ -231,9 +231,9 @@ static LogicalResult createModuleMetadata(ModuleOp module) {
 
     // Add attributes that are valid for every func (funcName, numInputs,
     // numOutputs)
-    namedAttrs.push_back(
-        std::make_pair(Identifier::get("funcName", module.getContext()),
-                       builder.getSymbolRefAttr(func.getName())));
+    namedAttrs.push_back(std::make_pair(
+        Identifier::get("funcName", module.getContext()),
+        SymbolRefAttr::get(builder.getContext(), func.getName())));
     namedAttrs.push_back(
         std::make_pair(Identifier::get("numInputs", module.getContext()),
                        builder.getI32IntegerAttr(func.getNumArguments())));

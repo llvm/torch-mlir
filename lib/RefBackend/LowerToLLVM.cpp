@@ -735,7 +735,8 @@ class LowerToLLVM : public LowerToLLVMBase<LowerToLLVM> {
       auto wrapper = createWrapperFunc(originalFunc);
       op.getResult().setType(LLVMPointerType::get(wrapper.getType()));
       Builder builder(op.getContext());
-      op->setAttr("global_name", builder.getSymbolRefAttr(wrapper.getName()));
+      op->setAttr("global_name",
+                  SymbolRefAttr::get(builder.getContext(), wrapper.getName()));
     });
   }
 };

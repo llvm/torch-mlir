@@ -12,7 +12,7 @@ from typing import Tuple, Optional, List, NamedTuple, Dict
 mb = torch_mlir.ModuleBuilder()
 
 
-# CHECK-LABEL:   builtin.func @__torch__.dict_literal_empty() -> !torch.dict<!torch.str, !torch.tensor> {
+# CHECK-LABEL:   func @__torch__.dict_literal_empty() -> !torch.dict<!torch.str, !torch.tensor> {
 # CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct keys() values() -> !torch.dict<!torch.str, !torch.tensor>
 # CHECK:           return %[[DICT]] : !torch.dict<!torch.str, !torch.tensor>
 @mb.import_function
@@ -21,7 +21,7 @@ def dict_literal_empty() -> Dict[str, torch.Tensor]:
   return {}
 
 
-# CHECK-LABEL:   builtin.func @__torch__.dict_literal(
+# CHECK-LABEL:   func @__torch__.dict_literal(
 # CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
 # CHECK-SAME:        %[[K1:.*]]: !torch.str, %[[V1:.*]]: !torch.tensor)
 # CHECK-SAME:        -> !torch.dict<!torch.str, !torch.optional<!torch.tensor>> {

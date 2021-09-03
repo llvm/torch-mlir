@@ -534,7 +534,8 @@ def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
 //===----------------------------------------------------------------------===//
 
 def Torch_ConstantNoneOp : Torch_Op<"constant.none",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Get the singleton None value.";
   let description = [{
     Not to be confused with the `mlir::NoneType`. Be careful to use
@@ -547,7 +548,8 @@ def Torch_ConstantNoneOp : Torch_Op<"constant.none",
 }
 
 def Torch_ConstantStrOp : Torch_Op<"constant.str",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Materialize a constant str value.";
   let description = [{
     Note: Strings in Python (and TorchScript) are immutable.
@@ -563,7 +565,8 @@ def Torch_ConstantStrOp : Torch_Op<"constant.str",
 }
 
 def Torch_ConstantIntOp : Torch_Op<"constant.int",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Materialize a constant `int` value.";
   let description = [{
     Note: TorchScript represents integers as 64-bit signed values, unlike
@@ -581,7 +584,8 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int",
 }
 
 def Torch_ConstantFloatOp : Torch_Op<"constant.float",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Materialize a constant `float` value.";
   let description = [{
     Note: TorchScript represents `float` as 64-bit floating point values.
@@ -599,7 +603,8 @@ def Torch_ConstantFloatOp : Torch_Op<"constant.float",
 }
 
 def Torch_ConstantBoolOp : Torch_Op<"constant.bool",
-    [ConstantLike, NoSideEffect, DeclareOpInterfaceMethods<OpAsmOpInterface>]> {
+    [ConstantLike, NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Materialize a constant `bool` value.";
   let description = [{
   }];

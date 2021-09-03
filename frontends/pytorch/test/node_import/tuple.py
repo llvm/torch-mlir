@@ -13,7 +13,7 @@ mb = torch_mlir.ModuleBuilder()
 NT = NamedTuple('NT', [('f1', Optional[torch.Tensor]),
                        ('f2', Optional[torch.Tensor])])
 
-# CHECK-LABEL:   builtin.func @__torch__.tuple(
+# CHECK-LABEL:   func @__torch__.tuple(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<!torch.tensor, !torch.tensor> {
@@ -28,7 +28,7 @@ def tuple(t0, t1):
   return t0, t1
 
 
-# CHECK-LABEL:   builtin.func @__torch__.tuple_optional(
+# CHECK-LABEL:   func @__torch__.tuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>> {
@@ -47,7 +47,7 @@ def tuple_optional(
   return t0, t1
 
 
-# CHECK-LABEL:   builtin.func @__torch__.namedtuple_optional(
+# CHECK-LABEL:   func @__torch__.namedtuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>> {
