@@ -138,7 +138,6 @@ Type parseTensorType(MLIRContext *context, DialectAsmParser &parser,
         sizes.push_back(-1);
         continue;
       }
-
       int64_t size;
       auto optionalInt = parser.parseOptionalInteger(size);
       if (optionalInt.hasValue()) {

@@ -800,7 +800,7 @@ public:
     // of *internal* compiler invariants, and for a user manifests as a compiler
     // crash in the worst case (such as we try to canonicalize/fold/print the
     // invalid op before the verifier gets to see it -- also release builds of a
-    // mature copmiler usually have the verifier turned off for compile time
+    // mature compiler usually have the verifier turned off for compile time
     // reasons).
     //
     // The compiler cannot crash even if the user wrote an erroneous program!
@@ -1141,12 +1141,161 @@ static Value createLinalgPayloadCalculationForReduceOp(
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
       elementType.isa<mlir::FloatType>())
     return b.create<AddFOp>(loc, payloadArgs);
-
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForReduceOp");
   return nullptr;
 }
 
+namespace {
+// Aten argmax lowering represents the ArgMax op as an linalg.indexed_generic
+// op, producing two output buffers.
+//
+// The first output buffer contains the index of the found maximum value. It is
+// initialized to 0 and is resulting integer type.
+//
+// The second output buffer contains the maximum value found. It is initialized
+// to the minimum representable value of the input element type. After being
+// populated by indexed_generic, this buffer is disgarded as only the index is
+// requested.
+//
+// The indexed_generic op updates both the maximum value and index if the
+// current value exceeds the running max.
+class ConvertAtenArgmaxOp : public OpConversionPattern<AtenArgmaxOp> {
+public:
+  using OpConversionPattern<AtenArgmaxOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenArgmaxOp argmaxOp, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = argmaxOp.getLoc();
+    AtenArgmaxOp::Adaptor adaptor(operands);
+    Value input = adaptor.self();
+    RankedTensorType resultType =
+        getTypeConverter()
+            ->convertType(argmaxOp.getResult().getType())
+            .cast<RankedTensorType>();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    Type outElementType = resultType.getElementType();
+    if (!outElementType.isa<IntegerType>())
+      return rewriter.notifyMatchFailure(
+          argmaxOp,
+          "aten.arg_max to linalg.* requires integer-like result type");
+
+    bool keepDim = false;
+    if (!matchPattern(argmaxOp.keepdim(), m_TorchConstantBool(&keepDim)))
+      return failure();
+
+    int64_t dim;
+    if (!matchPattern(argmaxOp.dim(), m_TorchConstantInt(&dim))) {
+      if (!argmaxOp.dim().getType().isa<Torch::NoneType>())
+        return rewriter.notifyMatchFailure(
+            argmaxOp,
+            "aten.arg_max to linalg.* requires int or NoneType value for Dim");
+      // For pytorch, if the value of Dim is None, argmax
+      // returns the index of the max value of the flattened input tensor,
+      // so here we flatten the input tensor.
+      SmallVector<ReassociationIndices> reassociation(1);
+      for (auto i : llvm::seq<int64_t>(0, inputType.getRank()))
+        reassociation[0].push_back(i);
+      input = rewriter.create<linalg::TensorCollapseShapeOp>(
+          argmaxOp->getLoc(), input, reassociation);
+      // Becomes 0 for flattened tensor.
+      dim = 0;
+      // Recast to fix shape.
+      inputType = input.getType().cast<RankedTensorType>();
+    }
+    Type inElementType = inputType.getElementType();
+    if (!inElementType.isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(
+          argmaxOp,
+          "aten.arg_max to linalg.* requires Float input element type");
+    }
+
+    // Constant op to account for the reduction along dim.
+    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < inputType.getRank(); i++) {
+      if (dim != i) {
+        auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+        resultShape.push_back(currentDimSize);
+      } else if (keepDim)
+        resultShape.push_back(c1);
+    }
+    // First fill the output buffer for the index.
+    Value filledTensorIdx =
+        createZeroInitTensor(rewriter, loc, resultShape, outElementType);
+
+    // Second fill the output buffer for the running max.
+    Value initTensorMax =
+        rewriter.create<linalg::InitTensorOp>(loc, resultShape, inElementType)
+            .result();
+
+    FloatAttr fillValueMaxAttr = rewriter.getFloatAttr(
+        inElementType,
+        APFloat::getLargest(
+            inElementType.cast<mlir::FloatType>().getFloatSemantics(), true));
+
+    Value fillValueMax = rewriter.create<ConstantOp>(loc, fillValueMaxAttr);
+    Value filledTensorMax =
+        rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
+            .result();
+
+    // Create the affine expressions that will be used to
+    // iterate over the input and output tensors.
+    // Here we also set the type of iterator: parallel or reduction.
+    SmallVector<AffineExpr> exprs;
+    SmallVector<StringRef> iteratorTypes;
+    SmallVector<AffineExpr> resultExprs;
+    for (auto size : llvm::enumerate(inputType.getShape())) {
+      exprs.push_back(rewriter.getAffineDimExpr(size.index()));
+
+      if (unsigned(dim) == size.index()) {
+        iteratorTypes.push_back(getReductionIteratorTypeName());
+        // If `keepDim`, create affine map to the first element
+        // in the current dimension.
+        if (keepDim)
+          resultExprs.push_back(rewriter.getAffineConstantExpr(0));
+      } else {
+        iteratorTypes.push_back(getParallelIteratorTypeName());
+        resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
+      }
+    }
+    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs});
+    auto linalgOp = rewriter.create<linalg::GenericOp>(
+        loc,
+        ArrayRef<Type>({filledTensorIdx.getType(), filledTensorMax.getType()}),
+        input, ValueRange({filledTensorIdx, filledTensorMax}), maps,
+        iteratorTypes,
+        [&](OpBuilder &nestedBuilder, Location nestedLoc,
+            ValueRange blockArgs) {
+          Value newValue = blockArgs[0];
+          Value oldIndex = blockArgs[1];
+          Value oldValue = blockArgs[2];
+
+          Value newIndex = rewriter.create<IndexCastOp>(
+              nestedLoc, oldIndex.getType(),
+              rewriter.create<linalg::IndexOp>(loc, dim));
+
+          Value predicate;
+          if (inElementType.isa<mlir::FloatType>())
+            predicate = rewriter.create<mlir::CmpFOp>(
+                nestedLoc, CmpFPredicate::OGT, newValue, oldValue);
+          auto resultMax = rewriter.create<mlir::SelectOp>(nestedLoc, predicate,
+                                                           newValue, oldValue);
+          auto resultIndex = rewriter.create<mlir::SelectOp>(
+              nestedLoc, predicate, newIndex, oldIndex);
+          nestedBuilder.create<linalg::YieldOp>(
+              nestedLoc, ValueRange({resultIndex, resultMax}));
+        });
+
+    // This cast is required to fix the shape in the case of keepDim=True
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(argmaxOp, resultType,
+                                                linalgOp.getResult(0));
+    return success();
+  }
+};
+} // namespace
 namespace {
 
 // Converts an elementwise op.
@@ -1896,6 +2045,8 @@ public:
     patterns.add<ConvertAtenGatherOp>(typeConverter, context);
     target.addIllegalOp<AtenLayerNormOp>();
     patterns.add<ConvertAtenLayerNormOp>(typeConverter, context);
+    target.addIllegalOp<AtenArgmaxOp>();
+    patterns.add<ConvertAtenArgmaxOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
