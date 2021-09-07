@@ -270,6 +270,8 @@ public:
     } else if (auto meanDim = dyn_cast<AtenMeanDimOp>(op)) {
       return visitReductionAlongDimIntListOp(meanDim, meanDim.dim(),
                                              meanDim.keepdim(), operands);
+    } else if (auto argmax = dyn_cast<AtenArgmaxOp>(op)) {
+      return visitAtenArgmaxOp(argmax, operands);
     } else if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
       return visitAtenAnyDimOp(anyDim, operands);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
@@ -396,6 +398,9 @@ private:
   ChangeResult visitReductionAlongDimIntListOp(
       Operation *op, Value dim, Value keepdim,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenArgmaxOp(AtenArgmaxOp op,
+                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenAnyDimOp(AtenAnyDimOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -733,8 +738,8 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   llvm::SmallVector<int64_t> dimList;
-  bool keepdimBool;
-  if (matchPattern(keepdim, m_TorchConstantBool(&keepdimBool))) {
+  bool keepDim;
+  if (matchPattern(keepdim, m_TorchConstantBool(&keepDim))) {
     knowledge.hasSizes = true;
     int64_t inputRank = input.sizes.size();
     // TODO: This is not safe. Need to check the list users and use aliasing
@@ -745,7 +750,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
       DenseSet<int64_t> dimSet(dimList.begin(), dimList.end());
       for (auto en : llvm::enumerate(input.sizes)) {
         if (dimSet.contains(en.index())) {
-          if (keepdimBool)
+          if (keepDim)
             knowledge.sizes.push_back(1);
         } else {
           knowledge.sizes.push_back(en.value());
@@ -753,10 +758,37 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
       }
     } else if (auto listConstruct = dim.getDefiningOp<PrimListConstructOp>()) {
       auto sizes = listConstruct.elements();
-      knowledge.sizes.resize(keepdimBool ? inputRank : inputRank - sizes.size(),
+      knowledge.sizes.resize(keepDim ? inputRank : inputRank - sizes.size(),
                              kUnknownSize);
     }
   }
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+ChangeResult TypeAnalyzer::visitAtenArgmaxOp(
+    AtenArgmaxOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+  int64_t dim;
+  bool keepDim;
+  if (matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+    int64_t inputRank = input.sizes.size();
+    knowledge.hasSizes = true;
+    if (matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+      knowledge.sizes = input.sizes;
+      dim = toPositiveDim(dim, inputRank);
+      if (isValidDim(dim, inputRank)) {
+        if (keepDim)
+          knowledge.sizes[dim] = 1;
+        else
+          knowledge.sizes.erase(knowledge.sizes.begin() + dim);
+      }
+    } else if (op.dim().getType().isa<IntegerType>())
+      knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1,
+                             kUnknownSize);
+  }
+  // If dim is no kind of Integer, keepDim is ignored,
+  // and the result will bea rank-0 tensor
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
@@ -767,22 +799,21 @@ ChangeResult TypeAnalyzer::visitAtenAnyDimOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   int64_t dim;
-  bool keepdimBool;
-  if (matchPattern(op.keepdim(), m_TorchConstantBool(&keepdimBool))) {
+  bool keepDim;
+  if (matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
     int64_t inputRank = input.sizes.size();
     knowledge.hasSizes = true;
     if (matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
       knowledge.sizes = input.sizes;
       dim = toPositiveDim(dim, inputRank);
       if (isValidDim(dim, inputRank)) {
-        if (keepdimBool)
+        if (keepDim)
           knowledge.sizes[dim] = 1;
         else
           knowledge.sizes.erase(knowledge.sizes.begin() + dim);
       }
     } else {
-      knowledge.sizes.resize(keepdimBool ? inputRank : inputRank - 1,
-                             kUnknownSize);
+      knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1, kUnknownSize);
     }
   }
   return getLatticeElement(op->getResult(0)).join(knowledge);
