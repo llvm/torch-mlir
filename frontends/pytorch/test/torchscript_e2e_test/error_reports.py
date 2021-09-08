@@ -116,7 +116,7 @@ class ErroneousModule(torch.nn.Module):
 
     # CHECK-NEXT: @ trace item #8 - call to "test_tensor_value_mismatch"
     # CHECK-NEXT: @ output of call to "test_tensor_value_mismatch"
-    # CHECK-NEXT: ERROR: value (Tensor with min=+1.0, max=+3.0, mean=+2.0000) is not close to golden value (Tensor with min=+1.5, max=+3.5, mean=+2.5000)
+    # CHECK-NEXT: ERROR: value (Tensor with shape=[3] min=+1.0, max=+3.0, mean=+2.0) is not close to golden value (Tensor with shape=[3] min=+1.5, max=+3.5, mean=+2.5)
     @torch.jit.export
     def test_tensor_value_mismatch(self):
         if torch.jit.is_scripting():
