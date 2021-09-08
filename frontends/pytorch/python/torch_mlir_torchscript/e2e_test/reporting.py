@@ -22,9 +22,10 @@ class TensorSummary:
         self.min = torch.min(tensor)
         self.max = torch.max(tensor)
         self.mean = torch.mean(tensor)
+        self.shape = list(tensor.shape)
 
     def __str__(self):
-        return f'Tensor with min={self.min:+0.4}, max={self.max:+0.4}, mean={self.mean:+0.4f}'
+        return f'Tensor with shape={self.shape} min={self.min:+0.4}, max={self.max:+0.4}, mean={self.mean:+0.4}'
 
 
 class ErrorContext:

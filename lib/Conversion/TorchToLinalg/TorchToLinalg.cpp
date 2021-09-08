@@ -755,6 +755,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   return nullptr;
 }
 
+static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
+                                                   Operation *op,
+                                                   Type elementType) {
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
+      elementType.isa<mlir::FloatType>())
+    return b.create<mlir::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+
+  op->emitError("unimplemented lowering in "
+                "createLinalgNeutralElementForReduceOp");
+  return nullptr;
+}
+
 static Value createLinalgPayloadCalculationForReduceOp(
     OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
     ArrayRef<Value> operands, Type elementType) {
@@ -981,11 +993,16 @@ struct ConvertReductionOp : ConversionPattern {
     auto indexingMaps = AffineMap::inferFromExprList({exprs, resultExprs});
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
         loc, resultShape, resultType.getElementType());
+    Value initValue = createLinalgNeutralElementForReduceOp(
+        rewriter, loc, op, resultType.getElementType());
+    Value accumulator =
+        rewriter.create<linalg::FillOp>(loc, initValue, initTensor)
+            .getResult(0);
     bool hadErrorCreatingPayload = false;
     auto generic = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/initTensor.getType(),
+        loc, /*resultTensorTypes=*/accumulator.getType(),
         /*inputs=*/tensorOperand,
-        /*outputs=*/initTensor,
+        /*outputs=*/accumulator,
         /*indexingMaps=*/indexingMaps,
         /*iteratorTypes=*/iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
