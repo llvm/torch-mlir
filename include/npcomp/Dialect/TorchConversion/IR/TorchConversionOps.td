@@ -14,7 +14,7 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "npcomp/Dialect/TorchConversion/IR/TorchConversionBase.td"
-include "npcomp/Dialect/Torch/IR/TorchTypes.td"
+include "torch-mlir/Dialect/Torch/IR/TorchTypes.td"
 include "iree-dialects/Dialect/IREE/IREEDialect.td"
 
 class TorchConversion_Op<string mnemonic, list<OpTrait> traits = []>

@@ -19,8 +19,6 @@
 #include "npcomp/Dialect/Numpy/Transforms/Passes.h"
 #include "npcomp/Dialect/Refback/IR/RefbackDialect.h"
 #include "npcomp/Dialect/Refbackrt/IR/RefbackrtDialect.h"
-#include "npcomp/Dialect/Torch/IR/TorchDialect.h"
-#include "npcomp/Dialect/Torch/Transforms/Passes.h"
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
 #include "npcomp/RefBackend/RefBackend.h"
@@ -32,7 +30,6 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
                   Numpy::NumpyDialect,
                   refbackrt::RefbackrtDialect,
                   refback::RefbackDialect,
-                  mlir::NPCOMP::Torch::TorchDialect,
                   mlir::NPCOMP::TorchConversion::TorchConversionDialect,
                   iree::IREEDialect>();
   // clang-format on
@@ -43,7 +40,6 @@ void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerBasicpyPasses();
   mlir::NPCOMP::registerNumpyPasses();
-  mlir::NPCOMP::registerTorchPasses();
   mlir::NPCOMP::registerTorchConversionPasses();
   mlir::NPCOMP::registerTypingPasses();
   mlir::NPCOMP::IREEBackend::registerIREEBackendPasses();

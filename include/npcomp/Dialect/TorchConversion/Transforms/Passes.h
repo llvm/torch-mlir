@@ -10,7 +10,7 @@
 #define NPCOMP_DIALECT_TORCHCONVERSION_TRANSFORMS_PASSES_H
 
 #include "mlir/Pass/Pass.h"
-#include "npcomp/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 #include <memory>
 
@@ -21,7 +21,8 @@ namespace TorchConversion {
 /// Creates a pipeline that lowers the object graph IR that is produced by
 /// TorchScript import into the form expected by npcomp-verify-backend-contract.
 void createTorchScriptToNpcompBackendPipeline(
-    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options);
+    OpPassManager &pm,
+    const torch::Torch::TorchLoweringPipelineOptions &options);
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyInvariantsBeforeBackendLoweringPass();

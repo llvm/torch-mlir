@@ -11,8 +11,3 @@
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-bool mlir::NPCOMP::allowsTypeRefinement(Operation *op) {
-  if (op->hasTrait<NPCOMP::OpTrait::AllowsTypeRefinement>())
-    return true;
-  return isa<RankOp>(op);
-}

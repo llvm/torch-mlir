@@ -16,7 +16,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/TorchTypes.h"
+#include "torch-mlir-c/TorchTypes.h"
 
 #include "caffe2/core/scope_guard.h"
 #include "ATen/native/quantized/cpu/packed_params.h"
@@ -170,7 +170,7 @@ IValueImporter::importModule(torch::jit::Module currentModule) {
 
   MlirOperation nnModule = createMlirOperation(
       "torch.nn_module", loc,
-      npcompTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
+      torchMlirTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
       mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
@@ -240,7 +240,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   MlirLocation loc = mlirLocationUnknownGet(context);
 
   if (ivalue.isBool()) {
-    MlirType type = npcompTorchBoolTypeGet(context);
+    MlirType type = torchMlirTorchBoolTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.bool", loc, type,
         toMlirNamedAttribute("value",
@@ -248,7 +248,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isDouble()) {
-    MlirType type = npcompTorchFloatTypeGet(context);
+    MlirType type = torchMlirTorchFloatTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.float", loc, type,
         toMlirNamedAttribute(
@@ -257,7 +257,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isInt()) {
-    MlirType type = npcompTorchIntTypeGet(context);
+    MlirType type = torchMlirTorchIntTypeGet(context);
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.int", loc, type,
         toMlirNamedAttribute("value",
@@ -273,7 +273,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     }
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.ListConstruct", loc,
-        npcompTorchListTypeGet(
+        torchMlirTorchListTypeGet(
             typeMapper.mapFromTorchType(loc, list.elementType())),
         elems);
     return mlirOperationGetResult(operation, 0);
@@ -288,7 +288,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     }
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.DictConstruct", loc,
-        npcompTorchDictTypeGet(
+        torchMlirTorchDictTypeGet(
             typeMapper.mapFromTorchType(loc, dict.keyType()),
             typeMapper.mapFromTorchType(loc, dict.valueType())),
         keys, values);
@@ -305,7 +305,8 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     }
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.TupleConstruct", loc,
-        npcompTorchTupleTypeGet(context, types.size(), types.data()), operands);
+        torchMlirTorchTupleTypeGet(context, types.size(), types.data()),
+        operands);
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isTensor()) {
@@ -317,7 +318,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isString()) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.constant.str", loc,
-        npcompTorchStringTypeGet(context),
+        torchMlirTorchStringTypeGet(context),
         toMlirNamedAttribute(
             "value",
             mlirStringAttrGet(context,
@@ -327,7 +328,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
   if (ivalue.isNone()) {
     MlirOperation operation =
         createMlirOperationAtEnd(importBlock, "torch.constant.none", loc,
-                                 npcompTorchNoneTypeGet(context));
+                                 torchMlirTorchNoneTypeGet(context));
     return mlirOperationGetResult(operation, 0);
   }
   if (ivalue.isCustomClass()) {
@@ -346,7 +347,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
       }
       MlirOperation operation = createMlirOperationAtEnd(
           importBlock, "torch.linear_params.create", loc,
-          npcompTorchLinearParamsTypeGet(context), weightValue, biasValue);
+          torchMlirTorchLinearParamsTypeGet(context), weightValue, biasValue);
       return mlirOperationGetResult(operation, 0);
     }
   }
@@ -366,7 +367,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp =
       createMlirOperationAtEnd(importBlock, "torch.tensor.literal", loc,
-                               npcompTorchNonValueTensorTypeGetFromShaped(
+                               torchMlirTorchNonValueTensorTypeGetFromShaped(
                                    mlirAttributeGetType(denseElements)),
                                toMlirNamedAttribute("value", denseElements));
   MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
@@ -381,7 +382,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     // compiler stages that are building a statically modeled quantization
     // representation will need to convert this to their representation.
     std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-    MlirType quantizedTensorType = npcompTorchNonValueTensorTypeGet(
+    MlirType quantizedTensorType = torchMlirTorchNonValueTensorTypeGet(
         context, shape.size(), shape.data(),
         typeMapper.mapFromTorchScalarType(tensor.scalar_type()));
     if (tensor.qscheme() == c10::kPerTensorAffine) {
@@ -531,11 +532,11 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           int64_t dummy;
           int64_t *shapeData = shape.size() == 0 ? &dummy : shape.data();
           if (hasValueSemantics) {
-            typeBound = npcompTorchValueTensorTypeGet(context, shape.size(),
-                                                      shapeData, dtype);
-          } else {
-            typeBound = npcompTorchNonValueTensorTypeGet(context, shape.size(),
+            typeBound = torchMlirTorchValueTensorTypeGet(context, shape.size(),
                                                          shapeData, dtype);
+          } else {
+            typeBound = torchMlirTorchNonValueTensorTypeGet(
+                context, shape.size(), shapeData, dtype);
           }
 
           MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(

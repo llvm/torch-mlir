@@ -11,7 +11,7 @@
 
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
-#include "npcomp-c/TorchTypes.h"
+#include "torch-mlir-c/TorchTypes.h"
 
 #include <ATen/core/function_schema.h>
 #include <ATen/core/ivalue.h>
@@ -510,14 +510,14 @@ MlirType AcapController::mapIValueToMlirType(MlirLocation loc,
     return mlirIntegerTypeGet(funcBuilder->getContext(), 1);
   }
   if (ival.isList()) {
-    return npcompTorchListTypeGet(
+    return torchMlirTorchListTypeGet(
         typeMapper.mapFromTorchType(loc, ival.toList().elementType()));
   }
   if (ival.isNone()) {
-    return npcompTorchNoneTypeGet(funcBuilder->getContext());
+    return torchMlirTorchNoneTypeGet(funcBuilder->getContext());
   }
   if (ival.isDevice()) {
-    return npcompTorchNoneTypeGet(funcBuilder->getContext());
+    return torchMlirTorchNoneTypeGet(funcBuilder->getContext());
   }
   return {nullptr};
 }
@@ -527,7 +527,7 @@ MlirValue AcapController::importTensorByValue(at::Tensor tensor) {
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
   MlirOperation tensorOp = createMlirOperationAtEnd(
       funcBuilder->getEntryBlock(), "torch.tensor.literal", loc,
-      npcompTorchNonValueTensorTypeGetFromShaped(
+      torchMlirTorchNonValueTensorTypeGetFromShaped(
           mlirAttributeGetType(denseElements)),
       toMlirNamedAttribute("value", denseElements));
   MlirValue tensorValue = mlirOperationGetResult(tensorOp, 0);

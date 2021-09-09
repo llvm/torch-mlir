@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/InitAll.h"
+#include "torch-mlir/InitAll.h"
 
 void npcompRegisterAllDialects(MlirContext context) {
   mlir::DialectRegistry registry;

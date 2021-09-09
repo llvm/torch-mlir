@@ -13,21 +13,7 @@
 
 namespace mlir {
 namespace NPCOMP {
-namespace OpTrait {
-
-template <typename ConcreteType>
-class AllowsTypeRefinement
-    : public ::mlir::OpTrait::TraitBase<ConcreteType, AllowsTypeRefinement> {};
-
-} // namespace OpTrait
-
-// Check if an operation has the AllowsTypeRefinement trait.
-//
-// This function should be used in preference to
-// `op->hasTrait<AllowsTypeRefinement>()` because this function has knowledge of
-// some upstream ops that have this property, but which we cannot annotate with
-// this trait.
-bool allowsTypeRefinement(Operation *op);
+namespace OpTrait {} // namespace OpTrait
 
 } // namespace NPCOMP
 } // namespace mlir

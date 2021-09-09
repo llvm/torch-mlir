@@ -128,9 +128,10 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                  "suffix = '${PYTHON_MODULE_SUFFIX}', "
                  "extension = '${PYTHON_MODULE_EXTENSION}")
 
-  # Include the iree-dialects external project.
-  set(LLVM_EXTERNAL_PROJECTS "iree-dialects")
+  # Include LLVM_EXTERNAL_PROJECTS.
+  set(LLVM_EXTERNAL_PROJECTS "iree-dialects;torch-mlir")
   set(LLVM_EXTERNAL_IREE_DIALECTS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/iree-dialects")
+  set(LLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir")
 
   # LLVM configuration.
   message(STATUS "*** ADDING LLVM ***")
@@ -183,6 +184,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/iree-dialects/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/llvm/tools/iree-dialects/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir/include)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/llvm/tools/torch-mlir/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
 set(NPCOMP_TABLEGEN_ARGS "")

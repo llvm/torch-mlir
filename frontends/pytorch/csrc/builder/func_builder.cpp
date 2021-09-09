@@ -12,7 +12,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/TorchTypes.h"
+#include "torch-mlir-c/TorchTypes.h"
 
 using namespace torch_mlir;
 
@@ -98,7 +98,7 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
   // represented as one of double or int64_t, with a special tag for whether
   // it should be interpreted as a bool.
   if (s.isIntegral(/*includeBool=*/false)) {
-    MlirType t = npcompTorchIntTypeGet(context);
+    MlirType t = torchMlirTorchIntTypeGet(context);
     MlirAttribute value =
         mlirIntegerAttrGet(mlirIntegerTypeGet(context, 64), s.to<int64_t>());
     MlirOperation op = createMlirOperation(
@@ -107,7 +107,7 @@ MlirValue FuncBuilder::getScalarConstant(MlirLocation loc, at::Scalar s) {
     return mlirOperationGetResult(op, 0);
   }
   if (s.isFloatingPoint()) {
-    MlirType t = npcompTorchFloatTypeGet(context);
+    MlirType t = torchMlirTorchFloatTypeGet(context);
     MlirAttribute value = mlirFloatAttrDoubleGet(
         context, mlirF64TypeGet(context), s.to<double>());
     MlirOperation op = createMlirOperation(
@@ -133,7 +133,7 @@ MlirValue FuncBuilder::getNoneConstant(MlirLocation loc) {
 
 MlirValue FuncBuilder::buildList(MlirLocation loc, MlirType elementType,
                                  std::vector<MlirValue> &elements) {
-  MlirType resultType = npcompTorchListTypeGet(elementType);
+  MlirType resultType = torchMlirTorchListTypeGet(elementType);
   OperationStateHolder state{"torch.prim.ListConstruct", loc};
   mlirOperationStateAddResults(state, 1, &resultType);
   mlirOperationStateAddOperands(state, elements.size(), elements.data());

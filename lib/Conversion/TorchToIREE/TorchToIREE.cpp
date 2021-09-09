@@ -14,13 +14,13 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "npcomp/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::Torch;
+using namespace mlir::torch::Torch;
 
 //===----------------------------------------------------------------------===//
 // The patterns

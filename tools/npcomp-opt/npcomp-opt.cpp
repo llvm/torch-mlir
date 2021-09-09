@@ -21,6 +21,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "npcomp/InitAll.h"
+#include "torch-mlir/InitAll.h"
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -63,6 +64,9 @@ int main(int argc, char **argv) {
 
   mlir::NPCOMP::registerAllDialects(registry);
   mlir::NPCOMP::registerAllPasses();
+
+  mlir::torch::registerAllDialects(registry);
+  mlir::torch::registerAllPasses();
 
   llvm::InitLLVM y(argc, argv);
 

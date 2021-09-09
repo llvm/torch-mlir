@@ -21,6 +21,7 @@
 #include "npcomp-c/InitLLVM.h"
 #include "npcomp/InitAll.h"
 #include "npcomp/RefBackend/JITHelpers/JITModule.h"
+#include "torch-mlir/InitAll.h"
 #include "llvm/Support/InitLLVM.h"
 
 using namespace mlir;
@@ -222,6 +223,8 @@ int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::NPCOMP::registerAllDialects(registry);
   mlir::NPCOMP::registerAllPasses();
+  mlir::torch::registerAllDialects(registry);
+  mlir::torch::registerAllPasses();
   MLIRContext context;
   context.appendDialectRegistry(registry);
   context.loadAllAvailableDialects();

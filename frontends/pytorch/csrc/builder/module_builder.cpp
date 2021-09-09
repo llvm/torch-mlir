@@ -16,6 +16,7 @@
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/Registration.h"
 #include "npcomp-c/Registration.h"
+#include "torch-mlir-c/Registration.h"
 
 namespace py = pybind11;
 using namespace torch_mlir;
@@ -114,7 +115,7 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
   // TODO: Rework this once dialect registration C-APIs are in place.
   // https://reviews.llvm.org/D88162
   mlirRegisterAllDialects(context);
-  npcompRegisterAllDialects(context);
+  torchMlirRegisterAllDialects(context);
 
   registerPythonSysStderrDiagnosticHandler(context);
 

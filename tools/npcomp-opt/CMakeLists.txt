@@ -8,6 +8,7 @@ get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 target_link_libraries(npcomp-opt PRIVATE
   MLIROptLib
   NPCOMPInitAll
+  TorchMLIRInitAll
 
   # TODO: Remove these in favor of interface deps.
   ${dialect_libs}
