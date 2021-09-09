@@ -18,8 +18,8 @@ add_npcomp_conversion_library(NPCOMPTorchConversionPasses
   MLIRPass
   MLIRStandardOpsTransforms
   NPCOMPTorchConversionDialect
-  NPCOMPTorchDialect
-  NPCOMPTorchPasses
+  TorchMLIRTorchDialect
+  TorchMLIRTorchPasses
   NPCOMPTorchToIREE
   NPCOMPTorchToLinalg
   NPCOMPTorchToStd

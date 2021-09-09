@@ -31,7 +31,7 @@ add_npcomp_library(NPCOMPInitAll
   NPCOMPIREEBackend
   NPCOMPRefBackend
   NPCOMPRefbackDialect
-  NPCOMPTorchDialect
+  TorchMLIRTorchDialect
   NPCOMPTorchConversionDialect
   NPCOMPRefbackrtDialect
   NPCOMPBasicpyDialect

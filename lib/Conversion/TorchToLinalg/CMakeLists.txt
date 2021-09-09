@@ -15,5 +15,5 @@ add_npcomp_conversion_library(NPCOMPTorchToLinalg
   MLIRPass
   MLIRLinalg
   MLIRMath
-  NPCOMPTorchDialect
+  TorchMLIRTorchDialect
 )

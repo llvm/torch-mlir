@@ -11,14 +11,15 @@
 #include "iree-dialects/Dialect/IREE/IREEOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "npcomp/Dialect/Torch/IR/TorchOps.h"
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/Support/JSON.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::TorchConversion;
+using namespace mlir::torch;
 namespace json = llvm::json;
 
 static json::Value

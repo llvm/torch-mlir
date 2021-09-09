@@ -10,7 +10,6 @@ add_npcomp_library(NPCOMPCAPI
   Registration.cpp
   BasicpyTypes.cpp
   NumpyTypes.cpp
-  TorchTypes.cpp
 
   LINK_LIBS PUBLIC
   MLIRExecutionEngine
@@ -21,7 +20,8 @@ add_npcomp_library(NPCOMPCAPI
   NPCOMPNumpyDialect
   NPCOMPRefBackendJITHelpers
   NPCOMPRuntime
-  NPCOMPTorchDialect
+  TorchMLIRTorchDialect
+  TorchMLIRInitAll
 
   # MLIR CAPI deps
   MLIRCAPIIR

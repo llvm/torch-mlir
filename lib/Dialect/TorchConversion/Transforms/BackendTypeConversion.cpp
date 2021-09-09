@@ -20,6 +20,7 @@
 #include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
+using namespace mlir::torch;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::TorchConversion;
 

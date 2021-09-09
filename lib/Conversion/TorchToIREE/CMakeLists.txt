@@ -13,7 +13,7 @@ add_npcomp_conversion_library(NPCOMPTorchToIREE
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  NPCOMPTorchDialect
+  TorchMLIRTorchDialect
   MLIRStandard
   IREEDialectsIREEDialect
 )

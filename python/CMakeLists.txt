@@ -74,6 +74,10 @@ declare_mlir_python_extension(NPCOMPPythonExtensions.Core
     ${_addl_extension_sources}
   EMBED_CAPI_LINK_LIBS
     NPCOMPCAPI
+    # XXX: It's hacky to hardcode this here. We just need TorchMLIRCAPI built
+    # into the NPCOMPPythonCAPI shlib.
+    # If we follow what iree-dialects is doing, we can avoid this I think.
+    TorchMLIRCAPI
   PRIVATE_LINK_LIBS
     LLVMSupport
 )

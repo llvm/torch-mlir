@@ -19,6 +19,7 @@ target_link_libraries(refback-run PRIVATE
   MLIRSupport
   NPCOMPInitAll
   NPCOMPRefBackendJITHelpers
+  TorchMLIRInitAll
 
   # TODO: Remove these in favor of interface deps.
   ${conversion_libs}

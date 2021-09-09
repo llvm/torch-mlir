@@ -19,13 +19,6 @@ class NpcompOpTrait<string name> : OpTrait, NativeTrait<"", ""> {
   let cppNamespace = "::mlir::NPCOMP::OpTrait";
 }
 
-// Op allows operand and result types to be refined.
-// For example a `tensor<?xf32>` can be refined to `tensor<4xf32>`.
-//
-// TODO: Implement RefinableTypeInterface that allows actually modeling
-// which types are refinements of other types.
-// See the design in:
-// https://llvm.discourse.group/t/allow-shape-concretization-or-type-concretization-in-rewrites/3327/3
-def AllowsTypeRefinement : NpcompOpTrait<"AllowsTypeRefinement">;
+// Empty for now. Kept as boilerplate placeholder.
 
 #endif // NPCOMP_INTERFACES_TRAITS

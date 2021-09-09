@@ -21,6 +21,7 @@ cd $td/build
 
 ninja
 ninja check-npcomp
+ninja check-torch-mlir
 ninja check-frontends-pytorch
 
 echo

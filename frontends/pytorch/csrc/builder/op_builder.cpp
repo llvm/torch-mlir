@@ -10,7 +10,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/TorchTypes.h"
+#include "torch-mlir-c/TorchTypes.h"
 
 using namespace torch_mlir;
 
@@ -18,11 +18,11 @@ OpBuilder::OpBuilder(MlirContext context) : context(context) {}
 
 MlirOperation OpBuilder::createNoneConstant(MlirLocation loc) {
   return createMlirOperation("torch.constant.none", loc,
-                             npcompTorchNoneTypeGet(context));
+                             torchMlirTorchNoneTypeGet(context));
 }
 
 MlirOperation OpBuilder::createBoolConstant(MlirLocation loc, bool value) {
   return createMlirOperation(
-      "torch.constant.bool", loc, npcompTorchBoolTypeGet(context),
+      "torch.constant.bool", loc, torchMlirTorchBoolTypeGet(context),
       toMlirNamedAttribute("value", mlirBoolAttrGet(context, value)));
 }

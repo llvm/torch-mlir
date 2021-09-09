@@ -10,7 +10,6 @@
 #define NPCOMP_DIALECT_NUMPY_IR_NUMPY_OPS
 
 include "npcomp/Dialect/Numpy/IR/NumpyDialect.td"
-include "npcomp/Interfaces/Traits.td"
 include "npcomp/Typing/Analysis/CPA/Interfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
@@ -39,7 +38,6 @@ def Numpy_NarrowOp : Numpy_Op<"narrow", []> {
 
 def Numpy_StaticInfoCastOp : Numpy_Op<"static_info_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    AllowsTypeRefinement,
     NoSideEffect]> {
   let summary = "Adds/removes static information from an array type.";
   let description = [{
@@ -60,7 +58,6 @@ def Numpy_StaticInfoCastOp : Numpy_Op<"static_info_cast", [
 
 def Numpy_TensorStaticInfoCastOp : Numpy_Op<"tensor_static_info_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    AllowsTypeRefinement,
     NoSideEffect]> {
   let summary = "Adds/removes static information from a tensor type.";
   let description = [{

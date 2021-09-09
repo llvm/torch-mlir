@@ -10,6 +10,6 @@
 #define NPCOMP_PYTHON_DIALECTS_TORCH_BIND
 
 include "mlir/Bindings/Python/Attributes.td"
-include "npcomp/Dialect/Torch/IR/TorchOps.td"
+include "torch-mlir/Dialect/Torch/IR/TorchOps.td"
 
 #endif

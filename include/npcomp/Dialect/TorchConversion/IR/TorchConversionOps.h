@@ -16,8 +16,8 @@
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "npcomp/Dialect/Torch/IR/TorchTypes.h"
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.h.inc"

@@ -17,7 +17,6 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "npcomp/Interfaces/Traits.h"
 #include "npcomp/Typing/Analysis/CPA/Interfaces.h"
 
 #define GET_OP_CLASSES

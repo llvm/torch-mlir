@@ -12,12 +12,13 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "npcomp/Dialect/Torch/IR/TorchTypes.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringMap.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
 using namespace mlir::NPCOMP::TorchConversion;
+using namespace mlir::torch;
 
 //===----------------------------------------------------------------------===//
 // ToBuiltinTensorOp

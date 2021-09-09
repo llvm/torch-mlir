@@ -17,10 +17,11 @@
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"
-#include "npcomp/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
+using namespace mlir::torch;
 
 //===----------------------------------------------------------------------===//
 // Pass registration

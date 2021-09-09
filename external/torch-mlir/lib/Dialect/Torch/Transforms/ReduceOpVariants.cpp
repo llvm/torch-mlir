@@ -1,0 +1,150 @@
+//===- ReduceOpVariants.cpp --------------------------------------*- C++-*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "PassDetail.h"
+
+#include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "llvm/ADT/StringExtras.h"
+
+using namespace mlir;
+using namespace mlir::torch;
+using namespace mlir::torch::Torch;
+
+namespace {
+// Convert value semantic ops operating on mutable arrays to instead operate on
+// immutable tensors.
+class ConvertToImmutableTensors : public RewritePattern {
+public:
+  ConvertToImmutableTensors(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>())
+      return rewriter.notifyMatchFailure(op, "does not have value semantics");
+
+    rewriter.updateRootInPlace(op, [&]() {
+      // Convert all operands.
+      SmallVector<Value> newOperands;
+      for (OpOperand &opOperand : op->getOpOperands()) {
+        auto tensorType =
+            opOperand.get().getType().dyn_cast<NonValueTensorType>();
+        if (!tensorType)
+          continue;
+        opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
+                                                           opOperand.get()));
+      }
+      // Convert all results.
+      rewriter.setInsertionPointAfter(op);
+      for (Value result : op->getResults()) {
+        auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
+        if (!tensorType)
+          continue;
+        result.setType(tensorType.getWithValueSemantics());
+        auto nonValueTensor =
+            rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
+        result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
+      }
+    });
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Reduce the "trailing underscore inplace variant" to the value semantic
+// variant + an overwrite of the original "self" argument.
+class ReduceTrailingUnderscoreInplaceVariant : public RewritePattern {
+public:
+  ReduceTrailingUnderscoreInplaceVariant(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (!op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>())
+      return rewriter.notifyMatchFailure(op, "is not trailing_ variant");
+
+    SmallVector<StringRef> fragments;
+    llvm::SplitString(op->getName().getStringRef(), fragments, ".");
+    assert(fragments.size() >= 3 && fragments[2].endswith("_") &&
+           "IsTrailingUnderscoreInplaceVariant incorrectly applied");
+    fragments[2] = fragments[2].drop_back();
+    std::string noUnderscoreName = llvm::join(fragments, ".");
+
+    OperationState state(op->getLoc(), noUnderscoreName);
+    state.addTypes(op->getResultTypes());
+    state.addOperands(op->getOperands());
+    state.addAttributes(op->getAttrDictionary().getValue());
+    // Note: No successors or regions. Torch JIT operators don't have any.
+    assert(op->getNumRegions() == 0 && op->getNumSuccessors() == 0 &&
+           "Torch JIT operators shouldn't have regions or successors");
+
+    Operation *newOp = rewriter.createOperation(state);
+    auto tensor =
+        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
+    rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
+    rewriter.replaceOp(op, op->getOperand(0));
+
+    return success();
+  }
+};
+} // namespace
+
+static LogicalResult
+reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
+                                                    PatternRewriter &rewriter) {
+  Value valueTensor =
+      rewriter.create<ValueTensorLiteralOp>(op->getLoc(), op.value());
+  Value tensor =
+      copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
+  rewriter.replaceOp(op, {tensor});
+  return success();
+}
+
+namespace {
+class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
+  void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    RewritePatternSet patterns(context);
+    patterns.add<ConvertToImmutableTensors>(context);
+    patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
+    patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
+
+    ConversionTarget target(*context);
+    target.addIllegalOp<NonValueTensorLiteralOp>();
+    target.markUnknownOpDynamicallyLegal([](Operation *op) {
+      if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
+        auto hasValueSemantics = [](Type t) {
+          // TODO: Make this an allowlist based on a closed torch dialect
+          // type system.
+          if (auto tensorType = t.dyn_cast<NonValueTensorType>()) {
+            return false;
+          }
+          return true;
+        };
+        return llvm::all_of(op->getOperandTypes(), hasValueSemantics) &&
+               llvm::all_of(op->getResultTypes(), hasValueSemantics);
+      }
+      if (op->hasTrait<Torch::OpTrait::IsTrailingUnderscoreInplaceVariant>()) {
+        return false;
+      }
+      return true;
+    });
+
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns)))) {
+      return signalPassFailure();
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::torch::Torch::createReduceOpVariantsPass() {
+  return std::make_unique<ReduceOpVariantsPass>();
+}
