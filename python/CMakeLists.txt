@@ -1,8 +1,6 @@
 include(AddMLIRPython)
 include(MLIRDetectPythonEnv)
 
-# Specifies that all MLIR packages are co-located under npcomp.
-# TODO: Add an upstream cmake param for this vs having a global here.
 add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=npcomp.")
 
 ################################################################################
@@ -35,14 +33,9 @@ declare_mlir_python_sources(NPCOMPPythonSources.Core
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
   SOURCES
     build.py
-    decorators.py
-    exporter.py
-    smoketest.py
-    types.py
+    __init__.py
   SOURCES_GLOB
     compiler/*.py
-    frontends/*.py
-    torch/*.py
     utils/*.py
 )
 
@@ -74,10 +67,6 @@ declare_mlir_python_extension(NPCOMPPythonExtensions.Core
     ${_addl_extension_sources}
   EMBED_CAPI_LINK_LIBS
     NPCOMPCAPI
-    # XXX: It's hacky to hardcode this here. We just need TorchMLIRCAPI built
-    # into the NPCOMPPythonCAPI shlib.
-    # If we follow what iree-dialects is doing, we can avoid this I think.
-    TorchMLIRCAPI
   PRIVATE_LINK_LIBS
     LLVMSupport
 )
@@ -86,26 +75,9 @@ declare_mlir_python_extension(NPCOMPPythonExtensions.Core
 # Declare dialects
 ################################################################################
 
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
-  TD_FILE dialects/BasicpyBind.td
-  SOURCES dialects/basicpy.py
-  DIALECT_NAME basicpy)
-
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
-  TD_FILE dialects/NumpyBind.td
-  SOURCES dialects/numpy.py
-  DIALECT_NAME numpy)
-
-declare_mlir_dialect_python_bindings(
-  ADD_TO_PARENT NPCOMPPythonSources.Dialects
-  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
-  TD_FILE dialects/TorchBind.td
-  SOURCES dialects/torch.py
-  DIALECT_NAME torch)
+# Declare dialects with `declare_mlir_dialect_python_bindings`.
+# Currently there are none, because the interesting ones to bind have been
+# removed or moved into torch-mlir.
 
 ################################################################################
 # Build composite binaries

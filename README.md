@@ -147,7 +147,7 @@ ninja check-npcomp
 # enable the PyTorch frontend.
 pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 
-cmake -DNPCOMP_ENABLE_PYTORCH=ON ...
+cmake ...
 ninja check-frontends-pytorch  # If building with PyTorch
 ```
 
@@ -177,7 +177,7 @@ Build/test npcomp (from within docker image):
 ```shell
 # From within the docker image.
 cd /src/mlir-npcomp
-cmake -GNinja -B/build/npcomp -DCMAKE_BUILD_TYPE=Release -DNPCOMP_ENABLE_PYTORCH=ON .
+cmake -GNinja -B/build/npcomp -DCMAKE_BUILD_TYPE=Release .
 cmake --build /build/npcomp --target check-npcomp check-frontends-pytorch
 ```
 

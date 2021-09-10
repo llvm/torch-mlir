@@ -63,10 +63,14 @@ endif()
 
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(test)
 add_subdirectory(tools)
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
-  #XXX: Enable
-  #add_subdirectory(python)
+  if(NOT TORCH_MLIR_PYTHON_PACKAGES_DIR)
+    set(TORCH_MLIR_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
+  endif()
+  add_subdirectory(TorchPlugin)
+  add_subdirectory(python)
 endif()
+
+add_subdirectory(test)

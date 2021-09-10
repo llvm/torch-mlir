@@ -18,6 +18,7 @@
 void npcompRegisterAllDialects(MlirContext context) {
   mlir::DialectRegistry registry;
   mlir::NPCOMP::registerAllDialects(registry);
+  mlir::torch::registerAllDialects(registry);
   unwrap(context)->appendDialectRegistry(registry);
   // TODO: Don't eagerly load once D88162 is in and clients can do this.
   unwrap(context)->loadAllAvailableDialects();

@@ -1,5 +1,3 @@
-add_subdirectory(CAPI)
-
 llvm_canonicalize_cmake_booleans(
   NPCOMP_ENABLE_IREE
 )
@@ -13,7 +11,6 @@ configure_lit_site_cfg(
 
 set(NPCOMP_TEST_DEPENDS
         FileCheck count not
-        npcomp-capi-ir-test
         npcomp-opt
         refback-run
         NPCOMPPythonModules

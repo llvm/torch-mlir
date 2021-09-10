@@ -4,7 +4,6 @@ add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(Interfaces)
 add_subdirectory(RefBackend)
-add_subdirectory(Typing)
 
 ################################################################################
 # Setup the initialization target.
@@ -34,12 +33,7 @@ add_npcomp_library(NPCOMPInitAll
   TorchMLIRTorchDialect
   NPCOMPTorchConversionDialect
   NPCOMPRefbackrtDialect
-  NPCOMPBasicpyDialect
-  NPCOMPBasicpyPasses
   NPCOMPConversionPasses
-  NPCOMPNumpyDialect
-  NPCOMPNumpyPasses
-  NPCOMPTypingPasses
   IREEDialectsIREEDialect
 
   # TODO: We shouldn't need npcomp_conversion_libs here, but we have

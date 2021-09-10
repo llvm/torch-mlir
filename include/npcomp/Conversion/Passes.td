@@ -112,13 +112,4 @@ def ConvertTorchToIREE : Pass<"convert-torch-to-iree", "FuncOp"> {
   let constructor = "mlir::NPCOMP::createConvertTorchToIREEPass()";
 }
 
-//===----------------------------------------------------------------------===//
-// Basicpy conversions
-//===----------------------------------------------------------------------===//
-
-def ConvertBasicpyToStd : Pass<"convert-basicpy-to-std", "FuncOp"> {
-  let summary = "Convert representable Basicpy ops to std";
-  let constructor = "mlir::NPCOMP::createConvertBasicpyToStdPass()";
-}
-
 #endif // NPCOMP_CONVERSION_PASSES

@@ -12,7 +12,8 @@ import typing
 import torch_mlir
 
 import npcomp
-from npcomp.compiler.pytorch.backend import refjit, frontend_lowering, iree
+from npcomp.passmanager import PassManager
+from npcomp.compiler.pytorch.backend import refjit, iree
 from npcomp.compiler.utils import logging
 
 mb = torch_mlir.ModuleBuilder()
@@ -109,7 +110,8 @@ class_annotator.annotateArgs(
 mb.import_module(recursivescriptmodule._c, class_annotator)
 
 backend = refjit.RefjitNpcompBackend()
-compiled = backend.compile(frontend_lowering.lower_object_graph(mb.module))
+PassManager.parse("torchscript-to-npcomp-backend-pipeline").run(mb.module)
+compiled = backend.compile(mb.module)
 jit_module = backend.load(compiled)
 
 predictions(test_module.forward, jit_module.forward, img, labels)

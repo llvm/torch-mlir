@@ -20,9 +20,9 @@ import torch
 
 # Attribute names used for annotations.
 # These should be kept in sync with their use in
-# `frontends/pytorch/python/torch_mlir/torchscript_annotations.py`.
-NPCOMP_EXPORT_ATTR_NAME = '_npcomp_export'
-NPCOMP_ARG_ANNOTATIONS_ATTR_NAME = '_npcomp_arg_annotations'
+# `torch_mlir/torchscript_annotations.py`.
+TORCH_MLIR_EXPORT_ATTR_NAME = '_torch_mlir_export'
+TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME = '_torch_mlir_arg_annotations'
 
 
 def export(fn):
@@ -39,7 +39,7 @@ def export(fn):
     Conceptually, this decorator is annotating the scripted module, but is
     applied to the original `torch.nn.Module` for convenience.
     """
-    setattr(fn, NPCOMP_EXPORT_ATTR_NAME, True)
+    setattr(fn, TORCH_MLIR_EXPORT_ATTR_NAME, True)
     return fn
 
 
@@ -63,7 +63,7 @@ def annotate_args(annotations: List[Optional[ArgAnnotation]]):
 
     # TODO: Check the number of arguments matches the number of arg annotations.
     def decorator(fn):
-        setattr(fn, NPCOMP_ARG_ANNOTATIONS_ATTR_NAME, annotations)
+        setattr(fn, TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME, annotations)
         return fn
 
     return decorator
@@ -91,10 +91,10 @@ def extract_serializable_annotations(
             continue
         export = None
         arg_annotations = None
-        if hasattr(method, NPCOMP_EXPORT_ATTR_NAME):
-            export = method._npcomp_export
-        if hasattr(method, NPCOMP_ARG_ANNOTATIONS_ATTR_NAME):
-            arg_annotations = method._npcomp_arg_annotations
+        if hasattr(method, TORCH_MLIR_EXPORT_ATTR_NAME):
+            export = method._torch_mlir_export
+        if hasattr(method, TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME):
+            arg_annotations = method._torch_mlir_arg_annotations
         if export is not None and arg_annotations is not None:
             module_annotations.method_annotations.append(
                 SerializableMethodAnnotation(method_name=method_name,

@@ -15,33 +15,10 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
-#include "npcomp-c/BasicpyTypes.h"
 #include "npcomp-c/InitLLVM.h"
-#include "npcomp-c/NumpyTypes.h"
 #include "npcomp-c/Registration.h"
 
 namespace {
-
-MlirType shapedToNdArrayArrayType(MlirType shaped_type) {
-  if (!mlirTypeIsAShaped(shaped_type)) {
-    throw py::raiseValueError("type is not a shaped type");
-  }
-  return npcompNumpyNdArrayTypeGetFromShaped(shaped_type);
-}
-
-MlirType ndarrayToTensorType(MlirType ndarray_type) {
-  if (!npcompTypeIsANumpyNdArray(ndarray_type)) {
-    throw py::raiseValueError("type is not an ndarray type");
-  }
-  return npcompNumpyNdArrayTypeToTensor(ndarray_type);
-}
-
-MlirType slotObjectType(MlirContext context, const std::string &className,
-                        const std::vector<MlirType> &slotTypes) {
-  MlirStringRef classNameSr{className.data(), className.size()};
-  return ::npcompBasicPySlotObjectTypeGet(context, classNameSr,
-                                          slotTypes.size(), slotTypes.data());
-}
 
 // TODO: Move this upstream.
 void emitError(MlirLocation loc, std::string message) {
@@ -56,9 +33,6 @@ PYBIND11_MODULE(_npcomp, m) {
   ::npcompInitializeLLVMCodegen();
 
   m.def("register_all_dialects", ::npcompRegisterAllDialects);
-  m.def("shaped_to_ndarray_type", shapedToNdArrayArrayType);
-  m.def("ndarray_to_tensor_type", ndarrayToTensorType);
-  m.def("slot_object_type", slotObjectType);
   m.def("emit_error", emitError);
 
   // Optional backend modules.
