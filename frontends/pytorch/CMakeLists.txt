@@ -22,17 +22,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
 #-------------------------------------------------------------------------------
-# Setup PyTorch
-#-------------------------------------------------------------------------------
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
-include(NpcompPyTorch)
-NpcompProbeForPyTorchInstall()
-find_package(Torch 1.8 REQUIRED)
-
-NpcompConfigurePyTorch()
-
-#-------------------------------------------------------------------------------
 # Output paths
 #-------------------------------------------------------------------------------
 
@@ -44,6 +33,5 @@ endif()
 # Subdirectories
 #-------------------------------------------------------------------------------
 
-add_subdirectory(csrc)
 add_subdirectory(python)
 add_subdirectory(test)

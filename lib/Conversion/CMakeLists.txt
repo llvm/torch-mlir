@@ -2,7 +2,6 @@ add_subdirectory(TorchToIREE)
 add_subdirectory(TorchToLinalg)
 add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToStd)
-add_subdirectory(BasicpyToStd)
 
 get_property(npcomp_conversion_libs GLOBAL PROPERTY NPCOMP_CONVERSION_LIBS)
 

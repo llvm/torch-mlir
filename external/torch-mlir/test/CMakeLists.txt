@@ -11,15 +11,8 @@ configure_lit_site_cfg(
 
 set(TORCH_MLIR_TEST_DEPENDS
         FileCheck count not
-        torch-mlir-opt
+        torch-mlir-opt TorchMLIRPythonModules
         )
-
-# XXX: Enable
-#if(MLIR_ENABLE_BINDINGS_PYTHON)
-#  list(APPEND TORCH_MLIR_TEST_DEPENDS
-#    TorchMLIRPythonModules
-#  )
-#endif()
 
 add_lit_testsuite(check-torch-mlir "Running the torch-mlir regression tests"
         ${CMAKE_CURRENT_BINARY_DIR}

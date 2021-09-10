@@ -7,11 +7,6 @@ import platform
 
 _refjit = None
 
-BACKEND_PASSES = (
-    "builtin.func(convert-scf-to-std)",
-    "builtin.func(canonicalize)",
-)
-
 
 def get_refjit():
   """Dynamically resolves the refjit backend native module."""

@@ -61,8 +61,11 @@ config.npcomp_tools_dir = os.path.join(config.npcomp_obj_root, 'bin')
 npcomp_python_dir = "python" if config.npcomp_built_standalone else "tools/npcomp/python"
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 llvm_config.with_environment('PYTHONPATH', [
-    os.path.join(config.npcomp_python_packages_dir, 'npcomp_core'),
-    os.path.join(config.npcomp_python_packages_dir, 'npcomp_torch')],
+        os.path.join(config.npcomp_python_packages_dir, 'npcomp_core'),
+        os.path.join(config.npcomp_python_packages_dir, 'npcomp_torch'),
+        os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
+        os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir_dialects'),
+    ],
     append_path=True)
 
 

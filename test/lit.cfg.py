@@ -68,7 +68,6 @@ tool_dirs = [
 tools = [
     'npcomp-opt',
     'refback-run',
-    'npcomp-capi-ir-test',
     ToolSubst('%npcomp_runtime_shlib', config.npcomp_runtime_shlib),
 ]
 

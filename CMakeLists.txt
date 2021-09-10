@@ -25,7 +25,6 @@ set(NPCOMP_MINIMUM_PYTHON_VERSION 3.6)
 option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
-option(NPCOMP_ENABLE_PYTORCH "Enables PyTorch integration." OFF)
 
 # Turn on -gsplit-dwarf if requested in debug builds.
 if (NPCOMP_USE_SPLIT_DWARF AND
@@ -49,6 +48,15 @@ if(MSVC)
         $<$<CONFIG:Release>:/MD>
     )
 endif()
+
+#-------------------------------------------------------------------------------
+# Directory setup
+#-------------------------------------------------------------------------------
+
+set(MLIR_NPCOMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(MLIR_NPCOMP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+set(MLIR_NPCOMP_PYTHON_PACKAGES_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_packages)
+set(TORCH_MLIR_PYTHON_PACKAGES_DIR "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}")
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # If we are not building as a part of LLVM, build NPCOMP as a standalone
@@ -235,17 +243,9 @@ if(NPCOMP_ENABLE_IREE)
   symlink_iree(bindings/python/pyiree/rt python/pyiree/rt)
 endif()
 
-#-------------------------------------------------------------------------------
-# Directory setup
-#-------------------------------------------------------------------------------
-
-set(MLIR_NPCOMP_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(MLIR_NPCOMP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(MLIR_NPCOMP_PYTHON_PACKAGES_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_packages)
-
 add_custom_target(check-npcomp)
 add_custom_target(check-npcomp-all)
-add_dependencies(check-npcomp-all check-npcomp)
+add_dependencies(check-npcomp-all check-npcomp check-frontends-pytorch check-torch-mlir check-torch-mlir-plugin)
 
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
@@ -253,7 +253,5 @@ add_subdirectory(python)
 add_subdirectory(test)
 add_subdirectory(tools)
 
-if(NPCOMP_ENABLE_PYTORCH)
-  message(STATUS "Adding PyTorch frontent support...")
-  add_subdirectory(frontends/pytorch)
-endif()
+message(STATUS "Adding PyTorch frontend support...")
+add_subdirectory(frontends/pytorch)

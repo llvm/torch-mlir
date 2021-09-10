@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 import torch_mlir
+import npcomp
 from npcomp.passmanager import PassManager
 from npcomp.compiler.pytorch.backend import refjit
 from npcomp.compiler.pytorch.backend.abc import NpcompBackend
@@ -88,15 +89,22 @@ Diagnostics:
         finally:
             sys.stderr = sys.__stderr__
 
+        # The torch-mlir python code is built against its own aggregate CAPI.
+        # The npcomp python module is built against our own.
+        # So we need to transport it across those as a string.
+        with npcomp.ir.Context() as ctx:
+            npcomp.register_all_dialects(ctx)
+            module = npcomp.ir.Module.parse(str(mb.module))
+
         try:
             sys.stderr = StringIO()
-            asm_for_error_report = mb.module.operation.get_asm(
+            asm_for_error_report = module.operation.get_asm(
                 large_elements_limit=10, enable_debug_info=True)
             pipeline_str = "torchscript-to-npcomp-backend-pipeline"
             # Lower module in place to make it ready for compiler backends.
-            with mb.module.context:
+            with module.context:
                 pm = PassManager.parse(pipeline_str)
-                pm.run(mb.module)
+                pm.run(module)
         except Exception as e:
             # TODO: More robust.
             # - don't arbitrarily clutter up /tmp. When a test suite has many
@@ -119,11 +127,12 @@ $ npcomp-opt -{pipeline_str} {filename}
 """) from None
         finally:
             sys.stderr = sys.__stderr__
+
         try:
             sys.stderr = StringIO()
-            asm_for_error_report = mb.module.operation.get_asm(
+            asm_for_error_report = module.operation.get_asm(
                 large_elements_limit=10, enable_debug_info=True)
-            return self.backend.compile(mb.module)
+            return self.backend.compile(module)
         except Exception as e:
             filename = os.path.join(tempfile.gettempdir(),
                                     scripted.original_name + '.mlir')
