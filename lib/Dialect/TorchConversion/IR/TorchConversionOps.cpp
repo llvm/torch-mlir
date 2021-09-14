@@ -36,18 +36,5 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
   return success();
 }
 
-//===----------------------------------------------------------------------===//
-// FromBuiltinTensorOp
-//===----------------------------------------------------------------------===//
-
-LogicalResult FromBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, Optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(Torch::ValueTensorType::getFromShaped(
-      operands[0].getType().cast<TensorType>()));
-  return success();
-}
-
 #define GET_OP_CLASSES
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionOps.cpp.inc"

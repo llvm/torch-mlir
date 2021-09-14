@@ -363,11 +363,11 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   // Import the bulk tensor representation.
   at::Tensor tensor = ivalue.toTensor().contiguous();
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
-  MlirOperation tensorOp =
-      createMlirOperationAtEnd(importBlock, "torch.tensor.literal", loc,
-                               torchMlirTorchNonValueTensorTypeGetFromShaped(
-                                   mlirAttributeGetType(denseElements)),
-                               toMlirNamedAttribute("value", denseElements));
+
+  MlirOperation tensorOp = createMlirOperationAtEnd(
+      importBlock, "torch.tensor.literal", loc,
+      torchMlirTorchNonValueTensorTypeGetFromAttribute(denseElements),
+      toMlirNamedAttribute("value", denseElements));
   MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
 
   // Construct the complete tensor value. This is trivial for most tensors, but

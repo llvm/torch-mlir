@@ -29,29 +29,75 @@ public:
     if (!op->hasTrait<Torch::OpTrait::HasValueSemantics>())
       return rewriter.notifyMatchFailure(op, "does not have value semantics");
 
-    rewriter.updateRootInPlace(op, [&]() {
-      // Convert all operands.
-      SmallVector<Value> newOperands;
-      for (OpOperand &opOperand : op->getOpOperands()) {
-        auto tensorType =
-            opOperand.get().getType().dyn_cast<NonValueTensorType>();
-        if (!tensorType)
-          continue;
+    rewriter.startRootUpdate(op);
+    // Convert all operands.
+    SmallVector<Value> newOperands;
+    for (OpOperand &opOperand : op->getOpOperands()) {
+      Type operandType = opOperand.get().getType();
+      if (operandType.isa<NonValueTensorType>()) {
         opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                            opOperand.get()));
-      }
-      // Convert all results.
-      rewriter.setInsertionPointAfter(op);
-      for (Value result : op->getResults()) {
-        auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
-        if (!tensorType)
+      } else if (auto listType = operandType.dyn_cast<ListType>()) {
+        if (!listType.getContainedType().isa<NonValueTensorType>())
           continue;
-        result.setType(tensorType.getWithValueSemantics());
-        auto nonValueTensor =
-            rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
-        result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
+
+        // Construct a new list whose elements are value tensors copied from
+        // the none value tensors of the original list.
+        auto listConstruct =
+            opOperand.get().getDefiningOp<PrimListConstructOp>();
+        if (!listConstruct) {
+          rewriter.cancelRootUpdate(op);
+          return rewriter.notifyMatchFailure(op, 
+              "unimplemented: list of non vtensor type not constructed "
+              "from list construct");
+        }
+
+        if (listConstruct.elements().empty())
+          continue;
+        auto newListElements = llvm::to_vector<4>(llvm::map_range(
+            listConstruct.elements(), [&](Value tensor) -> Value {
+              return rewriter.create<CopyToValueTensorOp>(op->getLoc(), tensor);
+            }));
+        opOperand.set(rewriter.create<PrimListConstructOp>(
+            op->getLoc(),
+            Torch::ListType::get(newListElements.front().getType()),
+            newListElements));
+      } else if (auto optionalType = operandType.dyn_cast<OptionalType>()) {
+        // TODO: A more general way to handle the optional type is to
+        // introduce a `copy.to_optional_vtensor` op.
+        if (!optionalType.getContainedType().isa<NonValueTensorType>())
+          continue;
+
+        // Create a new optional value whose input is a value tensor copied
+        // from the non value tensor of the original optional value.
+        auto derefine = opOperand.get().getDefiningOp<DerefineOp>();
+        if (!derefine) {
+          rewriter.cancelRootUpdate(op);
+          return rewriter.notifyMatchFailure(op, 
+              "unimplemented: optional of non vtensor type not from derefine");
+        }
+
+        if (!derefine.operand().getType().isa<NonValueTensorType>())
+          continue;
+        auto newOperand = rewriter.create<CopyToValueTensorOp>(
+            op->getLoc(), derefine.operand());
+        opOperand.set(rewriter.create<DerefineOp>(
+            op->getLoc(), Torch::OptionalType::get(newOperand.getType()),
+            newOperand));
       }
-    });
+    }
+    // Convert all results.
+    rewriter.setInsertionPointAfter(op);
+    for (Value result : op->getResults()) {
+      auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
+      if (!tensorType)
+        continue;
+      result.setType(tensorType.getWithValueSemantics());
+      auto nonValueTensor =
+          rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
+      result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
+    }
+    rewriter.finalizeRootUpdate(op);
     return success();
   }
 };

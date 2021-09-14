@@ -189,8 +189,6 @@ def Torch_NonValueTensorType : AnyTorchTensorType<"NonValueTensor", "tensor"> {
     ValueTensorType getWithValueSemantics() const;
     // Get the !torch.tensor type with the least static information.
     static NonValueTensorType getWithLeastStaticInformation(MLIRContext *context);
-    // Get a NonValueTensorType with shape/dtype matching `type`.
-    static NonValueTensorType getFromShaped(ShapedType type);
   }];
 }
 
@@ -200,8 +198,6 @@ def Torch_ValueTensorType : AnyTorchTensorType<"ValueTensor", "vtensor"> {
     NonValueTensorType getWithoutValueSemantics() const;
     // Get the !torch.tensor type with the least static information.
     static ValueTensorType getWithLeastStaticInformation(MLIRContext *context);
-    // Get a NonValueTensorType with shape/dtype matching `type`.
-    static ValueTensorType getFromShaped(ShapedType type);
     // Get the builtin tensor type with the same static information as this one,
     // or nullptr if that is not possible (i.e. when the dtype is unknown).
     TensorType toBuiltinTensor() const;

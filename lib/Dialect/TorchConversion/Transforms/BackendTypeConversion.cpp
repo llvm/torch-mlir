@@ -55,7 +55,7 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(inputs[0].getType().isa<TensorType>());
-    return builder.create<FromBuiltinTensorOp>(loc, inputs[0]);
+    return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
   typeConverter.addArgumentMaterialization(sourceMaterialization);

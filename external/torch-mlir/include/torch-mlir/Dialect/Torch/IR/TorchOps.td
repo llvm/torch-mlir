@@ -647,8 +647,6 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand) `to` type($result)
   }];
-
-  let hasCanonicalizer = 1;
 }
 
 def Torch_OperatorOp : Torch_Op<"operator", [

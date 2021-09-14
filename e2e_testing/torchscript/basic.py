@@ -41,6 +41,28 @@ def MmModule_basic(module, tu: TestUtils):
 #     res = module.forward(tu.rand(4, 4), tu.rand(4, 4))
 #     module.forward(res, res)
 
+# ==============================================================================
+
+
+class BmmModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.bmm(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BmmModule())
+def BmmModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
+
+
 
 # ==============================================================================
 
@@ -203,3 +225,41 @@ class TransposeIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TransposeIntModule())
 def TransposeIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
+
+
+class TensorsConcatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y, z):
+        return torch.cat([x, y, z], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatModule())
+def TensorsConcatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
+
+class GatherModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, 2, indices)
+
+
+#@register_test_case(module_factory=lambda: GatherModule())
+#def GatherModule_basic(module, tu: TestUtils):
+#    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1,2,3],[1,2,3]]]))
