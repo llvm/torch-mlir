@@ -144,9 +144,9 @@ MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchNonValueTensorTypeGetWithLeastStaticInformation(
     MlirContext context);
 
-/// Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`.
+/// Gets the !torch.tensor type with the tensor attribute.
 MLIR_CAPI_EXPORTED MlirType
-torchMlirTorchNonValueTensorTypeGetFromShaped(MlirType type);
+torchMlirTorchNonValueTensorTypeGetFromAttribute(MlirAttribute attr);
 
 //===----------------------------------------------------------------------===//
 // torch.vtensor type.
@@ -168,10 +168,6 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchValueTensorTypeGet(
 /// Gets the !torch.tensor type with the least static information.
 MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
-
-/// Gets a !torch.tensor type, taking shape/dtype from a ShapedType `type`.
-MLIR_CAPI_EXPORTED MlirType
-torchMlirTorchValueTensorTypeGetFromShaped(MlirType type);
 
 //===----------------------------------------------------------------------===//
 // !torch.none type.

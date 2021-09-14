@@ -219,13 +219,6 @@ NonValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
                                  /*optionalDtype=*/Type());
 }
 
-NonValueTensorType NonValueTensorType::getFromShaped(ShapedType type) {
-  return NonValueTensorType::get(type.getContext(),
-                                 type.hasRank() ? type.getShape()
-                                                : Optional<ArrayRef<int64_t>>(),
-                                 type.getElementType());
-}
-
 LogicalResult
 NonValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
                            Optional<ArrayRef<int64_t>> optionalSizes,
@@ -263,11 +256,14 @@ ValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
                               /*optionalDtype=*/Type());
 }
 
-ValueTensorType ValueTensorType::getFromShaped(ShapedType type) {
-  return ValueTensorType::get(type.getContext(),
-                              type.hasRank() ? type.getShape()
-                                             : Optional<ArrayRef<int64_t>>(),
-                              type.getElementType());
+static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
+  if (auto floatType = dtype.dyn_cast<mlir::FloatType>()) {
+    return dtype;
+  } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
+    return IntegerType::get(context, integerType.getWidth(),
+                            IntegerType::Signless);
+  }
+  assert(false && "Unsupported dtype to convert to builtin element type");
 }
 
 TensorType ValueTensorType::toBuiltinTensor() const {
@@ -275,7 +271,8 @@ TensorType ValueTensorType::toBuiltinTensor() const {
     return nullptr;
   if (!hasSizes())
     return UnrankedTensorType::get(getDtype());
-  return RankedTensorType::get(getSizes(), getDtype());
+  return RankedTensorType::get(
+      getSizes(), convertDtypeToBuiltinElementType(getContext(), getDtype()));
 }
 
 LogicalResult

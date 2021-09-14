@@ -1057,6 +1057,7 @@ ChangeResult TypeAnalyzer::visitAtenBmmOp(
   auto mat2 = operands[1]->getValue();
   knowledge.sizes.resize(3, kUnknownSize);
   knowledge.dtype = joinElementTypes(self.dtype, mat2.dtype);
+  knowledge.hasSizes = true;
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 

@@ -384,26 +384,6 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
   return isValidSubtype(inputs[0], outputs[0]);
 }
 
-void DerefineOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                             MLIRContext *context) {
-  patterns.add(+[](DerefineOp op, PatternRewriter &rewriter) {
-    // TODO: This pattern should be removed because type refine does a better
-    // job dealing with control flow. However, removing this would expose an
-    // issue with ReduceOpVariants. DerefineOp doesn't have value semantics and
-    // if not removed eagerly by canonicalizer would prevent ReduceOpVariants
-    // from converting certain tensors value semantics.
-    bool allAllowRefinement =
-        llvm::all_of(op.getResult().getUsers(), [](Operation *op) {
-          return op
-              ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
-        });
-    if (!allAllowRefinement)
-      return failure();
-    rewriter.replaceOp(op, op.getOperand());
-    return success();
-  });
-}
-
 template <typename OpTy>
 static OpFoldResult atenIsOrIsNotFoldHelper(OpTy op, bool equalIsTrue) {
   Type lhsType = op.self().getType();
@@ -613,8 +593,11 @@ LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
-  auto tensorType = attr.getType().cast<RankedTensorType>();
-  inferredReturnTypes.push_back(NonValueTensorType::getFromShaped(tensorType));
+  RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
+  NonValueTensorType returnType =
+      NonValueTensorType::get(tensorType.getContext(), tensorType.getShape(),
+                              tensorType.getElementType());
+  inferredReturnTypes.push_back(returnType);
   return success();
 }
 
@@ -649,8 +632,11 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
   auto attr = attributes.get("value").dyn_cast_or_null<ElementsAttr>();
   if (!attr)
     return failure();
-  auto tensorType = attr.getType().cast<RankedTensorType>();
-  inferredReturnTypes.push_back(ValueTensorType::getFromShaped(tensorType));
+  RankedTensorType tensorType = attr.getType().cast<RankedTensorType>();
+  ValueTensorType returnType =
+      ValueTensorType::get(tensorType.getContext(), tensorType.getShape(),
+                           tensorType.getElementType());
+  inferredReturnTypes.push_back(returnType);
   return success();
 }
 

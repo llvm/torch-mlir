@@ -43,9 +43,8 @@ def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor", 
   }];
 }
 
-def TorchConversion_FromBuiltinTensorOp : TorchConversion_Op<"from_builtin_tensor", [
-    DeclareOpInterfaceMethods<InferTypeOpInterface>
-  ]> {
+def TorchConversion_FromBuiltinTensorOp : TorchConversion_Op<"from_builtin_tensor">
+ {
   let summary = "Convert a `tensor` to a `!torch.vtensor`";
   let description = [{
     This op only operates on ValueTensorType, to avoid conflating conversions

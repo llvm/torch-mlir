@@ -168,9 +168,11 @@ MlirType torchMlirTorchNonValueTensorTypeGetWithLeastStaticInformation(
       unwrap(context)));
 }
 
-MlirType torchMlirTorchNonValueTensorTypeGetFromShaped(MlirType type) {
-  return wrap(Torch::NonValueTensorType::getFromShaped(
-      unwrap(type).cast<ShapedType>()));
+MlirType torchMlirTorchNonValueTensorTypeGetFromAttribute(MlirAttribute attr) {
+  auto attrTensorType = unwrap(attr).getType().cast<RankedTensorType>();
+  return wrap(Torch::NonValueTensorType::get(attrTensorType.getContext(),
+                                             attrTensorType.getShape(),
+                                             attrTensorType.getElementType()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -196,11 +198,6 @@ MlirType torchMlirTorchValueTensorTypeGetWithLeastStaticInformation(
     MlirContext context) {
   return wrap(
       Torch::ValueTensorType::getWithLeastStaticInformation(unwrap(context)));
-}
-
-MlirType torchMlirTorchValueTensorTypeGetFromShaped(MlirType type) {
-  return wrap(
-      Torch::ValueTensorType::getFromShaped(unwrap(type).cast<ShapedType>()));
 }
 
 //===----------------------------------------------------------------------===//
