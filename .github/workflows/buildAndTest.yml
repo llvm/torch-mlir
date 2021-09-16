@@ -44,12 +44,11 @@ jobs:
           -DPython3_EXECUTABLE=$(which python) \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DLLVM_TARGETS_TO_BUILD=host
-        ninja
-        ninja check-npcomp check-frontends-pytorch
+        ninja check-npcomp-all
     - name: Refbackend integration tests
       run: |
         cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/npcomp_core:$GITHUB_WORKSPACE/build/python_packages/npcomp_torch"
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/npcomp_core:$GITHUB_WORKSPACE/build/python_packages/npcomp_torch:$GITHUB_WORKSPACE/build/python_packages/torch_mlir:$GITHUB_WORKSPACE/build/python_packages/torch_mlir_dialects"
         python -m frontends.pytorch.e2e_testing.torchscript.main --config=refbackend
 
 #   build_wheels:

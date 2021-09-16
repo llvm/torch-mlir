@@ -113,3 +113,5 @@ add_mlir_python_modules(NPCOMPPythonModules
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )
+
+add_dependencies(NPCOMPPythonModules NPCOMPPythonResources)
