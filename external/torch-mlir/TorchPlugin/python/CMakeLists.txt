@@ -21,4 +21,7 @@ add_mlir_python_modules(TorchMLIRPluginPythonModules
   COMMON_CAPI_LINK_LIBS
     TorchMLIRAggregateCAPI
   )
-add_dependencies(TorchMLIRPluginPythonModules TorchMLIRTorchPlugin)
+add_dependencies(TorchMLIRPluginPythonModules
+  TorchMLIRTorchPlugin
+  TorchMLIRPythonModules
+  )
