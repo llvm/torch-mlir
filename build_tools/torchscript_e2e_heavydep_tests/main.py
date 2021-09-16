@@ -8,9 +8,9 @@ import pickle
 
 import torch
 
-from torch_mlir_torchscript.e2e_test.registry import GLOBAL_TEST_REGISTRY
-from torch_mlir_torchscript.e2e_test.framework import SerializableTest, generate_golden_trace
-from torch_mlir_torchscript.annotations import extract_serializable_annotations
+from npcomp_torchscript.e2e_test.registry import GLOBAL_TEST_REGISTRY
+from npcomp_torchscript.e2e_test.framework import SerializableTest, generate_golden_trace
+from npcomp_torchscript.annotations import extract_serializable_annotations
 
 from . import basic_mt
 

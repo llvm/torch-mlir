@@ -29,14 +29,10 @@ add_dependencies(NPCOMPPythonResources
 declare_mlir_python_sources(NPCOMPPythonSources)
 
 declare_mlir_python_sources(NPCOMPPythonSources.Core
-  ADD_TO_PARENT NPCOMPPythonSources
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/npcomp"
-  SOURCES
-    build.py
-    __init__.py
+  ADD_TO_PARENT NPCOMPPythonSources
   SOURCES_GLOB
-    compiler/*.py
-    utils/*.py
+    *.py
 )
 
 declare_mlir_python_sources(NPCOMPPythonSources.Dialects
@@ -113,5 +109,39 @@ add_mlir_python_modules(NPCOMPPythonModules
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )
+add_dependencies(NPCOMPPythonModules
+  NPCOMPPythonResources
+  TorchMLIRPluginPythonModules
+  )
 
-add_dependencies(NPCOMPPythonModules NPCOMPPythonResources)
+################################################################################
+# Torch support libraries.
+################################################################################
+
+# Torch-related modules that are too broad of a scope/opinion for torch-mlir
+# belong there.
+declare_mlir_python_sources(NPCOMPTorchSupportPythonSources
+  ADD_TO_PARENT NPCOMPPythonSources
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_support"
+  SOURCES_GLOB
+    npcomp_torchscript/*.py
+    npcomp_torchscript_e2e_test_configs/*.py
+)
+
+add_mlir_python_modules(NPCOMPTorchSupportPythonModules
+  ROOT_PREFIX "${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core"
+  INSTALL_PREFIX "python_packages/npcomp_core"
+  DECLARED_SOURCES
+    NPCOMPTorchSupportPythonSources
+)
+add_dependencies(NPCOMPTorchSupportPythonModules
+  NPCOMPPythonModules
+  )
+
+
+
+################################################################################
+# Recurse into the tests.
+################################################################################
+
+add_subdirectory(test)

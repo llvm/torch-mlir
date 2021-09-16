@@ -245,13 +245,15 @@ endif()
 
 add_custom_target(check-npcomp)
 add_custom_target(check-npcomp-all)
-add_dependencies(check-npcomp-all check-npcomp check-frontends-pytorch check-torch-mlir check-torch-mlir-plugin)
+add_dependencies(check-npcomp-all
+  check-npcomp
+  check-npcomp-python
+  check-torch-mlir
+  check-torch-mlir-plugin
+  )
 
 add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)
 add_subdirectory(test)
 add_subdirectory(tools)
-
-message(STATUS "Adding PyTorch frontend support...")
-add_subdirectory(frontends/pytorch)
