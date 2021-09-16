@@ -16,7 +16,7 @@ import torch_mlir
 # to be expressed conveniently and gives clearer error reports when
 # the annotations aren't acceptable.
 
-# This module is kept separate from torch_mlir_torchscript.annotations so that
+# This module is kept separate from npcomp_torchscript.annotations so that
 # we can use that module from code without C++ dependencies, which prevent us
 # from interfacing the test framework across environments.
 

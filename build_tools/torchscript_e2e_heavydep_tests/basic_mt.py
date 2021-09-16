@@ -27,9 +27,9 @@ from fairseq.sequence_generator import SequenceGenerator
 from fairseq.tasks.fairseq_task import LegacyFairseqTask
 from fairseq import utils
 
-from torch_mlir_torchscript.e2e_test.framework import TestUtils
-from torch_mlir_torchscript.e2e_test.registry import register_test_case
-from torch_mlir_torchscript.annotations import annotate_args, export
+from npcomp_torchscript.e2e_test.framework import TestUtils
+from npcomp_torchscript.e2e_test.registry import register_test_case
+from npcomp_torchscript.annotations import annotate_args, export
 
 DEFAULT_TEST_VOCAB_SIZE = 100
 

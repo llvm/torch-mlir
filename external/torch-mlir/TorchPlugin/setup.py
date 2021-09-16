@@ -45,9 +45,5 @@ setup(
   packages=find_packages("./python", include=[
     "torch_mlir",
     "torch_mlir.*",
-    "torch_mlir_torchscript",
-    "torch_mlir_torchscript.*",
-    "torch_mlir_torchscript_e2e_test_configs",
-    "torch_mlir_torchscript_e2e_test_configs.*",
   ]),
 )

@@ -48,8 +48,8 @@ jobs:
     - name: Refbackend integration tests
       run: |
         cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/npcomp_core:$GITHUB_WORKSPACE/build/python_packages/npcomp_torch:$GITHUB_WORKSPACE/build/python_packages/torch_mlir:$GITHUB_WORKSPACE/build/python_packages/torch_mlir_dialects"
-        python -m frontends.pytorch.e2e_testing.torchscript.main --config=refbackend
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/npcomp_core:$GITHUB_WORKSPACE/build/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=refbackend -v
 
 #   build_wheels:
 #     name: Build Wheels and Smoketest
