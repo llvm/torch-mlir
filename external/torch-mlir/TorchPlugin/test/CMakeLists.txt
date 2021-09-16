@@ -8,7 +8,7 @@ configure_lit_site_cfg(
 set(TEST_DEPENDS
   FileCheck count not
   torch-mlir-opt
-  TorchMLIRTorchPlugin
+  TorchMLIRPluginPythonModules
   )
 
 add_lit_testsuite(check-torch-mlir-plugin
