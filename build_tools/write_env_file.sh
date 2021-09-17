@@ -15,7 +15,7 @@ python_packages_dir="$build_dir/python_packages"
 
 write_env_file() {
   echo "Updating $build_dir/.env file"
-  echo "PYTHONPATH=\"$(portable_realpath "$python_packages_dir/npcomp_core"):$(portable_realpath "$python_packages_dir/torch_mlir"):$(portable_realpath "$python_packages_dir/torch_mlir_dialects")\"" > "$build_dir/.env"
+  echo "PYTHONPATH=\"$(portable_realpath "$python_packages_dir/npcomp_core"):$(portable_realpath "$python_packages_dir/torch_mlir")\"" > "$build_dir/.env"
   if ! cp "$build_dir/.env" "$td/.env"; then
     echo "WARNING: Failed to write $td/.env"
   fi

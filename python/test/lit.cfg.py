@@ -63,7 +63,6 @@ llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 llvm_config.with_environment('PYTHONPATH', [
         os.path.join(config.npcomp_python_packages_dir, 'npcomp_core'),
         os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
-        os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir_dialects'),
     ],
     append_path=True)
 
