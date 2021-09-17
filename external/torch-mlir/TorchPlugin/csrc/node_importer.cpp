@@ -211,12 +211,12 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
         appendToBlock, "torch.prim.If", loc, lookupMappedValue(node->input()),
         resultTypes, mlirRegionCreate(), mlirRegionCreate());
     mapResults(node, operation);
-    auto createTerminator =
-        [&](c10::ArrayRef<MlirValue> yieldedValues, MlirBlock appendToBlock) {
-          createMlirOperationAtEnd(
-              appendToBlock, "torch.prim.If.yield", loc,
-              derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
-        };
+    auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
+                                MlirBlock appendToBlock) {
+      createMlirOperationAtEnd(
+          appendToBlock, "torch.prim.If.yield", loc,
+          derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
+    };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
         importBlock(node->blocks()[0], createTerminator));

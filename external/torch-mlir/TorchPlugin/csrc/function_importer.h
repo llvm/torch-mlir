@@ -10,8 +10,8 @@
 
 #include <memory>
 
-#include "../pybind.h"
 #include "node_importer.h"
+#include "pybind.h"
 
 #include "mlir-c/IR.h"
 
@@ -40,9 +40,7 @@ namespace torch_mlir {
 MlirOperation importJitFunctionAsFuncOp(
     MlirContext context, torch::jit::Function *function,
     std::function<MlirAttribute(int)> getArgAttribute =
-        [](int) -> MlirAttribute {
-      return {nullptr};
-    });
+        [](int) -> MlirAttribute { return {nullptr}; });
 
 } // namespace torch_mlir
 
