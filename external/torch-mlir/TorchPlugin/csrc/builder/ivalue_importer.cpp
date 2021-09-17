@@ -100,8 +100,7 @@ class IValueImporter {
 public:
   IValueImporter(MlirBlock importBlock, MlirContext context,
                  ClassAnnotator &annotator)
-      : importBlock(importBlock), context(context), typeMapper(context),
-        annotator(annotator) {}
+      : importBlock(importBlock), context(context), annotator(annotator) {}
 
   MlirValue importIValue(c10::IValue ivalue);
 
@@ -116,7 +115,6 @@ private:
 
   MlirBlock importBlock;
   MlirContext context;
-  TypeMapper typeMapper;
   ClassAnnotator &annotator;
 
   // Map tracking already-imported values.
@@ -275,7 +273,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.ListConstruct", loc,
         torchMlirTorchListTypeGet(
-            typeMapper.mapFromTorchType(loc, list.elementType())),
+            getMlirTypeFromTorchType(loc, list.elementType())),
         elems);
     return mlirOperationGetResult(operation, 0);
   }
@@ -290,8 +288,8 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.DictConstruct", loc,
         torchMlirTorchDictTypeGet(
-            typeMapper.mapFromTorchType(loc, dict.keyType()),
-            typeMapper.mapFromTorchType(loc, dict.valueType())),
+            getMlirTypeFromTorchType(loc, dict.keyType()),
+            getMlirTypeFromTorchType(loc, dict.valueType())),
         keys, values);
     return mlirOperationGetResult(operation, 0);
   }
@@ -385,7 +383,7 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
     MlirType quantizedTensorType = torchMlirTorchNonValueTensorTypeGet(
         context, shape.size(), shape.data(),
-        typeMapper.mapFromTorchScalarType(tensor.scalar_type()));
+        getMlirTypeForTorchScalarType(loc, tensor.scalar_type()));
     if (tensor.qscheme() == c10::kPerTensorAffine) {
       MlirValue qScale = importIValue(c10::IValue(tensor.q_scale()));
       MlirValue zeroPoint = importIValue(c10::IValue(tensor.q_zero_point()));
@@ -461,9 +459,8 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
         toMlirNamedAttribute(
             "name", mlirStringAttrGet(
                         context, toMlirStringRef(classAttribute.getName()))),
-        toMlirNamedAttribute("type",
-                             mlirTypeAttrGet(typeMapper.mapFromTorchType(
-                                 loc, classAttribute.getType()))),
+        toMlirNamedAttribute("type", mlirTypeAttrGet(getMlirTypeFromTorchType(
+                                         loc, classAttribute.getType()))),
         isPrivate);
   }
 
@@ -523,7 +520,7 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           }
 
           std::vector<int64_t> shape = *maybeShape;
-          MlirType dtype = TypeMapper(context).mapFromTorchScalarType(
+          MlirType dtype = getMlirTypeForTorchScalarType(
               mlirLocationUnknownGet(context), *maybeDtype);
           MlirType typeBound;
           // `std::vector`'s `.data()` method can return nullptr when the
