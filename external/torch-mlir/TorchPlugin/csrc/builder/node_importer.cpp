@@ -6,11 +6,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "node_importer.h"
+#include "torch_to_mlir_utils.h"
 
 #include <unordered_map>
 
 #include "mlir_utils.h"
-#include "op_builder.h"
 
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
@@ -130,12 +130,15 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::Constant) {
     auto output = node->output();
     MlirOperation op;
-    OpBuilder builder(context);
     if (output->type()->cast<c10::NoneType>()) {
-      op = builder.createNoneConstant(loc);
+      op = createMlirOperation("torch.constant.none", loc,
+                               torchMlirTorchNoneTypeGet(context));
     } else if (output->type()->cast<c10::BoolType>()) {
-      op = builder.createBoolConstant(
-          loc, static_cast<bool>(node->i(c10::attr::value)));
+      op = createMlirOperation(
+          "torch.constant.bool", loc, torchMlirTorchBoolTypeGet(context),
+          toMlirNamedAttribute(
+              "value", mlirBoolAttrGet(context, static_cast<bool>(node->i(
+                                                    c10::attr::value)))));
     } else if (output->type()->cast<c10::IntType>()) {
       op = createMlirOperation(
           "torch.constant.int", loc,
