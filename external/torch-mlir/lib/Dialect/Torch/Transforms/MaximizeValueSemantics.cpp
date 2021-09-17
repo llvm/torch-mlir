@@ -88,7 +88,8 @@ public:
       Operation *op = workList.pop_back_val();
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
-      } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp>(op)) {
+      } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
+                     AtenTransposeIntOp>(op)) {
         viewLikeOps.push_back(op);
         llvm::append_range(workList, op->getResult(0).getUsers());
       } else {

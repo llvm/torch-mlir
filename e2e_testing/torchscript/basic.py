@@ -180,3 +180,20 @@ class MaxPool2dModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaxPool2dModule())
 def MaxPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+
+class TransposeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.transpose(x, 0, 1)
+
+
+@register_test_case(module_factory=lambda: TransposeIntModule())
+def TransposeIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2))
