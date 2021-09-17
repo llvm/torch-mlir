@@ -74,3 +74,8 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
 endif()
 
 add_subdirectory(test)
+add_custom_target(check-torch-mlir-all)
+add_dependencies(check-torch-mlir-all
+  check-torch-mlir
+  check-torch-mlir-plugin
+  )

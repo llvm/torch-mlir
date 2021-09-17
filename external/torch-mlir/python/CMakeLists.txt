@@ -50,15 +50,15 @@ set(_source_components
 
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   INSTALL_COMPONENT TorchMLIRPythonModules
-  INSTALL_DESTINATION python_packages/torch_mlir_dialects/mlir/_mlir_libs
-  OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir_dialects/mlir/_mlir_libs"
+  INSTALL_DESTINATION python_packages/torch_mlir/mlir/_mlir_libs
+  OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/mlir/_mlir_libs"
   RELATIVE_INSTALL_ROOT "../../../.."
   DECLARED_SOURCES ${_source_components}
 )
 
 add_mlir_python_modules(TorchMLIRPythonModules
-  ROOT_PREFIX "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir_dialects/mlir"
-  INSTALL_PREFIX "python_packages/torch_mlir_dialects/mlir"
+  ROOT_PREFIX "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/mlir"
+  INSTALL_PREFIX "python_packages/torch_mlir/mlir"
   DECLARED_SOURCES ${_source_components}
   COMMON_CAPI_LINK_LIBS
     TorchMLIRAggregateCAPI

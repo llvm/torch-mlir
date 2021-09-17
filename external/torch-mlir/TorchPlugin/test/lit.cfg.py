@@ -61,7 +61,6 @@ config.torch_mlir_tools_dir = os.path.join(config.torch_mlir_plugin_obj_root, 'b
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 llvm_config.with_environment('PYTHONPATH', [
         os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
-        os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir_dialects'),
     ],
     append_path=True)
 
