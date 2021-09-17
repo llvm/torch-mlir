@@ -22,7 +22,6 @@ endif()
 # Options and settings
 #-------------------------------------------------------------------------------
 set(NPCOMP_MINIMUM_PYTHON_VERSION 3.6)
-option(NPCOMP_ENABLE_IREE "Enables the IREE backend (must configure location via IREE_DIR)." OFF)
 option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
@@ -208,40 +207,8 @@ if(NPCOMP_ENABLE_REFJIT)
 endif()
 
 #-------------------------------------------------------------------------------
-# IREE configuration
+# Subdirectories and aggregate testing targets.
 #-------------------------------------------------------------------------------
-
-if(NPCOMP_ENABLE_IREE)
-  add_compile_definitions(NPCOMP_ENABLE_IREE)
-  string(APPEND NPCOMP_TABLEGEN_ARGS "-DNPCOMP_ENABLE_IREE")
-  if(NPCOMP_IREE_BUILDDIR)
-    message(STATUS "Depending on IREE build: ${NPCOMP_IREE_BUILDDIR}")
-    set(IREE_DIR "${NPCOMP_IREE_BUILDDIR}")
-    set(IREE_FOUND 1)
-  else()
-    find_package(IREE REQUIRED CONFIG)
-  endif()
-
-  # This is temporary until IREE properly supports installation. We splice
-  # the various files into where we want them.
-  function(symlink_iree src dst)
-    set(full_src_path "${IREE_DIR}/${src}")
-    get_filename_component(full_src_path "${full_src_path}" ABSOLUTE)
-    set(full_dst_path "${CMAKE_CURRENT_BINARY_DIR}/${dst}")
-    get_filename_component(dst_dir ${full_dst_path} PATH)
-    file(MAKE_DIRECTORY "${dst_dir}")
-    execute_process(
-      COMMAND
-      ${CMAKE_COMMAND} -E create_symlink "${full_src_path}" "${full_dst_path}"
-      RESULT_VARIABLE result
-    )
-    if(NOT ${result} EQUAL 0)
-      message(FATAL_ERROR "Could not symlink iree file: ${full_src_path} -> ${full_dst_path}")
-    endif()
-  endfunction()
-  symlink_iree(iree/tools/iree-translate python/npcomp/compiler/generic/backend/iree-translate)
-  symlink_iree(bindings/python/pyiree/rt python/pyiree/rt)
-endif()
 
 add_custom_target(check-npcomp)
 add_custom_target(check-npcomp-all)
