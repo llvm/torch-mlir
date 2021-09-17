@@ -10,7 +10,6 @@
 
 #include "../pybind.h"
 
-#include "acap_dispatch.h"
 #include "class_annotator.h"
 
 #include "mlir-c/IR.h"
@@ -34,10 +33,6 @@ public:
   pybind11::object getContextObj() { return contextObj; }
   pybind11::object getModuleObj() { return moduleObj; }
 
-  // Starts a device-capture based function.
-  std::shared_ptr<AcapController>
-  startCaptureFunction(std::string &name, std::vector<at::Tensor> args);
-
   // Imports a traced function. Note that the python type
   // torch.jit.ScriptFunction is the C++ type torch::jit::StrongFunctionPtr.
   // Just a bit of naming cruft.
@@ -52,7 +47,6 @@ public:
                     py::object maybeClassAnnotator);
 
 private:
-  FuncBuilder::Inserter createInserter();
   MlirBlock getBodyBlock();
 
   // Capture references to the python-owned context and module. Ownership
@@ -64,8 +58,6 @@ private:
   pybind11::object moduleObj;
   MlirOperation terminator;
   MlirLocation unknownLoc;
-
-  TypeMapper typeMapper;
 };
 
 } // namespace torch_mlir

@@ -5,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "torch_to_mlir_utils.h"
 #include "function_importer.h"
 #include "ivalue_importer.h"
 
