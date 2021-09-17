@@ -10,7 +10,7 @@
 
 #include <memory>
 
-#include "../pybind.h"
+#include "pybind.h"
 
 #include "mlir-c/IR.h"
 

@@ -21,7 +21,7 @@
 #ifndef TORCHMLIRPLUGIN_CSRC_CLASS_ANNOTATOR_H
 #define TORCHMLIRPLUGIN_CSRC_CLASS_ANNOTATOR_H
 
-#include "../pybind.h"
+#include "pybind.h"
 
 namespace torch_mlir {
 

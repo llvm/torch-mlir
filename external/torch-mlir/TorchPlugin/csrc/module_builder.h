@@ -8,7 +8,7 @@
 #ifndef TORCHMLIRPLUGIN_CSRC_BUILDER_H
 #define TORCHMLIRPLUGIN_CSRC_BUILDER_H
 
-#include "../pybind.h"
+#include "pybind.h"
 
 #include "class_annotator.h"
 

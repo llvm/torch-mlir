@@ -34,13 +34,12 @@ static std::string indentString(const std::string &linePrefix,
 //===----------------------------------------------------------------------===//
 
 ClassAnnotation::ClassAnnotation(c10::ClassTypePtr classType)
-: classType(classType) {
+    : classType(classType) {
   attributeAnnotations.resize(classType->getAttributes().size());
   methodAnnotations.resize(classType->methods().size());
 }
 
-std::vector<AttributeAnnotation> &
-ClassAnnotation::getAttributeAnnotations() {
+std::vector<AttributeAnnotation> &ClassAnnotation::getAttributeAnnotations() {
   // Halfhearted attempt to ensure consistency if the class type has
   // been mutated.
   //
@@ -53,8 +52,7 @@ ClassAnnotation::getAttributeAnnotations() {
   return attributeAnnotations;
 }
 
-std::vector<MethodAnnotation> &
-ClassAnnotation::getMethodAnnotations() {
+std::vector<MethodAnnotation> &ClassAnnotation::getMethodAnnotations() {
   // Halfhearted attempt to ensure consistency if the class type has
   // been mutated.
   //
@@ -80,7 +78,8 @@ static void exportNoneRecurse(ClassAnnotator &classAnnotator,
     methodAnnotation.isExported = false;
   }
   for (auto &classAttribute : classType->getAttributes()) {
-    if (auto childClassType = classAttribute.getType()->cast<c10::ClassType>()) {
+    if (auto childClassType =
+            classAttribute.getType()->cast<c10::ClassType>()) {
       exportNoneRecurse(classAnnotator, childClassType.get());
     }
   }
@@ -107,7 +106,7 @@ void ClassAnnotator::exportPath(c10::ClassType &rootClassType,
     ss << "class '" << classType->name()->qualifiedName()
        << "' does not have a method or attribute called '"
        << exportedPath.back() << "'";
-    throw std::invalid_argument(ss.str()); 
+    throw std::invalid_argument(ss.str());
   }
   ClassAnnotation &classAnnotation = getOrCreateClassAnnotation(classType);
   std::vector<AttributeAnnotation> &attributeAnnotations =
@@ -198,10 +197,9 @@ void ClassAnnotator::annotateArgs(c10::ClassType &rootClassType,
     throw std::invalid_argument("Empty annotated path. Can only annotate "
                                 "shapes/dtypes of a method of a class.");
   }
-  c10::ClassType *classType =
-      getClassAtPath(&rootClassType, c10::ArrayRef<std::string>(path)
-                                         .slice(0, path.size() - 1)
-                                         .vec());
+  c10::ClassType *classType = getClassAtPath(
+      &rootClassType,
+      c10::ArrayRef<std::string>(path).slice(0, path.size() - 1).vec());
 
   // Throw error if no method on the class of the specified name.
   torch::jit::Function *function = &classType->getMethod(path.back());
@@ -265,26 +263,26 @@ std::string AttributeAnnotation::toString(const std::string &name) {
 }
 
 std::string ArgAnnotation::toString(int argIndex) {
-    std::stringstream ss;
-    ss << "ArgAnnotation(" << argIndex << ") {\n";
-    ss << "  dtype = " << (dtype ? c10::toString(*dtype) : "<none>") << "\n";
-    ss << "  shape = ";
-    if (shape) {
-      ss << "[";
-      for (int i = 0, e = shape.value().size(); i != e; i++) {
-        if (i) {
-          ss << ", ";
-        }
-        ss << shape.value()[i];
+  std::stringstream ss;
+  ss << "ArgAnnotation(" << argIndex << ") {\n";
+  ss << "  dtype = " << (dtype ? c10::toString(*dtype) : "<none>") << "\n";
+  ss << "  shape = ";
+  if (shape) {
+    ss << "[";
+    for (int i = 0, e = shape.value().size(); i != e; i++) {
+      if (i) {
+        ss << ", ";
       }
-      ss << "]\n";
-    } else {
-      ss << "<none>\n";
+      ss << shape.value()[i];
     }
-    ss << "  hasValueSemantics = " << (hasValueSemantics ? "true" : "false")
-       << "\n";
-    ss << "}\n";
-    return ss.str();
+    ss << "]\n";
+  } else {
+    ss << "<none>\n";
+  }
+  ss << "  hasValueSemantics = " << (hasValueSemantics ? "true" : "false")
+     << "\n";
+  ss << "}\n";
+  return ss.str();
 }
 
 std::string MethodAnnotation::toString(const std::string &name) {
@@ -326,7 +324,7 @@ std::string ClassAnnotator::toString() {
   std::stringstream ss;
   ss << "ClassAnnotator {\n";
   for (auto &p : classAnnotations) {
-      ss << indentString("  ", p.second->toString());
+    ss << indentString("  ", p.second->toString());
   }
   ss << "}\n";
   return ss.str();

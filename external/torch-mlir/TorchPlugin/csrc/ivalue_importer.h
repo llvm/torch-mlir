@@ -10,8 +10,8 @@
 
 #include <memory>
 
-#include "../pybind.h"
 #include "class_annotator.h"
+#include "pybind.h"
 
 #include "mlir-c/IR.h"
 

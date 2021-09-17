@@ -5,13 +5,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../pybind.h"
+// This is the top-level entry point for the MLIR <-> PyTorch bridge.
 
 #include <ATen/core/dispatch/Dispatcher.h>
 
-#include "../init_python_bindings.h"
-#include "module_builder.h"
 #include "class_annotator.h"
+#include "module_builder.h"
 
 using namespace torch_mlir;
 namespace py = pybind11;
@@ -122,7 +121,7 @@ py::list GetRegisteredOps() {
 
 } // namespace
 
-void torch_mlir::InitBuilderBindings(py::module &m) {
+PYBIND11_MODULE(_torch_mlir, m) {
   m.def("get_registered_ops", &GetRegisteredOps, kGetRegisteredOpsDocstring);
   ModuleBuilder::bind(m);
   initClassAnnotatorBindings(m);

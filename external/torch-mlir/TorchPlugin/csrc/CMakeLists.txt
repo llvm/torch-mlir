@@ -13,14 +13,13 @@ include_directories(BEFORE
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 add_library(TorchMLIRTorchPlugin SHARED
-  builder/class_annotator.cpp
-  builder/function_importer.cpp
-  builder/module_builder.cpp
-  builder/node_importer.cpp
-  builder/ivalue_importer.cpp
-  builder/python_bindings.cpp
-  builder/torch_to_mlir_utils.cpp
-  init_python_bindings.cpp
+  class_annotator.cpp
+  function_importer.cpp
+  module_builder.cpp
+  node_importer.cpp
+  ivalue_importer.cpp
+  python_bindings.cpp
+  torch_to_mlir_utils.cpp
   )
 
 target_link_libraries(TorchMLIRTorchPlugin

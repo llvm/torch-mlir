@@ -19,8 +19,8 @@
 #include "mlir-c/Diagnostics.h"
 #include "torch-mlir-c/TorchTypes.h"
 
-#include "caffe2/core/scope_guard.h"
 #include "ATen/native/quantized/cpu/packed_params.h"
+#include "caffe2/core/scope_guard.h"
 
 using namespace torch_mlir;
 
@@ -149,8 +149,7 @@ private:
 };
 } // namespace
 
-MlirValue
-IValueImporter::importModule(torch::jit::Module currentModule) {
+MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
 
