@@ -14,6 +14,7 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 add_library(TorchMLIRTorchPlugin SHARED
   class_annotator.cpp
+  get_registered_ops.cpp
   function_importer.cpp
   module_builder.cpp
   node_importer.cpp
