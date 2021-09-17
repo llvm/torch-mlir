@@ -1,7 +1,6 @@
 add_subdirectory(Common)
 
-# Currently this doesn't introduce any actual dependency on IREE, so add it
-# unconditionally.
-# TODO: Put this behind the NPCOMP_ENABLE_IREE flag.
+# We include this unconditionally, because we use the `iree-dialects` public
+# op surface area to target IREE. No "external" C++ dependency is needed
+# because we copy those files into npcomp and build them into our compiler
 add_subdirectory(IREE)
-

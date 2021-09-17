@@ -35,9 +35,6 @@ config.npcomp_obj_root = "@CMAKE_BINARY_DIR@"
 config.npcomp_built_standalone = bool("@NPCOMP_BUILT_STANDALONE@")
 config.npcomp_python_packages_dir = "@MLIR_NPCOMP_PYTHON_PACKAGES_DIR@"
 
-# Optional features.
-config.npcomp_enable_iree = @NPCOMP_ENABLE_IREE@
-
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.
 try:
