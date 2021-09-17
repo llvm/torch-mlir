@@ -1,4 +1,4 @@
-//===- class_annotations.h --------------------------------------*- C++ -*-===//
+//===- class_annotator.h ----------------------------------------*- C++ -*-===//
 //
 // This file is licensed under a pytorch-style license
 // See LICENSE for license information.
