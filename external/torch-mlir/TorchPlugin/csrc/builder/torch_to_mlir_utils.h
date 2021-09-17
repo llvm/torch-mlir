@@ -20,44 +20,22 @@
 
 namespace torch_mlir {
 
-/// Maps various runtime types to MlirType.
-class TypeMapper {
-public:
-  TypeMapper(MlirContext context) : context(context) {}
+/// Gets a corresponding MlirType for the Torch ScalarType.
+/// `c10::`ScalarType` is used to represent tensor dtypes, and is a different
+/// type universe from the Python-based types modeled with `c10::Type`.
+/// Compared to the Python types, which just have `int` and `float` and
+/// `bool` numeric types, ScalarType has detailed bit-width and precision
+/// considerations (which matter a lot for tensors, but don't really matter
+/// for Python code).
+///
+/// Returns a null type on failure and emits a diagnostic.
+MlirType getMlirTypeForTorchScalarType(MlirLocation loc,
+                                       c10::ScalarType scalarType);
 
-  /// Gets a corresponding MlirType for the Torch ScalarType.
-  /// `c10::`ScalarType` is used to represent tensor dtypes, and is a different
-  /// type universe from the Python-based types modeled with `c10::Type`.
-  /// Compared to the Python types, which just have `int` and `float` and
-  /// `bool` numeric types, ScalarType has detailed bit-width and precision
-  /// considerations (which matter a lot for tensors, but don't really matter
-  /// for Python code).
-  ///
-  /// Throws std::invalid_argument on failure.
-  MlirType mapFromTorchScalarType(c10::ScalarType scalarType);
-
-  /// Gets a corresponding MlirType for the forward component of a tensor.
-  /// Throws std::invalid_argument on failure.
-  MlirType forwardTensorToType(at::Tensor tensor);
-
-  /// Gets a corresponding MlirType for the Torch ScalarType.
-  /// Torch ScalarType is used to represent the possible element types of Torch
-  /// tensors, which is different from the set of types used to represent
-  /// Python numeric scalar values (which are always either f64 or !torch.int).
-  ///
-  /// Returns a null type on failure and emits a diagnostic.
-  MlirType mapFromTorchScalarType(MlirLocation loc, c10::ScalarType scalarType);
-
-  /// Maps a torch type to a corresponding MlirType. Returns a null type
-  /// on failure and emits a diagnostic.
-  MlirType mapFromTorchType(MlirLocation loc, const c10::TypePtr &torchType);
-
-private:
-  /// Maps from a scalar type and returns null if no match (no other error
-  /// reporting).
-  MlirType rawMapFromTorchScalarType(c10::ScalarType scalarType);
-  MlirContext context;
-};
+/// Maps a torch type to a corresponding MlirType. Returns a null type
+/// on failure and emits a diagnostic.
+MlirType getMlirTypeFromTorchType(MlirLocation loc,
+                                  const c10::TypePtr &torchType);
 
 /// Creates a FunctionType suitable for expressing the signature of `schema`.
 ///

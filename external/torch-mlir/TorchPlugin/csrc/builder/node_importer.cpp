@@ -69,7 +69,6 @@ rearrangeDictConstructInputs(std::vector<MlirValue> &inputs) {
 }
 
 void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
-  TypeMapper typeMapper(context);
   MlirLocation loc = getMlirLocationFromNode(context, node);
   auto kind = node->kind();
 
@@ -142,13 +141,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     } else if (output->type()->cast<c10::IntType>()) {
       op = createMlirOperation(
           "torch.constant.int", loc,
-          typeMapper.mapFromTorchType(loc, output->type()),
+          getMlirTypeFromTorchType(loc, output->type()),
           toMlirNamedAttribute("value",
                                importAttribute(loc, node, c10::attr::value)));
     } else if (output->type()->cast<c10::FloatType>()) {
       op = createMlirOperation(
           "torch.constant.float", loc,
-          typeMapper.mapFromTorchType(loc, output->type()),
+          getMlirTypeFromTorchType(loc, output->type()),
           toMlirNamedAttribute("value",
                                importAttribute(loc, node, c10::attr::value)));
     } else if (output->type()->cast<c10::StringType>()) {
@@ -233,7 +232,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     torch::jit::Function *function = classType->findMethod(methodName);
     torch::jit::Block *calleeEntryBlock = function->graph()->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
-      return typeMapper.mapFromTorchType(loc, v->type());
+      return getMlirTypeFromTorchType(loc, v->type());
     });
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.CallMethod", loc,
@@ -251,7 +250,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     torch::jit::Block *calleeEntryBlock =
         functionType->function()->graph()->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
-      return typeMapper.mapFromTorchType(loc, v->type());
+      return getMlirTypeFromTorchType(loc, v->type());
     });
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "std.call_indirect", loc,

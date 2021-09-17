@@ -1,4 +1,4 @@
-//===- ivalue_importer.cpp ------------------------------------------------===//
+//===- torch_to_mlir_utils.cpp --------------------------------------------===//
 //
 // This file is licensed under a pytorch-style license
 // See LICENSE for license information.
@@ -20,28 +20,8 @@
 
 using namespace torch_mlir;
 
-MlirType TypeMapper::mapFromTorchScalarType(c10::ScalarType scalarType) {
-  auto type = rawMapFromTorchScalarType(scalarType);
-  if (mlirTypeIsNull(type)) {
-    std::stringstream message;
-    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
-    throw std::invalid_argument(message.str());
-  }
-  return type;
-}
-
-MlirType TypeMapper::mapFromTorchScalarType(MlirLocation loc,
-                                            c10::ScalarType scalarType) {
-  auto type = rawMapFromTorchScalarType(scalarType);
-  if (mlirTypeIsNull(type)) {
-    std::stringstream message;
-    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
-    mlirEmitError(loc, message.str().c_str());
-  }
-  return type;
-}
-
-MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
+static MlirType getMlirTypeForTorchScalarTypeRaw(MlirContext context,
+                                                 c10::ScalarType scalarType) {
   using c10::ScalarType;
   switch (scalarType) {
   case ScalarType::Byte:
@@ -72,6 +52,18 @@ MlirType TypeMapper::rawMapFromTorchScalarType(c10::ScalarType scalarType) {
     return {nullptr};
   }
   }
+}
+
+MlirType torch_mlir::getMlirTypeForTorchScalarType(MlirLocation loc,
+                                                   c10::ScalarType scalarType) {
+  auto type =
+      getMlirTypeForTorchScalarTypeRaw(mlirLocationGetContext(loc), scalarType);
+  if (mlirTypeIsNull(type)) {
+    std::stringstream message;
+    message << "unsupported PyTorch scalar type: " << c10::toString(scalarType);
+    mlirEmitError(loc, message.str().c_str());
+  }
+  return type;
 }
 
 // Types (such as `LinearPackedParamsBase`) implemented with the
@@ -119,8 +111,9 @@ static MlirType mapCustomClassType(MlirContext context, MlirLocation loc,
   throw mlir_diagnostic_emitted();
 }
 
-MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
-                                      const c10::TypePtr &torchType) {
+MlirType torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
+                                              const c10::TypePtr &torchType) {
+  MlirContext context = mlirLocationGetContext(loc);
   using c10::TypeKind;
   auto kind = torchType->kind();
   switch (kind) {
@@ -129,7 +122,8 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     // Element type.
     MlirType elementType = {nullptr};
     if (tensorType->scalarType()) {
-      elementType = mapFromTorchScalarType(loc, *tensorType->scalarType());
+      elementType =
+          getMlirTypeForTorchScalarType(loc, *tensorType->scalarType());
       if (mlirTypeIsNull(elementType))
         return {nullptr};
     }
@@ -172,27 +166,27 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
     return torchMlirTorchStringTypeGet(context);
   }
   case TypeKind::OptionalType: {
-    return torchMlirTorchOptionalTypeGet(mapFromTorchType(
+    return torchMlirTorchOptionalTypeGet(getMlirTypeFromTorchType(
         loc, torchType->cast<c10::OptionalType>()->getElementType()));
   }
   case TypeKind::TupleType: {
     std::vector<MlirType> containedTypes;
     for (const c10::TypePtr &type :
          torchType->cast<c10::TupleType>()->containedTypes()) {
-      containedTypes.push_back(mapFromTorchType(loc, type));
+      containedTypes.push_back(getMlirTypeFromTorchType(loc, type));
     }
     return torchMlirTorchTupleTypeGet(context, containedTypes.size(),
                                       containedTypes.data());
   }
   case TypeKind::ListType: {
-    return torchMlirTorchListTypeGet(mapFromTorchType(
+    return torchMlirTorchListTypeGet(getMlirTypeFromTorchType(
         loc, torchType->cast<c10::ListType>()->getElementType()));
   }
   case TypeKind::DictType: {
     auto dictType = torchType->cast<c10::DictType>();
     return torchMlirTorchDictTypeGet(
-        mapFromTorchType(loc, dictType->getKeyType()),
-        mapFromTorchType(loc, dictType->getValueType()));
+        getMlirTypeFromTorchType(loc, dictType->getKeyType()),
+        getMlirTypeFromTorchType(loc, dictType->getValueType()));
   }
   case TypeKind::NoneType: {
     return torchMlirTorchNoneTypeGet(context);
@@ -223,29 +217,12 @@ MlirType TypeMapper::mapFromTorchType(MlirLocation loc,
   }
 }
 
-MlirType TypeMapper::forwardTensorToType(at::Tensor tensor) {
-  if (!tensor.defined()) {
-    // Undefined tensors are equivalent to None.
-    // This may need to be re-evaluated at some point.
-    return torchMlirTorchNoneTypeGet(context);
-  }
-
-  MlirType elementType = mapFromTorchScalarType(tensor.scalar_type());
-  // TODO: Decide when it is necessary to take strides into account. Right now,
-  // just erase them and let the compiler decide.
-
-  auto sizes = tensor.sizes();
-  return torchMlirTorchNonValueTensorTypeGet(context, sizes.size(),
-                                             sizes.data(), elementType);
-}
-
 MlirType
 torch_mlir::getFunctionTypeFromSchema(MlirContext context,
                                       const c10::FunctionSchema &schema) {
   MlirLocation loc = mlirLocationUnknownGet(context);
-  TypeMapper typeMapper(context);
   auto mapType = [&](const c10::TypePtr &torchType) {
-    MlirType type = typeMapper.mapFromTorchType(loc, torchType);
+    MlirType type = getMlirTypeFromTorchType(loc, torchType);
     if (mlirTypeIsNull(type)) {
       std::stringstream msg;
       msg << "unsupported type in function schema: '"
@@ -267,8 +244,6 @@ torch_mlir::getFunctionTypeFromSchema(MlirContext context,
 
 MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
                                                           MlirLocation loc) {
-  MlirContext context = mlirLocationGetContext(loc);
-  TypeMapper typeMapper(context);
   using at::ScalarType;
 
   auto throwUnsupportedTensorError = [&]() {
@@ -292,8 +267,8 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
   // quantized types it might differ (e.g. QInt8 becomes Char). Caller code is
   // responsible for materializing the proper op that incorporates the
   // quantization scheme to create a tensor of e.g. `!torch.qint8` element type.
-  MlirType elementType = typeMapper.mapFromTorchScalarType(
-      c10::toUnderlying(tensor.scalar_type()));
+  MlirType elementType = getMlirTypeForTorchScalarType(
+      loc, c10::toUnderlying(tensor.scalar_type()));
   std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
   MlirType shapedType = mlirRankedTensorTypeGetChecked(
       loc, shape.size(), shape.data(), elementType, {nullptr});
@@ -378,10 +353,9 @@ MlirLocation torch_mlir::getMlirLocationFromNode(MlirContext context,
 std::vector<MlirType>
 torch_mlir::getMlirTypesFromValues(MlirLocation loc,
                                    c10::ArrayRef<torch::jit::Value *> values) {
-  TypeMapper typeMapper(mlirLocationGetContext(loc));
   std::vector<MlirType> ret;
   for (auto value : values) {
-    MlirType t = typeMapper.mapFromTorchType(loc, value->type());
+    MlirType t = getMlirTypeFromTorchType(loc, value->type());
     if (mlirTypeIsNull(t))
       throw mlir_diagnostic_emitted("unsupported type");
     ret.push_back(t);
