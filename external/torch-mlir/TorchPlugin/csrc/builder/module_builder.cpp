@@ -110,7 +110,7 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
       context(castPythonObjectToMlirContext(this->contextObj)),
       module(createEmptyModule(this->context)),
       moduleObj(castMlirModuleToPythonObject(module)),
-      unknownLoc(mlirLocationUnknownGet(context)), typeMapper(this->context) {
+      unknownLoc(mlirLocationUnknownGet(context)) {
   // TODO: Rework this once dialect registration C-APIs are in place.
   // https://reviews.llvm.org/D88162
   mlirRegisterAllDialects(context);
@@ -120,30 +120,6 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
 
   // Terminator will always be the first op of an empty module.
   terminator = mlirBlockGetFirstOperation(getBodyBlock());
-}
-
-std::shared_ptr<AcapController>
-ModuleBuilder::startCaptureFunction(std::string &name,
-                                    std::vector<at::Tensor> args) {
-  // TODO: Verify that arguments do not alias each other.
-  std::vector<MlirType> inputTypes;
-  for (auto &arg : args) {
-    inputTypes.push_back(typeMapper.forwardTensorToType(arg));
-  }
-
-  // TODO: Extract a traceback and use in place of unknownLoc.
-  auto inserter = createInserter();
-  auto funcBuilder =
-      FuncBuilder::createFunction(inserter, unknownLoc, name, inputTypes);
-  // Map block arguments.
-  MlirBlock entryBlock = funcBuilder->getEntryBlock();
-  assert(mlirBlockGetNumArguments(entryBlock) ==
-             static_cast<intptr_t>(args.size()) &&
-         "entry block incorrect arg arity");
-  for (size_t i = 0; i < args.size(); ++i) {
-    funcBuilder->mapTensor(args[i], mlirBlockGetArgument(entryBlock, i));
-  }
-  return std::make_shared<AcapController>(typeMapper, std::move(funcBuilder));
 }
 
 torch::jit::StrongFunctionPtr
@@ -166,14 +142,6 @@ void ModuleBuilder::importModule(torch::jit::Module jitModule,
                mlirModuleGetContext(module), *classAnnotator);
 }
 
-FuncBuilder::Inserter ModuleBuilder::createInserter() {
-  MlirBlock block = getBodyBlock();
-  MlirOperation terminator = this->terminator;
-  return [=](MlirOperation op) {
-    mlirBlockInsertOwnedOperationBefore(block, terminator, op);
-  };
-}
-
 MlirBlock ModuleBuilder::getBodyBlock() {
   MlirOperation moduleOp = mlirModuleGetOperation(module);
   return mlirRegionGetFirstBlock(mlirOperationGetRegion(moduleOp, 0));
@@ -184,8 +152,6 @@ void ModuleBuilder::bind(py::module &m) {
       .def(py::init<py::object>(), py::arg("context") = py::none())
       .def_property_readonly("context", &ModuleBuilder::getContextObj)
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
-      .def("capture_function", &ModuleBuilder::startCaptureFunction,
-           py::keep_alive<0, 1>())
       .def("import_function", &ModuleBuilder::importFunction)
       .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
            py::arg("classAnnotator") = py::none());

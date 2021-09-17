@@ -8,6 +8,7 @@
 #include "ivalue_importer.h"
 #include "class_annotator.h"
 #include "function_importer.h"
+#include "torch_to_mlir_utils.h"
 
 #include <unordered_map>
 

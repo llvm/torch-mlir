@@ -6,12 +6,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "../pybind.h"
-#include "debug.h"
 
 #include <ATen/core/dispatch/Dispatcher.h>
 
 #include "../init_python_bindings.h"
-#include "acap_dispatch.h"
 #include "module_builder.h"
 #include "class_annotator.h"
 
@@ -125,16 +123,7 @@ py::list GetRegisteredOps() {
 } // namespace
 
 void torch_mlir::InitBuilderBindings(py::module &m) {
-  m.def("debug_trace_to_stderr", &enableDebugTraceToStderr);
-
-  py::class_<AcapController, std::shared_ptr<AcapController>>(m,
-                                                              "AcapController")
-      .def("__enter__", &AcapController::contextEnter)
-      .def("__exit__", &AcapController::contextExit)
-      .def("returns", &AcapController::returns);
   m.def("get_registered_ops", &GetRegisteredOps, kGetRegisteredOpsDocstring);
-
   ModuleBuilder::bind(m);
-
   initClassAnnotatorBindings(m);
 }

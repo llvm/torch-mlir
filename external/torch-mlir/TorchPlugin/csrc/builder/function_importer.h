@@ -11,7 +11,6 @@
 #include <memory>
 
 #include "../pybind.h"
-#include "func_builder.h"
 #include "node_importer.h"
 
 #include "mlir-c/IR.h"

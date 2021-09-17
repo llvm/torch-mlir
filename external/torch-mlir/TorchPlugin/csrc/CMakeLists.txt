@@ -13,10 +13,7 @@ include_directories(BEFORE
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 add_library(TorchMLIRTorchPlugin SHARED
-  builder/acap_dispatch.cpp
   builder/class_annotator.cpp
-  builder/debug.cpp
-  builder/func_builder.cpp
   builder/function_importer.cpp
   builder/module_builder.cpp
   builder/node_importer.cpp
