@@ -44,6 +44,8 @@ set(_source_components
   # TODO: Core is now implicitly building/registering all dialects, increasing
   # build burden by ~5x. Make it stop.
   MLIRPythonSources.Core
+  MLIRPythonSources.Dialects.builtin
+  MLIRPythonSources.Dialects.std
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 )
