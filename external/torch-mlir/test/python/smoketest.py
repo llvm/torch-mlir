@@ -1,7 +1,7 @@
 # RUN: %PYTHON %s
 
-import mlir.ir
-from mlir.dialects import torch
+import torch_mlir.ir
+from torch_mlir.dialects import torch
 
-with mlir.ir.Context() as ctx:
-  torch.register_torch_dialect(ctx)
+with torch_mlir.ir.Context() as ctx:
+  torch.register_dialect(ctx)

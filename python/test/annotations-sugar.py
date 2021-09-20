@@ -6,9 +6,9 @@
 
 import torch
 
-import torch_mlir
 from npcomp_torchscript.annotations import annotate_args, export
-from torch_mlir.torchscript_annotations import extract_annotations
+from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator
+from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
 
 class MmModule(torch.nn.Module):
     def __init__(self):
@@ -23,7 +23,7 @@ class MmModule(torch.nn.Module):
         return torch.mm(lhs, rhs)
 
 module = MmModule()
-annotator = torch_mlir.ClassAnnotator()
+annotator = ClassAnnotator()
 extract_annotations(module, torch.jit.script(module), annotator)
 print(annotator)
 

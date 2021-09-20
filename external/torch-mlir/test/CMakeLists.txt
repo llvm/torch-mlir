@@ -1,5 +1,6 @@
 llvm_canonicalize_cmake_booleans(
   MLIR_ENABLE_BINDINGS_PYTHON
+  TORCH_MLIR_ENABLE_JIT_IR_IMPORTER
 )
 
 configure_lit_site_cfg(
