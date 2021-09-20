@@ -17,7 +17,7 @@ PYBIND11_MODULE(_torchMlir, m) {
   m.doc() = "torch-mlir main python extension";
 
   m.def(
-      "register_torch_dialect",
+      "register_dialect",
       [](MlirContext context, bool load) {
         MlirDialectHandle handle = mlirGetDialectHandle__torch__();
         mlirDialectHandleRegisterDialect(handle, context);

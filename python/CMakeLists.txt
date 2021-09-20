@@ -111,7 +111,6 @@ add_mlir_python_modules(NPCOMPPythonModules
 )
 add_dependencies(NPCOMPPythonModules
   NPCOMPPythonResources
-  TorchMLIRPluginPythonModules
   )
 
 ################################################################################

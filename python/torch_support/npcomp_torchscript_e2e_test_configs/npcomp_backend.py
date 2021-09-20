@@ -11,13 +11,13 @@ import tempfile
 import numpy as np
 import torch
 
-import torch_mlir
+from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
+from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
 import npcomp
 from npcomp.passmanager import PassManager
 from npcomp.compiler.pytorch.backend import refjit
 from npcomp.compiler.pytorch.backend.abc import NpcompBackend
 from npcomp_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
-from torch_mlir.torchscript_annotations import extract_annotations
 
 def _recursively_convert_to_numpy(o: Any):
     if isinstance(o, torch.Tensor):
@@ -66,9 +66,9 @@ class NpcompBackendTestConfig(TestConfig):
         self.backend = backend
 
     def compile(self, program: torch.nn.Module) -> Any:
-        mb = torch_mlir.ModuleBuilder()
+        mb = ModuleBuilder()
         scripted = torch.jit.script(program)
-        class_annotator = torch_mlir.ClassAnnotator()
+        class_annotator = ClassAnnotator()
 
         extract_annotations(program, scripted, class_annotator)
 
