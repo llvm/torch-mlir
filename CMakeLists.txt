@@ -100,7 +100,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # MLIR.
   #-------------------------------------------------------------------------------
   if(NOT LLVM_MAIN_SRC_DIR)
-    set(LLVM_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-project/llvm")
+    set(LLVM_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir/external/llvm-project/llvm")
   endif()
   if(NOT MLIR_MAIN_SRC_DIR)
     set(MLIR_MAIN_SRC_DIR "${LLVM_MAIN_SRC_DIR}/../mlir")
@@ -143,7 +143,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # LLVM configuration.
   message(STATUS "*** ADDING LLVM ***")
   add_subdirectory(
-    "${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-project/llvm"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir/external/llvm-project/llvm"
     "${LLVM_MAIN_BINARY_DIR}"
     EXCLUDE_FROM_ALL)
   message(STATUS "*** LLVM DONE ***")
