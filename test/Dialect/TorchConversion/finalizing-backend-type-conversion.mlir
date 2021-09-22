@@ -42,15 +42,6 @@ func @eliminate_materializations$torch.float(%arg0: f64) -> f64 {
   return %1 : f64
 }
 
-// CHECK-LABEL:   func @eliminate_materializations$torch.list(
-// CHECK-SAME:                                                %[[ARG:.*]]: !iree.list<f64>) -> !iree.list<f64> {
-// CHECK:           return %[[ARG]] : !iree.list<f64>
-func @eliminate_materializations$torch.list(%arg0: !iree.list<f64>) -> !iree.list<f64> {
-  %0 = torch_c.from_iree_list %arg0 : !iree.list<f64> -> !torch.list<!torch.float>
-  %1 = torch_c.to_iree_list %0 : !torch.list<!torch.float> -> !iree.list<f64>
-  return %1 : !iree.list<f64>
-}
-
 // -----
 
 func @unable_to_convert_lone_buffer_cast() -> tensor<f32> {

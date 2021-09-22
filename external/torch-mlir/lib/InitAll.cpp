@@ -11,9 +11,13 @@
 #include "mlir/IR/Dialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/RefBackend/Passes.h"
 
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::torch::Torch::TorchDialect>();
 }
 
-void mlir::torch::registerAllPasses() { mlir::torch::registerTorchPasses(); }
+void mlir::torch::registerAllPasses() {
+  mlir::torch::registerTorchPasses();
+  mlir::torch::RefBackend::registerRefBackendPasses();
+}

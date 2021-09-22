@@ -60,9 +60,14 @@ endif()
 set(_source_components
   # TODO: Core is now implicitly building/registering all dialects, increasing
   # build burden by ~5x. Make it stop.
-  MLIRPythonSources.Core
-  MLIRPythonSources.Dialects.builtin
-  MLIRPythonSources.Dialects.std
+  # TODO: Reduce dependencies. We need ExecutionEngine and a bunch of passes
+  # for the reference backend, but logically they can be separate. But seemingly
+  # the only way to handle that is to create a separate mlir python package
+  # tree, which seems excessive.
+  MLIRPythonSources
+  MLIRPythonExtension.Core
+  MLIRPythonExtension.AllPassesRegistration
+  MLIRPythonExtension.ExecutionEngine
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 )

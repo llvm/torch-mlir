@@ -1,5 +1,6 @@
 
 // RUN: npcomp-opt <%s -convert-torch-to-iree -split-input-file -verify-diagnostics | FileCheck %s
+// XFAIL: *
 
 // CHECK-LABEL: func @forward(
 // CHECK-SAME:                          %[[ARG_TORCH:.*]]: !torch.float) -> !torch.list<!torch.float> {
