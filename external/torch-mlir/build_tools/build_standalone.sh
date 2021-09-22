@@ -18,6 +18,7 @@ cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG -gline-tables-only" \
   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG -gline-tables-only" \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$project_dir" \

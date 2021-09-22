@@ -167,7 +167,8 @@ void mlir::NPCOMP::TorchConversion::setupBackendTypeConversion(
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);
-  setupTorchListToIREEListConversion(target, typeConverter);
+  // TODO: Remove list support entirely.
+  // setupTorchListToIREEListConversion(target, typeConverter);
 }
 
 //===----------------------------------------------------------------------===//

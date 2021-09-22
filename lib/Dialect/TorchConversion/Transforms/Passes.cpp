@@ -71,7 +71,8 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   //
   // We lower lists last because the lowered form is much harder to reason about
   // than the original form.
-  pm.addNestedPass<FuncOp>(createConvertTorchToIREEPass());
+  // TODO: Remove list support entirely.
+  // pm.addNestedPass<FuncOp>(createConvertTorchToIREEPass());
   pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
 
   if (options.optimize) {
