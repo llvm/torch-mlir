@@ -5,7 +5,7 @@
 import torch
 from torch.fx.experimental.fx_acc import acc_tracer
 import npcomp
-from npcomp.compiler.pytorch.backend import refjit
+from npcomp.compiler.pytorch.backend import refbackend
 from npcomp.passmanager import PassManager
 
 from torchfx2iree.builder import build_module
@@ -43,7 +43,7 @@ pm.run(lowered_mlir_module)
 print("\n\nLOWERED MLIR")
 lowered_mlir_module.dump()
 
-backend = refjit.RefjitNpcompBackend()
+backend = refbackend.RefBackendNpcompBackend()
 compiled = backend.compile(lowered_mlir_module)
 jit_module = backend.load(compiled)
 

@@ -16,7 +16,7 @@ import torch_mlir.dialects.torch
 from .abc import NpcompBackend
 
 __all__ = [
-    "RefjitNpcompBackend",
+    "RefBackendNpcompBackend",
 ]
 
 
@@ -74,7 +74,7 @@ LOWERING_PIPELINE = ",".join([
 ])
 
 
-class RefjitNpcompBackend(NpcompBackend):
+class RefBackendNpcompBackend(NpcompBackend):
     """Main entry-point for the backend."""
 
     def __init__(self):

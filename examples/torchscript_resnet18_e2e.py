@@ -13,7 +13,7 @@ import torch_mlir
 
 import npcomp
 from npcomp.passmanager import PassManager
-from npcomp.compiler.pytorch.backend import refjit, iree
+from npcomp.compiler.pytorch.backend import refbackend, iree
 from npcomp.compiler.utils import logging
 
 mb = torch_mlir.ModuleBuilder()
@@ -109,7 +109,7 @@ class_annotator.annotateArgs(
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
 mb.import_module(recursivescriptmodule._c, class_annotator)
 
-backend = refjit.RefjitNpcompBackend()
+backend = refbackend.RefBackendNpcompBackend()
 PassManager.parse("torchscript-to-npcomp-backend-pipeline").run(mb.module)
 compiled = backend.compile(mb.module)
 jit_module = backend.load(compiled)
