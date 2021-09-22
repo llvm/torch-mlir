@@ -32,9 +32,6 @@ std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 std::unique_ptr<OperationPass<FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
-std::unique_ptr<OperationPass<ModuleOp>> createAnnotateABIPass();
-
-
 } // namespace TorchConversion
 
 /// Registers all Torch transformation passes.

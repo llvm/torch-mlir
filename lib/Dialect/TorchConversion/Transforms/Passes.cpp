@@ -13,7 +13,6 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "npcomp/Backend/Common/Passes.h"
-#include "npcomp/Conversion/TorchToIREE/TorchToIREE.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"
@@ -47,10 +46,6 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   // contract.
   Torch::createTorchScriptToTorchBackendPipeline(pm, options);
 
-  // Annotate the ABI of the original Torch functions before we lower them and
-  // lose information.
-  pm.addPass(TorchConversion::createAnnotateABIPass());
-
   // Check some invariants to catch errors in a clear way.
   pm.addPass(
       TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
@@ -62,17 +57,6 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
   pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
   pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
-  // Lists and other concepts that don't exist in upstream go through the IREE
-  // dialect, which we treat as an reasonably well designed interim placeholder
-  // for the set of ops that we think makes sense in the npcomp backend
-  // contract. We expect to co-evolve this dialect with npcomp needs, as a lot
-  // of what we are doing here in npcomp is breaking new ground w.r.t.
-  // expressiveness and program generality for tensor compilers.
-  //
-  // We lower lists last because the lowered form is much harder to reason about
-  // than the original form.
-  // TODO: Remove list support entirely.
-  // pm.addNestedPass<FuncOp>(createConvertTorchToIREEPass());
   pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
 
   if (options.optimize) {

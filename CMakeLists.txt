@@ -22,7 +22,6 @@ endif()
 # Options and settings
 #-------------------------------------------------------------------------------
 set(NPCOMP_MINIMUM_PYTHON_VERSION 3.6)
-set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
 # Turn on -gsplit-dwarf if requested in debug builds.
 if (NPCOMP_USE_SPLIT_DWARF AND
@@ -135,8 +134,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
                  "extension = '${PYTHON_MODULE_EXTENSION}")
 
   # Include LLVM_EXTERNAL_PROJECTS.
-  set(LLVM_EXTERNAL_PROJECTS "iree-dialects;torch-mlir")
-  set(LLVM_EXTERNAL_IREE_DIALECTS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/iree-dialects")
+  set(LLVM_EXTERNAL_PROJECTS "torch-mlir")
   set(LLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir")
 
   # LLVM configuration.
@@ -188,8 +186,6 @@ include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/iree-dialects/include)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/llvm/tools/iree-dialects/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/llvm/tools/torch-mlir/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})

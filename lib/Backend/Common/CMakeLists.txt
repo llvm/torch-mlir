@@ -1,5 +1,4 @@
 add_npcomp_library(NPCOMPCommonBackend
-  DeleteDeadIREELists.cpp
   VerifyBackendContract.cpp
   Passes.cpp
 
@@ -18,7 +17,6 @@ add_npcomp_library(NPCOMPCommonBackend
   MLIRTensor
   MLIRStandard
   MLIRMath
-  IREEDialectsIREEDialect
   )
 
 mlir_check_all_link_libraries(NPCOMPCommonBackend)

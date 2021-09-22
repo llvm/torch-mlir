@@ -1,5 +1,4 @@
 add_npcomp_conversion_library(NPCOMPTorchConversionPasses
-  AnnotateABI.cpp
   BackendTypeConversion.cpp
   Passes.cpp
   VerifyInvariantsBeforeBackendLowering.cpp
@@ -20,7 +19,6 @@ add_npcomp_conversion_library(NPCOMPTorchConversionPasses
   NPCOMPTorchConversionDialect
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
-  NPCOMPTorchToIREE
   NPCOMPTorchToLinalg
   NPCOMPTorchToStd
   NPCOMPTorchToSCF

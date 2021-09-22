@@ -15,7 +15,6 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "npcomp/Dialect/TorchConversion/IR/TorchConversionBase.td"
 include "torch-mlir/Dialect/Torch/IR/TorchTypes.td"
-include "iree-dialects/Dialect/IREE/IREEDialect.td"
 
 class TorchConversion_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<TorchConversion_Dialect, mnemonic, traits> {
@@ -168,39 +167,6 @@ def TorchConversion_FromF64Op : TorchConversion_Op<"from_f64", [
   );
   let assemblyFormat = [{
     $operand attr-dict
-  }];
-}
-
-// TODO: Verify the element types match.
-def TorchConversion_ToIREEListOp : TorchConversion_Op<"to_iree_list", [
-  ]> {
-  let summary = "Convert a `!torch.list` to a `!iree.list`";
-  let description = [{
-  }];
-  let arguments = (ins
-    Torch_ListType:$operand
-  );
-  let results = (outs
-    IREE_ListType:$result
-  );
-  let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
-  }];
-}
-
-def TorchConversion_FromIREEListOp : TorchConversion_Op<"from_iree_list", [
-  ]> {
-  let summary = "Convert a `!iree.list` to a `!torch.list`";
-  let description = [{
-  }];
-  let arguments = (ins
-    IREE_ListType:$operand
-  );
-  let results = (outs
-    Torch_ListType:$result
-  );
-  let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
   }];
 }
 

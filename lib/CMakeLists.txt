@@ -26,11 +26,9 @@ add_npcomp_library(NPCOMPInitAll
   PUBLIC
   # Local depends
   NPCOMPCommonBackend
-  NPCOMPIREEBackend
   TorchMLIRTorchDialect
   NPCOMPTorchConversionDialect
   NPCOMPConversionPasses
-  IREEDialectsIREEDialect
 
   # TODO: We shouldn't need npcomp_conversion_libs here, but we have
   # some dialect transform libraries accumulating into that property.
