@@ -6,7 +6,6 @@ set(LLVM_LINK_COMPONENTS
 
 add_npcomp_library(NPCOMPCAPI
   InitLLVM.cpp
-  RefJITBackend.cpp
   Registration.cpp
 
   LINK_LIBS PUBLIC
@@ -14,8 +13,6 @@ add_npcomp_library(NPCOMPCAPI
   MLIRLLVMIR
   MLIRTargetLLVMIRExport
   NPCOMPInitAll
-  NPCOMPRefBackendJITHelpers
-  NPCOMPRuntime
   TorchMLIRTorchDialect
   TorchMLIRInitAll
 

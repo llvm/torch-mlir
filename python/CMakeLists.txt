@@ -4,25 +4,6 @@ include(MLIRDetectPythonEnv)
 add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=npcomp.")
 
 ################################################################################
-# Resources that must be packaged into the python tree
-################################################################################
-
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/npcomp/compiler/backend/refjit_resources")
-add_custom_target(NPCOMPPythonResources ALL)
-add_custom_command(
-  TARGET NPCOMPPythonResources
-  COMMAND ${CMAKE_COMMAND} -E copy
-        # TODO: Make the runtime library work for windows.
-        # TODO: Use $<TARGET-FILE:> for this.
-        ${CMAKE_BINARY_DIR}/lib/libNPCOMPCompilerRuntimeShlib${CMAKE_SHARED_LIBRARY_SUFFIX}
-        ${MLIR_NPCOMP_PYTHON_PACKAGES_DIR}/npcomp_core/npcomp/compiler/generic/backend/libNPCOMPCompilerRuntimeShlib${CMAKE_SHARED_LIBRARY_SUFFIX}
-)
-add_dependencies(NPCOMPPythonResources
-  NPCOMPCompilerRuntimeShlib
-  )
-
-
-################################################################################
 # Declare sources
 ################################################################################
 
@@ -50,17 +31,11 @@ declare_mlir_python_sources(NPCOMPPythonCAPIHeaderSources
 # Extensions
 ################################################################################
 
-set(_addl_extension_sources)
-if(NPCOMP_ENABLE_REFJIT)
-  list(APPEND _addl_extension_sources "${CMAKE_CURRENT_SOURCE_DIR}/RefJITBackend.cpp")
-endif()
-
 declare_mlir_python_extension(NPCOMPPythonExtensions.Core
   MODULE_NAME _npcomp
   ADD_TO_PARENT NPCOMPPythonExtensions
   SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/NpcompModule.cpp
-    ${_addl_extension_sources}
   EMBED_CAPI_LINK_LIBS
     NPCOMPCAPI
   PRIVATE_LINK_LIBS
@@ -109,9 +84,6 @@ add_mlir_python_modules(NPCOMPPythonModules
   COMMON_CAPI_LINK_LIBS
     NPCOMPPythonCAPI
 )
-add_dependencies(NPCOMPPythonModules
-  NPCOMPPythonResources
-  )
 
 ################################################################################
 # Torch support libraries.
