@@ -15,7 +15,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuil
 from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
 import npcomp
 from npcomp.passmanager import PassManager
-from npcomp.compiler.pytorch.backend import refjit
+from npcomp.compiler.pytorch.backend import refbackend
 from npcomp.compiler.pytorch.backend.abc import NpcompBackend
 from npcomp_torchscript.e2e_test.framework import TestConfig, Trace, TraceItem
 

@@ -21,7 +21,7 @@ from npcomp.compiler.pytorch.backend import is_iree_enabled
 IREE_ENABLED = is_iree_enabled()
 if IREE_ENABLED:
     from npcomp.compiler.pytorch.backend.iree import IreeNpcompBackend
-from npcomp.compiler.pytorch.backend.refjit import RefjitNpcompBackend
+from npcomp.compiler.pytorch.backend.refbackend import RefBackendNpcompBackend
 
 from .xfail_sets import XFAIL_SETS
 
@@ -75,7 +75,7 @@ def main():
 
     # Find the selected config.
     if args.config == 'refbackend':
-        config = NpcompBackendTestConfig(RefjitNpcompBackend())
+        config = NpcompBackendTestConfig(RefBackendNpcompBackend())
     elif args.config == 'iree':
         config = NpcompBackendTestConfig(IreeNpcompBackend())
     elif args.config == 'native_torch':
