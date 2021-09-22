@@ -1,5 +1,0 @@
-{
-  global: __npcomp_compiler_rt_*;
-  local: *;
-};
-

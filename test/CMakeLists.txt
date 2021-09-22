@@ -8,7 +8,6 @@ configure_lit_site_cfg(
 set(NPCOMP_TEST_DEPENDS
         FileCheck count not
         npcomp-opt
-        refback-run
         NPCOMPPythonModules
 )
 

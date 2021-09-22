@@ -18,19 +18,6 @@ npcomp-opt() {
     "$@"
 }
 
-refback-run() {
-  # Helper for building and invoking refback-run.
-  #
-  # This also automatically builds and adds the npcomp runtime shared
-  # library.
-  #
-  # Usage:
-  # $ refback-run <regular refback-run options>
-  ninja -C "$build_dir" refback-run NPCOMPCompilerRuntimeShlib 1>&2 || return 1
-  "$build_dir/bin/refback-run" \
-    -shared-libs="${build_dir}/lib/libNPCOMPCompilerRuntimeShlib.so" "$@"
-}
-
 # Go to the root of your npcomp checkout.
 alias npd="cd $td"
 # Handy so that `npctest -v` runs lit with -v and thus prints out errors,

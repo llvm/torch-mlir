@@ -22,7 +22,6 @@ endif()
 # Options and settings
 #-------------------------------------------------------------------------------
 set(NPCOMP_MINIMUM_PYTHON_VERSION 3.6)
-option(NPCOMP_ENABLE_REFJIT "Enables the reference JIT backend." ON)
 set(NPCOMP_IREE_BUILDDIR "../iree-build" CACHE STRING "If building IREE, then setting this elects to build from a source directory (versus installed package)")
 
 # Turn on -gsplit-dwarf if requested in debug builds.
@@ -200,11 +199,6 @@ set(NPCOMP_TABLEGEN_ARGS "")
 #-------------------------------------------------------------------------------
 # Optional feature selection
 #-------------------------------------------------------------------------------
-
-if(NPCOMP_ENABLE_REFJIT)
-  add_compile_definitions(NPCOMP_ENABLE_REFJIT)
-  message(STATUS "Reference JIT backend enabled")
-endif()
 
 #-------------------------------------------------------------------------------
 # Subdirectories and aggregate testing targets.

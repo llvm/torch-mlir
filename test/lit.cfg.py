@@ -49,9 +49,6 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.npcomp_obj_root, 'test')
 config.npcomp_bin_dir = os.path.join(config.npcomp_obj_root, 'bin')
-config.npcomp_runtime_shlib = os.path.join(
-    config.npcomp_obj_root, 'lib',
-    'libNPCOMPCompilerRuntimeShlib' + config.llvm_shlib_ext)
 
 # Tweak the PATH and PYTHONPATH to include the tools dir.
 npcomp_python_dir = "python" if config.npcomp_built_standalone else "tools/npcomp/python"
@@ -67,8 +64,6 @@ tool_dirs = [
 ]
 tools = [
     'npcomp-opt',
-    'refback-run',
-    ToolSubst('%npcomp_runtime_shlib', config.npcomp_runtime_shlib),
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

@@ -3,7 +3,6 @@ add_subdirectory(CAPI)
 add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(Interfaces)
-add_subdirectory(RefBackend)
 
 ################################################################################
 # Setup the initialization target.
@@ -28,11 +27,8 @@ add_npcomp_library(NPCOMPInitAll
   # Local depends
   NPCOMPCommonBackend
   NPCOMPIREEBackend
-  NPCOMPRefBackend
-  NPCOMPRefbackDialect
   TorchMLIRTorchDialect
   NPCOMPTorchConversionDialect
-  NPCOMPRefbackrtDialect
   NPCOMPConversionPasses
   IREEDialectsIREEDialect
 
