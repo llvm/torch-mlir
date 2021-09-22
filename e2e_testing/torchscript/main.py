@@ -17,10 +17,6 @@ from npcomp_torchscript_e2e_test_configs import (
     NpcompBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig
 )
 
-from npcomp.compiler.pytorch.backend import is_iree_enabled
-IREE_ENABLED = is_iree_enabled()
-if IREE_ENABLED:
-    from npcomp.compiler.pytorch.backend.iree import IreeNpcompBackend
 from npcomp.compiler.pytorch.backend.refbackend import RefBackendNpcompBackend
 
 from .xfail_sets import XFAIL_SETS
@@ -35,13 +31,12 @@ from . import conv
 from . import batchnorm
 from . import quantized_models
 from . import elementwise
-from . import list_programs
 from . import reduction
 
 def _get_argparse():
+    # TODO: Allow pulling in an out-of-tree backend, so downstream can easily
+    # plug into the e2e tests.
     config_choices = ['native_torch', 'torchscript', 'refbackend']
-    if IREE_ENABLED:
-        config_choices += ['iree']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -49,7 +44,6 @@ def _get_argparse():
         help=f'''
 Meaning of options:
 "refbackend": run through npcomp's RefBackend.
-"iree"{'' if IREE_ENABLED else '(disabled)'}: run through npcomp's IREE backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 ''')
@@ -76,8 +70,6 @@ def main():
     # Find the selected config.
     if args.config == 'refbackend':
         config = NpcompBackendTestConfig(RefBackendNpcompBackend())
-    elif args.config == 'iree':
-        config = NpcompBackendTestConfig(IreeNpcompBackend())
     elif args.config == 'native_torch':
         config = NativeTorchTestConfig()
     elif args.config == 'torchscript':

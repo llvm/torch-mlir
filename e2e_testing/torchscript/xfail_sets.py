@@ -18,16 +18,7 @@ _common_npcomp_lowering_xfails = {
     'QuantizedMLP_basic',
 }
 
-# Any test expected to fail on backends that don't support non-tensor types
-# should be listed here.
-_common_non_tensor_type_xfails = {
-    'ListLiteralModule_basic',
-}
-
-XFAIL_SETS['refbackend'] = (_common_npcomp_lowering_xfails
-                            | _common_non_tensor_type_xfails)
-
-XFAIL_SETS['iree'] = _common_npcomp_lowering_xfails
+XFAIL_SETS['refbackend'] = _common_npcomp_lowering_xfails
 
 XFAIL_SETS['torchscript'] = {}
 

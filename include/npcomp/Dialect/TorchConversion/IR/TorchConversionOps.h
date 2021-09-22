@@ -9,7 +9,6 @@
 #ifndef NPCOMP_DIALECT_TORCHCONVERSION_IR_TORCHOPS_H
 #define NPCOMP_DIALECT_TORCHCONVERSION_IR_TORCHOPS_H
 
-#include "iree-dialects/Dialect/IREE/IREEDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"

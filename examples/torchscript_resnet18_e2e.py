@@ -13,7 +13,7 @@ import torch_mlir
 
 import npcomp
 from npcomp.passmanager import PassManager
-from npcomp.compiler.pytorch.backend import refbackend, iree
+from npcomp.compiler.pytorch.backend import refbackend
 from npcomp.compiler.utils import logging
 
 mb = torch_mlir.ModuleBuilder()

@@ -52,26 +52,4 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-def AnnotateABI : Pass<"torch-annotate-abi", "ModuleOp"> {
-  let summary = "Annotate `torch` types before lowering to backend types";
-  let description = [{
-    Populates `iree.abi` metadata to allow runtime reflection of
-    arguments and results.
-
-    See IREE's `docs/developers/design_docs/function_abi.md` for information
-    about this annotation format.
-
-    This information must be annotated before we lower types to the backend
-    contract, since that lowering is not generally reversible to recover the
-    correct Python signature.
-
-    TODO: Reconsider the passes in the Torch lowering pipeline in light of this.
-    We want to provide a faithful ABI up to the user, so the None handling (and
-    unimplemented tuple handling) in AdjustCallingConventions and the ClassType
-    handling in GlobalizeObjectGraph will need to be considered.
-  }];
-  let constructor = "mlir::NPCOMP::TorchConversion::createAnnotateABIPass()";
-}
-
-
 #endif // NPCOMP_TORCHCONVERSION_PASSES

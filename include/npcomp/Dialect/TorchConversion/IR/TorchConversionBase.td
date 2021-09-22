@@ -21,8 +21,8 @@ def TorchConversion_Dialect : Dialect {
 
     This mainly consists of converting ops and types from `torch` dialect
     to the mix of dialects of the npcomp backend contract, such as tensor
-    ops being converted linalg-on-tensors, lists being converted to IREE lists,
-    and !torch.float being converted to `f64`.
+    ops being converted linalg-on-tensors and !torch.float being converted to
+    `f64`.
   }];
 }
 
