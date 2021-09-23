@@ -20,6 +20,15 @@ __all__ = [
 ]
 
 
+def checkArgTypeIsSupported(ty):
+    if ty == np.float32:
+        return
+    elif ty == np.int64:
+        return
+    assert False, "Only tensor argument of float32 and int64 are supported but got " + str(
+        ty)
+
+
 class RefBackendInvoker:
     def __init__(self, module):
         self.ee = ExecutionEngine(module)
@@ -28,15 +37,19 @@ class RefBackendInvoker:
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
-        self.ee.register_runtime("refbackend_consume_func_return", consume_return)
+
+        self.ee.register_runtime("refbackend_consume_func_return",
+                                 consume_return)
 
     def __getattr__(self, function_name: str):
         def invoke(*args):
-            ffi_args = [
-                ctypes.pointer(
+            ffi_args = []
+            for arg in args:
+                checkArgTypeIsSupported(arg.dtype)
+                ffi_args.append(
                     ctypes.pointer(
-                        get_unranked_memref_descriptor(arg)))
-                for arg in args]
+                        ctypes.pointer(get_unranked_memref_descriptor(arg))))
+
             self.ee.invoke(function_name, *ffi_args)
             result = self.result
             assert result is not None, "Invocation didn't produce a result"
@@ -76,7 +89,6 @@ LOWERING_PIPELINE = ",".join([
 
 class RefBackendNpcompBackend(NpcompBackend):
     """Main entry-point for the backend."""
-
     def __init__(self):
         super().__init__()
 

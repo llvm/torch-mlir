@@ -63,7 +63,6 @@ def BmmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
 
 
-
 # ==============================================================================
 
 
@@ -209,6 +208,7 @@ class MaxPool2dModule(torch.nn.Module):
 def MaxPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
 
+
 class TransposeIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -246,6 +246,7 @@ class TensorsConcatModule(torch.nn.Module):
 def TensorsConcatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
 
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -260,6 +261,6 @@ class GatherModule(torch.nn.Module):
         return torch.gather(tensor, 2, indices)
 
 
-#@register_test_case(module_factory=lambda: GatherModule())
-#def GatherModule_basic(module, tu: TestUtils):
-#    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1,2,3],[1,2,3]]]))
+@register_test_case(module_factory=lambda: GatherModule())
+def GatherModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
