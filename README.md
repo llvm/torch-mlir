@@ -1,13 +1,40 @@
-# NPComp - MLIR based compiler toolkit for numerical python programs
+# torch-mlir
+
+The Torch-MLIR project aims to provide first class support from the [Pytorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
 
 > This project is participating in the LLVM Incubator process: as such, it is
 not part of any official LLVM release.  While incubation status is not
 necessarily a reflection of the completeness or stability of the code, it
 does indicate that the project is not yet endorsed as a component of LLVM.
 
-The NPComp project aims to provide tooling for compiling numerical python programs of various forms to take advantage of MLIR+LLVM code generation and backend runtime systems.
+[Pytorch](https://pytorch.org)
+An open source machine learning framework that accelerates the path from research prototyping to production deployment.
 
-In addition to providing a bridge to a variety of Python based numerical programming frameworks, NPComp also directly develops components for tracing and compilation of generic Python program fragments.
+[MLIR](https://mlir.llvm.org)
+The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
+
+[Torch-MLIR](https://github.com/nodlabs/torch-mlir)
+Multiple Vendors use MLIR as the middle layer mapping from Platform Frameworks like Pytorch, JAX, Tensorflow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having a canonical lowering from the Pytorch ecosystem to the MLIR ecosystem would provide much needed relief to Hardware Vendors to focus on their unique value rather than implementing another Pytorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
+
+Torch-MLIR was incubated in the [MLIR-NPCOMP](https://github.com/llvm/mlir-npcomp)  project as a custom frontend. We added support there for Torchscript and “torch_xla”-style capture - referred to as ACAP in the codebase. As the project has grown we have moved it to be standalone focused solely on Torch lowering to MLIR dialects (the primary unit of organization in the MLIR ecosystem) and is now hosted at https://github.com/NodLabs/torch-mlir. It will be dual licensed BSD and LLVM (Apache with LLVM Exception) for ease of integration into either upstream project (PyTorch or LLVM).
+
+## All the roads from PyTorch to Torch MLIR Dialect
+
+We have few paths to lower down to the Torch MLIR Dialect.
+
+![Torch Lowering Architectures](Torch-MLIR.png)
+
+ - Torchscript
+    This is the most tested path down to Torch MLIR Dialect.
+ - TorchFX
+	This provides a path to lower from TorchFX down to MLIR. This a functional prototype that we expect to mature as TorchFX matures
+ - Lazy Tensor Core (Based on lazy-tensor-core [staging branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
+	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
+ - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
+
+## Examples
+There are few examples of lowering down via path from PyTorch to MLIR and using the “mlir-cpu-runner” to target a CPU backend. Obviously this is just a starting point and you can import this project into your larger MLIR projects to continue lowering to target GPUs and other Accelerators.
+
 
 ## Quick Build and Install with PyTorch
 
@@ -29,16 +56,6 @@ python -m pip install --pre torch torchvision -f https://download.pytorch.org/wh
 - issues/PR's on this github repo
 - [`mlir-npcomp` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/mlir-npcomp/41) of LLVM Discourse
 
-## Framework integrations
-
-* [PyTorch](frontends/pytorch/README.md) -- Experimental integration for
-  extracting programs from PyTorch.
-
-## Python language compiler tookit
-
-At the core of NPComp are a set of dialects and python support code for tracing (define by run) numerical programs and compiling idiomatic subsets of the Python language. As another interpretation of the name, NPComp also seeks to provide compiler-backed support for Numpy APIs.
-
-See the [features doc](docs/features.md) for a semi-curated status of what is implemented in this area.
 
 ### Architecture
 
