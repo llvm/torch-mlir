@@ -39,7 +39,20 @@ void mlir::torch::RefBackend::registerRefBackendPasses() { ::registerPasses(); }
 // MungeCallingConventions
 //===----------------------------------------------------------------------===//
 
-static bool isF32MemRef(Type type) {
+static bool isArgMemRefTypeValid(Type type) {
+  if (auto memRefType = type.dyn_cast<MemRefType>()) {
+    Type elemTy = memRefType.getElementType();
+    if (elemTy.isa<Float32Type>()) {
+      return true;
+    } else if (auto integerTy = elemTy.dyn_cast<IntegerType>()) {
+      if (integerTy.isSignlessInteger(64))
+        return true;
+    }
+  }
+  return false;
+}
+
+static bool isReturnMemRefTypeValid(Type type) {
   if (auto memRefType = type.dyn_cast<MemRefType>()) {
     if (memRefType.getElementType().isa<Float32Type>()) {
       return true;
@@ -73,8 +86,8 @@ static LogicalResult mungeFunction(FuncOp func, FuncOp consumeFuncReturnFunc) {
   SmallVector<Type> newArgTypes;
   for (auto arg : func.getArguments()) {
     auto type = arg.getType();
-    if (!isF32MemRef(type))
-      return emitError(arg.getLoc(), "argument must be a memref of f32");
+    if (!isArgMemRefTypeValid(type))
+      return emitError(arg.getLoc(), "argument must be a memref of f32 or i64");
     auto cast = b.create<memref::CastOp>(arg.getLoc(), arg, type);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
@@ -84,7 +97,8 @@ static LogicalResult mungeFunction(FuncOp func, FuncOp consumeFuncReturnFunc) {
   SmallVector<Operation *> toErase;
   bool hadError = false;
   func.walk([&](ReturnOp op) {
-    if (op.getNumOperands() != 1 || !isF32MemRef(op.getOperandTypes()[0])) {
+    if (op.getNumOperands() != 1 ||
+        !isReturnMemRefTypeValid(op.getOperandTypes()[0])) {
       hadError = true;
       op.emitError("must have one return value and it must be a memref of f32");
       return;
