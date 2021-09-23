@@ -242,6 +242,10 @@ class TestResult(NamedTuple):
     # If this is not None, then the `trace` and `golden_trace` fields are None,
     # and vice-versa.
     compilation_error: Optional[str]
+    # If runtime failed, a string describing the failure.
+    # If this is not None, then the `trace` and `golden_trace` fields are None,
+    # and vice-versa.
+    runtime_error: Optional[str]
     # The trace produced by the backend.
     trace: Optional[Trace]
     # The golden trace which `trace` is expected to match.
@@ -303,14 +307,26 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
             results.append(
                 TestResult(unique_name=test.unique_name,
                            compilation_error=str(e),
+                           runtime_error=None,
                            trace=None,
                            golden_trace=None))
             continue
         # TODO: Run in parallel.
-        trace = config.run(compiled, golden_trace)
+        try:
+            trace = config.run(compiled, golden_trace)
+        except Exception as e:
+            results.append(
+                TestResult(unique_name=test.unique_name,
+                           compilation_error=None,
+                           runtime_error=str(e),
+                           trace=None,
+                           golden_trace=None))
+            continue
+
         results.append(
             TestResult(unique_name=test.unique_name,
                        compilation_error=None,
+                       runtime_error=None,
                        trace=trace,
                        golden_trace=golden_trace))
     return results
