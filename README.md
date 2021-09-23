@@ -13,10 +13,8 @@ An open source machine learning framework that accelerates the path from researc
 [MLIR](https://mlir.llvm.org)
 The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
 
-[Torch-MLIR](https://github.com/nodlabs/torch-mlir)
+[Torch-MLIR](https://github.com/llvm/torch-mlir)
 Multiple Vendors use MLIR as the middle layer mapping from Platform Frameworks like Pytorch, JAX, Tensorflow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having a canonical lowering from the Pytorch ecosystem to the MLIR ecosystem would provide much needed relief to Hardware Vendors to focus on their unique value rather than implementing another Pytorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
-
-Torch-MLIR was incubated in the [MLIR-NPCOMP](https://github.com/llvm/mlir-npcomp)  project as a custom frontend. We added support there for Torchscript and “torch_xla”-style capture - referred to as ACAP in the codebase. As the project has grown we have moved it to be standalone focused solely on Torch lowering to MLIR dialects (the primary unit of organization in the MLIR ecosystem) and is now hosted at https://github.com/NodLabs/torch-mlir. It will be dual licensed BSD and LLVM (Apache with LLVM Exception) for ease of integration into either upstream project (PyTorch or LLVM).
 
 ## All the roads from PyTorch to Torch MLIR Dialect
 
