@@ -222,7 +222,7 @@ class SingleTestReport:
         self.result = result
         self.context = context
         self.item_reports = None
-        if result.compilation_error is None:
+        if result.compilation_error is None and result.runtime_error is None:
             self.item_reports = []
             for i, (item, golden_item) in enumerate(
                     zip(result.trace, result.golden_trace)):
@@ -236,6 +236,8 @@ class SingleTestReport:
     def failed(self):
         if self.result.compilation_error is not None:
             return True
+        elif self.result.runtime_error is not None:
+            return True
         return any(r.failed for r in self.item_reports)
 
     def error_str(self):
@@ -244,6 +246,8 @@ class SingleTestReport:
         p = lambda *x: print(*x, file=f)
         if self.result.compilation_error is not None:
             return 'Compilation error: ' + self.result.compilation_error
+        elif self.result.runtime_error is not None:
+            return 'Runtime error: ' + self.result.runtime_error
         for report in self.item_reports:
             if report.failed:
                 p(report.error_str())
