@@ -1,0 +1,20 @@
+add_mlir_dialect_library(TorchMLIRTorchConversionDialect
+  TorchConversionDialect.cpp
+  TorchConversionOps.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/TorchConversion
+
+  DEPENDS
+  MLIRTorchConversionOpsIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRSupport
+  MLIRSideEffectInterfaces
+)
+
+torch_mlir_target_includes(TorchMLIRTorchConversionDialect)

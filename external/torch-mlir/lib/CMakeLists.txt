@@ -1,4 +1,5 @@
 add_subdirectory(CAPI)
+add_subdirectory(Conversion)
 add_subdirectory(Dialect)
 add_subdirectory(RefBackend)
 
@@ -11,8 +12,14 @@ add_mlir_library(TorchMLIRInitAll
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRSupport
-  TorchMLIRTorchDialect
+
   TorchMLIRTorchPasses
+  TorchMLIRTorchConversionDialect
+
+  TorchMLIRTorchDialect
+  TorchMLIRTorchConversionPasses
+
+  TorchMLIRConversionPasses
   TorchMLIRRefBackend
 )
 

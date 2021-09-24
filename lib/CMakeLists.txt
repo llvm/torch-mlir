@@ -1,6 +1,4 @@
 add_subdirectory(CAPI)
-add_subdirectory(Conversion)
-add_subdirectory(Dialect)
 add_subdirectory(Interfaces)
 
 ################################################################################
@@ -24,9 +22,10 @@ add_npcomp_library(NPCOMPInitAll
 
   PUBLIC
   # Local depends
+  # TODO: add_torch_mlir_dialect_library to automate enueration of all dialects.
   TorchMLIRTorchDialect
-  NPCOMPTorchConversionDialect
-  NPCOMPConversionPasses
+  TorchMLIRTorchConversionDialect
+  TorchMLIRConversionPasses
 
   # TODO: We shouldn't need npcomp_conversion_libs here, but we have
   # some dialect transform libraries accumulating into that property.

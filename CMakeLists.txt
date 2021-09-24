@@ -190,7 +190,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/torch-mlir/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/llvm/tools/torch-mlir/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
 add_definitions(${LLVM_DEFINITIONS})
-set(NPCOMP_TABLEGEN_ARGS "")
 
 #-------------------------------------------------------------------------------
 # Optional feature selection
@@ -208,8 +207,6 @@ add_dependencies(check-npcomp-all
   check-torch-mlir
   )
 
-add_subdirectory(include/npcomp)
 add_subdirectory(lib)
 add_subdirectory(python)
-add_subdirectory(test)
 add_subdirectory(tools)
