@@ -477,6 +477,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
             "aten::batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)"
         )
         emit(
+            "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
+        )
+        emit(
             "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
         )
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
@@ -592,6 +595,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::_set_item.t : (t[], int, t) -> (t[])")
         emit("aten::div : (Scalar, Scalar) -> (float)")
         emit("aten::eq.device : (Device, Device) -> (bool)")
+
 
 def emit_quantized_ops(torch_ir_dir: str, registry: Registry):
     td_file = os.path.join(torch_ir_dir, "GeneratedQuantizedOps.td")
