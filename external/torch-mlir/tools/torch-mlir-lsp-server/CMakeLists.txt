@@ -1,13 +1,12 @@
-# npcomp-lsp-server is always linked dynamically as we want to distribute the
+# torch-mlir-lsp-server is always linked dynamically as we want to distribute the
 # binaries with the python packages for hacking/debugging.
-add_npcomp_executable(npcomp-lsp-server npcomp-lsp-server.cpp)
+add_executable(torch-mlir-lsp-server torch-mlir-lsp-server.cpp)
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
-target_link_libraries(npcomp-lsp-server PRIVATE
+target_link_libraries(torch-mlir-lsp-server PRIVATE
   MLIRLspServerLib
-  NPCOMPInitAll
   TorchMLIRInitAll
 
   # TODO: Remove these in favor of interface deps.
@@ -15,4 +14,4 @@ target_link_libraries(npcomp-lsp-server PRIVATE
   ${conversion_libs}
 )
 
-mlir_check_all_link_libraries(npcomp-lsp-server)
+mlir_check_all_link_libraries(torch-mlir-lsp-server)
