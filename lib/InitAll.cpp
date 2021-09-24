@@ -9,7 +9,6 @@
 #include "npcomp/InitAll.h"
 
 #include "mlir/IR/Dialect.h"
-#include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Conversion/Passes.h"
 #include "npcomp/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
@@ -21,5 +20,4 @@ void mlir::NPCOMP::registerAllDialects(mlir::DialectRegistry &registry) {
 void mlir::NPCOMP::registerAllPasses() {
   mlir::NPCOMP::registerConversionPasses();
   mlir::NPCOMP::registerTorchConversionPasses();
-  mlir::NPCOMP::CommonBackend::registerCommonBackendPasses();
 }

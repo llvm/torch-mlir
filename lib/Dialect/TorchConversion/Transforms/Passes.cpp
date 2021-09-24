@@ -12,7 +12,6 @@
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
-#include "npcomp/Backend/Common/Passes.h"
 #include "npcomp/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "npcomp/Conversion/TorchToSCF/TorchToSCF.h"
 #include "npcomp/Conversion/TorchToStd/TorchToStd.h"
@@ -75,8 +74,8 @@ void mlir::NPCOMP::TorchConversion::createTorchScriptToNpcompBackendPipeline(
   pm.addNestedPass<FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
-  // Verify that we have lowered to the form that npcomp backends expect.
-  // This fails compilation (signalPassFailure) if the IR is not in the
+  // Verify that we have lowered to the form that linalg on tensors backends
+  // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
-  pm.addPass(CommonBackend::createVerifyBackendContractPass());
+  pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
 }

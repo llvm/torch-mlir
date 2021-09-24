@@ -1,4 +1,3 @@
-add_subdirectory(Backend)
 add_subdirectory(CAPI)
 add_subdirectory(Conversion)
 add_subdirectory(Dialect)
@@ -25,7 +24,6 @@ add_npcomp_library(NPCOMPInitAll
 
   PUBLIC
   # Local depends
-  NPCOMPCommonBackend
   TorchMLIRTorchDialect
   NPCOMPTorchConversionDialect
   NPCOMPConversionPasses

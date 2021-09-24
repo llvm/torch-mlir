@@ -7,22 +7,24 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "npcomp/Backend/Common/Passes.h"
+#include "npcomp/Dialect/TorchConversion/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
 using namespace mlir::NPCOMP;
-using namespace mlir::NPCOMP::CommonBackend;
+using namespace mlir::NPCOMP::TorchConversion;
 
 namespace {
-class VerifyBackendContractPass
-    : public VerifyBackendContractBase<VerifyBackendContractPass> {
+class VerifyLinalgOnTensorsBackendContractPass
+    : public VerifyLinalgOnTensorsBackendContractBase<
+          VerifyLinalgOnTensorsBackendContractPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     auto module = getOperation();
@@ -79,6 +81,6 @@ class VerifyBackendContractPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::NPCOMP::CommonBackend::createVerifyBackendContractPass() {
-  return std::make_unique<VerifyBackendContractPass>();
+mlir::NPCOMP::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass() {
+  return std::make_unique<VerifyLinalgOnTensorsBackendContractPass>();
 }
