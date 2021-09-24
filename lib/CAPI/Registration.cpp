@@ -26,6 +26,7 @@ void npcompRegisterAllDialects(MlirContext context) {
 
 void npcompRegisterAllPasses() {
   ::mlir::NPCOMP::registerAllPasses();
+  ::mlir::torch::registerAllPasses();
 
   // Upstream passes we depend on.
   ::mlir::registerSymbolDCEPass();

@@ -1,0 +1,24 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "torch-mlir/Conversion/Passes.h"
+
+#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
+#include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+
+//===----------------------------------------------------------------------===//
+// Pass registration
+//===----------------------------------------------------------------------===//
+
+namespace {
+#define GEN_PASS_REGISTRATION
+#include "torch-mlir/Conversion/Passes.h.inc"
+} // end namespace
+
+void mlir::torch::registerConversionPasses() { ::registerPasses(); }
