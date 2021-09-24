@@ -263,7 +263,10 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
     return IntegerType::get(context, integerType.getWidth(),
                             IntegerType::Signless);
   }
-  assert(false && "Unsupported dtype to convert to builtin element type");
+  emitError(UnknownLoc::get(context))
+      << "unimplemented: conversion of dtype " << dtype
+      << " to builtin tensor element type";
+  return nullptr;
 }
 
 TensorType ValueTensorType::toBuiltinTensor() const {
@@ -271,8 +274,10 @@ TensorType ValueTensorType::toBuiltinTensor() const {
     return nullptr;
   if (!hasSizes())
     return UnrankedTensorType::get(getDtype());
-  return RankedTensorType::get(
-      getSizes(), convertDtypeToBuiltinElementType(getContext(), getDtype()));
+  Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
+  if (!elementType)
+    return nullptr;
+  return RankedTensorType::get(getSizes(), elementType);
 }
 
 LogicalResult
