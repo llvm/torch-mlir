@@ -196,7 +196,7 @@ public:
             AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
             AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
             AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
-            AtenCopy_Op, AtenCumsumOp>(op)) {
+            AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
