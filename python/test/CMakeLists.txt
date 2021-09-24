@@ -9,6 +9,7 @@ set(TEST_DEPENDS
   FileCheck count not
   npcomp-opt
   NPCOMPTorchSupportPythonModules
+  TorchMLIRPythonModules
   )
 
 add_lit_testsuite(check-npcomp-python "Running the npcomp-python regression tests"
