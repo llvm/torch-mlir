@@ -32,6 +32,8 @@ std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 std::unique_ptr<OperationPass<FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyLinalgOnTensorsBackendContractPass();
+
 } // namespace TorchConversion
 
 /// Registers all Torch transformation passes.

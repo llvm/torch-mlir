@@ -28,7 +28,7 @@ class NpcompBackend(abc.ABC):
         """Compile the provided MLIR module into a compiled artifact.
 
         The module adheres to the npcomp backend contract
-        (see the VerifyBackendContract pass).
+        (see the VerifyLinalgOnTensorsBackendContract pass).
 
         The compiled artifact can be any type, but must be correctly
         interpreted by the `load` method.

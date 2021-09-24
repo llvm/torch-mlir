@@ -52,4 +52,9 @@ def FinalizingBackendTypeConversion
   }];
 }
 
+def VerifyLinalgOnTensorsBackendContract : Pass<"npcomp-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
+  let summary = "Verifies conformity to the linalg-on-tensors backend contract";
+  let constructor = "mlir::NPCOMP::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";
+}
+
 #endif // NPCOMP_TORCHCONVERSION_PASSES
