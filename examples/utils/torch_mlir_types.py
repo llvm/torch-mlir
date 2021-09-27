@@ -1,8 +1,9 @@
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# pylint: disable=no-member, no-name-in-module, invalid-name, missing-function-docstring, fixme
 """
--*- Python -*-
-This file is licensed under a pytorch-style license
-See frontends/pytorch/LICENSE for license information.
-
 The following defines a set of classes for converting
 types used by Python and PyTorch into MLIR types from the
 `torch` dialect.
@@ -15,8 +16,6 @@ of the type.
 Information about what types are supported by each class
 can be found in docstrings of each of the classes.
 """
-
-# pylint: disable=no-member, no-name-in-module, invalid-name, missing-function-docstring, fixme
 
 import abc
 from typing import Any, Optional, Iterable
@@ -62,6 +61,9 @@ class TorchTensorType(TorchMlirType):
             err = "If shape is specified, dtype must also be specified"
             raise TorchTensorTypeError(err)
 
+    def __str__(self):
+        return f'Torch Tensor (shape={self.shape}, dtype={self.dtype})'
+
     def to_mlir(self, context: ir.Context) -> ir.Type:
         if self.dtype is None:
             return ir.Type.parse('!torch.tensor', context=context)
@@ -90,6 +92,9 @@ class TorchNnModuleType(TorchMlirType):
     def __init__(self, module_name: str):
         self.module_name = module_name
 
+    def __str__(self):
+        return "torch.nn.Module"
+
     def to_mlir(self, context: ir.Context) -> ir.Type:
         return ir.Type.parse(f'!torch.nn.Module<"{self.module_name}">',
                              context=context)
@@ -110,6 +115,9 @@ class PythonType(TorchMlirType):
 
     def __init__(self, type_: Any):
         self.type_ = type_
+
+    def __str__(self):
+        return str(self.type_)
 
     def to_mlir(self, context: ir.Context) -> ir.Type:
         asm = self._type_to_asm_dict.get(self.type_)

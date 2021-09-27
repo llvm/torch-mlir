@@ -33,18 +33,17 @@ namespace {
 void mlir::torch::registerTorchConversionPasses() {
   ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-to-linalg-on-tensors-backend-pipeline",
-      "Pipeline lowering torch object graph to linalg-on-tensors backend format.",
-      mlir::torch::TorchConversion::createTorchScriptToLinalgOnTensorsBackendPipeline);
+      "torchscript-module-to-linalg-on-tensors-backend-pipeline",
+      "Pipeline lowering torch object graph representing a torch.jit.ScriptModule to linalg-on-tensors backend format.",
+      TorchConversion::createTorchScriptModuleToLinalgOnTensorsBackendPipeline);
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torchscript-function-to-linalg-on-tensors-backend-pipeline",
+      "Pipeline lowering a flat list of functions representing a torch.jit.ScriptFunction to linalg-on-tensors backend format.",
+      TorchConversion::createTorchScriptFunctionToLinalgOnTensorsBackendPipeline);
 }
 
-void mlir::torch::TorchConversion::createTorchScriptToLinalgOnTensorsBackendPipeline(
+static void createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
-
-  // Conversion to the linalg-on-tensors backend contract starts from the Torch
-  // backend contract.
-  Torch::createTorchScriptToTorchBackendPipeline(pm, options);
-
   // Check some invariants to catch errors in a clear way.
   pm.addPass(
       TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
@@ -78,4 +77,22 @@ void mlir::torch::TorchConversion::createTorchScriptToLinalgOnTensorsBackendPipe
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
   pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
+}
+
+void TorchConversion::createTorchScriptModuleToLinalgOnTensorsBackendPipeline(
+    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+
+  // Conversion to the linalg-on-tensors backend contract starts from the Torch
+  // backend contract.
+  Torch::createTorchScriptToTorchBackendPipeline(pm, options);
+  createTorchBackendToLinalgOnTensorsBackendPipeline(pm, options);
+}
+
+void TorchConversion::createTorchScriptFunctionToLinalgOnTensorsBackendPipeline(
+    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+
+  // Conversion to the linalg-on-tensors backend contract starts from the Torch
+  // backend contract.
+  Torch::createGlobalizedModuleToTorchBackendPipeline(pm, options);
+  createTorchBackendToLinalgOnTensorsBackendPipeline(pm, options);
 }

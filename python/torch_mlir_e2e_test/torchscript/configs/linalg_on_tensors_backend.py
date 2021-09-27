@@ -91,7 +91,7 @@ Diagnostics:
             sys.stderr = StringIO()
             asm_for_error_report = mb.module.operation.get_asm(
                 large_elements_limit=10, enable_debug_info=True)
-            pipeline_str = "torchscript-to-linalg-on-tensors-backend-pipeline"
+            pipeline_str = "torchscript-module-to-linalg-on-tensors-backend-pipeline"
             # Lower module in place to make it ready for compiler backends.
             with mb.module.context:
                 pm = PassManager.parse(pipeline_str)

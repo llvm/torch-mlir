@@ -56,8 +56,6 @@ void mlir::torch::Torch::createTorchScriptToTorchBackendPipeline(
   // calls, so inline everything.
   // TODO: Improve shape inference.
   pm.addPass(createInlinerPass());
-  // Incorporate user annotations and remove signature Python-isms.
-  pm.addPass(createAdjustCallingConventionsPass());
 
   createGlobalizedModuleToTorchBackendPipeline(pm, options);
 }
@@ -85,6 +83,9 @@ void mlir::torch::Torch::createGlobalizedModuleToTorchBackendPipeline(
   // - ...
   // Please try to keep this list somewhat up to date when adding
   // "optimize hard enough that it works" transformations.
+
+  // Incorporate user annotations and remove signature Python-isms.
+  pm.addPass(createAdjustCallingConventionsPass());
 
   if (options.optimize) {
     // Inline global slots, which for most inference scenarios deletes them.
