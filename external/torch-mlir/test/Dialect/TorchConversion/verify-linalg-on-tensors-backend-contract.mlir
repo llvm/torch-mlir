@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt -npcomp-verify-linalg-on-tensors-backend-contract -split-input-file -verify-diagnostics -allow-unregistered-dialect %s | FileCheck %s
+// RUN: torch-mlir-opt -torch-verify-linalg-on-tensors-backend-contract -split-input-file -verify-diagnostics -allow-unregistered-dialect %s | FileCheck %s
 
 // CHECK: func @mm
 func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
@@ -21,7 +21,7 @@ func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
 
 // Basic check of error reporting.
 
-// expected-error@+1 {{Module does not conform to npcomp's backend contract.}}
+// expected-error@+1 {{Module does not conform to the linalg-on-tensors backend contract.}}
 module {
   func @disallowed() {
     // expected-error@+1 {{failed to legalize operation 'unknown_dialect.unknown_op'}}
@@ -44,7 +44,7 @@ module {
 // in an understandable way, such as suggesting a particular place where
 // a shape annotation is needed.
 
-// expected-error@+1 {{Module does not conform to npcomp's backend contract.}}
+// expected-error@+1 {{Module does not conform to the linalg-on-tensors backend contract.}}
 module {
   func @disallowed(%arg0: tensor<?x!numpy.any_dtype>) -> tensor<?x!numpy.any_dtype> {
     // expected-error@+1 {{failed to legalize operation 'std.return'}}

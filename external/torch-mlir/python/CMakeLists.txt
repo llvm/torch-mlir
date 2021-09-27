@@ -5,6 +5,7 @@ include(AddMLIRPython)
 # argument.
 set(TORCH_MLIR_PYTHON_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_mlir")
 
+
 # We vendor our own MLIR instance in the `torch_mlir` namespace.
 add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
 
@@ -49,6 +50,7 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
+  add_subdirectory(torch_mlir_e2e_test)
 endif()
 
 ################################################################################
@@ -93,4 +95,8 @@ add_mlir_python_modules(TorchMLIRPythonModules
 # Then it would "just work".
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_dependencies(TorchMLIRPythonModules TorchMLIRJITIRImporter)
+  # Build the E2E Tests (which depend on the JIT IR importer now).
+  add_dependencies(TorchMLIRPythonModules TorchMLIRE2ETestPythonModules)
 endif()
+
+add_subdirectory(test)

@@ -19,8 +19,9 @@ namespace torch {
 namespace TorchConversion {
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
-/// TorchScript import into the form expected by npcomp-verify-backend-contract.
-void createTorchScriptToNpcompBackendPipeline(
+/// TorchScript import into the form expected by
+/// torch-verify-linalg-on-tensors-verify-backend-contract.
+void createTorchScriptToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 

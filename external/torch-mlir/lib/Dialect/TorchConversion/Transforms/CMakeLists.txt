@@ -5,7 +5,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   VerifyLinalgOnTensorsBackendContract.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/TorchConversion/Transforms
+  ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/TorchConversion/Transforms
 
   DEPENDS
   TorchMLIRTorchConversionPassIncGen

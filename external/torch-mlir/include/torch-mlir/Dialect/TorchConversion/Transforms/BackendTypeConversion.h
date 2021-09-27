@@ -20,8 +20,8 @@ namespace TorchConversion {
 void getBackendTypeConversionDependentDialects(DialectRegistry &registry);
 
 /// Set up the provided ConversionTarget and TypeConverter for converting
-/// from `torch` dialect types to the types along the npcomp backend boundary
-/// (which currently consist only of builtin types).
+/// from `torch` dialect types to the types along the linalg-on-tensors backend
+/// boundary (which currently consist only of builtin types).
 void setupBackendTypeConversion(ConversionTarget &target,
                                 TypeConverter &typeConverter);
 } // namespace TorchConversion

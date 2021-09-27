@@ -18,7 +18,7 @@ def VerifyInvariantsBeforeBackendLowering
     "mlir::torch::TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass()";
   let description = [{
     This pass checks any invariants needed by the process of lowering the
-    `torch` dialect to the npcomp backend contract.
+    `torch` dialect to the linalg-on-tensors backend contract.
 
     The most important invariant is that all tensors should be ranked and have
     a known dtype. It is useful to catch this early because it usually
@@ -52,7 +52,7 @@ def FinalizingBackendTypeConversion
   }];
 }
 
-def VerifyLinalgOnTensorsBackendContract : Pass<"npcomp-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
+def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the linalg-on-tensors backend contract";
   let constructor = "mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";
 }
