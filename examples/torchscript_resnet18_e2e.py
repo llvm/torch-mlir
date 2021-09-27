@@ -10,10 +10,9 @@ from torchvision import transforms
 
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
 
-import npcomp
-from npcomp.passmanager import PassManager
-from npcomp.compiler.pytorch.backend import refbackend
-from npcomp.compiler.utils import logging
+from torch_mlir.passmanager import PassManager
+from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
+
 
 mb = ModuleBuilder()
 
@@ -57,7 +56,7 @@ def predictions(torch_func, jit_func, img, labels):
     print("PyTorch prediction")
     print(golden_prediction)
     prediction = top3_possibilities(torch.from_numpy(jit_func(img.numpy())))
-    print("NPCOMP prediction")
+    print("torch-mlir prediction")
     print(prediction)
 
 
@@ -107,14 +106,12 @@ class_annotator.annotateArgs(
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
 mb.import_module(recursivescriptmodule._c, class_annotator)
 
-backend = refbackend.RefBackendNpcompBackend()
-with npcomp.ir.Context() as ctx:
-    npcomp.register_all_dialects(ctx)
-    lowered_mlir_module = npcomp.ir.Module.parse(str(mb.module))
-    pm = PassManager.parse('torchscript-to-npcomp-backend-pipeline')
-    pm.run(lowered_mlir_module)
+backend = refbackend.RefBackendLinalgOnTensorsBackend()
+with mb.module.context:
+    pm = PassManager.parse('torchscript-to-linalg-on-tensors-backend-pipeline')
+    pm.run(mb.module)
 
-compiled = backend.compile(lowered_mlir_module)
+compiled = backend.compile(mb.module)
 jit_module = backend.load(compiled)
 
 predictions(test_module.forward, jit_module.forward, img, labels)
