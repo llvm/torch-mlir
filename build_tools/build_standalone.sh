@@ -11,7 +11,7 @@
 set -eu -o errtrace
 
 project_dir="$(cd $(dirname $0)/.. && pwd)"
-llvm_project_dir="$project_dir/../llvm-project"
+llvm_project_dir="$project_dir/external/llvm-project"
 build_dir="$project_dir/build"
 
 cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
