@@ -23,8 +23,10 @@ cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
   -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$project_dir" \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_TARGETS_TO_BUILD=host
 
+#-DLLVM_ENABLE_ASSERTIONS=ON \
+#
+
 cd "$build_dir"
-ninja tools/torch-mlir/all check-torch-mlir
+ninja tools/torch-mlir/all check-torch-mlir-all

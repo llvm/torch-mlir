@@ -203,8 +203,7 @@ add_custom_target(check-npcomp)
 add_custom_target(check-npcomp-all)
 add_dependencies(check-npcomp-all
   check-npcomp
-  check-npcomp-python
-  check-torch-mlir
+  check-torch-mlir-all
   )
 
 add_subdirectory(lib)

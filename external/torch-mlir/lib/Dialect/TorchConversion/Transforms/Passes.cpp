@@ -33,16 +33,16 @@ namespace {
 void mlir::torch::registerTorchConversionPasses() {
   ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-to-npcomp-backend-pipeline",
-      "Pipeline lowering torch object graph to npcomp backend format.",
-      mlir::torch::TorchConversion::createTorchScriptToNpcompBackendPipeline);
+      "torchscript-to-linalg-on-tensors-backend-pipeline",
+      "Pipeline lowering torch object graph to linalg-on-tensors backend format.",
+      mlir::torch::TorchConversion::createTorchScriptToLinalgOnTensorsBackendPipeline);
 }
 
-void mlir::torch::TorchConversion::createTorchScriptToNpcompBackendPipeline(
+void mlir::torch::TorchConversion::createTorchScriptToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
 
-  // Conversion to the npcomp backend contract starts from the Torch backend
-  // contract.
+  // Conversion to the linalg-on-tensors backend contract starts from the Torch
+  // backend contract.
   Torch::createTorchScriptToTorchBackendPipeline(pm, options);
 
   // Check some invariants to catch errors in a clear way.
@@ -68,8 +68,8 @@ void mlir::torch::TorchConversion::createTorchScriptToNpcompBackendPipeline(
     pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
-  // Finish the type conversion from `torch` types to the types of the npcomp
-  // backend contract.
+  // Finish the type conversion from `torch` types to the types of the
+  // linalg-on-tensors backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
   pm.addNestedPass<FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());

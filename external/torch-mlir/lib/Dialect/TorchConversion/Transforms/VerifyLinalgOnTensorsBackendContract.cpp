@@ -72,8 +72,8 @@ class VerifyLinalgOnTensorsBackendContractPass
       // We avoid `module.emitError()` so that mlir-print-op-on-diagnostics
       // doesn't unnecessarily spew out the entire module.
       emitError(module.getLoc())
-          << "Module does not conform to npcomp's backend contract. See "
-             "dialect conversion legality information above.";
+          << "Module does not conform to the linalg-on-tensors backend contract. "
+             "See dialect conversion legality information above.";
       return signalPassFailure();
     }
   }

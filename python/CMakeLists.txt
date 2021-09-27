@@ -96,7 +96,7 @@ declare_mlir_python_sources(NPCOMPTorchSupportPythonSources
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_support"
   SOURCES_GLOB
     npcomp_torchscript/*.py
-    npcomp_torchscript_e2e_test_configs/*.py
+    torch_mlir_e2e_test.torchscript.configs/*.py
 )
 
 add_mlir_python_modules(NPCOMPTorchSupportPythonModules
@@ -114,5 +114,3 @@ add_dependencies(NPCOMPTorchSupportPythonModules
 ################################################################################
 # Recurse into the tests.
 ################################################################################
-
-add_subdirectory(test)

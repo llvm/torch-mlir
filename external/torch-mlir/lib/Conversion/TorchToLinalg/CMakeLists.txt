@@ -2,7 +2,7 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
   TorchToLinalg.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SOURCE_DIR}/include/npcomp/Conversion/TorchToLinalg
+  ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToLinalg
 
   DEPENDS
   TorchMLIRConversionPassIncGen

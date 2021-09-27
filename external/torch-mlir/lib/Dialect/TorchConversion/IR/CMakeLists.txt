@@ -3,7 +3,7 @@ add_mlir_dialect_library(TorchMLIRTorchConversionDialect
   TorchConversionOps.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${PROJECT_SOURCE_DIR}/include/npcomp/Dialect/TorchConversion
+  ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/TorchConversion
 
   DEPENDS
   MLIRTorchConversionOpsIncGen
