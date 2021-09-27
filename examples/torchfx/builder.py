@@ -397,7 +397,8 @@ def _add_handler(func_builder: _ForwardFunctionBuilder,
 and an argument named `other`'
     tensor_type = TorchTensorType().to_mlir(func_builder.context)
     int_type = PythonType(int).to_mlir(func_builder.context)
-    int_attr = ir.IntegerAttr.get(int_type, 1)
+    attr_type = ir.Type.parse('i64', func_builder.context)
+    int_attr = ir.IntegerAttr.get(attr_type, 1)
     alpha_arg = torch_d.ConstantIntOp(int_type,
                                       int_attr,
                                       loc=func_builder.loc,
