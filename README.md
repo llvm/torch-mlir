@@ -1,20 +1,20 @@
 # torch-mlir
 
-The Torch-MLIR project aims to provide first class support from the [Pytorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
+The Torch-MLIR project aims to provide first class compiler support from the [PyTorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
 
 > This project is participating in the LLVM Incubator process: as such, it is
 not part of any official LLVM release.  While incubation status is not
 necessarily a reflection of the completeness or stability of the code, it
 does indicate that the project is not yet endorsed as a component of LLVM.
 
-[Pytorch](https://pytorch.org)
+[PyTorch](https://pytorch.org)
 An open source machine learning framework that accelerates the path from research prototyping to production deployment.
 
 [MLIR](https://mlir.llvm.org)
 The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
 
 [Torch-MLIR](https://github.com/llvm/torch-mlir)
-Multiple Vendors use MLIR as the middle layer mapping from Platform Frameworks like Pytorch, JAX, Tensorflow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having a canonical lowering from the Pytorch ecosystem to the MLIR ecosystem would provide much needed relief to Hardware Vendors to focus on their unique value rather than implementing another Pytorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
+Multiple Vendors use MLIR as the middle layer mapping from platform frameworks like PyTorch, JAX, TensorFlow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem would provide much needed relief to hardware vendors to focus on their unique value rather than implementing another PyTorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
 
 ## All the roads from PyTorch to Torch MLIR Dialect
 
