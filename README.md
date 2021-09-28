@@ -38,28 +38,26 @@ cd torch-mlir
 git submodule update --init
 ```
 
-## Build
+## Setup your Python Environment
 
 ```
-# Use clang and lld to build (optional but recommended).
-export LLVM_VERSION=13
-export CC=clang-$LLVM_VERSION
-export CXX=clang++-$LLVM_VERSION
-export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
-
 python3 -m venv mlir_venv
 source mlir_venv/bin/activate
 pip3 install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
-#Install latest PyTorch nightlies
+# Install latest PyTorch nightlies
 pip3 install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+```
 
-#Invoke CMake and Ninja
+## Build 
+```
 cmake -GNinja -Bbuild \
+  -DCMAKE_C_COMPILER=clang-13 \
+  -DCMAKE_CXX_COMPILER=clang++-13 \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host
+  -DLLVM_TARGETS_TO_BUILD=host \
   external/llvm-project/llvm
 
 # Additional quality of life CMake flags:
@@ -67,15 +65,17 @@ cmake -GNinja -Bbuild \
 #   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 cmake --build build
+```
+## Demos
 
+## Setup ENV
+```
 # Run write_env_file.sh to emit a .env file with needed
 # PYTHONPATH setup.
 ./build_tools/write_env_file.sh
 source .env
 
 ```
-
-## Demos
 
 ### TorchScript
 Running execution (end-to-end) tests:
