@@ -73,7 +73,7 @@ cmake --build build
 
 ## Setup ENV
 ```
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir
 ```
 
 ### TorchScript
@@ -81,17 +81,25 @@ Running execution (end-to-end) tests:
 
 ```
 # Run E2E TorchScript tests. These compile and run the TorchScript program
-# through torch-mlir with a simplified linalg-on-tensors based backend we call
-# RefBackend (more production-grade backends at this same abstraction layer
-# exist in the MLIR community, such as IREE).
-./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
+# through torch-mlir with a simplified MLIR CPU backend we call RefBackend
+python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 ```
 
-Standalone script to generate and run a ResNet18 model:
+Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
 ```
 # Run ResNet18 as a standalone script.
 python examples/torchscript_resnet18_e2e.py
+
+(mlir_venv) mlir@torch-mlir:~$ python examples/torchscript_resnet18_e2e.py
+load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/anush/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
+100.0%
+PyTorch prediction
+[('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
+torch-mlir prediction
+[('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
+
 ```
 
 Jupyter notebook:
