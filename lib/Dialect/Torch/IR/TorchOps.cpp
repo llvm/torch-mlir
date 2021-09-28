@@ -739,6 +739,15 @@ void ConstantStrOp::getAsmResultNames(
 }
 
 //===----------------------------------------------------------------------===//
+// ConstantDeviceOp
+//===----------------------------------------------------------------------===//
+
+void ConstantDeviceOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  setNameFn(getResult(), value());
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantIntOp
 //===----------------------------------------------------------------------===//
 
