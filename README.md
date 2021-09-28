@@ -41,18 +41,18 @@ git submodule update --init
 ## Setup your Python Environment
 
 ```
-python3 -m venv mlir_venv
+python -m venv mlir_venv
 source mlir_venv/bin/activate
-pip3 install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
+python -m pip install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
 # Install latest PyTorch nightlies
-pip3 install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+python -m pip install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 ```
 
 ## Build 
 ```
 cmake -GNinja -Bbuild \
-  -DCMAKE_C_COMPILER=clang-13 \
-  -DCMAKE_CXX_COMPILER=clang++-13 \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
@@ -63,6 +63,9 @@ cmake -GNinja -Bbuild \
 # Additional quality of life CMake flags:
 # Enable ccache:
 #   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+# Enale LLD (links in seconds compared to minutes)
+# -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
+# Use --ld-path= instead of -fuse-ld=lld for clang > 13
 
 cmake --build build
 ```
@@ -84,7 +87,7 @@ Running execution (end-to-end) tests:
 ./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
 ```
 
-Standalone script to generate and run a Resnet18 model:
+Standalone script to generate and run a ResNet18 model:
 
 ```
 # Run ResNet18 as a standalone script.
