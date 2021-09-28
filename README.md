@@ -70,11 +70,7 @@ cmake --build build
 
 ## Setup ENV
 ```
-# Run write_env_file.sh to emit a .env file with needed
-# PYTHONPATH setup.
-./build_tools/write_env_file.sh
-source .env
-
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages
 ```
 
 ### TorchScript
