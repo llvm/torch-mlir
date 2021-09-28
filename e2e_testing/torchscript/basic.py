@@ -30,12 +30,6 @@ def MmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
 
-# TODO: Investigate why RefBackend sometimes can't handle two calls in a row in
-# the trace.
-# It actually works, if MmModule_chained is run by itself, but if other tests
-# are mixed with it, it fails with a mysterious-sounding low level ctypes error
-# that exceeds my current ability to debug.
-#
 @register_test_case(module_factory=lambda: MmModule())
 def MmModule_chained(module, tu: TestUtils):
     res = module.forward(tu.rand(4, 4), tu.rand(4, 4))

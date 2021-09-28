@@ -18,11 +18,7 @@ _common_torch_mlir_lowering_xfails = {
     'QuantizedMLP_basic',
 }
 
-XFAIL_SETS['refbackend'] = _common_torch_mlir_lowering_xfails | {
-    # The first test in the e2e test batch would fail with SystemError: null
-    # argument to internal routine. Might be some issue with refbackend.
-    'MmModule_basic',
-}
+XFAIL_SETS['refbackend'] = _common_torch_mlir_lowering_xfails
 
 XFAIL_SETS['torchscript'] = {}
 
