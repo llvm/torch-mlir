@@ -30,14 +30,84 @@ We have few paths to lower down to the Torch MLIR Dialect.
 	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
  - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
 
-## Examples
-There are few examples of lowering down via path from PyTorch to MLIR and using the “mlir-cpu-runner” to target a CPU backend. Obviously this is just a starting point and you can import this project into your larger MLIR projects to continue lowering to target GPUs and other Accelerators.
+## Check out the code
 
-## Project Communication
+```shell
+git clone https://github.com/llvm/torch-mlir
+cd torch-mlir
+git submodule update --init
+```
 
-- `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
-- issues/PR's on this github repo
-- [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
+## Build
+
+```
+# Use clang and lld to build (optional but recommended).
+export LLVM_VERSION=13
+export CC=clang-$LLVM_VERSION
+export CXX=clang++-$LLVM_VERSION
+export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
+
+python3 -m venv mlir_venv
+source mlir_venv/bin/activate
+pip3 install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
+#Install latest PyTorch nightlies
+pip3 install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+
+#Invoke CMake and Ninja
+cmake -GNinja -Bbuild \
+  -DLLVM_ENABLE_PROJECTS=mlir \
+  -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host
+  external/llvm-project/llvm
+
+cmake --build build
+
+# Run write_env_file.sh to emit a .env file with needed
+# PYTHONPATH setup.
+./build_tools/write_env_file.sh
+source .env
+
+```
+
+## Demos
+
+### TorchScript
+Running execution (end-to-end) tests:
+
+```
+# Run E2E TorchScript tests. These compile and run the TorchScript program
+# through torch-mlir with a simplified linalg-on-tensors based backend we call
+# RefBackend (more production-grade backends at this same abstraction layer
+# exist in the MLIR community, such as IREE).
+./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
+```
+
+Standalone script to generate and run a Resnet18 model:
+
+```
+# Run ResNet18 as a standalone script.
+python examples/torchscript_resnet18_e2e.py
+```
+
+Jupyter notebook:
+```
+python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
+# Open in jupyter, and then navigate to
+# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
+jupyter notebook
+```
+
+### TorchFX
+
+TODO
+
+
+### Lazy Tensor Core
+
+TODO
+
 
 ## Repository Layout
 
@@ -55,109 +125,8 @@ file in the workspace folder with the correct PYTHONPATH set. This allows
 tools like VSCode to work by default for debugging. This file can also be
 manually `source`'d in a shell.
 
-## Build Instructions
+## Project Communication
 
-```shell
-# From checkout directory.
-git submodule init
-git submodule update
-
-# Use clang and lld to build (optional but recommended).
-LLVM_VERSION=10
-export CC=clang-$LLVM_VERSION
-export CXX=clang++-$LLVM_VERSION
-export LDFLAGS=-fuse-ld=$(which ld.lld-$LLVM_VERSION)
-
-# Install PyTorch. We currently track and require the nighly build.
-# If a usable PyTorch package is installed, the default cmake settings will
-# enable the PyTorch frontend.
-pip3 install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-
-# Invoke CMake and build. This will also run all unit tests.
-./build_tools/build_standalone.sh
-
-# Run write_env_file.sh to emit a .env file with needed
-# PYTHONPATH setup.
-./build_tools/write_env_file.sh
-source .env
-
-```
-
-## Demos
-
-### TorchScript
-
-A lot of the prior effort on torch-mlir has gone into the TorchScript compiler,
-with a path to execution via linalg-on-tensors (a commonly used representation
-of tensor computations in the MLIR community). Thus, this path has the most
-extensive testing and functionality.
-
-Running execution (end-to-end) tests:
-
-```
-# Run E2E TorchScript tests. These compile and run the TorchScript program
-# through torch-mlir with a simplified linalg-on-tensors based backend we call
-# RefBackend (more production-grade backends at this same abstraction layer
-# exist in the MLIR community, such as IREE).
-./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
-```
-
-Standalone script:
-
-```
-# Run ResNet18 as a standalone script.
-python examples/torchscript_resnet18_e2e.py
-```
-
-Jupyter notebook:
-```
-python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
-# Open in jupyter, and then navigate to
-# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
-jupyter notebook
-```
-
-
-### TorchFX
-
-TODO
-
-
-### Lazy Tensor Core
-
-TODO
-
-### Additional TorchScript end-to-end tests with heavy dependencies
-
-Some of the Torchscript end-to-end tests require additional dependencies which
-don't make sense to include as part of the default torch-mlir setup.
-Additionally, these dependencies often don't work with the same HEAD PyTorch
-version that torch-mlir builds against at the C++ level (the TorchScript
-importer is written in C++)
-
-We have a self-contained script that generates all the needed artifacts from a
-self-contained virtual environment. It can be used like so:
-
-```shell
-# Build the virtual environment in the specified directory and generate the
-# serialized test artifacts in the other specified directory.
-# This command is safe to re-run if you have already built the virtual
-# environment and just changed the tests.
-build_tools/torchscript_e2e_heavydep_tests/generate_serialized_tests.sh \
-  path/to/heavydep_venv \
-  path/to/heavydep_serialized_tests
-
-# Add the --serialized-test-dir flag to point at the directory containing the
-# serialized tests. All other functionality is the same as the normal invocation
-# of torchscript_e2e_test.sh, but the serialized tests will be available.
-tools/torchscript_e2e_test.sh --serialized-test-dir=path/to/heavydep_serialized_tests
-```
-
-The tests use the same (pure-Python) test framework as the normal
-torchscript_e2e_test.sh, but the tests are added in
-`build_tools/torchscript_e2e_heavydep_tests` instead of
-`frontends/pytorch/e2e_testing/torchscript`.
-
-We rely critically on serialized TorchScript compatibility across PyTorch
-versions to transport the tests + pure-Python compatibility of the `torch`
-API, which has worked well so far.
+- `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
+- Issues [here](https://github.com/llvm/torch-mlir/issues)
+- [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
