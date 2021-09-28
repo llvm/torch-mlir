@@ -62,6 +62,10 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host
   external/llvm-project/llvm
 
+# Additional quality of life CMake flags:
+# Enable ccache:
+#   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
 cmake --build build
 
 # Run write_env_file.sh to emit a .env file with needed
