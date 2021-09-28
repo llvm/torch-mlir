@@ -563,6 +563,22 @@ def Torch_ConstantStrOp : Torch_Op<"constant.str",
   let hasFolder = 1;
 }
 
+def Torch_ConstantDeviceOp : Torch_Op<"constant.device",
+    [NoSideEffect,
+    DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
+  let summary = "Materialize a constant Device value.";
+  let description = [{
+
+  }];
+  let arguments = (ins
+    StrAttr:$value
+  );
+  let results = (outs
+    Torch_DeviceType:$result
+  );
+  let assemblyFormat = "$value attr-dict";
+}
+
 def Torch_ConstantIntOp : Torch_Op<"constant.int",
     [ConstantLike, NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {

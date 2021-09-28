@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.torchscript.framework import SerializableTest, generate
 from torch_mlir_e2e_test.torchscript.annotations import extract_serializable_annotations
 
 from . import basic_mt
+from . import bert_seq_classification
 
 
 def _get_argparse():

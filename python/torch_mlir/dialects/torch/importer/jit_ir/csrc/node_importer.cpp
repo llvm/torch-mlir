@@ -156,6 +156,19 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
           toMlirNamedAttribute(
               "value", mlirStringAttrGet(context, toMlirStringRef(node->s(
                                                       c10::attr::value)))));
+    } else if (output->type()->cast<c10::TensorType>()) {
+      MlirAttribute attr = importAttribute(loc, node, c10::attr::value);
+      op = createMlirOperation(
+          "torch.tensor.literal", loc,
+          torchMlirTorchNonValueTensorTypeGetFromAttribute(attr),
+          toMlirNamedAttribute("value", attr));
+    } else if (output->type()->cast<c10::DeviceObjType>()) {
+      op = createMlirOperation(
+          "torch.constant.device", loc,
+          getMlirTypeFromTorchType(loc, output->type()),
+          toMlirNamedAttribute(
+              "value", mlirStringAttrGet(context, toMlirStringRef(node->s(
+                                                      c10::attr::value)))));
     } else if (auto functionType = output->type()->cast<c10::FunctionType>()) {
       torch::jit::Function *function = functionType->function();
       const std::string &symName = function->qualname().qualifiedName();

@@ -20,6 +20,9 @@ mkdir -p $venv_dir
 mkdir -p $serialized_test_dir
 python3 -m venv $venv_dir
 source $venv_dir/bin/activate
+# For bert_seq_classification
+python3 -m pip install transformers
+# For basic_mt
 python3 -m pip install fairseq fvcore sacremoses subword-nmt
 
 cd "$torch_mlir_src_root"
