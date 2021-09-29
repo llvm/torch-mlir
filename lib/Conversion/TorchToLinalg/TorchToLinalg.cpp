@@ -187,7 +187,7 @@ static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
       input.getType().cast<RankedTensorType>(), paddingInts, paddingInts);
   Value paddedInput = linalg::PadTensorOp::createPadScalarOp(
       ranked4DTensorType, input, c0, /*low=*/paddings, /*high=*/paddings,
-      /*packing=*/false, loc, b);
+      loc, b);
   return paddedInput;
 }
 
