@@ -38,7 +38,7 @@ cd torch-mlir
 git submodule update --init
 ```
 
-## Setup your Python Environment
+## Setup your Python VirtualEnvironment and Dependencies
 
 ```
 python -m venv mlir_venv
@@ -71,9 +71,9 @@ cmake --build build
 ```
 ## Demos
 
-## Setup ENV
+## Setup Python Environment
 ```
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
 ```
 
 ### TorchScript
@@ -96,7 +96,7 @@ python examples/torchscript_resnet18_e2e.py
 
 (mlir_venv) mlir@torch-mlir:~$ python examples/torchscript_resnet18_e2e.py
 load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
-Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/anush/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
 100.0%
 PyTorch prediction
 [('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
@@ -119,7 +119,7 @@ The `examples` folder includes the Python package `torchfx`, which is a function
 
 #### Example usage of `torchfx`
 
-The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-env) instructions, and add `/path/to/torch-mlir/examples` to your `PYTHONPATH`.
+The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-your-python-environment) instructions.
 
 Then, run
 
@@ -138,13 +138,10 @@ The `examples` folder includes the Python package `lazytensor`, which implements
 
 The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md). 
 
-In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-env) instructions, and also add the following to your `PYTHONPATH`:
-1. `/path/to/torch-mlir/examples`
-2. `/path/to/pytorch/lazy_tensor_core`
-
-Then, run
+In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-your-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
 
 ```
+export PYTHONPATH=$PYTHONPATH:`/replace/with/path/to/pytorch/lazy_tensor_core`
 python lazytensor_example_name.py
 ```
 
