@@ -77,6 +77,7 @@ export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir
 ```
 
 ### TorchScript
+
 Running execution (end-to-end) tests:
 
 ```
@@ -84,6 +85,8 @@ Running execution (end-to-end) tests:
 # through torch-mlir with a simplified MLIR CPU backend we call RefBackend
 python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 ```
+
+[Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
 
 Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
