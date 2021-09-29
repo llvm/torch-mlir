@@ -33,3 +33,4 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   );
   let assemblyFormat = "$X `,` $W_prepack `,` $Y_scale_i `,` $Y_zero_point_i attr-dict `:` type($X) `,` type($W_prepack) `,` type($Y_scale_i) `,` type($Y_zero_point_i) `->` type($Y)";
 }
+

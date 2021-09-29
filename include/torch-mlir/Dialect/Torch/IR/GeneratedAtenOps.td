@@ -2438,3 +2438,4 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
+

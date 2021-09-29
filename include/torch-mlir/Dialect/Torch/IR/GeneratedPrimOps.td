@@ -224,3 +224,4 @@ def Torch_PrimTolistOp : Torch_Op<"prim.tolist", [
   );
   let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands) `->` type($results)";
 }
+
