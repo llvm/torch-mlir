@@ -1,3 +1,6 @@
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 """
 Translator from Torch.FX to MLIR.
 
@@ -9,9 +12,6 @@ The expected use for this module is to use the function
 `build_module(py_module: torch.fx.GraphModule) -> ir.Module`
 to convert the output from the tracer into MLIR using the `torch`
 dialect.
-
-This file is licensed under a pytorch-style license
-See frontends/pytorch/LICENSE for license information.
 """
 
 # pylint: disable=no-member, no-name-in-module, invalid-name, fixme
@@ -27,7 +27,8 @@ from torch_mlir.dialects import builtin, std
 import torch.fx
 from torch.fx.experimental.fx_acc import acc_ops
 
-from .torch_mlir_types import TorchTensorType, PythonType, TorchNnModuleType
+from utils.torch_mlir_types import TorchTensorType, PythonType, \
+    TorchNnModuleType
 
 Environment = MutableMapping[torch.fx.Node, ir.Value]
 
@@ -388,7 +389,7 @@ an argument named `input`'
 
 
 @_add_handler(ACC_OP_HANDLERS, acc_ops.add)
-def _add_handler(func_builder: _ForwardFunctionBuilder,
+def _add_tensor_handler(func_builder: _ForwardFunctionBuilder,
                  args: Mapping[str, ir.Value]) -> ir.OpResult:
     input_arg = args.get('input')
     other_arg = args.get('other')
@@ -396,10 +397,10 @@ def _add_handler(func_builder: _ForwardFunctionBuilder,
         'A call to this handler must include an argument named `input` \
 and an argument named `other`'
     tensor_type = TorchTensorType().to_mlir(func_builder.context)
-    int_type = PythonType(int).to_mlir(func_builder.context)
-    attr_type = ir.Type.parse('i64', func_builder.context)
-    int_attr = ir.IntegerAttr.get(attr_type, 1)
-    alpha_arg = torch_d.ConstantIntOp(int_type,
+    torch_int_type = PythonType(int).to_mlir(func_builder.context)
+    int_type = ir.Type.parse("i64", context=func_builder.context)
+    int_attr = ir.IntegerAttr.get(int_type, 1)
+    alpha_arg = torch_d.ConstantIntOp(torch_int_type,
                                       int_attr,
                                       loc=func_builder.loc,
                                       ip=func_builder.func_ip).result

@@ -104,13 +104,40 @@ jupyter notebook
 
 ### TorchFX
 
-TODO
+The `examples` folder includes the Python package `torchfx`, which is a functional prototype of a TorchFX to MLIR pipeline. The main entry point into the `torchfx` package is the `torchfx.builder` module, which includes a function for converting the output of a TorchFX trace into MLIR. Currently, the number of PyTorch operations supported is very limited, but will be expanded in the future.
+
+#### Example usage of `torchfx`
+
+The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-env) instructions, and add `/path/to/torch-mlir/examples` to your `PYTHONPATH`.
+
+Then, run
+
+```
+python torchfx_example_name.py
+```
+
+replacing `torchfx_example_name.py` with the actual `torchfx` example you want to run.
 
 
 ### Lazy Tensor Core
 
-TODO
+The `examples` folder includes the Python package `lazytensor`, which implements a Lazy Tensor Core (LTC) to MLIR pipeline. The main entry point into the `lazytensor` package is the `lazytensor.builder`, which includes the function `build_module` that takes a computation captured and converted to TorchScript IR by LTC, and converts it to MLIR.
 
+#### Example usage of `lazytensor`
+
+The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md). 
+
+In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-env) instructions, and also add the following to your `PYTHONPATH`:
+1. `/path/to/torch-mlir/examples`
+2. `/path/to/pytorch/lazy_tensor_core`
+
+Then, run
+
+```
+python lazytensor_example_name.py
+```
+
+replacing `lazytensor_example_name.py` with the actual `lazytensor` example you want to run.
 
 ## Repository Layout
 

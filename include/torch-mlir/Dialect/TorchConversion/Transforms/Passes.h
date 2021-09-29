@@ -18,10 +18,17 @@ namespace mlir {
 namespace torch {
 namespace TorchConversion {
 
-/// Creates a pipeline that lowers the object graph IR that is produced by
-/// TorchScript import into the form expected by
+/// Creates a pipeline that lowers the object graph IR that is given by a
+/// TorchScript jit.ScriptModule into the form expected by
 /// torch-verify-linalg-on-tensors-verify-backend-contract.
-void createTorchScriptToLinalgOnTensorsBackendPipeline(
+void createTorchScriptModuleToLinalgOnTensorsBackendPipeline(
+    OpPassManager &pm,
+    const torch::Torch::TorchLoweringPipelineOptions &options);
+
+/// Creates a pipeline that lowers the object graph IR that is given by a
+/// TorchScript jit.ScriptFunction into the form expected by
+/// torch-verify-linalg-on-tensors-verify-backend-contract.
+void createTorchScriptFunctionToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 
