@@ -3,6 +3,7 @@
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
 //
 // Operation summaries and descriptions were systematically derived from public
 // API docstrings and are licensed accordingly:
@@ -32,4 +33,3 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   );
   let assemblyFormat = "$X `,` $W_prepack `,` $Y_scale_i `,` $Y_zero_point_i attr-dict `:` type($X) `,` type($W_prepack) `,` type($Y_scale_i) `,` type($Y_zero_point_i) `->` type($Y)";
 }
-
