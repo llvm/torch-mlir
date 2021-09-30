@@ -121,7 +121,7 @@ The `examples` folder includes the Python package `torchfx`, which is a function
 
 #### Example usage of `torchfx`
 
-The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-your-python-environment) instructions.
+The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions.
 
 Then, run
 
@@ -140,7 +140,7 @@ The `examples` folder includes the Python package `lazytensor`, which implements
 
 The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md). 
 
-In order to run the examples, make sure you've setup your `PYTHONPATH` by following [these](#setup-your-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
+In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
 
 ```
 export PYTHONPATH=$PYTHONPATH:`/replace/with/path/to/pytorch/lazy_tensor_core`
