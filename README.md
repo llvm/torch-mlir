@@ -91,6 +91,8 @@ python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
 ```
+# The example uses PIL and requests to get the image.
+pip install requests pillow
 # Run ResNet18 as a standalone script.
 python examples/torchscript_resnet18_e2e.py
 
