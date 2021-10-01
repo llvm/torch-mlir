@@ -93,7 +93,7 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
     4. All this code operates on ranked tensors, for which using individual
        SSA values for sizes (rather than a "shape type") seems to
        work really well at this level of abstraction based on prior experience
-       in IREE. (unranked code tends to benefit from having a discrete
+       in other projects. (unranked code tends to benefit from having a discrete
        "shape type" to model shapes).
 
     We will see if we end up needing something like `shape.assuming`, but for

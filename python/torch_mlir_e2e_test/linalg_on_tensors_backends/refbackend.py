@@ -88,7 +88,7 @@ LOWERING_PIPELINE = ",".join([
 
 
 class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
-    """Main entry-point for the backend."""
+    """Main entry-point for the reference backend."""
     def __init__(self):
         super().__init__()
 
@@ -102,10 +102,8 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
           imported_module: The MLIR module consisting of funcs in the torch
             dialect.
         Returns:
-          An opaque, backend specific module object that can be passed to load.
-          The object may actually be something more specific to the backend (i.e.
-          for IREE, it is a serialized VM flatbuffer) but the contract is that
-          it is operated on by methods on this class.
+          An opaque, backend specific compiled artifact object that can be
+          passed to `load`.
         """
         with imported_module.context:
             pm = PassManager.parse(LOWERING_PIPELINE)
