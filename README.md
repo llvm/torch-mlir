@@ -40,7 +40,7 @@ git submodule update --init
 
 ## Setup your Python VirtualEnvironment and Dependencies
 
-```
+```shell
 python -m venv mlir_venv
 source mlir_venv/bin/activate
 python -m pip install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
@@ -49,7 +49,7 @@ python -m pip install --pre torch torchvision pybind11 -f https://download.pytor
 ```
 
 ## Build 
-```
+```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
@@ -72,7 +72,7 @@ cmake --build build
 ## Demos
 
 ## Setup Python Environment
-```
+```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
 ```
 
@@ -80,7 +80,7 @@ export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/
 
 Running execution (end-to-end) tests:
 
-```
+```shell
 # Run E2E TorchScript tests. These compile and run the TorchScript program
 # through torch-mlir with a simplified MLIR CPU backend we call RefBackend
 python -m e2e_testing.torchscript.main --filter Conv2d --verbose
@@ -90,13 +90,12 @@ python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 
 Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
-```
+```shell
 # The example uses PIL and requests to get the image.
 pip install requests pillow
 # Run ResNet18 as a standalone script.
 python examples/torchscript_resnet18_e2e.py
 
-(mlir_venv) mlir@torch-mlir:~$ python examples/torchscript_resnet18_e2e.py
 load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
 Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
 100.0%
@@ -104,11 +103,10 @@ PyTorch prediction
 [('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
 torch-mlir prediction
 [('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
-
 ```
 
 Jupyter notebook:
-```
+```shell
 python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
 # Open in jupyter, and then navigate to
 # `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
@@ -125,7 +123,7 @@ The `examples` folder includes scripts `torchfx_*.py` showing how to use the Tor
 
 Then, run
 
-```
+```shell
 python torchfx_example_name.py
 ```
 
@@ -142,7 +140,7 @@ The `examples` folder includes scripts `lazytensor_*.py` showing how to use the 
 
 In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
 
-```
+```shell
 export PYTHONPATH=$PYTHONPATH:`/replace/with/path/to/pytorch/lazy_tensor_core`
 python lazytensor_example_name.py
 ```
