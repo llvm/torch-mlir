@@ -15,11 +15,11 @@ XFAIL_SETS = {}
 # Lists of tests that fail to even reach the backends.
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
-_common_torch_mlir_lowering_xfails = {
+COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     'QuantizedMLP_basic',
 }
 
-XFAIL_SETS['refbackend'] = _common_torch_mlir_lowering_xfails
+XFAIL_SETS['refbackend'] = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 XFAIL_SETS['torchscript'] = {}
 
