@@ -16,6 +16,9 @@
 #
 # On CIs, it is often advantageous to re-use/control the CMake build directory.
 # This can be set with the TORCH_MLIR_CMAKE_BUILD_DIR env var.
+# Additionally, the TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT env var will
+# prevent this script from attempting to build the directory, and will simply
+# use the (presumed already built) directory as-is.
 #
 # Implementation notes:
 # The contents of the wheel is just the contents of the `python_packages`
@@ -28,7 +31,7 @@ import subprocess
 import sys
 
 from distutils.command.build import build as _build
-from setuptools import setup
+from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
@@ -49,27 +52,29 @@ class CMakeBuild(build_py):
         cmake_build_dir = os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR")
         if not cmake_build_dir:
             cmake_build_dir = os.path.join(target_dir, "..", "cmake_build")
-        src_dir = os.path.abspath(os.path.dirname(__file__))
-        llvm_dir = os.path.join(src_dir, "external", "llvm-project", "llvm")
-        cmake_args = [
-            f"-DCMAKE_BUILD_TYPE=Release",
-            f"-DPython3_EXECUTABLE={sys.executable}",
-            f"-DLLVM_TARGETS_TO_BUILD=host",
-            f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
-            f"-DLLVM_ENABLE_PROJECTS=mlir",
-            f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir",
-            f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
-        ]
-        os.makedirs(cmake_build_dir, exist_ok=True)
-        cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
-        if os.path.exists(cmake_cache_file):
-            os.remove(cmake_cache_file)
-        subprocess.check_call(["cmake", llvm_dir] +
-                              cmake_args, cwd=cmake_build_dir)
-        subprocess.check_call(["cmake",
-                               "--build",  ".",
-                               "--target", "TorchMLIRPythonModules"],
-                              cwd=cmake_build_dir)
+        if not os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT"):
+            src_dir = os.path.abspath(os.path.dirname(__file__))
+            llvm_dir = os.path.join(
+                src_dir, "external", "llvm-project", "llvm")
+            cmake_args = [
+                f"-DCMAKE_BUILD_TYPE=Release",
+                f"-DPython3_EXECUTABLE={sys.executable}",
+                f"-DLLVM_TARGETS_TO_BUILD=host",
+                f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
+                f"-DLLVM_ENABLE_PROJECTS=mlir",
+                f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir",
+                f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
+            ]
+            os.makedirs(cmake_build_dir, exist_ok=True)
+            cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
+            if os.path.exists(cmake_cache_file):
+                os.remove(cmake_cache_file)
+            subprocess.check_call(["cmake", llvm_dir] +
+                                  cmake_args, cwd=cmake_build_dir)
+            subprocess.check_call(["cmake",
+                                   "--build",  ".",
+                                   "--target", "TorchMLIRPythonModules"],
+                                  cwd=cmake_build_dir)
         python_package_dir = os.path.join(cmake_build_dir,
                                           "tools", "torch-mlir", "python_packages",
                                           "torch_mlir")
@@ -77,6 +82,13 @@ class CMakeBuild(build_py):
                         target_dir,
                         symlinks=False,
                         dirs_exist_ok=True)
+
+
+class CMakeExtension(Extension):
+
+  def __init__(self, name, sourcedir=""):
+    Extension.__init__(self, name, sources=[])
+    self.sourcedir = os.path.abspath(sourcedir)
 
 
 class NoopBuildExtension(build_ext):
@@ -98,5 +110,8 @@ setup(
         "built_ext": NoopBuildExtension,
         "build_py": CMakeBuild,
     },
+    ext_modules=[
+        CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
+    ],
     zip_safe=False,
 )
