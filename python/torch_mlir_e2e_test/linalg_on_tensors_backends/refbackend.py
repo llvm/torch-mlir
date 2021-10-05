@@ -36,11 +36,18 @@ class RefBackendInvoker:
         self.result = None
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_return(a):
+        def consume_i64_return(a):
+            self.result = unranked_memref_to_numpy(a, np.int64)
+
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_f32_return(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
 
-        self.ee.register_runtime("refbackend_consume_func_return",
-                                 consume_return)
+        self.ee.register_runtime("refbackend_consume_int64_func_return",
+                                 consume_i64_return)
+
+        self.ee.register_runtime("refbackend_consume_float32_func_return",
+                                 consume_f32_return)
 
     def __getattr__(self, function_name: str):
         def invoke(*args):
