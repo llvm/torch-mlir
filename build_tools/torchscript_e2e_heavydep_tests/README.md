@@ -1,9 +1,9 @@
 ### Additional end-to-end tests with heavy dependencies (heavydep tests)
 
 Some end-to-end tests require additional dependencies which don't make sense to
-include as part of the default npcomp setup. Additionally, these dependencies
-often don't work with the same HEAD PyTorch version that npcomp builds against
-at the C++ level.
+include as part of the default torch-mlir setup. Additionally, these
+dependencies often don't work with the same HEAD PyTorch version that torch-mlir
+builds against at the C++ level.
 
 We have a self-contained script that generates all the needed artifacts from a
 self-contained virtual environment. It can be used like so:
