@@ -72,6 +72,9 @@ jobs:
         TORCH_MLIR_CMAKE_BUILD_DIR="$GITHUB_WORKSPACE/build" \
           TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT=1 \
           ./build_tools/build_python_wheels.sh
+
+    # If we were given a release_id, then upload the package we just built
+    # to the github releases page.
     - name: Upload Release Assets (if requested)
       if: github.event.inputs.release_id != ''
       id: upload-release-assets
@@ -81,3 +84,13 @@ jobs:
       with:
         release_id: ${{ github.event.inputs.release_id }}
         assets_path: ./wheelhouse/*.whl
+    # Publishing is necessary to make the release visible to `pip`
+    # on the github releases page.
+    - name: Publish Release (if requested)
+      if: github.event.inputs.release_id != ''
+      id: publish_release
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
