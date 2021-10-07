@@ -30,6 +30,26 @@ We have few paths to lower down to the Torch MLIR Dialect.
 	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
  - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
 
+
+## All-in-one quickstart with packages (no build steps)
+
+```shell
+git clone https://github.com/llvm/torch-mlir
+cd torch-mlir
+python -m venv mlir_venv
+# Some older pip installs may not be able to handle the recent PyTorch deps
+./mlir_venv/bin/python -m pip install --upgrade pip
+# Install Torch deps.
+./mlir_venv/bin/python -m pip install --pre torch torchvision pybind11 -f "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html"
+# Install torch-mlir packages.
+./mlir_venv/bin/python -m pip install torch_mlir -f "https://github.com/llvm/torch-mlir/releases"
+
+# Install some deps for the example
+./mlir_venv/bin/python -m pip install requests pillow
+# Run it!
+./mlir_venv/bin/python examples/torchscript_resnet18_e2e.py
+```
+
 ## Check out the code
 
 ```shell
@@ -43,7 +63,8 @@ git submodule update --init
 ```shell
 python -m venv mlir_venv
 source mlir_venv/bin/activate
-python -m pip install --upgrade pip #Some older pip installs may not be able to handle the recent PyTorch deps
+# Some older pip installs may not be able to handle the recent PyTorch deps
+python -m pip install --upgrade pip
 # Install latest PyTorch nightlies
 python -m pip install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 ```
