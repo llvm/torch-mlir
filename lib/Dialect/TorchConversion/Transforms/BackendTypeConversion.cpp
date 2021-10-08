@@ -21,7 +21,6 @@
 
 using namespace mlir;
 using namespace mlir::torch;
-using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
 
 void mlir::torch::TorchConversion::getBackendTypeConversionDependentDialects(

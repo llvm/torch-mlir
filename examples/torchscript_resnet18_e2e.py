@@ -109,7 +109,7 @@ mb.import_module(recursivescriptmodule._c, class_annotator)
 
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 with mb.module.context:
-    pm = PassManager.parse('torchscript-module-to-linalg-on-tensors-backend-pipeline')
+    pm = PassManager.parse('torchscript-module-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
     pm.run(mb.module)
 
 compiled = backend.compile(mb.module)

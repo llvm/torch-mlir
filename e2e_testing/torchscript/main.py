@@ -15,12 +15,13 @@ from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
-    LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig
+    LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
+from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import XFAIL_SETS, COMMON_TORCH_MLIR_LOWERING_XFAILS
+from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 # Import tests to register them in the global registry.
 # Make sure to use `tools/torchscript_e2e_test.sh` wrapper for invoking
@@ -35,7 +36,7 @@ from . import elementwise
 from . import reduction
 
 def _get_argparse():
-    config_choices = ['native_torch', 'torchscript', 'refbackend', 'external']
+    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -43,6 +44,7 @@ def _get_argparse():
         help=f'''
 Meaning of options:
 "refbackend": run through torch-mlir's RefBackend.
+"tosa": run through torch-mlir's default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "external": use an external backend, specified by the `--external-backend` option.
@@ -77,16 +79,27 @@ for more information on building these artifacts.
 def main():
     args = _get_argparse().parse_args()
 
+    all_tests = list(GLOBAL_TEST_REGISTRY)
+    if args.serialized_test_dir:
+        for root, dirs, files in os.walk(args.serialized_test_dir):
+            for filename in files:
+                with open(os.path.join(root, filename), 'rb') as f:
+                    all_tests.append(pickle.load(f).as_test())
+    all_test_unique_names = set(test.unique_name for test in all_tests)
+
     # Find the selected config.
     if args.config == 'refbackend':
         config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
-        xfail_set = XFAIL_SETS['refbackend']
+        xfail_set = REFBACKEND_XFAIL_SET
+    if args.config == 'tosa':
+        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
+        xfail_set = all_test_unique_names - TOSA_PASS_SET
     elif args.config == 'native_torch':
         config = NativeTorchTestConfig()
-        xfail_set = XFAIL_SETS['native_torch']
+        xfail_set = {}
     elif args.config == 'torchscript':
         config = TorchScriptTestConfig()
-        xfail_set = XFAIL_SETS['torchscript']
+        xfail_set = {}
     elif args.config == 'external':
         with open(args.external_config, 'r') as f:
             code = compile(f.read(), args.external_config, 'exec')
@@ -105,13 +118,6 @@ def main():
                 f'ERROR: the script {args.external_config} did not set a global variable `xfail_set`'
             )
             sys.exit(1)
-
-    all_tests = list(GLOBAL_TEST_REGISTRY)
-    if args.serialized_test_dir:
-        for root, dirs, files in os.walk(args.serialized_test_dir):
-            for filename in files:
-                with open(os.path.join(root, filename), 'rb') as f:
-                    all_tests.append(pickle.load(f).as_test())
 
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [

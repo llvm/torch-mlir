@@ -16,10 +16,10 @@
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
-using namespace mlir::torch;
 using namespace mlir::torch;
 
 //===----------------------------------------------------------------------===//
@@ -34,16 +34,18 @@ namespace {
 void mlir::torch::registerTorchConversionPasses() {
   ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-module-to-linalg-on-tensors-backend-pipeline",
-      "Pipeline lowering torch object graph representing a torch.jit.ScriptModule to linalg-on-tensors backend format.",
-      TorchConversion::createTorchScriptModuleToLinalgOnTensorsBackendPipeline);
+      "torch-backend-to-linalg-on-tensors-backend-pipeline",
+      "Pipeline lowering torch backend contract to linalg-on-tensors backend "
+      "contract.",
+      TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-function-to-linalg-on-tensors-backend-pipeline",
-      "Pipeline lowering a flat list of functions representing a torch.jit.ScriptFunction to linalg-on-tensors backend format.",
-      TorchConversion::createTorchScriptFunctionToLinalgOnTensorsBackendPipeline);
+      "torch-backend-to-tosa-backend-pipeline",
+      "Pipeline lowering torch backend contract to TOSA backend "
+      "contract.",
+      TorchConversion::createTorchBackendToTosaBackendPipeline);
 }
 
-static void createTorchBackendToLinalgOnTensorsBackendPipeline(
+void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
   // Check some invariants to catch errors in a clear way.
   pm.addPass(
@@ -80,20 +82,29 @@ static void createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
 }
 
-void TorchConversion::createTorchScriptModuleToLinalgOnTensorsBackendPipeline(
+void TorchConversion::createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+  // Check some invariants to catch errors in a clear way.
+  pm.addPass(
+      TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
 
-  // Conversion to the linalg-on-tensors backend contract starts from the Torch
-  // backend contract.
-  Torch::createTorchScriptToTorchBackendPipeline(pm, options);
-  createTorchBackendToLinalgOnTensorsBackendPipeline(pm, options);
-}
+  pm.addNestedPass<FuncOp>(createConvertTorchToTosaPass());
 
-void TorchConversion::createTorchScriptFunctionToLinalgOnTensorsBackendPipeline(
-    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+  if (options.optimize) {
+    // Clean up any non-canonical code introduced above..
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    // The resolution of `dim` ops tends to create identical ops. CSE them.
+    pm.addNestedPass<FuncOp>(createCSEPass());
+  }
 
-  // Conversion to the linalg-on-tensors backend contract starts from the Torch
-  // backend contract.
-  Torch::createGlobalizedModuleToTorchBackendPipeline(pm, options);
-  createTorchBackendToLinalgOnTensorsBackendPipeline(pm, options);
+  // Finish the type conversion from `torch` types to the types of the
+  // TOSA backend contract.
+  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<FuncOp>(
+      TorchConversion::createFinalizingBackendTypeConversionPass());
+
+  // Verify that we have lowered to the form that TOSA backends
+  // expect. This fails compilation (signalPassFailure) if the IR is not in the
+  // correct form.
+  pm.addPass(TorchConversion::createVerifyTosaBackendContractPass());
 }

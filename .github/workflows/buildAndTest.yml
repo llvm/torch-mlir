@@ -61,6 +61,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=refbackend -v
+        python -m e2e_testing.torchscript.main --config=tosa -v
 
     # TODO: Only build packages in full Release mode.
     # On the other hand, having assertions on isn't too bad of an idea at this

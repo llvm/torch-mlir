@@ -65,7 +65,7 @@ mlir_module.dump()
 
 # Compile the torch MLIR and execute the compiled program
 with mlir_module.context:
-    pm = PassManager.parse('torchscript-function-to-linalg-on-tensors-backend-pipeline')
+    pm = PassManager.parse('torchscript-function-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
 pm.run(mlir_module)
 
 print("BEFORE LINALG-ON-TENSORS BACKEND PIPELINE")

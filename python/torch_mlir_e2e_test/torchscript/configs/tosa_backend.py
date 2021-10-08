@@ -12,7 +12,7 @@ import tempfile
 import numpy as np
 import torch
 
-from torch_mlir_e2e_test.linalg_on_tensors_backends.abc import LinalgOnTensorsBackend
+from torch_mlir_e2e_test.tosa_backends.abc import TosaBackend
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
 from .utils import (
     recursively_convert_to_numpy,
@@ -22,13 +22,13 @@ from .utils import (
 )
 
 
-class LinalgOnTensorsBackendTestConfig(TestConfig):
+class TosaBackendTestConfig(TestConfig):
     """Base class for TestConfig's that are implemented with linalg-on-tensors.
 
     This class handles all the common lowering that torch-mlir does before
     reaching the linalg-on-tensors abstraction level.
     """
-    def __init__(self, backend: LinalgOnTensorsBackend):
+    def __init__(self, backend: TosaBackend):
         super().__init__()
         self.backend = backend
 
@@ -39,8 +39,8 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
 
         run_pipeline_with_repro_report(
             module,
-            "torch-backend-to-linalg-on-tensors-backend-pipeline",
-            "Lower Torch Backend IR -> Linalg-on-Tensors Backend IR",
+            "torch-backend-to-tosa-backend-pipeline",
+            "Lower Torch Backend IR -> TOSA Backend IR",
             program.__class__.__name__)
 
         try:
@@ -54,7 +54,7 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
             with open(filename, 'w') as f:
                 f.write(asm_for_error_report)
             raise Exception(f"""
-Linalg-on-Tensors Backend lowering for {self.backend.__class__.__name__} failed with the following diagnostics:
+TOSA Backend lowering for {self.backend.__class__.__name__} failed with the following diagnostics:
 ## Exception:
 {e}
 

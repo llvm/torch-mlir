@@ -10,17 +10,15 @@
 # (this includes down into lower parts of the stack, where a side table
 # might be used to keep more elaborate sets of testing configurations).
 
-XFAIL_SETS = {}
-
 # Lists of tests that fail to even reach the backends.
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    'QuantizedMLP_basic',
+    "QuantizedMLP_basic",
 }
 
-XFAIL_SETS['refbackend'] = COMMON_TORCH_MLIR_LOWERING_XFAILS
+REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-XFAIL_SETS['torchscript'] = {}
-
-XFAIL_SETS['native_torch'] = {}
+# Write the TOSA set as a "passing" set as it is very early in development
+# and very few tests work yet.
+TOSA_PASS_SET = {"ElementwiseUnaryModule_basic"}

@@ -3,6 +3,8 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   Passes.cpp
   VerifyInvariantsBeforeBackendLowering.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
+  VerifyTosaBackendContract.cpp
+
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/TorchConversion/Transforms
