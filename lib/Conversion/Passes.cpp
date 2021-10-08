@@ -12,6 +12,7 @@
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration

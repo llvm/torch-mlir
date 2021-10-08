@@ -33,13 +33,13 @@ struct TorchLoweringPipelineOptions
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
 /// TorchScript import into the form expected by torch-verify-backend-contract.
-void createTorchScriptToTorchBackendPipeline(
+void createTorchScriptModuleToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
 /// Creates a pipeline that lowers a flat list of funcs and global slots
 /// with the torch and aten dialects and mutable arrays and converts it to
 /// the form required by torch-verify-backend-contract.
-void createGlobalizedModuleToTorchBackendPipeline(
+void createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();

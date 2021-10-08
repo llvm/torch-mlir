@@ -51,7 +51,7 @@ mlir_module.dump()
 print(mlir_module.operation.verify())
 
 with mlir_module.context:
-    pm = PassManager.parse('torchscript-module-to-linalg-on-tensors-backend-pipeline')
+    pm = PassManager.parse('torchscript-module-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
 pm.run(mlir_module)
 
 print("\n\nLOWERED MLIR")

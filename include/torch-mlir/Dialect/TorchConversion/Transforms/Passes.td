@@ -58,4 +58,9 @@ def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-
   let constructor = "mlir::torch::TorchConversion::createVerifyLinalgOnTensorsBackendContractPass()";
 }
 
+def VerifyTosaBackendContract : Pass<"torch-verify-tosa-backend-contract", "ModuleOp"> {
+  let summary = "Verifies conformity to the linalg-on-tensors backend contract";
+  let constructor = "mlir::torch::TorchConversion::createVerifyTosaBackendContractPass()";
+}
+
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES

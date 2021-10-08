@@ -36,7 +36,7 @@ module {
 //
 // The reporting we inherit from dialect conversion is not precise.
 // For example, here we want it to explicitly call out that
-// `tensor<?x!numpy.any_dtype>` is the problem here, which suggests
+// `!torch.tensor` is the problem here, which suggests
 // that type inference didn't succeed, or insufficient type information
 // was available.
 //
@@ -46,8 +46,8 @@ module {
 
 // expected-error@+1 {{Module does not conform to the linalg-on-tensors backend contract.}}
 module {
-  func @disallowed(%arg0: tensor<?x!numpy.any_dtype>) -> tensor<?x!numpy.any_dtype> {
+  func @disallowed(%arg0: !torch.tensor) -> !torch.tensor {
     // expected-error@+1 {{failed to legalize operation 'std.return'}}
-    return %arg0 : tensor<?x!numpy.any_dtype>
+    return %arg0 : !torch.tensor
   }
 }

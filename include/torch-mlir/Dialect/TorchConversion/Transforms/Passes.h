@@ -19,17 +19,15 @@ namespace mlir {
 namespace torch {
 namespace TorchConversion {
 
-/// Creates a pipeline that lowers the object graph IR that is given by a
-/// TorchScript jit.ScriptModule into the form expected by
-/// torch-verify-linalg-on-tensors-verify-backend-contract.
-void createTorchScriptModuleToLinalgOnTensorsBackendPipeline(
+/// Creates a pipeline that lowers from the torch backend contract to the
+/// linalg-on-tensors backend contract.
+void createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 
-/// Creates a pipeline that lowers the object graph IR that is given by a
-/// TorchScript jit.ScriptFunction into the form expected by
-/// torch-verify-linalg-on-tensors-verify-backend-contract.
-void createTorchScriptFunctionToLinalgOnTensorsBackendPipeline(
+/// Creates a pipeline that lowers from the torch backend contract to the
+/// TOSA backend contract.
+void createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 
@@ -43,6 +41,8 @@ createFinalizingBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();
+
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyTosaBackendContractPass();
 
 } // namespace TorchConversion
 

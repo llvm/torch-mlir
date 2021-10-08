@@ -6,3 +6,4 @@
 from .linalg_on_tensors_backend import LinalgOnTensorsBackendTestConfig
 from .native_torch import NativeTorchTestConfig
 from .torchscript import TorchScriptTestConfig
+from .tosa_backend import TosaBackendTestConfig

@@ -23,16 +23,16 @@ namespace {
 void mlir::torch::registerTorchPasses() {
   ::registerPasses();
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torchscript-to-torch-backend-pipeline",
+      "torchscript-module-to-torch-backend-pipeline",
       "Pipeline lowering TorchScript object graph IR to Torch backend form.",
-      mlir::torch::Torch::createTorchScriptToTorchBackendPipeline);
+      mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
-      "torch-globalized-module-to-torch-backend-pipeline",
-      "Pipeline lowering a globalized Torch program to Torch backend form.",
-      mlir::torch::Torch::createGlobalizedModuleToTorchBackendPipeline);
+      "torch-function-to-torch-backend-pipeline",
+      "Pipeline lowering a Torch function to Torch backend form.",
+      mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline);
 }
 
-void mlir::torch::Torch::createTorchScriptToTorchBackendPipeline(
+void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // When we import TorchScript IR, we import their entire "compilation unit",
   // which can contain numerous functions unrelated to the current program,
@@ -58,10 +58,10 @@ void mlir::torch::Torch::createTorchScriptToTorchBackendPipeline(
   // TODO: Improve shape inference.
   pm.addPass(createInlinerPass());
 
-  createGlobalizedModuleToTorchBackendPipeline(pm, options);
+  createTorchFunctionToTorchBackendPipeline(pm, options);
 }
 
-void mlir::torch::Torch::createGlobalizedModuleToTorchBackendPipeline(
+void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // General considerations: As a matter of bring-up, we are simultaneously
   // building out the frontend pipeline and also co-developing the backend

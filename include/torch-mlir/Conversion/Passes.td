@@ -105,4 +105,13 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToLinalgPass()";
 }
 
+def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "FuncOp"> {
+  let summary = "Convert Torch ops to TOSA ops";
+  let description = [{
+    This pass assumes that TOSA ops are responsible for emitting error
+    guards in case of shape mismatches.
+  }];
+  let constructor = "mlir::torch::createConvertTorchToTosaPass()";
+}
+
 #endif // TORCHMLIR_CONVERSION_PASSES
