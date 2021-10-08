@@ -23,6 +23,9 @@ Invoker = TypeVar('Invoker')
 
 class TosaBackend(abc.ABC):
     """The interface to an TOSA backend.
+
+    Backends are recommended to raise meaningful exceptions in case of error,
+    ideally with easy reproduction instructions.
     """
     @abc.abstractmethod
     def compile(self, module: Module) -> CompiledArtifact:

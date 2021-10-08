@@ -11,6 +11,7 @@
 
 #include "function_importer.h"
 #include "ivalue_importer.h"
+#include "mlir_utils.h"
 
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/BuiltinAttributes.h"
@@ -140,6 +141,29 @@ void ModuleBuilder::importModule(torch::jit::Module jitModule,
   if (!maybeClassAnnotator.is_none()) {
     classAnnotator = py::cast<ClassAnnotator *>(maybeClassAnnotator);
   }
+  // Set a debugging name for the MLIR Module based on the jitModule's class
+  // name.
+  // This is a bit hacky, because we are mutating the enclosing ModuleOp
+  // ad-hoc -- this API could be called by users twice and it would overwrite
+  // the previous name. But the workflow of calling importModule/importFunction
+  // more than once on a ModuleBuilder is fraught with peril (e.g. redundantly
+  // importing the compilation unit twice, having multiple root objects
+  // with unclear semantic meaning, ...) that for now we will just assume
+  // it doesn't happen.
+  //
+  // We set it to just the last atom of the name because the leading Python
+  // package names don't typically contribute much information as far as
+  // a simple identifier while debugging (e.g. to name dump files).
+  // We have precise information in the module stored via locations and
+  // precise `torch.class_type` names.
+  //
+  // This name is not semantically load-bearing!!!
+  auto &name = *jitModule.type()->name();
+  auto debugModuleNameAttr = mlirStringAttrGet(
+      context, toMlirStringRef(name.atoms()[name.atoms().size() - 1]));
+  mlirOperationSetAttributeByName(mlirModuleGetOperation(module),
+                                  toMlirStringRef("torch.debug_module_name"),
+                                  debugModuleNameAttr);
   importIValue(jitModule._ivalue(), mlirModuleGetBody(module),
                mlirModuleGetContext(module), *classAnnotator);
 }

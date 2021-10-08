@@ -14,6 +14,8 @@ from torch_mlir.runtime import *
 import torch_mlir.all_passes_registration
 import torch_mlir.dialects.torch
 
+from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
+
 from .abc import LinalgOnTensorsBackend
 
 __all__ = [
@@ -113,9 +115,10 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
         """
-        with imported_module.context:
-            pm = PassManager.parse(LOWERING_PIPELINE)
-            pm.run(imported_module)
+
+        run_pipeline_with_repro_report(
+            imported_module, LOWERING_PIPELINE,
+            "Lowering Linalg-on-Tensors IR to LLVM with RefBackend")
         return imported_module
 
     def load(self, module) -> RefBackendInvoker:
