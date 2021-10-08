@@ -57,8 +57,17 @@ include(AddMLIR)
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   include(MLIRDetectPythonEnv)
   mlir_detect_pybind11_install()
+  # After CMake 3.18, we are able to limit the scope of the search to just
+  # Development.Module. Searching for Development will fail in manylinux builds,
+  # and isn't necessary since we are not embedding the Python interpreter.
+  # See https://pybind11.readthedocs.io/en/stable/compiling.html#findpython-mode
+  if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
+    set(_python_development_component Development)
+  else()
+    set(_python_development_component Development.Module)
+  endif()
   find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION}
-  COMPONENTS Interpreter Development NumPy REQUIRED)
+  COMPONENTS Interpreter ${_python_development_component} NumPy REQUIRED)
   find_package(pybind11 2.6 CONFIG REQUIRED)
 endif()
 
