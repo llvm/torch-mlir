@@ -14,11 +14,11 @@ import torch
 
 from torch_mlir_e2e_test.tosa_backends.abc import TosaBackend
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
 from .utils import (
     recursively_convert_to_numpy,
     recursively_convert_from_numpy,
     convert_torchscript_module_to_torch_backend_contract_mlir,
-    run_pipeline_with_repro_report
 )
 
 
@@ -40,31 +40,10 @@ class TosaBackendTestConfig(TestConfig):
         run_pipeline_with_repro_report(
             module,
             "torch-backend-to-tosa-backend-pipeline",
-            "Lower Torch Backend IR -> TOSA Backend IR",
-            program.__class__.__name__)
+            "Lower Torch Backend IR -> TOSA Backend IR")
 
-        try:
-            sys.stderr = StringIO()
-            asm_for_error_report = module.operation.get_asm(
-                large_elements_limit=10, enable_debug_info=True)
-            return self.backend.compile(module)
-        except Exception as e:
-            filename = os.path.join(tempfile.gettempdir(),
-                                    program.__class__.__name__ + ".mlir")
-            with open(filename, 'w') as f:
-                f.write(asm_for_error_report)
-            raise Exception(f"""
-TOSA Backend lowering for {self.backend.__class__.__name__} failed with the following diagnostics:
-## Exception:
-{e}
+        return self.backend.compile(module)
 
-## Stderr:
-{sys.stderr.getvalue()}
-
-## Input IR has been saved in {filename}
-""") from None
-        finally:
-            sys.stderr = sys.__stderr__
 
 
     def run(self, artifact: Any, trace: Trace) -> Trace:

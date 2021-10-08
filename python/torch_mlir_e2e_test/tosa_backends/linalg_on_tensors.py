@@ -8,6 +8,7 @@ from torch_mlir.passmanager import *
 # Imported for side effects.
 import torch_mlir.all_passes_registration
 
+from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 
 from .abc import TosaBackend
@@ -35,12 +36,11 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
         """
-        # TODO: Error/repro reporting.
-        # We should store the program name as the symbol name of the MLIR
-        # module so we don't have to have access to the original program for it.
-        with imported_module.context:
-            pm = PassManager.parse("builtin.func(tosa-to-linalg-on-tensors)")
-            pm.run(imported_module)
+
+        run_pipeline_with_repro_report(
+            imported_module,
+            "builtin.func(tosa-to-linalg-on-tensors)",
+            "Lowering TOSA to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 
     def load(self, module):
