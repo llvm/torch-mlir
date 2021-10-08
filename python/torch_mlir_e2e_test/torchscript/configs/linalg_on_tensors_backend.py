@@ -120,28 +120,7 @@ $ torch-mlir-opt -{pipeline_str} {filename}
         finally:
             sys.stderr = sys.__stderr__
 
-        try:
-            sys.stderr = StringIO()
-            asm_for_error_report = mb.module.operation.get_asm(
-                large_elements_limit=10, enable_debug_info=True)
-            return self.backend.compile(mb.module)
-        except Exception as e:
-            filename = os.path.join(tempfile.gettempdir(),
-                                    scripted.original_name + '.mlir')
-            with open(filename, 'w') as f:
-                f.write(asm_for_error_report)
-            raise Exception(f"""
-torch-mlir linalg-on-tensors Backend lowering for {self.backend.__class__.__name__} failed with the following diagnostics:
-## Exception:
-{e}
-
-## Stderr:
-{sys.stderr.getvalue()}
-
-## Input IR has been saved in {filename}
-""") from None
-        finally:
-            sys.stderr = sys.__stderr__
+        return self.backend.compile(mb.module, scripted.original_name)
 
 
     def run(self, artifact: Any, trace: Trace) -> Trace:

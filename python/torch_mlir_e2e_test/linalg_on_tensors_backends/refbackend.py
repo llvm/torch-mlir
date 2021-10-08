@@ -5,7 +5,11 @@
 
 import ctypes
 import numpy as np
-
+import hashlib
+import sys
+import os
+import tempfile
+from io import StringIO
 from torch_mlir.ir import *
 from torch_mlir.passmanager import *
 from torch_mlir.execution_engine import *
@@ -100,7 +104,7 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
     def __init__(self):
         super().__init__()
 
-    def compile(self, imported_module: Module):
+    def compile(self, imported_module: Module, imported_module_name=None):
         """Compiles an imported module, with a flat list of functions.
         The module is expected to be in linalg-on-tensors + scalar code form.
         TODO: More clearly define the backend contract. Generally this will
@@ -113,10 +117,48 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
         """
-        with imported_module.context:
-            pm = PassManager.parse(LOWERING_PIPELINE)
-            pm.run(imported_module)
-        return imported_module
+        try:
+            sys.stderr = StringIO()
+            asm_for_error_report = imported_module.operation.get_asm(
+                large_elements_limit=10, enable_debug_info=True)
+            # Lower module in place to make it ready for compiler backends.
+            with imported_module.context:
+                pm = PassManager.parse(LOWERING_PIPELINE)
+                pm.run(imported_module)
+            return imported_module
+        except Exception as e:
+            # TODO: More robust.
+            # - don't arbitrarily clutter up /tmp. When a test suite has many
+            #   tests, this can be a big disk cost (also, /tmp/ is frequently a
+            #   RAM fs, which increases worries about capacity).
+            # - don't have colliding filenames (hard to do without cluttering
+            #   up /tmp)
+            # - if we do have have colliding filenames, writes should at least
+            #   avoid being racy.
+            if imported_module_name is None:
+              imported_module_name = hashlib.md5(str(asm_for_error_report).encode('utf-8')).hexdigest() 
+            filename = os.path.join(tempfile.gettempdir(),
+                                    imported_module_name + '.mlir')
+            with open(filename, 'w') as f:
+                f.write(asm_for_error_report)
+            # Convert passes into flag format
+            pipeline_repro = LOWERING_PIPELINE.replace(",builtin.func("," -").replace("),", " -")
+            pipeline_repro = pipeline_repro.replace(","," -").replace(")","")
+            raise Exception(f"""
+linalg-on-tensors backend IR -> backend specific compiled artifact object failed with the following diagnostics:
+## Exception:
+{e}
+
+## Stderr:
+{sys.stderr.getvalue()}
+
+Error can be reproduced with:
+$ torch-mlir-opt -{pipeline_repro} {filename}
+""") from None
+        finally:
+            sys.stderr = sys.__stderr__
+
+
 
     def load(self, module) -> RefBackendInvoker:
         """Loads a compiled artifact into the runtime."""
