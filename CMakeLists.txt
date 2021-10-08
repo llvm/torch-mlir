@@ -17,7 +17,7 @@ endif()
 # Project setup and globals
 #-------------------------------------------------------------------------------
 
-project(npcomp LANGUAGES CXX C)
+project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
@@ -60,7 +60,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # to import lots of dependencies from AddMLIRPython to make this work.
   set(MLIR_ENABLE_BINDINGS_PYTHON 0)
 
-  set(NPCOMP_BUILT_STANDALONE 1)
+  set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
@@ -73,7 +73,7 @@ else()
   set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include)
   set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
-  endif()
+endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(TORCH_MLIR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
@@ -83,8 +83,6 @@ include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
-# link_directories(${LLVM_BUILD_LIBRARY_DIR})
-# add_definitions(${LLVM_DEFINITIONS})
 
 function(torch_mlir_target_includes target)
   set(_dirs
