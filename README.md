@@ -55,6 +55,7 @@ python -m pip install --pre torch torchvision pybind11 -f https://download.pytor
 cmake -GNinja -Bbuild \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
+  -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS=torch-mlir \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
