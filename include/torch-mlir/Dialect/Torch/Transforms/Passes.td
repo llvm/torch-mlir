@@ -215,4 +215,20 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
   }];
 }
 
+def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "FuncOp"> {
+  let summary = "Decompose complicated torch operations";
+  let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
+  let description = [{
+    Decompose torch operation that are losslessly represented as combinations of 
+    other operations, modulo appropropriate compiler fusion. Note that this pass 
+    is similar in spirit to ReduceOpVariants, but ReduceOpVariants is about 
+    systematic reductions of a large number of ops at once, guided mostly by 
+    traits.
+
+    An example of the transformations done in this pass is:
+    - convert aten.softmax to softmax(x, dim) 
+            => tmp=exp(x); tmp / sum(tmp, dim, keepdim=True)
+  }];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES

@@ -19,6 +19,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -263,7 +264,8 @@ public:
     } else if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
       return visitAtenArangeStartOp(arangeStart);
     } else if (auto sum = dyn_cast<AtenSumOp>(op)) {
-      return visitReductionAlongAllDimsOp(sum, operands);
+      Type dtype = operands[0]->getValue().dtype;
+      return visitReductionAlongAllDimsOp(sum, dtype, operands);
     } else if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
       return visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.dim(),
                                              sumDimIntList.keepdim(), operands);
@@ -271,9 +273,17 @@ public:
       return visitReductionAlongDimIntListOp(meanDim, meanDim.dim(),
                                              meanDim.keepdim(), operands);
     } else if (auto argmax = dyn_cast<AtenArgmaxOp>(op)) {
-      return visitAtenArgmaxOp(argmax, operands);
+      Value dim = argmax.dim();
+      Type dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+      if (dim.getType().isa<Torch::NoneType>())
+        return visitReductionAlongAllDimsOp(op, dtype, operands);
+      if (dim.getType().isa<Torch::IntType>())
+        return visitReductionAlongDimIntOp(argmax, argmax.dim(),
+                                           argmax.keepdim(), dtype, operands);
     } else if (auto anyDim = dyn_cast<AtenAnyDimOp>(op)) {
-      return visitAtenAnyDimOp(anyDim, operands);
+      Type dtype = operands[0]->getValue().dtype;
+      return visitReductionAlongDimIntOp(anyDim, anyDim.dim(), anyDim.keepdim(),
+                                         dtype, operands);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
       return visitReshapeLikeOp(view, operands);
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
@@ -353,6 +363,8 @@ public:
       return visitAtenEmbeddingOp(embedding, operands);
     } else if (auto bmm = dyn_cast<AtenBmmOp>(op)) {
       return visitAtenBmmOp(bmm, operands);
+    } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
+      return visitAtenSoftmaxIntOp(softmaxIntOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -394,16 +406,14 @@ private:
   ChangeResult visitAtenArangeStartOp(AtenArangeStartOp op);
   ChangeResult visitAtenArangeOp(AtenArangeOp op);
   ChangeResult visitReductionAlongAllDimsOp(
-      Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+      Operation *op, Type dtype,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitReductionAlongDimIntListOp(
       Operation *op, Value dim, Value keepdim,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  ChangeResult
-  visitAtenArgmaxOp(AtenArgmaxOp op,
-                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  ChangeResult
-  visitAtenAnyDimOp(AtenAnyDimOp op,
-                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitReductionAlongDimIntOp(
+      Operation *op, Value dim, Value keepdim, Type dtype,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   template <typename OpTy>
   ChangeResult
   visitReshapeLikeOp(OpTy op,
@@ -448,27 +458,34 @@ private:
   ChangeResult
   visitAtenBmmOp(AtenBmmOp op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenSoftmaxIntOp(AtenSoftmaxIntOp op,
+                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
-static int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
-  return dim >= 0 ? dim : dim + inputRank;
-}
-
-static bool isValidDim(int64_t dim, int64_t inputRank) {
-  return dim >= 0 && dim < inputRank;
+// Get the MLIR type of the tensor dtype given the dtype integer value and the
+// input dtype. When DType is None the type is inferred from the input dtype.
+static void fillInDTypeGivenDTypeIntAndInputDType(MLIRContext *context,
+                                                  ValueKnowledge &knowledge,
+                                                  Value dtype,
+                                                  Type inputDType) {
+  int64_t dtypeInt;
+  if (dtype.getType().isa<Torch::NoneType>())
+    knowledge.dtype = inputDType;
+  else if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    knowledge.dtype = getTypeFromDTypeInteger(context, dtypeInt);
 }
 
 // Get the MLIR type of the tensor dtype given the dtype integer value and data
-// type. When DType is None the type is inferred from the data type.
+// type of torch type. When DType is None the type is inferred from the data
+// type.
 static void fillInDTypeGivenDTypeAndDataType(MLIRContext *context,
                                              ValueKnowledge &knowledge,
                                              Value dtype, Type dataType) {
-  int64_t dtypeInt;
-  if (dtype.getType().isa<Torch::NoneType>())
-    knowledge.dtype = getDTypeFromTorchType(context, dataType);
-  else if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
-    knowledge.dtype = getTypeFromDTypeInteger(context, dtypeInt);
+  Type dtypeFromDataType = getDTypeFromTorchType(context, dataType);
+  fillInDTypeGivenDTypeIntAndInputDType(context, knowledge, dtype,
+                                        dtypeFromDataType);
 }
 
 static void fillInSizesGivenSizesList(ValueKnowledge &knowledge, Value sizes) {
@@ -718,10 +735,10 @@ ChangeResult TypeAnalyzer::visitAtenArangeOp(AtenArangeOp op) {
 }
 
 ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
-    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto input = operands[0]->getValue();
+    Operation *op, Type dtype,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
-  knowledge.dtype = input.dtype;
+  knowledge.dtype = dtype;
   // Reduction along all dims always results in a tensor of rank zero,
   // which is represented by the default empty `knowledge.sizes` vector
   knowledge.hasSizes = true;
@@ -764,53 +781,28 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
   }
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
-ChangeResult TypeAnalyzer::visitAtenArgmaxOp(
-    AtenArgmaxOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto input = operands[0]->getValue();
-  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
-  knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-  int64_t dim;
-  bool keepDim;
-  if (matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
-    int64_t inputRank = input.sizes.size();
-    knowledge.hasSizes = true;
-    if (matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
-      knowledge.sizes = input.sizes;
-      dim = toPositiveDim(dim, inputRank);
-      if (isValidDim(dim, inputRank)) {
-        if (keepDim)
-          knowledge.sizes[dim] = 1;
-        else
-          knowledge.sizes.erase(knowledge.sizes.begin() + dim);
-      }
-    } else if (op.dim().getType().isa<IntegerType>())
-      knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1,
-                             kUnknownSize);
-  }
-  // If dim is no kind of Integer, keepDim is ignored,
-  // and the result will bea rank-0 tensor
-  return getLatticeElement(op->getResult(0)).join(knowledge);
-}
 
-ChangeResult TypeAnalyzer::visitAtenAnyDimOp(
-    AtenAnyDimOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
+    Operation *op, Value dim, Value keepdim, Type dtype,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  assert(dim.getType().isa<Torch::IntType>() && "dim must be int type");
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.dtype = input.dtype;
-  int64_t dim;
+  knowledge.dtype = dtype;
+  int64_t dimInt;
   bool keepDim;
-  if (matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+  if (matchPattern(keepdim, m_TorchConstantBool(&keepDim))) {
     int64_t inputRank = input.sizes.size();
     knowledge.hasSizes = true;
-    if (matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+    if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
       knowledge.sizes = input.sizes;
-      dim = toPositiveDim(dim, inputRank);
-      if (isValidDim(dim, inputRank)) {
+      dimInt = toPositiveDim(dimInt, inputRank);
+      if (isValidDim(dimInt, inputRank)) {
         if (keepDim)
-          knowledge.sizes[dim] = 1;
+          knowledge.sizes[dimInt] = 1;
         else
-          knowledge.sizes.erase(knowledge.sizes.begin() + dim);
+          knowledge.sizes.erase(knowledge.sizes.begin() + dimInt);
       }
     } else {
       knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1, kUnknownSize);
@@ -1078,6 +1070,19 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
       knowledge.sizes.push_back(kUnknownSize);
   }
   knowledge.dtype = Float32Type::get(op->getContext());
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenSoftmaxIntOp(
+    AtenSoftmaxIntOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto dtype = op.dtype();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.hasSizes = input.hasSizes;
+  knowledge.sizes = input.sizes;
+  fillInDTypeGivenDTypeIntAndInputDType(op->getContext(), knowledge, dtype,
+                                        input.dtype);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

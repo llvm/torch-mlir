@@ -1,5 +1,6 @@
 add_mlir_library(TorchMLIRTorchPasses
   AdjustCallingConventions.cpp
+  DecomposeComplexOps.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
@@ -23,6 +24,7 @@ add_mlir_library(TorchMLIRTorchPasses
   MLIRPass
   MLIRTransforms
   TorchMLIRTorchDialect
+  TorchMLIRTorchUtils
 )
 
 torch_mlir_target_includes(TorchMLIRTorchPasses)

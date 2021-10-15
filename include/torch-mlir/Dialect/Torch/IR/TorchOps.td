@@ -819,6 +819,7 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand) `to` type($result)
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [

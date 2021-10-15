@@ -13,6 +13,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringMap.h"
 
 using namespace mlir;
@@ -506,6 +507,29 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSizeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSizeIntOp::fold(ArrayRef<Attribute> operands) {
+  auto type = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  if (!type || !type.hasSizes())
+    return nullptr;
+
+  int64_t inputRank = type.getSizes().size();
+  int64_t dim;
+  if (!matchPattern(this->dim(), m_TorchConstantInt(&dim)))
+    return nullptr;
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return nullptr;
+
+  if (type.getSizes()[dim] == kUnknownSize)
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                          type.getSizes()[dim]);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenGtIntOp
 //===----------------------------------------------------------------------===//
 
@@ -653,6 +677,19 @@ bool TensorStaticInfoCastOp::areCastCompatible(mlir::TypeRange inputs,
                                                mlir::TypeRange outputs) {
   return areSizesAndDtypesCompatible(inputs[0].cast<BaseTensorType>(),
                                      outputs[0].cast<BaseTensorType>());
+}
+
+void TensorStaticInfoCastOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](TensorStaticInfoCastOp op, PatternRewriter &rewriter) {
+    auto reverseCast =
+        op.operand().getDefiningOp<Torch::TensorStaticInfoCastOp>();
+    if (!reverseCast || reverseCast.operand().getType() != op.getType())
+      return failure();
+
+    rewriter.replaceOp(op, reverseCast.operand());
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//

@@ -24,13 +24,8 @@ __all__ = [
 
 
 def checkArgTypeIsSupported(ty):
-    if ty == np.float32:
-        return
-    elif ty == np.int64:
-        return
-    assert False, "Only tensor argument of float32 and int64 are supported but got " + str(
-        ty)
-
+    SUPPORTED = [np.float32, np.float64, np.int64]
+    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
 
 class RefBackendInvoker:
     def __init__(self, module):
@@ -45,11 +40,18 @@ class RefBackendInvoker:
         def consume_f32_return(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
 
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_f64_return(a):
+            self.result = unranked_memref_to_numpy(a, np.float64)
+
         self.ee.register_runtime("refbackend_consume_int64_func_return",
                                  consume_i64_return)
 
         self.ee.register_runtime("refbackend_consume_float32_func_return",
                                  consume_f32_return)
+
+        self.ee.register_runtime("refbackend_consume_float64_func_return",
+                                 consume_f64_return)
 
     def __getattr__(self, function_name: str):
         def invoke(*args):

@@ -259,3 +259,125 @@ class GatherModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: GatherModule())
 def GatherModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
+
+class AddSizeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        # This is a workaround for not supporting scalar arguments.
+        # TODO: pass in dim as an argument to the forward method when scalar
+        # arguments are supported.
+        return tensor.add(tensor, alpha=tensor.size(1))
+
+
+@register_test_case(module_factory=lambda: AddSizeIntModule())
+def AddSizeIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3))
+
+
+class AddSizeIntNegDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        # This is a workaround for not supporting scalar arguments.
+        # TODO: pass in dim as an argument to the forward method when scalar
+        # arguments are supported.
+        return tensor.add(tensor, alpha=tensor.size(-2))
+
+
+@register_test_case(module_factory=lambda: AddSizeIntNegDimModule())
+def AddSizeIntNegDimModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3))
+
+class EmbeddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.embed = torch.nn.Embedding(num_embeddings=100,
+                                        embedding_dim=50,
+                                        padding_idx=4)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, indices):
+        return self.embed.forward(indices)
+
+
+@register_test_case(module_factory=lambda: EmbeddingModule())
+def EmbeddingModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 3)))
+
+
+class SoftmaxIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.softmax = torch.nn.Softmax(2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return self.softmax.forward(tensor)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntModule())
+def SoftmaxIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4))
+
+
+class SoftmaxIntNegDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.softmax = torch.nn.Softmax(-2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return self.softmax.forward(tensor)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntNegDimModule())
+def SoftmaxIntNegDimModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4))
+
+
+class SoftmaxIntArgTypeF64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.softmax = torch.nn.Softmax(2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, tensor):
+        return self.softmax.forward(tensor)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntArgTypeF64Module())
+def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4).double())

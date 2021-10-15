@@ -17,6 +17,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -68,6 +69,35 @@ static LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op,
       type.isa<mlir::NoneType>())
     return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
   return success();
+}
+
+// Generate IR: dim = dim >= 0 ? dim : dim + inputRank
+static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
+                                  Value inputRank) {
+  assert(dim.getType().isa<IntegerType>() &&
+         "dim arg of toPositiveDim must be integer type");
+  Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
+  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value predDimGEZero =
+      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
+  Value dimInt = b.create<SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
+  return dimInt;
+}
+
+// Generate IR: assert(dim >= 0 && dim < inputRank)
+static void assertIsValidDim(OpBuilder &b, Location loc, Value dim,
+                             Value inputRank) {
+  assert(dim.getType().isa<IntegerType>() &&
+         "dim arg of assertIsValidDim must be integer type");
+  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value predGEZero =
+      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
+  b.create<AssertOp>(loc, predGEZero,
+                     b.getStringAttr("dim must be greater or equal to zero"));
+  Value predLTInputRank =
+      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, dim, inputRank);
+  b.create<AssertOp>(loc, predLTInputRank,
+                     b.getStringAttr("dim must be smaller than inputRank"));
 }
 
 // Hack to deal with the Torch list type arguments which is not supported end
@@ -457,6 +487,41 @@ static Value createLinalgPayloadCalculationForNormOps(
   Value timesWeight = b.create<arith::MulFOp>(loc, temp, weight);
   Value plusBias = b.create<arith::AddFOp>(loc, timesWeight, bias);
   return plusBias;
+}
+
+static void createLinalgPayloadCalculationForGatherOps(
+    OpBuilder &b, Location loc, Value input, int64_t inputRank, Value index,
+    int64_t dim, int64_t outputRank) {
+  SmallVector<Value> indices;
+  for (int i = 0; i < inputRank; i++) {
+    if (i == dim) {
+      indices.push_back(castIntToIndex(b, loc, index));
+    } else {
+      // `outputRank` might be larger than `inputRank`. The `linalg::IndexOp`
+      // takes in the dimension of the output. Add `inputDimOffset` to
+      // related to the correct dimension of the output for dimension larger
+      // than the given `dim`.
+      int64_t inputDimOffset = i < dim ? 0 : outputRank - inputRank;
+      indices.push_back(b.create<linalg::IndexOp>(loc, i + inputDimOffset));
+    }
+  }
+
+  // Assert index < input.sizes[dim]
+  Value indexLTInputDim = b.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::slt, index,
+      castIndexToInt(b, loc, getDimOp(b, loc, input, dim)));
+  b.create<AssertOp>(loc, indexLTInputDim,
+                     b.getStringAttr("index must be smaller than dim size"));
+
+  // Assert index >= 0
+  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(index.getType()));
+  Value indexGEThanZero =
+      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, index, cst0);
+  b.create<AssertOp>(loc, indexGEThanZero,
+                     b.getStringAttr("index must be larger or equal to 0"));
+
+  Value extract = b.create<tensor::ExtractOp>(loc, input, indices);
+  b.create<linalg::YieldOp>(loc, extract);
 }
 
 namespace {
@@ -1027,6 +1092,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     ArrayRef<Value> operands) {
   if (isa<AtenTanhOp>(op))
     return b.create<math::TanhOp>(loc, payloadArgs[0]);
+  if (isa<AtenExpOp>(op))
+    return b.create<math::ExpOp>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
     Type elementType = payloadArgs[0].getType();
     auto one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1));
@@ -1330,8 +1397,8 @@ struct ConvertElementwiseOp : ConversionPattern {
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
-             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp>(
-            op))
+             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
+             AtenExpOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1846,13 +1913,12 @@ public:
     for (auto i = 0; i < inputRank; i++)
       idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
     for (auto i = 0; i < inputRank; i++) {
-      if (i == dim0) {
+      if (i == dim0)
         swapExprs.push_back(idExprs[dim1]);
-      } else if (i == dim1) {
+      else if (i == dim1)
         swapExprs.push_back(idExprs[dim0]);
-      } else {
+      else
         swapExprs.push_back(idExprs[i]);
-      }
     }
 
     SmallVector<AffineMap> indexingMaps = {
@@ -1893,19 +1959,15 @@ public:
 
     // Collect all the tensors to be concatenated.
     auto tensorList = op.tensors();
-    auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
-    if (!listConstruct)
+    SmallVector<Value> tensorsTorchType;
+    if (!getListConstructElements(tensorList, tensorsTorchType))
       return op.emitError(
           "unimplemented: the tensor list is not from list construct");
-    auto tensors = llvm::to_vector<4>(
-        llvm::map_range(listConstruct.elements(), [&](Value tensor) -> Value {
-          return typeConverter->materializeTargetConversion(
-              rewriter, loc, getTypeConverter()->convertType(tensor.getType()),
-              tensor);
-        }));
+    auto tensors =
+        getTypeConvertedValues(rewriter, loc, typeConverter, tensorsTorchType);
 
     RankedTensorType newResultType =
-        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int rank = newResultType.getRank();
     SmallVector<Value> offsets, sizes, strides;
     sizes.reserve(rank);
@@ -1975,20 +2037,98 @@ public:
     auto genericOp = rewriter.create<linalg::GenericOp>(
         loc, newResultTy, indices, result, affineMaps, iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
-          auto indexValue = args[0];
-          Value indexOfDim = rewriter.create<arith::IndexCastOp>(
-              loc, rewriter.getIndexType(), indexValue);
-          SmallVector<Value> indices;
-          for (int i = 0; i < rank; i++) {
-            indices.push_back(i == dim
-                                  ? indexOfDim
-                                  : rewriter.create<linalg::IndexOp>(loc, i));
-          }
-          Value extract =
-              rewriter.create<tensor::ExtractOp>(loc, self, indices);
-          rewriter.create<linalg::YieldOp>(loc, extract);
+          auto index = args[0];
+          createLinalgPayloadCalculationForGatherOps(b, loc, self, rank, index,
+                                                     dim, rank);
         });
     rewriter.replaceOp(op, genericOp.getResult(0));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenEmbeddingOp : public OpConversionPattern<AtenEmbeddingOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenEmbeddingOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    AtenEmbeddingOp::Adaptor adaptor(operands);
+    Value weight = adaptor.weight();
+    Value indices = adaptor.indices();
+    RankedTensorType newResultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+    auto weightTy = weight.getType().cast<RankedTensorType>();
+    if (weightTy.getRank() != 2)
+      return rewriter.notifyMatchFailure(op, "weight must be rank 2");
+    Value embeddingDim = getDimOp(rewriter, loc, weight, 1);
+    Type elemTy = weightTy.getElementType();
+
+    SmallVector<Value> sizes = getTensorSizes(rewriter, loc, indices);
+    sizes.push_back(embeddingDim);
+    int64_t resultRank = sizes.size();
+
+    auto indicesTy = weight.getType().cast<RankedTensorType>();
+    int64_t indicesRank = indicesTy.getRank();
+    SmallVector<AffineExpr> indicesExprs;
+    for (int i = 0; i < indicesRank; i++)
+      indicesExprs.push_back(rewriter.getAffineDimExpr(i));
+    auto indicesAffineMap = AffineMap::get(
+        /*dimCount=*/resultRank,
+        /*symbolCount=*/0, indicesExprs, op->getContext());
+    SmallVector<AffineMap, 2> indexingMaps = {
+        indicesAffineMap,
+        rewriter.getMultiDimIdentityMap(resultRank),
+    };
+    SmallVector<StringRef> iteratorTypes(sizes.size(),
+                                         getParallelIteratorTypeName());
+    Value initTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+    Value embeddingResult =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initTensor.getType(), indices, initTensor,
+                /*indexingMaps=*/indexingMaps, /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value index = args[0];
+                  createLinalgPayloadCalculationForGatherOps(
+                      b, loc, weight, weightTy.getRank(), index, /*dim=*/0,
+                      resultRank);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                embeddingResult);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenSizeIntOp : public OpConversionPattern<AtenSizeIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSizeIntOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    AtenSizeIntOp::Adaptor adaptor(operands);
+    Value self = adaptor.self();
+    Value dim = adaptor.dim();
+    auto type = self.getType().cast<RankedTensorType>();
+    Value inputRank = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(type.getRank()));
+    Value dimPositive = toPositiveDimDynamic(rewriter, loc, dim, inputRank);
+    assertIsValidDim(rewriter, loc, dimPositive, inputRank);
+    Value size = rewriter.create<tensor::DimOp>(
+        loc, adaptor.self(), castIntToIndex(rewriter, loc, dimPositive));
+    rewriter.replaceOp(op, castIndexToInt(rewriter, loc, size));
     return success();
   }
 };
@@ -2057,6 +2197,10 @@ public:
     patterns.add<ConvertAtenLayerNormOp>(typeConverter, context);
     target.addIllegalOp<AtenArgmaxOp>();
     patterns.add<ConvertAtenArgmaxOp>(typeConverter, context);
+    target.addIllegalOp<AtenSizeIntOp>();
+    patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenEmbeddingOp>();
+    patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

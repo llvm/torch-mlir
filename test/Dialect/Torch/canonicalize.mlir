@@ -489,3 +489,52 @@ func @torch.prim.dtype$int64(%t : !torch.tensor<*,si64>) -> !torch.int {
     %ret = torch.prim.dtype %t: !torch.tensor<*,si64> -> !torch.int
     return %ret : !torch.int
 }
+
+// CHECK-LABEL:   func @torch.aten.size.int$neg_dim(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor<[2,3],f32>) -> !torch.int {
+// CHECK:           %[[RET:.*]] = torch.constant.int 2
+// CHECK:           return %[[RET]] : !torch.int
+func @torch.aten.size.int$neg_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.int {
+  %int-2 = torch.constant.int -2
+  %ret = torch.aten.size.int %t, %int-2 : !torch.tensor<[2,3],f32>, !torch.int -> !torch.int
+  return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.size.int$pos_dim(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor<[2,3],f32>) -> !torch.int {
+// CHECK:           %[[RET:.*]] = torch.constant.int 3
+// CHECK:           return %[[RET]] : !torch.int
+func @torch.aten.size.int$pos_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.int {
+  %int1 = torch.constant.int 1
+  %ret = torch.aten.size.int %t, %int1 : !torch.tensor<[2,3],f32>, !torch.int -> !torch.int
+  return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.size.int$invalid_dim(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor<[2,3],f32>) -> !torch.int {
+// CHECK:           %[[CST3:.*]] = torch.constant.int 3
+// CHECK:           %[[RET:.*]] = torch.aten.size.int %[[T]], %[[CST3]] : !torch.tensor<[2,3],f32>, !torch.int -> !torch.int
+// CHECK:           return %[[RET]] : !torch.int
+func @torch.aten.size.int$invalid_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.int {
+  %int3 = torch.constant.int 3
+  %ret = torch.aten.size.int %t, %int3 : !torch.tensor<[2,3],f32>, !torch.int -> !torch.int
+  return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.tensor_static_info_cast$downcast_first(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:           return %[[T]] : !torch.tensor
+func @torch.tensor_static_info_cast$downcast_first(%t: !torch.tensor) -> !torch.tensor {
+  %downcast = torch.tensor_static_info_cast %t : !torch.tensor to !torch.tensor<[?,?],f64>
+  %upcast = torch.tensor_static_info_cast %downcast : !torch.tensor<[?,?],f64> to !torch.tensor
+  return %upcast: !torch.tensor
+}
+
+// CHECK-LABEL:   func @torch.tensor_static_info_cast$upcast_first(
+// CHECK-SAME:            %[[T:.*]]: !torch.tensor<[?,?],f64>) -> !torch.tensor<[?,?],f64> {
+// CHECK:           return %[[T]] : !torch.tensor<[?,?],f64>
+func @torch.tensor_static_info_cast$upcast_first(%t: !torch.tensor<[?,?],f64>) -> !torch.tensor<[?,?],f64> {
+  %upcast = torch.tensor_static_info_cast %t : !torch.tensor<[?,?],f64> to !torch.tensor
+  %downcast = torch.tensor_static_info_cast %upcast : !torch.tensor to !torch.tensor<[?,?],f64>
+  return %downcast: !torch.tensor<[?,?],f64>
+}

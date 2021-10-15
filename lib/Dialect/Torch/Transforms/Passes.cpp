@@ -119,9 +119,17 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
 
   // Do shape and dtype refinement.
   pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
+
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());
+
+  if (options.optimize) {
+    // This can fold away some branches given the information got from
+    // RefineTypes before doing maximize value sematics which only works with
+    // basic blocks.
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+  }
   // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
   pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
@@ -134,6 +142,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // only-used-in-training operations on `torch.global_slot`'s.
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   }
+  pm.addNestedPass<FuncOp>(Torch::createDecomposeComplexOpsPass());
 
   // TODO: VerifyTorchBackendContractPass.
 }

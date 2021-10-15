@@ -482,6 +482,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit(
             "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
         )
+        emit(
+            "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
+        )
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
         emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
         emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
@@ -525,7 +528,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
         emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
         emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
-        emit("aten::size.int : (Tensor, int) -> (int)")
+        emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
         emit("aten::stack : (Tensor[], int) -> (Tensor)")
         emit("aten::sum : (Tensor, int?) -> (Tensor)")
         emit("aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)")

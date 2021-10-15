@@ -45,6 +45,8 @@ static bool isArgMemRefTypeValid(Type type) {
     Type elemTy = memRefType.getElementType();
     if (elemTy.isa<Float32Type>()) {
       return true;
+    } else if (elemTy.isa<Float64Type>()) {
+      return true;
     } else if (auto integerTy = elemTy.dyn_cast<IntegerType>()) {
       if (integerTy.isSignlessInteger(64))
         return true;
@@ -81,7 +83,8 @@ static LogicalResult mungeFunction(
   for (auto arg : func.getArguments()) {
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type))
-      return emitError(arg.getLoc(), "argument must be a memref of f32 or i64");
+      return emitError(arg.getLoc(),
+                       "argument must be a memref of f32, f64, i64");
     auto cast = b.create<memref::CastOp>(arg.getLoc(), arg, type);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
@@ -91,12 +94,17 @@ static LogicalResult mungeFunction(
   SmallVector<Operation *> toErase;
   bool hadError = false;
   func.walk([&](ReturnOp op) {
-    auto returnType =
-        op.getOperandTypes()[0].dyn_cast<MemRefType>().getElementType();
+    auto memRefType = op.getOperandTypes()[0].dyn_cast<MemRefType>();
+    if (!memRefType) {
+      hadError = true;
+      op.emitError("return value must be memref type");
+      return;
+    }
+    auto returnType = memRefType.getElementType();
     auto it = consumeFuncReturnFuncs.find(returnType);
     if (op.getNumOperands() != 1 || it == consumeFuncReturnFuncs.end()) {
       hadError = true;
-      op.emitError("must have one return value: a memref of f32 or i64");
+      op.emitError("must have one return value: a memref of f32, i64 or f64");
       return;
     }
 
@@ -126,26 +134,27 @@ class MungeCallingConventions
   void runOnOperation() override {
     auto module = getOperation();
     OpBuilder b(module.getBodyRegion());
-    auto consumeFuncReturnInt64Func = b.create<FuncOp>(
-        module.getLoc(), "refbackend_consume_int64_func_return",
-        FunctionType::get(
-            module.getContext(),
-            UnrankedMemRefType::get(b.getI64Type(), /*memorySpace=*/0), {}),
-        b.getStringAttr("private"));
-    auto consumeFuncReturnFloat32Func = b.create<FuncOp>(
-        module.getLoc(), "refbackend_consume_float32_func_return",
-        FunctionType::get(
-            module.getContext(),
-            UnrankedMemRefType::get(b.getF32Type(), /*memorySpace=*/0), {}),
-        b.getStringAttr("private"));
-    addEmitCInterfaceAttr(consumeFuncReturnInt64Func);
-    addEmitCInterfaceAttr(consumeFuncReturnFloat32Func);
     DenseMap</*returnElementType*/ Type, FuncOp> consumeFuncReturnFuncs;
-    consumeFuncReturnFuncs[b.getF32Type()] = consumeFuncReturnFloat32Func;
-    consumeFuncReturnFuncs[b.getI64Type()] = consumeFuncReturnInt64Func;
+    DenseSet<FuncOp> consumeFuncReturnFuncsSet;
+    auto createConsumeFuncReturnFunc = [&](Type elemTy, std::string funcName) {
+      auto consumeFuncReturnFunc = b.create<FuncOp>(
+          module.getLoc(), funcName,
+          FunctionType::get(module.getContext(),
+                            UnrankedMemRefType::get(elemTy, /*memorySpace=*/0),
+                            {}),
+          b.getStringAttr("private"));
+      addEmitCInterfaceAttr(consumeFuncReturnFunc);
+      consumeFuncReturnFuncs[elemTy] = consumeFuncReturnFunc;
+      consumeFuncReturnFuncsSet.insert(consumeFuncReturnFunc);
+    };
+    createConsumeFuncReturnFunc(b.getI64Type(),
+                                "refbackend_consume_int64_func_return");
+    createConsumeFuncReturnFunc(b.getF32Type(),
+                                "refbackend_consume_float32_func_return");
+    createConsumeFuncReturnFunc(b.getF64Type(),
+                                "refbackend_consume_float64_func_return");
     for (auto func : module.getOps<FuncOp>()) {
-      if (func == consumeFuncReturnInt64Func ||
-          func == consumeFuncReturnFloat32Func)
+      if (consumeFuncReturnFuncsSet.contains(func))
         continue;
       if (failed(mungeFunction(func, consumeFuncReturnFuncs)))
         return signalPassFailure();
