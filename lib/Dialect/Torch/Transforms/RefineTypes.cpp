@@ -229,8 +229,8 @@ public:
             AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
             AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
             AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
-            AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp, AtenClampOp,
-            AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp, AtenLog2Op>(op)) {
+            AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp,
+            AtenFloorOp, AtenLog2Op>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -285,7 +285,7 @@ public:
       return visitAtenAdaptiveAvgPool2dOp(avgPool2d, operands);
     } else if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp,
                    AtenDivScalarOp, AtenFmodScalarOp, AtenFloorDivideScalarOp,
-                   AtenPowTensorScalarOp>(op)) {
+                   AtenPowTensorScalarOp, AtenRsubScalarOp>(op)) {
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,

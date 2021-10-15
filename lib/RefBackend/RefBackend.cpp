@@ -51,6 +51,8 @@ static bool isArgMemRefTypeValid(Type type) {
     } else if (auto integerTy = elemTy.dyn_cast<IntegerType>()) {
       if (integerTy.isSignlessInteger(64))
         return true;
+      if (integerTy.isSignlessInteger(32))
+        return true;
     }
   }
   return false;
@@ -109,7 +111,7 @@ static LogicalResult mungeFunction(
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type))
       return emitError(arg.getLoc(),
-                       "argument must be a memref of f32, f64, i64");
+                       "argument must be a memref of f32, f64, i32, i64");
     auto cast = b.create<memref::CastOp>(arg.getLoc(), arg, type);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
@@ -175,6 +177,8 @@ class MungeCallingConventions
     };
 
     // Memref return types.
+    createConsumeFuncReturnFunc(UnrankedMemRefType::get(b.getI32Type(), 0),
+                                "refbackend_consume_memref_int32_func_return");
     createConsumeFuncReturnFunc(UnrankedMemRefType::get(b.getI64Type(), 0),
                                 "refbackend_consume_memref_int64_func_return");
     createConsumeFuncReturnFunc(

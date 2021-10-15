@@ -20,9 +20,9 @@ from .framework import TestResult, TraceItem
 class TensorSummary:
     """A summary of a tensor's contents."""
     def __init__(self, tensor):
-        self.min = torch.min(tensor)
-        self.max = torch.max(tensor)
-        self.mean = torch.mean(tensor)
+        self.min = torch.min(tensor.type(torch.float64))
+        self.max = torch.max(tensor.type(torch.float64))
+        self.mean = torch.mean(tensor.type(torch.float64))
         self.shape = list(tensor.shape)
 
     def __str__(self):
@@ -148,9 +148,14 @@ class ValueReport:
         if isinstance(golden, torch.Tensor):
             if not isinstance(value, torch.Tensor):
                 return self._record_mismatch_type_failure('torch.Tensor', value)
+
             if value.shape != golden.shape:
                 return self._record_failure(
                     f'shape ({value.shape}) is not equal to golden shape ({golden.shape})'
+                )
+            if value.dtype != golden.dtype:
+                return self._record_failure(
+                    f'shape ({value.dtype}) is not equal to golden dtype ({golden.dtype})'
                 )
             if not torch.allclose(value, golden, rtol=1e-03, atol=1e-07, equal_nan=True):
                 return self._record_failure(
