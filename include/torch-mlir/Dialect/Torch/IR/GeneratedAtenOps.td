@@ -937,6 +937,22 @@ def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
   let assemblyFormat = "$self `,` $kernel_size `,` $stride `,` $padding `,` $dilation `,` $ceil_mode attr-dict `:` type($self) `,` type($kernel_size) `,` type($stride) `,` type($padding) `,` type($dilation) `,` type($ceil_mode) `->` type($result)";
 }
 
+def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::softmax.int : (Tensor, int, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    TorchOptionalIntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($dtype) `->` type($result)";
+}
+
 def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -1591,6 +1607,7 @@ def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenStackOp : Torch_Op<"aten.stack", [
