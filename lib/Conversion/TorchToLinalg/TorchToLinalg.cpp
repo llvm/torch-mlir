@@ -1251,29 +1251,65 @@ public:
 };
 } // namespace
 
+// Convert a scalar value to the target type. The scalar value can be an element
+// from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
+// should be converted builtin types.
+static Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
+                                  Type dtype) {
+  Type scalarType = scalar.getType();
+  if (scalarType == dtype)
+    return scalar;
 
-static Value promoteScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype) {
-  // TODO: For the integer case, we probably need the unconverted dtype to
+  // TODO: For the byte(ui8) or char(i8) case, we need the unconverted dtype to
   // be able to know if we need signed or unsigned conversion.
-  if (dtype.isa<mlir::FloatType>()) {
-    if (scalar.getType().isa<mlir::FloatType>()) {
-      // `scalar` will always be f64 since that is what the TypeConverter
-      // converts !torch.float to.
-      return b.create<arith::TruncFOp>(loc, scalar, dtype);
-    } else {
-      assert(scalar.getType().isa<mlir::IntegerType>());
-      // `scalar` will always be i64 since that is what the TypeConverter
-      // converts !torch.int to.
-      return b.create<arith::SIToFPOp>(loc, scalar, dtype);
+  auto isByteOrChar = [](Type type) {
+    if (auto integerTy = type.dyn_cast<mlir::IntegerType>()) {
+      return integerTy.getWidth() == 8;
     }
+    return false;
+  };
+
+  if (isByteOrChar(scalarType) || isByteOrChar(dtype) ||
+      scalarType.isSignlessInteger(1) || dtype.isSignlessInteger(1)) {
+    // TODO: Handle bool type.
+    mlir::emitError(loc)
+        << "unsupported byte, char or bool type for convertScalarToDtype "
+        << scalarType << "(scalar type) -> " << dtype << "(dtype)";
+    return nullptr;
   }
-  mlir::emitError(loc) << "promoteScalarToDtype for dtype " << dtype;
-  return nullptr;
+
+  if (auto dtypeFloat = dtype.dyn_cast<mlir::FloatType>()) {
+    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>()) {
+      if (scalarFloat.getWidth() > dtypeFloat.getWidth())
+        return b.create<arith::TruncFOp>(loc, scalar, dtype);
+      // Only scalarFloat width < dtypeFloat width can reach here.
+      return b.create<arith::ExtFOp>(loc, scalar, dtype);
+    }
+    assert(scalarType.isa<mlir::IntegerType>());
+    // It's safe to use SIToFPOp because ui8/si8 are the only ones where
+    // unsigned handling is needed, and we checked for that case above.
+    return b.create<arith::SIToFPOp>(loc, scalar, dtype);
+  }
+
+  if (auto dtypeInteger = dtype.dyn_cast<mlir::IntegerType>()) {
+    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>())
+      return b.create<arith::FPToSIOp>(loc, scalar, dtype);
+    assert(scalarType.isa<mlir::IntegerType>());
+    auto scalarInteger = scalarType.cast<mlir::IntegerType>();
+    if (scalarInteger.getWidth() > dtypeInteger.getWidth())
+      return b.create<arith::TruncIOp>(loc, scalar, dtype);
+    // Only scalarInteger width < dtypeInteger width can reach here.
+    // It's safe to use ExtSIOp here because ui8/si8 are the only ones where
+    // unsigned handling is needed, and we checked for that case above.
+    return b.create<arith::ExtSIOp>(loc, scalar, dtype);
+  }
+
+  llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
-    OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
-    ArrayRef<Value> operands) {
+    OpBuilder &b, Location loc, TypeConverter *converter,
+    ValueRange payloadArgs, Operation *op, ArrayRef<Value> operands) {
   if (isa<AtenTanhOp>(op))
     return b.create<math::TanhOp>(loc, payloadArgs[0]);
   if (isa<AtenExpOp>(op))
@@ -1322,40 +1358,35 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
-    if (add.alpha().getType().isa<Torch::FloatType>()) {
-      add.emitError("unimplemented: !torch.float 'alpha'");
-      return nullptr;
+    Type dtype = converter->convertType(add.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.alpha(), dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
+      return b.create<arith::AddFOp>(loc, lhs, scaled);
+    } else {
+      Value scaled = b.create<arith::MulIOp>(loc, rhs, alpha);
+      return b.create<arith::AddIOp>(loc, lhs, scaled);
     }
-    if (!add.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      add.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value alphaFloat = b.create<arith::SIToFPOp>(loc, payloadArgs[0].getType(),
-                                                 adaptor.alpha());
-    Value scaled = b.create<arith::MulFOp>(loc, payloadArgs[1], alphaFloat);
-    return b.create<arith::AddFOp>(loc, payloadArgs[0], scaled);
   }
   if (auto sub = dyn_cast<AtenSubTensorOp>(op)) {
     AtenSubTensorOp::Adaptor adaptor(operands);
-    if (sub.alpha().getType().isa<Torch::FloatType>()) {
-      sub.emitError("unimplemented: !torch.float 'alpha'");
-      return nullptr;
+    Type dtype = converter->convertType(sub.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, adaptor.alpha(), dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
+      return b.create<arith::SubFOp>(loc, lhs, scaled);
+    } else {
+      Value scaled = b.create<arith::MulIOp>(loc, rhs, alpha);
+      return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
-    if (!sub.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      sub.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value alphaFloat = b.create<arith::SIToFPOp>(loc, payloadArgs[0].getType(),
-                                                 adaptor.alpha());
-    Value scaled = b.create<arith::MulFOp>(loc, payloadArgs[1], alphaFloat);
-
-    return b.create<arith::SubFOp>(loc, payloadArgs[0], scaled);
   }
   if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
     if (!mul.getType()
@@ -1386,7 +1417,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return nullptr;
     }
     Type dtype = pow.self().getType().cast<ValueTensorType>().getDtype();
-    Value expPromoted = promoteScalarToDtype(b, loc, operands[1], dtype);
+    Value expPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);
   }
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
@@ -1430,7 +1461,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
-    auto dtype = clamp.getType().cast<ValueTensorType>().getDtype();
+    Type dtype = converter->convertType(clamp.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
     if (!dtype.isa<mlir::FloatType>()) {
       clamp.emitError("unimplemented: non-floating point dtype");
       return nullptr;
@@ -1445,13 +1478,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     auto result = payloadArgs[0];
     if (!min.getType().isa<Torch::NoneType>()) {
-      auto minPromoted = promoteScalarToDtype(b, loc, min, dtype);
+      auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
       auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                           result, minPromoted);
       result = b.create<SelectOp>(loc, pred, minPromoted, result);
     }
     if (!max.getType().isa<Torch::NoneType>()) {
-      auto maxPromoted = promoteScalarToDtype(b, loc, max, dtype);
+      auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
       auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                           result, maxPromoted);
       result = b.create<SelectOp>(loc, pred, maxPromoted, result);
@@ -1459,36 +1492,25 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return result;
   }
   if (auto rsub = dyn_cast<AtenRsubScalarOp>(op)) {
-    if (!rsub.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    Type dtype = converter->convertType(rsub.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>()) {
       rsub.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
     Value self = payloadArgs[0];
-    Value other = promoteScalarToDtype(b, loc, operands[1], self.getType());
-    Value alpha = promoteScalarToDtype(b, loc, operands[2], self.getType());
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
     Value mult = b.create<arith::MulFOp>(loc, self, alpha);
     return b.create<arith::SubFOp>(loc, other, mult);
   }
   if (auto atenToDtype = dyn_cast<AtenToDtypeOp>(op)) {
     Value input = payloadArgs[0];
-    Type inType = input.getType();
-    Type outType = atenToDtype.getType().cast<ValueTensorType>().getDtype();
-    Value result;
-    if (!inType.isF32()) {
-      atenToDtype.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    if (inType == outType)
-      result = input;
-    else if (outType.isInteger(64))
-      result = b.create<arith::FPToSIOp>(loc, b.getI64Type(), input);
-    else if (outType.isInteger(1))
-      result = b.create<arith::FPToSIOp>(loc, b.getI1Type(), input);
-    else
-      atenToDtype.emitError("unimplemented: unsupported target dtype");
+    Type dtype = converter->convertType(atenToDtype.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value result = convertScalarToDtype(b, loc, input, dtype);
     return result;
   }
 
@@ -1808,7 +1830,7 @@ struct ConvertElementwiseOp : ConversionPattern {
         /*iteratorTypes=*/iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
           Value result = createLinalgPayloadCalculationForElementwiseOp(
-              b, loc, payloadArgs, op, operands);
+              b, loc, getTypeConverter(), payloadArgs, op, operands);
           if (!result) {
             hadErrorCreatingPayload = true;
             return;
@@ -2161,7 +2183,7 @@ public:
     }
     SmallVector<Value> expectedSize = getTypeConvertedValues(
         rewriter, loc, typeConverter, expectedSizeTorchInt);
-    if (expectedSize.size() != resultRank) {
+    if (resultRank != (int64_t)expectedSize.size()) {
       return rewriter.notifyMatchFailure(
           op, "desired size list length mismatches with the result type rank");
     }
