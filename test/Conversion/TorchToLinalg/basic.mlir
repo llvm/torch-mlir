@@ -5,18 +5,18 @@
 // CHECK-SAME:                        %[[RHS_VTENSOR:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32> {
 // CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[LHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
 // CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[RHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:           %[[C0:.*]] = constant 0 : index
+// CHECK:           %[[C0:.*]] = arith.constant 0 : index
 // CHECK:           %[[LHS_DIM_0:.*]] = tensor.dim %[[LHS]], %[[C0]] : tensor<?x?xf32>
-// CHECK:           %[[C1:.*]] = constant 1 : index
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
 // CHECK:           %[[LHS_DIM_1:.*]] = tensor.dim %[[LHS]], %[[C1]] : tensor<?x?xf32>
-// CHECK:           %[[C0:.*]] = constant 0 : index
+// CHECK:           %[[C0:.*]] = arith.constant 0 : index
 // CHECK:           %[[RHS_DIM_0:.*]] = tensor.dim %[[RHS]], %[[C0]] : tensor<?x?xf32>
-// CHECK:           %[[C1:.*]] = constant 1 : index
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
 // CHECK:           %[[RHS_DIM_1:.*]] = tensor.dim %[[RHS]], %[[C1]] : tensor<?x?xf32>
-// CHECK:           %[[EQ:.*]] = cmpi eq, %[[LHS_DIM_1]], %[[RHS_DIM_0]] : index
+// CHECK:           %[[EQ:.*]] = arith.cmpi eq, %[[LHS_DIM_1]], %[[RHS_DIM_0]] : index
 // CHECK:           assert %[[EQ]], "mismatching contracting dimension for torch.aten.mm"
 // CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [%[[LHS_DIM_0]], %[[RHS_DIM_1]]] : tensor<?x?xf32>
-// CHECK:           %[[CF0:.*]] = constant 0.000000e+00 : f32
+// CHECK:           %[[CF0:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK:           %[[ZEROFILL:.*]] = linalg.fill(%[[CF0]], %[[INIT_TENSOR]]) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
 // CHECK:           %[[MATMUL:.*]] = linalg.matmul ins(%[[LHS]], %[[RHS]] : tensor<?x?xf32>, tensor<?x?xf32>) outs(%[[ZEROFILL]] : tensor<?x?xf32>) -> tensor<?x?xf32>
 // CHECK:           %[[CASTED:.*]] = tensor.cast %[[MATMUL]] : tensor<?x?xf32> to tensor<?x2xf32>

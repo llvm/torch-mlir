@@ -43,7 +43,7 @@ func private @caller(%arg0: tensor<*xf32>) -> tensor<*xf32> {
 // Multiple returns.
 // expected-error @+1 {{unimplemented}}
 func @called(%arg0: tensor<*xf32>) -> tensor<*xf32> {
-  %ctrue = constant true
+  %ctrue = arith.constant true
   cond_br %ctrue, ^bb1, ^bb2
 ^bb1:
   return %arg0 : tensor<*xf32>

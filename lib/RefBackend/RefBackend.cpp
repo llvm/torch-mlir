@@ -173,6 +173,7 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     ConversionTarget target(*context);
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<math::MathDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalOp<math::TanhOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
       return signalPassFailure();

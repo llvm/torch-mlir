@@ -58,6 +58,8 @@ class VerifyLinalgOnTensorsBackendContractPass
     // Basic scalar operations.
     target.addDynamicallyLegalDialect<StandardOpsDialect>(isLegalScalarOp);
     target.addDynamicallyLegalDialect<math::MathDialect>(isLegalScalarOp);
+    target.addDynamicallyLegalDialect<arith::ArithmeticDialect>(
+        isLegalScalarOp);
 
     // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
@@ -66,7 +68,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     // AssertOp is used to terminate the program for error guards.
     target.addLegalOp<AssertOp>();
     // ConstantOp is used for tensors and for scalars.
-    target.addDynamicallyLegalOp<ConstantOp>(opHasLegalTypes);
+    target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
 
     RewritePatternSet patterns(context);
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {

@@ -21,7 +21,8 @@ using namespace mlir::torch::Torch;
 // TupleType
 //===----------------------------------------------------------------------===//
 
-Type Torch::TupleType::parse(MLIRContext *context, DialectAsmParser &parser) {
+Type Torch::TupleType::parse(DialectAsmParser &parser) {
+  MLIRContext *context = parser.getContext();
   if (parser.parseLess())
     return Type();
   if (!parser.parseOptionalGreater())
@@ -226,7 +227,8 @@ NonValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
   return verifyTensorType(emitError, optionalSizes, optionalDtype);
 }
 
-Type NonValueTensorType::parse(MLIRContext *context, DialectAsmParser &parser) {
+Type NonValueTensorType::parse(DialectAsmParser &parser) {
+  MLIRContext *context = parser.getContext();
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, Optional<ArrayRef<int64_t>> optionalSizes,
@@ -287,7 +289,8 @@ ValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
   return verifyTensorType(emitError, optionalSizes, optionalDtype);
 }
 
-Type ValueTensorType::parse(MLIRContext *context, DialectAsmParser &parser) {
+Type ValueTensorType::parse(DialectAsmParser &parser) {
+  MLIRContext *context = parser.getContext();
   return parseTensorType(
       context, parser,
       [](MLIRContext *context, Optional<ArrayRef<int64_t>> optionalSizes,
