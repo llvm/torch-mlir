@@ -62,7 +62,7 @@ func @unconverted_op_in_body() -> !torch.vtensor<[],f32> {
 // Because this pass updates block arguments, it needs to also atomically
 // update all terminators and issue an error if that is not possible.
 func @unable_to_update_terminator(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
-    %0 = constant true
+    %0 = arith.constant true
     cond_br %0, ^bb1(%arg0: !torch.vtensor<[],f32>), ^bb2(%arg0: !torch.vtensor<[],f32>)
   ^bb1(%bbarg0: !torch.vtensor<[],f32>):
     // expected-error @+1 {{failed to legalize operation 'test.terminator'}}
@@ -81,13 +81,13 @@ func @unable_to_update_terminator(%arg0: !torch.vtensor<[],f32>) -> !torch.vtens
 // CHECK: scf.while
 // CHECK: scf.condition
 func @bwhile(%arg0: i64, %arg1: i64) -> i64 {
-  %c2_i64 = constant 2 : i64
+  %c2_i64 = arith.constant 2 : i64
   %0:2 = scf.while (%arg2 = %arg0) : (i64) -> (i64, i64) {
-    %1 = cmpi slt, %arg2, %arg1 : i64
+    %1 = arith.cmpi slt, %arg2, %arg1 : i64
     scf.condition(%1) %arg2, %arg2 : i64, i64
   } do {
   ^bb0(%arg2: i64, %arg3: i64):
-    %1 = muli %arg3, %c2_i64 : i64
+    %1 = arith.muli %arg3, %c2_i64 : i64
     scf.yield %1 : i64
   }
   return %0#1 : i64

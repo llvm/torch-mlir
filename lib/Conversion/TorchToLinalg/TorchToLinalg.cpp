@@ -92,12 +92,12 @@ static bool isConstantIntListMatching(Value value,
 
 static Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   assert(v.getType().isa<IntegerType>() && "must be called with integer type");
-  return b.create<IndexCastOp>(loc, b.getIndexType(), v);
+  return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
 }
 
 static Value castIndexToInt(OpBuilder &b, Location loc, Value idx) {
   assert(idx.getType().isa<IndexType>() && "must be called with integer type");
-  return b.create<IndexCastOp>(loc, b.getI64Type(), idx);
+  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
 static Value getDimOp(OpBuilder &b, Location loc, Value v, int dimension) {
@@ -116,8 +116,8 @@ static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   checkIntOrIndex(rhsType);
   Value lhsDimInt = lhsType.isIndex() ? castIndexToInt(b, loc, lhsDim) : lhsDim;
   Value rhsDimInt = rhsType.isIndex() ? castIndexToInt(b, loc, rhsDim) : rhsDim;
-  Value contractingDimEqual =
-      b.create<CmpIOp>(loc, CmpIPredicate::eq, lhsDimInt, rhsDimInt);
+  Value contractingDimEqual = b.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
   b.create<AssertOp>(loc, contractingDimEqual,
                      b.getStringAttr("mismatching contracting dimension"));
 }
@@ -144,7 +144,8 @@ static Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                                   Type elemTy) {
   Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
   RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
-  Value c0 = b.create<ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
+  Value c0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
@@ -155,24 +156,24 @@ static Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
 static Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
                                     Value paddingInt, Value dilationInt,
                                     Value kernelSizeInt, Value strideInt) {
-  Value c1 = b.create<ConstantOp>(loc, b.getI64IntegerAttr(1));
-  Value c2 = b.create<ConstantOp>(loc, b.getI64IntegerAttr(2));
+  Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
+  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
 
-  Value doublePadding = b.create<MulIOp>(loc, paddingInt, c2);
+  Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
   // in + 2 * padding
   Value inAddDoublePadding =
-      b.create<AddIOp>(loc, castIndexToInt(b, loc, in), doublePadding);
+      b.create<arith::AddIOp>(loc, castIndexToInt(b, loc, in), doublePadding);
 
   // dilation * (kernelSize - 1)
-  Value kernelSizeSub1 = b.create<SubIOp>(loc, kernelSizeInt, c1);
+  Value kernelSizeSub1 = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);
   Value dilationTimesKernelSize =
-      b.create<MulIOp>(loc, dilationInt, kernelSizeSub1);
+      b.create<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
 
   Value temp =
-      b.create<SubIOp>(loc, inAddDoublePadding, dilationTimesKernelSize);
-  Value dividend = b.create<SubIOp>(loc, temp, c1);
-  Value division = b.create<SignedFloorDivIOp>(loc, dividend, strideInt);
-  Value out = b.create<AddIOp>(loc, division, c1);
+      b.create<arith::SubIOp>(loc, inAddDoublePadding, dilationTimesKernelSize);
+  Value dividend = b.create<arith::SubIOp>(loc, temp, c1);
+  Value division = b.create<arith::FloorDivSIOp>(loc, dividend, strideInt);
+  Value out = b.create<arith::AddIOp>(loc, division, c1);
   return castIntToIndex(b, loc, out);
 }
 
@@ -180,7 +181,8 @@ static SmallVector<Value>
 getAsConstantIntValues(OpBuilder &b, Location loc,
                        SmallVectorImpl<int64_t> &ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
-    return b.create<ConstantOp>(loc, b.getIntegerAttr(b.getI64Type(), val));
+    return b.create<arith::ConstantOp>(loc,
+                                       b.getIntegerAttr(b.getI64Type(), val));
   }));
 }
 
@@ -188,7 +190,7 @@ static SmallVector<Value>
 getAsConstantIndexValues(OpBuilder &b, Location loc,
                          SmallVectorImpl<int64_t> &ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
-    return b.create<ConstantOp>(loc, b.getIndexAttr(val));
+    return b.create<arith::ConstantOp>(loc, b.getIndexAttr(val));
   }));
 }
 
@@ -218,7 +220,7 @@ static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
   assert(input.getType().isa<RankedTensorType>() &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();
-  Value c0 = b.create<ConstantOp>(
+  Value c0 = b.create<arith::ConstantOp>(
       loc,
       b.getZeroAttr(input.getType().cast<RankedTensorType>().getElementType()));
   SmallVector<OpFoldResult> paddings = getAsOpFoldResult(b, loc, paddingInts);
@@ -271,8 +273,8 @@ public:
     Value C = getDimOp(rewriter, loc, input, 1);
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
         loc, ValueRange{N, C}, elementType);
-    Value c0 =
-        rewriter.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+    Value c0 = rewriter.create<arith::ConstantOp>(
+        loc, FloatAttr::get(elementType, 0.0));
     Value initTensor0 =
         rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 
@@ -295,8 +297,8 @@ public:
                               /*iteratorTypes=*/iteratorTypesSum,
                               [&](OpBuilder &b, Location loc, ValueRange args) {
                                 Value input = args[0], sum = args[1];
-                                Value result =
-                                    rewriter.create<AddFOp>(loc, sum, input);
+                                Value result = rewriter.create<arith::AddFOp>(
+                                    loc, sum, input);
                                 b.create<linalg::YieldOp>(loc, result);
                               })
                           .getResult(0);
@@ -305,14 +307,15 @@ public:
     Value H = getDimOp(rewriter, loc, input, 2);
     Value W = getDimOp(rewriter, loc, input, 3);
     auto castIndexToInt = [&](Value v) {
-      return rewriter.create<IndexCastOp>(loc, IntegerType::get(context, 64),
-                                          v);
+      return rewriter.create<arith::IndexCastOp>(
+          loc, IntegerType::get(context, 64), v);
     };
-    Value HtimesW =
-        rewriter.create<MulIOp>(loc, castIndexToInt(H), castIndexToInt(W));
-    Value HtimesWf = rewriter.create<SIToFPOp>(loc, elementType, HtimesW);
+    Value HtimesW = rewriter.create<arith::MulIOp>(loc, castIndexToInt(H),
+                                                   castIndexToInt(W));
+    Value HtimesWf =
+        rewriter.create<arith::SIToFPOp>(loc, elementType, HtimesW);
 
-    Value c1Index = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    Value c1Index = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     Value outputTensor = rewriter.create<linalg::InitTensorOp>(
         loc, ValueRange{N, C, c1Index, c1Index}, elementType);
     SmallVector<AffineMap, 2> indexingMapsAvg{
@@ -325,7 +328,7 @@ public:
                 /*indexingMaps=*/indexingMapsAvg,
                 /*iteratorTypes=*/iteratorTypesAvg,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value avg = b.create<DivFOp>(loc, args[0], HtimesWf);
+                  Value avg = b.create<arith::DivFOp>(loc, args[0], HtimesWf);
                   b.create<linalg::YieldOp>(loc, avg);
                 })
             .getResult(0);
@@ -358,7 +361,7 @@ public:
 
     Type intType = IntegerType::get(context, 64);
     auto castIndexToInt = [&](Value v) {
-      return rewriter.create<IndexCastOp>(loc, intType, v);
+      return rewriter.create<arith::IndexCastOp>(loc, intType, v);
     };
 
     Value N = getDimOp(rewriter, loc, input, 0);
@@ -388,9 +391,10 @@ public:
     if (!op.bias().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(op, "only support None bias");
 
-    Value c1 = rewriter.create<ConstantOp>(loc, IntegerAttr::get(intType, 1));
-    Value groupEqual1 =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, groups, c1);
+    Value c1 =
+        rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(intType, 1));
+    Value groupEqual1 = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, groups, c1);
     rewriter.create<AssertOp>(loc, groupEqual1,
                               rewriter.getStringAttr("expect groups to be 1"));
 
@@ -415,7 +419,7 @@ public:
         rewriter, loc, Win, paddingIntValues[1], dilationIntValues[1],
         castIndexToInt(weightW), strideIntValues[1]);
 
-    Value c0float = rewriter.create<ConstantOp>(
+    Value c0float = rewriter.create<arith::ConstantOp>(
         loc,
         FloatAttr::get(
             input.getType().cast<RankedTensorType>().getElementType(), 0.0));
@@ -444,14 +448,14 @@ public:
 static Value createLinalgPayloadCalculationForNormOps(
     OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
     Value eps, Value weight, Value bias) {
-  Value inputSubMean = b.create<SubFOp>(loc, input, mean);
+  Value inputSubMean = b.create<arith::SubFOp>(loc, input, mean);
   // The eps is always f64.
-  Value truncatedEps = b.create<FPTruncOp>(loc, elemTy, eps);
-  Value varPlusEps = b.create<AddFOp>(loc, var, truncatedEps);
+  Value truncatedEps = b.create<arith::TruncFOp>(loc, elemTy, eps);
+  Value varPlusEps = b.create<arith::AddFOp>(loc, var, truncatedEps);
   Value rSTD = b.create<math::RsqrtOp>(loc, varPlusEps);
-  Value temp = b.create<MulFOp>(loc, inputSubMean, rSTD);
-  Value timesWeight = b.create<MulFOp>(loc, temp, weight);
-  Value plusBias = b.create<AddFOp>(loc, timesWeight, bias);
+  Value temp = b.create<arith::MulFOp>(loc, inputSubMean, rSTD);
+  Value timesWeight = b.create<arith::MulFOp>(loc, temp, weight);
+  Value plusBias = b.create<arith::AddFOp>(loc, timesWeight, bias);
   return plusBias;
 }
 
@@ -502,10 +506,10 @@ public:
     }
 
     // TODO: Add support for training.
-    auto constFalse = rewriter.create<ConstantOp>(
+    auto constFalse = rewriter.create<arith::ConstantOp>(
         loc, IntegerAttr::get(IntegerType::get(context, 1), 0));
-    auto trainingFalse =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, training, constFalse);
+    auto trainingFalse = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, training, constFalse);
     rewriter.create<AssertOp>(
         loc, trainingFalse,
         rewriter.getStringAttr("training is not supported for now"));
@@ -514,8 +518,8 @@ public:
     Value numFeatures = rewriter.create<tensor::DimOp>(loc, input, 1);
     auto contractingDim0EqualsNumFeatures = [&](Value v) {
       auto dim0 = rewriter.create<tensor::DimOp>(loc, v, 0);
-      auto dim0Equal =
-          rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, numFeatures, dim0);
+      auto dim0Equal = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, numFeatures, dim0);
       rewriter.create<AssertOp>(
           loc, dim0Equal,
           rewriter.getStringAttr(
@@ -665,10 +669,11 @@ public:
     // Get number of elements to be used for calculating mean and var.
     Value elemCnts = normalizedShapeSizesInt[0];
     for (int i = 1; i < normalizedShapeRank; i++) {
-      elemCnts =
-          rewriter.create<MulIOp>(loc, elemCnts, normalizedShapeSizesInt[i]);
+      elemCnts = rewriter.create<arith::MulIOp>(loc, elemCnts,
+                                                normalizedShapeSizesInt[i]);
     }
-    Value elemCntsFloat = rewriter.create<SIToFPOp>(loc, elemTy, elemCnts);
+    Value elemCntsFloat =
+        rewriter.create<arith::SIToFPOp>(loc, elemTy, elemCnts);
 
     // Helper to calculate mean and var.
     auto genMeanOrVarCalculation = [&](Value sumOrSquareSum) {
@@ -684,7 +689,7 @@ public:
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 Value sumOrSqureSum = args[0];
                 Value result =
-                    b.create<DivFOp>(loc, sumOrSqureSum, elemCntsFloat);
+                    b.create<arith::DivFOp>(loc, sumOrSqureSum, elemCntsFloat);
                 b.create<linalg::YieldOp>(loc, result);
               })
           .getResult(0);
@@ -707,7 +712,7 @@ public:
                         [&](OpBuilder &b, Location loc, ValueRange args) {
                           Value input = args[0], sum = args[1];
                           Value result =
-                              rewriter.create<AddFOp>(loc, sum, input);
+                              rewriter.create<arith::AddFOp>(loc, sum, input);
                           b.create<linalg::YieldOp>(loc, result);
                         })
                     .getResult(0);
@@ -732,10 +737,10 @@ public:
                 /*iteratorTypes=*/inputShapeIteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value input = args[0], mean = args[1], squareSum = args[2];
-                  Value sub = rewriter.create<SubFOp>(loc, input, mean);
-                  Value square = rewriter.create<MulFOp>(loc, sub, sub);
+                  Value sub = rewriter.create<arith::SubFOp>(loc, input, mean);
+                  Value square = rewriter.create<arith::MulFOp>(loc, sub, sub);
                   Value result =
-                      rewriter.create<AddFOp>(loc, squareSum, square);
+                      rewriter.create<arith::AddFOp>(loc, squareSum, square);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
@@ -816,8 +821,8 @@ public:
     Value lhsDim1 = rewriter.create<tensor::DimOp>(loc, lhs, 1);
     Value rhsDim0 = rewriter.create<tensor::DimOp>(loc, rhs, 0);
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
-    Value contractingDimEqual =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, lhsDim1, rhsDim0);
+    Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
     rewriter.create<AssertOp>(
         loc, contractingDimEqual,
         rewriter.getStringAttr(
@@ -827,8 +832,8 @@ public:
     Type elementType = newResultType.cast<TensorType>().getElementType();
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
         loc, ValueRange{lhsDim0, rhsDim1}, elementType);
-    Value c0 =
-        rewriter.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+    Value c0 = rewriter.create<arith::ConstantOp>(
+        loc, FloatAttr::get(elementType, 0.0));
     Value zeroFill =
         rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
     Value matmul = rewriter
@@ -951,16 +956,16 @@ public:
     Value weightDim0 = getDimOp(rewriter, loc, weight, 0);
     Value weightDim1 = getDimOp(rewriter, loc, weight, 1);
     Value biasDim0 = getDimOp(rewriter, loc, bias, 0);
-    Value contractingDimEqual =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, inputDim1, weightDim1);
+    Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, inputDim1, weightDim1);
     rewriter.create<AssertOp>(
         loc, contractingDimEqual,
         rewriter.getStringAttr(
             "mismatching contracting dimension for aten.linear"));
     // Here we take advantage of ruling out the size-1 case above.
     // In the static-size-1 case, we will not emit this check at all.
-    Value biasSizeCorrect =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, weightDim0, biasDim0);
+    Value biasSizeCorrect = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, weightDim0, biasDim0);
     rewriter.create<AssertOp>(
         loc, biasSizeCorrect,
         rewriter.getStringAttr("mismatching bias size for aten.linear"));
@@ -1024,11 +1029,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::TanhOp>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
     Type elementType = payloadArgs[0].getType();
-    auto one = b.create<ConstantOp>(loc, FloatAttr::get(elementType, 1));
-    auto negate = b.create<NegFOp>(loc, payloadArgs[0]);
+    auto one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1));
+    auto negate = b.create<arith::NegFOp>(loc, payloadArgs[0]);
     auto exp = b.create<math::ExpOp>(loc, negate);
-    auto added = b.create<AddFOp>(loc, exp, one);
-    return b.create<DivFOp>(loc, one, added);
+    auto added = b.create<arith::AddFOp>(loc, exp, one);
+    return b.create<arith::DivFOp>(loc, one, added);
   }
   if (auto relu = dyn_cast<AtenReluOp>(op)) {
     if (!relu.getType()
@@ -1040,9 +1045,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Type elementType = payloadArgs[0].getType();
     Value constZero =
-        b.create<ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
-    Value pred =
-        b.create<CmpFOp>(loc, CmpFPredicate::UGT, payloadArgs[0], constZero);
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                         payloadArgs[0], constZero);
     return b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
   }
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
@@ -1058,10 +1063,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       add.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value alphaFloat = b.create<mlir::SIToFPOp>(loc, payloadArgs[0].getType(),
-                                                adaptor.alpha());
-    Value scaled = b.create<mlir::MulFOp>(loc, payloadArgs[1], alphaFloat);
-    return b.create<mlir::AddFOp>(loc, payloadArgs[0], scaled);
+    Value alphaFloat = b.create<arith::SIToFPOp>(loc, payloadArgs[0].getType(),
+                                                 adaptor.alpha());
+    Value scaled = b.create<arith::MulFOp>(loc, payloadArgs[1], alphaFloat);
+    return b.create<arith::AddFOp>(loc, payloadArgs[0], scaled);
   }
   if (auto sub = dyn_cast<AtenSubTensorOp>(op)) {
     AtenSubTensorOp::Adaptor adaptor(operands);
@@ -1076,11 +1081,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       sub.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value alphaFloat = b.create<mlir::SIToFPOp>(loc, payloadArgs[0].getType(),
-                                                adaptor.alpha());
-    Value scaled = b.create<mlir::MulFOp>(loc, payloadArgs[1], alphaFloat);
+    Value alphaFloat = b.create<arith::SIToFPOp>(loc, payloadArgs[0].getType(),
+                                                 adaptor.alpha());
+    Value scaled = b.create<arith::MulFOp>(loc, payloadArgs[1], alphaFloat);
 
-    return b.create<mlir::SubFOp>(loc, payloadArgs[0], scaled);
+    return b.create<arith::SubFOp>(loc, payloadArgs[0], scaled);
   }
   if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
     if (!mul.getType()
@@ -1090,7 +1095,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       mul.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    return b.create<mlir::MulFOp>(loc, payloadArgs[0], payloadArgs[1]);
+    return b.create<arith::MulFOp>(loc, payloadArgs[0], payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     if (!div.getType()
@@ -1100,7 +1105,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       div.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    return b.create<DivFOp>(loc, payloadArgs[0], payloadArgs[1]);
+    return b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1]);
   }
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
     if (!lerp.getType()
@@ -1114,9 +1119,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto start = adaptor.self();
     auto end = adaptor.end();
     auto weight = adaptor.weight();
-    auto delta = b.create<SubFOp>(loc, end, start);
-    auto weightedDelta = b.create<MulFOp>(loc, delta, weight);
-    return b.create<AddFOp>(loc, start, weightedDelta);
+    auto delta = b.create<arith::SubFOp>(loc, end, start);
+    auto weightedDelta = b.create<arith::MulFOp>(loc, delta, weight);
+    return b.create<arith::AddFOp>(loc, start, weightedDelta);
   }
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
@@ -1128,7 +1133,7 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
                                                    Type elementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
       elementType.isa<mlir::FloatType>())
-    return b.create<mlir::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+    return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
 
   op->emitError("unimplemented lowering in "
                 "createLinalgNeutralElementForReduceOp");
@@ -1140,7 +1145,7 @@ static Value createLinalgPayloadCalculationForReduceOp(
     ArrayRef<Value> operands, Type elementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
       elementType.isa<mlir::FloatType>())
-    return b.create<AddFOp>(loc, payloadArgs);
+    return b.create<arith::AddFOp>(loc, payloadArgs);
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForReduceOp");
   return nullptr;
@@ -1213,7 +1218,7 @@ public:
     }
 
     // Constant op to account for the reduction along dim.
-    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       if (dim != i) {
@@ -1236,7 +1241,8 @@ public:
         APFloat::getLargest(
             inElementType.cast<mlir::FloatType>().getFloatSemantics(), true));
 
-    Value fillValueMax = rewriter.create<ConstantOp>(loc, fillValueMaxAttr);
+    Value fillValueMax =
+        rewriter.create<arith::ConstantOp>(loc, fillValueMaxAttr);
     Value filledTensorMax =
         rewriter.create<linalg::FillOp>(loc, fillValueMax, initTensorMax)
             .result();
@@ -1273,14 +1279,14 @@ public:
           Value oldIndex = blockArgs[1];
           Value oldValue = blockArgs[2];
 
-          Value newIndex = rewriter.create<IndexCastOp>(
+          Value newIndex = rewriter.create<arith::IndexCastOp>(
               nestedLoc, oldIndex.getType(),
               rewriter.create<linalg::IndexOp>(loc, dim));
 
           Value predicate;
           if (inElementType.isa<mlir::FloatType>())
-            predicate = rewriter.create<mlir::CmpFOp>(
-                nestedLoc, CmpFPredicate::OGT, newValue, oldValue);
+            predicate = rewriter.create<arith::CmpFOp>(
+                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
           auto resultMax = rewriter.create<mlir::SelectOp>(nestedLoc, predicate,
                                                            newValue, oldValue);
           auto resultIndex = rewriter.create<mlir::SelectOp>(
@@ -1339,7 +1345,7 @@ struct ConvertElementwiseOp : ConversionPattern {
                           .cast<RankedTensorType>();
     auto resultRank = resultType.getRank();
 
-    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     // The overall error handling strategy here is best viewed by thinking about
     // what happens for a single result dimension. This loop not structured that
     // way because it is hard to create the affine maps for each operand unless
@@ -1406,8 +1412,9 @@ struct ConvertElementwiseOp : ConversionPattern {
         // This is the check which protects against the undefined behavior of
         // the generated linalg op in the case of iterating two operands with
         // dimensions sizes that are expected to match.
-        auto equalToRunning = rewriter.create<CmpIOp>(
-            loc, CmpIPredicate::eq, resultShape[resultDim], currentDimSize);
+        auto equalToRunning = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, resultShape[resultDim],
+            currentDimSize);
         rewriter.create<AssertOp>(loc, equalToRunning,
                                   "mismatched size for broadcast");
       }
@@ -1473,7 +1480,7 @@ struct ConvertReductionOp : ConversionPattern {
     // If `keepDim` is true, the rank of the output tensor
     // is kept the same as the rank of the input tensor, and the
     // reduced dimensions are set to have size 1.
-    auto c1 = rewriter.create<mlir::ConstantIndexOp>(loc, /*value=*/1);
+    auto c1 = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/1);
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       auto currentDimSize =
@@ -1620,10 +1627,10 @@ public:
     if (!matchPattern(op.kernel_size(), m_TorchConstantIntList(kernelSizeInts)))
       return rewriter.notifyMatchFailure(op, "only support kernel size ints");
 
-    Value falseValue = rewriter.create<ConstantOp>(
+    Value falseValue = rewriter.create<arith::ConstantOp>(
         loc, IntegerAttr::get(rewriter.getIntegerType(1), 0));
-    Value ceilModeFalse =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::eq, ceilMode, falseValue);
+    Value ceilModeFalse = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, ceilMode, falseValue);
     rewriter.create<AssertOp>(
         loc, ceilModeFalse,
         rewriter.getStringAttr("only ceil_mode false is supported"));
@@ -1662,7 +1669,7 @@ public:
         APFloat::getSmallest(
             elementType.cast<mlir::FloatType>().getFloatSemantics(),
             /*Negative*/ true));
-    Value initValue = rewriter.create<ConstantOp>(loc, initialAttr);
+    Value initValue = rewriter.create<arith::ConstantOp>(loc, initialAttr);
     Value outTensorInitialized =
         rewriter.create<linalg::FillOp>(loc, initValue, outTensor).getResult(0);
 
@@ -1902,8 +1909,8 @@ public:
     int rank = newResultType.getRank();
     SmallVector<Value> offsets, sizes, strides;
     sizes.reserve(rank);
-    strides.resize(rank, rewriter.create<ConstantIndexOp>(loc, 1));
-    offsets.resize(rank, rewriter.create<ConstantIndexOp>(loc, 0));
+    strides.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 1));
+    offsets.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 0));
 
     for (int i = 0; i < rank; ++i)
       sizes.push_back(rewriter.create<tensor::DimOp>(loc, tensors[0], i));
@@ -1911,11 +1918,11 @@ public:
     // Calculate the size of the `dim` result dimension by adding the dim size
     // of each tensor together.
     Value resultDimSize = sizes[dim];
-    Value dimIndex = rewriter.create<IndexCastOp>(loc, rewriter.getIndexType(),
-                                                  adaptor.dim());
+    Value dimIndex = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIndexType(), adaptor.dim());
     for (auto tensor : makeArrayRef(tensors).drop_front()) {
       auto size = rewriter.create<tensor::DimOp>(loc, tensor, dimIndex);
-      resultDimSize = rewriter.create<AddIOp>(loc, resultDimSize, size);
+      resultDimSize = rewriter.create<arith::AddIOp>(loc, resultDimSize, size);
     }
     sizes[dim] = resultDimSize;
 
@@ -1925,7 +1932,8 @@ public:
       sizes[dim] = rewriter.create<tensor::DimOp>(loc, tensor, dimIndex);
       result = rewriter.create<tensor::InsertSliceOp>(loc, tensor, result,
                                                       offsets, sizes, strides);
-      offsets[dim] = rewriter.create<AddIOp>(loc, offsets[dim], sizes[dim]);
+      offsets[dim] =
+          rewriter.create<arith::AddIOp>(loc, offsets[dim], sizes[dim]);
     }
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
@@ -1968,7 +1976,7 @@ public:
         loc, newResultTy, indices, result, affineMaps, iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           auto indexValue = args[0];
-          Value indexOfDim = rewriter.create<IndexCastOp>(
+          Value indexOfDim = rewriter.create<arith::IndexCastOp>(
               loc, rewriter.getIndexType(), indexValue);
           SmallVector<Value> indices;
           for (int i = 0; i < rank; i++) {
@@ -1999,6 +2007,7 @@ public:
     registry.insert<math::MathDialect>();
     registry.insert<StandardOpsDialect>();
     registry.insert<tensor::TensorDialect>();
+    registry.insert<arith::ArithmeticDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -2006,7 +2015,8 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, StandardOpsDialect,
-                           math::MathDialect, tensor::TensorDialect>();
+                           math::MathDialect, tensor::TensorDialect,
+                           arith::ArithmeticDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

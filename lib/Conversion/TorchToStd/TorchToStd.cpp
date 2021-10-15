@@ -37,7 +37,7 @@ public:
   matchAndRewrite(AtenDimOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     auto rank = rewriter.create<RankOp>(op->getLoc(), operands[0]);
-    rewriter.replaceOpWithNewOp<IndexCastOp>(
+    rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
   }
@@ -51,8 +51,8 @@ public:
   LogicalResult
   matchAndRewrite(AtenNeIntOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::ne, operands[0],
-                                        operands[1]);
+    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::ne,
+                                               operands[0], operands[1]);
     return success();
   }
 };
@@ -65,8 +65,8 @@ public:
   LogicalResult
   matchAndRewrite(AtenGtIntOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<CmpIOp>(op, CmpIPredicate::sgt, operands[0],
-                                        operands[1]);
+    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::sgt,
+                                               operands[0], operands[1]);
     return success();
   }
 };
@@ -80,7 +80,7 @@ public:
   LogicalResult
   matchAndRewrite(OpTy op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, op.valueAttr());
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.valueAttr());
     return success();
   }
 };
@@ -95,13 +95,15 @@ class ConvertTorchToStd : public ConvertTorchToStdBase<ConvertTorchToStd> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<StandardOpsDialect>();
+    registry.insert<arith::ArithmeticDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect>();
+    target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect,
+                           arith::ArithmeticDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
