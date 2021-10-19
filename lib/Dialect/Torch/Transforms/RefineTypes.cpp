@@ -347,6 +347,8 @@ public:
         targetDim = size == -1 ? inputDim : size;
       };
       return visitExpandLikeOp(expand, expand.size(), operands, setDim);
+    } else if (auto broadcast = dyn_cast<AtenBroadcastToOp>(op)) {
+      return visitBroadcastToOp(broadcast, broadcast.size(), operands);
     } else if (auto repeat = dyn_cast<AtenRepeatOp>(op)) {
       // The repeats list specify the number of times to repeat along each dim
       // of the original tensor.
@@ -446,6 +448,9 @@ private:
   visitExpandLikeOp(Operation *op, Value list,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands,
                     SetDimSizePerListItemFn setDim);
+  ChangeResult
+  visitBroadcastToOp(Operation *op, Value list,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenCatOp(AtenCatOp op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -994,6 +999,20 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
       setDim(knowledge.sizes[dim], input.sizes[dim], size);
     }
   }
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitBroadcastToOp(
+    Operation *op, Value list,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.dtype = input.dtype;
+  if (!input.hasSizes)
+    return getLatticeElement(op->getResult(0)).join(knowledge);
+
+  fillInSizesGivenSizesList(knowledge, list);
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 

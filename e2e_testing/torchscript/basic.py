@@ -377,7 +377,23 @@ class SoftmaxIntArgTypeF64Module(torch.nn.Module):
     def forward(self, tensor):
         return self.softmax.forward(tensor)
 
-
 @register_test_case(module_factory=lambda: SoftmaxIntArgTypeF64Module())
 def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
+
+class BroadcastToModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.broadcast_to(x, [1, -1, -1, 4])
+
+
+@register_test_case(module_factory=lambda: BroadcastToModule())
+def BroadcastToModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1))
