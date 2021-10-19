@@ -90,7 +90,7 @@ public:
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
       } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
-                     AtenTransposeIntOp, TensorStaticInfoCastOp>(op),
+                     AtenTransposeIntOp, TensorStaticInfoCastOp,
                  AtenBroadcastToOp > (op)) {
         viewLikeOps.push_back(op);
         llvm::append_range(workList, op->getResult(0).getUsers());
