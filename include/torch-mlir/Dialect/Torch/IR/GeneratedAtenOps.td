@@ -1475,6 +1475,20 @@ def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
   let assemblyFormat = "$self `,` $size `,` $implicit attr-dict `:` type($self) `,` type($size) `,` type($implicit) `->` type($result)";
 }
 
+def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::broadcast_to : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $size attr-dict `:` type($self) `,` type($size) `->` type($result)";
+}
+
 def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics

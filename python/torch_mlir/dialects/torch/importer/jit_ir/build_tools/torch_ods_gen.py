@@ -520,6 +520,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
         emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
+        emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)")
         emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
         emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
         emit("aten::item : (Tensor) -> (Scalar)")

@@ -2134,6 +2134,105 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenBroadcastToOp op, llvm::ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    AtenBroadcastToOp::Adaptor adaptor(operands);
+    Value self = adaptor.self();
+    auto selfType = self.getType().cast<RankedTensorType>();
+    ArrayRef<int64_t> selfShape = selfType.getShape();
+    Type elementType = selfType.getElementType();
+    Location loc = op.getLoc();
+    MLIRContext *context = op->getContext();
+
+    SmallVector<Value> inShape, outShape;
+    if (!getListConstructElements(adaptor.size(), inShape)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the size list is not from list construct");
+    }
+    SmallVector<Value> inShapeConverted =
+        getTypeConvertedValues(rewriter, loc, getTypeConverter(), inShape);
+    if (inShape.size() < selfShape.size())
+      return rewriter.notifyMatchFailure(
+          op, "invalid shape: must not be smaller than rank of tensor");
+    size_t diff = inShape.size() - selfShape.size();
+
+    // Create affine map and shapes for tensor initialization.
+    SmallVector<AffineExpr> outExpr;
+    Value zero =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
+    for (size_t i = 0; i < inShape.size(); i++) {
+      Value shapeValue = inShapeConverted[i];
+      size_t j = i - diff;
+      if (i < diff) {
+        Value isValid = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sge, shapeValue, zero);
+        rewriter.create<AssertOp>(
+            loc, isValid,
+            rewriter.getStringAttr(
+                "negative values not allowed in new dimensions"));
+        outShape.push_back(castIntToIndex(rewriter, loc, shapeValue));
+        continue;
+      }
+      if (selfShape[j] == 1) {
+        // Broadcast singleton dimension
+        Value one =
+            rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+        Value isNegative = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, shapeValue, zero);
+        Value select = rewriter.create<SelectOp>(
+            loc, isNegative, one, castIntToIndex(rewriter, loc, shapeValue));
+        outShape.push_back(select);
+        outExpr.push_back(mlir::getAffineConstantExpr(0, context));
+        continue;
+      }
+      // Non-broadcast case
+      Value dim = getDimOp(rewriter, loc, self, j);
+      Value isNegative = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::slt, shapeValue, zero);
+      Value isEqual = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, castIndexToInt(rewriter, loc, dim),
+          shapeValue);
+      Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
+      rewriter.create<AssertOp>(
+          loc, isValid,
+          rewriter.getStringAttr(
+              "only broadcasting singleton dimensions supported"));
+      outShape.push_back(dim);
+      outExpr.push_back(mlir::getAffineDimExpr(i, context));
+    }
+
+    Value outTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, outShape, elementType);
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(inShape.size(), 0, outExpr, context),
+        rewriter.getMultiDimIdentityMap(inShape.size())};
+    SmallVector<StringRef> iteratorTypes(inShape.size(), "parallel");
+    Value result = rewriter
+                       .create<linalg::GenericOp>(
+                           loc, outTensor.getType(), self, outTensor,
+                           indexingMaps, iteratorTypes,
+                           [](OpBuilder &b, Location loc, ValueRange args) {
+                             b.create<linalg::YieldOp>(loc, args[0]);
+                           })
+                       .getResult(0);
+
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
+
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -2195,6 +2294,8 @@ public:
     patterns.add<ConvertAtenGatherOp>(typeConverter, context);
     target.addIllegalOp<AtenLayerNormOp>();
     patterns.add<ConvertAtenLayerNormOp>(typeConverter, context);
+    target.addIllegalOp<AtenBroadcastToOp>();
+    patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
     target.addIllegalOp<AtenArgmaxOp>();
     patterns.add<ConvertAtenArgmaxOp>(typeConverter, context);
     target.addIllegalOp<AtenSizeIntOp>();
