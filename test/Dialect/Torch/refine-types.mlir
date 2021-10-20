@@ -813,6 +813,31 @@ builtin.func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.t
 }
 
 // ----
+
+// CHECK-LABEL:   func @torch.aten.expand$higher_rank(
+// CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>) -> !torch.tensor {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[INT_NEG1:.*]] = torch.constant.int -1
+// CHECK:           %[[INT5:.*]] = torch.constant.int 5
+// CHECK:           %[[INT4:.*]] = torch.constant.int 4
+// CHECK:           %[[SIZE_LIST:.*]] = torch.prim.ListConstruct %[[INT4]], %[[INT5]], %[[INT_NEG1]], %[[INT5]], %[[INT4]] :
+// CHECK-SAME:          (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           %[[EXPAND:.*]] = torch.aten.expand %[[INPUT]], %[[SIZE_LIST]], %[[FALSE]] :
+// CHECK-SAME:          !torch.tensor<[2,1,4],f32>, !torch.list<!torch.int>, !torch.bool -> !torch.tensor<[4,5,2,5,4],f32>
+// CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[EXPAND]] : !torch.tensor<[4,5,2,5,4],f32> to !torch.tensor
+// CHECK:           return %[[RET]] : !torch.tensor
+builtin.func @torch.aten.expand$higher_rank(%input: !torch.tensor<[2,1,4], f32>) -> !torch.tensor {
+      %false = torch.constant.bool false
+      %int-1 = torch.constant.int -1
+      %int5 = torch.constant.int 5
+      %int4 = torch.constant.int 4
+      %size = torch.prim.ListConstruct %int4, %int5, %int-1, %int5, %int4: (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+      %ret = torch.aten.expand %input, %size, %false : !torch.tensor<[2,1,4], f32>, !torch.list<!torch.int>, !torch.bool -> !torch.tensor
+      return %ret : !torch.tensor
+}
+
+
+// ----
 // CHECK-LABEL:   func @torch.aten.expand$unknown_sizes(
 // CHECK-SAME:                                                  %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>,
 // CHECK-SAME:                                                  %[[SIZEX:.*]]: !torch.int) -> !torch.tensor {
@@ -823,7 +848,6 @@ builtin.func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.t
 // CHECK:           %[[RET:.*]] = torch.aten.expand %[[INPUT]], %[[SIZES]], %[[FALSE]] : !torch.tensor<[2,1,4],f32>, !torch.list<!torch.int>, !torch.bool -> !torch.tensor<[2,?,4],f32>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,?,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
-// CHECK:         }
 builtin.func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32>, %index: !torch.int) -> !torch.tensor {
       %false = torch.constant.bool false
       %int-1 = torch.constant.int -1
@@ -892,7 +916,6 @@ builtin.func @torch.aten.cat$unknown_dim(%t0: !torch.tensor<[?,1,4], f32>, %t1: 
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor<[?,1,4],f32> -> !torch.tensor<[3],si64>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[3],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
-// CHECK:         }
 builtin.func @torch.aten._shape_as_tensor(%input: !torch.tensor<[?,1,4], f32>) -> !torch.tensor {
       %ret= torch.aten._shape_as_tensor %input : !torch.tensor<[?,1,4], f32> -> !torch.tensor
       return %ret : !torch.tensor
@@ -904,7 +927,6 @@ builtin.func @torch.aten._shape_as_tensor(%input: !torch.tensor<[?,1,4], f32>) -
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor -> !torch.tensor<[?],si64>
 // CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[?],si64> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
-// CHECK:         }
 builtin.func @torch.aten._shape_as_tensor$unknown_input_shape(%input: !torch.tensor) -> !torch.tensor {
       %ret= torch.aten._shape_as_tensor %input : !torch.tensor -> !torch.tensor
       return %ret : !torch.tensor
@@ -949,7 +971,6 @@ func @torch.aten.softmax.int(%t: !torch.tensor<[2,3],f32>, %dim: !torch.int) -> 
 // CHECK:           %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[T]], %[[DIM]], %[[DTYPE]] : !torch.tensor<[2,3],f32>, !torch.int, !torch.int -> !torch.tensor<[2,3],si64>
 // CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[SOFTMAX]] : !torch.tensor<[2,3],si64> to !torch.tensor
 // CHECK:           return %[[RET]] : !torch.tensor
-// CHECK:         }
 func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, %dim: !torch.int) -> !torch.tensor {
   %int4 = torch.constant.int 4
   %ret = torch.aten.softmax.int %t, %dim, %int4: !torch.tensor<[2,3],f32>, !torch.int, !torch.int -> !torch.tensor
@@ -965,7 +986,6 @@ func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, %dim:
 // CHECK:    %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor<[?,?,?,?,?],f32>
 // CHECK:    %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<[?,?,?,?,?],f32> to !torch.tensor
 // CHECK:    return %[[CAST]] : !torch.tensor
-// CHECK:    }
 func @aten_matmul_broadcast_matrix(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
   return %0 : !torch.tensor
@@ -980,7 +1000,6 @@ func @aten_matmul_broadcast_matrix(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1
 // CHECK:    %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?],f32> -> !torch.tensor<[?,?,?,?],f32>
 // CHECK:    %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<[?,?,?,?],f32> to !torch.tensor
 // CHECK:    return %[[CAST]] : !torch.tensor
-// CHECK:    }
 func @aten_matmul_broadcast_vector(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.tensor {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?],f32> -> !torch.tensor
   return %0 : !torch.tensor

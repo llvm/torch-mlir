@@ -9,6 +9,7 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_UTILS_H
 #define TORCHMLIR_DIALECT_TORCH_UTILS_H
 
+#include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 
 namespace mlir {
@@ -17,6 +18,7 @@ namespace Torch {
 
 int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
+bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
 
 } // namespace Torch
 } // namespace torch
