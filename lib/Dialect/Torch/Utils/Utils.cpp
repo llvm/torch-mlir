@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
 namespace mlir {
 namespace torch {
@@ -19,6 +20,14 @@ int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
 
 bool isValidDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 && dim < inputRank;
+}
+
+bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
+  auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return false;
+  elems = llvm::to_vector<4>(listConstruct.elements());
+  return true;
 }
 
 } // namespace Torch

@@ -127,11 +127,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenSoftmaxIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
-      Value lhs = op.self();
-      Value rhs = op.other();
-
-      int lhsRank = getTensorRank(lhs);
-      int rhsRank = getTensorRank(rhs);
+      int lhsRank = getTensorRank(op.self());
+      int rhsRank = getTensorRank(op.other());
 
       // Make aten.matmul legal if the following condition is satisfied.
       return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);

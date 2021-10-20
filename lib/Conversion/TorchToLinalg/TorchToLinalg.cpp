@@ -264,14 +264,6 @@ static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
   return paddedInput;
 }
 
-static bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
-  auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
-  if (!listConstruct)
-    return false;
-  elems = llvm::to_vector<4>(listConstruct.elements());
-  return true;
-}
-
 static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
                             Value sigma) {
   Type elementType = x.getType();
@@ -953,14 +945,14 @@ public:
     Value lhs = operands[0];
     Value rhs = operands[1];
 
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
     unsigned lhsRank = lhs.getType().cast<RankedTensorType>().getRank();
     unsigned rhsRank = rhs.getType().cast<RankedTensorType>().getRank();
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
 
     // The different cases of torch_matmul op is mentioned here:
     // https://pytorch.org/docs/stable/generated/torch.matmul.html
@@ -1096,14 +1088,14 @@ public:
   LogicalResult
   matchAndRewrite(AtenBmmOp op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
     Location loc = op->getLoc();
     Value lhs = operands[0];
     Value rhs = operands[1];
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
 
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.bmm to be rank 3");
