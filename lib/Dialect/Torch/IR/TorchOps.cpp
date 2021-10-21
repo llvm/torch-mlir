@@ -435,7 +435,23 @@ OpFoldResult Aten__Not__Op::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenLenTOp
+// AtenNeBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenNeBoolOp::fold(ArrayRef<Attribute> operands) {
+  if (getOperand(0) == getOperand(1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), false);
+
+  bool a, b;
+  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+    return nullptr;
+  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), a != b);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenDimOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {

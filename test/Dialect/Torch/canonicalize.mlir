@@ -32,6 +32,36 @@ func @torch.aten.__isnot__$none_isnot_none(%arg0: !torch.none, %arg1: !torch.non
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func @torch.aten.ne.bool() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ne.bool() -> !torch.bool {
+  %a = torch.constant.bool true
+  %b = torch.constant.bool false
+  %0 = torch.aten.ne.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ne.bool$same_operand(
+// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.ne.bool$same_operand(%arg0: !torch.bool) -> !torch.bool {
+  %0 = torch.aten.ne.bool %arg0, %arg0: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ne.bool$different_operand(
+// CHECK-SAME:                                               %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RET:.*]] = torch.aten.ne.bool %[[ARG0]], %[[FALSE]] : !torch.bool, !torch.bool -> !torch.bool
+// CHECK:           return %[[RET]] : !torch.bool
+func @torch.aten.ne.bool$different_operand(%a: !torch.bool) -> !torch.bool {
+  %b = torch.constant.bool false
+  %0 = torch.aten.ne.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.size$canonicalize_to_list(
 // CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.list<!torch.int> {
 // CHECK:           %[[C2:.*]] = torch.constant.int 2

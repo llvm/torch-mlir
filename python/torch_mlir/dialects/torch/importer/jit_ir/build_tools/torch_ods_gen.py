@@ -590,6 +590,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::neg.float : (float) -> (float)")
         emit("aten::lt.float_int : (float, int) -> (bool)")
         emit("aten::__and__.bool : (bool, bool) -> (bool)")
+        emit("aten::ne.bool : (bool, bool) -> (bool)", has_folder=True)
         emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
         emit("aten::__isnot__ : (t1, t2) -> (bool)", has_folder=True)
         emit("aten::__not__ : (bool) -> (bool)", has_folder=True)
