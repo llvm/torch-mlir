@@ -2382,6 +2382,22 @@ def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
 
+def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::ne.bool : (bool, bool) -> (bool)`";
+  let arguments = (ins
+    Torch_BoolType:$a,
+    Torch_BoolType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let hasFolder = 1;
+}
+
 def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
     AllowsTypeRefinement,
     HasValueSemantics
