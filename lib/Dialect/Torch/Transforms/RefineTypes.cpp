@@ -365,6 +365,8 @@ public:
       return visitAtenEmbeddingOp(embedding, operands);
     } else if (auto bmm = dyn_cast<AtenBmmOp>(op)) {
       return visitAtenBmmOp(bmm, operands);
+    } else if (auto matmul = dyn_cast<AtenMatmulOp>(op)) {
+      return visitAtenMatmulOp(matmul, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxIntOp(softmaxIntOp, operands);
     }
@@ -466,6 +468,9 @@ private:
   ChangeResult
   visitAtenSoftmaxIntOp(AtenSoftmaxIntOp op,
                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenMatmulOp(AtenMatmulOp op,
+                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1113,6 +1118,28 @@ ChangeResult TypeAnalyzer::visitAtenBmmOp(
   auto mat2 = operands[1]->getValue();
   knowledge.sizes.resize(3, kUnknownSize);
   knowledge.dtype = joinElementTypes(self.dtype, mat2.dtype);
+  knowledge.hasSizes = true;
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenMatmulOp(
+    AtenMatmulOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto self = operands[0]->getValue();
+  auto other = operands[1]->getValue();
+  if (!self.hasSizes || !other.hasSizes)
+    return getLatticeElement(op->getResult(0)).join(knowledge);
+  unsigned maxRank = self.sizes.size() > other.sizes.size()
+                         ? self.sizes.size()
+                         : other.sizes.size();
+  unsigned lhsDim = self.sizes.size() > 2 ? 2 : self.sizes.size();
+  unsigned rhsDim = other.sizes.size() > 2 ? 2 : other.sizes.size();
+  unsigned batchDim = maxRank > 2 ? maxRank - 2 : 0;
+  unsigned matDim = (lhsDim - 1) + (rhsDim - 1);
+  unsigned resultRank = batchDim + matDim;
+  knowledge.sizes.resize(resultRank, kUnknownSize);
+  knowledge.dtype = joinElementTypes(self.dtype, other.dtype);
   knowledge.hasSizes = true;
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
