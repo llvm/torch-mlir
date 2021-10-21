@@ -955,3 +955,33 @@ func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, %dim:
   %ret = torch.aten.softmax.int %t, %dim, %int4: !torch.tensor<[2,3],f32>, !torch.int, !torch.int -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+
+// ----
+// CHECK-LABEL:  func @aten_matmul_broadcast_matrix(
+// CHECK-SAME:   %[[LHS:.*]]: !torch.vtensor<[?,?,?,?,?],f32>, 
+// CHECK-SAME:   %[[RHS:.*]]: !torch.vtensor<[?,?,?],f32>)
+// CHECK-SAME:   -> !torch.tensor {
+// CHECK:    %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor<[?,?,?,?,?],f32>
+// CHECK:    %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<[?,?,?,?,?],f32> to !torch.tensor
+// CHECK:    return %[[CAST]] : !torch.tensor
+// CHECK:    }
+func @aten_matmul_broadcast_matrix(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+
+// ----
+// CHECK-LABEL:  func @aten_matmul_broadcast_vector(
+// CHECK-SAME:   %[[LHS:.*]]: !torch.vtensor<[?,?,?,?,?],f32>, 
+// CHECK-SAME:   %[[RHS:.*]]: !torch.vtensor<[?],f32>)
+// CHECK-SAME:   -> !torch.tensor {
+// CHECK:    %[[MUL:.*]] = torch.aten.matmul %[[LHS]], %[[RHS]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?],f32> -> !torch.tensor<[?,?,?,?],f32>
+// CHECK:    %[[CAST:.*]] = torch.tensor_static_info_cast %[[MUL]] : !torch.tensor<[?,?,?,?],f32> to !torch.tensor
+// CHECK:    return %[[CAST]] : !torch.tensor
+// CHECK:    }
+func @aten_matmul_broadcast_vector(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.tensor {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?],f32> -> !torch.tensor
+  return %0 : !torch.tensor
+}

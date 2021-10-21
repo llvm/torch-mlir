@@ -20,6 +20,19 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+// Helper funtion to get rank of `Base tensor type`.
+// -1 is returned if the tensorRank can't be determined.
+static int getTensorRank(Value tensor) {
+  int tensorRank = -1;
+  BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
+
+  if (tensorType.hasSizes()) {
+    ArrayRef<int64_t> tensorShape = tensorType.getSizes();
+    tensorRank = tensorShape.size();
+  }
+  return tensorRank;
+}
+
 // Decompose softmax into: exp(x) / sum(exp(x))
 namespace {
 class DecomposeAtenSoftmaxIntOp : public OpRewritePattern<AtenSoftmaxIntOp> {
@@ -75,6 +88,33 @@ public:
 };
 } // namespace
 
+// Decompose torch.matmul into: torch.mm and torch.bmm according to ranks.
+namespace {
+class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMatmulOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value lhs = op.self();
+    Value rhs = op.other();
+
+    int lhsRank = getTensorRank(lhs);
+    int rhsRank = getTensorRank(rhs);
+
+    // If both lhs and rhs ranks are 2 then map it to `aten.mm` op.
+    if (lhsRank == 2 && rhsRank == 2)
+      rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), lhs, rhs);
+
+    // If both lhs and rhs ranks are 3 then map it to `aten.bmm` op.
+    if (lhsRank == 3 && rhsRank == 3)
+      rewriter.replaceOpWithNewOp<AtenBmmOp>(op, op.getType(), lhs, rhs);
+
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -86,7 +126,17 @@ class DecomposeComplexOpsPass
 
     patterns.add<DecomposeAtenSoftmaxIntOp>(context);
     target.addIllegalOp<AtenSoftmaxIntOp>();
+    patterns.add<DecomposeAtenMatmulOp>(context);
+    target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
+      Value lhs = op.self();
+      Value rhs = op.other();
 
+      int lhsRank = getTensorRank(lhs);
+      int rhsRank = getTensorRank(rhs);
+
+      // Make aten.matmul legal if the following condition is satisfied.
+      return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
+    });
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
       return signalPassFailure();
