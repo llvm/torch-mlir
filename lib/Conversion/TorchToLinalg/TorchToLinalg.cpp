@@ -2233,6 +2233,60 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenOnesOp : public OpConversionPattern<AtenOnesOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOnesOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    AtenOnesOp::Adaptor adaptor(operands);
+    Location loc = op.getLoc();
+
+    // We ignore device, but add simple asserts for unimplemented kwargs
+    if (!adaptor.layout().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op,
+                                         "only default layout is supported");
+    bool pinMemory;
+    if (!adaptor.pin_memory().getType().isa<Torch::NoneType>() &&
+        !matchPattern(adaptor.pin_memory(), m_TorchConstantBool(&pinMemory)))
+      return rewriter.notifyMatchFailure(op, "memory pinning not supported");
+
+    SmallVector<Value> size, sizeIndex;
+    if (!getListConstructElements(adaptor.size(), size)) {
+      return rewriter.notifyMatchFailure(
+          op, "size must be created by ListConstruct");
+    }
+    size = getTypeConvertedValues(rewriter, loc, getTypeConverter(), size);
+    for (size_t i = 0; i < size.size(); i++)
+      sizeIndex.push_back(castIntToIndex(rewriter, loc, size[i]));
+
+    RankedTensorType newResultType =
+        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+    Type outElementType = newResultType.getElementType();
+
+    Value one = rewriter.create<arith::ConstantOp>(
+        loc, outElementType,
+        (outElementType.isa<mlir::FloatType>()
+             ? rewriter.getFloatAttr(outElementType, 1).cast<mlir::Attribute>()
+             : rewriter.getIntegerAttr(outElementType, 1)
+                   .cast<mlir::Attribute>()));
+    Value outTensor = rewriter
+                          .create<linalg::InitTensorOp>(
+                              loc, sizeIndex, newResultType.getElementType())
+                          .getResult();
+    Value fillOp =
+        rewriter.create<linalg::FillOp>(loc, one, outTensor).getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, fillOp);
+
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -2302,6 +2356,8 @@ public:
     patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
     target.addIllegalOp<AtenEmbeddingOp>();
     patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
+    target.addIllegalOp<AtenOnesOp>();
+    patterns.add<ConvertAtenOnesOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

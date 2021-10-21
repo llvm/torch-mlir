@@ -397,3 +397,33 @@ class BroadcastToModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BroadcastToModule())
 def BroadcastToModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 1))
+
+class OnesModuleInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: OnesModuleInt())
+def OnesModuleInt_basic(module, tu: TestUtils):
+    module.forward()
+
+class OnesModuleFloat(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: OnesModuleFloat())
+def OnesModuleFloat_basic(module, tu: TestUtils):
+    module.forward()
