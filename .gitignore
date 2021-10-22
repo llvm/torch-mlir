@@ -3,6 +3,7 @@
 .env
 *.code-workspace
 .ipynb_checkpoints
+*.venv/
 
 /build/
 __pycache__

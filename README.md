@@ -50,7 +50,7 @@ python -m pip install --upgrade pip
 python -m pip install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
 ```
 
-## Build 
+## Build
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_C_COMPILER=clang \
@@ -70,7 +70,14 @@ cmake -GNinja -Bbuild \
 # -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
 
-cmake --build build
+# Build just torch-mlir (not all of LLVM)
+cmake --build build --target tools/torch-mlir/all
+
+# Run unit tests.
+cmake --build build --target check-torch-mlir
+
+# Build everything (including LLVM)
+# cmake --build build
 ```
 ## Demos
 
@@ -139,7 +146,7 @@ The `examples` folder includes the Python package `lazytensor`, which implements
 
 #### Example usage of `lazytensor`
 
-The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md). 
+The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md).
 
 In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
 
