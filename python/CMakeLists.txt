@@ -1,5 +1,9 @@
 include(AddMLIRPython)
 
+# Disables generation of "version soname" (i.e. libFoo.so.<version>), which
+# causes pure duplication as part of Python wheels.
+set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
+
 # The directory at which the Python import tree begins.
 # See documentation for `declare_mlir_python_sources`'s ROOT_DIR
 # argument.

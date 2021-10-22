@@ -4,6 +4,7 @@
 *.code-workspace
 .ipynb_checkpoints
 *.venv/
+mlir_venv/
 
 /build/
 __pycache__

@@ -46,8 +46,8 @@ python -m venv mlir_venv
 source mlir_venv/bin/activate
 # Some older pip installs may not be able to handle the recent PyTorch deps
 python -m pip install --upgrade pip
-# Install latest PyTorch nightlies
-python -m pip install --pre torch torchvision pybind11 -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+# Install latest PyTorch nightlies and build requirements.
+python -m pip install -r requirements.txt
 ```
 
 ## Build
@@ -178,3 +178,14 @@ manually `source`'d in a shell.
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
 - Issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
+
+## Build Python Packages
+
+We have preliminary support for building Python packages. This can be done
+with the following commands:
+
+```
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
+```

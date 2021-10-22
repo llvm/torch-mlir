@@ -1,0 +1,10 @@
+-f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+--pre
+
+numpy
+torch
+torchvision
+
+# Build requirements.
+pybind11
+wheel
