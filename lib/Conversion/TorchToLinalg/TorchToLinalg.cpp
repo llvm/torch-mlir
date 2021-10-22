@@ -77,7 +77,8 @@ static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
   assert(dim.getType().isa<IntegerType>() &&
          "dim arg of toPositiveDim must be integer type");
   Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
-  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value cst0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predDimGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
   Value dimInt = b.create<SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
@@ -89,7 +90,8 @@ static void assertIsValidDim(OpBuilder &b, Location loc, Value dim,
                              Value inputRank) {
   assert(dim.getType().isa<IntegerType>() &&
          "dim arg of assertIsValidDim must be integer type");
-  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value cst0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
   b.create<AssertOp>(loc, predGEZero,
