@@ -10,7 +10,7 @@ include_directories(BEFORE
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-add_library(TorchMLIRJITIRImporter SHARED
+add_library(TorchMLIRJITIRImporter MODULE
   class_annotator.cpp
   get_registered_ops.cpp
   function_importer.cpp

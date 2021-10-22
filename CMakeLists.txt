@@ -37,7 +37,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-  
+
   # Define the default arguments to use with 'lit', and an option for the user to
   # override.
   set(LIT_ARGS_DEFAULT "-sv")
@@ -64,7 +64,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
-  
+
   option(MLIR_ENABLE_BINDINGS_PYTHON "Enables MLIR Python Bindings" OFF)
   option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
 
@@ -113,15 +113,11 @@ include(AddMLIR)
 
 ################################################################################
 # Setup python.
-# TODO: Make one upstream macro to do this.
 ################################################################################
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   include(MLIRDetectPythonEnv)
-  mlir_detect_pybind11_install()
-  find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION}
-  COMPONENTS Interpreter Development NumPy REQUIRED)
-  find_package(pybind11 2.6 CONFIG REQUIRED)
+  mlir_configure_python_dev_packages()
 endif()
 
 add_subdirectory(include)
