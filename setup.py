@@ -64,6 +64,10 @@ class CMakeBuild(build_py):
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
+                # Optimization options for building wheels.
+                f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
+                f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
+                f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             ]
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
