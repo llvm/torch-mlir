@@ -25,6 +25,7 @@ from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Di
 
 import io
 import pickle
+import traceback
 
 import torch
 
@@ -298,16 +299,10 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
             golden_trace = generate_golden_trace(test)
             compiled = config.compile(test.program_factory())
         except Exception as e:
-            # Useful for debugging:
-            # ```
-            # raise
-            # ```
-            # This will give the full traceback rather than giving just
-            # the stringified exception in the report.
-            # TODO: Capture the traceback and make it available in the report.
             results.append(
                 TestResult(unique_name=test.unique_name,
-                           compilation_error=str(e),
+                           compilation_error="".join(traceback.format_exception(
+                               type(e), e, e.__traceback__)),
                            runtime_error=None,
                            trace=None,
                            golden_trace=None))
@@ -319,7 +314,8 @@ def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
             results.append(
                 TestResult(unique_name=test.unique_name,
                            compilation_error=None,
-                           runtime_error=str(e),
+                           runtime_error="".join(traceback.format_exception(
+                               type(e), e, e.__traceback__)),
                            trace=None,
                            golden_trace=None))
             continue
