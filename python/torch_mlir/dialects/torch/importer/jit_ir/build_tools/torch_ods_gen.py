@@ -464,6 +464,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         ]:
             emit_with_mutating_variants(key)
 
+        emit("aten::gelu : (Tensor) -> (Tensor)")
+
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
 

@@ -198,6 +198,28 @@ def ElementwiseReluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseGeluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.gelu = torch.nn.GELU()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.gelu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGeluModule())
+def ElementwiseGeluModule_basic(module, tu: TestUtils):
+    module.forward(2*tu.rand(5, 3) - 0.5)
+
+
+# ==============================================================================
+
+
 class ElementwiseSigmoidModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
