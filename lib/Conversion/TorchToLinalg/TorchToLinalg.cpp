@@ -2195,6 +2195,73 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenPermuteOp : public OpConversionPattern<AtenPermuteOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenPermuteOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    AtenPermuteOp::Adaptor adaptor(operands);
+    SmallVector<int64_t> dimensions;
+    if (!matchPattern(op.dims(), m_TorchConstantIntList(dimensions)))
+      return rewriter.notifyMatchFailure(op, "all dimensions must be constant");
+
+    Value inVector = adaptor.self();
+    auto inType = inVector.getType().cast<RankedTensorType>();
+    int64_t inputRank = inType.getRank();
+    auto outType = getTypeConverter()
+                       ->convertType(op->getResult(0).getType())
+                       .cast<RankedTensorType>();
+    Type elementType = inType.getElementType();
+
+    // Check if the dimensions are a valid constants.
+    int64_t numDimensions = dimensions.size();
+    if (inputRank != numDimensions)
+      return rewriter.notifyMatchFailure(
+          op, "size of `dims` must be equal to the rank of the input");
+    for (unsigned i = 0; i < numDimensions; i++) {
+      if (dimensions[i] < 0)
+        dimensions[i] = toPositiveDim(dimensions[i], inputRank);
+      if (!isValidDim(dimensions[i], inputRank))
+        return rewriter.notifyMatchFailure(op, "dimension out of range");
+    }
+
+    Location loc = op.getLoc();
+
+    SmallVector<Value> outputDims;
+    for (unsigned i = 0; i < inputRank; i++)
+      outputDims.push_back(getDimOp(rewriter, loc, inVector, dimensions[i]));
+
+    Value outVector =
+        rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
+    SmallVector<AffineExpr> idExprs;
+    SmallVector<AffineExpr> swapExprs;
+    for (unsigned i = 0; i < inputRank; i++)
+      idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+    for (unsigned i = 0; i < inputRank; i++)
+      swapExprs.push_back(idExprs[dimensions[i]]);
+
+    SmallVector<AffineMap> indexingMaps =
+        AffineMap::inferFromExprList({idExprs, swapExprs});
+    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    auto transpose = rewriter
+                         .create<linalg::GenericOp>(
+                             loc, outVector.getType(), inVector, outVector,
+                             indexingMaps, iteratorTypes,
+                             [](OpBuilder &b, Location loc, ValueRange args) {
+                               b.create<linalg::YieldOp>(loc, args[0]);
+                             })
+                         .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transpose);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCatOp : public OpConversionPattern<AtenCatOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -2600,6 +2667,8 @@ public:
     patterns.add<ConvertReductionOp>(typeConverter, context);
     target.addIllegalOp<AtenTransposeIntOp>();
     patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenPermuteOp>();
+    patterns.add<ConvertAtenPermuteOp>(typeConverter, context);
     target.addIllegalOp<AtenCatOp>();
     patterns.add<ConvertAtenCatOp>(typeConverter, context);
     target.addIllegalOp<AtenGatherOp>();

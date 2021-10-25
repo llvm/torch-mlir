@@ -498,6 +498,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
         emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
         emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
+        emit("aten::permute : (Tensor, int[]) -> (Tensor)")
         emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
         emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
         emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
