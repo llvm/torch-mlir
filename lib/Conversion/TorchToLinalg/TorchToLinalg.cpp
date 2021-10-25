@@ -77,7 +77,8 @@ static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
   assert(dim.getType().isa<IntegerType>() &&
          "dim arg of toPositiveDim must be integer type");
   Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
-  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value cst0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predDimGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
   Value dimInt = b.create<SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
@@ -89,7 +90,8 @@ static void assertIsValidDim(OpBuilder &b, Location loc, Value dim,
                              Value inputRank) {
   assert(dim.getType().isa<IntegerType>() &&
          "dim arg of assertIsValidDim must be integer type");
-  Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+  Value cst0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
   b.create<AssertOp>(loc, predGEZero,
@@ -268,6 +270,29 @@ static bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
     return false;
   elems = llvm::to_vector<4>(listConstruct.elements());
   return true;
+}
+
+static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
+                            Value sigma) {
+  Type elementType = x.getType();
+  Value xMinusMean = b.create<arith::SubFOp>(loc, x, mean);
+  Value two = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 2));
+  Value sqrt2 = b.create<math::SqrtOp>(loc, two);
+  Value erfArg = b.create<arith::DivFOp>(loc, xMinusMean, sqrt2);
+  Value erf = b.create<math::ErfOp>(loc, erfArg);
+  Value one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1));
+  Value erfPlus1 = b.create<arith::AddFOp>(loc, one, erf);
+  Value oneHalf =
+      b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.5));
+  Value normalCdf = b.create<arith::MulFOp>(loc, oneHalf, erfPlus1);
+  return normalCdf;
+}
+
+static Value buildUnitNormalCdf(OpBuilder &b, Location &loc, Value x) {
+  Type elementType = x.getType();
+  Value zero = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0));
+  Value one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1));
+  return buildNormalCdf(b, loc, x, zero, one);
 }
 
 namespace {
@@ -1117,6 +1142,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                          payloadArgs[0], constZero);
     return b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
   }
+  if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
+    if (!gelu.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      gelu.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[0]);
+    return b.create<arith::MulFOp>(loc, payloadArgs[0], cdf);
+  }
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
     if (add.alpha().getType().isa<Torch::FloatType>()) {
@@ -1396,9 +1432,9 @@ struct ConvertElementwiseOp : ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenAddTensorOp, AtenMulTensorOp,
-             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
-             AtenExpOp>(op))
+    if (!isa<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
+             AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
+             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2322,7 +2358,7 @@ public:
     patterns.add<ConvertAtenLinearOp>(typeConverter, context);
     target.addIllegalOp<AtenBatchNormOp>();
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-    target.addIllegalOp<AtenTanhOp, AtenReluOp, AtenAddTensorOp,
+    target.addIllegalOp<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
                         AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
                         AtenLerpTensorOp, AtenSigmoidOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);

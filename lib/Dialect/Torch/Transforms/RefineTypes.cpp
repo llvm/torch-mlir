@@ -190,14 +190,15 @@ public:
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
     if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
-            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenAddScalarOp,
-            AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp, AtenFmodScalarOp,
-            AtenFloorDivideScalarOp, AtenEqScalarOp, AtenGeScalarOp,
-            AtenGtScalarOp, AtenNeScalarOp, AtenBitwiseNotOp, AtenToDtypeOp,
-            AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
-            AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
-            AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
-            AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp>(op)) {
+            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp,
+            AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp, AtenDivScalarOp,
+            AtenFmodScalarOp, AtenFloorDivideScalarOp, AtenEqScalarOp,
+            AtenGeScalarOp, AtenGtScalarOp, AtenNeScalarOp, AtenBitwiseNotOp,
+            AtenToDtypeOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
+            DerefineOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
+            AtenFill_ScalarOp, AtenDetachOp, AtenMaskedFill_ScalarOp,
+            AtenCopy_Op, AtenIndexPut_Op, AtenCopy_Op, AtenCumsumOp,
+            AtenLayerNormOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 

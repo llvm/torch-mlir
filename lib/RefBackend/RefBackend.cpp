@@ -16,6 +16,7 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -179,11 +180,13 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     auto *context = &getContext();
     RewritePatternSet patterns(context);
     populateExpandTanhPattern(patterns);
+    patterns.add<math::ErfPolynomialApproximation>(patterns.getContext());
     ConversionTarget target(*context);
     target.addLegalDialect<StandardOpsDialect>();
     target.addLegalDialect<math::MathDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalOp<math::TanhOp>();
+    target.addIllegalOp<math::ErfOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
       return signalPassFailure();
     }
