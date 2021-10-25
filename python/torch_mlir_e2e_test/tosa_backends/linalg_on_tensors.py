@@ -39,7 +39,7 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
 
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-linalg-on-tensors)",
+            "builtin.func(tosa-to-linalg)",
             "Lowering TOSA to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 

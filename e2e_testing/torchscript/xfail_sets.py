@@ -22,6 +22,5 @@ REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
-    # See: https://github.com/llvm/torch-mlir/issues/379
-    #"ElementwiseUnaryModule_basic",
+    "ElementwiseUnaryModule_basic",
 }
