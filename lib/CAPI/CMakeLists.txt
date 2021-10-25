@@ -1,4 +1,4 @@
-add_mlir_library(TorchMLIRCAPI
+add_mlir_public_c_api_library(TorchMLIRCAPI
   Dialects.cpp
   Registration.cpp
   TorchTypes.cpp
