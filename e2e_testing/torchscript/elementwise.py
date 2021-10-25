@@ -132,6 +132,31 @@ def ElementwiseUnsqueezeBroadcastModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseUnsqueezeNegDimsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        # As mentioned in `unsqueeze` docstring,
+        # valid dim values are [-input.dim()-1, input.dim()+1).
+        # This tests the lower bound
+        return torch.unsqueeze(a, -3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseUnsqueezeNegDimsModule())
+def ElementwiseUnsqueezeNegDimsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3))
+
+
+# ==============================================================================
+
+
 class ElementwiseFlattenBroadcastModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

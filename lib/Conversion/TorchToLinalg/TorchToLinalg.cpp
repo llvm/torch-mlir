@@ -1890,13 +1890,11 @@ public:
                        .cast<RankedTensorType>();
     auto elementType = inType.getElementType();
 
-    if (dim0 < 0)
-      dim0 += inputRank + 1;
-    if (dim0 < 0 || dim0 >= inputRank)
+    dim0 = toPositiveDim(dim0, inputRank);
+    if (!isValidDim(dim0, inputRank))
       return rewriter.notifyMatchFailure(op, "dim0 out of range");
-    if (dim1 < 0)
-      dim1 += inputRank + 1;
-    if (dim1 < 0 || dim1 >= inputRank)
+    dim1 = toPositiveDim(dim1, inputRank);
+    if (!isValidDim(dim1, inputRank))
       return rewriter.notifyMatchFailure(op, "dim1 out of range");
 
     auto loc = op.getLoc();
