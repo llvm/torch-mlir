@@ -291,6 +291,8 @@ public:
       return visitReshapeLikeOp(resize, operands);
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
       return visitAtenTransposeIntOp(transposeInt, operands);
+    } else if (auto permute = dyn_cast<AtenPermuteOp>(op)) {
+      return visitAtenPermuteOp(permute, operands);
     } else if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
       return visitScalarToTensorConversionOp<AtenTensorFloatOp>(tensorFloat);
     } else if (auto tensorInt = dyn_cast<AtenTensorIntOp>(op)) {
@@ -424,6 +426,9 @@ private:
   ChangeResult
   visitAtenTransposeIntOp(AtenTransposeIntOp op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenPermuteOp(AtenPermuteOp op,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   template <typename OpTy>
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
@@ -856,6 +861,31 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
   }
 
   knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenPermuteOp(
+    AtenPermuteOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+  knowledge.dtype = input.dtype;
+  if (!input.hasSizes)
+    return getLatticeElement(op.getResult()).join(knowledge);
+  knowledge.hasSizes = input.hasSizes;
+  knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+  Value dims = op.dims();
+  SmallVector<int64_t> dimensions;
+  if (matchPattern(dims, m_TorchConstantIntList(dimensions))) {
+    int64_t inputRank = input.sizes.size();
+    for (unsigned i = 0; i < inputRank; i++) {
+      int64_t dim = toPositiveDim(dimensions[i], inputRank);
+      if (!isValidDim(dim, inputRank)) {
+        return getLatticeElement(op.getResult()).join(knowledge);
+      }
+      knowledge.sizes[i] = input.sizes[dim];
+    }
+  }
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

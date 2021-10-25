@@ -1016,6 +1016,20 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
   let assemblyFormat = "$self `,` $dim0 `,` $dim1 attr-dict `:` type($self) `,` type($dim0) `,` type($dim1) `->` type($result)";
 }
 
+def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::permute : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$dims
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dims attr-dict `:` type($self) `,` type($dims) `->` type($result)";
+}
+
 def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
     AllowsTypeRefinement,
     HasValueSemantics
