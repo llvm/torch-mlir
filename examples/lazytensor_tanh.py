@@ -52,7 +52,7 @@ cu = CompilationUnit()
 func_name = 'my_method'
 script_function = cu.create_function(func_name, graph)
 
-# `build_module` takes he torch.jit.ScriptFunction and the
+# `build_module` takes the torch.jit.ScriptFunction and the
 # annotation on the operand types, and outputs an `ir.Module`
 # with a single function representing the ScriptFunction in
 # the torch MLIR dialect
@@ -65,7 +65,7 @@ mlir_module.dump()
 
 # Compile the torch MLIR and execute the compiled program
 with mlir_module.context:
-    pm = PassManager.parse('torchscript-function-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
+    pm = PassManager.parse('torch-function-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
 pm.run(mlir_module)
 
 print("BEFORE LINALG-ON-TENSORS BACKEND PIPELINE")
