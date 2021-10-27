@@ -148,10 +148,13 @@ class TestUtils:
         torch.manual_seed(0)
 
     # TODO: Add zeros/ones/etc. as convenient.
-    def rand(self, *sizes):
-        if len(sizes) == 0:
-            return torch.rand([])
-        return torch.rand(*sizes)
+    def rand(self, *sizes, low=0.0, high=1.0):
+        return torch.empty(sizes).uniform_(low, high)
+
+    def nans(self, *sizes):
+        vals = torch.empty(sizes)
+        vals[...] = torch.nan
+        return vals
 
 
 class Test(NamedTuple):

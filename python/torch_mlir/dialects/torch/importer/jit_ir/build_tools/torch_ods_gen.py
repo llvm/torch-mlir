@@ -222,6 +222,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor?[]": "AnyTorchOptionalTensorListType",
     "Tensor[]": "AnyTorchTensorListType",
     "Scalar": "AnyTorchScalarType",
+    "Scalar?": "AnyTorchOptionalScalarType",
     "int": "Torch_IntType",
     "int[]": "TorchIntListType",
     "int?": "TorchOptionalIntType",
@@ -460,9 +461,15 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
-                "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)"
+                "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
+                "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
         ]:
             emit_with_mutating_variants(key)
+        # Elementwise tensor compute ops that don't have the standard mutating
+        # variants.
+        emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
+
 
         emit("aten::gelu : (Tensor) -> (Tensor)")
 

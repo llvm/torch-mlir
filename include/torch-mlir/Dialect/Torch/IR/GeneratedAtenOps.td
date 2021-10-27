@@ -762,6 +762,68 @@ def Torch_AtenMaskedFill_ScalarOp : Torch_Op<"aten.masked_fill_.Scalar", [
   let assemblyFormat = "$self `,` $mask `,` $value attr-dict `:` type($self) `,` type($mask) `,` type($value) `->` type($result)";
 }
 
+def Torch_AtenClampOp : Torch_Op<"aten.clamp", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalScalarType:$min,
+    AnyTorchOptionalScalarType:$max
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` type($self) `,` type($min) `,` type($max) `->` type($result)";
+}
+
+def Torch_AtenClamp_Op : Torch_Op<"aten.clamp_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::clamp_ : (Tensor, Scalar?, Scalar?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalScalarType:$min,
+    AnyTorchOptionalScalarType:$max
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` type($self) `,` type($min) `,` type($max) `->` type($result)";
+}
+
+def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::maximum : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+}
+
+def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::minimum : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+}
+
 def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
     AllowsTypeRefinement,
     HasValueSemantics

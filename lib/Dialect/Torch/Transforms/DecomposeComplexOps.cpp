@@ -95,7 +95,6 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenMatmulOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     Value lhs = op.self();
     Value rhs = op.other();
 

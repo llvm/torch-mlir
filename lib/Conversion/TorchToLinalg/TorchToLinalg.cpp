@@ -1259,6 +1259,26 @@ public:
 };
 } // namespace
 
+
+static Value promoteScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype) {
+  // TODO: For the integer case, we probably need the unconverted dtype to
+  // be able to know if we need signed or unsigned conversion.
+  if (dtype.isa<mlir::FloatType>()) {
+    if (scalar.getType().isa<mlir::FloatType>()) {
+      // `scalar` will always be f64 since that is what the TypeConverter
+      // converts !torch.float to.
+      return b.create<arith::TruncFOp>(loc, scalar, dtype);
+    } else {
+      assert(scalar.getType().isa<mlir::IntegerType>());
+      // `scalar` will always be i64 since that is what the TypeConverter
+      // converts !torch.int to.
+      return b.create<arith::SIToFPOp>(loc, scalar, dtype);
+    }
+  }
+  mlir::emitError(loc) << "promoteScalarToDtype for dtype " << dtype;
+  return nullptr;
+}
+
 static Value createLinalgPayloadCalculationForElementwiseOp(
     OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
     ArrayRef<Value> operands) {
@@ -1372,6 +1392,59 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     auto delta = b.create<arith::SubFOp>(loc, end, start);
     auto weightedDelta = b.create<arith::MulFOp>(loc, delta, weight);
     return b.create<arith::AddFOp>(loc, start, weightedDelta);
+  }
+  if (auto minimum = dyn_cast<AtenMinimumOp>(op)) {
+    if (!minimum.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      minimum.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                         payloadArgs[0], payloadArgs[1]);
+    return b.create<SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+  }
+  if (auto maximum = dyn_cast<AtenMaximumOp>(op)) {
+    if (!maximum.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      maximum.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                         payloadArgs[0], payloadArgs[1]);
+    return b.create<SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+  }
+  if (auto clamp = dyn_cast<AtenClampOp>(op)) {
+    auto dtype = clamp.getType().cast<ValueTensorType>().getDtype();
+    if (!dtype.isa<mlir::FloatType>()) {
+      clamp.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    AtenClampOp::Adaptor adaptor(operands);
+    auto min = adaptor.min();
+    auto max = adaptor.max();
+    if (min.getType().isa<Torch::OptionalType>() ||
+        max.getType().isa<Torch::OptionalType>()) {
+      clamp.emitError("unimplemented: runtime optional type");
+      return nullptr;
+    }
+    auto result = payloadArgs[0];
+    if (!min.getType().isa<Torch::NoneType>()) {
+      auto minPromoted = promoteScalarToDtype(b, loc, min, dtype);
+      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                          result, minPromoted);
+      result = b.create<SelectOp>(loc, pred, minPromoted, result);
+    }
+    if (!max.getType().isa<Torch::NoneType>()) {
+      auto maxPromoted = promoteScalarToDtype(b, loc, max, dtype);
+      auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                          result, maxPromoted);
+      result = b.create<SelectOp>(loc, pred, maxPromoted, result);
+    }
+    return result;
   }
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
@@ -1581,7 +1654,8 @@ struct ConvertElementwiseOp : ConversionPattern {
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
              AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
-             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp>(op))
+             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
+             AtenMaximumOp, AtenClampOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2509,7 +2583,8 @@ public:
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target.addIllegalOp<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
                         AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
-                        AtenLerpTensorOp, AtenSigmoidOp>();
+                        AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
+                        AtenMaximumOp, AtenClampOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
