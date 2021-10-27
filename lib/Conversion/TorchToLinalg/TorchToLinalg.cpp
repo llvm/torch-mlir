@@ -2023,7 +2023,7 @@ public:
       return rewriter.notifyMatchFailure(op, "start_dim must be constant");
     int64_t endDim;
     if (!matchPattern(op.end_dim(), m_TorchConstantInt(&endDim)))
-      return rewriter.notifyMatchFailure(op, "start_dim must be constant");
+      return rewriter.notifyMatchFailure(op, "end_dim must be constant");
     auto type = operands[0].getType().cast<RankedTensorType>();
     auto inputRank = type.getRank();
     auto resultType =
@@ -2059,6 +2059,105 @@ public:
         op->getLoc(), operands[0], reassociation);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 collapsedTensor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+/// The `ConvertAtenViewOp` conversion pattern converts `aten.View` op to
+/// `linalg.TensorExpandShape` op only when one or multiple static dimensions
+/// are expanded. All the other cases of `aten.View` op need to be handled.
+/// TODO: Handle all the other cases of `aten.View` op.
+class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenViewOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    Value input = operands[0];
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    TypeConverter *typeConverter = getTypeConverter();
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    int64_t resultRank = resultType.getRank();
+    // When we only have expansion of dimensions in `aten.View`, the output
+    // tensor rank will be strictly greater than the input tensor rank.
+    // TODO: Handle the cases of `aten.View` op where,
+    // 1. One or multiple dimensions are collapsed.
+    // 2. Few dimensions are expanded and few other dimensions are collapsed.
+    if (inputRank >= resultRank) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: operand tensor rank should be strictly less than "
+              "the desired output rank");
+    }
+
+    // Extract the desired output size as a list of integers. This list should
+    // have been created using the operation `torch.prim.ListConstruct`.
+    SmallVector<Value> expectedSizeTorchInt;
+    if (!getListConstructElements(op.size(), expectedSizeTorchInt)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: the desired size is "
+                                         "not constructed from ListConstruct");
+    }
+    SmallVector<Value> expectedSize = getTypeConvertedValues(
+        rewriter, loc, typeConverter, expectedSizeTorchInt);
+    if (expectedSize.size() != resultRank) {
+      return rewriter.notifyMatchFailure(
+          op, "desired size list length mismatches with the result type rank");
+    }
+
+    // Check if the `aten.View` can be legalized to `linalg.TensorExpandShape`.
+    // It only handles the case of static dimension expansion. If the dimension
+    // is dynamic, it must not be expanded/splitted.
+    // TODO: Handle the case of dynamic dimension expansion.
+    SmallVector<ReassociationIndices> reassociation(inputRank);
+    SmallVector<int64_t> resultShape;
+    int64_t j = 0;
+    for (auto i : llvm::seq<int64_t>(0, inputRank)) {
+      if (inputType.isDynamicDim(i)) {
+        Value dim = getDimOp(rewriter, loc, input, i);
+        if (j >= resultRank) {
+          return rewriter.notifyMatchFailure(
+              op, "desired size is not compatible with the input tensor size");
+        }
+        checkDimEqualHelper(rewriter, loc, dim, expectedSize[j]);
+        reassociation[i].push_back(j++);
+        resultShape.push_back(kUnknownSize);
+      } else {
+        int64_t expandedDim = inputType.getDimSize(i);
+        int64_t outputDim;
+        // A do-while loop is used here to handle the cases where the input
+        // tensor has a dimension of size 1.
+        do {
+          if (j >= resultRank ||
+              !matchPattern(expectedSizeTorchInt[j],
+                            m_TorchConstantInt(&outputDim)) ||
+              expandedDim % outputDim != 0) {
+            return rewriter.notifyMatchFailure(
+                op, "total number of elements mismatch in the expansion");
+          }
+          reassociation[i].push_back(j++);
+          resultShape.push_back(outputDim);
+          expandedDim /= outputDim;
+        } while (expandedDim != 1);
+      }
+    }
+    // Make sure that the splitted dimensions have the same number of elements
+    // as the dimension got splitted from.
+    if (j != resultRank)
+      return rewriter.notifyMatchFailure(
+          op, "desired size is not compatible with the input tensor size");
+
+    Type expandType =
+        RankedTensorType::get(resultShape, resultType.getElementType());
+    Value expandOp = rewriter.create<linalg::TensorExpandShapeOp>(
+        loc, expandType, operands[0], reassociation);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, expandOp);
     return success();
   }
 };
@@ -2670,6 +2769,8 @@ public:
     patterns.add<ConvertAtenAdaptiveAvgPool2dOp>(typeConverter, context);
     target.addIllegalOp<AtenFlattenUsingIntsOp>();
     patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
+    target.addIllegalOp<AtenViewOp>();
+    patterns.add<ConvertAtenViewOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
     target.addIllegalOp<AtenSumOp>();
