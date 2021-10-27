@@ -399,12 +399,14 @@ def AnyTorchOptionalTensorListType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
 
+// Note: TorchScript does not consider !torch.bool to be a Scalar.
 def AnyTorchScalarType : AnyTypeOf<[
   Torch_IntType,
   Torch_FloatType,
-  Torch_BoolType,
   Torch_NumberType,
 ], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
+def AnyTorchOptionalScalarType:
+      OptionalOf<AnyTorchScalarType, "Optional torch scalar type">;
 
 // See function `DictTypePtr create(TypePtr key, TypePtr value)`
 // in aten/src/ATen/core/jit_type.h.
@@ -423,6 +425,7 @@ def AnyTorchType : AnyTypeOf<[
   AnyTorchScalarType,
   AnyTorchTensorType,
   Torch_AnyType,
+  Torch_BoolType,
   Torch_DictType,
   Torch_DeviceType,
   Torch_ListType,

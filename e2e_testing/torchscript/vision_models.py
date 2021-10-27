@@ -30,3 +30,30 @@ class ResNet18Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ResNet18Module())
 def ResNet18Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))
+
+
+class IouOfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, bbox1, bbox2):
+        area1 = (bbox1[:, 2] - bbox1[:, 0]) * (bbox1[:, 3] - bbox1[:, 1])
+        area2 = (bbox2[:, 2] - bbox2[:, 0]) * (bbox2[:, 3] - bbox2[:, 1])
+        lt = torch.maximum(bbox1[:, :2], bbox2[:, :2])
+        rb = torch.minimum(bbox1[:, 2:], bbox2[:, 2:])
+
+        overlap_coord = (rb - lt).clip(0)
+        overlap = overlap_coord[:, 0] * overlap_coord[:, 1]
+        union = area1 + area2 - overlap
+
+        return overlap / union
+
+@register_test_case(module_factory=lambda: IouOfModule())
+def IouOfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 4), tu.rand(1024, 4))

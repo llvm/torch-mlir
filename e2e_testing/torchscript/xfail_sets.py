@@ -15,6 +15,7 @@
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
+    "IouOfModule_basic",
 }
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
