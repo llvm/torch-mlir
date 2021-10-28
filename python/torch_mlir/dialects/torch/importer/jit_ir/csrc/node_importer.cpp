@@ -245,7 +245,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     auto classType = node->input(0)->type()->cast<c10::ClassType>();
     auto methodName = node->s(c10::attr::name);
     torch::jit::Function *function = classType->findMethod(methodName);
-    torch::jit::Block *calleeEntryBlock = function->graph()->block();
+    torch::jit::Block *calleeEntryBlock =
+        torch::jit::toGraphFunction(*function).graph()->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
       return getMlirTypeFromTorchType(loc, v->type());
     });
@@ -263,7 +264,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   if (kind == c10::prim::CallFunction) {
     auto functionType = node->input(0)->type()->cast<c10::FunctionType>();
     torch::jit::Block *calleeEntryBlock =
-        functionType->function()->graph()->block();
+        torch::jit::toGraphFunction(*functionType->function()).graph()->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
       return getMlirTypeFromTorchType(loc, v->type());
     });

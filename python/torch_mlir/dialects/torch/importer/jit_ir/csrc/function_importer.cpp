@@ -63,8 +63,9 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
         appendToBlock, "std.return", loc,
         derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
   };
-  MlirBlock block =
-      importBlock(context, function->graph()->block(), createTerminator);
+  MlirBlock block = importBlock(
+      context, torch::jit::toGraphFunction(*function).graph()->block(),
+      createTerminator);
   mlirRegionAppendOwnedBlock(bodyRegion, block);
   return func;
 }
