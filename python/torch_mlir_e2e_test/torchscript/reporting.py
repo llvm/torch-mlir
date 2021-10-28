@@ -275,42 +275,56 @@ def report_results(results: List[TestResult],
     Returns True if the run resulted in any unexpected pass/fail behavior.
     Otherwise False.
     """
-    summary = collections.Counter()
+    results_by_outcome = collections.defaultdict(list)
     for result in results:
         report = SingleTestReport(result, ErrorContext.empty())
         expected_failure = result.unique_name in expected_failures
         if expected_failure:
             if report.failed:
-                error_str = ''
-                if verbose:
-                    error_str = '\n' + textwrap.indent(report.error_str(),
-                                                       '    ')
-                print(f'XFAIL - "{result.unique_name}"' + error_str)
-                summary['XFAIL'] += 1
+                print(f'XFAIL - "{result.unique_name}"')
+                results_by_outcome['XFAIL'].append(result)
             else:
                 print(f'XPASS - "{result.unique_name}"')
-                summary['XPASS'] += 1
+                results_by_outcome['XPASS'].append(result)
         else:
             if not report.failed:
                 print(f'PASS - "{result.unique_name}"')
-                summary['PASS'] += 1
+                results_by_outcome['PASS'].append(result)
             else:
-                error_str = ''
-                if verbose:
-                    error_str = '\n' + textwrap.indent(report.error_str(),
-                                                       '    ')
-                print(f'FAIL - "{result.unique_name}"' + error_str)
-                summary['FAIL'] += 1
+                print(f'FAIL - "{result.unique_name}"')
+                results_by_outcome['FAIL'].append(result)
+
+    OUTCOME_MEANINGS = collections.OrderedDict()
+    OUTCOME_MEANINGS['PASS'] = 'Passed'
+    OUTCOME_MEANINGS['FAIL'] = 'Failed'
+    OUTCOME_MEANINGS['XFAIL'] = 'Expectedly Failed'
+    OUTCOME_MEANINGS['XPASS'] = 'Unexpectedly Passed'
+
+    had_unexpected_results = len(results_by_outcome['FAIL']) != 0 or len(
+        results_by_outcome['XPASS']) != 0
+
+    if had_unexpected_results:
+        print('\nUnexpected outcome summary:')
+
+    # For FAIL and XPASS (unexpected outcomes), print a summary.
+    for outcome, results in results_by_outcome.items():
+        # PASS and XFAIL are "good"/"successful" outcomes.
+        if outcome == 'PASS' or outcome == 'XFAIL':
+            continue
+        # If there is nothing to report, be quiet.
+        if len(results) == 0:
+            continue
+        print(f'\n****** {OUTCOME_MEANINGS[outcome]} tests - {len(results)} tests')
+        for result in results:
+            print(f'    {outcome} - "{result.unique_name}"')
+            # If the test failed, print the error message.
+            if outcome == 'FAIL' and verbose:
+                print(textwrap.indent(report.error_str(), ' ' * 8))
 
     # Print a summary for easy scanning.
     print('\nSummary:')
-    KEY_MEANINGS = {
-        'PASS': 'Passed',
-        'FAIL': 'Failed',
-        'XFAIL': 'Expectedly Failed',
-        'XPASS': 'Unexpectedly Passed',
-    }
+
     for key in ['PASS', 'FAIL', 'XFAIL', 'XPASS']:
-        if summary[key]:
-            print(f'    {KEY_MEANINGS[key]}: {summary[key]}')
-    return summary['FAIL'] != 0 or summary['XPASS'] != 0
+        if results_by_outcome[key]:
+            print(f'    {OUTCOME_MEANINGS[key]}: {len(results_by_outcome[key])}')
+    return had_unexpected_results
