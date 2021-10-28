@@ -2547,6 +2547,30 @@ public:
 };
 } // namespace
 
+// Casts a 0d integer tensor to elemental type.
+namespace {
+class ConvertAtenIntTensorOp : public OpConversionPattern<AtenIntTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIntTensorOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    AtenIntTensorOp::Adaptor adaptor(operands);
+    Value intTensor = adaptor.a();
+    auto tensorType = intTensor.getType().cast<RankedTensorType>();
+
+    if (tensorType.getRank() != 0)
+      return rewriter.notifyMatchFailure(
+          op, "invalid rank: the rank of the input tensor must be 0");
+
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, intTensor);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
@@ -2797,6 +2821,8 @@ public:
     patterns.add<ConvertAtenOnesOp>(typeConverter, context);
     target.addIllegalOp<AtenContiguousOp>();
     patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
+    target.addIllegalOp<AtenIntTensorOp>();
+    patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

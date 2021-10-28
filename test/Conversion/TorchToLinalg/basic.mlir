@@ -54,3 +54,16 @@ func @torch.aten.mm$no_convert$result_missing_dtype(%arg0: !torch.vtensor<[?,?],
   %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor
   return %0 : !torch.vtensor
 }
+
+// -----
+
+// CHECK-LABEL:     func @integer_extract
+// CHECK-SAME:          (%[[A:.*]]: !torch.vtensor<[],si64>) -> !torch.int {
+// CHECK:               %[[B:.*]] = torch_c.to_builtin_tensor %[[A]] : !torch.vtensor<[],si64> -> tensor<i64>
+// CHECK:               %[[EXT:.*]] = tensor.extract %[[B]][] : tensor<i64>       
+// CHECK:               %[[RET:.*]] = torch_c.from_i64 %[[EXT]]                                                                     
+// CHECK:               return %[[RET]] : !torch.int                       
+func @integer_extract(%arg0: !torch.vtensor<[],si64>) -> !torch.int {                        
+  %0 = torch.aten.Int.Tensor %arg0 : !torch.vtensor<[],si64> -> !torch.int                   
+  return %0 : !torch.int                 
+}                       

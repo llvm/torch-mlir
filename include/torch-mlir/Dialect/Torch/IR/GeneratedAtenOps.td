@@ -1948,6 +1948,20 @@ def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
   let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($t) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
 }
 
+def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::Int.Tensor : (Tensor) -> (int)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics
