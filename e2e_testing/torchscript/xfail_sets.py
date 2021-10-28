@@ -24,4 +24,5 @@ REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 # and very few tests work yet.
 TOSA_PASS_SET = {
     "ElementwiseUnaryModule_basic",
+    "ElementwiseSigmoidModule_basic",
 }

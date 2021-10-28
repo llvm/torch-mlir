@@ -23,22 +23,40 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
-class ConvertAtenTanhOp : public OpConversionPattern<AtenTanhOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenTanhOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    AtenTanhOp::Adaptor adaptor(operands);
-    rewriter.replaceOpWithNewOp<tosa::TanhOp>(
-        op, getTypeConverter()->convertType(op.getType()), adaptor.self());
-    return success();
-  }
-};
+#define DECL_CONVERT_ATENOP(aten_op)                                              \
+class ConvertAten##aten_op##Op : public OpConversionPattern<Aten##aten_op##Op> {  \
+public:                                                                           \
+  using OpConversionPattern::OpConversionPattern;                                 \
+  LogicalResult                                                                   \
+  matchAndRewrite(Aten##aten_op##Op op, ArrayRef<Value> operands,                 \
+                  ConversionPatternRewriter &rewriter) const override;            \
+}; 
+DECL_CONVERT_ATENOP(Tanh)
+DECL_CONVERT_ATENOP(Sigmoid)
+#undef DECL_CONVERT_ATENOP
+
+LogicalResult
+ConvertAtenTanhOp::matchAndRewrite(AtenTanhOp op, ArrayRef<Value> operands,
+                ConversionPatternRewriter &rewriter) const {
+  AtenTanhOp::Adaptor adaptor(operands);
+  rewriter.replaceOpWithNewOp<tosa::TanhOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self());
+  return success();
+}
+
+LogicalResult
+ConvertAtenSigmoidOp::matchAndRewrite(AtenSigmoidOp op, ArrayRef<Value> operands,
+                ConversionPatternRewriter &rewriter) const {
+  AtenSigmoidOp::Adaptor adaptor(operands);
+  rewriter.replaceOpWithNewOp<tosa::SigmoidOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self());
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
-// The pass
+// TorchToTosa Pass
 // -----------------------------------------------------------------------------
 
 namespace {
@@ -60,8 +78,13 @@ public:
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
-    target.addIllegalOp<AtenTanhOp>();
-    patterns.add<ConvertAtenTanhOp>(typeConverter, context);
+
+#define INSERT_NEW_PATTERN(aten_op)                               \
+  target.addIllegalOp<Aten##aten_op##Op>();                       \
+  patterns.add<ConvertAten##aten_op##Op>(typeConverter, context); 
+INSERT_NEW_PATTERN(Tanh);
+INSERT_NEW_PATTERN(Sigmoid);
+#undef INSERT_NEW_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
