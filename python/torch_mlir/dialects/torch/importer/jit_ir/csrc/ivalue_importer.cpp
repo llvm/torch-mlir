@@ -499,7 +499,7 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
     // format, even though they still cause import issues when importing
     // through the larger Python session where they originate.
     // std::cerr << "NAME: " << function->qualname().qualifiedName() << "\n";
-    // std::cerr << *function->graph();
+    // std::cerr << *torch::jit::toGraphFunction(function).graph();
     MethodAnnotation *annotation =
         annotator.getMethodAnnotationForFunction(function);
     MlirOperation func = importJitFunctionAsFuncOp(
