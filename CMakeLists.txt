@@ -53,12 +53,10 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(AddMLIR)
   include(HandleLLVMOptions)
 
-  include(AddMLIRPython)
-  declare_mlir_python_sources(MLIRPythonSources)
-
   # Don't try to compile the python extensions at the moment. We need
   # to import lots of dependencies from AddMLIRPython to make this work.
-  set(MLIR_ENABLE_BINDINGS_PYTHON 0)
+  set(MLIR_ENABLE_BINDINGS_PYTHON 1)
+  option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
 
   set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")

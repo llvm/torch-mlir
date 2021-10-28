@@ -41,7 +41,7 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
   MODULE_NAME _torchMlir
   ADD_TO_PARENT TorchMLIRPythonExtensions
   SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/TorchMLIRModule.cpp
+    TorchMLIRModule.cpp
   EMBED_CAPI_LINK_LIBS
     TorchMLIRCAPI
   PRIVATE_LINK_LIBS
