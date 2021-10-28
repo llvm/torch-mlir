@@ -493,3 +493,22 @@ class ContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ContiguousModule())
 def ContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1))
+    
+class TensorToInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        # This is a workaround for not returning scalar value.
+        a =  int(x)
+        return y.add(y, alpha=a)
+
+@register_test_case(module_factory=lambda: TensorToInt())
+def TensorToInt_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10,[]), tu.rand())
