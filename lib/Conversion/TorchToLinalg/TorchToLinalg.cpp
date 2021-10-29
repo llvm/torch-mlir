@@ -2556,6 +2556,23 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenContiguousOp : public OpConversionPattern<AtenContiguousOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenContiguousOp op, llvm::ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    AtenContiguousOp::Adaptor adaptor(operands);
+    rewriter.replaceOp(op, adaptor.self());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenOnesOp : public OpConversionPattern<AtenOnesOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -2685,6 +2702,8 @@ public:
     patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
     target.addIllegalOp<AtenOnesOp>();
     patterns.add<ConvertAtenOnesOp>(typeConverter, context);
+    target.addIllegalOp<AtenContiguousOp>();
+    patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
