@@ -446,6 +446,7 @@ class BroadcastToModule(torch.nn.Module):
 def BroadcastToModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 1))
 
+
 class OnesModuleInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -475,3 +476,20 @@ class OnesModuleFloat(torch.nn.Module):
 @register_test_case(module_factory=lambda: OnesModuleFloat())
 def OnesModuleFloat_basic(module, tu: TestUtils):
     module.forward()
+
+class ContiguousModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.contiguous()
+
+
+@register_test_case(module_factory=lambda: ContiguousModule())
+def ContiguousModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1))

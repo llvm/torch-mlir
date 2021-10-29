@@ -90,8 +90,12 @@ public:
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
       } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
-                     AtenTransposeIntOp, AtenPermuteOp, TensorStaticInfoCastOp,
-                     AtenBroadcastToOp>(op)) {
+                     AtenTransposeIntOp, TensorStaticInfoCastOp,
+                     AtenBroadcastToOp, AtenContiguousOp, AtenPermuteOp>(op)) {
+        // AtenContiguousOp might return a view, so this is conservatively
+        // correct. We could potentially be more precise and identify the cases
+        // that it does not return a view and treat those as having value
+        // semantics.
         viewLikeOps.push_back(op);
         llvm::append_range(workList, op->getResult(0).getUsers());
       } else {
