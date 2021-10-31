@@ -42,6 +42,7 @@ from . import matmul
 from . import view
 from . import scalar
 from . import squeeze
+from . import slice_like
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']

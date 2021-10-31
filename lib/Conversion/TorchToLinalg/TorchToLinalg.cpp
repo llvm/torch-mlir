@@ -2713,6 +2713,107 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenSliceTensorOp : public OpConversionPattern<AtenSliceTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSliceTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    auto input = adaptor.self();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .cast<RankedTensorType>();
+    int64_t resultRank = resultType.getRank();
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return op->emitError("unimplemented: dim is not constant");
+
+    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+    Value dimSize = inputShape[dim];
+
+    auto adjustStartOrEnd = [&](Value startOrEndTorchType,
+                                Value startOrEndBuiltin, Value valueForNone) {
+      if (startOrEndTorchType.getType().isa<Torch::NoneType>())
+        return valueForNone;
+      auto dimSizeAsInt = castIndexToInt(rewriter, loc, dimSize);
+      Value startOrEndToPositive =
+          toPositiveDimDynamic(rewriter, loc, startOrEndBuiltin, dimSizeAsInt);
+      // startOrEnd < 0 ? 0 : startOrEnd
+      Value cst0 = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
+      Value predDimSltZero = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::slt, startOrEndToPositive, cst0);
+      Value startOrEndAtLeastZero = rewriter.create<SelectOp>(
+          loc, predDimSltZero, cst0, startOrEndToPositive);
+      // startOrEnd > dimSizeAsInt ? dimSizeAsInt : startOrEnd
+      Value startOrEndSgtDimSize = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::sgt, startOrEndAtLeastZero, dimSizeAsInt);
+      Value startOrEndBoundedByDimSize = rewriter.create<SelectOp>(
+          loc, startOrEndSgtDimSize, dimSizeAsInt, startOrEndAtLeastZero);
+
+      return castIntToIndex(rewriter, loc, startOrEndBoundedByDimSize);
+    };
+
+    Value start = adjustStartOrEnd(op.start(), adaptor.start(), zero);
+    Value end = adjustStartOrEnd(op.end(), adaptor.end(), dimSize);
+
+    int64_t step;
+    if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
+      if (!op.step().getType().isa<Torch::NoneType>())
+        return op->emitError("unimplemented: step is not constant");
+      step = 1;
+    }
+
+    // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
+    Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
+    Value len = rewriter.create<arith::SubIOp>(loc, end, start);
+    Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
+    resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
+    resultSize =
+        rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
+
+    SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
+    resultShape[dim] = resultSize;
+
+    SmallVector<Value> offsets(inputType.getRank(), zero);
+    SmallVector<Value> strides(inputType.getRank(), one);
+    offsets[dim] = start;
+    strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
+
+    Value result = rewriter.create<tensor::ExtractSliceOp>(
+        loc, input, offsets, resultShape, strides);
+
+    // TODO: This code is for selectOp, remove once squeeze dim is added
+    if (resultRank < inputType.getRank()) {
+      SmallVector<ReassociationIndices> reassociation(resultRank);
+      int64_t resultIdx = 0;
+      for (auto i : llvm::seq<int64_t>(0, inputType.getRank())) {
+        if (resultIdx < resultRank)
+          reassociation[resultIdx].push_back(i);
+        if (i != dim)
+          resultIdx++;
+      }
+      result = rewriter.create<linalg::TensorCollapseShapeOp>(loc, result,
+                                                              reassociation);
+    }
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCatOp : public OpConversionPattern<AtenCatOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -3265,6 +3366,8 @@ public:
     patterns.add<ConvertAtenFill_ScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenNumelOp>();
     patterns.add<ConvertAtenNumelOp>(typeConverter, context);
+    target.addIllegalOp<AtenSliceTensorOp>();
+    patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
