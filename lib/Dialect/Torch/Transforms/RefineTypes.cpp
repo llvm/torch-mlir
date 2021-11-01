@@ -226,12 +226,11 @@ public:
     if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
             AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp, AtenEqScalarOp,
             AtenGeScalarOp, AtenGtScalarOp, AtenNeScalarOp, AtenBitwiseNotOp,
-            AtenToDtypeOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
-            DerefineOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
-            AtenFill_ScalarOp, AtenDetachOp, AtenMaskedFill_ScalarOp,
-            AtenCopy_Op, AtenIndexPut_Op, AtenCopy_Op, AtenCumsumOp,
-            AtenLayerNormOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
-            AtenSqrtOp, AtenFloorOp>(op)) {
+            AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
+            AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
+            AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
+            AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp, AtenClampOp,
+            AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -346,6 +345,8 @@ public:
     } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
       return visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(
           emptyMemoryFormat);
+    } else if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
+      return visitAtenToDtypeOp(toDtype, operands);
     } else if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
       return visitTypeConversionOp<AtenToOtherOp>(toOther, operands);
     } else if (auto typeAs = dyn_cast<AtenTypeAsOp>(op)) {
@@ -480,6 +481,9 @@ private:
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
   template <typename OpTy> ChangeResult visitConstantTensorAllocOp(OpTy op);
+  ChangeResult
+  visitAtenToDtypeOp(AtenToDtypeOp op,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   template <typename OpTy>
   ChangeResult
   visitTypeConversionOp(OpTy op,
@@ -1075,6 +1079,20 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
   fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(),
                                    Torch::FloatType::get(op->getContext()));
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+// Convert input tensor type to the given `dtype`.
+ChangeResult TypeAnalyzer::visitAtenToDtypeOp(
+    AtenToDtypeOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.hasSizes = input.hasSizes;
+  if (input.hasSizes)
+    knowledge.sizes = input.sizes;
+  Value dtype = op.dtype();
+  fillInDTypeGivenDTypeAndDataType(knowledge, dtype, input.dtype);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

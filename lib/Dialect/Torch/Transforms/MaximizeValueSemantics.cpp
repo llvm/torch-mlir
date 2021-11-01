@@ -91,8 +91,8 @@ public:
         copyToValueTensorOps.push_back(copyToValueTensor);
       } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
                      AtenTransposeIntOp, TensorStaticInfoCastOp,
-                     AtenBroadcastToOp, AtenContiguousOp, AtenPermuteOp,
-                     AtenViewOp, AtenExpandOp>(op)) {
+                     AtenBroadcastToOp, AtenToDtypeOp, AtenContiguousOp,
+                     AtenPermuteOp, AtenViewOp, AtenExpandOp>(op)) {
         // AtenContiguousOp might return a view, so this is conservatively
         // correct. We could potentially be more precise and identify the cases
         // that it does not return a view and treat those as having value
