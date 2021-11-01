@@ -311,7 +311,7 @@ class ElementwiseClampModule(torch.nn.Module):
 def ElementwiseClampModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5, low=-10, high=10))
 
-
+# ==============================================================================
 class RsubModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -344,6 +344,7 @@ class RsubModule_noalpha(torch.nn.Module):
 def RsubModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
     
+# ==============================================================================
 class ElementwiseLogModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -410,3 +411,21 @@ class ElementwisePowModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwisePowModule())
 def ElementwisePowModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.int64)
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeF32ToI64Module())
+def ElementwiseToDtypeF32ToI64Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
