@@ -343,3 +343,20 @@ class RsubModule_noalpha(torch.nn.Module):
 @register_test_case(module_factory=lambda: RsubModule_noalpha())
 def RsubModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+    
+class ElementwiseLogModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.log(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogModule())
+def ElementwiseLogModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
