@@ -72,6 +72,34 @@ def Torch_AtenRelu_Op : Torch_Op<"aten.relu_", [
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
 }
 
+def Torch_AtenLogOp : Torch_Op<"aten.log", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::log : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+}
+
+def Torch_AtenLog_Op : Torch_Op<"aten.log_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::log_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+}
+
 def Torch_AtenSigmoidOp : Torch_Op<"aten.sigmoid", [
     AllowsTypeRefinement,
     HasValueSemantics
