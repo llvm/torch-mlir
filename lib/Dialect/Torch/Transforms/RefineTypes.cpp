@@ -411,7 +411,9 @@ public:
     } else if (auto matmul = dyn_cast<AtenMatmulOp>(op)) {
       return visitAtenMatmulOp(matmul, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
-      return visitAtenSoftmaxIntOp(softmaxIntOp, operands);
+      return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
+    } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
+      return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -511,11 +513,13 @@ private:
   visitAtenBmmOp(AtenBmmOp op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
-  visitAtenSoftmaxIntOp(AtenSoftmaxIntOp op,
-                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  ChangeResult
   visitAtenMatmulOp(AtenMatmulOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  
+  template <typename OpTy>
+  ChangeResult
+  visitAtenSoftmaxLikeOp(OpTy op,
+                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1259,8 +1263,11 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
-ChangeResult TypeAnalyzer::visitAtenSoftmaxIntOp(
-    AtenSoftmaxIntOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+
+// Common template for softmax like ops, eg., log_softmax.
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto dtype = op.dtype();
   auto knowledge =

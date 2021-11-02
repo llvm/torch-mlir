@@ -512,3 +512,20 @@ class TensorToInt(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorToInt())
 def TensorToInt_basic(module, tu: TestUtils):
     module.forward(torch.randint(10,[]), tu.rand())
+    
+class LogSoftmaxIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.log_softmax = torch.nn.LogSoftmax(2)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, tensor):
+        return self.log_softmax.forward(tensor)
+
+@register_test_case(module_factory=lambda: LogSoftmaxIntModule())
+def LogSoftmaxIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4).double())
