@@ -142,6 +142,26 @@ public:
 };
 } // namespace
 
+// Decompose torch.expand into torch.broadcast_to op.
+namespace {
+class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExpandOp op,
+                                PatternRewriter &rewriter) const override {
+    bool implicit = false;
+    if (!matchPattern(op.implicit(), m_TorchConstantBool(&implicit)) ||
+        implicit) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires implicit to be false");
+    }
+    rewriter.replaceOpWithNewOp<AtenBroadcastToOp>(op, op.getType(), op.self(),
+                                                   op.size());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -155,6 +175,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenSoftmaxIntOp>();
     patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
     target.addIllegalOp<AtenLogSoftmaxIntOp>();
+    patterns.add<DecomposeAtenExpandOp>(context);
+    target.addIllegalOp<AtenExpandOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());

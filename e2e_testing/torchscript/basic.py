@@ -446,6 +446,22 @@ class BroadcastToModule(torch.nn.Module):
 def BroadcastToModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 1))
 
+class ExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.expand([1, -1, -1, 4])
+
+
+@register_test_case(module_factory=lambda: ExpandModule())
+def ExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1))
 
 class OnesModuleInt(torch.nn.Module):
     def __init__(self):
