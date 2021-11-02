@@ -824,6 +824,22 @@ def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
   let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
 }
 
+def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$other,
+    AnyTorchScalarType:$alpha
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+}
+
 def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
     AllowsTypeRefinement,
     HasValueSemantics
