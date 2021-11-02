@@ -88,6 +88,34 @@ public:
 };
 } // namespace
 
+// Decompose aten.log_softmax op into: log(softmax(x))
+namespace {
+class DecomposeAtenLogSoftmaxIntOp
+    : public OpRewritePattern<AtenLogSoftmaxIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogSoftmaxIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value dim = op.dim();
+    if (!op.dtype().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented non-None dtype for log_softmax");
+
+    BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
+    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op, "Only support floating type");
+
+    // softmax(x, dim)
+    Value softmax = rewriter.create<AtenSoftmaxIntOp>(loc, tensorType, self,
+                                                      dim, op.dtype());
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), softmax);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose torch.matmul into: torch.mm and torch.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
@@ -125,6 +153,8 @@ class DecomposeComplexOpsPass
 
     patterns.add<DecomposeAtenSoftmaxIntOp>(context);
     target.addIllegalOp<AtenSoftmaxIntOp>();
+    patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
+    target.addIllegalOp<AtenLogSoftmaxIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());
