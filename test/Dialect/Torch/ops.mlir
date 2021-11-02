@@ -119,3 +119,15 @@ torch.nn_module {
   torch.slot "ob", %none : !torch.none
   torch.slot "s", %str : !torch.str
 } : !torch.nn.Module<"test">
+
+
+func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.shape.calculate {
+    %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
+    torch.shape.calculate.yield %0 : !torch.vtensor
+  } shapes {
+    %0 = torch.aten.size %arg0 : !torch.vtensor -> !torch.list<!torch.int>
+    torch.shape.calculate.yield.shapes %0 : !torch.list<!torch.int>
+  } : !torch.vtensor
+  return %0 : !torch.vtensor
+}

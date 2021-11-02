@@ -3001,6 +3001,7 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
     Torch_FloatType:$result
   );
   let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
@@ -3029,6 +3030,40 @@ def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
+}
+
+def Torch_Aten__RangeLengthOp : Torch_Op<"aten.__range_length", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::__range_length : (int, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_IntType:$lo,
+    Torch_IntType:$hi,
+    Torch_IntType:$step
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$lo `,` $hi `,` $step attr-dict `:` qualified(type($lo)) `,` qualified(type($hi)) `,` qualified(type($step)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
+def Torch_Aten__DeriveIndexOp : Torch_Op<"aten.__derive_index", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::__derive_index : (int, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_IntType:$index,
+    Torch_IntType:$start,
+    Torch_IntType:$step
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$index `,` $start `,` $step attr-dict `:` qualified(type($index)) `,` qualified(type($start)) `,` qualified(type($step)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [

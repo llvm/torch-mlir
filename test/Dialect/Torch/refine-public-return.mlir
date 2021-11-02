@@ -2,9 +2,7 @@
 
 // CHECK-LABEL:   func @basic(
 // CHECK-SAME:                %[[ARG:.*]]: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor<[2,3,?],f32> {
-// CHECK:           %[[COPIED_NONVAL:.*]] = torch.copy.to_tensor %[[ARG]] : !torch.tensor<[2,3,?],f32>
-// CHECK:           %[[COPIED_VALUE:.*]] = torch.copy.to_vtensor %[[COPIED_NONVAL]] : !torch.vtensor<[2,3,?],f32>
-// CHECK:           return %[[COPIED_VALUE]] : !torch.vtensor<[2,3,?],f32>
+// CHECK:           return %[[ARG]] : !torch.vtensor<[2,3,?],f32>
 func @basic(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
   %1 = torch.copy.to_tensor %arg0 : !torch.tensor<[2,3,?],f32>
   %2 = torch.tensor_static_info_cast %1 : !torch.tensor<[2,3,?],f32> to !torch.tensor

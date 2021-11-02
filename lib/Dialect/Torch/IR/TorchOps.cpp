@@ -275,6 +275,11 @@ void PrimLoopOp::getSuccessorRegions(
   regions.emplace_back(getResults());
 }
 
+bool PrimLoopOp::isForLike() {
+  bool b;
+  return matchPattern(initialCondition(), m_TorchConstantBool(&b)) && b;
+}
+
 //===----------------------------------------------------------------------===//
 // PrimLoopConditionOp
 //===----------------------------------------------------------------------===//
@@ -365,6 +370,28 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   rewriter.eraseOp(terminator);
 }
 
+LogicalResult PrimIfOp::fold(ArrayRef<Attribute> operands,
+                             SmallVectorImpl<OpFoldResult> &results) {
+  auto trueTerminator = thenRegion().front().getTerminator();
+  auto falseTerminator = elseRegion().front().getTerminator();
+  bool allFolded = true;
+  bool madeChange = false;
+  for (int i = 0, e = trueTerminator->getNumOperands(); i < e; ++i) {
+    auto trueValue = trueTerminator->getOperand(i);
+    auto falseValue = falseTerminator->getOperand(i);
+    if (trueValue == falseValue) {
+      results.push_back(trueValue);
+      madeChange = true;
+    } else {
+      results.push_back(getOperation()->getResult(i));
+      allFolded = false;
+    }
+  }
+  // The folding utilities only allow replacing all results at once. We could
+  // be more precise here if we only replaced a subset.
+  return success(madeChange && allFolded);
+}
+
 void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                            MLIRContext *context) {
   // If the condition is constant, delete the dead branch and inline the live
@@ -388,25 +415,81 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
   return isValidSubtype(inputs[0], outputs[0]);
 }
 
-template <typename OpTy>
-static OpFoldResult atenIsOrIsNotFoldHelper(OpTy op, bool equalIsTrue) {
-  Type lhsType = op.self().getType();
-  Type rhsType = op.obj().getType();
+static OpFoldResult atenIsOrIsNotFoldHelper(Operation *op, bool equalIsTrue) {
+  Value lhs = op->getOperand(0);
+  Value rhs = op->getOperand(1);
+  // Look through DerefineOp's to get more refined static information.
+  if (auto derefine = lhs.getDefiningOp<DerefineOp>())
+    lhs = derefine.getOperand();
+  if (auto derefine = rhs.getDefiningOp<DerefineOp>())
+    rhs = derefine.getOperand();
+  Type lhsType = lhs.getType();
+  Type rhsType = rhs.getType();
 
   // If either type is a NoneType, make it be the lhsType.
-  if (rhsType.template isa<Torch::NoneType>())
+  if (rhsType.isa<Torch::NoneType>()) {
     std::swap(lhsType, rhsType);
-  // TODO: Implement and use subtype infra for this.
-  // If neither type is a subtype of the other, then the result is false.
-  if (lhsType.template isa<Torch::NoneType>() &&
-      rhsType.template isa<Torch::NoneType>())
-    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), equalIsTrue);
+    std::swap(lhs, rhs);
+  }
 
-  if (lhsType.template isa<Torch::NoneType>() &&
-      !rhsType.template isa<Torch::OptionalType>())
-    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), !equalIsTrue);
+  // For now, check a few specific cases.
+
+  // If both types are the singleton `!torch.none` type, then we don't even need
+  // to look at the values.
+  if (lhsType.isa<Torch::NoneType>() && rhsType.isa<Torch::NoneType>())
+    return IntegerAttr::get(IntegerType::get(op->getContext(), 1), equalIsTrue);
+
+  // If neither type is a subtype of the other, then the result is false.
+  // TODO: Implement and use subtype infra for this.
+  // For now, check a specific case.
+  // If the rhs is not OptionalType, then we know it cannot be None.
+  if (lhsType.isa<Torch::NoneType>() && !rhsType.isa<Torch::OptionalType>()) {
+    return IntegerAttr::get(IntegerType::get(op->getContext(), 1),
+                            !equalIsTrue);
+  }
 
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__RangeLengthOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__RangeLengthOp::fold(ArrayRef<Attribute> operands) {
+  auto lo = operands[0];
+  auto hi = operands[1];
+  auto step = operands[2];
+  if (!lo || !hi || !step)
+    return nullptr;
+  auto loInt = lo.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto hiInt = hi.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto stepInt = step.dyn_cast_or_null<IntegerAttr>().getValue();
+  // TODO: Implement folding for negative steps.
+  if (stepInt.isNegative())
+    return nullptr;
+  // From Python language spec:
+  // r[i] = lo + step*i such that i >= 0 and r[i] < hi
+  // So maximize `i` such that lo + step * i < hi
+  // ==> i == ceildiv(hi - lo, step)
+  return IntegerAttr::get(lo.getType(),
+                          llvm::APIntOps::RoundingSDiv(hiInt - loInt, stepInt,
+                                                       APInt::Rounding::UP));
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__DeriveIndexOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__DeriveIndexOp::fold(ArrayRef<Attribute> operands) {
+  auto index = operands[0];
+  auto start = operands[1];
+  auto step = operands[2];
+  if (!index || !start || !step)
+    return nullptr;
+  auto indexInt = index.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto startInt = start.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto stepInt = step.dyn_cast_or_null<IntegerAttr>().getValue();
+  return IntegerAttr::get(index.getType(), startInt + stepInt * indexInt);
 }
 
 //===----------------------------------------------------------------------===//
@@ -722,6 +805,23 @@ OpFoldResult AtenGeIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFloatScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFloatScalarOp::fold(ArrayRef<Attribute> operands) {
+  // Constant fold int -> float conversion.
+  if (auto integerAttr = operands[0].dyn_cast_or_null<IntegerAttr>()) {
+    return FloatAttr::get(
+        mlir::Float64Type::get(getContext()),
+        static_cast<double>(integerAttr.getValue().getSExtValue()));
+  }
+  // If the input is float type already, the op is an identity.
+  if (getType() == getOperand().getType())
+    return getOperand();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
@@ -803,6 +903,17 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
 
     rewriter.replaceOp(op, reverseCast.operand());
     return success();
+  });
+  patterns.add(+[](TensorStaticInfoCastOp op, PatternRewriter &rewriter) {
+    if (isValidSubtype(op.getOperand().getType(), op.getType()) &&
+        llvm::all_of(op->getUsers(), [](Operation *op) {
+          return op
+              ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
+        })) {
+      rewriter.replaceOp(op, op.getOperand());
+      return success();
+    }
+    return failure();
   });
 }
 
@@ -986,6 +1097,14 @@ bool PrimUncheckedCastOp::areCastCompatible(mlir::TypeRange inputs,
   return isValidSubtype(outputs[0], inputs[0]);
 }
 
+OpFoldResult PrimUncheckedCastOp::fold(ArrayRef<Attribute> operands) {
+  if (auto derefine = getOperand().getDefiningOp<DerefineOp>()) {
+    if (derefine.getOperand().getType() == getType())
+      return derefine.getOperand();
+  }
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // Aten__Getitem__TOp
 //===----------------------------------------------------------------------===//
@@ -1005,11 +1124,31 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     if (!listConstruct)
       return failure();
 
+    // Get the index, but be careful because it might be statically invalid.
     int64_t index;
     if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&index)))
       return failure();
+    int64_t positiveDim = toPositiveDim(index, listConstruct.getNumOperands());
+    if (!isValidDim(positiveDim, listConstruct.getNumOperands()))
+      return rewriter.notifyMatchFailure(op, "statically invalid index");
 
-    rewriter.replaceOp(op, {listConstruct.getOperand(index)});
+    rewriter.replaceOp(op, {listConstruct.getOperand(positiveDim)});
+    return success();
+  });
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto sizeOp = op.list().getDefiningOp<AtenSizeOp>();
+    if (!sizeOp)
+      return failure();
+    // This assumes tht the size doesn't change between the
+    // AtenSizeOp and the Aten__Getitem__TOp.
+    // `t_` is the only op I can find that changes the shape in-place. It seems
+    // like otherwise we can treat the size of a tensor as having value
+    // semantics. The other view-like ops don't have in-place variants --
+    // they always return a new SSA value that is aliased to the input.
+    // Can we have a pass to normalize the `t_` case and then elsewhere in the
+    // compiler treat the size as having value semantics?
+    // TODO: Investigate the `t_` case. Why is it such an outlier?
+    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.self(), op.idx());
     return success();
   });
 }
@@ -1200,12 +1339,79 @@ OpFoldResult PrimDtypeOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// AtenIntTensorOp
+//===----------------------------------------------------------------------===//
+
 OpFoldResult AtenIntTensorOp::fold(ArrayRef<Attribute> operands) {
   // If an scalar number is converted to a 0-d tensor and passed on to
   // aten.Int.Tensor, fold to the scalar number.
   if (auto numToTensorScalar = a().getDefiningOp<PrimNumToTensorScalarOp>())
     return numToTensorScalar.a();
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// PrimMaxIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimMaxIntOp::fold(ArrayRef<Attribute> operands) {
+  // If both operands are the same, then the operation is an identity.
+  if (a() == b())
+    return a();
+
+  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (!lhs || !rhs)
+    return nullptr;
+  // Torch semantics are that !torch.int is 64-bit signed.
+  return IntegerAttr::get(
+      lhs.getType(),
+      std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeCalculateOp
+//===----------------------------------------------------------------------===//
+
+void ShapeCalculateOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  (void)operands;
+
+  if (!index.hasValue()) {
+    // First thing the op does is branch into the shape calculation.
+    regions.emplace_back(&shapeCalculation());
+    return;
+  }
+  if (*index == 0) {
+    // Body returns control to the outer op, passing through results.
+    regions.emplace_back(getResults());
+    return;
+  }
+  assert(*index == 1);
+  // Shape calculation branches to the body.
+  regions.emplace_back(&body());
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeCalculateYieldShapesOp
+//===----------------------------------------------------------------------===//
+
+MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
+    Optional<unsigned> index) {
+  // The shape operands don't get forwarded to the body.
+  // MutableOperandRange always has an owning operation, even if empty, so
+  // create a 0-length range.
+  return MutableOperandRange(*this, /*start=*/0, /*length=*/0);
+}
+
+static LogicalResult verify(ShapeCalculateYieldShapesOp op) {
+  auto parent = op->getParentOfType<ShapeCalculateOp>();
+  if (parent.getNumResults() != op.getNumOperands())
+    return op.emitOpError(
+        "expected number of shapes to match number of results");
+  return success();
 }
 
 #define GET_OP_CLASSES

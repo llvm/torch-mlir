@@ -159,6 +159,7 @@ def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
@@ -200,6 +201,7 @@ def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
     AnyTorchType:$result
   );
   let assemblyFormat = "$x attr-dict `:` qualified(type($x)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_PrimPrintOp : Torch_Op<"prim.Print", [

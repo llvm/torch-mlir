@@ -1,5 +1,26 @@
 // RUN: torch-mlir-opt %s -canonicalize | FileCheck %s
 
+// CHECK-LABEL:   func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           %[[INTM1:.*]] = torch.constant.int -1
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[NEG_STEP:.*]] = torch.aten.__range_length %[[INT1]], %[[INT3]], %[[INTM1]] : !torch.int, !torch.int, !torch.int -> !torch.int
+// CHECK:           return %[[INT2]], %[[INT2]], %[[INT1]], %[[NEG_STEP]] : !torch.int, !torch.int, !torch.int, !torch.int
+func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %int-1 = torch.constant.int -1
+  %0 = torch.aten.__range_length %int0, %int4, %int2  : !torch.int, !torch.int, !torch.int -> !torch.int
+  %1 = torch.aten.__range_length %int1, %int4, %int2  : !torch.int, !torch.int, !torch.int -> !torch.int
+  %2 = torch.aten.__range_length %int1, %int3, %int2  : !torch.int, !torch.int, !torch.int -> !torch.int
+  %3 = torch.aten.__range_length %int1, %int3, %int-1  : !torch.int, !torch.int, !torch.int -> !torch.int
+  return %0, %1, %2, %3 : !torch.int, !torch.int, !torch.int, !torch.int
+}
+
 // CHECK-LABEL:   func @torch.aten.__is__
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           return %[[FALSE]] : !torch.bool
@@ -14,6 +35,17 @@ func @torch.aten.__is__(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !
 func @torch.aten.__is__$none_is_none(%arg0: !torch.none, %arg1: !torch.none) -> !torch.bool {
   %0 = torch.aten.__is__ %arg0, %arg1 : !torch.none, !torch.none -> !torch.bool
   return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.__is__$is_none$derefine(
+// CHECK-SAME:                                             %{{.*}}: !torch.vtensor) -> !torch.bool {
+// CHECK:           %[[RESULT:.*]] = torch.constant.bool false
+// CHECK:           return %[[RESULT]] : !torch.bool
+func @torch.aten.__is__$is_none$derefine(%arg0: !torch.vtensor) -> !torch.bool {
+  %none = torch.constant.none
+  %0 = torch.derefine %arg0 : !torch.vtensor to !torch.optional<!torch.vtensor>
+  %1 = torch.aten.__is__ %0, %none : !torch.optional<!torch.vtensor>, !torch.none -> !torch.bool
+  return %1 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.__isnot__
@@ -307,6 +339,24 @@ func @torch.aten.__not__() -> !torch.bool {
   return %ret: !torch.bool
 }
 
+// CHECK-LABEL:   func @torch.prim.max.int$identity(
+// CHECK-SAME:                                      %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           return %[[ARG]] : !torch.int
+func @torch.prim.max.int$identity(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.prim.max.int %arg0, %arg0 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.prim.max.int$constant() -> !torch.int {
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           return %[[INT3]] : !torch.int
+func @torch.prim.max.int$constant() -> !torch.int {
+  %int-1 = torch.constant.int -1
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.max.int %int-1, %int3 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
 // CHECK-LABEL:   func @torch.aten.len.t$of_size(
 // CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.int {
 // CHECK:           %[[DIM:.*]] = torch.aten.dim %[[ARG]] : !torch.vtensor<*,f32> -> !torch.int
@@ -374,6 +424,57 @@ func @torch.aten.__getitem__.t$no_change_test1(%arg0: !torch.list<!torch.int>) -
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.aten.__getitem__.t$getitem_of_size(
+// CHECK-SAME:                                                   %[[TENSOR:.*]]: !torch.tensor,
+// CHECK-SAME:                                                   %[[INDEX:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[RESULT:.*]] = torch.aten.size.int %[[TENSOR]], %[[INDEX]] : !torch.tensor, !torch.int -> !torch.int
+// CHECK:           return %[[RESULT]] : !torch.int
+func @torch.aten.__getitem__.t$getitem_of_size(%arg0: !torch.tensor, %arg1: !torch.int) -> !torch.int {
+  %0 = torch.aten.size %arg0 : !torch.tensor -> !torch.list<!torch.int>
+  %1 = torch.aten.__getitem__.t %0, %arg1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.__getitem__.t$negative_index() -> !torch.int {
+// CHECK:           %[[INT8:.*]] = torch.constant.int 8
+// CHECK:           return %[[INT8]] : !torch.int
+func @torch.aten.__getitem__.t$negative_index() -> !torch.int {
+  %int7 = torch.constant.int 7
+  %int8 = torch.constant.int 8
+  %int-1 = torch.constant.int -1
+  %0 = torch.prim.ListConstruct %int7, %int8 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.__getitem__.t %0, %int-1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.__getitem__.t$invalid_index() -> !torch.int {
+func @torch.aten.__getitem__.t$invalid_index() -> !torch.int {
+  %int7 = torch.constant.int 7
+  %int8 = torch.constant.int 8
+  %int-1 = torch.constant.int -100
+  %0 = torch.prim.ListConstruct %int7, %int8 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.__getitem__.t
+  %1 = torch.aten.__getitem__.t %0, %int-1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.Float.Scalar$constant_fold_int_to_float() -> !torch.float {
+// CHECK:           %[[VAL_0:.*]] = torch.constant.float 3.000000e+00
+// CHECK:           return %[[VAL_0]] : !torch.float
+func @torch.aten.Float.Scalar$constant_fold_int_to_float() -> !torch.float {
+  %0 = torch.constant.int 3
+  %1 = torch.aten.Float.Scalar %0 : !torch.int -> !torch.float
+  return %1 : !torch.float
+}
+
+// CHECK-LABEL:   func @torch.aten.Float.Scalar$identity(
+// CHECK-SAME:                                           %[[VAL_0:.*]]: !torch.float) -> !torch.float {
+// CHECK:           return %[[VAL_0]] : !torch.float
+func @torch.aten.Float.Scalar$identity(%arg0: !torch.float) -> !torch.float {
+  %0 = torch.aten.Float.Scalar %arg0 : !torch.float -> !torch.float
+  return %0 : !torch.float
+}
+
 // CHECK-LABEL:   func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
 // CHECK:           %[[C:.*]] = torch.constant.none
 // CHECK:           return %[[C]], %[[C]] : !torch.none, !torch.none
@@ -419,6 +520,32 @@ func @torch.prim.If$erase_dead_branch(%arg0: !torch.int) -> !torch.int {
     torch.prim.If.yield %1 : !torch.int
   }
   return %0 : !torch.int
+}
+
+
+// CHECK-LABEL:   func @torch.prim.If$fold_same_result(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: !torch.bool,
+// CHECK-SAME:                                         %[[VAL_1:.*]]: !torch.int) -> (!torch.int, !torch.int) {
+// CHECK:           return %[[VAL_1]], %[[VAL_1]] : !torch.int, !torch.int
+func @torch.prim.If$fold_same_result(%arg0: !torch.bool, %arg1: !torch.int) -> (!torch.int, !torch.int) {
+  %0, %1 = torch.prim.If %arg0 -> (!torch.int, !torch.int) {
+    torch.prim.If.yield %arg1, %arg1 : !torch.int, !torch.int
+  } else {
+    torch.prim.If.yield %arg1, %arg1 : !torch.int, !torch.int
+  }
+  return %0, %1: !torch.int, !torch.int
+}
+
+// Due to limitations in the folding framework, we can't fold this one.
+// CHECK-LABEL:   func @torch.prim.If$fold_same_result$dont_fold
+// CHECK:           torch.prim.If
+func @torch.prim.If$fold_same_result$dont_fold(%arg0: !torch.bool, %arg1: !torch.int, %arg2: !torch.int) -> (!torch.int, !torch.int) {
+  %0, %1 = torch.prim.If %arg0 -> (!torch.int, !torch.int) {
+    torch.prim.If.yield %arg1, %arg1: !torch.int, !torch.int
+  } else {
+    torch.prim.If.yield %arg1, %arg2: !torch.int, !torch.int
+  }
+  return %0, %1: !torch.int, !torch.int
 }
 
 // CHECK-LABEL:   func @torch.prim.TupleUnpack(
@@ -600,6 +727,15 @@ func @torch.aten.size.int$invalid_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.in
   return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.prim.unchecked_cast$derefine_identity(
+// CHECK-SAME:                                                      %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           return %[[ARG]] : !torch.int
+func @torch.prim.unchecked_cast$derefine_identity(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.derefine %arg0 : !torch.int to !torch.optional<!torch.int>
+  %1 = torch.prim.unchecked_cast %0 : !torch.optional<!torch.int> -> !torch.int
+  return %1 : !torch.int
+}
+
 // CHECK-LABEL:   func @torch.tensor_static_info_cast$downcast_first(
 // CHECK-SAME:            %[[T:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           return %[[T]] : !torch.tensor
@@ -616,6 +752,27 @@ func @torch.tensor_static_info_cast$upcast_first(%t: !torch.tensor<[?,?],f64>) -
   %upcast = torch.tensor_static_info_cast %t : !torch.tensor<[?,?],f64> to !torch.tensor
   %downcast = torch.tensor_static_info_cast %upcast : !torch.tensor to !torch.tensor<[?,?],f64>
   return %downcast: !torch.tensor<[?,?],f64>
+}
+
+// CHECK-LABEL:   func @torch.tensor_static_info_cast$refine(
+// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor {
+// CHECK-NEXT:       %[[RESULT:.*]] = torch.aten.relu %[[ARG]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK-NEXT:       return %[[RESULT]] : !torch.vtensor
+func @torch.tensor_static_info_cast$refine(%arg0: !torch.vtensor<[], f32>) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor
+  %1 = torch.aten.relu %0 : !torch.vtensor -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @torch.tensor_static_info_cast$no_refine(
+// CHECK-SAME:                                                  %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor to !torch.vtensor<[],f32>
+// CHECK:           %[[RESULT:.*]] = torch.aten.relu %[[CAST]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK:           return %[[RESULT]] : !torch.vtensor
+func @torch.tensor_static_info_cast$no_refine(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor to !torch.vtensor<[],f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
 }
 
 // CHECK-LABEL:   func @torch.prim.TupleIndex(

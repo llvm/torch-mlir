@@ -30,6 +30,9 @@ void mlir::torch::registerTorchPasses() {
       "torch-function-to-torch-backend-pipeline",
       "Pipeline lowering a Torch function to Torch backend form.",
       mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline);
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torch-shape-refinement-pipeline", "Pipeline refining shapes of tensors.",
+      mlir::torch::Torch::createTorchShapeRefinementPipeline);
 }
 
 void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
@@ -120,8 +123,13 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Lowering to ranked !torch.vtensors of known dtype.
   //===--------------------------------------------------------------------===//
 
+  // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
+  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
+
   // Do shape and dtype refinement.
-  pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
+  // TODO: Bring this back, but refining only dtypes of new ops.
+  // pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
+  createTorchShapeRefinementPipeline(pm, options);
 
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
@@ -133,8 +141,6 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // basic blocks.
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
   }
-  // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
-  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
   if (options.optimize) {
     // All the type refinement we've done above has exposed new information
@@ -148,4 +154,13 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   pm.addNestedPass<FuncOp>(Torch::createDecomposeComplexOpsPass());
 
   // TODO: VerifyTorchBackendContractPass.
+}
+
+void mlir::torch::Torch::createTorchShapeRefinementPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
+  pm.addPass(Torch::createReifyShapeCalculationsPass());
+  // TODO: Only inline shape functions.
+  pm.addPass(createInlinerPass());
+  pm.addNestedPass<FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  pm.addNestedPass<FuncOp>(Torch::createDropShapeCalculationsPass());
 }

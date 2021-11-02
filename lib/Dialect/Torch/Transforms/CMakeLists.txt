@@ -1,6 +1,7 @@
 add_mlir_library(TorchMLIRTorchPasses
   AdjustCallingConventions.cpp
   DecomposeComplexOps.cpp
+  DropShapeCalculations.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
@@ -9,6 +10,9 @@ add_mlir_library(TorchMLIRTorchPasses
   ReduceOpVariants.cpp
   RefinePublicReturn.cpp
   RefineTypes.cpp
+  ReifyShapeCalculations.cpp
+  ShapeLibrary.cpp
+  SimplifyShapeCalculations.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/Torch/Transforms

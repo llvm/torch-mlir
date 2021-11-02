@@ -55,18 +55,25 @@ class RefinePublicReturnPass
       return signalPassFailure();
     }
 
-    // Get the new operands. Either the original operand, or if there is a
-    // TensorStaticInfoCastOp then the pre-casted operand, which is presumed to
-    // have a more precise type.
+    // Get the new operands. Either the original operand, or for tensors,
+    // looking through TensorStaticInfoCastOp/CopyToNonValueTensorOp which are
+    // presumed to have a more precise type.
     SmallVector<Value> newOperands;
     OpBuilder builder(returnOp);
     for (auto operand : returnOp.getOperands()) {
-      Value newOperand;
-      if (auto cast = operand.getDefiningOp<TensorStaticInfoCastOp>()) {
-        newOperand = cast.getOperand();
-      } else {
-        newOperand = operand;
+      Value newOperand = operand;
+      // Look through TensorStaticInfoCastOp's and CopyToNonValueTensorOp's.
+      for (;;) {
+        if (auto cast = newOperand.getDefiningOp<TensorStaticInfoCastOp>()) {
+          newOperand = cast.getOperand();
+        } else if (auto copy =
+                       newOperand.getDefiningOp<CopyToNonValueTensorOp>()) {
+          newOperand = copy.getOperand();
+        } else {
+          break;
+        }
       }
+
       if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
         newOperands.push_back(
             copyTensorToType(builder, returnOp->getLoc(),
