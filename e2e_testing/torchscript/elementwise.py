@@ -360,3 +360,21 @@ class ElementwiseLogModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseLogModule())
 def ElementwiseLogModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+class ElementwiseSqrtModule(torch.nn.Module):
+    def __init__(self): 
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.sqrt(a)
+
+@register_test_case(module_factory=lambda: ElementwiseSqrtModule())
+def ElementwiseSqrtModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))

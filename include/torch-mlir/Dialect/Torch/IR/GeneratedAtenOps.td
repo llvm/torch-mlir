@@ -2700,3 +2700,17 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
 
+def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::sqrt : (Tensor) -> (Tensor)`";
+  let arguments = (ins 
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$a `,` attr-dict `:` type($a) `->` type($result)";
+}
+
