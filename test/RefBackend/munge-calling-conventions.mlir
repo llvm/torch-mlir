@@ -4,7 +4,7 @@
 // CHECK-SAME:            %[[ARG0:.*]]: memref<*xf32>) attributes {llvm.emit_c_interface} {
 // CHECK:           %[[VAL:.*]] = memref.cast %[[ARG0]] : memref<*xf32> to memref<?xf32>
 // CHECK:           %[[RESULT:.*]] = memref.cast %[[VAL]] : memref<?xf32> to memref<*xf32>
-// CHECK:           call @refbackend_consume_float32_func_return(%[[RESULT]]) : (memref<*xf32>) -> ()
+// CHECK:           call @refbackend_consume_memref_float32_func_return(%[[RESULT]]) : (memref<*xf32>) -> ()
 // CHECK:           return
 func @f(%arg0: memref<?xf32>) -> memref<?xf32> {
   return %arg0 : memref<?xf32>
@@ -16,8 +16,21 @@ func @f(%arg0: memref<?xf32>) -> memref<?xf32> {
 // CHECK-SAME:            %[[ARG0:.*]]: memref<*xi64>) attributes {llvm.emit_c_interface} {
 // CHECK:           %[[VAL:.*]] = memref.cast %[[ARG0]] : memref<*xi64> to memref<?xi64>
 // CHECK:           %[[RESULT:.*]] = memref.cast %[[VAL]] : memref<?xi64> to memref<*xi64>
-// CHECK:           call @refbackend_consume_int64_func_return(%[[RESULT]]) : (memref<*xi64>) -> ()
+// CHECK:           call @refbackend_consume_memref_int64_func_return(%[[RESULT]]) : (memref<*xi64>) -> ()
 // CHECK:           return
 func @i(%arg0: memref<?xi64>) -> memref<?xi64> {
   return %arg0 : memref<?xi64>
+}
+
+// -----
+
+// CHECK-LABEL:   func @elemental_type(
+// CHECK-SAME:             %[[ARG0:.*]]: memref<*xi64>) attributes {llvm.emit_c_interface} {
+// CHECK:           %[[VAL:.*]] = memref.cast %[[ARG0]] : memref<*xi64> to memref<i64>
+// CHECK:           %[[RESULT:.*]] = memref.load %[[VAL]][] : memref<i64>
+// CHECK:           call @refbackend_consume_int64_func_return(%[[RESULT]]) : (i64) -> ()
+// CHECK:           return
+func @elemental_type(%arg0: memref<i64>) -> i64 {
+  %0 = memref.load %arg0[] : memref<i64>
+  return %0 : i64
 }

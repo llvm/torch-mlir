@@ -64,6 +64,30 @@ static Type getAbiTypeForMemRef(Type type) {
   return UnrankedMemRefType::get(type.cast<MemRefType>().getElementType(), 0);
 }
 
+// Passes the return op operands `val` to `funOp`. Also, adds the op to the
+// `toErase` vector.
+static void replaceCallToFunction(OpBuilder b, ReturnOp op, FuncOp funcOp,
+                                  Value val,
+                                  SmallVectorImpl<Operation *> &toErase) {
+  b.create<mlir::CallOp>(op.getLoc(), funcOp, val);
+  b.create<mlir::ReturnOp>(op.getLoc());
+  toErase.push_back(op);
+}
+
+// Checks whether the return op is munge-compatible and the respective calling
+// function is defined.
+static bool isReturnOpCompatible(ReturnOp op,
+                                 DenseMap<Type, FuncOp> &consumeFuncReturnFuncs,
+                                 Type returnType) {
+  auto it = consumeFuncReturnFuncs.find(returnType);
+  if (op.getNumOperands() != 1 || it == consumeFuncReturnFuncs.end()) {
+    op.emitError("must have one return value of Memref type or Elemental types "
+                 "of i64, f64, f32");
+    return false;
+  }
+  return true;
+}
+
 static LogicalResult mungeFunction(
     FuncOp func,
     DenseMap</*returnElementType*/ Type, FuncOp> consumeFuncReturnFuncs) {
@@ -93,39 +117,41 @@ static LogicalResult mungeFunction(
   }
 
   SmallVector<Operation *> toErase;
-  bool hadError = false;
+  bool isCompatible = false;
   func.walk([&](ReturnOp op) {
-    auto memRefType = op.getOperandTypes()[0].dyn_cast<MemRefType>();
-    if (!memRefType) {
-      hadError = true;
-      op.emitError("return value must be memref type");
-      return;
-    }
-    auto returnType = memRefType.getElementType();
-    auto it = consumeFuncReturnFuncs.find(returnType);
-    if (op.getNumOperands() != 1 || it == consumeFuncReturnFuncs.end()) {
-      hadError = true;
-      op.emitError("must have one return value: a memref of f32, i64 or f64");
-      return;
-    }
+    auto returnType = op.getOperandTypes()[0];
 
     b.setInsertionPoint(op);
-    auto cast =
-        b.create<memref::CastOp>(op.getLoc(), op.getOperand(0),
-                                 getAbiTypeForMemRef(op.getOperandTypes()[0]));
-    b.create<mlir::CallOp>(op.getLoc(), consumeFuncReturnFuncs[returnType],
-                           cast.getResult());
-    b.create<mlir::ReturnOp>(op.getLoc());
-    toErase.push_back(op);
+    // Memref Types.
+    if (auto memrefReturnType = returnType.dyn_cast<MemRefType>()) {
+      auto elemType = memrefReturnType.getElementType();
+      auto unRankedType = UnrankedMemRefType::get(elemType, 0);
+      isCompatible =
+          isReturnOpCompatible(op, consumeFuncReturnFuncs, unRankedType);
+      if (!isCompatible)
+        return;
+
+      // Cast to unranked memref type before sending it as a function argument.
+      auto cast = b.create<memref::CastOp>(
+          op.getLoc(), op.getOperand(0),
+          getAbiTypeForMemRef(op.getOperandTypes()[0]));
+      replaceCallToFunction(b, op, consumeFuncReturnFuncs[unRankedType],
+                            cast.getResult(), toErase);
+      // Elemental types.
+    } else if (returnType.isa<IntegerType>() || returnType.isa<FloatType>()) {
+      isCompatible =
+          isReturnOpCompatible(op, consumeFuncReturnFuncs, returnType);
+      if (!isCompatible)
+        return;
+      replaceCallToFunction(b, op, consumeFuncReturnFuncs[returnType],
+                            op->getOperand(0), toErase);
+    }
   });
-  if (hadError)
+  if (!isCompatible)
     return failure();
-
   func.setType(FunctionType::get(func.getContext(), newArgTypes, {}));
-
   for (Operation *op : toErase)
     op->erase();
-
   return success();
 }
 
@@ -137,17 +163,28 @@ class MungeCallingConventions
     OpBuilder b(module.getBodyRegion());
     DenseMap</*returnElementType*/ Type, FuncOp> consumeFuncReturnFuncs;
     DenseSet<FuncOp> consumeFuncReturnFuncsSet;
-    auto createConsumeFuncReturnFunc = [&](Type elemTy, std::string funcName) {
+    auto createConsumeFuncReturnFunc = [&](Type returnType,
+                                           std::string funcName) {
       auto consumeFuncReturnFunc = b.create<FuncOp>(
           module.getLoc(), funcName,
-          FunctionType::get(module.getContext(),
-                            UnrankedMemRefType::get(elemTy, /*memorySpace=*/0),
-                            {}),
+          FunctionType::get(module.getContext(), returnType, {}),
           b.getStringAttr("private"));
       addEmitCInterfaceAttr(consumeFuncReturnFunc);
-      consumeFuncReturnFuncs[elemTy] = consumeFuncReturnFunc;
+      consumeFuncReturnFuncs[returnType] = consumeFuncReturnFunc;
       consumeFuncReturnFuncsSet.insert(consumeFuncReturnFunc);
     };
+
+    // Memref return types.
+    createConsumeFuncReturnFunc(UnrankedMemRefType::get(b.getI64Type(), 0),
+                                "refbackend_consume_memref_int64_func_return");
+    createConsumeFuncReturnFunc(
+        UnrankedMemRefType::get(b.getF32Type(), 0),
+        "refbackend_consume_memref_float32_func_return");
+    createConsumeFuncReturnFunc(
+        UnrankedMemRefType::get(b.getF64Type(), 0),
+        "refbackend_consume_memref_float64_func_return");
+
+    // Elemental return types.
     createConsumeFuncReturnFunc(b.getI64Type(),
                                 "refbackend_consume_int64_func_return");
     createConsumeFuncReturnFunc(b.getF32Type(),

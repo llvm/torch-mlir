@@ -518,16 +518,13 @@ class TensorToInt(torch.nn.Module):
     @annotate_args([
         None,
         ([], torch.int64, True),
-        ([], torch.float32, True),
     ])
-    def forward(self, x, y):
-        # This is a workaround for not returning scalar value.
-        a =  int(x)
-        return y.add(y, alpha=a)
+    def forward(self, x):
+        return int(x)
 
 @register_test_case(module_factory=lambda: TensorToInt())
 def TensorToInt_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10,[]), tu.rand())
+    module.forward(torch.randint(10,[]))
     
 class LogSoftmaxIntModule(torch.nn.Module):
     def __init__(self):
