@@ -445,6 +445,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::exp : (Tensor) -> (Tensor)",
                 "aten::cos : (Tensor) -> (Tensor)",
                 "aten::neg : (Tensor) -> (Tensor)",
+                "aten::floor : (Tensor) -> (Tensor)",
                 "aten::bitwise_not : (Tensor) -> (Tensor)",
                 "aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
                 "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",

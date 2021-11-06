@@ -240,6 +240,34 @@ def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
 }
 
+def Torch_AtenFloorOp : Torch_Op<"aten.floor", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::floor : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+}
+
+def Torch_AtenFloor_Op : Torch_Op<"aten.floor_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::floor_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+}
+
 def Torch_AtenBitwiseNotOp : Torch_Op<"aten.bitwise_not", [
     AllowsTypeRefinement,
     HasValueSemantics
