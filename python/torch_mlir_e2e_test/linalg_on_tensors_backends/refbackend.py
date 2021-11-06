@@ -33,16 +33,37 @@ class RefBackendInvoker:
         self.result = None
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_i64_return(a):
+        def consume_memref_i64_return(a):
             self.result = unranked_memref_to_numpy(a, np.int64)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_f32_return(a):
+        def consume_memref_f32_return(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_f64_return(a):
+        def consume_memref_f64_return(a):
             self.result = unranked_memref_to_numpy(a, np.float64)
+
+        @ctypes.CFUNCTYPE(None, ctypes.c_int)
+        def consume_i64_return(a):
+            self.result = a
+
+        @ctypes.CFUNCTYPE(None, ctypes.c_float)
+        def consume_f32_return(a):
+            self.result = a
+
+        @ctypes.CFUNCTYPE(None, ctypes.c_double)
+        def consume_f64_return(a):
+            self.result = a
+
+        self.ee.register_runtime("refbackend_consume_memref_int64_func_return",
+                                 consume_memref_i64_return)
+
+        self.ee.register_runtime("refbackend_consume_memref_float32_func_return",
+                                 consume_memref_f32_return)
+
+        self.ee.register_runtime("refbackend_consume_memref_float64_func_return",
+                                 consume_memref_f64_return)
 
         self.ee.register_runtime("refbackend_consume_int64_func_return",
                                  consume_i64_return)
