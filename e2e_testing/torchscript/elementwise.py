@@ -378,3 +378,19 @@ class ElementwiseSqrtModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseSqrtModule())
 def ElementwiseSqrtModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+class ElementwiseFloorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.floor(a)
+
+@register_test_case(module_factory=lambda: ElementwiseFloorModule())
+def ElementwiseFloorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
