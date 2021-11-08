@@ -621,6 +621,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::div : (Scalar, Scalar) -> (float)")
         emit("aten::eq.device : (Device, Device) -> (bool)")
 
+        # backprop ops
+        emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
+
 
 def emit_quantized_ops(torch_ir_dir: str, registry: Registry):
     td_file = os.path.join(torch_ir_dir, "GeneratedQuantizedOps.td")

@@ -224,7 +224,7 @@ def TransposeIntModule_basic(module, tu: TestUtils):
 class PermuteModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -258,7 +258,7 @@ def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
 class PermuteNegativeIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args([
         None,
@@ -374,7 +374,6 @@ def EmbeddingModule_basic(module, tu: TestUtils):
 class SoftmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        torch.manual_seed(0)
         self.softmax = torch.nn.Softmax(2)
 
     @export
@@ -428,6 +427,7 @@ class SoftmaxIntArgTypeF64Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: SoftmaxIntArgTypeF64Module())
 def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
+
 
 class BroadcastToModule(torch.nn.Module):
     def __init__(self):
@@ -509,7 +509,7 @@ class ContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ContiguousModule())
 def ContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1))
-    
+
 class TensorToInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -521,6 +521,7 @@ class TensorToInt(torch.nn.Module):
     ])
     def forward(self, x):
         return int(x)
+
 
 @register_test_case(module_factory=lambda: TensorToInt())
 def TensorToInt_basic(module, tu: TestUtils):
@@ -542,6 +543,7 @@ class LogSoftmaxIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LogSoftmaxIntModule())
 def LogSoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
+
 
 class NumToTensorModule(torch.nn.Module):
     def __init__(self):
