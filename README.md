@@ -30,6 +30,11 @@ We have few paths to lower down to the Torch MLIR Dialect.
 	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
  - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
 
+## Project Communication
+
+- `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
+- Github issues [here](https://github.com/llvm/torch-mlir/issues)
+- [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
 
 ## Check out the code
 
@@ -172,12 +177,6 @@ The `build_tools/write_env_file.sh` script will output a `.env`
 file in the workspace folder with the correct PYTHONPATH set. This allows
 tools like VSCode to work by default for debugging. This file can also be
 manually `source`'d in a shell.
-
-## Project Communication
-
-- `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362)
-- Issues [here](https://github.com/llvm/torch-mlir/issues)
-- [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
 
 ## Build Python Packages
 
