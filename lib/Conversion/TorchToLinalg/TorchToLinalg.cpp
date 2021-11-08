@@ -2794,6 +2794,29 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertPrimNumToTensorScalarOp
+    : public OpConversionPattern<PrimNumToTensorScalarOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(PrimNumToTensorScalarOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    PrimNumToTensorScalarOp::Adaptor adaptor(operands);
+    Location loc = op.getLoc();
+    Value a = adaptor.a();
+    Value outTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, ValueRange{}, a.getType())
+            ->getResult(0);
+    rewriter.replaceOpWithNewOp<linalg::FillOp>(op, a, outTensor);
+
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -2878,6 +2901,9 @@ public:
     patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
     target.addIllegalOp<AtenIntTensorOp>();
     patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
+    target.addIllegalOp<PrimNumToTensorScalarOp>();
+    patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
+
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();

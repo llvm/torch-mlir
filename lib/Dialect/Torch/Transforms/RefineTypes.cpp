@@ -416,6 +416,8 @@ public:
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
+    } else if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
+      return visitNumToTensorOp(numToTensorOp);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -477,6 +479,7 @@ private:
   ChangeResult
   visitAtenPermuteOp(AtenPermuteOp op,
                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitNumToTensorOp(PrimNumToTensorScalarOp op);
   template <typename OpTy>
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
@@ -1259,6 +1262,14 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
     knowledge.sizes.push_back(kUnknownSize);
   knowledge.hasSizes = true;
   knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.hasSizes = true;
+  knowledge.dtype = getDefaultDtypeForTorchScalar(op.a().getType());
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
