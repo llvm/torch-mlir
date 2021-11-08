@@ -67,3 +67,17 @@ func @integer_extract(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
   %0 = torch.aten.Int.Tensor %arg0 : !torch.vtensor<[],si64> -> !torch.int                   
   return %0 : !torch.int                 
 }                       
+
+// -----
+
+// CHECK:    func @torch.prim.NumToTensor.Scalar$basic(%[[IN:.*]]: !torch.int) -> !torch.vtensor<[],si64> {
+// CHECK:      %[[INI64:.*]] = torch_c.to_i64 %[[IN]]
+// CHECK:      %[[NEWVEC:.*]] = linalg.init_tensor [] : tensor<i64>
+// CHECK:      %[[FILLVEC:.*]] = linalg.fill(%[[INI64]], %[[NEWVEC]]) : i64, tensor<i64> -> tensor<i64> 
+// CHECK:      %[[OUTVEC:.*]] = torch_c.from_builtin_tensor %[[FILLVEC]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:      return %[[OUTVEC]] : !torch.vtensor<[],si64>
+
+func @torch.prim.NumToTensor.Scalar$basic(%arg0: !torch.int) -> !torch.vtensor<[],si64> {
+  %0 = torch.prim.NumToTensor.Scalar %arg0 : !torch.int -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}
