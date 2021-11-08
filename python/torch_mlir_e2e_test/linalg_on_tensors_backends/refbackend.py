@@ -27,59 +27,73 @@ def checkArgTypeIsSupported(ty):
     SUPPORTED = [np.float32, np.float64, np.int32, np.int64]
     assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
 
+
 class RefBackendInvoker:
     def __init__(self, module):
         self.ee = ExecutionEngine(module)
         self.result = None
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_memref_i32_return(a):
+        def consume_return_mri32(a):
             self.result = unranked_memref_to_numpy(a, np.int32)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_memref_i64_return(a):
+        def consume_return_mri64(a):
             self.result = unranked_memref_to_numpy(a, np.int64)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_memref_f32_return(a):
+        def consume_return_mrf32(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
-        def consume_memref_f64_return(a):
+        def consume_return_mrf64(a):
             self.result = unranked_memref_to_numpy(a, np.float64)
 
         @ctypes.CFUNCTYPE(None, ctypes.c_int)
-        def consume_i64_return(a):
+        def consume_return_i64(a):
             self.result = a
 
         @ctypes.CFUNCTYPE(None, ctypes.c_float)
-        def consume_f32_return(a):
+        def consume_return_f32(a):
             self.result = a
 
         @ctypes.CFUNCTYPE(None, ctypes.c_double)
-        def consume_f64_return(a):
+        def consume_return_f64(a):
             self.result = a
 
-        self.ee.register_runtime("refbackend_consume_memref_int32_func_return",
-                                 consume_memref_i32_return)
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
+                          ctypes.POINTER(UnrankedMemRefDescriptor),
+                          ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_return_mrf32_mrf32_mrf32(arg0, arg1, arg2):
+            self.result = unranked_memref_to_numpy(
+                arg0, np.float32), unranked_memref_to_numpy(
+                    arg1,
+                    np.float32), unranked_memref_to_numpy(arg2, np.float32)
 
-        self.ee.register_runtime("refbackend_consume_memref_int64_func_return",
-                                 consume_memref_i64_return)
+        self.ee.register_runtime("refbackend_consume_func_return_mri32",
+                                 consume_return_mri32)
 
-        self.ee.register_runtime("refbackend_consume_memref_float32_func_return",
-                                 consume_memref_f32_return)
+        self.ee.register_runtime("refbackend_consume_func_return_mri64",
+                                 consume_return_mri64)
 
-        self.ee.register_runtime("refbackend_consume_memref_float64_func_return",
-                                 consume_memref_f64_return)
+        self.ee.register_runtime("refbackend_consume_func_return_mrf32",
+                                 consume_return_mrf32)
 
-        self.ee.register_runtime("refbackend_consume_int64_func_return",
-                                 consume_i64_return)
+        self.ee.register_runtime("refbackend_consume_func_return_mrf64",
+                                 consume_return_mrf64)
 
-        self.ee.register_runtime("refbackend_consume_float32_func_return",
-                                 consume_f32_return)
+        self.ee.register_runtime("refbackend_consume_func_return_i64",
+                                 consume_return_i64)
 
-        self.ee.register_runtime("refbackend_consume_float64_func_return",
-                                 consume_f64_return)
+        self.ee.register_runtime("refbackend_consume_func_return_f32",
+                                 consume_return_f32)
+
+        self.ee.register_runtime("refbackend_consume_func_return_f64",
+                                 consume_return_f64)
+
+        self.ee.register_runtime(
+            "refbackend_consume_func_return_mrf32_mrf32_mrf32",
+            consume_return_mrf32_mrf32_mrf32)
 
     def __getattr__(self, function_name: str):
         def invoke(*args):

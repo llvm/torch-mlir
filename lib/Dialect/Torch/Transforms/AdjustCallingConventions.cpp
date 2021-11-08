@@ -66,15 +66,20 @@ public:
       // TODO: add tuple type.
       conversion.addInputs(type.index(), type.value());
     }
+    rewriter.applySignatureConversion(&func.getBody(), conversion,
+                                      typeConverter);
+
     SmallVector<Type> newResultTypes;
     for (auto type : func.getType().getResults()) {
       if (auto none = type.dyn_cast<Torch::NoneType>()) {
         continue;
       }
+      if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+        llvm::append_range(newResultTypes, tuple.getContainedTypes());
+        continue;
+      }
       newResultTypes.push_back(type);
     }
-    rewriter.applySignatureConversion(&func.getBody(), conversion,
-                                      typeConverter);
     rewriter.updateRootInPlace(func, [&] {
       func.setType(FunctionType::get(
           getContext(), conversion.getConvertedTypes(), newResultTypes));
@@ -131,6 +136,11 @@ public:
             rewriter.create<ConstantNoneOp>(call.getLoc(), type));
         continue;
       }
+      if (type.isa<Torch::TupleType>()) {
+        newResults.push_back(rewriter.create<PrimTupleConstructOp>(
+            call.getLoc(), type, newCall.getResults()));
+        continue;
+      }
       newResults.push_back(newCall.getResult(newOpResultIdx++));
     }
     rewriter.replaceOp(call, newResults);
@@ -151,12 +161,22 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     SmallVector<Value> newOperands;
-    for (auto operand : llvm::enumerate(adaptor.getOperands())) {
-      if (!operand.value())
+    for (auto operand : adaptor.getOperands()) {
+      if (!operand)
         continue;
-      if (operand.value().getType().isa<Torch::NoneType>())
+      if (operand.getType().isa<Torch::NoneType>())
         continue;
-      newOperands.push_back(operand.value());
+      if (auto tuple = operand.getType().dyn_cast<Torch::TupleType>()) {
+        Location loc = op.getLoc();
+        for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
+          auto i = rewriter.create<ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(en.index()));
+          newOperands.push_back(
+              rewriter.create<PrimTupleIndexOp>(loc, en.value(), operand, i));
+        }
+        continue;
+      }
+      newOperands.push_back(operand);
     }
     rewriter.replaceOpWithNewOp<ReturnOp>(op, newOperands);
     return success();
@@ -168,9 +188,14 @@ static LogicalResult adjustCallingConventions(FuncOp func,
                                               TypeBoundMap &typeBoundMap) {
   MLIRContext *context = func.getContext();
   RewritePatternSet patterns(context);
-  // TODO: TupleTypes
   TypeConverter typeConverter;
   typeConverter.addConversion([](Type type) { return type; });
+  typeConverter.addConversion(
+      [](Torch::TupleType type,
+         SmallVectorImpl<Type> &types) -> Optional<LogicalResult> {
+        llvm::append_range(types, type.getContainedTypes());
+        return success();
+      });
   typeConverter.addConversion(
       [](Torch::NoneType type,
          SmallVectorImpl<Type> &types) -> Optional<LogicalResult> {
@@ -220,6 +245,9 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   target.addLegalOp<CopyToNonValueTensorOp, CopyToValueTensorOp>();
   target.addLegalOp<TensorStaticInfoCastOp>();
   target.addLegalOp<ConstantNoneOp>();
+  target.addLegalOp<ConstantIntOp>();
+  target.addLegalOp<PrimTupleIndexOp>();
+  target.addLegalOp<PrimTupleConstructOp>();
   // We don't know how to rewrite it, so mark it as illegal.
   target.addIllegalOp<CallIndirectOp>();
   if (failed(applyPartialConversion(func.getOperation(), target,

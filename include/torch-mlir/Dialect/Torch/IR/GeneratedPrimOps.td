@@ -43,6 +43,7 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
     AnyTorchType:$result
   );
   let assemblyFormat = "$tup `,` $i attr-dict `:` type($tup) `,` type($i) `->` type($result)";
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimDeviceOp : Torch_Op<"prim.device", [

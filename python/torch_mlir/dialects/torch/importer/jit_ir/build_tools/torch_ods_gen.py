@@ -399,7 +399,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
             emit_op(registry[key], f, **kwargs)
 
         emit("prim::layout : (Tensor) -> (int)")
-        emit("prim::TupleIndex : (Any, int) -> (Any)")
+        emit("prim::TupleIndex : (Any, int) -> (Any)", has_canonicalizer=True)
         emit("prim::device : (Tensor) -> (Device)")
         emit("prim::dtype : (Tensor) -> (int)", has_folder=True)
         emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
