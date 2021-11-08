@@ -230,7 +230,7 @@ public:
             AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
             AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
             AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp,
-            AtenFloorOp, AtenLog2Op>(op)) {
+            AtenFloorOp, AtenLog2Op, Aten_SoftmaxBackwardDataOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
