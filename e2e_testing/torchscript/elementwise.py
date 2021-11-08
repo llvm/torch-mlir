@@ -429,3 +429,19 @@ class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseToDtypeF32ToI64Module())
 def ElementwiseToDtypeF32ToI64Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
+
+class ElementwiseLog2Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.log2(a)
+
+@register_test_case(module_factory=lambda: ElementwiseLog2Module())
+def ElementwiseLog2Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
