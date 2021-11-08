@@ -394,3 +394,19 @@ class ElementwiseFloorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseFloorModule())
 def ElementwiseFloorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+class ElementwisePowModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.pow(a, 2.0)
+
+@register_test_case(module_factory=lambda: ElementwisePowModule())
+def ElementwisePowModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))

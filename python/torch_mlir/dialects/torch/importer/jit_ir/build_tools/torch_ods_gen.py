@@ -473,6 +473,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
         emit("aten::gelu : (Tensor) -> (Tensor)")
+        emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")

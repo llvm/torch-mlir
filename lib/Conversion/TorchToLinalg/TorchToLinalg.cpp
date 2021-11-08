@@ -1375,6 +1375,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     return b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1]);
   }
+  if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
+    if (!pow.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      pow.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type dtype = pow.self().getType().cast<ValueTensorType>().getDtype();
+    Value expPromoted = promoteScalarToDtype(b, loc, operands[1], dtype);
+    return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);
+  }
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
     if (!lerp.getType()
              .cast<ValueTensorType>()
@@ -1668,7 +1680,7 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
              AtenMaximumOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
-             AtenSqrtOp, AtenFloorOp>(op))
+             AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2805,7 +2817,7 @@ public:
                         AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
                         AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
                         AtenMaximumOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
-                        AtenSqrtOp, AtenFloorOp>();
+                        AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);

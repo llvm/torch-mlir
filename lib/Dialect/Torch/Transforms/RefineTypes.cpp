@@ -285,8 +285,8 @@ public:
     } else if (auto avgPool2d = llvm::dyn_cast<AtenAdaptiveAvgPool2dOp>(op)) {
       return visitAtenAdaptiveAvgPool2dOp(avgPool2d, operands);
     } else if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp,
-                   AtenDivScalarOp, AtenFmodScalarOp, AtenFloorDivideScalarOp>(
-                   op)) {
+                   AtenDivScalarOp, AtenFmodScalarOp, AtenFloorDivideScalarOp,
+                   AtenPowTensorScalarOp>(op)) {
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
