@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -2233,101 +2234,59 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenTransposeIntOp
-    : public OpConversionPattern<AtenTransposeIntOp> {
+
+template <typename OpTy>
+class ConvertPermutationLikeOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenTransposeIntOp op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-    AtenTransposeIntOp::Adaptor adaptor(operands);
-
-    int64_t dim0;
-    if (!matchPattern(op.dim0(), m_TorchConstantInt(&dim0)))
-      return rewriter.notifyMatchFailure(op, "dim0 must be constant");
-    int64_t dim1;
-    if (!matchPattern(op.dim1(), m_TorchConstantInt(&dim1)))
-      return rewriter.notifyMatchFailure(op, "dim1 must be constant");
-
-    auto inVector = adaptor.self();
-    auto inType = inVector.getType().cast<RankedTensorType>();
-    auto inputRank = inType.getRank();
-    auto outType = getTypeConverter()
-                       ->convertType(op->getResult(0).getType())
-                       .cast<RankedTensorType>();
-    auto elementType = inType.getElementType();
-
-    dim0 = toPositiveDim(dim0, inputRank);
-    if (!isValidDim(dim0, inputRank))
-      return rewriter.notifyMatchFailure(op, "dim0 out of range");
-    dim1 = toPositiveDim(dim1, inputRank);
-    if (!isValidDim(dim1, inputRank))
-      return rewriter.notifyMatchFailure(op, "dim1 out of range");
-
-    auto loc = op.getLoc();
-
-    SmallVector<Value> outputDims;
-    for (auto i = 0; i < inputRank; i++)
-      outputDims.push_back(getDimOp(rewriter, loc, adaptor.self(), i));
-    std::swap(outputDims[dim0], outputDims[dim1]);
-
-    Value outVector =
-        rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
-    SmallVector<AffineExpr> idExprs;
-    SmallVector<AffineExpr> swapExprs;
-    for (auto i = 0; i < inputRank; i++)
-      idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-    for (auto i = 0; i < inputRank; i++) {
-      if (i == dim0)
-        swapExprs.push_back(idExprs[dim1]);
-      else if (i == dim1)
-        swapExprs.push_back(idExprs[dim0]);
-      else
-        swapExprs.push_back(idExprs[i]);
-    }
-
-    SmallVector<AffineMap> indexingMaps = {
-        AffineMap::get(inputRank, 0, idExprs, op.getContext()),
-        AffineMap::get(inputRank, 0, swapExprs, op.getContext())};
-    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
-    auto transpose = rewriter
-                         .create<linalg::GenericOp>(
-                             loc, outVector.getType(), inVector, outVector,
-                             indexingMaps, iteratorTypes,
-                             [](OpBuilder &b, Location loc, ValueRange args) {
-                               b.create<linalg::YieldOp>(loc, args[0]);
-                             })
-                         .getResult(0);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transpose);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenPermuteOp : public OpConversionPattern<AtenPermuteOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenPermuteOp op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    AtenPermuteOp::Adaptor adaptor(operands);
+    Value inVector;
+    RankedTensorType inType;
+    int64_t inputRank = 0;
+    Type elementType;
+
+    auto fetchRankAndDtype = [&](Value inVector, RankedTensorType &inType,
+                                 int64_t &inputRank, Type &elementType) {
+      inType = inVector.getType().cast<RankedTensorType>();
+      inputRank = inType.getRank();
+      elementType = inType.getElementType();
+    };
     SmallVector<int64_t> dimensions;
-    if (!matchPattern(op.dims(), m_TorchConstantIntList(dimensions)))
-      return rewriter.notifyMatchFailure(op, "all dimensions must be constant");
-
-    Value inVector = adaptor.self();
-    auto inType = inVector.getType().cast<RankedTensorType>();
-    int64_t inputRank = inType.getRank();
-    auto outType = getTypeConverter()
+    if (isa<AtenTransposeIntOp>(op)) {
+      auto transposeInt = cast<AtenTransposeIntOp>(op);
+      AtenTransposeIntOp::Adaptor adaptor(operands);
+      inVector = adaptor.self();
+      fetchRankAndDtype(inVector, inType, inputRank, elementType);
+      dimensions.resize(inputRank);
+      std::iota(dimensions.begin(), dimensions.end(), 0);
+      int64_t dim0Int, dim1Int;
+      if (!matchPattern(transposeInt.dim0(), m_TorchConstantInt(&dim0Int)) ||
+          !matchPattern(transposeInt.dim1(), m_TorchConstantInt(&dim1Int)))
+        return rewriter.notifyMatchFailure(
+            op, "The first two dimensions must be constant");
+      dimensions[toPositiveDim(dim0Int, inputRank)] = dim1Int;
+      dimensions[toPositiveDim(dim1Int, inputRank)] = dim0Int;
+    } else if (isa<AtenPermuteOp>(op)) {
+      auto permute = cast<AtenPermuteOp>(op);
+      AtenPermuteOp::Adaptor adaptor(operands);
+      inVector = adaptor.self();
+      fetchRankAndDtype(inVector, inType, inputRank, elementType);
+      if (!matchPattern(permute.dims(), m_TorchConstantIntList(dimensions))) {
+        return rewriter.notifyMatchFailure(op,
+                                           "all dimensions must be constant");
+      }
+    } else {
+      return rewriter.notifyMatchFailure(op,
+                                         "Not a permutation like operation");
+    }
+    auto outType = this->getTypeConverter()
                        ->convertType(op->getResult(0).getType())
-                       .cast<RankedTensorType>();
-    Type elementType = inType.getElementType();
+                       .template cast<RankedTensorType>();
 
     // Check if the dimensions are a valid constants.
     int64_t numDimensions = dimensions.size();
@@ -2346,7 +2305,6 @@ public:
     SmallVector<Value> outputDims;
     for (unsigned i = 0; i < inputRank; i++)
       outputDims.push_back(getDimOp(rewriter, loc, inVector, dimensions[i]));
-
     Value outVector =
         rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
     SmallVector<AffineExpr> idExprs;
@@ -2822,9 +2780,11 @@ public:
     target.addIllegalOp<AtenSumOp>();
     patterns.add<ConvertReductionOp>(typeConverter, context);
     target.addIllegalOp<AtenTransposeIntOp>();
-    patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
+    patterns.add<ConvertPermutationLikeOp<AtenTransposeIntOp>>(typeConverter,
+                                                               context);
     target.addIllegalOp<AtenPermuteOp>();
-    patterns.add<ConvertAtenPermuteOp>(typeConverter, context);
+    patterns.add<ConvertPermutationLikeOp<AtenPermuteOp>>(typeConverter,
+                                                          context);
     target.addIllegalOp<AtenCatOp>();
     patterns.add<ConvertAtenCatOp>(typeConverter, context);
     target.addIllegalOp<AtenGatherOp>();

@@ -21,6 +21,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -328,9 +329,10 @@ public:
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
       return visitReshapeLikeOp(resize, operands);
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
-      return visitAtenTransposeIntOp(transposeInt, operands);
+      return visitPermutationLikeOps<AtenTransposeIntOp>(transposeInt,
+                                                         operands);
     } else if (auto permute = dyn_cast<AtenPermuteOp>(op)) {
-      return visitAtenPermuteOp(permute, operands);
+      return visitPermutationLikeOps<AtenPermuteOp>(permute, operands);
     } else if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
       return visitScalarToTensorConversionOp<AtenTensorFloatOp>(tensorFloat);
     } else if (auto tensorInt = dyn_cast<AtenTensorIntOp>(op)) {
@@ -470,12 +472,10 @@ private:
   ChangeResult
   visitReshapeLikeOp(OpTy op,
                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy>
   ChangeResult
-  visitAtenTransposeIntOp(AtenTransposeIntOp op,
+  visitPermutationLikeOps(OpTy op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  ChangeResult
-  visitAtenPermuteOp(AtenPermuteOp op,
-                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   template <typename OpTy>
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
@@ -981,36 +981,9 @@ ChangeResult TypeAnalyzer::visitReshapeLikeOp(
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
-ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
-    AtenTransposeIntOp op,
-    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto input = operands[0]->getValue();
-  auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
-  knowledge.dtype = input.dtype;
-  knowledge.hasSizes = input.hasSizes;
-  auto dim0 = op.dim0();
-  auto dim1 = op.dim1();
-  int64_t dim0Int;
-  int64_t dim1Int;
-  if (matchPattern(dim0, m_TorchConstantInt(&dim0Int)) &&
-      matchPattern(dim1, m_TorchConstantInt(&dim1Int))) {
-    knowledge.sizes = input.sizes;
-    int64_t inputRank = input.sizes.size();
-    dim0Int = toPositiveDim(dim0Int, inputRank);
-    dim1Int = toPositiveDim(dim1Int, inputRank);
-    if (isValidDim(dim0Int, inputRank) && isValidDim(dim1Int, inputRank)) {
-      std::swap(knowledge.sizes[dim0Int], knowledge.sizes[dim1Int]);
-      return getLatticeElement(op.getResult()).join(knowledge);
-    }
-  }
-
-  knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  return getLatticeElement(op.getResult()).join(knowledge);
-}
-
-ChangeResult TypeAnalyzer::visitAtenPermuteOp(
-    AtenPermuteOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitPermutationLikeOps(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
@@ -1018,18 +991,31 @@ ChangeResult TypeAnalyzer::visitAtenPermuteOp(
   if (!input.hasSizes)
     return getLatticeElement(op.getResult()).join(knowledge);
   knowledge.hasSizes = input.hasSizes;
+  int64_t inputRank = input.sizes.size();
   knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  Value dims = op.dims();
-  SmallVector<int64_t> dimensions;
-  if (matchPattern(dims, m_TorchConstantIntList(dimensions))) {
-    int64_t inputRank = input.sizes.size();
-    for (unsigned i = 0; i < inputRank; i++) {
-      int64_t dim = toPositiveDim(dimensions[i], inputRank);
-      if (!isValidDim(dim, inputRank)) {
-        return getLatticeElement(op.getResult()).join(knowledge);
-      }
-      knowledge.sizes[i] = input.sizes[dim];
+  SmallVector<int64_t> dimensions(input.sizes.size());
+  if (isa<AtenTransposeIntOp>(op)) {
+    std::iota(dimensions.begin(), dimensions.end(), 0);
+    int64_t dim0Int, dim1Int;
+    auto transposeInt = cast<AtenTransposeIntOp>(op);
+    if (!matchPattern(transposeInt.dim0(), m_TorchConstantInt(&dim0Int)) ||
+        !matchPattern(transposeInt.dim1(), m_TorchConstantInt(&dim1Int)))
+      return getLatticeElement(transposeInt.getResult()).join(knowledge);
+    dimensions[toPositiveDim(dim0Int, inputRank)] = dim1Int;
+    dimensions[toPositiveDim(dim1Int, inputRank)] = dim0Int;
+  } else if (isa<AtenPermuteOp>(op)) {
+    auto permute = cast<AtenPermuteOp>(op);
+    if (!matchPattern(permute.dims(), m_TorchConstantIntList(dimensions)))
+      return getLatticeElement(permute.getResult()).join(knowledge);
+  } else {
+    return getLatticeElement(op.getResult()).join(knowledge);
+  }
+  for (unsigned i = 0; i < inputRank; i++) {
+    int64_t dim = toPositiveDim(dimensions[i], inputRank);
+    if (!isValidDim(dim, inputRank)) {
+      return getLatticeElement(op.getResult()).join(knowledge);
     }
+    knowledge.sizes[i] = input.sizes[dim];
   }
   return getLatticeElement(op.getResult()).join(knowledge);
 }
