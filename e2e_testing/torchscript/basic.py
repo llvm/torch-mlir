@@ -543,7 +543,7 @@ class TensorToInt(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorToInt())
 def TensorToInt_basic(module, tu: TestUtils):
     module.forward(torch.randint(10,[]))
-    
+
 class LogSoftmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -577,3 +577,24 @@ class NumToTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: NumToTensorModule())
 def NumToTensorModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# This test can be removed once we have one real op returning 3 float32 tensors
+class ReturnThreeTensorFloat32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b, c):
+        return a, b, c
+
+@register_test_case(module_factory=lambda: ReturnThreeTensorFloat32())
+def ReturnThreeTensorFloat32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3), tu.rand(2, 3))
+

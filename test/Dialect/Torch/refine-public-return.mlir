@@ -23,8 +23,6 @@ func private @basic_private(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor
   return %2 : !torch.tensor
 }
 
-
-
 // -----
 
 // Call to public function.

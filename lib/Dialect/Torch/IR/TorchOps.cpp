@@ -917,15 +917,36 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// PrimTupleIndexOp
+//===----------------------------------------------------------------------===//
+
+void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](PrimTupleIndexOp op, PatternRewriter &rewriter) {
+    auto tupleConstruct = op.tup().getDefiningOp<Torch::PrimTupleConstructOp>();
+    if (!tupleConstruct)
+      return failure();
+
+    int64_t i;
+    if (!matchPattern(op.i(), m_TorchConstantInt(&i)))
+      return failure();
+
+    if (i >= (int64_t)tupleConstruct.elements().size())
+      return failure();
+
+    rewriter.replaceOp(op, tupleConstruct.elements()[i]);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // PrimTupleUnpackOp
 //===----------------------------------------------------------------------===//
 
 void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     MLIRContext *context) {
   patterns.add(+[](PrimTupleUnpackOp op, PatternRewriter &rewriter) {
-    auto torchTuple = op.tup();
-    auto tupleConstruct =
-        torchTuple.getDefiningOp<Torch::PrimTupleConstructOp>();
+    auto tupleConstruct = op.tup().getDefiningOp<Torch::PrimTupleConstructOp>();
     if (!tupleConstruct)
       return failure();
 

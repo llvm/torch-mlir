@@ -121,8 +121,8 @@ def AdjustCallingConventions
       function arguments, which should be `!numpy.ndarray<...>`'s.
     - Python-isms are rewritten to MLIR-isms
       - NoneType return is rewritten to the absence of a return value.
-      - (Not implemented yet) Tuple return is rewritten to multiple return
-        values
+      - Tuple return is rewritten to multiple return values.
+
   }];
 }
 
@@ -219,14 +219,14 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "FuncOp"> {
   let summary = "Decompose complicated torch operations";
   let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
   let description = [{
-    Decompose torch operation that are losslessly represented as combinations of 
-    other operations, modulo appropropriate compiler fusion. Note that this pass 
-    is similar in spirit to ReduceOpVariants, but ReduceOpVariants is about 
-    systematic reductions of a large number of ops at once, guided mostly by 
+    Decompose torch operation that are losslessly represented as combinations of
+    other operations, modulo appropropriate compiler fusion. Note that this pass
+    is similar in spirit to ReduceOpVariants, but ReduceOpVariants is about
+    systematic reductions of a large number of ops at once, guided mostly by
     traits.
 
     An example of the transformations done in this pass is:
-    - convert aten.softmax to softmax(x, dim) 
+    - convert aten.softmax to softmax(x, dim)
             => tmp=exp(x); tmp / sum(tmp, dim, keepdim=True)
   }];
 }

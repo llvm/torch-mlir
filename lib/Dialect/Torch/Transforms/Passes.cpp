@@ -89,6 +89,9 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   pm.addPass(createAdjustCallingConventionsPass());
 
   if (options.optimize) {
+    // Eliminate the PrimTupleIndexOp generated from the
+    // adjustCallingConventions
+    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
     // Inline global slots, which for most inference scenarios deletes them.
     // This also exposes more information to intraprocedural transformations
     // below like MaximizeValueSemantics and RefineTypes.

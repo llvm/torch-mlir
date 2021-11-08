@@ -11,10 +11,10 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class SoftmaxBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-
 
     @export
     @annotate_args([
@@ -33,6 +33,8 @@ class SoftmaxBackwardModule(torch.nn.Module):
 def SoftmaxBackwardModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4), torch.randn(3, 2, 4))
 
+
+# ==============================================================================
 class TanhBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -43,10 +45,11 @@ class TanhBackwardModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
     ])
+    def forward(self, grad_out, output):
+        return torch.ops.aten.tanh_backward(grad_out, output)
 
-    def forward(self, out_grad, output):
-        return torch.ops.aten.tanh_backward(out_grad, output)
 
 @register_test_case(module_factory=lambda: TanhBackwardModule())
 def TanhBackward_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3), torch.randn(3, 3))
+
