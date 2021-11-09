@@ -178,6 +178,43 @@ public:
 };
 } // namespace
 
+// AtenTanhBackwardOp(gradOutput, output) =>
+//    result = gradOutput * (1 - output^2)
+// To get away from broadcasts the above formula is expanded i.e.,
+// result = gradOutput - (gradOutput * output^2)
+namespace {
+class DecomposeAtenTanhBackwardOp
+    : public OpRewritePattern<AtenTanhBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTanhBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value gradOutput = op.grad_output();
+
+    // `output` is the value flowing out from tanh. Hence, tanh(x) = output.
+    //  Since, dTanh(x) = (1 - tanh(x)^2) hence, dOutput = (1 - output^2). 
+    Value output = op.output();
+
+    BaseTensorType tensorType = gradOutput.getType().cast<BaseTensorType>();
+    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op, "Only support floating type");
+
+    Value tanhSquare =
+        rewriter.create<AtenMulTensorOp>(loc, tensorType, output, output);
+    Value gradMulTanhSquare = rewriter.create<AtenMulTensorOp>(
+        loc, tensorType, tanhSquare, gradOutput);
+
+    Value alpha =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+    Value newGrad = rewriter.create<AtenSubTensorOp>(
+        loc, tensorType, gradOutput, gradMulTanhSquare, alpha);
+    rewriter.replaceOp(op, newGrad);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.log_softmax op into: log(softmax(x))
 namespace {
 class DecomposeAtenLogSoftmaxIntOp
@@ -271,6 +308,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenSizeOp>();
     patterns.add<DecomposeAten_SoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
+    patterns.add<DecomposeAtenTanhBackwardOp>(context);
+    target.addIllegalOp<AtenTanhBackwardOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());
