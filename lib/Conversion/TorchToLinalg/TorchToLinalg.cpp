@@ -1320,6 +1320,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::LogOp>(loc, payloadArgs[0]);
   if (isa<AtenSqrtOp>(op))
     return b.create<math::SqrtOp>(loc, payloadArgs[0]);
+  if (isa<AtenRsqrtOp>(op))
+    return b.create<math::RsqrtOp>(loc, payloadArgs[0]);
   if (isa<AtenLog2Op>(op))
     return b.create<math::Log2Op>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
@@ -1724,7 +1726,8 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
              AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
-             AtenLogOp, AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op>(op))
+             AtenLogOp, AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
+             AtenLog2Op, AtenRsqrtOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2885,7 +2888,7 @@ public:
                         AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
                         AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
                         AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-                        AtenPowTensorScalarOp, AtenLog2Op>();
+                        AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);

@@ -445,3 +445,20 @@ class ElementwiseLog2Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseLog2Module())
 def ElementwiseLog2Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+class ElementwiseRsqrtModule(torch.nn.Module):
+    def __init__(self): 
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.rsqrt(a)
+
+@register_test_case(module_factory=lambda: ElementwiseRsqrtModule())
+def ElementwiseRsqrtModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
