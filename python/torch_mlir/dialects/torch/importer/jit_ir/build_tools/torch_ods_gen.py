@@ -466,6 +466,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
                 "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
                 "aten::log2 : (Tensor) -> (Tensor)",
+                "aten::rsqrt : (Tensor) -> (Tensor)",
         ]:
             emit_with_mutating_variants(key)
         # Elementwise tensor compute ops that don't have the standard mutating
