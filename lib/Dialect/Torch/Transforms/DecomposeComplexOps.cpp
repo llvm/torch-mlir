@@ -289,6 +289,46 @@ public:
 };
 } // namespace
 
+// Decompose torch.addmm into torch.mm and torch.add.Tensor op.
+namespace {
+class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAddmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value mat1 = op.mat1();
+    Value mat2 = op.mat2();
+
+    // The operands `mat1`, `mat2` to aten.addmm must be of rank 2.
+    if (getTensorRank(mat1) != 2 || getTensorRank(mat2) != 2) {
+      return rewriter.notifyMatchFailure(
+          op, "expected mat1, mat2 operands to aten.addmm to be rank 2");
+    }
+
+    // TODO: Handle integer type operands.
+    if (!input.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-floating point dtype");
+    }
+
+    // matrix multiplication: matmul = mat1 @ mat2
+    Value matmul = rewriter.create<AtenMmOp>(loc, op.getType(), mat1, mat2);
+    // scaledInput = self * beta
+    Value scaledInput = rewriter.create<AtenMulScalarOp>(loc, input.getType(),
+                                                         input, op.beta());
+    // result = scaledInput + alpha * matmul
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), scaledInput,
+                                                 matmul, op.alpha());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -310,6 +350,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
     patterns.add<DecomposeAtenTanhBackwardOp>(context);
     target.addIllegalOp<AtenTanhBackwardOp>();
+    patterns.add<DecomposeAtenAddmmOp>(context);
+    target.addIllegalOp<AtenAddmmOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());

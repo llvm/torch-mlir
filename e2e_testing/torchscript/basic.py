@@ -105,6 +105,74 @@ class MmTanhModule(torch.nn.Module):
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
 
+# ==============================================================================
+
+
+class AddmmModuleFloat(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, M, mat1, mat2):
+        return torch.addmm(M, mat1, mat2, beta=3.0, alpha=7.0)
+
+
+@register_test_case(module_factory=lambda: AddmmModuleFloat())
+def AddmmModuleFloat_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4), tu.rand(4, 2), tu.rand(2, 4))
+
+#  ==============================================================================
+
+
+class AddmmModuleBroadcastable(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, M, mat1, mat2):
+        return torch.addmm(M, mat1, mat2, beta=2.0, alpha=7.0)
+
+
+@register_test_case(module_factory=lambda: AddmmModuleBroadcastable())
+def AddmmModule_broadcastable(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2), tu.rand(3, 2), tu.rand(2, 2))
+
+#  ==============================================================================
+
+
+class AddmmModuleDifferentRankBroadcastable(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, M, mat1, mat2):
+        return torch.addmm(M, mat1, mat2, beta=11.0, alpha=7.0)
+
+
+@register_test_case(module_factory=lambda: AddmmModuleDifferentRankBroadcastable())
+def AddmmModule_differentRankBroadcastable(module, tu: TestUtils):
+    module.forward(tu.rand(3), tu.rand(3, 2), tu.rand(2, 3))
+
+#  ==============================================================================
+
 
 class AdaptiveAvgPool2dModule(torch.nn.Module):
     def __init__(self):

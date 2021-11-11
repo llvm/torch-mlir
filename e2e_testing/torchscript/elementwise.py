@@ -345,6 +345,23 @@ def RsubModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
     
 # ==============================================================================
+class ElementwiseMulScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.mul(x, 100.0)
+
+@register_test_case(module_factory=lambda: ElementwiseMulScalarModule())
+def ElementwiseMulScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+    
+# ==============================================================================
 class ElementwiseLogModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

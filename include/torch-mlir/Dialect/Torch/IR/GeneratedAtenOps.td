@@ -1076,6 +1076,24 @@ def Torch_AtenMmOp : Torch_Op<"aten.mm", [
   let assemblyFormat = "$self `,` $mat2 attr-dict `:` type($self) `,` type($mat2) `->` type($result)";
 }
 
+def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$mat1,
+    AnyTorchTensorType:$mat2,
+    AnyTorchScalarType:$beta,
+    AnyTorchScalarType:$alpha
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $mat1 `,` $mat2 `,` $beta `,` $alpha attr-dict `:` type($self) `,` type($mat1) `,` type($mat2) `,` type($beta) `,` type($alpha) `->` type($result)";
+}
+
 def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
     AllowsTypeRefinement,
     HasValueSemantics
