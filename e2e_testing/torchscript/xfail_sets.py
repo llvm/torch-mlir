@@ -25,4 +25,7 @@ REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 TOSA_PASS_SET = {
     "ElementwiseUnaryModule_basic",
     "ElementwiseSigmoidModule_basic",
+    "ElementwiseReluModule_basic",
+    "ElementwiseFloorModule_basic",
+    "ElementwiseLogModule_basic",
 }
