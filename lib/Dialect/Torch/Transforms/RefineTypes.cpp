@@ -277,6 +277,8 @@ public:
 
     if (auto mm = llvm::dyn_cast<AtenMmOp>(op)) {
       return visitAtenMmOp(mm, operands);
+    } else if (auto addmm = llvm::dyn_cast<AtenAddmmOp>(op)) {
+      return visitAtenAddmmOp(addmm, operands);
     } else if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
       return visitAtenLinearOp(linear, operands);
     } else if (auto conv2d = llvm::dyn_cast<AtenConv2dOp>(op)) {
@@ -431,6 +433,9 @@ private:
   ChangeResult
   visitAtenMmOp(AtenMmOp op,
                 ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenAddmmOp(AtenAddmmOp op,
+                   ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenLinearOp(AtenLinearOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -676,6 +681,20 @@ ChangeResult TypeAnalyzer::visitAtenMmOp(
   // the same, then the result is of that same element type.
   knowledge.dtype =
       getPromotedResultTypeAssumingNonZeroRank(op->getContext(), {&lhs, &rhs});
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenAddmmOp(
+    AtenAddmmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto &input = operands[0]->getValue();
+  auto &mat1 = operands[1]->getValue();
+  auto &mat2 = operands[2]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.hasSizes = true;
+  knowledge.sizes.resize(2, kUnknownSize);
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
+      op->getContext(), {&input, &mat1, &mat2});
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 

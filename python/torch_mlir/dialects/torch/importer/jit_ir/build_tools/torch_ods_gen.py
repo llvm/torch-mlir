@@ -483,6 +483,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # Non-elementwise tensor compute ops
         emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
         emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
         emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
         emit(
             "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
