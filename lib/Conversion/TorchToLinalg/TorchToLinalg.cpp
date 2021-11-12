@@ -2776,20 +2776,24 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    AtenOnesOp::Adaptor adaptor(operands);
     Location loc = op.getLoc();
 
     // We ignore device, but add simple asserts for unimplemented kwargs
-    if (!adaptor.layout().getType().isa<Torch::NoneType>())
+    if (!op.layout().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(op,
                                          "only default layout is supported");
-    bool pinMemory;
-    if (!adaptor.pin_memory().getType().isa<Torch::NoneType>() &&
-        !matchPattern(adaptor.pin_memory(), m_TorchConstantBool(&pinMemory)))
+
+    bool pinMemory = false;
+    if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
+        !matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory))) {
+      return rewriter.notifyMatchFailure(
+          op, "pin_memory must be constant bool or None");
+    }
+    if (pinMemory)
       return rewriter.notifyMatchFailure(op, "memory pinning not supported");
 
     SmallVector<Value> size, sizeIndex;
-    if (!getListConstructElements(adaptor.size(), size)) {
+    if (!getListConstructElements(op.size(), size)) {
       return rewriter.notifyMatchFailure(
           op, "size must be created by ListConstruct");
     }
