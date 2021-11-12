@@ -1,4 +1,9 @@
-add_executable(torch-mlir-opt torch-mlir-opt.cpp)
+add_llvm_executable(torch-mlir-opt torch-mlir-opt.cpp)
+
+install(TARGETS torch-mlir-opt
+EXPORT TorchMLIRTargets
+RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
+COMPONENT torch-mlir-opt)
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
