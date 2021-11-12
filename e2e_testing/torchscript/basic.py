@@ -493,6 +493,23 @@ class OnesModuleFloat(torch.nn.Module):
 def OnesModuleFloat_basic(module, tu: TestUtils):
     module.forward()
 
+
+class OnesModuleFalsePinMemory(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, dtype=torch.float32, pin_memory=False)
+
+@register_test_case(module_factory=lambda: OnesModuleFalsePinMemory())
+def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
+
+
 class ContiguousModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
