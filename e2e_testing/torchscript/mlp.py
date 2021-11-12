@@ -56,3 +56,22 @@ class Mlp2LayerModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: Mlp2LayerModule())
 def Mlp2LayerModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3))
+
+class BatchMlpLayerModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Reset seed to make model deterministic.
+        torch.manual_seed(0)
+        self.fc0 = nn.Linear(3, 5)
+        self.tanh0 = nn.Tanh()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.tanh0(self.fc0(x))
+
+@register_test_case(module_factory=lambda: BatchMlpLayerModule())
+def BatchMlpLayerModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 5, 3))
