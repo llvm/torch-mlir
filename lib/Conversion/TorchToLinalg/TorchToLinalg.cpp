@@ -1353,6 +1353,37 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[0]);
     return b.create<arith::MulFOp>(loc, payloadArgs[0], cdf);
   }
+  if (auto geluBackward = dyn_cast<AtenGeluBackwardOp>(op)) {
+    if (!geluBackward.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      geluBackward.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type elementType = payloadArgs[1].getType();
+    Value constant0 = b.create<arith::ConstantOp>(
+        loc, FloatAttr::get(elementType, 1.12837916709551257390));
+    Value constant1 = b.create<arith::ConstantOp>(
+        loc, FloatAttr::get(elementType, 0.70710678118654752440));
+    Value oneHalf =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.5));
+    Value kAlpha = b.create<arith::MulFOp>(loc, constant0, constant1);
+    Value kAlphaHalf = b.create<arith::MulFOp>(loc, kAlpha, oneHalf);
+    Value negOneHalf =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, -0.5));
+    Value inputSquared =
+        b.create<arith::MulFOp>(loc, payloadArgs[1], payloadArgs[1]);
+    Value negHalfInputSquared =
+        b.create<arith::MulFOp>(loc, inputSquared, negOneHalf);
+    Value dinput = b.create<math::ExpOp>(loc, negHalfInputSquared);
+    Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[1]);
+    Value dinputInput = b.create<arith::MulFOp>(loc, dinput, payloadArgs[1]);
+    Value dinputInputAlpha =
+        b.create<arith::MulFOp>(loc, dinputInput, kAlphaHalf);
+    Value cdfExt = b.create<arith::AddFOp>(loc, dinputInputAlpha, cdf);
+    return b.create<arith::MulFOp>(loc, payloadArgs[0], cdfExt);
+  }
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(add.getType())
@@ -1716,8 +1747,8 @@ struct ConvertElementwiseOp : ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
-             AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
+    if (!isa<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
+             AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
              AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
              AtenLogOp, AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
@@ -2871,12 +2902,12 @@ public:
     patterns.add<ConvertAtenLinearOp>(typeConverter, context);
     target.addIllegalOp<AtenBatchNormOp>();
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-    target.addIllegalOp<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenAddTensorOp,
-                        AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
-                        AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
-                        AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-                        AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-                        AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp>();
+    target.addIllegalOp<
+        AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
+        AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp,
+        AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
+        AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
+        AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);

@@ -2845,3 +2845,18 @@ def Torch_AtenTanhBackwardOp : Torch_Op<"aten.tanh_backward", [
   let assemblyFormat = "$grad_output `,` $output attr-dict `:` type($grad_output) `,` type($output) `->` type($result)";
 }
 
+def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::gelu_backward : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad,
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$grad `,` $self attr-dict `:` type($grad) `,` type($self) `->` type($result)";
+}
+
