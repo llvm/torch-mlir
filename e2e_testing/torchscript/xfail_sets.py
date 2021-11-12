@@ -28,4 +28,5 @@ TOSA_PASS_SET = {
     "ElementwiseReluModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
+    "TanhBackward_basic",
 }
