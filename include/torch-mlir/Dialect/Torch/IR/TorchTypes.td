@@ -26,7 +26,7 @@ class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type
   let parameters = (ins "::mlir::Type":$containedType);
 
   let printer = [{
-    $_printer << getMnemonic() << "<" << getImpl()->containedType << ">";
+    $_printer << "<" << getImpl()->containedType << ">";
   }];
 
   let parser = [{
@@ -55,7 +55,7 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   let parameters = (ins StringRefParameter<"class name">:$className);
 
   let printer = [{
-    $_printer << "nn.Module<\"";
+    $_printer << "<\"";
     llvm::printEscapedString(getImpl()->className, $_printer.getStream());
     $_printer << "\">";
   }];
@@ -341,7 +341,7 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
   }];
 
   let printer = [{
-    $_printer << getMnemonic() << "<" << getImpl()->keyType << ", " << getImpl()->valueType << ">";
+    $_printer << "<" << getImpl()->keyType << ", " << getImpl()->valueType << ">";
   }];
 
   let parser = [{

@@ -207,10 +207,11 @@ template <typename OpTy>
 class FinalizeMaterialization : public OpConversionPattern<OpTy> {
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
   LogicalResult
-  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, operands[0]);
+    rewriter.replaceOp(op, adaptor.getOperands()[0]);
     return success();
   }
 };

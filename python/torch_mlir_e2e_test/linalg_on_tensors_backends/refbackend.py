@@ -120,6 +120,7 @@ LOWERING_PIPELINE = ",".join([
     "builtin.func(lower-affine)",
     "builtin.func(convert-scf-to-std)",
     "builtin.func(refback-expand-ops-for-llvm)",
+    "builtin.func(arith-expand)",
     "builtin.func(convert-math-to-llvm)",
     "convert-memref-to-llvm",
     "convert-std-to-llvm",

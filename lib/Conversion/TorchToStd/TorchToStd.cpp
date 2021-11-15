@@ -34,9 +34,9 @@ class ConvertAtenDimOp : public OpConversionPattern<AtenDimOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenDimOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rank = rewriter.create<RankOp>(op->getLoc(), operands[0]);
+    auto rank = rewriter.create<RankOp>(op->getLoc(), adaptor.self());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -49,10 +49,10 @@ class ConvertAtenNeIntOp : public OpConversionPattern<AtenNeIntOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenNeIntOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenNeIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::ne,
-                                               operands[0], operands[1]);
+                                               adaptor.a(), adaptor.b());
     return success();
   }
 };
@@ -63,10 +63,10 @@ class ConvertAtenGtIntOp : public OpConversionPattern<AtenGtIntOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenGtIntOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenGtIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::sgt,
-                                               operands[0], operands[1]);
+                                               adaptor.a(), adaptor.b());
     return success();
   }
 };
@@ -77,8 +77,9 @@ template <typename OpTy>
 class ConvertTorchConstantOp : public OpConversionPattern<OpTy> {
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
   LogicalResult
-  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.valueAttr());
     return success();
