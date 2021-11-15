@@ -21,7 +21,7 @@ using namespace mlir::torch::Torch;
 // TupleType
 //===----------------------------------------------------------------------===//
 
-Type Torch::TupleType::parse(DialectAsmParser &parser) {
+Type Torch::TupleType::parse(AsmParser &parser) {
   MLIRContext *context = parser.getContext();
   if (parser.parseLess())
     return Type();
@@ -40,8 +40,8 @@ Type Torch::TupleType::parse(DialectAsmParser &parser) {
   return Torch::TupleType::get(context, containedTypes);
 }
 
-void Torch::TupleType::print(::mlir::DialectAsmPrinter &printer) const {
-  printer << "tuple<";
+void Torch::TupleType::print(::mlir::AsmPrinter &printer) const {
+  printer << "<";
   llvm::interleaveComma(getContainedTypes(), printer);
   printer << ">";
 }
@@ -113,7 +113,7 @@ verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
-Type parseTensorType(MLIRContext *context, DialectAsmParser &parser,
+Type parseTensorType(MLIRContext *context, AsmParser &parser,
                      GetTensorTypeFn getTensorType) {
   llvm::SMLoc startLoc = parser.getCurrentLocation();
   if (parser.parseOptionalLess())
@@ -176,7 +176,7 @@ Type parseTensorType(MLIRContext *context, DialectAsmParser &parser,
   return getTensorType(context, optionalSizes, optionalDtype);
 }
 
-static void printTensorType(DialectAsmPrinter &printer,
+static void printTensorType(AsmPrinter &printer,
                             Optional<ArrayRef<int64_t>> optionalSizes,
                             Type optionalDtype) {
   if (!optionalSizes && !optionalDtype)
@@ -227,7 +227,7 @@ NonValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
   return verifyTensorType(emitError, optionalSizes, optionalDtype);
 }
 
-Type NonValueTensorType::parse(DialectAsmParser &parser) {
+Type NonValueTensorType::parse(AsmParser &parser) {
   MLIRContext *context = parser.getContext();
   return parseTensorType(
       context, parser,
@@ -237,8 +237,7 @@ Type NonValueTensorType::parse(DialectAsmParser &parser) {
       });
 }
 
-void NonValueTensorType::print(DialectAsmPrinter &printer) const {
-  printer << "tensor";
+void NonValueTensorType::print(AsmPrinter &printer) const {
   printTensorType(printer, getOptionalSizes(), getOptionalDtype());
 }
 
@@ -289,7 +288,7 @@ ValueTensorType::verify(function_ref<InFlightDiagnostic()> emitError,
   return verifyTensorType(emitError, optionalSizes, optionalDtype);
 }
 
-Type ValueTensorType::parse(DialectAsmParser &parser) {
+Type ValueTensorType::parse(AsmParser &parser) {
   MLIRContext *context = parser.getContext();
   return parseTensorType(
       context, parser,
@@ -299,7 +298,6 @@ Type ValueTensorType::parse(DialectAsmParser &parser) {
       });
 }
 
-void ValueTensorType::print(DialectAsmPrinter &printer) const {
-  printer << "vtensor";
+void ValueTensorType::print(AsmPrinter &printer) const {
   printTensorType(printer, getOptionalSizes(), getOptionalDtype());
 }

@@ -30,10 +30,10 @@ template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenUnaryFPOnlyOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    typename AtenOpT::Adaptor adaptor(operands);
     Value self = adaptor.self();
     auto selfTy = self.getType().cast<TensorType>();
 
@@ -60,10 +60,10 @@ template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenUnaryOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    typename AtenOpT::Adaptor adaptor(operands);
     rewriter.replaceOpWithNewOp<TosaOpT>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -79,10 +79,9 @@ template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
-  LogicalResult matchAndRewrite(AtenOpT op, ArrayRef<Value> operands,
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const {
-    typename AtenOpT::Adaptor adaptor(operands);
-
     Value lhs = adaptor.self();
     auto lhsTy = lhs.getType().cast<TensorType>();
     Value rhs = adaptor.other();
@@ -120,16 +119,16 @@ template <typename AtenOpT>
 class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
 template <>
 LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
-    AtenTanhOp op, ArrayRef<Value> operands,
+    AtenTanhOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  AtenTanhOp::Adaptor adaptor(operands);
   Value self = adaptor.self();
   auto selfTy = self.getType().cast<TensorType>();
   if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
@@ -146,9 +145,8 @@ LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
 
 template <>
 LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
-    AtenSigmoidOp op, ArrayRef<Value> operands,
+    AtenSigmoidOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  AtenSigmoidOp::Adaptor adaptor(operands);
   Value self = adaptor.self();
   auto selfTy = self.getType().cast<TensorType>();
   if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
@@ -165,9 +163,8 @@ LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
 
 template <>
 LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
-    AtenReluOp op, ArrayRef<Value> operands,
+    AtenReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  AtenReluOp::Adaptor adaptor(operands);
   Value self = adaptor.self();
   auto selfTy = self.getType().cast<TensorType>();
 
@@ -194,9 +191,8 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 
 template <>
 LogicalResult ConvertAtenOp<AtenMulTensorOp>::matchAndRewrite(
-    AtenMulTensorOp op, ArrayRef<Value> operands,
+    AtenMulTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  AtenMulTensorOp::Adaptor adaptor(operands);
 
   Value lhs = adaptor.self();
   auto lhsTy = lhs.getType().cast<TensorType>();
@@ -226,9 +222,8 @@ LogicalResult ConvertAtenOp<AtenMulTensorOp>::matchAndRewrite(
 
 template <>
 LogicalResult ConvertAtenOp<AtenDivTensorOp>::matchAndRewrite(
-    AtenDivTensorOp op, ArrayRef<Value> operands,
+    AtenDivTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  AtenDivTensorOp::Adaptor adaptor(operands);
 
   Value lhs = adaptor.self();
   auto lhsTy = lhs.getType().cast<TensorType>();

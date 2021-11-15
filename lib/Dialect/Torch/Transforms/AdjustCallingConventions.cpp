@@ -35,7 +35,7 @@ class AdjustCallingConventionForFunc : public OpConversionPattern<FuncOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(FuncOp func, ArrayRef<Value> operands,
+  matchAndRewrite(FuncOp func, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = func.getContext();
     auto typeBoundIdent = Identifier::get("torch.type_bound", context);
@@ -95,7 +95,7 @@ public:
       : OpConversionPattern<CallOp>(converter, context),
         typeBoundMap(typeBoundMap) {}
   LogicalResult
-  matchAndRewrite(CallOp call, ArrayRef<Value> operands,
+  matchAndRewrite(CallOp call, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Type> convertedResults;
     if (failed(typeConverter->convertTypes(call.getResultTypes(),
@@ -103,7 +103,7 @@ public:
       return failure();
 
     SmallVector<Value> newOperands;
-    for (auto operand : llvm::enumerate(operands)) {
+    for (auto operand : llvm::enumerate(adaptor.getOperands())) {
       if (operand.value().getType().isa<Torch::NoneType>())
         continue;
       auto it = typeBoundMap.find({call.callee(), operand.index()});
@@ -147,11 +147,11 @@ class AdjustCallingConventionForReturn : public OpConversionPattern<ReturnOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ReturnOp op, ArrayRef<Value> operands,
+  matchAndRewrite(ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     SmallVector<Value> newOperands;
-    for (auto operand : llvm::enumerate(operands)) {
+    for (auto operand : llvm::enumerate(adaptor.getOperands())) {
       if (!operand.value())
         continue;
       if (operand.value().getType().isa<Torch::NoneType>())

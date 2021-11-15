@@ -26,9 +26,9 @@ class ConvertTorchPrimIfYieldOp : public OpConversionPattern<PrimIfYieldOp> {
 public:
   using OpConversionPattern<PrimIfYieldOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(PrimIfYieldOp op, ArrayRef<Value> operands,
+  matchAndRewrite(PrimIfYieldOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, operands);
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, adaptor.getOperands());
     return success();
   }
 };
@@ -39,15 +39,16 @@ class ConvertTorchPrimIfOp : public OpConversionPattern<PrimIfOp> {
 public:
   using OpConversionPattern<PrimIfOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(PrimIfOp op, ArrayRef<Value> operands,
+  matchAndRewrite(PrimIfOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Type, 1> newResultTypes;
     if (failed(getTypeConverter()->convertTypes(op.getResultTypes(),
                                                 newResultTypes)))
       return rewriter.notifyMatchFailure(op,
                                          "could not convert PrimIfOp outputs");
-    auto scfIf = rewriter.create<scf::IfOp>(
-        op->getLoc(), newResultTypes, operands[0], /*withElseRegion=*/true);
+    auto scfIf = rewriter.create<scf::IfOp>(op->getLoc(), newResultTypes,
+                                            adaptor.condition(),
+                                            /*withElseRegion=*/true);
     auto inlineIfCase = [&](Region &srcRegion, Region &dstRegion) {
       rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
       rewriter.eraseBlock(&dstRegion.back());

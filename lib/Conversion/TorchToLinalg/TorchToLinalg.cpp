@@ -293,11 +293,10 @@ class ConvertAtenAdaptiveAvgPool2dOp
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenAdaptiveAvgPool2dOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenAdaptiveAvgPool2dOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
-    AtenAdaptiveAvgPool2dOp::Adaptor adaptor(operands);
     Value input = adaptor.self(); /* in form of N*C*H*W */
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     Type elementType = inputType.getElementType();
@@ -392,11 +391,10 @@ class ConvertAtenConv2dOp : public OpConversionPattern<AtenConv2dOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenConv2dOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenConv2dOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
-    AtenConv2dOp::Adaptor adaptor(operands);
     Value input = adaptor.input();   /* in form of N*C*H*W */
     Value weight = adaptor.weight(); /* in form of F*C*H*W */
     Value groups = adaptor.groups();
@@ -546,9 +544,8 @@ class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenBatchNormOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenBatchNormOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    AtenBatchNormOp::Adaptor adaptor(operands);
     MLIRContext *context = op->getContext();
     Location loc = op->getLoc();
     Value input = adaptor.input();
@@ -669,9 +666,8 @@ class ConvertAtenLayerNormOp : public OpConversionPattern<AtenLayerNormOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenLayerNormOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenLayerNormOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    AtenLayerNormOp::Adaptor adaptor(operands);
     MLIRContext *context = op->getContext();
     Location loc = op->getLoc();
     Value input = adaptor.input();
@@ -875,11 +871,11 @@ class ConvertAtenMmOp : public OpConversionPattern<AtenMmOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenMmOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenMmOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    Value lhs = operands[0];
-    Value rhs = operands[1];
+    Value lhs = adaptor.self();
+    Value rhs = adaptor.mat2();
 
     // A user can write an errorneous program where `aten.mm` is in fact called
     // with operands of invalid rank or dtype. We cannot convert to linalg in
@@ -939,11 +935,11 @@ class ConvertAtenMatmulOp : public OpConversionPattern<AtenMatmulOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenMatmulOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenMatmulOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
-    Value lhs = operands[0];
-    Value rhs = operands[1];
+    Value lhs = adaptor.self();
+    Value rhs = adaptor.other();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -1086,13 +1082,13 @@ class ConvertAtenBmmOp : public OpConversionPattern<AtenBmmOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenBmmOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenBmmOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    Value lhs = operands[0];
-    Value rhs = operands[1];
+    Value lhs = adaptor.self();
+    Value rhs = adaptor.mat2();
     RankedTensorType lhsType = lhs.getType().cast<RankedTensorType>();
     RankedTensorType rhsType = rhs.getType().cast<RankedTensorType>();
 
@@ -1142,9 +1138,8 @@ class ConvertAtenLinearOp : public OpConversionPattern<AtenLinearOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenLinearOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenLinearOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    AtenLinearOp::Adaptor adaptor(operands);
     MLIRContext *context = op->getContext();
     Location loc = op->getLoc();
     Value input = adaptor.input();
@@ -1563,11 +1558,10 @@ public:
   using OpConversionPattern<AtenArgmaxOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(AtenArgmaxOp argmaxOp, ArrayRef<Value> operands,
+  matchAndRewrite(AtenArgmaxOp argmaxOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = argmaxOp.getLoc();
-    AtenArgmaxOp::Adaptor adaptor(operands);
     Value input = adaptor.self();
     RankedTensorType resultType =
         getTypeConverter()
@@ -1991,12 +1985,11 @@ class ConvertAtenMaxPool2dOp : public OpConversionPattern<AtenMaxPool2dOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenMaxPool2dOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenMaxPool2dOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    AtenMaxPool2dOp::Adaptor adaptor(operands);
     Value self = adaptor.self();
     Value ceilMode = adaptor.ceil_mode();
 
@@ -2094,7 +2087,7 @@ class ConvertAtenFlattenUsingIntsOp
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenFlattenUsingIntsOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenFlattenUsingIntsOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -2104,7 +2097,7 @@ public:
     int64_t endDim;
     if (!matchPattern(op.end_dim(), m_TorchConstantInt(&endDim)))
       return rewriter.notifyMatchFailure(op, "end_dim must be constant");
-    auto type = operands[0].getType().cast<RankedTensorType>();
+    auto type = adaptor.self().getType().cast<RankedTensorType>();
     auto inputRank = type.getRank();
     auto resultType =
         getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
@@ -2119,7 +2112,7 @@ public:
         return rewriter.notifyMatchFailure(
             op, "start_dim and end_dim must be in [-1, 0] when inputRank is 0");
       rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
-          op, resultType, operands[0], reassociation);
+          op, resultType, adaptor.self(), reassociation);
       return success();
     }
 
@@ -2136,7 +2129,7 @@ public:
         j++;
     }
     Value collapsedTensor = rewriter.create<linalg::TensorCollapseShapeOp>(
-        op->getLoc(), operands[0], reassociation);
+        op->getLoc(), adaptor.self(), reassociation);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 collapsedTensor);
     return success();
@@ -2153,12 +2146,12 @@ class ConvertAtenViewOp : public OpConversionPattern<AtenViewOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenViewOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    Value input = operands[0];
+    Value input = adaptor.self();
     auto inputType = input.getType().cast<RankedTensorType>();
     int64_t inputRank = inputType.getRank();
     TypeConverter *typeConverter = getTypeConverter();
@@ -2236,7 +2229,7 @@ public:
     Type expandType =
         RankedTensorType::get(resultShape, resultType.getElementType());
     Value expandOp = rewriter.create<linalg::TensorExpandShapeOp>(
-        loc, expandType, operands[0], reassociation);
+        loc, expandType, adaptor.self(), reassociation);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, expandOp);
     return success();
   }
@@ -2248,14 +2241,15 @@ class ConvertAtenUnsqueezeOp : public OpConversionPattern<AtenUnsqueezeOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenUnsqueezeOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenUnsqueezeOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     int64_t dim;
     if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
-    auto inputRank = operands[0].getType().cast<RankedTensorType>().getRank();
+    auto inputRank =
+        adaptor.self().getType().cast<RankedTensorType>().getRank();
     if (dim < 0)
       dim += inputRank + 1;
     if (!(0 <= dim && dim <= inputRank))
@@ -2285,7 +2279,7 @@ public:
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
     rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
-        op, resultType, operands[0], reassociationMap);
+        op, resultType, adaptor.self(), reassociationMap);
     return success();
   }
 };
@@ -2297,11 +2291,10 @@ class ConvertAtenTransposeIntOp
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenTransposeIntOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenTransposeIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    AtenTransposeIntOp::Adaptor adaptor(operands);
 
     int64_t dim0;
     if (!matchPattern(op.dim0(), m_TorchConstantInt(&dim0)))
@@ -2370,12 +2363,11 @@ class ConvertAtenPermuteOp : public OpConversionPattern<AtenPermuteOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenPermuteOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenPermuteOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    AtenPermuteOp::Adaptor adaptor(operands);
     SmallVector<int64_t> dimensions;
     if (!matchPattern(op.dims(), m_TorchConstantIntList(dimensions)))
       return rewriter.notifyMatchFailure(op, "all dimensions must be constant");
@@ -2437,13 +2429,12 @@ class ConvertAtenCatOp : public OpConversionPattern<AtenCatOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenCatOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenCatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
     TypeConverter *typeConverter = getTypeConverter();
-    AtenCatOp::Adaptor adaptor(operands);
 
     Value dimValue = op.dim();
     int64_t dim;
@@ -2502,12 +2493,11 @@ class ConvertAtenGatherOp : public OpConversionPattern<AtenGatherOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenGatherOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenGatherOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    AtenGatherOp::Adaptor adaptor(operands);
 
     Value dimValue = op.dim();
     int64_t dim;
@@ -2545,12 +2535,11 @@ class ConvertAtenEmbeddingOp : public OpConversionPattern<AtenEmbeddingOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenEmbeddingOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenEmbeddingOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    AtenEmbeddingOp::Adaptor adaptor(operands);
     Value weight = adaptor.weight();
     Value indices = adaptor.indices();
     RankedTensorType newResultType =
@@ -2606,12 +2595,11 @@ class ConvertAtenSizeIntOp : public OpConversionPattern<AtenSizeIntOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenSizeIntOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenSizeIntOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op->getLoc();
-    AtenSizeIntOp::Adaptor adaptor(operands);
     Value self = adaptor.self();
     Value dim = adaptor.dim();
     auto type = self.getType().cast<RankedTensorType>();
@@ -2633,11 +2621,10 @@ class ConvertAtenIntTensorOp : public OpConversionPattern<AtenIntTensorOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenIntTensorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenIntTensorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    AtenIntTensorOp::Adaptor adaptor(operands);
     Value intTensor = adaptor.a();
     auto tensorType = intTensor.getType().cast<RankedTensorType>();
 
@@ -2656,12 +2643,11 @@ class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenBroadcastToOp op, llvm::ArrayRef<Value> operands,
+  matchAndRewrite(AtenBroadcastToOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    AtenBroadcastToOp::Adaptor adaptor(operands);
     Value self = adaptor.self();
     auto selfType = self.getType().cast<RankedTensorType>();
     ArrayRef<int64_t> selfShape = selfType.getShape();
@@ -2755,12 +2741,11 @@ class ConvertAtenContiguousOp : public OpConversionPattern<AtenContiguousOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenContiguousOp op, llvm::ArrayRef<Value> operands,
+  matchAndRewrite(AtenContiguousOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    AtenContiguousOp::Adaptor adaptor(operands);
     rewriter.replaceOp(op, adaptor.self());
     return success();
   }
@@ -2772,7 +2757,7 @@ class ConvertAtenOnesOp : public OpConversionPattern<AtenOnesOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenOnesOp op, ArrayRef<Value> operands,
+  matchAndRewrite(AtenOnesOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -2831,11 +2816,10 @@ class ConvertPrimNumToTensorScalarOp
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(PrimNumToTensorScalarOp op, ArrayRef<Value> operands,
+  matchAndRewrite(PrimNumToTensorScalarOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    PrimNumToTensorScalarOp::Adaptor adaptor(operands);
     Location loc = op.getLoc();
     Value a = adaptor.a();
     Value outTensor =
