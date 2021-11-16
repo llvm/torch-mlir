@@ -290,6 +290,26 @@ public:
 } // namespace
 
 namespace {
+template<typename OpTy, typename T1T2Op>
+class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value tensor1 = op.tensor1();
+    Value tensor2 = op.tensor2();
+    Value value = op.value();
+
+    Value product = rewriter.create<T1T2Op>(loc, op.getType(), tensor1, tensor2);
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), input, product,
+                                                 value);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -318,6 +338,10 @@ class DecomposeComplexOpsPass
       // Make aten.matmul legal if the following condition is satisfied.
       return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
     });
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddCMulOp, AtenMulTensorOp>>(context);
+    target.addIllegalOp<AtenAddCMulOp>();
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddCDivOp, AtenDivTensorOp>>(context);
+    target.addIllegalOp<AtenAddCDivOp>();
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
       return signalPassFailure();
