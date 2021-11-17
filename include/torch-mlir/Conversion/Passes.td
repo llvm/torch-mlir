@@ -41,8 +41,8 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
     ecosystem, which use the
     `shape` dialect's witness system (`shape.cstr_*` family of ops feeding into
     `shape.assuming` regions). This is a change in design decisions
-    from those passes (which will be subsumed by this one). The reasons for this
-    change are heuristic, but boil down to:
+    from those passes (which the authors of this pass have contributed to).
+    The reasons for this change are heuristic, but boil down to:
     1. The modeling of `shape.assuming` is odd, as it uses a region, which is
        not a good fit for modeling error guards. Regions mark a "start" and an
        "end" (which is their nesting property). But
