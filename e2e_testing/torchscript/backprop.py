@@ -53,3 +53,26 @@ class TanhBackwardModule(torch.nn.Module):
 def TanhBackward_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3), torch.randn(3, 3))
 
+
+# ==============================================================================
+
+class GeluBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.gelu = torch.nn.GELU()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, grad, input):
+        return torch.ops.aten.gelu_backward(grad, input)
+
+
+@register_test_case(module_factory=lambda: GeluBackwardModule())
+def GeluBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3), tu.rand(5, 3))
+
+

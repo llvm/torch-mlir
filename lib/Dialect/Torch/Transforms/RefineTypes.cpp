@@ -224,13 +224,14 @@ public:
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
     if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
-            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp, AtenEqScalarOp,
-            AtenGeScalarOp, AtenGtScalarOp, AtenNeScalarOp, AtenBitwiseNotOp,
-            AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp, DerefineOp,
-            AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp, AtenFill_ScalarOp,
-            AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op,
-            AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp,
-            AtenFloorOp, AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
+            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp,
+            AtenGeluBackwardOp, AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp,
+            AtenNeScalarOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp, AtenCosOp,
+            AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
+            AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
+            AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
+            AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
+            AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
             AtenTanhBackwardOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
