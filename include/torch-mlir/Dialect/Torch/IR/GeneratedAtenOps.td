@@ -2878,3 +2878,20 @@ def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
   let assemblyFormat = "$grad `,` $self attr-dict `:` type($grad) `,` type($self) `->` type($result)";
 }
 
+def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_data", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$output,
+    Torch_IntType:$dim,
+    Torch_IntType:$input_dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` type($grad_output) `,` type($output) `,` type($dim) `,` type($input_dtype) `->` type($result)";
+}
+

@@ -232,7 +232,7 @@ public:
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
             AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
-            AtenTanhBackwardOp>(op)) {
+            AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
