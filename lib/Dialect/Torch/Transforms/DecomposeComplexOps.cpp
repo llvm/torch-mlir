@@ -68,6 +68,16 @@ static Value createAtenSum(PatternRewriter &rewriter, Location loc,
   return sum;
 }
 
+// Helper for creating `aten::sub_tensor_op`.
+static Value createAtenSubTensorOp(PatternRewriter &rewriter, Location loc,
+                                   Type tensorType, Value lhs, Value rhs) {
+  Value alpha =
+      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+  Value sub =
+      rewriter.create<AtenSubTensorOp>(loc, tensorType, lhs, rhs, alpha);
+  return sub;
+}
+
 namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
@@ -167,11 +177,7 @@ public:
         rewriter.create<AtenMulTensorOp>(loc, tensorType, output, sumBroadcast);
 
     // newGrad - temp
-    Value alpha =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
-    Value sub =
-        rewriter.create<AtenSubTensorOp>(loc, tensorType, newGrad, temp, alpha);
-
+    Value sub = createAtenSubTensorOp(rewriter, loc, tensorType, newGrad, temp);
     rewriter.replaceOp(op, sub);
     return success();
   }
@@ -210,6 +216,47 @@ public:
     Value newGrad = rewriter.create<AtenSubTensorOp>(
         loc, tensorType, gradOutput, gradMulTanhSquare, alpha);
     rewriter.replaceOp(op, newGrad);
+    return success();
+  }
+};
+} // namespace
+
+// Aten_LogSoftmaxBackwardDataOp(gradOutput, output, dim) =>
+//    result = gradOutput - (exp(output) * sum(gradOutput, dim))
+namespace {
+class DecomposeAten_LogSoftmaxBackwardDataOp
+    : public OpRewritePattern<Aten_LogSoftmaxBackwardDataOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_LogSoftmaxBackwardDataOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Value gradOutput = op.grad_output();
+    Value output = op.output();
+    Value dim = op.dim();
+
+    BaseTensorType tensorType = gradOutput.getType().cast<BaseTensorType>();
+    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op, "Only support floating type");
+
+    Value expOut = rewriter.create<AtenExpOp>(loc, tensorType, output);
+    Value sum =
+        createAtenSum(rewriter, loc, op, gradOutput, dim, /*keepDim=*/true);
+    if (!sum)
+      return failure();
+
+    auto broadcastSizeType = Torch::ListType::get(Torch::IntType::get(context));
+    Value broadcastSize =
+        rewriter.create<AtenSizeOp>(loc, broadcastSizeType, output);
+    Value sumBroadcast =
+        rewriter.create<AtenBroadcastToOp>(loc, tensorType, sum, broadcastSize);
+    Value temp =
+        rewriter.create<AtenMulTensorOp>(loc, tensorType, expOut, sumBroadcast);
+
+    Value sub =
+        createAtenSubTensorOp(rewriter, loc, tensorType, gradOutput, temp);
+    rewriter.replaceOp(op, sub);
     return success();
   }
 };
@@ -353,6 +400,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenAddmmOp>(context);
     target.addIllegalOp<AtenAddmmOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
+    patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
+    target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());
       int rhsRank = getTensorRank(op.other());
