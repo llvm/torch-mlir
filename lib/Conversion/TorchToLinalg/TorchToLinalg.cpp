@@ -1362,13 +1362,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return nullptr;
     }
     Type elementType = payloadArgs[1].getType();
-    Value constant0 = b.create<arith::ConstantOp>(
+    Value cstAlpha0 = b.create<arith::ConstantOp>(
         loc, FloatAttr::get(elementType, 1.12837916709551257390));
-    Value constant1 = b.create<arith::ConstantOp>(
+    Value cstAlpha1 = b.create<arith::ConstantOp>(
         loc, FloatAttr::get(elementType, 0.70710678118654752440));
     Value oneHalf =
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.5));
-    Value kAlpha = b.create<arith::MulFOp>(loc, constant0, constant1);
+    Value kAlpha = b.create<arith::MulFOp>(loc, cstAlpha0, cstAlpha1);
     Value kAlphaHalf = b.create<arith::MulFOp>(loc, kAlpha, oneHalf);
     Value negOneHalf =
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, -0.5));
