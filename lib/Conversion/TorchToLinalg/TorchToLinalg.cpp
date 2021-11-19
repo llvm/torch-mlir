@@ -3130,6 +3130,29 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenNumelOp : public OpConversionPattern<AtenNumelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNumelOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    Value self = adaptor.self();
+    SmallVector<Value> sizes(getTensorSizes(rewriter, loc, self));
+    Value productResult =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    for (int i = 0; i < sizes.size(); i++)
+      productResult =
+          rewriter.create<arith::MulIOp>(loc, productResult, sizes[i]);
+    rewriter.replaceOp(op, castIndexToInt(rewriter, loc, productResult));
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -3223,6 +3246,8 @@ public:
     patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
     target.addIllegalOp<AtenFill_ScalarOp>();
     patterns.add<ConvertAtenFill_ScalarOp>(typeConverter, context);
+    target.addIllegalOp<AtenNumelOp>();
+    patterns.add<ConvertAtenNumelOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

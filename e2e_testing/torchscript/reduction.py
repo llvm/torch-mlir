@@ -103,3 +103,22 @@ class ReduceSumDimIntListKeepDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceSumDimIntListKeepDimModule())
 def ReduceSumDimIntListKeepDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMeanDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.mean(a, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: ReduceMeanDtypeModule())
+def ReduceMeanDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
