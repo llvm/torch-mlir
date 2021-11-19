@@ -376,6 +376,51 @@ public:
 };
 } // namespace
 
+// Decompose torch.mean into: sum(x)/div(numTensorElements).
+namespace {
+class DecomposeAtenMeanOp : public OpRewritePattern<AtenMeanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMeanOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value output = op.result();
+
+    Value dtype = rewriter.create<ConstantNoneOp>(loc);
+    Value sum = rewriter.create<AtenSumOp>(loc, output.getType(), input, dtype);
+    if (!sum)
+      return failure();
+
+    BaseTensorType tensorType = input.getType().cast<BaseTensorType>();
+    SmallVector<int64_t> sizes;
+    int64_t tensorSize = 1;
+    if (tensorType.hasSizes()) {
+      ArrayRef<int64_t> inputShape = tensorType.getSizes();
+      for (int64_t i : inputShape) {
+        if (i < 1)
+          return rewriter.notifyMatchFailure(op, "Invalid tensor size.");
+        tensorSize *= i;
+      }
+    } else
+      return rewriter.notifyMatchFailure(
+          op, "Only support input with known sizes.");
+
+    Value constTensorSize = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(tensorSize));
+    Type divisorType =
+        tensorType.getWithSizesAndDtype({}, Torch::IntType());
+    Value divisorTensor = rewriter.create<PrimNumToTensorScalarOp>(
+        loc, divisorType, constTensorSize);
+    Value result = rewriter.create<AtenDivTensorOp>(loc, output.getType(), sum,
+                                                    divisorTensor);
+    rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, output.getType(),
+                                                        result);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -402,6 +447,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenMatmulOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
+    patterns.add<DecomposeAtenMeanOp>(context);
+    target.addIllegalOp<AtenMeanOp>();
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());
       int rhsRank = getTensorRank(op.other());
@@ -416,6 +463,7 @@ class DecomposeComplexOpsPass
   }
 };
 } // namespace
+
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::torch::Torch::createDecomposeComplexOpsPass() {
   return std::make_unique<DecomposeComplexOpsPass>();

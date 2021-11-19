@@ -666,3 +666,20 @@ class ReturnThreeTensorFloat32(torch.nn.Module):
 def ReturnThreeTensorFloat32_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3), tu.rand(2, 3))
 
+
+class Mean(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 3], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.mean(x)
+
+
+@register_test_case(module_factory=lambda: Mean())
+def Mean_basic(module, tu: TestUtils):
+    module.forward(torch.randn(1, 3))

@@ -416,6 +416,8 @@ public:
       return visitAtenBmmOp(bmm, operands);
     } else if (auto matmul = dyn_cast<AtenMatmulOp>(op)) {
       return visitAtenMatmulOp(matmul, operands);
+    } else if (auto mean = dyn_cast<AtenMeanOp>(op)) {
+      return visitAtenMeanOp(mean, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
@@ -530,7 +532,10 @@ private:
   ChangeResult
   visitAtenMatmulOp(AtenMatmulOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  
+  ChangeResult
+  visitAtenMeanOp(AtenMeanOp op,
+                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
   template <typename OpTy>
   ChangeResult
   visitAtenSoftmaxLikeOp(OpTy op,
@@ -1361,6 +1366,18 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
   knowledge.sizes.resize(resultRank, kUnknownSize);
   knowledge.dtype = joinElementTypes(self.dtype, other.dtype);
   knowledge.hasSizes = true;
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenMeanOp(
+    AtenMeanOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto self = operands[0]->getValue();
+  unsigned resultRank = 0;
+  knowledge.sizes.resize(resultRank, kUnknownSize);
+  knowledge.dtype = self.dtype;
+  knowledge.hasSizes = self.hasSizes;
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
