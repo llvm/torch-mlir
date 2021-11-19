@@ -739,7 +739,6 @@ class AddCDivModule(torch.nn.Module):
 def AddCDivModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1,3), tu.rand(1,3), tu.rand(1,3))
 
-
 # ==============================================================================
 
 class DropoutModule(torch.nn.Module):
@@ -751,6 +750,7 @@ class DropoutModule(torch.nn.Module):
         None,
         ([-1, -1], torch.float32, True),
     ])
+
     def forward(self, x):
         return torch.dropout(x, 0.0, False)
 
@@ -809,3 +809,75 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
 @register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64())
 def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).to(torch.float64))
+
+
+class MeanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.mean(x)
+
+
+@register_test_case(module_factory=lambda: MeanModule())
+def MeanModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 4))
+
+
+class MeanDynamicSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.mean(x)
+
+
+@register_test_case(module_factory=lambda: MeanDynamicSizesModule())
+def MeanDynamicSizesModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 4))
+
+
+class NumelModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, input):
+        return torch.numel(input)
+
+@register_test_case(module_factory=lambda: NumelModule())
+def NumelModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 5))
+
+
+class NumelZeroRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+
+    def forward(self, input):
+        return torch.numel(input)
+
+@register_test_case(module_factory=lambda: NumelZeroRankModule())
+def NumelZeroRankModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10,[]))

@@ -438,6 +438,11 @@ public:
       return visitAtenBmmOp(bmm, operands);
     } else if (auto matmul = dyn_cast<AtenMatmulOp>(op)) {
       return visitAtenMatmulOp(matmul, operands);
+    } else if (auto mean = dyn_cast<AtenMeanOp>(op)) {
+      Type defaultDtype = operands[0]->getValue().dtype;
+      Type dtype =
+          getDtypeOrDefault(mean.getContext(), mean.dtype(), defaultDtype);
+      return visitReductionAlongAllDimsOp(mean, dtype, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {
@@ -563,7 +568,7 @@ private:
   ChangeResult
   visitAtenMatmulOp(AtenMatmulOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  
+
   template <typename OpTy>
   ChangeResult
   visitAtenSoftmaxLikeOp(OpTy op,

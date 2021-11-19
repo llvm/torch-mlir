@@ -3062,3 +3062,17 @@ def Torch_AtenAddCDivOp : Torch_Op<"aten.addcdiv", [
   let assemblyFormat = "$self `,` $tensor1 `,` $tensor2 `,` $value attr-dict `:` type($self) `,` type($tensor1) `,` type($tensor2) `,` type($value) `->` type($result)";
 }
 
+def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::mean : (Tensor, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalIntType:$dtype
+ );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+ let assemblyFormat = "$self `,` $dtype attr-dict `:` type($self) `,` type($dtype) `->` type($result)";
+}
