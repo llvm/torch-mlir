@@ -419,6 +419,27 @@ public:
 };
 } // namespace
 
+// Decompose torch.mean into: sum(x)/div(numTensorElements).
+namespace {
+class DecomposeAtenMeanOp : public OpRewritePattern<AtenMeanOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMeanOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value output = op.result();
+    BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
+    BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
+    Value sum = rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.dtype());
+    Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputTensorType, sum,
+                                                 numTensorElements);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 template<typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
@@ -464,6 +485,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenTanhBackwardOp>();
     patterns.add<DecomposeAtenAddmmOp>(context);
     target.addIllegalOp<AtenAddmmOp>();
+    patterns.add<DecomposeAtenMeanOp>(context);
+    target.addIllegalOp<AtenMeanOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
