@@ -630,7 +630,7 @@ def LogSoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
 
 
-class NumToTensorModule(torch.nn.Module):
+class NumToTensorIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -642,8 +642,26 @@ class NumToTensorModule(torch.nn.Module):
     def forward(self):
         return torch.ops.prim.NumToTensor(1)
 
-@register_test_case(module_factory=lambda: NumToTensorModule())
-def NumToTensorModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: NumToTensorIntModule())
+def NumToTensorIntModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class NumToTensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+
+    def forward(self):
+        return torch.ops.prim.NumToTensor(1.0)
+
+
+@register_test_case(module_factory=lambda: NumToTensorFloatModule())
+def NumToTensorFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
 

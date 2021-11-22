@@ -1290,7 +1290,19 @@ ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
-  knowledge.dtype = getDefaultDtypeForTorchScalar(op.a().getType());
+
+  // The resulting type from converting a Scalar into a Tensor is different
+  // if the scalar is part of a tensor operation (such as AtenMulScalar) or
+  // not. In the former case, the type promotion rules are captured by the
+  // `getDefaultDtypeForTorchScalar` helper above. The latter case follows the
+  // rules in https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/ScalarOps.h.
+  // `NumToTensor` falls in the latter case.
+  Type type = op.a().getType();
+  if (type.isa<Torch::FloatType>())
+    knowledge.dtype = Float64Type::get(op.getContext());
+  else if (type.isa<Torch::IntType>())
+    knowledge.dtype = IntegerType::get(op.getContext(), 64, IntegerType::Signed);
+
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
