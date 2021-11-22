@@ -182,6 +182,14 @@ static Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
+// Creates a tensor with required `sizes` and `elemTy` and fills it with
+// initElem.
+static Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                              Type elemTy, Value initElem) {
+  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+  return b.create<linalg::FillOp>(loc, initElem, initTensor).getResult(0);
+}
+
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
 // dim_out =
@@ -2782,6 +2790,33 @@ public:
 };
 } // namespace
 
+
+namespace {
+class ConvertAtenFill_ScalarOp : public OpConversionPattern<AtenFill_ScalarOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenFill_ScalarOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    Value self = adaptor.self();
+    Value initVal = adaptor.value();
+    auto tensorType = self.getType().cast<RankedTensorType>();
+
+    Value initValCasted = convertScalarToDtype(rewriter, loc, initVal,
+                                               tensorType.getElementType());
+    Value result =
+        createInitTensor(rewriter, loc, getTensorSizes(rewriter, loc, self),
+                         tensorType.getElementType(), initValCasted);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
@@ -3064,6 +3099,8 @@ public:
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenDropoutOp>();
     patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
+    target.addIllegalOp<AtenFill_ScalarOp>();
+    patterns.add<ConvertAtenFill_ScalarOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
