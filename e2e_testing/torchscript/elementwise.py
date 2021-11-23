@@ -552,3 +552,24 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseDivScalarModule())
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+class ElementwiseAndIntegerModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+
+    def forward(self, x, y):
+        return torch.bitwise_and(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndIntegerModule())
+def ElementwiseAndIntegerModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-10, 10, (3, 4)).to(torch.int32),
+                   torch.randint(-10, 10, (3, 4)))

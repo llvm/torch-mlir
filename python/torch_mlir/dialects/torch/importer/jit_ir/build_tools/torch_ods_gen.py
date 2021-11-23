@@ -470,6 +470,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::rsqrt : (Tensor) -> (Tensor)",
                 "aten::abs : (Tensor) -> (Tensor)",
                 "aten::reciprocal : (Tensor) -> (Tensor)",
+                "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
+
         ]:
             emit_with_mutating_variants(key)
         # Elementwise tensor compute ops that don't have the standard mutating
