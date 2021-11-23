@@ -304,7 +304,7 @@ public:
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
-                   AtenMinimumOp, AtenMaximumOp>(op)) {
+                   AtenMinimumOp, AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
       return visitBinaryBroadcastingOp(op, operands);
     } else if (auto lerpTensor = llvm::dyn_cast<AtenLerpTensorOp>(op)) {
       return visitAtenLerpTensorOp(lerpTensor, operands);

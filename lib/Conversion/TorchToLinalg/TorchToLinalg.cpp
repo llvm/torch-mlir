@@ -1394,6 +1394,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::SqrtOp>(loc, payloadArgs[0]);
   if (isa<AtenRsqrtOp>(op))
     return b.create<math::RsqrtOp>(loc, payloadArgs[0]);
+  if (auto bitwiseAndTensor = dyn_cast<AtenBitwiseAndTensorOp>(op)) {
+    if (bitwiseAndTensor.getType()
+            .cast<ValueTensorType>()
+            .getDtype()
+            .isa<mlir::FloatType>()) {
+      bitwiseAndTensor.emitError(
+          "Bitwise_And does not support floating point dtype");
+      return nullptr;
+    }
+    Type dtype = converter->convertType(bitwiseAndTensor.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    return b.create<arith::AndIOp>(loc, lhs, rhs);
+  }
   if (isa<AtenLog2Op>(op))
     return b.create<math::Log2Op>(loc, payloadArgs[0]);
   if (isa<AtenAbsOp>(op))
@@ -1895,13 +1911,14 @@ struct ConvertElementwiseOp : ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp,
-             AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
-             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
-             AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
-             AtenMulScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-             AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenDivScalarOp,
-             AtenAbsOp, AtenReciprocalOp>(op))
+    if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp,
+             AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
+             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
+             AtenExpOp, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp,
+             AtenClampOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
+             AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op,
+             AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
+             AtenBitwiseAndTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -3193,12 +3210,12 @@ public:
     target.addIllegalOp<AtenBatchNormOp>();
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target.addIllegalOp<
-        AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
-        AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp,
-        AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-        AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-        AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenAbsOp,
-        AtenReciprocalOp>();
+        AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp,
+        AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
+        AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp,
+        AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp, AtenSqrtOp,
+        AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenAbsOp,
+        AtenReciprocalOp, AtenBitwiseAndTensorOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
