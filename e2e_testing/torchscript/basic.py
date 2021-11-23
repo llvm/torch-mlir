@@ -738,3 +738,23 @@ class AddCDivModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AddCDivModule())
 def AddCDivModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1,3), tu.rand(1,3), tu.rand(1,3))
+
+
+# ==============================================================================
+
+class DropoutModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.dropout(x, 0.0, False)
+
+
+@register_test_case(module_factory=lambda: DropoutModule())
+def DropoutModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))

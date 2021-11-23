@@ -1133,6 +1133,33 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenDropoutOp : public OpConversionPattern<AtenDropoutOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDropoutOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    bool train;
+    if (!matchPattern(op.train(), m_TorchConstantBool(&train)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Expected train to be constant bool.");
+
+    if (train)
+      return failure();
+    auto resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.input());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // See comments at in convertMmOp and the heading for this section for general
 // considerations. This function needs to be auto-generated.
 class ConvertAtenLinearOp : public OpConversionPattern<AtenLinearOp> {
@@ -3035,6 +3062,8 @@ public:
     patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
     target.addIllegalOp<PrimNumToTensorScalarOp>();
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
+    target.addIllegalOp<AtenDropoutOp>();
+    patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
