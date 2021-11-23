@@ -1594,6 +1594,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value result = convertScalarToDtype(b, loc, input, dtype);
     return result;
   }
+  if (auto divScalar = dyn_cast<AtenDivScalarOp>(op)) {
+    Type dtype = converter->convertType(divScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>()) {
+      divScalar.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value self = payloadArgs[0];
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    return b.create<arith::DivFOp>(loc, self, other);
+  }
 
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
@@ -1805,7 +1817,8 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
              AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
              AtenMulScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-             AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp>(op))
+             AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenDivScalarOp>(
+            op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
