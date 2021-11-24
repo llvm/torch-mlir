@@ -45,6 +45,19 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenAddIntOp : public OpConversionPattern<AtenAddIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenAddIntOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<arith::AddIOp>(op, adaptor.a(), adaptor.b());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenNeIntOp : public OpConversionPattern<AtenNeIntOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -129,6 +142,8 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantOp<Torch::ConstantIntOp>>(typeConverter,
                                                                context);
+    target.addIllegalOp<AtenAddIntOp>();
+    patterns.add<ConvertAtenAddIntOp>(typeConverter, context);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();

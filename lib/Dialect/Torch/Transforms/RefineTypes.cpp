@@ -232,7 +232,8 @@ public:
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
             AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
-            AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp>(op)) {
+            AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp>(
+            op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -426,6 +427,8 @@ public:
       return visitNumToTensorOp(numToTensorOp);
     } else if (isa<AtenAddCMulOp, AtenAddCDivOp>(op)) {
       return visitAtenAddCLikeOp(op, operands);
+    } else if (auto scalarOp = dyn_cast<AtenAddIntOp>(op)) {
+      return visitBinaryScalarOp(scalarOp);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -528,6 +531,8 @@ private:
   ChangeResult
   visitAtenEmbeddingOp(AtenEmbeddingOp op,
                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy> ChangeResult visitBinaryScalarOp(OpTy op);
+
   ChangeResult
   visitAtenBmmOp(AtenBmmOp op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -585,6 +590,13 @@ static ResultTypeState updateResultTypeState(ValueKnowledge *tensor,
     new_state.zeroResult = promote_skip_undefined(inState.zeroResult, current);
 
   return new_state;
+}
+
+static Type getPromotedResultType(ArrayRef<Type> scalarTypes) {
+  ResultTypeState state = {};
+  for (const Type &scalarType : scalarTypes)
+    state = updateResultTypeState(scalarType, state);
+  return getTypeForScalarType(scalarTypes[0].getContext(), result_type(state));
 }
 
 // Returns most generic type Type() if the tensor dtype is unknown.
@@ -1083,6 +1095,14 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
   knowledge.hasSizes = true;
   knowledge.sizes.resize(1, 1);
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitBinaryScalarOp(OpTy op) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+  knowledge.dtype = getPromotedResultType({op.a().getType(), op.b().getType()});
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

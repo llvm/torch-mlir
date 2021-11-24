@@ -40,6 +40,7 @@ from . import reduction
 from . import argmax
 from . import matmul
 from . import view
+from . import scalar
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
