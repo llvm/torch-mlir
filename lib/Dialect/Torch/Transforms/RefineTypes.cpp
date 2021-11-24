@@ -289,7 +289,7 @@ public:
       return visitAtenAdaptiveAvgPool2dOp(avgPool2d, operands);
     } else if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp,
                    AtenDivScalarOp, AtenFmodScalarOp, AtenFloorDivideScalarOp,
-                   AtenPowTensorScalarOp, AtenRsubScalarOp>(op)) {
+                   AtenPowTensorScalarOp, AtenRsubScalarOp, AtenLeakyReluOp>(op)) {
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,

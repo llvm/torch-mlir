@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -1378,10 +1379,29 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Type elementType = payloadArgs[0].getType();
     Value constZero =
-        b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
+        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], constZero);
     return b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+  }
+  if (auto lrelu = dyn_cast<AtenLeakyReluOp>(op)) {
+    if (!lrelu.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      lrelu.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Type elementType = payloadArgs[0].getType();
+    Value constZero =
+        b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                         payloadArgs[0], constZero);
+    Value positivePart = b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+    Value negativePart = b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
+    Value scale = convertScalarToDtype(b, loc, operands[1], elementType);
+    Value scaledNegativePart = b.create<arith::MulFOp>(loc, negativePart, scale);
+    return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
     if (!gelu.getType()
@@ -1812,7 +1832,7 @@ struct ConvertElementwiseOp : ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
+    if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp,
              AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
              AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
@@ -2969,7 +2989,7 @@ public:
     target.addIllegalOp<AtenBatchNormOp>();
     patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target.addIllegalOp<
-        AtenTanhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
+        AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp, AtenAddTensorOp,
         AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp,
         AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
         AtenRsubScalarOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
