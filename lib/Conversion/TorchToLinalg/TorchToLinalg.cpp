@@ -2413,6 +2413,97 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenSqueezeOp : public OpConversionPattern<AtenSqueezeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSqueezeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    Value input = adaptor.self();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    TypeConverter *typeConverter = getTypeConverter();
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    int64_t resultRank = resultType.getRank();
+
+    if (inputRank == 0) {
+      return rewriter.notifyMatchFailure(
+          op, "zero input rank should have been handled by the folder");
+    }
+
+    // In case the operand tensor type is statically shaped with all dimensions
+    // being unit extent, it will be collapsed to a 0-D tensor.
+    if (resultRank == 0) {
+      SmallVector<ReassociationIndices> reassociation;
+      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+          op, resultType, input, reassociation);
+      return success();
+    }
+
+    // All the static size-1 dimensions at the beginning(going from higher to
+    // lower dimensions) will be collapsed into the first dynamic or first non
+    // size-1 static dimension. All the other static size-1 dimensions will be
+    // collapsed into its previous dynamic or non size-1 static dimension.
+    SmallVector<ReassociationIndices> reassociation(resultRank);
+    bool isSqueezed = false;
+    int64_t headOnesCount = 0;
+    while (headOnesCount < inputRank &&
+           inputType.getDimSize(headOnesCount) == 1) {
+      isSqueezed = true;
+      reassociation[0].push_back(headOnesCount++);
+    }
+
+    // TODO: Add support for size-1 dynamic dimensions.
+    Value one = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+    int64_t j = -1;
+    for (auto i : llvm::seq<int64_t>(headOnesCount, inputRank)) {
+      if (inputType.isDynamicDim(i)) {
+        // Make sure that size-1 dynamic dimension does not exist.
+        Value dimSize = getDimOp(rewriter, loc, input, i);
+        Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::ne, dimSize, one);
+        rewriter.create<AssertOp>(
+            loc, dimSizeNotOne,
+            rewriter.getStringAttr(
+                "unimplemented: size 1 dynamic dimension is not supported"));
+        ++j;
+      } else if (inputType.getDimSize(i) != 1) {
+        ++j;
+      } else {
+        // `isSqueezed` checks if the operand tensor type contains at least one
+        // unit dimension.
+        isSqueezed = true;
+      }
+      if (j == resultRank)
+        break;
+      reassociation[j].push_back(i);
+    }
+
+    // Make sure that result type rank is compatible with the squeezed size.
+    if (j != resultRank - 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected output size mismatches with the result type rank");
+
+    if (isSqueezed) {
+      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+          op, resultType, input, reassociation);
+
+    } else {
+      // If the operand tensor type does not have any unit dimension,
+      // `aten.squeeze` will behave as an identity operation.
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenUnsqueezeOp : public OpConversionPattern<AtenUnsqueezeOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -3082,6 +3173,8 @@ public:
         AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenAbsOp,
         AtenReciprocalOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
+    target.addIllegalOp<AtenSqueezeOp>();
+    patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
     target.addIllegalOp<AtenConv2dOp>();

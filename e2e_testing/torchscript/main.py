@@ -41,6 +41,7 @@ from . import argmax
 from . import matmul
 from . import view
 from . import scalar
+from . import squeeze
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']

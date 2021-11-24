@@ -300,6 +300,8 @@ public:
       return visitAtenLerpTensorOp(lerpTensor, operands);
     } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
       return visitAtenFlattenUsingIntsOp(flatten, operands);
+    } else if (auto squeeze = dyn_cast<AtenSqueezeOp>(op)) {
+      return visitAtenSqueezeOp(squeeze, operands);
     } else if (auto unsqueeze = dyn_cast<AtenUnsqueezeOp>(op)) {
       return visitAtenUnsqueezeOp(unsqueeze, operands);
     } else if (auto arange = dyn_cast<AtenArangeOp>(op)) {
@@ -465,6 +467,9 @@ private:
   ChangeResult visitAtenFlattenUsingIntsOp(
       AtenFlattenUsingIntsOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenSqueezeOp(AtenSqueezeOp op,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenUnsqueezeOp(AtenUnsqueezeOp op,
                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -876,6 +881,25 @@ ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
       for (auto i = endDim + 1; i < inputRank; i++)
         knowledge.sizes.push_back(operand.sizes[i]);
     }
+  }
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
+    AtenSqueezeOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto operand = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+  knowledge.dtype = operand.dtype;
+  if (operand.hasSizes) {
+    int64_t inputRank = operand.sizes.size();
+    knowledge.hasSizes = true;
+    // `knowledge.sizes` will be empty when either `inputRank` is 0 or operand
+    // tensor type is statically shaped with all dimensions being unit.
+    // Note: size-1 dynamic dimensions are not supported yet.
+    for (auto i = 0; i < inputRank; i++)
+      if (operand.sizes[i] != 1)
+        knowledge.sizes.push_back(operand.sizes[i]);
   }
   return getLatticeElement(op.getResult()).join(knowledge);
 }

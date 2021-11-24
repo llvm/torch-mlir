@@ -1508,6 +1508,20 @@ def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
   let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
 }
 
+def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::squeeze : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let hasFolder = 1;
+}
+
 def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
     AllowsTypeRefinement
   ]> {
