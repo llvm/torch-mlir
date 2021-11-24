@@ -684,3 +684,40 @@ class ReturnThreeTensorFloat32(torch.nn.Module):
 def ReturnThreeTensorFloat32_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3), tu.rand(2, 3))
 
+class AddCMulModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,   
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, input, tensor1, tensor2):
+        return torch.addcmul(input, tensor1, tensor2, value=1.0)
+
+@register_test_case(module_factory=lambda: AddCMulModule())
+def AddCMulModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1,3), tu.rand(1,3), tu.rand(1,3))
+
+class AddCDivModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,   
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, input, tensor1, tensor2):
+        return torch.addcdiv(input, tensor1, tensor2, value=1.0)
+
+@register_test_case(module_factory=lambda: AddCDivModule())
+def AddCDivModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1,3), tu.rand(1,3), tu.rand(1,3))
