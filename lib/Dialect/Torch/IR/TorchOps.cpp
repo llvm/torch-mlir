@@ -451,6 +451,18 @@ OpFoldResult AtenNeBoolOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSqueezeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSqueezeOp::fold(ArrayRef<Attribute> operands) {
+  if (auto tensorType = getOperand().getType().dyn_cast<BaseTensorType>()) {
+    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
+      return getOperand();
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenDimOp
 //===----------------------------------------------------------------------===//
 

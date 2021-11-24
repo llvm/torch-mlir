@@ -89,7 +89,7 @@ public:
       Operation *op = workList.pop_back_val();
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
-      } else if (isa<AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
+      } else if (isa<AtenSqueezeOp, AtenUnsqueezeOp, AtenFlattenUsingIntsOp,
                      AtenTransposeIntOp, TensorStaticInfoCastOp,
                      AtenBroadcastToOp, AtenToDtypeOp, AtenContiguousOp,
                      AtenPermuteOp, AtenViewOp, AtenExpandOp,

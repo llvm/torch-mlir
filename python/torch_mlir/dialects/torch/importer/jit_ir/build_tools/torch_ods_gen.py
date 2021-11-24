@@ -523,6 +523,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
 
         # Misc tensor ops.
         emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
+        emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
         emit("aten::dim : (Tensor) -> (int)", has_folder=True)
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)

@@ -605,3 +605,11 @@ func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
   %scalar = torch.aten.Int.Tensor %tensor : !torch.vtensor<[],si64> -> !torch.int
   return %scalar : !torch.int
 }
+
+// CHECK-LABEL:   func @torch.aten.squeeze$zero_rank(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[],f32>
+func @torch.aten.squeeze$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+  %0 = torch.aten.squeeze %arg0 : !torch.tensor<[],f32> -> !torch.tensor<[],f32>
+  return %0 : !torch.tensor<[],f32>
+}
