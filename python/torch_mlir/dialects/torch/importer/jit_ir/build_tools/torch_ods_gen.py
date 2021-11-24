@@ -471,6 +471,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
             emit_with_mutating_variants(key)
         # Elementwise tensor compute ops that don't have the standard mutating
         # variants.
+        emit("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
+        emit("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
         emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")

@@ -422,6 +422,8 @@ public:
       return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     } else if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
       return visitNumToTensorOp(numToTensorOp);
+    } else if (isa<AtenAddCMulOp, AtenAddCDivOp>(op)) {
+      return visitAtenAddCLikeOp(op, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -535,6 +537,10 @@ private:
   ChangeResult
   visitAtenSoftmaxLikeOp(OpTy op,
                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
+  ChangeResult
+  visitAtenAddCLikeOp(Operation *op,
+                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1373,6 +1379,25 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
   knowledge.sizes.resize(resultRank, kUnknownSize);
   knowledge.dtype = joinElementTypes(self.dtype, other.dtype);
   knowledge.hasSizes = true;
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto self = operands[0]->getValue();
+  auto tensor1 = operands[1]->getValue();
+  auto tensor2 = operands[2]->getValue();
+  if (tensor1.hasSizes && tensor2.hasSizes && self.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes.resize(
+        std::max(self.sizes.size(),
+                 std::max(tensor1.sizes.size(), tensor2.sizes.size())),
+        kUnknownSize);
+  }
+  knowledge.dtype =
+      getPromotedResultType(getContext(), {&self, &tensor1, &tensor2});
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
