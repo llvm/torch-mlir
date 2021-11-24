@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
+#include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
@@ -21,6 +22,7 @@
 
 using namespace mlir;
 using namespace mlir::torch;
+using namespace mlir::tosa;
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -89,6 +91,8 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
       TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
 
   pm.addNestedPass<FuncOp>(createConvertTorchToTosaPass());
+  // Perform rank broadcasting so TosaToLinalg pass works
+  pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced above..

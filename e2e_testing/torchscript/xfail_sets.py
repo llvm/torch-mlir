@@ -29,6 +29,7 @@ TOSA_PASS_SET = {
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
     "TanhBackward_basic",
+    "ElementwiseAddModule_basic",
     "ReturnThreeTensorFloat32_basic",
     "AddCMulModule_basic",
     "AddCDivModule_basic",
