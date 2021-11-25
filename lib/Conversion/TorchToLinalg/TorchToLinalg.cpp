@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "torch-mlir/Conversion/TorchToLinalg/CommonTorchToLinalg.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -43,143 +44,6 @@ using namespace mlir::torch::Torch;
 // TODO: Use linalg OpDSL to autogenerate at least 1)/2)/3) such
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
-
-static LogicalResult verifyLinalgCompatibleTypes(Operation *op,
-                                                 PatternRewriter &rewriter) {
-  // Check the value tensor is ranked as expected by Linalg.
-  // TODO: Remove this check but use a separate verification pass to verify the
-  // invariants expected by later passes.
-  auto isValidLinalgType = [](Type type) {
-    auto tensor = type.dyn_cast<ValueTensorType>();
-    return !tensor ||
-           tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
-  };
-
-  bool valid = llvm::all_of(op->getOperandTypes(), isValidLinalgType) &&
-               llvm::all_of(op->getResultTypes(), isValidLinalgType);
-  if (!valid)
-    return rewriter.notifyMatchFailure(op, "type cannot be lowered to linalg");
-  return success();
-}
-
-static LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op,
-                                  Value v) {
-  Type type = v.getType();
-  if (type.isa<OptionalType>() || type.isa<Torch::NoneType>() ||
-      type.isa<mlir::NoneType>())
-    return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
-  return success();
-}
-
-// Generate IR: dim = dim >= 0 ? dim : dim + inputRank
-static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
-                                  Value inputRank) {
-  assert(dim.getType().isa<IntegerType>() &&
-         "dim arg of toPositiveDim must be integer type");
-  Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
-  Value cst0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
-  Value predDimGEZero =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
-  Value dimInt = b.create<SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
-  return dimInt;
-}
-
-// Generate IR: assert(dim >= 0 && dim < inputRank)
-static void assertIsValidDim(OpBuilder &b, Location loc, Value dim,
-                             Value inputRank) {
-  assert(dim.getType().isa<IntegerType>() &&
-         "dim arg of assertIsValidDim must be integer type");
-  Value cst0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
-  Value predGEZero =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
-  b.create<AssertOp>(loc, predGEZero,
-                     b.getStringAttr("dim must be greater or equal to zero"));
-  Value predLTInputRank =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, dim, inputRank);
-  b.create<AssertOp>(loc, predLTInputRank,
-                     b.getStringAttr("dim must be smaller than inputRank"));
-}
-
-// Hack to deal with the Torch list type arguments which is not supported end
-// to end. Constant values can be be extracted directly and non constant
-// list values are not supported.
-// TODO: loose this constraint when properly support list type
-static bool isConstantIntListMatching(Value value,
-                                      SmallVectorImpl<int64_t> &expects) {
-  SmallVector<int64_t> intValues;
-  if (!matchPattern(value, m_TorchConstantIntList(intValues)))
-    return false;
-
-  if (intValues.size() != expects.size())
-    return false;
-
-  for (auto it : llvm::zip(intValues, expects)) {
-    if (std::get<0>(it) != std::get<1>(it))
-      return false;
-  }
-  return true;
-}
-
-static Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
-  assert(v.getType().isa<IntegerType>() && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
-}
-
-static Value castIndexToInt(OpBuilder &b, Location loc, Value idx) {
-  assert(idx.getType().isa<IndexType>() && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
-}
-
-static Value getDimOp(OpBuilder &b, Location loc, Value v, int dimension) {
-  return b.create<tensor::DimOp>(loc, v, dimension);
-}
-
-static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
-                                Value rhsDim) {
-  Type lhsType = lhsDim.getType();
-  Type rhsType = rhsDim.getType();
-  auto checkIntOrIndex = [](Type type) {
-    assert(type.isa<IntegerType>() ||
-           type.isa<IndexType>() && "must be either integer or index type");
-  };
-  checkIntOrIndex(lhsType);
-  checkIntOrIndex(rhsType);
-  Value lhsDimInt = lhsType.isIndex() ? castIndexToInt(b, loc, lhsDim) : lhsDim;
-  Value rhsDimInt = rhsType.isIndex() ? castIndexToInt(b, loc, rhsDim) : rhsDim;
-  Value contractingDimEqual = b.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
-  b.create<AssertOp>(loc, contractingDimEqual,
-                     b.getStringAttr("mismatching contracting dimension"));
-}
-
-static SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
-                                                 Value tensor, int dim) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
-  assert(dim < type.getRank() &&
-         "The given dim must be smaller than tensor rank");
-  (void)type;
-  SmallVector<Value> sizes;
-  for (int i = 0; i <= dim; i++)
-    sizes.push_back(getDimOp(b, loc, tensor, i));
-  return sizes;
-}
-
-static SmallVector<Value> getTensorSizes(OpBuilder &b, Location loc,
-                                         Value tensor) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
-  return getTensorSizesUntilDim(b, loc, tensor, type.getRank() - 1);
-}
-
-static Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
-                                  Type elemTy) {
-  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
-  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
-  Value c0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
-  return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
-}
 
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
@@ -926,153 +790,6 @@ public:
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
 
     return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenMatmulOp : public OpConversionPattern<AtenMatmulOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenMatmulOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    Value lhs = adaptor.self();
-    Value rhs = adaptor.other();
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    unsigned lhsRank = lhs.getType().cast<RankedTensorType>().getRank();
-    unsigned rhsRank = rhs.getType().cast<RankedTensorType>().getRank();
-
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
-
-    // The different cases of torch_matmul op is mentioned here:
-    // https://pytorch.org/docs/stable/generated/torch.matmul.html
-
-    // First Case: Dot Product.
-    if (lhsRank == 1 && rhsRank == 1) {
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
-
-      checkDimEqualHelper(rewriter, loc, lhsDim0, rhsDim0);
-
-      Value zeroTensor = createZeroInitTensor(rewriter, loc, {}, elementType);
-      Value dotProd =
-          rewriter
-              .create<linalg::DotOp>(loc, zeroTensor.getType(),
-                                     ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, dotProd);
-      return success();
-    }
-
-    // Second Case: Vec-Mat Multiplication.
-    if (lhsRank == 1 && rhsRank == 2) {
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
-      Value rhsDim1 = getDimOp(rewriter, loc, rhs, 1);
-      checkDimEqualHelper(rewriter, loc, lhsDim0, rhsDim0);
-
-      Value zeroTensor =
-          createZeroInitTensor(rewriter, loc, ValueRange{rhsDim1}, elementType);
-      Value matmul =
-          rewriter
-              .create<linalg::VecmatOp>(loc, zeroTensor.getType(),
-                                        ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
-      return success();
-    }
-
-    // Third Case: Matrix-Vec Multiplication.
-    if (lhsRank == 2 && rhsRank == 1) {
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
-      Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
-      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
-
-      Value zeroTensor =
-          createZeroInitTensor(rewriter, loc, ValueRange{lhsDim0}, elementType);
-      Value matmul =
-          rewriter
-              .create<linalg::MatvecOp>(loc, zeroTensor.getType(),
-                                        ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
-      return success();
-    }
-
-    // Fourth Case: Batch-Matrix Multiplication.
-    // TODO: Broadcasting of batch dimension is remaining.
-    if (lhsRank >= 3 && rhsRank >= 3 && lhsRank == rhsRank) {
-
-      unsigned batchRank = lhsRank - 2;
-      SmallVector<Value, 4> resultShape;
-
-      SmallVector<AffineExpr> lhsExpr;
-      SmallVector<AffineExpr> rhsExpr;
-      SmallVector<AffineExpr> outExpr;
-      SmallVector<StringRef> iteratorTypes;
-
-      // Since broadcasting is a TODO, check whether the lhs and rhs batch
-      // dimension match.
-      for (unsigned i = 0; i < batchRank; i++) {
-        Value lhsBatch = getDimOp(rewriter, loc, lhs, i);
-        Value rhsBatch = getDimOp(rewriter, loc, rhs, i);
-        resultShape.push_back(lhsBatch);
-        lhsExpr.push_back(rewriter.getAffineDimExpr(i));
-        rhsExpr.push_back(rewriter.getAffineDimExpr(i));
-        outExpr.push_back(rewriter.getAffineDimExpr(i));
-        iteratorTypes.push_back(getParallelIteratorTypeName());
-        checkDimEqualHelper(rewriter, loc, lhsBatch, rhsBatch);
-      }
-
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, batchRank);
-      Value lhsDim1 = getDimOp(rewriter, loc, lhs, batchRank + 1);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, batchRank);
-      Value rhsDim1 = getDimOp(rewriter, loc, rhs, batchRank + 1);
-      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
-
-      // Push the final matrix dimension.
-      resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
-
-      lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(batchRank),
-                                     rewriter.getAffineDimExpr(batchRank + 1)});
-      rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(batchRank + 1),
-                                     rewriter.getAffineDimExpr(batchRank + 2)});
-      outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(batchRank),
-                                     rewriter.getAffineDimExpr(batchRank + 2)});
-
-      Value initTensor0 =
-          createZeroInitTensor(rewriter, loc, resultShape, elementType);
-
-      auto indexingMaps =
-          AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr});
-      iteratorTypes.insert(iteratorTypes.end(),
-                           {"parallel", "reduction", "parallel"});
-
-      Value finalRes =
-          rewriter
-              .create<linalg::GenericOp>(
-                  loc, newResultType, ValueRange{lhs, rhs}, initTensor0,
-                  /*indexingMaps=*/indexingMaps,
-                  /*iteratorTypes=*/iteratorTypes,
-                  [&](OpBuilder &b, Location loc, ValueRange args) {
-                    Value l = args[0], r = args[1], res = args[2];
-                    Value mul = b.create<arith::MulFOp>(loc, l, r);
-                    Value add = b.create<arith::AddFOp>(loc, mul, res);
-                    b.create<linalg::YieldOp>(loc, add);
-                  })
-              .getResult(0);
-
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
-      return success();
-    }
-    return failure();
   }
 };
 } // namespace
@@ -2960,8 +2677,6 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenMmOp>();
     patterns.add<ConvertAtenMmOp>(typeConverter, context);
-    target.addIllegalOp<AtenMatmulOp>();
-    patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
     target.addIllegalOp<AtenBmmOp>();
     patterns.add<ConvertAtenBmmOp>(typeConverter, context);
     target.addIllegalOp<AtenLinearOp>();
@@ -3015,6 +2730,8 @@ public:
     patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
     target.addIllegalOp<PrimNumToTensorScalarOp>();
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
+    target.addIllegalOp<AtenMatmulOp>();
+    populateLoweringMatmulOpPattern(patterns, typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
