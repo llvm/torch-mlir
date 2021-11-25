@@ -1392,6 +1392,22 @@ def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
   let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
 }
 
+def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::_softmax : (Tensor, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$half_to_float
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dim `,` $half_to_float attr-dict `:` type($self) `,` type($dim) `,` type($half_to_float) `->` type($result)";
+}
+
 def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
     AllowsTypeRefinement
   ]> {
