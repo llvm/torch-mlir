@@ -418,6 +418,8 @@ public:
       return visitAtenMatmulOp(matmul, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
+    } else if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {
+      return visitAten_SoftmaxOp(_softmaxOp, operands);
     } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     } else if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
@@ -540,6 +542,10 @@ private:
 
   ChangeResult
   visitAtenAddCLikeOp(Operation *op,
+                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
+  ChangeResult
+  visitAten_SoftmaxOp(Aten_SoftmaxOp op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
@@ -1332,6 +1338,16 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
+static ValueKnowledge
+getSameSizeAsInput(Operation *op,
+                   ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.hasSizes = input.hasSizes;
+  knowledge.sizes = input.sizes;
+  return knowledge;
+}
 
 // Common template for softmax like ops, eg., log_softmax.
 template <typename OpTy>
@@ -1339,11 +1355,20 @@ ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto dtype = op.dtype();
-  auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = input.hasSizes;
-  knowledge.sizes = input.sizes;
+  ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, input.dtype);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAten_SoftmaxOp(
+    Aten_SoftmaxOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
+  bool halfToFloat;
+  if (matchPattern(op.half_to_float(), m_TorchConstantBool(&halfToFloat))) {
+    knowledge.dtype =
+        halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
+  }
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

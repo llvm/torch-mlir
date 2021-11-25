@@ -126,6 +126,26 @@ public:
 };
 } // namespace
 
+// Calculates the softmax function on the given `input` tensor. Softmax(x) =
+// exp(x)/sum(exp(x)).
+template <typename OpTy>
+static Value getSoftmaxResult(OpTy op, Type resultType,
+                              PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value dim = op.dim();
+  Value self = op.self();
+
+  // exp(x)
+  Value exp = rewriter.create<AtenExpOp>(loc, resultType, self);
+  // sum(exp(x))
+  Value sum =
+      createSumAlongDimension(rewriter, loc, op, exp, dim, /*keepDim=*/true);
+  if (!sum)
+    return nullptr;
+  // exp(x) / sum(exp(x))
+  return rewriter.create<AtenDivTensorOp>(loc, resultType, exp, sum);
+}
+
 // Decompose softmax into: exp(x) / sum(exp(x))
 namespace {
 class DecomposeAtenSoftmaxIntOp : public OpRewritePattern<AtenSoftmaxIntOp> {
@@ -133,9 +153,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenSoftmaxIntOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     Value self = op.self();
-    Value dim = op.dim();
     if (!op.dtype().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "Unimplemented non-None dtype for softmax");
@@ -144,14 +162,40 @@ public:
     if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(op, "Only support floating type");
 
-    // exp(x)
-    Value exp = rewriter.create<AtenExpOp>(loc, tensorType, self);
-    // sum(exp(x))
-    Value sum = createSumAlongDimension(rewriter, loc, op, exp, dim, /*keepDim=*/true);
-    if (!sum)
+    Value result = getSoftmaxResult(op, tensorType, rewriter);
+    if (!result)
       return failure();
-    // exp(x) / sum(exp(x))
-    Value result = rewriter.create<AtenDivTensorOp>(loc, tensorType, exp, sum);
+    rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, op.getType(),
+                                                        result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAten_SoftmaxOp : public OpRewritePattern<Aten_SoftmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_SoftmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.self();
+    BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
+    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op, "Only support floating type");
+    bool halfToFloat;
+    if (!matchPattern(op.half_to_float(), m_TorchConstantBool(&halfToFloat)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a boolean value for half_to_float");
+
+    // Currently, setting `halfToFloat` is not supported as the E2E testing for
+    // the same is not present on CPU.
+    if (halfToFloat)
+      return rewriter.notifyMatchFailure(
+          op, "halfToFloat is currently not supported.");
+
+    Value result = getSoftmaxResult(op, tensorType, rewriter);
+    if (!result)
+      return op.emitError("failed to get softmax result");
     rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, op.getType(),
                                                         result);
     return success();
@@ -406,6 +450,8 @@ class DecomposeComplexOpsPass
 
     patterns.add<DecomposeAtenSoftmaxIntOp>(context);
     target.addIllegalOp<AtenSoftmaxIntOp>();
+    patterns.add<DecomposeAten_SoftmaxOp>(context);
+    target.addIllegalOp<Aten_SoftmaxOp>();
     patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
     target.addIllegalOp<AtenLogSoftmaxIntOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
