@@ -231,7 +231,7 @@ public:
             AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
             AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-            AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
+            AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp>(
             op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);

@@ -569,6 +569,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::IntImplicit : (Tensor) -> (int)")
         emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
         emit("aten::Int.Tensor : (Tensor) -> (int)")
+        emit("aten::dropout : (Tensor, float, bool) -> (Tensor)")
 
         # Dict ops.
         emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
