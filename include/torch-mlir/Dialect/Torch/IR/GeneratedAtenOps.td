@@ -2197,6 +2197,7 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
