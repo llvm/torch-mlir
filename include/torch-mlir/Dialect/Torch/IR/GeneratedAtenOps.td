@@ -2199,6 +2199,22 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
   let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
 }
 
+def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::dropout : (Tensor, float, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_FloatType:$p,
+    Torch_BoolType:$train
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$input `,` $p `,` $train attr-dict `:` type($input) `,` type($p) `,` type($train) `->` type($result)";
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics
