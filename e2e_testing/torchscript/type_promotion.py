@@ -111,3 +111,5 @@ class TypePromotionAlphaWiderModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TypePromotionAlphaWiderModule())
 def TypePromotionAlphaWiderModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4), tu.rand())
+
+
