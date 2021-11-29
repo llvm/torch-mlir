@@ -1076,5 +1076,12 @@ OpFoldResult PrimDtypeOp::fold(ArrayRef<Attribute> operands) {
   }
   return nullptr;
 }
+
+OpFoldResult AtenIntTensorOp::fold(ArrayRef<Attribute> operands) {
+  if (auto numToTensorScalar = a().getDefiningOp<PrimNumToTensorScalarOp>())
+    return numToTensorScalar.a();
+  return nullptr;
+}
+
 #define GET_OP_CLASSES
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
