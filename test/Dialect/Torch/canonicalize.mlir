@@ -594,3 +594,14 @@ func @torch.prim.TupleIndex$out_of_bound(%t0: !torch.tensor, %t1: !torch.tensor,
     %1 = torch.prim.TupleIndex %0, %int3 : !torch.tuple<!torch.tensor, !torch.tensor, !torch.tensor>, !torch.int -> !torch.tensor
     return %1 : !torch.tensor
 }
+
+
+// CHECK-LABEL:   func @torch.aten.Int.Tensor(
+// CHECK-SAME:            %[[NUM:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[T:.*]] = torch.prim.NumToTensor.Scalar %[[NUM]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:           return %[[NUM]] : !torch.int
+func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
+  %tensor = torch.prim.NumToTensor.Scalar %arg0: !torch.int -> !torch.vtensor<[],si64>
+  %scalar = torch.aten.Int.Tensor %tensor : !torch.vtensor<[],si64> -> !torch.int
+  return %scalar : !torch.int
+}
