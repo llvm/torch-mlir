@@ -1167,6 +1167,102 @@ public:
 };
 } // namespace
 
+// Given `input`, `target`, `nll_loss_forward` is given by:
+//   for i in range(0, len(target)):
+//     indi = target[i];
+//     nll_loss_forward[i] = -(input[i][indi]);
+// TODO: `weight` and `reduction` operands are still to be taken care of.
+namespace {
+class ConvertAtenNllLossForwardOp
+    : public OpConversionPattern<AtenNllLossForwardOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNllLossForwardOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    Value input = adaptor.self();
+    Value target = adaptor.target();
+    Value weight = adaptor.weight();
+
+    int64_t reduce_dim;
+    if (!matchPattern(op.reduction(), m_TorchConstantInt(&reduce_dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+
+    // TODO: Handle reduction.
+    if (reduce_dim != 0)
+      return rewriter.notifyMatchFailure(
+          op, "reduction along dimensions is not supported.");
+
+    // TODO: Incorporate the weight argument.
+    if (!weight.getType().isa<mlir::torch::Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented, the weight operand is not incorporated.");
+
+    Value ignoreIndex = adaptor.ignore_index();
+    Value ignoreIndexVal = castIntToIndex(rewriter, loc, ignoreIndex);
+
+    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
+    unsigned targetRank = target.getType().cast<RankedTensorType>().getRank();
+
+    // TODO: Cases with targetRank != 1 where `Mean` reduction is required.
+    if (inputRank != 2 || targetRank != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "expected  input and target to be rank 2 and 1 respectively");
+    }
+    RankedTensorType resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+
+    Type elementType = resultType.getElementType();
+
+    Value targetDim = getDimOp(rewriter, loc, target, 0);
+    Value initTensor0 =
+        createZeroInitTensor(rewriter, loc, {targetDim}, elementType);
+    Value zeroVal = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getZeroAttr(elementType));
+
+    SmallVector<AffineExpr> targetExpr;
+    targetExpr.push_back(rewriter.getAffineDimExpr(0));
+    SmallVector<StringRef> iteratorTypes{getParallelIteratorTypeName()};
+    auto indexingMaps = AffineMap::inferFromExprList({targetExpr, targetExpr});
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, resultType, ValueRange{target}, initTensor0,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value indTarget = rewriter.create<arith::IndexCastOp>(
+                      loc, rewriter.getIndexType(), args[0]);
+                  Value indI = rewriter.create<linalg::IndexOp>(loc, 0);
+
+                  // The final result is given by:
+                  // final_res = (indI == ignoreIndexVal) ? 0 :
+                  // input[indI][IndTarget]
+                  Value cmpEq = rewriter.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, indI, ignoreIndexVal);
+                  Value result = rewriter.create<tensor::ExtractOp>(
+                      loc, input, ValueRange{indI, indTarget});
+                  Value negate =
+                      rewriter.create<arith::NegFOp>(loc, elementType, result);
+                  Value selectFinal = rewriter.create<mlir::SelectOp>(
+                      loc, cmpEq, zeroVal, negate);
+                  b.create<linalg::YieldOp>(loc, selectFinal);
+                })
+            .getResult(0);
+
+    // TODO: Update the second result tensor.
+    Value weightUpdated =
+        createZeroInitTensor(rewriter, loc, {}, elementType);
+    rewriter.replaceOp(op, {finalRes, weightUpdated});
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // See comments at in convertMmOp and the heading for this section for general
 // considerations. This function needs to be auto-generated.
@@ -3372,6 +3468,8 @@ public:
     patterns.add<ConvertAtenNumelOp>(typeConverter, context);
     target.addIllegalOp<AtenSliceTensorOp>();
     patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
+    target.addIllegalOp<AtenNllLossForwardOp>();
+    patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

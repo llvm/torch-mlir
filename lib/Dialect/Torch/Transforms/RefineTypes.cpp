@@ -454,7 +454,10 @@ public:
       return visitAtenAddCLikeOp(op, operands);
     } else if (auto scalarOp = dyn_cast<AtenAddIntOp>(op)) {
       return visitBinaryScalarOp(scalarOp);
+    }else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
+      return visitAtenNllLossForwardOp(nllForwardOp, operands);
     }
+
 
     // Otherwise, this is an unknown operation. Just mark all results as
     // having reached a pessimistic fixpoint.
@@ -579,6 +582,10 @@ private:
 
   ChangeResult
   visitAten_SoftmaxOp(Aten_SoftmaxOp op,
+                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
+  ChangeResult
+  visitAtenNllLossForwardOp(AtenNllLossForwardOp op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
@@ -925,6 +932,38 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
         knowledge.sizes.push_back(operand.sizes[i]);
   }
   return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
+    AtenNllLossForwardOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto self = operands[0]->getValue();
+  auto outputKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+
+  // Contains Knowledge of shape and dtype for the 1st result.
+  outputKnowledge.dtype = self.dtype;
+  int64_t reduction;
+  unsigned resultRank = self.sizes.size();
+
+  // Contains Knowledge of shape and dtype for the 2nd result.
+  auto totalWeightKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+  totalWeightKnowledge.dtype = self.dtype;
+  totalWeightKnowledge.sizes.resize(0, kUnknownSize);
+  totalWeightKnowledge.hasSizes = true;
+
+  if (self.hasSizes &&
+      matchPattern(op.reduction(), m_TorchConstantInt(&reduction))) {
+    // reduction == 1 means reduce 1st dim.
+    resultRank = reduction == 1 ? resultRank - 1 : resultRank;
+  }
+  outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
+  outputKnowledge.hasSizes = true;
+  auto resultLattice = getLatticeElement(op.getResult(0)).join(outputKnowledge);
+  resultLattice |=
+      getLatticeElement(op.getResult(1)).join(totalWeightKnowledge);
+  return resultLattice;
 }
 
 ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
