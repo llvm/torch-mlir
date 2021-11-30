@@ -1705,10 +1705,14 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
 
 static Value createLinalgPayloadCalculationForReduceOp(
     OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
-    ArrayRef<Value> operands, Type elementType) {
+    ArrayRef<Value> operands, Type resultElementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
-      elementType.isa<mlir::FloatType>())
-    return b.create<arith::AddFOp>(loc, payloadArgs);
+      resultElementType.isa<mlir::FloatType>()) {
+    Value self =
+        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value result = payloadArgs[1];
+    return b.create<arith::AddFOp>(loc, self, result);
+  }
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForReduceOp");
   return nullptr;
