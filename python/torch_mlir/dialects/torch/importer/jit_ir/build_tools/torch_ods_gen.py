@@ -527,6 +527,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
 
         # Misc tensor ops.
+        emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
         emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
         emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")

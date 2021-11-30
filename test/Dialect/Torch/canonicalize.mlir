@@ -613,3 +613,12 @@ func @torch.aten.squeeze$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.tenso
   %0 = torch.aten.squeeze %arg0 : !torch.tensor<[],f32> -> !torch.tensor<[],f32>
   return %0 : !torch.tensor<[],f32>
 }
+
+// CHECK-LABEL:   func @torch.aten.squeeze.dim$zero_rank(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[],f32>
+func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor<[],f32>
+  return %0 : !torch.tensor<[],f32>
+}
