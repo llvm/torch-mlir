@@ -2668,6 +2668,76 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenSqueezeDimOp : public OpConversionPattern<AtenSqueezeDimOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSqueezeDimOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Value input = adaptor.self();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+
+    if (inputRank == 0) {
+      return rewriter.notifyMatchFailure(
+          op, "zero input rank should have been handled by the folder");
+    }
+
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+    // TODO: Handle the case where the dim(th) dimension is dynamic.
+    if (inputType.isDynamicDim(dim)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: dim(th) dimension is not expected to be dynamic");
+    }
+
+    TypeConverter *typeConverter = getTypeConverter();
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    int64_t resultRank = resultType.getRank();
+
+    // If the dim(th) dimension of operand tensor type is not statically unit,
+    // `aten.squeeze` will behave as an identity operation.
+    if (inputType.getDimSize(dim) != 1) {
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+      return success();
+    }
+
+    SmallVector<ReassociationIndices> reassociationMap(resultRank);
+    bool alreadyCrossedSqueezedDim = false;
+    for (int i = 0; i != resultRank; i++) {
+      if (alreadyCrossedSqueezedDim) {
+        reassociationMap[i].push_back(i + 1);
+      } else {
+        reassociationMap[i].push_back(i);
+        if (dim != 0 && i != dim - 1)
+          continue;
+
+        alreadyCrossedSqueezedDim = true;
+        if (dim == 0)
+          reassociationMap[0].push_back(1);
+        if (i == dim - 1)
+          reassociationMap[i].push_back(dim);
+      }
+    }
+    // Note: In case the operand tensor type is of unit rank and is statically
+    // shaped with unit dimension, the `reassociationMap` will be empty and the
+    // input will be collapsed to a 0-D tensor.
+    rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+        op, resultType, input, reassociationMap);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenUnsqueezeOp : public OpConversionPattern<AtenUnsqueezeOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -3565,6 +3635,8 @@ public:
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
+    target.addIllegalOp<AtenSqueezeDimOp>();
+    patterns.add<ConvertAtenSqueezeDimOp>(typeConverter, context);
     target.addIllegalOp<AtenUnsqueezeOp>();
     patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
     target.addIllegalOp<AtenConv2dOp>();

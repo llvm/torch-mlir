@@ -1608,6 +1608,21 @@ def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
   let assemblyFormat = "$self `,` $target `,` $weight `,` $reduction `,` $ignore_index attr-dict `:` type($self) `,` type($target) `,` type($weight) `,` type($reduction) `,` type($ignore_index) `->` type($output) `,` type($total_weight)";
 }
 
+def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::squeeze.dim : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
+  let hasFolder = 1;
+}
+
 def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
     AllowsTypeRefinement
   ]> {

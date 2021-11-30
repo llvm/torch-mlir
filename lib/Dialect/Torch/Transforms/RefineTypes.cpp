@@ -328,6 +328,8 @@ public:
       return visitAtenFlattenUsingIntsOp(flatten, operands);
     } else if (auto squeeze = dyn_cast<AtenSqueezeOp>(op)) {
       return visitAtenSqueezeOp(squeeze, operands);
+    } else if (auto squeezeDim = dyn_cast<AtenSqueezeDimOp>(op)) {
+      return visitAtenSqueezeDimOp(squeezeDim, operands);
     } else if (auto unsqueeze = dyn_cast<AtenUnsqueezeOp>(op)) {
       return visitAtenUnsqueezeOp(unsqueeze, operands);
     } else if (auto arange = dyn_cast<AtenArangeOp>(op)) {
@@ -513,6 +515,9 @@ private:
   ChangeResult
   visitAtenSqueezeOp(AtenSqueezeOp op,
                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenSqueezeDimOp(AtenSqueezeDimOp op,
+                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenUnsqueezeOp(AtenUnsqueezeOp op,
                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1000,6 +1005,34 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
   resultLattice |=
       getLatticeElement(op.getResult(1)).join(totalWeightKnowledge);
   return resultLattice;
+}
+
+ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
+    AtenSqueezeDimOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto operand = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+  knowledge.dtype = operand.dtype;
+  int64_t dim;
+  if (operand.hasSizes && matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+    int64_t inputRank = operand.sizes.size();
+    if (inputRank == 0) {
+      if (dim == -1 || dim == 0) {
+        knowledge.hasSizes = true;
+      }
+      return getLatticeElement(op.getResult()).join(knowledge);
+    }
+    // The dim value is allowed to be in the range `[-inputRank, inputRank)`.
+    if (dim < 0)
+      dim += inputRank;
+    if (0 <= dim && dim < inputRank && operand.sizes[dim] != kUnknownSize) {
+      knowledge.hasSizes = true;
+      knowledge.sizes = operand.sizes;
+      if (operand.sizes[dim] == 1)
+        knowledge.sizes.erase(knowledge.sizes.begin() + dim);
+    }
+  }
+  return getLatticeElement(op.getResult()).join(knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
