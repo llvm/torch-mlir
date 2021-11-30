@@ -33,4 +33,5 @@ TOSA_PASS_SET = {
     "ReturnThreeTensorFloat32_basic",
     "AddCMulModule_basic",
     "AddCDivModule_basic",
+    "SqueezeModule_broadcast",
 }
