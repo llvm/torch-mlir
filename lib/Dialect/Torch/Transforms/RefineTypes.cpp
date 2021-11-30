@@ -67,6 +67,16 @@ static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
   return getTypeForScalarType(context, (ScalarType)dtypeInt);
 }
 
+static Type getDtypeOrDefault(MLIRContext *context, Value optionalDtype,
+                              Type defaultDtype) {
+  int64_t dtypeInt;
+  if (matchPattern(optionalDtype, m_TorchConstantInt(&dtypeInt)))
+    return getTypeForDTypeInteger(context, dtypeInt);
+  else if (optionalDtype.getType().isa<Torch::NoneType>())
+    return defaultDtype;
+  return Type();
+}
+
 static Type joinElementTypes(Type lhs, Type rhs) {
   if (!lhs)
     return rhs;
@@ -307,14 +317,23 @@ public:
     } else if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
       return visitAtenArangeStartOp(arangeStart);
     } else if (auto sum = dyn_cast<AtenSumOp>(op)) {
-      Type dtype = operands[0]->getValue().dtype;
+      Type defaultDtype = operands[0]->getValue().dtype;
+      Type dtype =
+          getDtypeOrDefault(sum.getContext(), sum.dtype(), defaultDtype);
       return visitReductionAlongAllDimsOp(sum, dtype, operands);
     } else if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
+      Type defaultDtype = operands[0]->getValue().dtype;
+      Type dtype = getDtypeOrDefault(sumDimIntList.getContext(),
+                                     sumDimIntList.dtype(), defaultDtype);
       return visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.dim(),
-                                             sumDimIntList.keepdim(), operands);
+                                             sumDimIntList.keepdim(), dtype,
+                                             operands);
     } else if (auto meanDim = dyn_cast<AtenMeanDimOp>(op)) {
-      return visitReductionAlongDimIntListOp(meanDim, meanDim.dim(),
-                                             meanDim.keepdim(), operands);
+      Type defaultDtype = operands[0]->getValue().dtype;
+      Type dtype = getDtypeOrDefault(meanDim.getContext(), meanDim.dtype(),
+                                     defaultDtype);
+      return visitReductionAlongDimIntListOp(
+          meanDim, meanDim.dim(), meanDim.keepdim(), dtype, operands);
     } else if (auto argmax = dyn_cast<AtenArgmaxOp>(op)) {
       Value dim = argmax.dim();
       Type dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
@@ -478,7 +497,7 @@ private:
       Operation *op, Type dtype,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitReductionAlongDimIntListOp(
-      Operation *op, Value dim, Value keepdim,
+      Operation *op, Value dim, Value keepdim, Type dtype,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitReductionAlongDimIntOp(
       Operation *op, Value dim, Value keepdim, Type dtype,
@@ -956,12 +975,12 @@ ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
 // These ops do caculation along the dims given by the integer list and reduce
 // each dim to size one. If \p keepdim is false, the dims are squeezed.
 ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
-    Operation *op, Value dim, Value keepdim,
+    Operation *op, Value dim, Value keepdim, Type dtype,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.dtype = input.dtype;
+  knowledge.dtype = dtype;
   llvm::SmallVector<int64_t> dimList;
   bool keepDim;
   if (matchPattern(keepdim, m_TorchConstantBool(&keepDim))) {
