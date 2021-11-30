@@ -1573,6 +1573,25 @@ def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
   let assemblyFormat = "$self `,` $dtype attr-dict `:` type($self) `,` type($dtype) `->` type($result)";
 }
 
+def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$target,
+    AnyTorchOptionalTensorType:$weight,
+    Torch_IntType:$reduction,
+    Torch_IntType:$ignore_index
+  );
+  let results = (outs
+    AnyTorchTensorType:$output,
+    AnyTorchTensorType:$total_weight
+  );
+  let assemblyFormat = "$self `,` $target `,` $weight `,` $reduction `,` $ignore_index attr-dict `:` type($self) `,` type($target) `,` type($weight) `,` type($reduction) `,` type($ignore_index) `->` type($output) `,` type($total_weight)";
+}
+
 def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
     AllowsTypeRefinement
   ]> {

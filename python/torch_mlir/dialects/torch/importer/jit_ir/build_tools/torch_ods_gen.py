@@ -523,6 +523,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::sqrt : (Tensor) -> (Tensor)")
         emit("aten::_softmax : (Tensor, int, bool) -> (Tensor)")
         emit("aten::mean : (Tensor, int?) -> (Tensor)")
+        emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
 
         # Misc tensor ops.
         emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
