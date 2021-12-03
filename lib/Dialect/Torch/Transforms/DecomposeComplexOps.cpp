@@ -126,6 +126,26 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSelectIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value end =
+        rewriter.create<AtenAddIntOp>(loc, one.getType(), op.index(), one);
+    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(op, op.getResult().getType(),
+                                                   op.self(), op.dim(),
+                                                   op.index(), end, one);
+
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 template <typename OpTy>
@@ -487,6 +507,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenAddmmOp>();
     patterns.add<DecomposeAtenMeanOp>(context);
     target.addIllegalOp<AtenMeanOp>();
+    patterns.add<DecomposeAtenSelectIntOp>(context);
+    target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();

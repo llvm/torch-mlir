@@ -100,6 +100,8 @@ class MmTanhModule(torch.nn.Module):
     def matmul(self, lhs, rhs):
         return torch.mm(lhs, rhs)
 
+# ==============================================================================
+
 
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
@@ -192,6 +194,8 @@ class AdaptiveAvgPool2dModule(torch.nn.Module):
 def AdaptiveAvgPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9))
 
+# ==============================================================================
+
 
 class FlattenStaticModule(torch.nn.Module):
     def __init__(self):
@@ -210,6 +214,8 @@ class FlattenStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: FlattenStaticModule())
 def FlattenStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9, 3, 4))
+
+# ==============================================================================
 
 
 class FlattenRank0Module(torch.nn.Module):
@@ -230,6 +236,8 @@ class FlattenRank0Module(torch.nn.Module):
 def FlattenRank0Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor(4.0))
 
+# ==============================================================================
+
 
 class FlattenDynamicModule(torch.nn.Module):
     def __init__(self):
@@ -249,6 +257,8 @@ class FlattenDynamicModule(torch.nn.Module):
 def FlattenDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9, 3, 4))
 
+# ==============================================================================
+
 
 class MaxPool2dModule(torch.nn.Module):
     def __init__(self):
@@ -265,6 +275,8 @@ class MaxPool2dModule(torch.nn.Module):
     ])
     def forward(self, x):
         return self.mp2d(x)
+
+# ==============================================================================
 
 
 @register_test_case(module_factory=lambda: MaxPool2dModule())
@@ -283,6 +295,8 @@ class TransposeIntModule(torch.nn.Module):
     ])
     def forward(self, x):
         return torch.transpose(x, 0, 1)
+
+# ==============================================================================
 
 
 @register_test_case(module_factory=lambda: TransposeIntModule())
@@ -305,6 +319,8 @@ class PermuteModule(torch.nn.Module):
 def PermuteModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
+# ==============================================================================
+
 class TransposeIntNegDimsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -316,6 +332,8 @@ class TransposeIntNegDimsModule(torch.nn.Module):
     ])
     def forward(self, x):
         return torch.transpose(x, -1, -2)
+
+# ==============================================================================
 
 
 @register_test_case(module_factory=lambda: TransposeIntNegDimsModule())
@@ -334,6 +352,8 @@ class PermuteNegativeIndexModule(torch.nn.Module):
     ])
     def forward(self, x):
         return x.permute(0, -1, 1)
+
+# ==============================================================================
 
 @register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
 def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
@@ -357,6 +377,8 @@ class TensorsConcatModule(torch.nn.Module):
 def TensorsConcatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
 
+# ==============================================================================
+
 
 class GatherModule(torch.nn.Module):
     def __init__(self):
@@ -375,6 +397,8 @@ class GatherModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: GatherModule())
 def GatherModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4), torch.tensor([[[1, 2, 3], [1, 2, 3]]]))
+
+# ==============================================================================
 
 class AddSizeIntModule(torch.nn.Module):
     def __init__(self):
@@ -395,6 +419,8 @@ class AddSizeIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AddSizeIntModule())
 def AddSizeIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3))
+
+# ==============================================================================
 
 
 class AddSizeIntNegDimModule(torch.nn.Module):
@@ -417,6 +443,8 @@ class AddSizeIntNegDimModule(torch.nn.Module):
 def AddSizeIntNegDimModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3))
 
+# ==============================================================================
+
 class EmbeddingModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -438,6 +466,7 @@ class EmbeddingModule(torch.nn.Module):
 def EmbeddingModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (3, 3)))
 
+# ==============================================================================
 
 class SoftmaxIntModule(torch.nn.Module):
     def __init__(self):
@@ -474,6 +503,8 @@ class _SoftmaxModule(torch.nn.Module):
 def _SoftmaxModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
+# ==============================================================================
+
 
 class SoftmaxIntNegDimModule(torch.nn.Module):
     def __init__(self):
@@ -494,6 +525,8 @@ class SoftmaxIntNegDimModule(torch.nn.Module):
 def SoftmaxIntNegDimModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
+# ==============================================================================
+
 
 class SoftmaxIntArgTypeF64Module(torch.nn.Module):
     def __init__(self):
@@ -513,6 +546,7 @@ class SoftmaxIntArgTypeF64Module(torch.nn.Module):
 def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
 
+# ==============================================================================
 
 class BroadcastToModule(torch.nn.Module):
     def __init__(self):
@@ -531,6 +565,8 @@ class BroadcastToModule(torch.nn.Module):
 def BroadcastToModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 1))
 
+# ==============================================================================
+
 class ExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -548,6 +584,9 @@ class ExpandModule(torch.nn.Module):
 def ExpandModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 1))
 
+# ==============================================================================
+
+
 class OnesModuleInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -562,6 +601,8 @@ class OnesModuleInt(torch.nn.Module):
 @register_test_case(module_factory=lambda: OnesModuleInt())
 def OnesModuleInt_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
 
 class OnesModuleFloat(torch.nn.Module):
     def __init__(self):
@@ -594,6 +635,7 @@ class OnesModuleFalsePinMemory(torch.nn.Module):
 def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class ContiguousModule(torch.nn.Module):
     def __init__(self):
@@ -611,7 +653,7 @@ class ContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ContiguousModule())
 def ContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1))
-
+    
 class TensorToInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -681,6 +723,7 @@ class NumToTensorFloatModule(torch.nn.Module):
 def NumToTensorFloatModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 # This test can be removed once we have one real op returning 3 float32 tensors
 class ReturnThreeTensorFloat32(torch.nn.Module):
