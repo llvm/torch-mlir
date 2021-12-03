@@ -602,7 +602,7 @@ class ContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ContiguousModule())
 def ContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1))
-    
+
 class TensorToInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -699,7 +699,7 @@ class AddCMulModule(torch.nn.Module):
 
     @export
     @annotate_args([
-        None,   
+        None,
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
@@ -718,7 +718,7 @@ class AddCDivModule(torch.nn.Module):
 
     @export
     @annotate_args([
-        None,   
+        None,
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
         ([-1, -1], torch.float32, True),
@@ -739,7 +739,7 @@ class tensorIntModule(torch.nn.Module):
 
     @export
     @annotate_args([
-        None,   
+        None,
     ])
 
     def forward(self):
@@ -756,7 +756,7 @@ class tensorFloatModule(torch.nn.Module):
 
     @export
     @annotate_args([
-        None,   
+        None,
     ])
 
     def forward(self):
@@ -962,4 +962,39 @@ class TModuleRank0(torch.nn.Module):
 @register_test_case(module_factory=lambda: TModuleRank0())
 def TModuleRank0_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
+
+class TensorLiteralModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.t = torch.randint(-5, 5, (2, 3))
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.add(self.t, self.t)
+
+@register_test_case(module_factory=lambda: TensorLiteralModule())
+def TensorLiteralModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TensorOpaqueLiteralModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.t = torch.randint(-5, 5, (256, 1024))
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.add(self.t, self.t)
+
+@register_test_case(module_factory=lambda: TensorOpaqueLiteralModule())
+def TensorOpaqueLiteralModule_basic(module, tu: TestUtils):
+    module.forward()
 

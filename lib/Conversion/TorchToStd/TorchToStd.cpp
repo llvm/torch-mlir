@@ -87,6 +87,49 @@ public:
 };
 } // namespace
 
+// Tensors with integer types need to be converted to signless integer
+// element type. All tensors with element types other than integer can reuse
+// existing elements attribute.
+namespace {
+class ConvertTorchTensorLiteralOp
+    : public OpConversionPattern<ValueTensorLiteralOp> {
+public:
+  using OpConversionPattern<ValueTensorLiteralOp>::OpConversionPattern;
+  using OpAdaptor = ValueTensorLiteralOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    MLIRContext *context = op->getContext();
+    if (auto elements = op.valueAttr().dyn_cast<DenseIntElementsAttr>()) {
+      Type elemTy = op.valueAttr().getElementType();
+      unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
+      Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
+      rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+          op, elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
+            return APInt(bitWidth, v.getSExtValue());
+          }));
+      return success();
+    }
+    if (auto elements = op.valueAttr().dyn_cast<OpaqueElementsAttr>()) {
+      if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
+        if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
+          Type builtinTensorElemTy =
+              IntegerType::get(context, intType.getIntOrFloatBitWidth());
+          auto shapedType =
+              RankedTensorType::get(type.getShape(), builtinTensorElemTy);
+          rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+              op, OpaqueElementsAttr::get(elements.getDialect(), shapedType,
+                                          elements.getValue()));
+          return success();
+        }
+      }
+    }
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, op.valueAttr());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 template <typename OpTy>
 class ConvertTorchConstantOp : public OpConversionPattern<OpTy> {
@@ -133,8 +176,8 @@ public:
     target.addIllegalOp<AtenGtIntOp>();
     patterns.add<ConvertAtenGtIntOp>(typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
-    patterns.add<ConvertTorchConstantOp<ValueTensorLiteralOp>>(typeConverter,
-                                                               context);
+    patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);
+
     target.addIllegalOp<ConstantBoolOp>();
     patterns.add<ConvertTorchConstantOp<ConstantBoolOp>>(typeConverter,
                                                          context);
