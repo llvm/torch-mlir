@@ -3439,6 +3439,82 @@ public:
 };
 } // namespace
 
+namespace {
+// Let's say we have an input tensor: initialized with some random values of
+// size [4, 5, 6]. An index tensor (always 1-d): [0, 2] of size [2], and an
+// integer argument dim = 1. The size of the output tensor will be [4, 2, 6].
+// The approach is as follows:
+//
+// for i in range(input.size[0])
+//    for j in range(index.size[0])
+//       for k in range(input.size[2])
+//          indexValue = index[j]
+//          output[i,j,k] = input[i,indexValue,k]
+
+class ConvertAtenIndexSelectOp : public OpConversionPattern<AtenIndexSelectOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIndexSelectOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    Value input = adaptor.self();
+    Value indices = adaptor.index();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
+    unsigned inputRank = inputType.getRank();
+
+    int64_t dimInt;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dimInt)))
+      return op->emitError("unimplemented: dim is not constant");
+
+    SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
+    resultShape[dimInt] = getTensorSizes(rewriter, loc, indices)[0];
+    Value initTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
+
+    SmallVector<AffineExpr> resultExpr;
+    AffineExpr indicesExpr = rewriter.getAffineDimExpr(dimInt);
+    SmallVector<StringRef> iteratorTypes;
+
+    for (unsigned i = 0; i < inputRank; i++) {
+      resultExpr.push_back(rewriter.getAffineDimExpr(i));
+      iteratorTypes.push_back(getParallelIteratorTypeName());
+    }
+
+    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr});
+
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initTensor.getType(), ValueRange{indices}, initTensor,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value index = rewriter.create<arith::IndexCastOp>(
+                      loc, rewriter.getIndexType(), args[0]);
+                  SmallVector<Value> indexTarget;
+                  for (unsigned i = 0; i < inputRank; i++)
+                    indexTarget.push_back(b.create<linalg::IndexOp>(loc, i));
+                  indexTarget[dimInt] = index;
+                  Value extractedElement =
+                      b.create<tensor::ExtractOp>(loc, input, indexTarget);
+                  b.create<linalg::YieldOp>(loc, extractedElement);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -3539,6 +3615,8 @@ public:
     patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
     target.addIllegalOp<AtenNllLossForwardOp>();
     patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
+    target.addIllegalOp<AtenIndexSelectOp>();
+    patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

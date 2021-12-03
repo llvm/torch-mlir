@@ -44,6 +44,7 @@ from . import scalar
 from . import squeeze
 from . import slice_like
 from . import nll_loss
+from . import index_select
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
