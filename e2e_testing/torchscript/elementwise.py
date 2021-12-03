@@ -363,6 +363,8 @@ def RsubModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
     
 # ==============================================================================
+
+
 class ElementwiseMulScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -378,7 +380,52 @@ class ElementwiseMulScalarModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseMulScalarModule())
 def ElementwiseMulScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
-    
+
+
+
+class ElementwiseMulTensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseMulTensorFloatModule())
+def ElementwiseMulTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4),
+        tu.rand(4).type(torch.float64))
+
+class ElementwiseMulTensorIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseMulTensorIntModule())
+def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(
+      torch.randint(10, [4]).type(torch.int32),
+      torch.randint(10, [4]))
+
+
 # ==============================================================================
 class ElementwiseLogModule(torch.nn.Module):
     def __init__(self):
@@ -553,7 +600,32 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+
+class ElementwiseDivTensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.div(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivTensorFloatModule())
+def ElementwiseDivTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4),
+        tu.rand(4).type(torch.float64))
+
+
 # ==============================================================================
+
+
 class ElementwiseAndIntegerModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -573,3 +645,5 @@ class ElementwiseAndIntegerModule(torch.nn.Module):
 def ElementwiseAndIntegerModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-10, 10, (3, 4)).to(torch.int32),
                    torch.randint(-10, 10, (3, 4)))
+
+

@@ -1531,24 +1531,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
   }
   if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
-    if (!mul.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      mul.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
+    AtenMulTensorOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(mul.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      return b.create<arith::MulFOp>(loc, lhs, rhs);
+    } else {
+      return b.create<arith::MulIOp>(loc, lhs, rhs);
     }
-    return b.create<arith::MulFOp>(loc, payloadArgs[0], payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
-    if (!div.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    AtenDivTensorOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(div.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>())
       div.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    return b.create<arith::DivFOp>(loc, payloadArgs[0], payloadArgs[1]);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    return b.create<arith::DivFOp>(loc, lhs, rhs);
   }
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
     if (!pow.getType()
