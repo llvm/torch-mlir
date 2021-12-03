@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -252,6 +254,156 @@ LogicalResult ConvertAtenOp<AtenDivTensorOp>::matchAndRewrite(
   return success();
 }
 
+using ReductionConvFunc = llvm::Optional<Value> (*)(PatternRewriter &,
+                                                    Operation *,
+                                                    RankedTensorType, Value,
+                                                    ElementsAttr, bool);
+
+// They all constitute a common form invoking the appropriate
+// converion function in TosaLegalizeCommon.cpp
+template <typename AtenOpT, ReductionConvFunc ConversionFuncT>
+class ConvertAtenReductionOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  // Each variant must implement corresponding parameter parsing options
+  virtual LogicalResult readReduceDimsAndKeepDims(
+      AtenOpT op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
+      ElementsAttr &reduceDimsAttr, bool &keepDims) const {
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented reduce_dims and keep_dims parsing function");
+  }
+
+  // Common rewriter for all reduction ops, calls the specific implementation of
+  // readReduceDimsAndKeepDims() needed for the op variant.
+  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                                ConversionPatternRewriter &rewriter) const {
+    Value self = adaptor.self();
+    auto selfTy = self.getType().cast<TensorType>();
+
+    if (!selfTy)
+      return op.emitError("Only Tensor types supported in TOSA");
+
+    auto outputTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                        ->convertType(op.getType())
+                        .template cast<RankedTensorType>();
+    if (!outputTy)
+      return op.emitError(
+          "Only ranked tensor type outputs permitted for reduce_mean");
+
+    ElementsAttr reduceDimsAttr;
+    bool keepDims;
+
+    if (failed(readReduceDimsAndKeepDims(op, adaptor, rewriter, reduceDimsAttr,
+                                         keepDims)))
+      return failure();
+
+    llvm::Optional<Value> result =
+        ConversionFuncT(rewriter, op, outputTy, self, reduceDimsAttr, keepDims);
+
+    if (!result)
+      return failure();
+
+    // TBD - support dtype casting.
+
+    rewriter.replaceOp(op, {result.getValue()});
+
+    return success();
+  }
+};
+
+// This reduction op legalization template handles op variants that have
+// explicit reduce_dims dimensions (provided as a list) and keep_dims
+// parameters.
+template <typename AtenOpT, ReductionConvFunc ConversionFuncT>
+class ConvertAtenMultipleDimsReductionOp
+    : public ConvertAtenReductionOp<AtenOpT, ConversionFuncT> {
+  using ConvertAtenReductionOp<AtenOpT,
+                               ConversionFuncT>::ConvertAtenReductionOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
+                                          ConversionPatternRewriter &rewriter,
+                                          ElementsAttr &reduceDimsAttr,
+                                          bool &keepDims) const {
+    SmallVector<int64_t, 4> reduceDims;
+    if (!matchPattern(op.dim(), m_TorchConstantIntList(reduceDims)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+    int64_t N = reduceDims.size();
+    auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
+    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
+                                               llvm::makeArrayRef(reduceDims));
+
+    keepDims = false;
+    if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDims)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const keepdim parameter unsupported");
+
+    return success();
+  }
+};
+
+// This reduction op legalization template handles op variants that reduce in
+// only one explicit dim which is provided as a number (rather than a list), and
+// a keep_dims parameter.
+template <typename AtenOpT, ReductionConvFunc ConversionFuncT>
+class ConvertAtenOneDimReductionOp
+    : public ConvertAtenReductionOp<AtenOpT, ConversionFuncT> {
+  using ConvertAtenReductionOp<AtenOpT,
+                               ConversionFuncT>::ConvertAtenReductionOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
+                                          ConversionPatternRewriter &rewriter,
+                                          ElementsAttr &reduceDimsAttr,
+                                          bool &keepDims) const {
+    int64_t reduceDim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&reduceDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+    auto reduceDimsType = RankedTensorType::get({1}, rewriter.getI64Type());
+    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
+                                               llvm::makeArrayRef({reduceDim}));
+
+    keepDims = false;
+    if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDims)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const keepdim parameter unsupported");
+
+    return success();
+  }
+};
+
+// This reduction op legalization template handles op variants that reduce all
+// dims does not keep dims.
+template <typename AtenOpT, ReductionConvFunc ConversionFuncT>
+class ConvertAtenAllDimsReductionOp
+    : public ConvertAtenReductionOp<AtenOpT, ConversionFuncT> {
+public:
+  using ConvertAtenReductionOp<AtenOpT,
+                               ConversionFuncT>::ConvertAtenReductionOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
+                                          ConversionPatternRewriter &rewriter,
+                                          ElementsAttr &reduceDimsAttr,
+                                          bool &keepDims) const {
+    auto self = adaptor.self();
+    auto selfTy = self.getType().template cast<RankedTensorType>();
+
+    // Select all dims to reduce
+    SmallVector<int64_t, 4> reduceDims;
+    for (int64_t i = 0; i < selfTy.getRank(); i++)
+      reduceDims.push_back(i);
+    int64_t N = selfTy.getRank();
+    auto reduceDimsType = RankedTensorType::get({N}, rewriter.getI64Type());
+    reduceDimsAttr = DenseIntElementsAttr::get(reduceDimsType,
+                                               llvm::makeArrayRef(reduceDims));
+    keepDims = false;
+
+    return success();
+  }
+};
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -299,6 +451,36 @@ public:
     INSERT_BINARY_ADDSUB_PATTERN(AtenAddTensorOp, tosa::AddOp)
     INSERT_BINARY_ADDSUB_PATTERN(AtenSubTensorOp, tosa::SubOp)
 #undef INSERT_BINARY_ADDSUB_PATTERN
+
+#define INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)              \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenMultipleDimsReductionOp<AtenOp, ConversionFunc>>(    \
+      typeConverter, context);
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenMeanDimOp,
+                                      mlir::tosa::convertReduceMeanOp)
+    INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
+                                      mlir::tosa::convertReduceSumOp)
+#undef INSERT_NDIMS_REDUCTION_OP_PATTERN
+
+#define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenOneDimReductionOp<AtenOp, ConversionFunc>>(          \
+      typeConverter, context);
+    INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAnyDimOp,
+                                       mlir::tosa::convertReduceAnyOp)
+#undef INSERT_ONEDIM_REDUCTION_OP_PATTERN
+
+#define INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)            \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenAllDimsReductionOp<AtenOp, ConversionFunc>>(         \
+      typeConverter, context);
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenAllOp,
+                                        mlir::tosa::convertReduceAllOp)
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenAnyOp,
+                                        mlir::tosa::convertReduceAnyOp)
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenSumOp,
+                                        mlir::tosa::convertReduceSumOp)
+#undef INSERT_ALLDIMS_REDUCTION_OP_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
