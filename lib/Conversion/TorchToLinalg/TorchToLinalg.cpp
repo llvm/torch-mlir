@@ -3262,7 +3262,7 @@ public:
     SmallVector<Value> sizes(getTensorSizes(rewriter, loc, self));
     Value productResult =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    for (int i = 0; i < sizes.size(); i++)
+    for (size_t i = 0; i < sizes.size(); i++)
       productResult =
           rewriter.create<arith::MulIOp>(loc, productResult, sizes[i]);
     rewriter.replaceOp(op, castIndexToInt(rewriter, loc, productResult));

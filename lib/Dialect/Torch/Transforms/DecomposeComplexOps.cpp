@@ -449,7 +449,6 @@ public:
     Location loc = op.getLoc();
     Value input = op.self();
     Value output = op.result();
-    BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
     BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
     Value sum = rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.dtype());
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
