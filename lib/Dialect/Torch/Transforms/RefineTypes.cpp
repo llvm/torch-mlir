@@ -240,10 +240,10 @@ public:
             AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
             AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
-            AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenSqrtOp, AtenFloorOp,
-            AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
-            AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-            AtenAbsOp, AtenReciprocalOp>(op)) {
+            AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp,
+            AtenFloorOp, AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
+            AtenDropoutOp, AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp,
+            AtenAddIntOp, AtenAbsOp, AtenReciprocalOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -300,7 +300,8 @@ public:
       return visitAtenAdaptiveAvgPool2dOp(avgPool2d, operands);
     } else if (isa<AtenAddScalarOp, AtenSubScalarOp, AtenMulScalarOp,
                    AtenDivScalarOp, AtenFmodScalarOp, AtenFloorDivideScalarOp,
-                   AtenPowTensorScalarOp, AtenRsubScalarOp, AtenLeakyReluOp>(op)) {
+                   AtenPowTensorScalarOp, AtenRsubScalarOp, AtenLeakyReluOp>(
+                   op)) {
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
@@ -570,7 +571,7 @@ private:
   template <typename OpTy>
   ChangeResult
   visitAtenSoftmaxLikeOp(OpTy op,
-                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
   ChangeResult
   visitAtenAddCLikeOp(Operation *op,
@@ -1375,13 +1376,15 @@ ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   // if the scalar is part of a tensor operation (such as AtenMulScalar) or
   // not. In the former case, the type promotion rules are captured by the
   // `getDefaultDtypeForTorchScalar` helper above. The latter case follows the
-  // rules in https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/ScalarOps.h.
+  // rules in
+  // https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/ScalarOps.h.
   // `NumToTensor` falls in the latter case.
   Type type = op.a().getType();
   if (type.isa<Torch::FloatType>())
     knowledge.dtype = Float64Type::get(op.getContext());
   else if (type.isa<Torch::IntType>())
-    knowledge.dtype = IntegerType::get(op.getContext(), 64, IntegerType::Signed);
+    knowledge.dtype =
+        IntegerType::get(op.getContext(), 64, IntegerType::Signed);
 
   return getLatticeElement(op.getResult()).join(knowledge);
 }
