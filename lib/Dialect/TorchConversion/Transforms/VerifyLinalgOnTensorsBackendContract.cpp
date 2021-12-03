@@ -64,6 +64,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
+    target.addDynamicallyLegalDialect<AffineDialect>(opHasLegalTypes);
 
     // AssertOp is used to terminate the program for error guards.
     target.addLegalOp<AssertOp>();
