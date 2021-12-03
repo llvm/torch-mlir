@@ -1,5 +1,7 @@
 add_mlir_conversion_library(TorchMLIRTorchToTosa
   TorchToTosa.cpp
+  TosaLegalizeUtils.cpp
+  TosaLegalizeCommon.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToTosa
