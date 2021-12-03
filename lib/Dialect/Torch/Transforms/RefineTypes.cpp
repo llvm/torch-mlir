@@ -390,13 +390,11 @@ public:
       };
       return visitSliceLikeOp(indexSelect, operands, setDim);
     } else if (auto selectInt = dyn_cast<AtenSelectIntOp>(op)) {
-      // Select one element from the target dim. All the other dims are the same
-      // as input.
+      // Slices along dim at index. Result shape same as input except dim is
+      // removed.
       auto setDim = [](int64_t &targetDim, int64_t dim,
-                       ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-        targetDim = 1;
-      };
-      return visitSliceLikeOp(selectInt, operands, setDim);
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands) {};
+      return visitSliceLikeOp(selectInt, operands, setDim, /*keepDim=*/false);
     } else if (auto sliceTensor = dyn_cast<AtenSliceTensorOp>(op)) {
       // Select several elements from the target dim according to the start,
       // end, step. All the other dims are the same as input.
@@ -540,7 +538,7 @@ private:
   template <typename OpTy>
   ChangeResult
   visitSliceLikeOp(OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
-                   SetDimSizeFn setDim);
+                   SetDimSizeFn setDim, bool keepDim = true);
   ChangeResult
   visitAtenGatherOp(AtenGatherOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1222,7 +1220,7 @@ ChangeResult TypeAnalyzer::visitTypeConversionOp(
 template <typename OpTy>
 ChangeResult TypeAnalyzer::visitSliceLikeOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
-    SetDimSizeFn setDim) {
+    SetDimSizeFn setDim, bool keepDim) {
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
@@ -1248,6 +1246,8 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
   }
   knowledge.sizes = input.sizes;
   setDim(knowledge.sizes[dim], dim, operands);
+  if (!keepDim)
+    knowledge.sizes.erase(knowledge.sizes.begin() + dim);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

@@ -750,8 +750,8 @@ builtin.func @torch.aten.index_select$unknown_dim(%input: !torch.tensor<[2,3,4],
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
 // CHECK-SAME:                                        %[[INDEX:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
-// CHECK:           %[[RET:.*]] = torch.aten.select.int %[[INPUT]], %[[DIM]], %[[INDEX]] : !torch.tensor<[2,3,4],f32>, !torch.int, !torch.int -> !torch.tensor<[2,1,4],f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,1,4],f32> to !torch.tensor
+// CHECK:           %[[RET:.*]] = torch.aten.select.int %[[INPUT]], %[[DIM]], %[[INDEX]] : !torch.tensor<[2,3,4],f32>, !torch.int, !torch.int -> !torch.tensor<[2,4],f32>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[2,4],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
 builtin.func @torch.aten.select.int(%input: !torch.tensor<[2,3,4], f32>, %index: !torch.int) -> !torch.tensor {
