@@ -454,10 +454,9 @@ public:
       return visitAtenAddCLikeOp(op, operands);
     } else if (auto scalarOp = dyn_cast<AtenAddIntOp>(op)) {
       return visitBinaryScalarOp(scalarOp);
-    }else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
+    } else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
       return visitAtenNllLossForwardOp(nllForwardOp, operands);
     }
-
 
     // Otherwise, this is an unknown operation. Just mark all results as
     // having reached a pessimistic fixpoint.

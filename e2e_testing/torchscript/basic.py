@@ -900,7 +900,6 @@ class NumelModule(torch.nn.Module):
         None,
         ([-1, -1, -1], torch.float32, True),
     ])
-
     def forward(self, input):
         return torch.numel(input)
 
@@ -918,10 +917,89 @@ class NumelZeroRankModule(torch.nn.Module):
         None,
         ([], torch.int64, True),
     ])
-
     def forward(self, input):
         return torch.numel(input)
 
 @register_test_case(module_factory=lambda: NumelZeroRankModule())
 def NumelZeroRankModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10,[]))
+
+
+class ZerosModuleInt2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: ZerosModuleInt2D())
+def ZerosModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ZerosModuleInt3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4, 5, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: ZerosModuleInt3D())
+def ZerosModuleInt3D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ZerosModuleFloat2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: ZerosModuleFloat2D())
+def ZerosModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ZerosModuleFloat3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4, 5, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: ZerosModuleFloat3D())
+def ZerosModuleFloat3D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ZerosModuleFalsePinMemory(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4, dtype=torch.float32, pin_memory=False)
+
+@register_test_case(module_factory=lambda: ZerosModuleFalsePinMemory())
+def ZerosModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()
