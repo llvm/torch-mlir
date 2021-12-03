@@ -449,7 +449,7 @@ public:
       return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     } else if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
       return visitNumToTensorOp(numToTensorOp);
-    } else if (isa<AtenAddCMulOp, AtenAddCDivOp>(op)) {
+    } else if (isa<AtenAddcmulOp, AtenAddcdivOp>(op)) {
       return visitAtenAddCLikeOp(op, operands);
     } else if (auto scalarOp = dyn_cast<AtenAddIntOp>(op)) {
       return visitBinaryScalarOp(scalarOp);

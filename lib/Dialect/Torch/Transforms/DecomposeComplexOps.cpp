@@ -449,7 +449,6 @@ public:
     Location loc = op.getLoc();
     Value input = op.self();
     Value output = op.result();
-    BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
     BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
     Value sum = rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.dtype());
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
@@ -519,10 +518,10 @@ class DecomposeComplexOpsPass
       // Make aten.matmul legal if the following condition is satisfied.
       return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
     });
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddCMulOp, AtenMulTensorOp>>(context);
-    target.addIllegalOp<AtenAddCMulOp>();
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddCDivOp, AtenDivTensorOp>>(context);
-    target.addIllegalOp<AtenAddCDivOp>();
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(context);
+    target.addIllegalOp<AtenAddcmulOp>();
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(context);
+    target.addIllegalOp<AtenAddcdivOp>();
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
       return signalPassFailure();
