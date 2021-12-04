@@ -29,6 +29,7 @@ REFBACKEND_XFAIL_SET = set.union(COMMON_TORCH_MLIR_LOWERING_XFAILS, SIZE_ZERO_TE
 # and very few tests work yet.
 TOSA_PASS_SET = {
     "ElementwiseUnaryModule_basic",
+    "ElementwiseBinaryModule_basic",
     "ElementwiseSigmoidModule_basic",
     "ElementwiseReluModule_basic",
     "ElementwiseFloorModule_basic",
