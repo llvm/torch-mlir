@@ -93,11 +93,11 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
                                                      unsigned regionIndex,
                                                      unsigned argIndex,
                                                      NamedAttribute namedAttr) {
-  if (namedAttr.first == "torch.type_bound") {
+  if (namedAttr.getName().getValue() == "torch.type_bound") {
     auto func = dyn_cast<FuncOp>(op);
     if (!func)
       return op->emitError() << "'torch.type_bound' must be attached to a func";
-    TypeAttr attr = namedAttr.second.dyn_cast<TypeAttr>();
+    TypeAttr attr = namedAttr.getValue().dyn_cast<TypeAttr>();
     if (!attr)
       return op->emitError() << "'torch.type_bound' must be TypeAttr";
     auto type = attr.getValue().dyn_cast<BaseTensorType>();
@@ -110,8 +110,8 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
     return success();
   }
 
-  return op->emitError() << "unknown region arg attribute '" << namedAttr.first
-                         << "'";
+  return op->emitError() << "unknown region arg attribute '"
+                         << namedAttr.getName().getValue() << "'";
 }
 
 //===----------------------------------------------------------------------===//
