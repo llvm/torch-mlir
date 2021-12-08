@@ -40,4 +40,7 @@ TOSA_PASS_SET = {
     "AddCMulModule_basic",
     "AddCDivModule_basic",
     "SqueezeModule_broadcast",
+    "BoolTensorReturnFalseModule_basic",
+    "BoolTensorReturnTrueModule_basic",
+    "BoolTensorReturnMixedModule_basic",
 }

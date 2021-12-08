@@ -56,6 +56,8 @@ static bool isArgMemRefTypeValid(Type type) {
         return true;
       if (integerTy.isSignlessInteger(32))
         return true;
+      if (integerTy.isSignlessInteger(1))
+        return true;
     }
   }
   return false;
@@ -128,7 +130,7 @@ static LogicalResult mungeFunction(
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type))
       return emitError(arg.getLoc(),
-                       "argument must be a memref of f32, f64, i32, i64");
+                       "argument must be a memref of f32, f64, i32, i64, i1");
     auto cast = b.create<memref::CastOp>(arg.getLoc(), arg, type);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
@@ -163,7 +165,7 @@ static LogicalResult mungeFunction(
     if (supportedConsumeFuncReturnFuncs.find(funcName) == supportedFuncsEnd) {
       op.emitError(
           "must have one return value of memref types or scalar types "
-          "of i32, i64, f32, f64 or three return values of memref f32");
+          "of i32, i64, f32, f64, i1, or three return values of memref f32");
       isSupported = false;
     }
 
@@ -182,6 +184,7 @@ static LogicalResult mungeFunction(
 
 static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
   std::set<std::string> funcNames;
+  Type mri1 = UnrankedMemRefType::get(b.getI1Type(), 0);
   Type mri32 = UnrankedMemRefType::get(b.getI32Type(), 0);
   Type mri64 = UnrankedMemRefType::get(b.getI64Type(), 0);
   Type mrf32 = UnrankedMemRefType::get(b.getF32Type(), 0);
@@ -191,7 +194,7 @@ static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
   Type f64 = b.getF64Type();
 
   SmallVector<TypeRange> supportedReturnTypes = {
-      mri32, mri64, mrf32, mrf64, i64, f32, f64, {mrf32, mrf32, mrf32}};
+      mri1, mri32, mri64, mrf32, mrf64, i64, f32, f64, {mrf32, mrf32, mrf32}};
 
   llvm::for_each(supportedReturnTypes, [&](TypeRange &types) {
     funcNames.insert(getConsumeReturnFunctionNameForReturnTypes(types));

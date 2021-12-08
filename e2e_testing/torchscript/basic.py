@@ -1003,3 +1003,57 @@ class ZerosModuleFalsePinMemory(torch.nn.Module):
 @register_test_case(module_factory=lambda: ZerosModuleFalsePinMemory())
 def ZerosModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward()
+
+
+class BoolTensorReturnFalseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return a
+
+
+@register_test_case(module_factory=lambda: BoolTensorReturnFalseModule())
+def BoolTensorReturnFalseModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 0], dtype=torch.bool))
+
+
+class BoolTensorReturnTrueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return a
+
+
+@register_test_case(module_factory=lambda: BoolTensorReturnTrueModule())
+def BoolTensorReturnTrueModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([1, 1, 1, 1, 1], dtype=torch.bool))
+
+
+class BoolTensorReturnMixedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, a):
+        return a
+
+
+@register_test_case(module_factory=lambda: BoolTensorReturnMixedModule())
+def BoolTensorReturnMixedModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[1, 0], [0,1]], dtype=torch.bool))
