@@ -1684,6 +1684,27 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value expPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);
   }
+
+  if (auto gtScalar = dyn_cast<AtenGtScalarOp>(op)) {
+    Type dtype = gtScalar.self().getType().cast<ValueTensorType>().getDtype();
+    if (!dtype.isa<mlir::FloatType>()) {
+      gtScalar.emitError("unimplemented: non-floating point operand dtype");
+      return nullptr;
+    }
+    Value otherPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
+    return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                   payloadArgs[0], otherPromoted);
+  }
+
+  if (auto whereSelf = dyn_cast<AtenWhereSelfOp>(op)) {
+    Type dtype = converter->convertType(whereSelf.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[2], dtype);
+    return b.create<SelectOp>(loc, payloadArgs[0], lhs, rhs);
+  }
+
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
     if (!lerp.getType()
              .cast<ValueTensorType>()
@@ -2040,7 +2061,7 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenClampOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
              AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op,
              AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
-             AtenBitwiseAndTensorOp>(op))
+             AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenWhereSelfOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -3461,7 +3482,8 @@ public:
         AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp,
         AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp, AtenSqrtOp,
         AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenAbsOp,
-        AtenReciprocalOp, AtenBitwiseAndTensorOp>();
+        AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
+        AtenWhereSelfOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);

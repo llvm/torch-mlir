@@ -1071,6 +1071,22 @@ def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
   let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
 }
 
+def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$condition,
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$condition `,` $self `,` $other attr-dict `:` type($condition) `,` type($self) `,` type($other) `->` type($result)";
+}
+
 def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
     AllowsTypeRefinement,
     HasValueSemantics
