@@ -24,7 +24,7 @@ __all__ = [
 
 
 def checkArgTypeIsSupported(ty):
-    SUPPORTED = [np.float32, np.float64, np.int32, np.int64]
+    SUPPORTED = [np.float32, np.float64, np.int32, np.int64, np.bool_]
     assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
 
 
@@ -32,6 +32,10 @@ class RefBackendInvoker:
     def __init__(self, module):
         self.ee = ExecutionEngine(module)
         self.result = None
+
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_return_mri1(a):
+            self.result = unranked_memref_to_numpy(a, np.bool_)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return_mri32(a):
@@ -69,6 +73,9 @@ class RefBackendInvoker:
                 arg0, np.float32), unranked_memref_to_numpy(
                     arg1,
                     np.float32), unranked_memref_to_numpy(arg2, np.float32)
+
+        self.ee.register_runtime("refbackend_consume_func_return_mri1",
+                                 consume_return_mri1)
 
         self.ee.register_runtime("refbackend_consume_func_return_mri32",
                                  consume_return_mri32)
