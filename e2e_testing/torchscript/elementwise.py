@@ -85,6 +85,29 @@ def ElementwiseTernaryModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseWhereSelfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, a, b, c):
+        return torch.where(a > 0.5, b, c)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereSelfModule())
+def ElementwiseWhereSelfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(4, 5), tu.rand(5))
+
+
+# ==============================================================================
+
+
 # Addition is an interesting special case of a binary op, because under the hood
 # it carries a third scalar "alpha" parameter, which needs special handling.
 class ElementwiseAddModule(torch.nn.Module):
@@ -299,6 +322,26 @@ class ElementwiseMaximumModule(torch.nn.Module):
 def ElementwiseMaximumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
     module.forward(tu.nans(3, 5), tu.rand(3, 5))
+
+# ==============================================================================
+
+
+class ElementwiseGtScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.gt(x, 0.6)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtScalarModule())
+def ElementwiseGtScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
 
 # ==============================================================================
 

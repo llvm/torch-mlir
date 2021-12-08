@@ -235,9 +235,8 @@ public:
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
     if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
             AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp,
-            AtenGeluBackwardOp, AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp,
-            AtenNeScalarOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp, AtenCosOp,
-            AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
+            AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp,
+            AtenCosOp, AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
             AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
             AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp,
@@ -245,6 +244,20 @@ public:
             AtenDropoutOp, AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp,
             AtenAddIntOp, AtenAbsOp, AtenReciprocalOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
+    }
+
+    // These comparison ops return a tensor with 1-bit integer dtype.
+    if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenNeScalarOp>(
+            op)) {
+      auto operand = operands[0]->getValue();
+      auto knowledge =
+          ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+      if (operand.hasSizes) {
+        knowledge.hasSizes = true;
+        knowledge.sizes = operand.sizes;
+      }
+      knowledge.dtype = IntegerType::get(op->getContext(), 1);
+      return getLatticeElement(op->getResult(0)).join(knowledge);
     }
 
     // Resize to [1, 1] with integer dtype.
@@ -307,6 +320,8 @@ public:
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
                    AtenMinimumOp, AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
       return visitBinaryBroadcastingOp(op, operands);
+    } else if (auto whereSelf = llvm::dyn_cast<AtenWhereSelfOp>(op)) {
+      return visitAtenWhereSelfOp(whereSelf, operands);
     } else if (auto lerpTensor = llvm::dyn_cast<AtenLerpTensorOp>(op)) {
       return visitAtenLerpTensorOp(lerpTensor, operands);
     } else if (auto flatten = dyn_cast<AtenFlattenUsingIntsOp>(op)) {
@@ -486,6 +501,9 @@ private:
       Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitBinaryBroadcastingOp(
       Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenWhereSelfOp(AtenWhereSelfOp op,
+                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenLerpTensorOp(AtenLerpTensorOp op,
                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -852,6 +870,25 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   // The alpha in `aten.add.Tensor` and `aten.sub.Tensor` has to be lower type
   // category than the lhs and rhs and therefore doesn't really contribute to
   // type promotion.
+  knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenWhereSelfOp(
+    AtenWhereSelfOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto condition = operands[0]->getValue();
+  auto lhs = operands[1]->getValue();
+  auto rhs = operands[2]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(getContext());
+  if (condition.hasSizes && lhs.hasSizes && rhs.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes.resize(
+        std::max(condition.sizes.size(),
+                 std::max(lhs.sizes.size(), rhs.sizes.size())),
+        kUnknownSize);
+  }
+
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }

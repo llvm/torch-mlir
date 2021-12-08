@@ -479,6 +479,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
         emit("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
         emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
         emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
         emit("aten::gelu : (Tensor) -> (Tensor)")
