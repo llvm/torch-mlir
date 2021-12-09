@@ -512,6 +512,36 @@ def Torch_AtenEq_TensorOp : Torch_Op<"aten.eq_.Tensor", [
   let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
 }
 
+def Torch_AtenGtTensorOp : Torch_Op<"aten.gt.Tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+}
+
+def Torch_AtenGt_TensorOp : Torch_Op<"aten.gt_.Tensor", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::gt_.Tensor : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+}
+
 def Torch_AtenNeTensorOp : Torch_Op<"aten.ne.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -1069,22 +1099,6 @@ def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
-}
-
-def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
-    AllowsTypeRefinement,
-    HasValueSemantics
-  ]> {
-  let summary = "Generated op for `aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$condition,
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$other
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$condition `,` $self `,` $other attr-dict `:` type($condition) `,` type($self) `,` type($other) `->` type($result)";
 }
 
 def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
@@ -1942,6 +1956,23 @@ def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
   let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `->` type($result)";
 }
 
+def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$boundaries,
+    Torch_BoolType:$out_int32,
+    Torch_BoolType:$right
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $boundaries `,` $out_int32 `,` $right attr-dict `:` type($self) `,` type($boundaries) `,` type($out_int32) `,` type($right) `->` type($result)";
+}
+
 def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
     AllowsTypeRefinement
   ]> {
@@ -2000,6 +2031,25 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$weight `,` $indices `,` $padding_idx `,` $scale_grad_by_freq `,` $sparse attr-dict `:` type($weight) `,` type($indices) `,` type($padding_idx) `,` type($scale_grad_by_freq) `,` type($sparse) `->` type($result)";
+}
+
+def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory,
+    TorchOptionalIntType:$memory_format
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `,` type($memory_format) `->` type($result)";
 }
 
 def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
@@ -2137,6 +2187,20 @@ def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $repeats attr-dict `:` type($self) `,` type($repeats) `->` type($result)";
+}
+
+def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::reshape : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$shape
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $shape attr-dict `:` type($self) `,` type($shape) `->` type($result)";
 }
 
 def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
@@ -2310,6 +2374,22 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $size attr-dict `:` type($self) `,` type($size) `->` type($result)";
+}
+
+def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$condition,
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$condition `,` $self `,` $other attr-dict `:` type($condition) `,` type($self) `,` type($other) `->` type($result)";
 }
 
 def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
