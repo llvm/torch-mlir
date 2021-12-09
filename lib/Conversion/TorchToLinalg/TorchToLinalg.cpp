@@ -3329,41 +3329,43 @@ struct ConvertAtenOnesZerosOp : ConversionPattern {
       return failure();
     Location loc = op->getLoc();
 
-    SmallVector<Value, 3> opArguments;
+    Value size, layout, pin_memory;
     int64_t elementValue;
 
     if (AtenOnesOp onesOp = dyn_cast<AtenOnesOp>(op)) {
-      opArguments.insert(opArguments.end(),
-                         {onesOp.size(), onesOp.layout(), onesOp.pin_memory()});
+      size = onesOp.size();
+      layout = onesOp.layout();
+      pin_memory = onesOp.pin_memory();
       elementValue = 1;
     } else if (AtenZerosOp zerosOp = dyn_cast<AtenZerosOp>(op)) {
-      opArguments.insert(opArguments.end(), {zerosOp.size(), zerosOp.layout(),
-                                             zerosOp.pin_memory()});
+      size = zerosOp.size();
+      layout = zerosOp.layout();
+      pin_memory = zerosOp.pin_memory();
       elementValue = 0;
     }
 
     // We ignore device, but add simple asserts for unimplemented kwargs
-    if (!opArguments[1].getType().isa<Torch::NoneType>())
+    if (!layout.getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(op,
                                          "only default layout is supported");
 
     bool pinMemory = false;
-    if (!opArguments[2].getType().isa<Torch::NoneType>() &&
-        !matchPattern(opArguments[2], m_TorchConstantBool(&pinMemory))) {
+    if (!pin_memory.getType().isa<Torch::NoneType>() &&
+        !matchPattern(pin_memory, m_TorchConstantBool(&pinMemory))) {
       return rewriter.notifyMatchFailure(
           op, "pin_memory must be constant bool or None");
     }
     if (pinMemory)
       return rewriter.notifyMatchFailure(op, "memory pinning not supported");
 
-    SmallVector<Value> size, sizeIndex;
-    if (!getListConstructElements(opArguments[0], size)) {
+    SmallVector<Value> sizes, sizeIndex;
+    if (!getListConstructElements(size, sizes)) {
       return rewriter.notifyMatchFailure(
           op, "size must be created by ListConstruct");
     }
-    size = getTypeConvertedValues(rewriter, loc, getTypeConverter(), size);
-    for (size_t i = 0; i < size.size(); i++)
-      sizeIndex.push_back(castIntToIndex(rewriter, loc, size[i]));
+    sizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(), sizes);
+    for (size_t i = 0; i < sizes.size(); i++)
+      sizeIndex.push_back(castIntToIndex(rewriter, loc, sizes[i]));
 
     RankedTensorType newResultType =
         getTypeConverter()
