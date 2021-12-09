@@ -477,6 +477,33 @@ class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
     return success();
   }
 };
+
+class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
+  using OpRewritePattern<AtenLayerNormOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLayerNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    auto input = op.input().getType().cast<BaseTensorType>();
+    if (!input.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "input tensor should have known sizes.");
+    int64_t inputRank = input.getSizes().size();
+    Value normalizedShape = op.normalized_shape();
+    SmallVector<Value> normalizedShapeSizesTorchInt;
+    getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
+    std::vector<int64_t> meanVarSizes;
+    for (int i = normalizedShapeSizesTorchInt.size(); i < inputRank; i++)
+      meanVarSizes.push_back(input.getSizes()[i]);
+    auto meanVarType = input.getWithSizesAndDtype(
+        llvm::makeArrayRef(meanVarSizes), input.getDtype());
+    auto nativeLayerNorm = rewriter.create<AtenNativeLayerNormOp>(
+        loc, op.getType(), meanVarType, meanVarType, op.input(),
+        op.normalized_shape(), op.weight(), op.bias(), op.eps());
+    rewriter.replaceOp(op, nativeLayerNorm.getResult(0));
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -522,6 +549,9 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenAddcmulOp>();
     patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(context);
     target.addIllegalOp<AtenAddcdivOp>();
+    target.addIllegalOp<AtenLayerNormOp>();
+    patterns.add<DecomposeAtenLayerNormOp>(context);
+
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
       return signalPassFailure();

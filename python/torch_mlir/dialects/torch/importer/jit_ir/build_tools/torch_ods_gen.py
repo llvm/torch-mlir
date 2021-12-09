@@ -502,6 +502,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit(
             "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
         )
+        emit (
+            "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"
+        )
         emit(
             "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
         )
