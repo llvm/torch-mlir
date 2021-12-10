@@ -320,6 +320,8 @@ public:
                    AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
                    AtenMinimumOp, AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
       return visitBinaryBroadcastingOp(op, operands);
+    } else if (isa<AtenGtTensorOp>(op)) {
+      return visitBinaryBroadcastingComparisonOp(op, operands);
     } else if (auto whereSelf = llvm::dyn_cast<AtenWhereSelfOp>(op)) {
       return visitAtenWhereSelfOp(whereSelf, operands);
     } else if (auto lerpTensor = llvm::dyn_cast<AtenLerpTensorOp>(op)) {
@@ -504,6 +506,8 @@ private:
   ChangeResult visitBinaryTensorScalarOp(
       Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitBinaryBroadcastingOp(
+      Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitBinaryBroadcastingComparisonOp(
       Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenWhereSelfOp(AtenWhereSelfOp op,
@@ -881,6 +885,21 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   // category than the lhs and rhs and therefore doesn't really contribute to
   // type promotion.
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto lhs = operands[0]->getValue();
+  auto rhs = operands[1]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(getContext());
+  if (lhs.hasSizes && rhs.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
+                           kUnknownSize);
+  }
+  knowledge.dtype = IntegerType::get(op->getContext(), 1); 
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 

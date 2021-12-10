@@ -343,6 +343,42 @@ class ElementwiseGtScalarModule(torch.nn.Module):
 def ElementwiseGtScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+class ElementwiseGtFloatTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.gt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtFloatTensorModule())
+def ElementwiseGtFloatTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(5))
+
+class ElementwiseGtIntTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.gt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtIntTensorModule())
+def ElementwiseGtIntTensorModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (5,)))
+
 # ==============================================================================
 
 
