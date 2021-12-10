@@ -473,6 +473,8 @@ public:
       return visitBinaryScalarOp(scalarOp);
     } else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
       return visitAtenNllLossForwardOp(nllForwardOp, operands);
+    } else if (auto nativeLayerNormOp = dyn_cast<AtenNativeLayerNormOp>(op)) {
+      return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -609,6 +611,9 @@ private:
   ChangeResult
   visitAtenNllLossForwardOp(AtenNllLossForwardOp op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitAtenNativeLayerNormOp(
+      AtenNativeLayerNormOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1605,6 +1610,45 @@ ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
+ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
+    AtenNativeLayerNormOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+
+  auto layerNormKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto meanKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto varKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+
+  layerNormKnowledge.hasSizes = input.hasSizes;
+  layerNormKnowledge.sizes = input.sizes;
+  layerNormKnowledge.dtype = input.dtype;
+
+  int64_t layerNormSize = input.sizes.size();
+  Value normalizedShape = op.normalized_shape();
+  SmallVector<Value> normalizedShapeSizesTorchInt;
+  getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
+  std::vector<int64_t> meanVarSizes;
+  if (input.hasSizes) {
+    for (int i = normalizedShapeSizesTorchInt.size(); i < layerNormSize; i++)
+      meanVarSizes.push_back(input.sizes[i]);
+  }
+  meanKnowledge.hasSizes = input.hasSizes;
+  meanKnowledge.sizes = meanVarSizes;
+  meanKnowledge.dtype = input.dtype;
+  varKnowledge.hasSizes = input.hasSizes;
+  varKnowledge.sizes = meanVarSizes;
+  varKnowledge.dtype = input.dtype;
+
+  auto resultLattice =
+      getLatticeElement(op.getResult(0)).join(layerNormKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(1)).join(meanKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(2)).join(varKnowledge);
+
+  return resultLattice;
+}
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------

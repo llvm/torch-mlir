@@ -693,11 +693,12 @@ public:
 // Step 4. Get var.
 // Step 5. Get layernorm.
 namespace {
-class ConvertAtenLayerNormOp : public OpConversionPattern<AtenLayerNormOp> {
+class ConvertAtenNativeLayerNormOp
+    : public OpConversionPattern<AtenNativeLayerNormOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenLayerNormOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenNativeLayerNormOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = op->getContext();
     Location loc = op->getLoc();
@@ -889,9 +890,14 @@ public:
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
-
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, layerNorm);
+    Type layerNormResultType = getTypeConverter()->convertType(op.getType(0));
+    Type meanResultType = getTypeConverter()->convertType(op.getType(1));
+    Type varResultType = getTypeConverter()->convertType(op.getType(2));
+    Value layerNorm_ =
+        rewriter.create<tensor::CastOp>(loc, layerNormResultType, layerNorm);
+    Value mean_ = rewriter.create<tensor::CastOp>(loc, meanResultType, mean);
+    Value var_ = rewriter.create<tensor::CastOp>(loc, varResultType, var);
+    rewriter.replaceOp(op, {layerNorm_, mean_, var_});
     return success();
   }
 };
@@ -3659,8 +3665,8 @@ public:
     patterns.add<ConvertAtenCatOp>(typeConverter, context);
     target.addIllegalOp<AtenGatherOp>();
     patterns.add<ConvertAtenGatherOp>(typeConverter, context);
-    target.addIllegalOp<AtenLayerNormOp>();
-    patterns.add<ConvertAtenLayerNormOp>(typeConverter, context);
+    target.addIllegalOp<AtenNativeLayerNormOp>();
+    patterns.add<ConvertAtenNativeLayerNormOp>(typeConverter, context);
     target.addIllegalOp<AtenBroadcastToOp>();
     patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
     target.addIllegalOp<AtenArgmaxOp>();
