@@ -443,8 +443,24 @@ def RsubModule_noalpha_basic(module, tu: TestUtils):
     
 # ==============================================================================
 
+class ElementwiseMulScalarIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
 
-class ElementwiseMulScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.mul(x, 4)
+
+@register_test_case(module_factory=lambda: ElementwiseMulScalarIntModule())
+def ElementwiseMulScalarModule_int(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 4)))
+
+
+class ElementwiseMulScalarFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -456,10 +472,26 @@ class ElementwiseMulScalarModule(torch.nn.Module):
     def forward(self, x):
         return torch.mul(x, 100.0)
 
-@register_test_case(module_factory=lambda: ElementwiseMulScalarModule())
-def ElementwiseMulScalarModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ElementwiseMulScalarFloatModule())
+def ElementwiseMulScalarModule_float(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+
+class ElementwiseMulScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.mul(x, 8.0)
+
+@register_test_case(module_factory=lambda: ElementwiseMulScalarModule())
+def ElementwiseMulScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 4)))
 
 
 class ElementwiseMulTensorFloatModule(torch.nn.Module):

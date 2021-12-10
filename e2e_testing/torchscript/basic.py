@@ -637,6 +637,57 @@ def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class EmptyIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return 0 * torch.empty((3, 4), dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: EmptyIntModule())
+def EmptyModule_int(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class EmptyFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.abs(torch.empty((3, 4), dtype=torch.float32)) > -1.0
+
+@register_test_case(module_factory=lambda: EmptyFloatModule())
+def EmptyModule_float(module, tu: TestUtils):
+    module.forward()
+
+
+class EmptyFalsePinMemoryModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.abs(torch.empty((3, 4), dtype=torch.float32, 
+                                     pin_memory=False)) > -1.0 
+
+@register_test_case(module_factory=lambda: EmptyFalsePinMemoryModule())
+def EmptyModule_falsePinMemory(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
 class ContiguousModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
