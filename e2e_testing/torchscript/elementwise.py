@@ -326,7 +326,7 @@ def ElementwiseMaximumModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseGtScalarModule(torch.nn.Module):
+class ElementwiseGtFloatScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -339,9 +339,46 @@ class ElementwiseGtScalarModule(torch.nn.Module):
         return torch.gt(x, 0.6)
 
 
-@register_test_case(module_factory=lambda: ElementwiseGtScalarModule())
-def ElementwiseGtScalarModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ElementwiseGtFloatScalarModule())
+def ElementwiseGtFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
+
+
+class ElementwiseGtIntScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.gt(x, 10)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtIntScalarModule())
+def ElementwiseGtIntScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-10, 15, (3,4)))
+
+
+class ElementwiseGtMixed2ScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.gt(x, 7)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtMixed2ScalarModule())
+def ElementwiseGtMixed2ScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-10, 15, (3,4)).to(torch.int32))
+
 
 class ElementwiseGtFloatTensorModule(torch.nn.Module):
     def __init__(self):
@@ -360,6 +397,7 @@ class ElementwiseGtFloatTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseGtFloatTensorModule())
 def ElementwiseGtFloatTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(5))
+
 
 class ElementwiseGtIntTensorModule(torch.nn.Module):
     def __init__(self):
