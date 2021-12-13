@@ -1735,14 +1735,33 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto gtScalar = dyn_cast<AtenGtScalarOp>(op)) {
-    Type dtype = gtScalar.self().getType().cast<ValueTensorType>().getDtype();
-    if (!dtype.isa<mlir::FloatType>()) {
-      gtScalar.emitError("unimplemented: non-floating point operand dtype");
-      return nullptr;
+    Type dtype = gtScalar.self().getType().cast<BaseTensorType>().getDtype();
+
+    // TODO: `gtTensor` and `gtScalar` share similar code and can be called from
+    // one static function.
+    Value otherPromoted =
+        convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
+
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
+                                     payloadArgs[0], otherPromoted);
+    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+      if (!operands[1].getType().isa<mlir::IntegerType>()) {
+        // TODO: Promote tensor args from integer to float.
+        gtScalar.emitError(
+            "unimplemented: type promotion from tensor to scalar.");
+        return nullptr;
+      }
+
+      if (intType.isUnsigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt,
+                                       payloadArgs[0], otherPromoted);
+      if (intType.isSigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt,
+                                       payloadArgs[0], otherPromoted);
     }
-    Value otherPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
-    return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                   payloadArgs[0], otherPromoted);
+    gtScalar.emitError("unimplemented: dtype isn't supported.");
+    return nullptr;
   }
 
   if (auto whereSelf = dyn_cast<AtenWhereSelfOp>(op)) {
