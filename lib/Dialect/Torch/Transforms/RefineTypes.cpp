@@ -237,7 +237,7 @@ public:
             AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp,
             AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp,
             AtenCosOp, AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
-            AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
+            AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp, AtenEmptyLikeOp,
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp,
             AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
