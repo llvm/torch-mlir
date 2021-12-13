@@ -1143,3 +1143,20 @@ class BoolTensorReturnMixedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BoolTensorReturnMixedModule())
 def BoolTensorReturnMixedModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[1, 0], [0,1]], dtype=torch.bool))
+
+
+class CumsumModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 2, 3], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.cumsum(a, 0)
+
+@register_test_case(module_factory=lambda: CumsumModule())
+def CumsumModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 3))

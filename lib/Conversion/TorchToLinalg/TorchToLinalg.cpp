@@ -3734,6 +3734,90 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenCumsumOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+
+    Location loc = op.getLoc();
+    Value input = adaptor.self();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    Type elementType = inputType.getElementType();
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+
+    // Initialize the result tensor.
+    SmallVector<Value> resultOutputDims;
+    for (auto i = 0; i < inputRank; i++)
+      resultOutputDims.push_back(getDimOp(rewriter, loc, input, i));
+    Value cumsumTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultOutputDims, elementType);
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value> offsets(inputRank, zero);
+    SmallVector<Value> strides(inputRank, one);
+    SmallVector<Value> sliceBounds;
+    sliceBounds.reserve(inputRank);
+    for (unsigned i = 0; i < inputRank; i++) {
+      Value dimShapeVal = getDimOp(rewriter, loc, input, i);
+      sliceBounds.push_back(dimShapeVal);
+    }
+    sliceBounds[dim] = one;
+    Value firstSlice = rewriter.create<tensor::ExtractSliceOp>(
+        loc, input, offsets, sliceBounds, strides);
+    cumsumTensor = rewriter.create<tensor::InsertSliceOp>(
+        loc, firstSlice, cumsumTensor, offsets, sliceBounds, strides);
+    SmallVector<AffineMap> indexingMaps(
+        2, rewriter.getMultiDimIdentityMap(inputRank));
+    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+
+    // Perform cumulative summation.
+    for (int i = 1; i < inputShape[dim]; i++) {
+      Value currIndex = rewriter.create<arith::ConstantIndexOp>(loc, i);
+      Value prevIndex = rewriter.create<arith::ConstantIndexOp>(loc, i - 1);
+      offsets[dim] = prevIndex;
+      sliceBounds[dim] = one;
+      Value cumsumSlice = rewriter.create<tensor::ExtractSliceOp>(
+          loc, cumsumTensor, offsets, sliceBounds, strides);
+      offsets[dim] = currIndex;
+      sliceBounds[dim] = one;
+      Value inputSlice = rewriter.create<tensor::ExtractSliceOp>(
+          loc, input, offsets, sliceBounds, strides);
+      Value sum =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, cumsumSlice.getType(), inputSlice, cumsumSlice,
+                  indexingMaps, iteratorTypes,
+                  [&](OpBuilder &b, Location loc, ValueRange args) {
+                    Value result;
+                    if (elementType.isa<mlir::FloatType>())
+                      result = b.create<arith::AddFOp>(loc, args[0], args[1]);
+                    else if (elementType.isa<mlir::IntegerType>())
+                      result = b.create<arith::AddIOp>(loc, args[0], args[1]);
+                    b.create<linalg::YieldOp>(loc, result);
+                  })
+              .getResult(0);
+      cumsumTensor = rewriter.create<tensor::InsertSliceOp>(
+          loc, sum, cumsumTensor, offsets, sliceBounds, strides);
+    }
+    auto outType = getTypeConverter()
+                       ->convertType(op->getResult(0).getType())
+                       .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, cumsumTensor);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -3845,6 +3929,8 @@ public:
     patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
     patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
     target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
+    target.addIllegalOp<AtenCumsumOp>();
+    patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
