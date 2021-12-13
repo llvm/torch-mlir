@@ -663,7 +663,7 @@ class EmptyFloatModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.abs(torch.empty((3, 4), dtype=torch.float32)) > -1.0
+        return torch.pow(torch.empty((3, 4), dtype=torch.float32), 0)
 
 @register_test_case(module_factory=lambda: EmptyFloatModule())
 def EmptyModule_float(module, tu: TestUtils):
@@ -679,12 +679,48 @@ class EmptyFalsePinMemoryModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.abs(torch.empty((3, 4), dtype=torch.float32, 
-                                     pin_memory=False)) > -1.0 
+        return torch.pow(torch.empty((3, 4), dtype=torch.float32, 
+                                     pin_memory=False), 0)
 
 @register_test_case(module_factory=lambda: EmptyFalsePinMemoryModule())
 def EmptyModule_falsePinMemory(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class EmptyLikeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return 0 * torch.empty_like(a, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: EmptyLikeIntModule())
+def EmptyLikeModule_int(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 5)))
+
+# ==============================================================================
+
+class EmptyLikeFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.pow(torch.empty_like(a, dtype=torch.float32), 0)
+
+@register_test_case(module_factory=lambda: EmptyLikeFloatModule())
+def EmptyLikeModule_float(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5))
 
 # ==============================================================================
 
