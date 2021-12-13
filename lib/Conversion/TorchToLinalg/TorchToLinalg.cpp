@@ -3594,6 +3594,72 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenCumsumOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = adaptor.self();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    Type elementType = inputType.getElementType();
+
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    SmallVector<AffineExpr> indexExprs;
+    for (int i = 0; i < inputRank; i++) {
+      if (i == dim) {
+        indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()) -
+                             getAffineConstantExpr(1, context));
+      } else {
+        indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+      }
+    }
+    auto cumsumResultMap = AffineMap::get(inputRank, 0, indexExprs, context);
+    SmallVector<AffineMap> indexingMaps = {
+        rewriter.getMultiDimIdentityMap(inputRank), cumsumResultMap};
+    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    SmallVector<Value> resultOutputDims;
+    for (auto i = 0; i < inputRank; i++)
+      resultOutputDims.push_back(getDimOp(rewriter, loc, input, i));
+    Value cumsumTensor =
+        createZeroInitTensor(rewriter, loc, resultOutputDims, elementType);
+    // llvm::errs()<<"before\n";
+    auto cumsumResult =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, cumsumTensor.getType(), input, cumsumTensor, indexingMaps,
+                iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value currIndex = b.create<linalg::IndexOp>(loc, 0);
+                  Value result = b.create<arith::AddFOp>(loc, args[0], args[1]);
+                  Value indexEqualToZero = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, currIndex, zero);
+                  Value output = b.create<SelectOp>(loc, indexEqualToZero,
+                                                    args[0], result);
+                  b.create<linalg::YieldOp>(loc, output);
+                })
+            .getResult(0);
+    auto outType = getTypeConverter()
+                       ->convertType(op->getResult(0).getType())
+                       .cast<RankedTensorType>();
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, cumsumResult);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -3698,6 +3764,7 @@ public:
     patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
     target.addIllegalOp<AtenIndexSelectOp>();
     patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
+    patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
