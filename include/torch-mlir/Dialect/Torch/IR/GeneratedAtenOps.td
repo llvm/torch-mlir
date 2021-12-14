@@ -1391,11 +1391,11 @@ def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
     Torch_FloatType:$eps
   );
   let results = (outs
-    AnyTorchTensorType:$layer_norm,
-    AnyTorchTensorType:$mean,
-    AnyTorchTensorType:$variance
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2
   );
-  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps attr-dict `:` type($input) `,` type($normalized_shape) `,` type($weight) `,` type($bias) `,` type($eps) `->` type($layer_norm) `,` type($mean) `,` type($variance)";
+  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps attr-dict `:` type($input) `,` type($normalized_shape) `,` type($weight) `,` type($bias) `,` type($eps) `->` type($result0) `,` type($result1) `,` type($result2)";
 }
 
 def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
