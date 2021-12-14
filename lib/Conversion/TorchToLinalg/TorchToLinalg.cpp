@@ -3616,40 +3616,75 @@ public:
     Type elementType = inputType.getElementType();
 
     Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    SmallVector<AffineExpr> indexExprs;
-    for (int i = 0; i < inputRank; i++) {
-      if (i == dim) {
-        indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()) -
-                             getAffineConstantExpr(1, context));
-      } else {
-        indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-      }
-    }
-    auto cumsumResultMap = AffineMap::get(inputRank, 0, indexExprs, context);
+    Value negOne = rewriter.create<arith::ConstantIndexOp>(loc, -1);
+    //SmallVector<AffineExpr> indexExprs;
+    //for (int i = 0; i < inputRank; i++) {
+      //if (i == dim) {
+        //indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()) -
+                             //getAffineConstantExpr(1, context));
+      //} else {
+        //indexExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+      //}
+    //}
+    //auto cumsumResultMap = AffineMap::get(inputRank, 0, indexExprs, context);
+
     SmallVector<AffineMap> indexingMaps = {
-        rewriter.getMultiDimIdentityMap(inputRank), cumsumResultMap};
+        rewriter.getMultiDimIdentityMap(inputRank),
+        rewriter.getMultiDimIdentityMap(inputRank)};
+
     SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+
     SmallVector<Value> resultOutputDims;
     for (auto i = 0; i < inputRank; i++)
       resultOutputDims.push_back(getDimOp(rewriter, loc, input, i));
     Value cumsumTensor =
         createZeroInitTensor(rewriter, loc, resultOutputDims, elementType);
-    // llvm::errs()<<"before\n";
+    Value resultTensor =
+        createZeroInitTensor(rewriter, loc, resultOutputDims, elementType);
+
+    Value extractFirst = rewriter.create<tensor::ExtractOp>(loc, input, zero);
+    rewriter.create<tensor::InsertOp>(loc, extractFirst, resultTensor, zero);
+    rewriter.create<tensor::InsertOp>(loc, extractFirst, cumsumTensor, zero);
+
     auto cumsumResult =
         rewriter
             .create<linalg::GenericOp>(
                 loc, cumsumTensor.getType(), input, cumsumTensor, indexingMaps,
                 iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value currIndex = b.create<linalg::IndexOp>(loc, 0);
-                  Value result = b.create<arith::AddFOp>(loc, args[0], args[1]);
+                  Value currIndex = b.create<linalg::IndexOp>(loc, dim);
+                  Value subtractIndex =
+                      b.create<arith::AddIOp>(loc, currIndex, negOne);
+
+                  SmallVector<Value> indexTarget;
+                  SmallVector<Value> indexTarget1;
+                  for (unsigned i = 0; i < inputRank; i++){
+                    indexTarget.push_back(b.create<linalg::IndexOp>(loc, i));
+                    indexTarget1.push_back(b.create<linalg::IndexOp>(loc, i));
+                    }
+                  indexTarget[dim] = subtractIndex;
+
                   Value indexEqualToZero = b.create<arith::CmpIOp>(
                       loc, arith::CmpIPredicate::eq, currIndex, zero);
-                  Value output = b.create<SelectOp>(loc, indexEqualToZero,
-                                                    args[0], result);
-                  b.create<linalg::YieldOp>(loc, output);
+
+                  Value extractedOutputElement = b.create<tensor::ExtractOp>(
+                      loc, resultTensor, indexTarget);
+
+                  Value result = b.create<arith::AddFOp>(
+                      loc, args[0], extractedOutputElement);
+
+                  Value extractOut = b.create<SelectOp>(loc, indexEqualToZero,
+                                                        args[0], result);
+
+                  b.create<tensor::InsertOp>(
+                      loc, extractOut, resultTensor, indexTarget1);
+
+                  b.create<linalg::YieldOp>(loc, extractOut);
                 })
             .getResult(0);
+
+    op.getOperation()->getParentOfType<FuncOp>().dump();
+
     auto outType = getTypeConverter()
                        ->convertType(op->getResult(0).getType())
                        .cast<RankedTensorType>();

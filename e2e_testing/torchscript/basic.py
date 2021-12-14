@@ -1066,11 +1066,13 @@ class CumsumModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([2, 2, 3], torch.float32, True),
+        ([-1], torch.float32, True),
     ])
     def forward(self, a):
         return torch.cumsum(a, 0)
 
 @register_test_case(module_factory=lambda: CumsumModule())
 def CumsumModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2,2,3))
+    a = tu.rand(5)
+    print(torch.cumsum(a,0))
+    module.forward(a)

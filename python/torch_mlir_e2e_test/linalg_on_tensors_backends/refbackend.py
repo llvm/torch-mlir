@@ -48,6 +48,7 @@ class RefBackendInvoker:
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return_mrf32(a):
             self.result = unranked_memref_to_numpy(a, np.float32)
+            print(self.result)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return_mrf64(a):
