@@ -238,11 +238,11 @@ public:
             AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp,
             AtenCosOp, AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
             AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp,
-            AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenIndexPut_Op, AtenCumsumOp,
-            AtenLayerNormOp, AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp,
-            AtenFloorOp, AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp,
-            AtenDropoutOp, AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp,
-            AtenAddIntOp, AtenAbsOp, AtenReciprocalOp, AtenCeilOp>(op)) {
+            AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp,
+            AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
+            AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
+            AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
+            AtenAbsOp, AtenReciprocalOp, AtenCeilOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -1272,7 +1272,6 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
   Value t = op.t();
   Value dtype = op.dtype();
   knowledge.hasSizes = true;
-  knowledge.sizes.resize(1, 1);
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
   return getLatticeElement(op.getResult()).join(knowledge);
 }

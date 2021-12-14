@@ -593,8 +593,8 @@ builtin.func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.ten
 // CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.tensor<[1],f32>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[1],f32> to !torch.tensor
+// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.tensor<[],f32>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[],f32> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
 builtin.func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
@@ -611,8 +611,8 @@ builtin.func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[CST11:.*]] = torch.constant.int 11
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[CST11]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.int, !torch.none, !torch.bool -> !torch.tensor<[1],i1>
-// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[1],i1> to !torch.tensor
+// CHECK:           %[[RET:.*]] = torch.aten.tensor.float %[[t]], %[[CST11]], %[[NONE]], %[[FALSE]] : !torch.float, !torch.int, !torch.none, !torch.bool -> !torch.tensor<[],i1>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[RET]] : !torch.tensor<[],i1> to !torch.tensor
 // CHECK:           return %[[CAST]] : !torch.tensor
 
 builtin.func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torch.tensor {
