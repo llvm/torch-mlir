@@ -3452,6 +3452,60 @@ public:
 } // namespace
 
 namespace {
+struct ConvertAtenScalarToTensorLike : ConversionPattern {
+  ConvertAtenScalarToTensorLike(TypeConverter &typeConverter,
+                                MLIRContext *context)
+      : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
+                          context) {}
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!isa<AtenTensorIntOp, AtenTensorFloatOp>(op))
+      return rewriter.notifyMatchFailure(
+          op, "not a supported Scalar to Tensor like op");
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    Value elemVal, dtype, device, requires_grad;
+    if (AtenTensorIntOp tensorIntOp = dyn_cast<AtenTensorIntOp>(op)) {
+      AtenTensorIntOp::Adaptor adaptor(operands);
+      elemVal = adaptor.t();
+      dtype = tensorIntOp.dtype();
+      device = tensorIntOp.device();
+      requires_grad = tensorIntOp.requires_grad();
+    }
+    if (AtenTensorFloatOp tensorFloatOp = dyn_cast<AtenTensorFloatOp>(op)) {
+      AtenTensorFloatOp::Adaptor adaptor(operands);
+      elemVal = adaptor.t();
+      dtype = tensorFloatOp.dtype();
+      device = tensorFloatOp.device();
+      requires_grad = tensorFloatOp.requires_grad();
+    }
+    // TODO: Dtype conversion.
+    if (!dtype.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op, "Unimplemented non-None dtype");
+
+    // TODO: Device information.
+    if (!device.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented non-None device information");
+
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    Type outElementType = resultType.getElementType();
+    Value elemValProm =
+        convertScalarToDtype(rewriter, loc, elemVal, outElementType);
+    Value zeroDTensor =
+        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, zeroDTensor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Converts constant tensor allocation like ops.
 template <typename OpTy>
 class ConvertConstantTensorAllocOp : public OpConversionPattern<OpTy> {
@@ -3751,6 +3805,8 @@ public:
     patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
     target.addIllegalOp<AtenIndexSelectOp>();
     patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
+    patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
+    target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
