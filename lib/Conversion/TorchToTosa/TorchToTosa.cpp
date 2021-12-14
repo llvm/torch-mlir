@@ -442,6 +442,7 @@ public:
   patterns.add<ConvertAtenUnaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_UNARY_PATTERN(AtenNegOp, tosa::NegateOp)
     INSERT_UNARY_PATTERN(AtenFloorOp, tosa::FloorOp)
+    INSERT_UNARY_PATTERN(AtenRsqrtOp, tosa::RsqrtOp)
     INSERT_UNARY_PATTERN(AtenBitwiseNotOp, tosa::BitwiseNotOp)
 #undef INSERT_UNARY_PATTERN
 
