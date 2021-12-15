@@ -1691,8 +1691,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
     // to be handled.
-    if (lhsDtype != rhsDtype)
+    if (lhsDtype != rhsDtype) {
       gtTensor.emitError("unimplemented: different lhs and rhs dtype");
+      return nullptr;
+    }
 
     Type elementalType =
         gtTensor.self().getType().cast<BaseTensorType>().getDtype();
@@ -1709,6 +1711,61 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                        payloadArgs[0], payloadArgs[1]);
     }
     gtTensor.emitError("unimplemented: dtype isn't supported.");
+    return nullptr;
+  }
+  if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
+    AtenEqTensorOp::Adaptor adaptor(operands);
+    Type lhsDtype = payloadArgs[0].getType();
+    Type rhsDtype = payloadArgs[1].getType();
+
+    // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
+    // to be handled.
+    if (lhsDtype != rhsDtype) {
+      eqTensor.emitError("unimplemented: lhs and rhs dtype must be same");
+      return nullptr;
+    }
+
+    Type elementalType =
+        eqTensor.self().getType().cast<BaseTensorType>().getDtype();
+
+    if (elementalType.isa<mlir::FloatType>())
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
+                                     payloadArgs[0], payloadArgs[1]);
+    if (elementalType.isa<mlir::IntegerType>()) {
+      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                     payloadArgs[0], payloadArgs[1]);
+    }
+    eqTensor.emitError("unimplemented: dtype isn't supported.");
+    return nullptr;
+  }
+  if (auto ltTensor = dyn_cast<AtenLtTensorOp>(op)) {
+    AtenLtTensorOp::Adaptor adaptor(operands);
+    Type lhsDtype = payloadArgs[0].getType();
+    Type rhsDtype = payloadArgs[1].getType();
+
+    // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
+    // to be handled.
+    if (lhsDtype != rhsDtype) {
+      ltTensor.emitError("unimplemented: lhs and rhs dtype must be same");
+      return nullptr;
+    }
+
+    Type elementalType =
+        ltTensor.self().getType().cast<BaseTensorType>().getDtype();
+
+    if (elementalType.isa<mlir::FloatType>())
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                     payloadArgs[0], payloadArgs[1]);
+    if (IntegerType intType = elementalType.dyn_cast<mlir::IntegerType>()) {
+      if (intType.isUnsigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ult,
+                                       payloadArgs[0], payloadArgs[1]);
+      if (intType.isSigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                       payloadArgs[0], payloadArgs[1]);
+    }
+    ltTensor.emitError("unimplemented: dtype isn't supported.");
+    return nullptr;
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -1761,6 +1818,56 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                        payloadArgs[0], otherPromoted);
     }
     gtScalar.emitError("unimplemented: dtype isn't supported.");
+    return nullptr;
+  }
+
+  if (auto eqScalar = dyn_cast<AtenEqScalarOp>(op)) {
+    Type dtype = eqScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Value otherPromoted =
+        convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
+
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
+                                     payloadArgs[0], otherPromoted);
+    if (dtype.isa<mlir::IntegerType>()) {
+      if (!operands[1].getType().isa<mlir::IntegerType>()) {
+        // TODO: Promote tensor operand from integer to float.
+        eqScalar.emitError(
+            "unimplemented: type promotion from tensor to scalar");
+        return nullptr;
+      }
+      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                     payloadArgs[0], otherPromoted);
+    }
+    eqScalar.emitError("unimplemented: dtype isn't supported");
+    return nullptr;
+  }
+
+  if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
+    Type dtype = ltScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Value otherPromoted =
+        convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
+
+    // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share a
+    // lot of code that can be refactored.
+    if (dtype.isa<mlir::FloatType>())
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
+                                     payloadArgs[0], otherPromoted);
+    if (IntegerType intType = dtype.dyn_cast<mlir::IntegerType>()) {
+      if (!operands[1].getType().isa<mlir::IntegerType>()) {
+        // TODO: Promote tensor operand from integer to float.
+        ltScalar.emitError(
+            "unimplemented: type promotion from tensor to scalar");
+        return nullptr;
+      }
+      if (intType.isUnsigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ult,
+                                       payloadArgs[0], otherPromoted);
+      if (intType.isSigned())
+        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                       payloadArgs[0], otherPromoted);
+    }
+    ltScalar.emitError("unimplemented: dtype isn't supported.");
     return nullptr;
   }
 
@@ -2130,8 +2237,9 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenClampOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
              AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp, AtenLog2Op,
              AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
-             AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenWhereSelfOp,
-             AtenCeilOp, AtenGtTensorOp>(op))
+             AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenEqScalarOp,
+             AtenLtScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
+             AtenEqTensorOp, AtenLtTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -3788,7 +3896,8 @@ public:
         AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp, AtenSqrtOp,
         AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp,
         AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
-        AtenWhereSelfOp, AtenGtTensorOp>();
+        AtenEqScalarOp, AtenLtScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+        AtenEqTensorOp, AtenLtTensorOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
