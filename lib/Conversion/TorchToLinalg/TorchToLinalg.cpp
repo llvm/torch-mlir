@@ -3452,8 +3452,62 @@ public:
 } // namespace
 
 namespace {
+struct ConvertAtenScalarToTensorLike : ConversionPattern {
+  ConvertAtenScalarToTensorLike(TypeConverter &typeConverter,
+                                MLIRContext *context)
+      : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
+                          context) {}
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!isa<AtenTensorIntOp, AtenTensorFloatOp>(op))
+      return rewriter.notifyMatchFailure(
+          op, "not a supported Scalar to Tensor like op");
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    Value elemVal, dtype, device, requires_grad;
+    if (AtenTensorIntOp tensorIntOp = dyn_cast<AtenTensorIntOp>(op)) {
+      AtenTensorIntOp::Adaptor adaptor(operands);
+      elemVal = adaptor.t();
+      dtype = tensorIntOp.dtype();
+      device = tensorIntOp.device();
+      requires_grad = tensorIntOp.requires_grad();
+    }
+    if (AtenTensorFloatOp tensorFloatOp = dyn_cast<AtenTensorFloatOp>(op)) {
+      AtenTensorFloatOp::Adaptor adaptor(operands);
+      elemVal = adaptor.t();
+      dtype = tensorFloatOp.dtype();
+      device = tensorFloatOp.device();
+      requires_grad = tensorFloatOp.requires_grad();
+    }
+    // TODO: Dtype conversion.
+    if (!dtype.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op, "Unimplemented non-None dtype");
+
+    // TODO: Device information.
+    if (!device.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented non-None device information");
+
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    Type outElementType = resultType.getElementType();
+    Value elemValProm =
+        convertScalarToDtype(rewriter, loc, elemVal, outElementType);
+    Value zeroDTensor =
+        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, zeroDTensor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Converts constant tensor allocation like ops.
-template <typename OpTy>
+template <typename OpTy, int fillVal>
 class ConvertConstantTensorAllocOp : public OpConversionPattern<OpTy> {
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
@@ -3463,23 +3517,19 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // Currently memory pinning and layout features are not supported.
+    // TODO: Add support for layout, pin_memory features.
+    // Only `none` layout is supported.
     if (!op.layout().getType().template isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only default layout is supported");
+
+    // The pin_memory should be either `False` or `none`.
     bool pinMemory;
     if (!op.pin_memory().getType().template isa<Torch::NoneType>() &&
         (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
-    }
-
-    // Memory formats are not supported in the case of `AtenEmptyMemoryFormat`.
-    if constexpr (std::is_same<OpTy, AtenEmptyMemoryFormatOp>::value) {
-      if (!op.memory_format().getType().template isa<Torch::NoneType>())
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: only default memory format is supported");
     }
 
     Location loc = op.getLoc();
@@ -3498,22 +3548,66 @@ public:
         typeConverter->convertType(op.getType()).template cast<RankedTensorType>();
     Type outElemType = resultType.getElementType();
 
-    // Create an uninitialized tensor of `resultSize` shape. It will be returned
-    // without initialization/filling in the case of `AtenEmptyMemoryFormatOp`.
-    Value outputTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, resultSizeIndex, outElemType);
-
-    // `AtenZeros` and `AtenOnes` ops will be filled with corresponding values.
-    if (std::is_same<OpTy, AtenZerosOp>::value) {
-      Value zero = getConstant(rewriter, loc, 0, outElemType);
-      outputTensor =
-          rewriter.create<linalg::FillOp>(loc, zero, outputTensor).getResult(0);
-    } else if (std::is_same<OpTy, AtenOnesOp>::value) {
-      Value one = getConstant(rewriter, loc, 1, outElemType);
-      outputTensor =
-          rewriter.create<linalg::FillOp>(loc, one, outputTensor).getResult(0);
-    }
+    // Create an uninitialized tensor of `resultSize` shape and fill it with
+    // value `fillVal`.
+    Value constVal = getConstant(rewriter, loc, fillVal, outElemType);
+    Value outputTensor =
+        createInitTensor(rewriter, loc, resultSizeIndex, outElemType, constVal);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, outputTensor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Converts `aten.empty` to `linalg.init_tensor` op.
+class ConvertAtenEmptyMemoryFormatOp
+    : public OpConversionPattern<AtenEmptyMemoryFormatOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenEmptyMemoryFormatOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // TODO: Add support for layout, pin_memory and memory_format features.
+    // Only `none` layout is supported.
+    if (!op.layout().getType().template isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only default layout is supported");
+
+    // The pin_memory should be either `False` or `none`.
+    bool pinMemory;
+    if (!op.pin_memory().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+         pinMemory))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: pin_memory must be either None or false");
+
+    // Only `none` memory_format is supported.
+    if (!op.memory_format().getType().template isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only default memory format is supported");
+
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = this->getTypeConverter();
+    SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;
+    if (!getListConstructElements(op.size(), resultSizeTorchInt)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: size must be constructed using ListConstruct");
+    }
+    resultSize = getTypeConvertedValues(rewriter, loc, typeConverter,
+                                        resultSizeTorchInt);
+    for (auto size : resultSize)
+      resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
+
+    auto resultType = typeConverter->convertType(op.getType())
+                          .template cast<RankedTensorType>();
+    // Create an uninitialized tensor of `resultSize` shape.
+    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, resultSizeIndex, resultType.getElementType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
     return success();
   }
 };
@@ -3725,14 +3819,12 @@ public:
     target.addIllegalOp<AtenEmbeddingOp>();
     patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
     target.addIllegalOp<AtenEmptyMemoryFormatOp>();
-    patterns.add<ConvertConstantTensorAllocOp<AtenEmptyMemoryFormatOp>>(
-        typeConverter, context);
-    target.addIllegalOp<AtenZerosOp>();
-    patterns.add<ConvertConstantTensorAllocOp<AtenZerosOp>>(typeConverter,
-                                                            context);
-    target.addIllegalOp<AtenOnesOp>();
-    patterns.add<ConvertConstantTensorAllocOp<AtenOnesOp>>(typeConverter,
-                                                           context);
+    patterns.add<ConvertAtenEmptyMemoryFormatOp>(typeConverter, context);
+    target.addIllegalOp<AtenZerosOp, AtenOnesOp>();
+    patterns.add<ConvertConstantTensorAllocOp<AtenZerosOp, 0>>(typeConverter,
+                                                               context);
+    patterns.add<ConvertConstantTensorAllocOp<AtenOnesOp, 1>>(typeConverter,
+                                                              context);
     target.addIllegalOp<AtenContiguousOp>();
     patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
     target.addIllegalOp<AtenIntTensorOp>();
@@ -3751,6 +3843,8 @@ public:
     patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
     target.addIllegalOp<AtenIndexSelectOp>();
     patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
+    patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
+    target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

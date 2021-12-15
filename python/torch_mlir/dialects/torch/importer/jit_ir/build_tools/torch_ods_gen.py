@@ -297,6 +297,11 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
     emitter = TextEmitter(f)
     p = lambda *args: emitter.print(*args)
     op_name, td_def_name = operator.get_mlir_names()
+
+    # Generate unique result names for ops with nameless results
+    multiple_results = len(operator.returns) > 1
+    generic_result_name = lambda i: "result" + (str(i) if multiple_results else "")
+
     p(f"def {td_def_name} : Torch_Op<{emitter.quote(op_name)}, [")
     with emitter.indent():
         with emitter.indent():
@@ -321,8 +326,8 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
                 p("Variadic<AnyTorchType>:$results")
             else:
                 p(",\n".join([
-                    f"""{get_ods_type(ret["type"])}:${ret["name"] or "result"}"""
-                    for ret in operator.returns
+                    f"""{get_ods_type(ret["type"])}:${ret["name"] or generic_result_name(e)}"""
+                    for e, ret in enumerate(operator.returns)
                 ]))
         p(");")
 
@@ -338,8 +343,8 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
             assembly_result_types = "type($results)"
         else:
             assembly_result_types = " `,` ".join(
-                f"""type(${ret["name"] or "result"})"""
-                for ret in operator.returns)
+                f"""type(${ret["name"] or generic_result_name(e)})"""
+                for e, ret in enumerate(operator.returns))
         if assembly_operand_types and assembly_result_types:
             maybe_arrow = " `->` "
         else:

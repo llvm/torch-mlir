@@ -835,6 +835,41 @@ def AddCDivModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class tensorIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,   
+    ])
+
+    def forward(self):
+        a = 1
+        return torch.tensor(a)
+
+@register_test_case(module_factory=lambda: tensorIntModule())
+def TensorIntModule_basic(module, tu: TestUtils):
+    module.forward()
+
+class tensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,   
+    ])
+
+    def forward(self):
+        a = 1.0
+        return torch.tensor(a)
+
+@register_test_case(module_factory=lambda: tensorFloatModule())
+def TensorFloatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
 
 class DropoutModule(torch.nn.Module):
     def __init__(self):
