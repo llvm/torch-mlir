@@ -3047,8 +3047,16 @@ public:
       return castIntToIndex(rewriter, loc, startOrEndBoundedByDimSize);
     };
 
+    if (op.start().getType().isa<OptionalType>() ||
+        op.end().getType().isa<OptionalType>())
+      return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
     Value start = adjustStartOrEnd(op.start(), adaptor.start(), zero);
     Value end = adjustStartOrEnd(op.end(), adaptor.end(), dimSize);
+
+    // end >= start ? end : start
+    Value endSgeStart = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sge, end, start);
+    end = rewriter.create<SelectOp>(loc, endSgeStart, end, start);
 
     int64_t step;
     if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {

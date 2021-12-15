@@ -17,13 +17,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
     "IouOfModule_basic",
 }
-# Fails due to https://github.com/llvm/torch-mlir/issues/448
-SIZE_ZERO_TENSOR_XFAILS = {
-    "SliceEndSleStartModule_basic",
-    "SliceStartEqEndModule_basic",
-    "SliceOutOfUpperBoundIndexModule_basic",
-}
-REFBACKEND_XFAIL_SET = set.union(COMMON_TORCH_MLIR_LOWERING_XFAILS, SIZE_ZERO_TENSOR_XFAILS)
+REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
