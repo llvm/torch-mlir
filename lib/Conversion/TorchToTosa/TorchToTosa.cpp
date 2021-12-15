@@ -77,6 +77,39 @@ public:
   }
 };
 
+// These binary op legalizations are identical for floating-point
+// or quantized types
+template <typename AtenOpT, typename TosaOpT>
+class ConvertAtenBinaryOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.self();
+    auto lhsTy = lhs.getType().cast<TensorType>();
+    Value rhs = adaptor.other();
+    auto rhsTy = rhs.getType().cast<TensorType>();
+
+    if (!lhsTy || !rhsTy)
+      return op.emitError("Only Tensor types supported in TOSA");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    if (lhsElemTy != rhsElemTy)
+      return op.emitError("Add: input datatypes mismatched");
+
+    rewriter.replaceOpWithNewOp<TosaOpT>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()),
+        lhs, rhs);
+    return success();
+  }
+};
+
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
 template <typename AtenOpT, typename TosaOpT>
@@ -537,6 +570,13 @@ public:
     INSERT_UNARY_PATTERN(AtenRsqrtOp, tosa::RsqrtOp)
     INSERT_UNARY_PATTERN(AtenBitwiseNotOp, tosa::BitwiseNotOp)
 #undef INSERT_UNARY_PATTERN
+
+#define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                   \
+  target.addIllegalOp<AtenOp>();                                                \
+  patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
+    INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
+    INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
+#undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
   target.addIllegalOp<AtenOp>();                                               \
