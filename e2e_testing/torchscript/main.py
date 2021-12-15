@@ -46,6 +46,7 @@ from . import slice_like
 from . import nll_loss
 from . import index_select
 from . import arange
+from . import index_put
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']

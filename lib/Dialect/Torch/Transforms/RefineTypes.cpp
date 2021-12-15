@@ -242,7 +242,7 @@ public:
             AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-            AtenAbsOp, AtenReciprocalOp, AtenCeilOp>(op)) {
+            AtenAbsOp, AtenReciprocalOp, AtenCeilOp, AtenIndexPutOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
