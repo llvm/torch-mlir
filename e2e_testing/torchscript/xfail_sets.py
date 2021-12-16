@@ -38,4 +38,7 @@ TOSA_PASS_SET = {
     "BoolTensorReturnTrueModule_basic",
     "BoolTensorReturnMixedModule_basic",
     "ElementwiseRsqrtModule_basic",
+    "SqueezeModule_static",
+    "SqueezeModule_noUnitDim",
+    "SqueezeModule_allUnitDim",
 }
