@@ -247,8 +247,8 @@ public:
     }
 
     // These comparison ops return a tensor with 1-bit integer dtype.
-    if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenNeScalarOp>(
-            op)) {
+    if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenLtScalarOp,
+            AtenNeScalarOp>(op)) {
       auto operand = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
@@ -317,10 +317,10 @@ public:
                    op)) {
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
-                   AtenDivTensorOp, Aten__And__TensorOp, AtenEqTensorOp,
-                   AtenMinimumOp, AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
+                   AtenDivTensorOp, Aten__And__TensorOp, AtenMinimumOp,
+                   AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
       return visitBinaryBroadcastingOp(op, operands);
-    } else if (isa<AtenGtTensorOp>(op)) {
+    } else if (isa<AtenEqTensorOp, AtenGtTensorOp, AtenLtTensorOp>(op)) {
       return visitBinaryBroadcastingComparisonOp(op, operands);
     } else if (auto whereSelf = llvm::dyn_cast<AtenWhereSelfOp>(op)) {
       return visitAtenWhereSelfOp(whereSelf, operands);
