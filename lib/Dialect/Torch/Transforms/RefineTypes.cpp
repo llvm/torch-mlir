@@ -1255,8 +1255,13 @@ ChangeResult TypeAnalyzer::visitAtenTOp(
 	knowledge.hasSizes = input.hasSizes;
 	knowledge.sizes = input.sizes;
 	int64_t inputRank = input.sizes.size();
-	if(inputRank==2) //valid ranks are 0,1,2 maybe raise an error for others here?
+	if(inputRank>2){
+		std::string error_message = "t() expects a tensor with <=2 dimensions, but self is " + std::to_string(inputRank) + "D";
+		llvm::report_fatal_error(error_message.c_str());
+	}
+	if(inputRank==2){
 		std::swap(knowledge.sizes[0], knowledge.sizes[1]);
+	}
 	return getLatticeElement(op.getResult()).join(knowledge);
 		
 }
