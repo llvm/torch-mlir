@@ -1155,7 +1155,7 @@ class TModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
+        ([3, 4], torch.float32, True),
     ])
     def forward(self, lhs):
         return torch.t(lhs)
@@ -1163,4 +1163,4 @@ class TModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TModule())
 def TModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4))
+    module.forward(tu.rand(3, 4))
