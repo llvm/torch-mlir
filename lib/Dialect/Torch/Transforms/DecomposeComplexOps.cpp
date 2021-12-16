@@ -596,8 +596,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenSelectIntOp>(context);
     target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
-	patterns.add<DecomposeAtenTOp>(context);
-	target.addIllegalOp<AtenTOp>();
+    patterns.add<DecomposeAtenTOp>(context);
+    target.addIllegalOp<AtenTOp>();
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
