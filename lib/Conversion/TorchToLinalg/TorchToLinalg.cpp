@@ -3038,6 +3038,66 @@ public:
 } // namespace
 
 namespace {
+	class ConvertAtenTOp
+		: public OpConversionPattern<AtenTOp> {
+	public:
+		using OpConversionPattern::OpConversionPattern;
+		LogicalResult
+			matchAndRewrite(AtenTOp op, OpAdaptor adaptor,
+				ConversionPatternRewriter &rewriter) const override {
+			if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+				return failure();
+
+			auto inVector = adaptor.self();
+			auto inType = inVector.getType().cast<RankedTensorType>();
+			auto inputRank = inType.getRank();
+
+			auto outType = getTypeConverter()
+				->convertType(op->getResult(0).getType())
+				.cast<RankedTensorType>();
+			if (inputRank < 2) {
+					rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, inVector);
+				return success();
+			}
+			else {
+				auto elementType = inType.getElementType();
+
+				auto loc = op.getLoc();
+
+				SmallVector<Value> outputDims;
+				for (auto i = 0; i < 2; i++)
+					outputDims.push_back(getDimOp(rewriter, loc, adaptor.self(), i));
+				std::swap(outputDims[1], outputDims[0]);
+
+				Value outVector =
+					rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
+				SmallVector<AffineExpr> idExprs;
+				SmallVector<AffineExpr> swapExprs;
+				for (auto i = 0; i < inputRank; i++)
+					idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+				swapExprs.push_back(idExprs[1]);
+				swapExprs.push_back(idExprs[0]);
+
+				SmallVector<AffineMap> indexingMaps = {
+					AffineMap::get(inputRank, 0, idExprs, op.getContext()),
+					AffineMap::get(inputRank, 0, swapExprs, op.getContext()) };
+				SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+				auto transpose = rewriter
+					.create<linalg::GenericOp>(
+						loc, outVector.getType(), inVector, outVector,
+						indexingMaps, iteratorTypes,
+						[](OpBuilder &b, Location loc, ValueRange args) {
+					b.create<linalg::YieldOp>(loc, args[0]);
+				})
+					.getResult(0);
+				rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transpose);
+				return success();
+			}
+		}
+	};
+} // namespace
+
+namespace {
 class ConvertAtenPermuteOp : public OpConversionPattern<AtenPermuteOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -3919,6 +3979,8 @@ public:
     patterns.add<ConvertReductionOp>(typeConverter, context);
     target.addIllegalOp<AtenTransposeIntOp>();
     patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
+	target.addIllegalOp<AtenTOp>();
+	patterns.add<ConvertAtenTOp>(typeConverter, context);
     target.addIllegalOp<AtenPermuteOp>();
     patterns.add<ConvertAtenPermuteOp>(typeConverter, context);
     target.addIllegalOp<AtenCatOp>();
