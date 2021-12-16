@@ -537,6 +537,33 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
 };
 } // namespace
 
+// Decompose `aten.empty_like` op into `aten.size` and `aten.empty` ops.
+namespace {
+class DecomposeAtenEmptyLikeOp : public OpRewritePattern<AtenEmptyLikeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEmptyLikeOp op,
+                                PatternRewriter &rewriter) const override {
+    auto sizeListType =
+        Torch::ListType::get(Torch::IntType::get(op.getContext()));
+    Value sizeList =
+        rewriter.create<AtenSizeOp>(op.getLoc(), sizeListType, op.self());
+
+    // TODO: Handle the case when `dtype` is NoneType.
+    Type dtype = op.dtype().getType();
+    if (dtype.isa<OptionalType>() || dtype.isa<Torch::NoneType>() ||
+        dtype.isa<mlir::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: None dtype is not supported");
+
+    rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
+        op, op.getType(), sizeList, op.dtype(), op.layout(), op.device(),
+        op.pin_memory(), op.memory_format());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -552,6 +579,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_SoftmaxOp>();
     patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
     target.addIllegalOp<AtenLogSoftmaxIntOp>();
+    patterns.add<DecomposeAtenEmptyLikeOp>(context);
+    target.addIllegalOp<AtenEmptyLikeOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
