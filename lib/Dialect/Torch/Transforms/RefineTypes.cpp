@@ -374,6 +374,8 @@ public:
       return visitReshapeLikeOp(resize, operands);
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
       return visitAtenTransposeIntOp(transposeInt, operands);
+    } else if (auto t = dyn_cast<AtenTOp>(op)) {
+      return visitAtenTOp(t, operands);
     } else if (auto permute = dyn_cast<AtenPermuteOp>(op)) {
       return visitAtenPermuteOp(permute, operands);
     } else if (auto tensorFloat = dyn_cast<AtenTensorFloatOp>(op)) {
@@ -549,6 +551,9 @@ private:
   ChangeResult
   visitAtenTransposeIntOp(AtenTransposeIntOp op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenTOp(AtenTOp op,
+		  ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenPermuteOp(AtenPermuteOp op,
                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1238,6 +1243,22 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
 
   knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
   return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenTOp(
+	AtenTOp op,
+	ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+	auto input = operands[0]->getValue();
+	auto knowledge =
+		ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+	knowledge.dtype = input.dtype;
+	knowledge.hasSizes = input.hasSizes;
+	knowledge.sizes = input.sizes;
+	int64_t inputRank = input.sizes.size();
+	if(inputRank==2) //valid ranks are 0,1,2 maybe raise an error for others here?
+		std::swap(knowledge.sizes[0], knowledge.sizes[1]);
+	return getLatticeElement(op.getResult()).join(knowledge);
+		
 }
 
 ChangeResult TypeAnalyzer::visitAtenPermuteOp(
