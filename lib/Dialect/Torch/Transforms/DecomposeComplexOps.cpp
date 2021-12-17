@@ -379,6 +379,36 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTOp op,
+                                PatternRewriter &rewriter) const override {
+    Value lhs = op.self();
+    int lhsRank = getTensorRank(lhs);
+    auto loc = op.getLoc();
+
+    if (lhsRank > 2 || lhsRank < 0) {
+      std::string errorMessage =
+          "t() expects a tensor with <=2 dimensions, but self is " +
+          std::to_string(lhsRank) + "D";
+      return rewriter.notifyMatchFailure(op, errorMessage.c_str());
+    } else if (lhsRank < 2)
+      rewriter.replaceOp(op, lhs);
+    else {
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value one =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenTransposeIntOp>(op, op.getType(), lhs,
+                                                      zero, one);
+    }
+    return success();
+  }
+};
+} // namespace
+
 // Decompose torch.expand into torch.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -565,6 +595,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenSelectIntOp>(context);
     target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
+    target.addIllegalOp<AtenTOp>();
+    patterns.add<DecomposeAtenTOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {

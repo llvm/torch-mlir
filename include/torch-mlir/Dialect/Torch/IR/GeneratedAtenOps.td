@@ -2603,6 +2603,19 @@ def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
   let assemblyFormat = "$input `,` $p `,` $train attr-dict `:` type($input) `,` type($p) `,` type($train) `->` type($result)";
 }
 
+def Torch_AtenTOp : Torch_Op<"aten.t", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::t : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics

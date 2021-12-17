@@ -93,8 +93,8 @@ public:
                      AtenFlattenUsingIntsOp, AtenTransposeIntOp,
                      TensorStaticInfoCastOp, AtenBroadcastToOp, AtenToDtypeOp,
                      AtenContiguousOp, AtenPermuteOp, AtenViewOp, AtenExpandOp,
-                     AtenFill_ScalarOp, AtenSliceTensorOp, AtenSelectIntOp>(
-                     op)) {
+                     AtenFill_ScalarOp, AtenSliceTensorOp, AtenSelectIntOp,
+                     AtenTOp>(op)) {
         // AtenContiguousOp might return a view, so this is conservatively
         // correct. We could potentially be more precise and identify the cases
         // that it does not return a view and treat those as having value
