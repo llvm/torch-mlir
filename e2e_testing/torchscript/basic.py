@@ -1179,3 +1179,23 @@ class BoolTensorReturnMixedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BoolTensorReturnMixedModule())
 def BoolTensorReturnMixedModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[1, 0], [0,1]], dtype=torch.bool))
+
+# ==============================================================================
+
+
+class IndexTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, (index,))
+
+@register_test_case(module_factory=lambda: IndexTensorModule())
+def IndexTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), torch.tensor([[0,1], [1,2]]))

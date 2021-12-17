@@ -289,11 +289,30 @@ public:
     // input.
     if (auto indexTensor = dyn_cast<AtenIndexTensorOp>(op)) {
       auto input = operands[0]->getValue();
+      auto indicesList = indexTensor.indices();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+      auto listConstruct = indicesList.getDefiningOp<PrimListConstructOp>();
+      if (!listConstruct)
+        return getLatticeElement(op->getResult(0)).join(knowledge);
+
+      auto indices = llvm::to_vector<4>(llvm::map_range(
+          listConstruct.elements(), [&](Value v) -> ValueKnowledge {
+            return getLatticeElement(v).getValue();
+          }));
+
+      for (auto index : indices)
+        knowledge = ValueKnowledge::join(knowledge, index);
+      if (!knowledge.hasSizes)
+        return getLatticeElement(op->getResult(0)).join(knowledge);
       if (input.hasSizes) {
         knowledge.hasSizes = true;
-        knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+        // Case: If the input is a 1-d tensor and indices list size is equal
+        // to 1.
+        if (input.sizes.size() == 1 && indices.size() == 1)
+          knowledge.sizes.resize(indices[0].sizes.size(), kUnknownSize);
+        else
+          knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
       }
       knowledge.dtype = input.dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
