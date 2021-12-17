@@ -82,6 +82,28 @@ func @torch.constant.int() -> !torch.int {
 // CHECK:          %[[INT:.*]] = torch_c.from_i64 %[[INT:.*]]
 // CHECK:          return %[[INT:.*]] : !torch.int
 func @torch.aten.add.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
-  %0 = torch.aten.add.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.int  
+  %0 = torch.aten.add.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:  func @torch.aten.sub.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
+// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK:          %[[INT:.*]] = arith.subi %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
+// CHECK:          %[[INT:.*]] = torch_c.from_i64 %[[INT:.*]]
+// CHECK:          return %[[INT:.*]] : !torch.int
+func @torch.aten.sub.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
+  %0 = torch.aten.sub.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:  func @torch.aten.mul.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
+// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK:          %[[INT:.*]] = arith.muli %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
+// CHECK:          %[[INT:.*]] = torch_c.from_i64 %[[INT:.*]]
+// CHECK:          return %[[INT:.*]] : !torch.int
+func @torch.aten.mul.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
+  %0 = torch.aten.mul.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.int
   return %0 : !torch.int
 }

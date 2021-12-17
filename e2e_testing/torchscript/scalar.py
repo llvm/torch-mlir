@@ -23,7 +23,41 @@ class AddIntModule(torch.nn.Module):
     def forward(self, lhs, rhs):
         return int(lhs)+int(rhs)
 
+class SubIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return int(lhs)-int(rhs)
+
+class MulIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return int(lhs)*int(rhs)
+
 
 @register_test_case(module_factory=lambda: AddIntModule())
 def AddIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100,()), torch.randint(-100, 100,()))
+
+@register_test_case(module_factory=lambda: SubIntModule())
+def SubIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100,()), torch.randint(-100, 100,()))
+
+@register_test_case(module_factory=lambda: MulIntModule())
+def MulIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100,()), torch.randint(-100, 100,()))

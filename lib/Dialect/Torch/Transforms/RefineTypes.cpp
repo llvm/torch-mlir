@@ -471,8 +471,8 @@ public:
       return visitNumToTensorOp(numToTensorOp);
     } else if (isa<AtenAddcmulOp, AtenAddcdivOp>(op)) {
       return visitAtenAddCLikeOp(op, operands);
-    } else if (auto scalarOp = dyn_cast<AtenAddIntOp>(op)) {
-      return visitBinaryScalarOp(scalarOp);
+    } else if (isa<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>(op)) {
+      return visitBinaryScalarOp(op, operands);
     } else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
       return visitAtenNllLossForwardOp(nllForwardOp, operands);
     } else if (auto nativeLayerNormOp = dyn_cast<AtenNativeLayerNormOp>(op)) {
@@ -590,7 +590,9 @@ private:
   ChangeResult
   visitAtenEmbeddingOp(AtenEmbeddingOp op,
                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  template <typename OpTy> ChangeResult visitBinaryScalarOp(OpTy op);
+  ChangeResult
+  visitBinaryScalarOp(Operation *op,
+                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
   ChangeResult
   visitAtenBmmOp(AtenBmmOp op,
@@ -1276,12 +1278,13 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
-template <typename OpTy>
-ChangeResult TypeAnalyzer::visitBinaryScalarOp(OpTy op) {
+ChangeResult TypeAnalyzer::visitBinaryScalarOp(
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
-  knowledge.dtype = getPromotedResultType({op.a().getType(), op.b().getType()});
-  return getLatticeElement(op.getResult()).join(knowledge);
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.dtype = getPromotedResultType(
+      {op->getOperand(0).getType(), op->getOperand(1).getType()});
+  return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
 // `torch.aten.tensor` get a tensor from a list. Each layer of the list
