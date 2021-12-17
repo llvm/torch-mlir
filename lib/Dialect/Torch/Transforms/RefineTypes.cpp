@@ -365,9 +365,11 @@ public:
                             maxDim, maxDim.dim(), maxDim.keepdim(),
                             secondResDtype, operands, /*resNum=*/1);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
-      return visitReshapeLikeOp(view, operands);
+      return visitReshapeLikeOp(view, operands, view.size());
+    } else if (auto reshape = dyn_cast<AtenReshapeOp>(op)) {
+      return visitReshapeLikeOp(reshape, operands, reshape.shape());
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
-      return visitReshapeLikeOp(resize, operands);
+      return visitReshapeLikeOp(resize, operands, resize.size());
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
       return visitAtenTransposeIntOp(transposeInt, operands);
     } else if (auto t = dyn_cast<AtenTOp>(op)) {
@@ -567,7 +569,8 @@ private:
   template <typename OpTy>
   ChangeResult
   visitReshapeLikeOp(OpTy op,
-                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+                     Value sizeList);
   ChangeResult
   visitAtenTransposeIntOp(AtenTransposeIntOp op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1375,13 +1378,14 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
 // result tensor.
 template <typename OpTy>
 ChangeResult TypeAnalyzer::visitReshapeLikeOp(
-    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+    Value sizeList) {
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
 
-  fillInSizesGivenSizesList(knowledge, op.size());
+  fillInSizesGivenSizesList(knowledge, sizeList);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
