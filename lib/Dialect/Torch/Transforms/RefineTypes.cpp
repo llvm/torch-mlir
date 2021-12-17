@@ -369,9 +369,11 @@ public:
       return visitReductionAlongDimIntOp(anyDim, anyDim.dim(), anyDim.keepdim(),
                                          dtype, operands);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
-      return visitReshapeLikeOp(view, operands);
+      return visitReshapeLikeOp(view, operands, view.size());
+    } else if (auto reshape = dyn_cast<AtenReshapeOp>(op)) {
+      return visitReshapeLikeOp(reshape, operands, reshape.shape());
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
-      return visitReshapeLikeOp(resize, operands);
+      return visitReshapeLikeOp(resize, operands, resize.size());
     } else if (auto transposeInt = dyn_cast<AtenTransposeIntOp>(op)) {
       return visitAtenTransposeIntOp(transposeInt, operands);
     } else if (auto permute = dyn_cast<AtenPermuteOp>(op)) {
@@ -542,10 +544,10 @@ private:
   ChangeResult visitReductionAlongDimIntOp(
       Operation *op, Value dim, Value keepdim, Type dtype,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
-  template <typename OpTy>
   ChangeResult
-  visitReshapeLikeOp(OpTy op,
-                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  visitReshapeLikeOp(Operation *op,
+                     ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+                     Value sizeList);
   ChangeResult
   visitAtenTransposeIntOp(AtenTransposeIntOp op,
                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1202,16 +1204,16 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
 
 // Reshape like ops are given a size list which specify the shape of the
 // result tensor.
-template <typename OpTy>
 ChangeResult TypeAnalyzer::visitReshapeLikeOp(
-    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+    Value sizeList) {
   auto input = operands[0]->getValue();
   auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
 
-  fillInSizesGivenSizesList(knowledge, op.size());
-  return getLatticeElement(op.getResult()).join(knowledge);
+  fillInSizesGivenSizesList(knowledge, sizeList);
+  return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(

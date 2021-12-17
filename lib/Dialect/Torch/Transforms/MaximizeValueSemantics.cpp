@@ -90,7 +90,7 @@ public:
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
       } else if (isa<AtenSqueezeOp, AtenSqueezeDimOp, AtenUnsqueezeOp,
-                     AtenFlattenUsingIntsOp, AtenTransposeIntOp,
+                     AtenFlattenUsingIntsOp, AtenTransposeIntOp, AtenReshapeOp,
                      TensorStaticInfoCastOp, AtenBroadcastToOp, AtenToDtypeOp,
                      AtenContiguousOp, AtenPermuteOp, AtenViewOp, AtenExpandOp,
                      AtenFill_ScalarOp, AtenSliceTensorOp, AtenSelectIntOp>(

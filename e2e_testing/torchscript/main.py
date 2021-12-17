@@ -39,7 +39,7 @@ from . import backprop
 from . import reduction
 from . import argmax
 from . import matmul
-from . import view
+from . import reshape_like
 from . import scalar
 from . import squeeze
 from . import slice_like
