@@ -1179,3 +1179,56 @@ class BoolTensorReturnMixedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BoolTensorReturnMixedModule())
 def BoolTensorReturnMixedModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[1, 0], [0,1]], dtype=torch.bool))
+
+# ==============================================================================
+class TModuleRank2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.t(lhs)
+
+
+@register_test_case(module_factory=lambda: TModuleRank2())
+def TModuleRank2_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+class TModuleRank1(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.t(lhs)
+
+
+@register_test_case(module_factory=lambda: TModuleRank1())
+def TModuleRank1_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3))
+
+class TModuleRank0(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.t(lhs)
+
+
+@register_test_case(module_factory=lambda: TModuleRank0())
+def TModuleRank0_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(7, dtype=torch.float32))
+
