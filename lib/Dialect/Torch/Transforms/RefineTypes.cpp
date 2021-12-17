@@ -282,23 +282,6 @@ public:
       knowledge.dtype = input.dtype;
       return getLatticeElement(op->getResult(0)).join(knowledge);
     }
-    // `torch.aten.index.Tensor` return tensors elements selected by the index
-    // tensors. Each index tensor in the list corresponds to each dim in the
-    // input tensor.
-    // Same number of dims but unknown size along each dim. Same dtype as the
-    // input.
-    if (auto indexTensor = dyn_cast<AtenIndexTensorOp>(op)) {
-      auto input = operands[0]->getValue();
-      auto knowledge =
-          ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-      if (input.hasSizes) {
-        knowledge.hasSizes = true;
-        knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-      }
-      knowledge.dtype = input.dtype;
-      return getLatticeElement(op->getResult(0)).join(knowledge);
-    }
-
     if (auto mm = llvm::dyn_cast<AtenMmOp>(op)) {
       return visitAtenMmOp(mm, operands);
     } else if (auto addmm = llvm::dyn_cast<AtenAddmmOp>(op)) {
@@ -492,6 +475,8 @@ public:
       return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
     } else if (auto constantPadNdOp = dyn_cast<AtenConstantPadNdOp>(op)) {
       return visitAtenConstantPadNdOp(constantPadNdOp, operands);
+    } else if (auto indexTensorOp = dyn_cast<AtenIndexTensorOp>(op)) {
+      return visitAtenIndexTensorOp(indexTensorOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -646,6 +631,9 @@ private:
   ChangeResult visitAtenNativeLayerNormOp(
       AtenNativeLayerNormOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenIndexTensorOp(AtenIndexTensorOp op,
+                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1847,6 +1835,36 @@ ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
   resultLattice |= getLatticeElement(op.getResult(2)).join(varKnowledge);
 
   return resultLattice;
+}
+
+// `torch.aten.index.Tensor` return tensors elements selected by the index
+// tensors. Each index tensor in the list corresponds to each dim in the
+// input tensor.
+// Same number of dims but unknown size along each dim. Same dtype as the
+// input.
+ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
+    AtenIndexTensorOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto indicesList = op.indices();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto listConstruct = indicesList.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return getLatticeElement(op->getResult(0)).join(knowledge);
+
+  auto indices = llvm::to_vector(
+      llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
+        return getLatticeElement(v).getValue();
+      }));
+
+  knowledge.dtype = input.dtype;
+  // Case: If the input is a 1-d tensor and indices list size is equal
+  // to 1.
+  if (input.sizes.size() == 1 && indices.size() == 1 && indices[0].hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes = indices[0].sizes;
+  }
+  return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 // -----------------------------------------------------------------------------
 // Transforms.

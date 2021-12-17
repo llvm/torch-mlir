@@ -39,22 +39,34 @@ public:
         opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                            opOperand.get()));
       } else if (auto listType = operandType.dyn_cast<ListType>()) {
-        if (!listType.getContainedType().isa<NonValueTensorType>())
+        if (!(listType.getContainedType().isa<NonValueTensorType>() ||
+              listType.getContainedType().isa<OptionalType>()))
           continue;
 
         // Construct a new list whose elements are value tensors copied from
-        // the none value tensors of the original list.
+        // the non-value tensors of the original list.
         auto listConstruct =
             opOperand.get().getDefiningOp<PrimListConstructOp>();
         if (!listConstruct) {
           rewriter.cancelRootUpdate(op);
-          return rewriter.notifyMatchFailure(op, 
-              "unimplemented: list of non vtensor type not constructed "
-              "from list construct");
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: list of non vtensor type not constructed "
+                  "from list construct");
         }
 
         if (listConstruct.elements().empty())
           continue;
+
+        // TODO: Handle optional type in list type.
+        if (listType.getContainedType().isa<OptionalType>()) {
+          if (!llvm::all_of(listConstruct.elements(), [](Value val) {
+                return val.getType().isa<NonValueTensorType>();
+              }))
+            return rewriter.notifyMatchFailure(
+                op, "unimplemented: list containing optional type is not "
+                    "handled.");
+        }
+
         auto newListElements = llvm::to_vector<4>(llvm::map_range(
             listConstruct.elements(), [&](Value tensor) -> Value {
               return rewriter.create<CopyToValueTensorOp>(op->getLoc(), tensor);
@@ -74,8 +86,9 @@ public:
         auto derefine = opOperand.get().getDefiningOp<DerefineOp>();
         if (!derefine) {
           rewriter.cancelRootUpdate(op);
-          return rewriter.notifyMatchFailure(op, 
-              "unimplemented: optional of non vtensor type not from derefine");
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: optional of non vtensor type not from "
+                  "derefine");
         }
 
         if (!derefine.operand().getType().isa<NonValueTensorType>())

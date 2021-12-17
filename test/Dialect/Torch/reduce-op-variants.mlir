@@ -112,3 +112,21 @@ func @torch.tensor.literal() -> !torch.tensor {
   %0 = torch.tensor.literal(dense<0.0> : tensor<7xf32>) : !torch.tensor
   return %0 : !torch.tensor
 }
+
+// CHECK-LABEL:   func @convert_to_value_semantic_tensors_optional_list(
+// CHECK-SAME:         %[[SELF:.*]]: !torch.tensor<[5],f32>,
+// CHECK-SAME:         %[[INDICES:.*]]: !torch.tensor<[2,3],si64>) -> !torch.tensor {
+// CHECK:           %[[INDICES_OPTIONAL_LIST:.*]] = torch.prim.ListConstruct %[[INDICES]] :
+// CHECK-SAME:         (!torch.tensor<[2,3],si64>) -> !torch.list<!torch.optional<!torch.tensor<[2,3],si64>>>
+// CHECK:           %[[SELF_VTENSOR:.*]] = torch.copy.to_vtensor %[[SELF]] : !torch.vtensor<[5],f32>
+// CHECK:           %[[INDICES_VTENSOR:.*]] = torch.copy.to_vtensor %[[INDICES]] : !torch.vtensor<[2,3],si64>
+// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDICES_VTENSOR]] : (!torch.vtensor<[2,3],si64>) -> !torch.list<!torch.vtensor<[2,3],si64>>
+// CHECK:           %[[VRET:.*]] = torch.aten.index.Tensor %[[SELF_VTENSOR]], %[[INDICES_LIST]] : !torch.vtensor<[5],f32>, !torch.list<!torch.vtensor<[2,3],si64>> -> !torch.vtensor
+// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
+// CHECK:           return %[[RET]] : !torch.tensor
+// CHECK:         }
+func @convert_to_value_semantic_tensors_optional_list(%self: !torch.tensor<[5],f32>, %indices: !torch.tensor<[2,3],si64>) -> !torch.tensor {
+  %tensor_optional_list = torch.prim.ListConstruct %indices : (!torch.tensor<[2,3],si64>) -> !torch.list<!torch.optional<!torch.tensor<[2,3],si64>>>
+  %ret = torch.aten.index.Tensor %self, %tensor_optional_list : !torch.tensor<[5],f32>, !torch.list<!torch.optional<!torch.tensor<[2,3],si64>>> -> !torch.tensor
+  return %ret : !torch.tensor
+}

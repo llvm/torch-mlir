@@ -1069,3 +1069,21 @@ class ReturnTwoTensorF32I64(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReturnTwoTensorF32I64())
 def ReturnTwoTensorF32I64_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), torch.randint(5, (2, 3)))
+
+
+class IndexTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, (index,))
+
+@register_test_case(module_factory=lambda: IndexTensorModule())
+def IndexTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), torch.randint(4, (2, 3)))
