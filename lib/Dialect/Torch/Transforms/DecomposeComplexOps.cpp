@@ -379,6 +379,31 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTOp op,
+                                PatternRewriter &rewriter) const override {
+    Value lhs = op.self();
+    int lhsRank = getTensorRank(lhs);
+    auto loc = op.getLoc();
+
+    // If both lhs and rhs ranks are 2 then map it to `aten.mm` op.
+    Value zero = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    if (lhsRank < 2) {
+      rewriter.replaceOpWithNewOp<AtenTransposeIntOp>(op, op.getType(), lhs, zero,zero);
+    }
+    // If both lhs and rhs ranks are 3 then map it to `aten.bmm` op.
+    else {
+      Value one = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenTransposeIntOp>(op, op.getType(), lhs, zero,one);
+    }
+    return success();
+  }
+};
+} // namespace
+
 // Decompose torch.expand into torch.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -565,6 +590,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenSelectIntOp>(context);
     target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
+    target.addIllegalOp<AtenTOp>();
+    patterns.add<DecomposeAtenTOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
     target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
