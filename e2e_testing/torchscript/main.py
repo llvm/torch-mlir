@@ -48,6 +48,7 @@ from . import index_select
 from . import index_put
 from . import arange
 from . import hbc
+from . import constant_alloc
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']

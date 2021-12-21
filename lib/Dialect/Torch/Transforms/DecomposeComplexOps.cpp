@@ -549,8 +549,8 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
 };
 } // namespace
 
-// Decompose `aten.empty_like` op into `aten.size` and `aten.empty` ops.
 namespace {
+// Decompose `aten.empty_like` op into `aten.size` and `aten.empty` ops.
 class DecomposeAtenEmptyLikeOp : public OpRewritePattern<AtenEmptyLikeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -560,14 +560,6 @@ public:
         Torch::ListType::get(Torch::IntType::get(op.getContext()));
     Value sizeList =
         rewriter.create<AtenSizeOp>(op.getLoc(), sizeListType, op.self());
-
-    // TODO: Handle the case when `dtype` is NoneType.
-    Type dtype = op.dtype().getType();
-    if (dtype.isa<OptionalType>() || dtype.isa<Torch::NoneType>() ||
-        dtype.isa<mlir::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: None dtype is not supported");
-
     rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
         op, op.getType(), sizeList, op.dtype(), op.layout(), op.device(),
         op.pin_memory(), op.memory_format());
@@ -664,6 +656,31 @@ class DecomposeAtenArangeStartOp : public OpRewritePattern<AtenArangeStartOp> {
 } // namespace
 
 namespace {
+// Decompose constant tensor allocation like ops.
+template <typename OpTy, int fillVal>
+class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto sizeListType =
+        Torch::ListType::get(Torch::IntType::get(op.getContext()));
+    Value sizeList = rewriter.create<AtenSizeOp>(loc, sizeListType, op.self());
+    // Allocate a memory block.
+    Value initTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, op.getType(), sizeList, op.dtype(), op.layout(), op.device(),
+        op.pin_memory(), op.memory_format());
+    Value constVal = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(fillVal));
+    // Initialize the allocated memory block with `fillVal`.
+    rewriter.replaceOpWithNewOp<AtenFill_ScalarOp>(op, initTensor.getType(),
+                                                   initTensor, constVal);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -680,6 +697,12 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenLogSoftmaxIntOp>();
     patterns.add<DecomposeAtenEmptyLikeOp>(context);
     target.addIllegalOp<AtenEmptyLikeOp>();
+    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(
+        context);
+    target.addIllegalOp<AtenOnesLikeOp>();
+    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(
+        context);
+    target.addIllegalOp<AtenZerosLikeOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
