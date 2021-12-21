@@ -565,6 +565,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::detach : (Tensor) -> (Tensor)")
         emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
         emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
+        emit("aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
+        emit("aten::ones_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
         emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)")

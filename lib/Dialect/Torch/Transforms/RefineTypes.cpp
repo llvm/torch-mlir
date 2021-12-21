@@ -234,15 +234,15 @@ public:
   visitOperation(Operation *op,
                  ArrayRef<LatticeElement<ValueKnowledge> *> operands) final {
     if (isa<TensorStaticInfoCastOp, CopyToValueTensorOp, CopyToNonValueTensorOp,
-            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp,
+            AtenTanhOp, AtenBatchNormOp, AtenReluOp, AtenGeluOp, AtenCeilOp,
             AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp,
             AtenCosOp, AtenSigmoidOp, DerefineOp, AtenToPrimDeviceOp, AtenCpuOp,
-            AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp, AtenEmptyLikeOp,
+            AtenContiguousOp, AtenFill_ScalarOp, AtenDetachOp, AtenReciprocalOp,
             AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp,
             AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-            AtenAbsOp, AtenReciprocalOp, AtenCeilOp>(op)) {
+            AtenAbsOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -395,6 +395,14 @@ public:
     } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
       return visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(
           emptyMemoryFormat);
+    } else if (auto zerosLike = dyn_cast<AtenZerosLikeOp>(op)) {
+      return visitConstantTensorAllocLikeOp<AtenZerosLikeOp>(zerosLike,
+                                                             operands);
+    } else if (auto onesLike = dyn_cast<AtenOnesLikeOp>(op)) {
+      return visitConstantTensorAllocLikeOp<AtenOnesLikeOp>(onesLike, operands);
+    } else if (auto emptyLike = dyn_cast<AtenEmptyLikeOp>(op)) {
+      return visitConstantTensorAllocLikeOp<AtenEmptyLikeOp>(emptyLike,
+                                                             operands);
     } else if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
       return visitAtenToDtypeOp(toDtype, operands);
     } else if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
@@ -566,6 +574,9 @@ private:
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
   template <typename OpTy> ChangeResult visitConstantTensorAllocOp(OpTy op);
+  template <typename OpTy>
+  ChangeResult visitConstantTensorAllocLikeOp(
+      OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenToDtypeOp(AtenToDtypeOp op,
                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1404,6 +1415,20 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
   fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(),
                                    Torch::FloatType::get(op->getContext()));
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitConstantTensorAllocLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  if (input.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes = input.sizes;
+  }
+  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), input.dtype);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
