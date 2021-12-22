@@ -1261,8 +1261,8 @@ public:
           op, "expected  input and target to be rank 2 and 1 respectively");
     }
     RankedTensorType resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
 
     Type elementType = resultType.getElementType();
 
@@ -1303,8 +1303,7 @@ public:
             .getResult(0);
 
     // TODO: Update the second result tensor.
-    Value weightUpdated =
-        createZeroInitTensor(rewriter, loc, {}, elementType);
+    Value weightUpdated = createZeroInitTensor(rewriter, loc, {}, elementType);
     rewriter.replaceOp(op, {finalRes, weightUpdated});
     return success();
   }
@@ -1402,8 +1401,7 @@ public:
           rewriter.getMultiDimIdentityMap(inputType.getRank())};
     } else {
       initTensor = rewriter.create<linalg::InitTensorOp>(
-          loc, ValueRange{inputDim0, weightDim0},
-          inputType.getElementType());
+          loc, ValueRange{inputDim0, weightDim0}, inputType.getElementType());
       transposedWeightInitTensor = rewriter.create<linalg::InitTensorOp>(
           loc, ValueRange{weightDim1, weightDim0}, weightType.getElementType());
       broadcastIndexingMaps = {
@@ -1596,10 +1594,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], constZero);
-    Value positivePart = b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
-    Value negativePart = b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
+    Value positivePart =
+        b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+    Value negativePart =
+        b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
     Value scale = convertScalarToDtype(b, loc, operands[1], elementType);
-    Value scaledNegativePart = b.create<arith::MulFOp>(loc, negativePart, scale);
+    Value scaledNegativePart =
+        b.create<arith::MulFOp>(loc, negativePart, scale);
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
@@ -1970,6 +1971,38 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value mult = b.create<arith::MulFOp>(loc, self, alpha);
     return b.create<arith::SubFOp>(loc, other, mult);
   }
+  if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
+    Type dtype = converter->convertType(subScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>()) {
+      subScalar.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value self = payloadArgs[0];
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value mult = b.create<arith::MulFOp>(loc, self, alpha);
+    return b.create<arith::SubFOp>(loc, mult, other);
+  }
+  if (auto addScalar = dyn_cast<AtenAddScalarOp>(op)) {
+    Type dtype = converter->convertType(addScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value self = payloadArgs[0];
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value mult = b.create<arith::MulFOp>(loc, self, alpha);
+      return b.create<arith::AddFOp>(loc, mult, other);
+    } else if (dtype.isa<mlir::IntegerType>()) {
+      Value mult = b.create<arith::MulIOp>(loc, self, alpha);
+      return b.create<arith::AddIOp>(loc, mult, other);
+    } else {
+      addScalar.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+  }
   if (auto mulScalar = dyn_cast<AtenMulScalarOp>(op)) {
     Type dtype = converter->convertType(mulScalar.getType())
                      .cast<RankedTensorType>()
@@ -2244,7 +2277,8 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
              AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenEqScalarOp,
              AtenLtScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
-             AtenEqTensorOp, AtenLtTensorOp>(op))
+             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp>(
+            op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -3561,7 +3595,6 @@ public:
 };
 } // namespace
 
-
 namespace {
 class ConvertAtenFill_ScalarOp : public OpConversionPattern<AtenFill_ScalarOp> {
 public:
@@ -3586,7 +3619,6 @@ public:
   }
 };
 } // namespace
-
 
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
@@ -3921,8 +3953,8 @@ public:
     for (auto size : resultSize)
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
-    auto resultType =
-        typeConverter->convertType(op.getType()).template cast<RankedTensorType>();
+    auto resultType = typeConverter->convertType(op.getType())
+                          .template cast<RankedTensorType>();
     Type outElemType = resultType.getElementType();
 
     // Create an uninitialized tensor of `resultSize` shape and fill it with
@@ -4235,7 +4267,7 @@ public:
         AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp,
         AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
         AtenEqScalarOp, AtenLtScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
-        AtenEqTensorOp, AtenLtTensorOp>();
+        AtenEqTensorOp, AtenLtTensorOp, AtenAddScalarOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);

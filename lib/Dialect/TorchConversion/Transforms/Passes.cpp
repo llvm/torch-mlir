@@ -67,7 +67,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     pm.addNestedPass<FuncOp>(createCanonicalizerPass());
     // Resolve `dim` ops on tensors (which currently live in the `memref`
     // dialect for some reason -- we don't have memrefs at this level).
-    pm.addNestedPass<FuncOp>(memref::createResolveShapedTypeResultDimsPass());
+    //pm.addNestedPass<FuncOp>(memref::createResolveShapedTypeResultDimsPass());
     // The resolution of `dim` ops tends to create identical ops. CSE them.
     pm.addNestedPass<FuncOp>(createCSEPass());
   }
