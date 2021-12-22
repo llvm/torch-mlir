@@ -1676,6 +1676,42 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
   }
+  if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
+    Type dtype = converter->convertType(subScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value mult = b.create<arith::MulFOp>(loc, other, alpha);
+      return b.create<arith::SubFOp>(loc, self, mult);
+    } else if (dtype.isa<mlir::IntegerType>()) {
+      Value mult = b.create<arith::MulIOp>(loc, other, alpha);
+      return b.create<arith::SubIOp>(loc, self, mult);
+    }
+    subScalar.emitError("unimplemented: dtype other than float and integer "
+                        "types are not supported.");
+    return nullptr;
+  }
+  if (auto addScalar = dyn_cast<AtenAddScalarOp>(op)) {
+    Type dtype = converter->convertType(addScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value mult = b.create<arith::MulFOp>(loc, other, alpha);
+      return b.create<arith::AddFOp>(loc, self, mult);
+    } else if (dtype.isa<mlir::IntegerType>()) {
+      Value mult = b.create<arith::MulIOp>(loc, other, alpha);
+      return b.create<arith::AddIOp>(loc, self, mult);
+    }
+    addScalar.emitError("unimplemented: dtype other than float and integer "
+                        "types are not supported.");
+    return nullptr;
+  }
   if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
     AtenMulTensorOp::Adaptor adaptor(operands);
     Type dtype = converter->convertType(mul.getType())
@@ -2244,7 +2280,8 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
              AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenEqScalarOp,
              AtenLtScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
-             AtenEqTensorOp, AtenLtTensorOp>(op))
+             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp>(
+            op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
