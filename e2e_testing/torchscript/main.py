@@ -47,6 +47,7 @@ from . import nll_loss
 from . import index_select
 from . import index_put
 from . import arange
+from . import hbc
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
