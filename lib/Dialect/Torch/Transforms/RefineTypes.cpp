@@ -338,6 +338,8 @@ public:
       return visitAtenArangeOp(arange);
     } else if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
       return visitAtenArangeStartOp(arangeStart);
+    } else if (auto arangeStartStep = dyn_cast<AtenArangeStartStepOp>(op)) {
+      return visitAtenArangeStartStepOp(arangeStartStep);
     } else if (auto sum = dyn_cast<AtenSumOp>(op)) {
       Type defaultDtype = operands[0]->getValue().dtype;
       Type dtype =
@@ -532,7 +534,10 @@ private:
 
   ChangeResult visitAtenArangeLikeOpHelper(Operation *op,
                                            llvm::Optional<Value> start,
-                                           Value end, Value dtype);
+                                           Value end,
+                                           llvm::Optional<Value> step,
+                                           Value dtype);
+  ChangeResult visitAtenArangeStartStepOp(AtenArangeStartStepOp op);
   ChangeResult visitAtenArangeStartOp(AtenArangeStartOp op);
   ChangeResult visitAtenArangeOp(AtenArangeOp op);
   ChangeResult visitReductionAlongAllDimsOp(
@@ -1092,7 +1097,8 @@ ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
 
 // Arange like ops returns a 1-D tensor of size ceil(end - start).
 ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
-    Operation *op, llvm::Optional<Value> start, Value end, Value dtype) {
+    Operation *op, llvm::Optional<Value> start, Value end,
+    llvm::Optional<Value> step, Value dtype) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.sizes.resize(1, kUnknownSize);
@@ -1103,12 +1109,13 @@ ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
   } else if (dtype.getType().isa<Torch::NoneType>()) {
     // From torch/_torch_docs.py:
     // If `dtype` is not given, infer the data type from the other input
-    // arguments. If any of `start`, `end`, or `stop` are floating-point, the
+    // arguments. If any of `start`, `end`, or `step` are floating-point, the
     // `dtype` is inferred to be the default dtype, see
     // `torch.get_default_dtype`. Otherwise, the `dtype` is inferred to
     // be `torch.int64`
     if ((start.hasValue() && (*start).getType().isa<Torch::FloatType>()) ||
-        end.getType().isa<Torch::FloatType>()) {
+        end.getType().isa<Torch::FloatType>() ||
+        (step.hasValue() && (*step).getType().isa<Torch::FloatType>())) {
       // TODO: Should get the dtype from torch.get_default_dtype().
       // For now, use float32 which is the initial default dtype.
       knowledge.dtype = Float32Type::get(op->getContext());
@@ -1119,12 +1126,18 @@ ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
+ChangeResult
+TypeAnalyzer::visitAtenArangeStartStepOp(AtenArangeStartStepOp op) {
+  return visitAtenArangeLikeOpHelper(op, op.start(), op.end(), op.step(),
+                                     op.dtype());
+}
+
 ChangeResult TypeAnalyzer::visitAtenArangeStartOp(AtenArangeStartOp op) {
-  return visitAtenArangeLikeOpHelper(op, op.start(), op.end(), op.dtype());
+  return visitAtenArangeLikeOpHelper(op, op.start(), op.end(), {}, op.dtype());
 }
 
 ChangeResult TypeAnalyzer::visitAtenArangeOp(AtenArangeOp op) {
-  return visitAtenArangeLikeOpHelper(op, {}, op.end(), op.dtype());
+  return visitAtenArangeLikeOpHelper(op, {}, op.end(), {}, op.dtype());
 }
 
 ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(

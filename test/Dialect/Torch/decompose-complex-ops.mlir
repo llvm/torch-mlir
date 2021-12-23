@@ -121,3 +121,36 @@ func @torch.aten.size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.list<!torch.in
   %0 = torch.aten.size %arg0 : !torch.vtensor<[?,3],f32> -> !torch.list<!torch.int>
   return %0 : !torch.list<!torch.int>
 }
+
+// ----
+// CHECK-LABEL:   func @torch.aten.arange() -> !torch.vtensor<[?],si64> {
+// CHECK:           %[[CST5:.*]] = torch.constant.int 5
+// CHECK:           %[[CSTN:.*]] = torch.constant.none
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[RESULT:.*]] = torch.aten.arange.start_step %[[CST0]], %[[CST5]], %[[CST1]], %[[CSTN]], %[[CSTN]], %[[CSTN]], %[[CSTN]] :
+// CHECK-SAME:          !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[?],si64>
+func @torch.aten.arange() -> !torch.vtensor<[?],si64> {
+  %int5 = torch.constant.int 5
+  %none = torch.constant.none
+  %0 = torch.aten.arange %int5, %none, %none, %none, %none : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
+  return %0 : !torch.vtensor<[?],si64>
+}
+
+// ----
+// CHECK-LABEL:   func @torch.aten.arange.start() -> !torch.vtensor<[?],si64> {
+// CHECK:           %[[CST10:.*]] = torch.constant.int 10
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[CSTN:.*]] = torch.constant.none
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[RESULT:.*]] = torch.aten.arange.start_step %[[CST0]], %[[CST10]], %[[CST1]], %[[CSTN]], %[[CSTN]], %[[CSTN]], %[[CSTN]] :
+// CHECK-SAME:          !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[?],si64>
+func @torch.aten.arange.start() -> !torch.vtensor<[?],si64> {
+  %int10 = torch.constant.int 10
+  %int0 = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.arange.start %int0, %int10, %none, %none, %none, %none : !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
+  return %0 : !torch.vtensor<[?],si64>
+}
