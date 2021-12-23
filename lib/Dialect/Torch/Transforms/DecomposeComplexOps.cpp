@@ -546,6 +546,51 @@ public:
 };
 } // namespace
 
+// Helper function for generating TorchConstantOp either float or int based
+// on `isFloatDtype` with constant value `val`.
+static Value createConstantOp(Location loc, PatternRewriter &rewriter,
+                              bool isFloatDtype, int64_t val) {
+  if (isFloatDtype)
+    return rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)val));
+  else
+    return rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(val));
+}
+
+namespace {
+// Both the `aten.arange` and `aten.arange.start` op are converted into
+// `aten.arange.start_step` op.
+template <typename OpTy>
+class DecomposeAtenArangeLikeOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value start, step;
+    Value end = op.end();
+    Value result = op.result();
+    BaseTensorType resultType = result.getType().cast<BaseTensorType>();
+    bool isFloatDtype =
+        resultType.hasDtype() && resultType.getDtype().isa<mlir::FloatType>();
+    // If the op is a AtenArangeStartOp then it has a start value. Otherwise we
+    // set it as default value 0.
+    if (isa<AtenArangeStartOp>(op)) {
+      auto arangeStartOp = cast<AtenArangeStartOp>(op);
+      start = arangeStartOp.start();
+    } else
+      start = createConstantOp(loc, rewriter, isFloatDtype, 0);
+    // Both the `aten.arange` and `aten.arange.start` op doesn't have a step
+    // value. We set it to default value 1.
+    step = createConstantOp(loc, rewriter, isFloatDtype, 1);
+    rewriter.replaceOpWithNewOp<AtenArangeStartStepOp>(
+        op, resultType, start, end, step, op.dtype(), op.layout(), op.device(),
+        op.pin_memory());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -595,6 +640,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenAddcdivOp>();
     target.addIllegalOp<AtenLayerNormOp>();
     patterns.add<DecomposeAtenLayerNormOp>(context);
+    patterns.add<DecomposeAtenArangeLikeOp<AtenArangeOp>>(context);
+    target.addIllegalOp<AtenArangeOp>();
+    patterns.add<DecomposeAtenArangeLikeOp<AtenArangeStartOp>>(context);
+    target.addIllegalOp<AtenArangeStartOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

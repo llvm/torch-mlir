@@ -4144,6 +4144,99 @@ public:
 } // namespace
 
 namespace {
+// Let's say the result of the `aten.arange.start_step` is `output` which is a
+// 1-d output tensor. The approach used for generating the output tensor is as
+// follows:
+//    for i in range(ceil((end-start)/step))
+//          output[i] = start + (i * step)
+class ConvertAtenArangeStartStepOp
+    : public OpConversionPattern<AtenArangeStartStepOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenArangeStartStepOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // TODO: Add support for layout, pin_memory features.
+    // Only `none` layout is supported.
+    if (!op.layout().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only default layout is supported");
+
+    // The pin_memory should be either `False` or `none`.
+    bool pinMemory;
+    if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+         pinMemory)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: pin_memory must be either None or false");
+    }
+
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = this->getTypeConverter();
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .cast<RankedTensorType>();
+    Type dtype = resultType.getElementType();
+    Value start = convertScalarToDtype(rewriter, loc, adaptor.start(), dtype);
+    Value end = convertScalarToDtype(rewriter, loc, adaptor.end(), dtype);
+    Value step = convertScalarToDtype(rewriter, loc, adaptor.step(), dtype);
+
+    // The result will always be a 1-d tensor.
+    // The size of the result is calculated as follows:
+    //          ceil((end - start)/step)
+    Value resultShape;
+    if (dtype.isa<mlir::IntegerType>()) {
+      Value subOut = rewriter.create<arith::SubIOp>(loc, end, start);
+      resultShape = rewriter.create<arith::CeilDivSIOp>(loc, subOut, step);
+    } else {
+      Value subOut = rewriter.create<arith::SubFOp>(loc, end, start);
+      Value divOut = rewriter.create<arith::DivFOp>(loc, subOut, step);
+      Value ceilOut = rewriter.create<math::CeilOp>(loc, divOut);
+      resultShape =
+          rewriter.create<arith::FPToUIOp>(loc, rewriter.getI64Type(), ceilOut);
+    }
+    resultShape = castIntToIndex(rewriter, loc, resultShape);
+
+    Value resultTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, resultShape, dtype);
+
+    StringRef iteratorType = getParallelIteratorTypeName();
+    AffineMap indexingMap =
+        AffineMap::getMultiDimIdentityMap(1, op->getContext());
+
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, /*resultTensorTypes=*/resultTensor.getType(),
+                /*inputs=*/ValueRange({}),
+                /*outputs=*/resultTensor,
+                /*indexingMaps=*/indexingMap,
+                /*iteratorTypes=*/iteratorType,
+                [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+                  Value index = b.create<linalg::IndexOp>(loc, 0);
+                  index = castIndexToInt(b, loc, index);
+                  index = convertScalarToDtype(b, loc, index, dtype);
+                  Value mulOut, result;
+                  if (dtype.isa<mlir::FloatType>()) {
+                    mulOut = b.create<arith::MulFOp>(loc, step, index);
+                    result = b.create<arith::AddFOp>(loc, start, mulOut);
+                  } else {
+                    mulOut = b.create<arith::MulIOp>(loc, step, index);
+                    result = b.create<arith::AddIOp>(loc, start, mulOut);
+                  }
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenIndexTensorOp : public OpConversionPattern<AtenIndexTensorOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -4219,6 +4312,7 @@ public:
   }
 };
 } // namespace
+
 
 // -----------------------------------------------------------------------------
 // The pass
@@ -4336,6 +4430,8 @@ public:
     target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
     target.addIllegalOp<AtenIndexTensorOp>();
     patterns.add<ConvertAtenIndexTensorOp>(typeConverter, context);
+    patterns.add<ConvertAtenArangeStartStepOp>(typeConverter, context);
+    target.addIllegalOp<AtenArangeStartStepOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

@@ -2028,6 +2028,26 @@ def Torch_AtenArangeStartOp : Torch_Op<"aten.arange.start", [
   let assemblyFormat = "$start `,` $end `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($start) `,` type($end) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
 }
 
+def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::arange.start_step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchScalarType:$start,
+    AnyTorchScalarType:$end,
+    AnyTorchScalarType:$step,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$start `,` $end `,` $step `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($start) `,` type($end) `,` type($step) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+}
+
 def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
     AllowsTypeRefinement,
     HasValueSemantics

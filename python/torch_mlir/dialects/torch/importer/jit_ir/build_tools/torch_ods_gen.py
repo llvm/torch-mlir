@@ -557,6 +557,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::any.dim : (Tensor, int, bool) -> (Tensor)")
         emit("aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::arange.start : (Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::arange.start_step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
         emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
         emit("aten::contiguous : (Tensor, int) -> (Tensor)")
