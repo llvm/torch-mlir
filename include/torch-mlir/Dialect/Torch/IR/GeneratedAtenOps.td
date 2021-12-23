@@ -2399,6 +2399,7 @@ def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $dtype `,` $non_blocking `,` $copy `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($non_blocking) `,` type($copy) `,` type($memory_format) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
@@ -2462,6 +2463,7 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $size attr-dict `:` type($self) `,` type($size) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [

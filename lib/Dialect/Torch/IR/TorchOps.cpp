@@ -475,6 +475,48 @@ OpFoldResult AtenSqueezeDimOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenToDtypeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenToDtypeOp::fold(ArrayRef<Attribute> operands) {
+  bool nonBlocking, copyArg;
+  // The non_blocking arg must be `False`.
+  if (!matchPattern(non_blocking(), m_TorchConstantBool(&nonBlocking)) ||
+      nonBlocking)
+    return nullptr;
+  // The copy arg must be `False`.
+  if (!matchPattern(copy(), m_TorchConstantBool(&copyArg)) || copyArg)
+    return nullptr;
+  // The memory_format arg must be `none`.
+  if (!memory_format().getType().isa<Torch::NoneType>())
+    return nullptr;
+
+  auto inputType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  if (!inputType || !inputType.hasSizes())
+    return nullptr;
+  auto resType = getType().dyn_cast<BaseTensorType>();
+  if (!resType || !resType.hasSizes() || inputType != resType)
+    return nullptr;
+  // Fold when both the input tensor and result are of the same type.
+  return getOperand(0);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenViewOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenViewOp::fold(ArrayRef<Attribute> operands) {
+  auto inputType = getOperand(0).getType().dyn_cast<BaseTensorType>();
+  if (!inputType || !inputType.hasSizes() || inputType.getSizes().size() != 1)
+    return nullptr;
+  auto resType = getType().dyn_cast<BaseTensorType>();
+  if (!resType || !resType.hasSizes() || resType.getSizes().size() != 1)
+    return nullptr;
+  // Fold when both the input tensor and result are unity rank tensors.
+  return getOperand(0);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenDimOp
 //===----------------------------------------------------------------------===//
 

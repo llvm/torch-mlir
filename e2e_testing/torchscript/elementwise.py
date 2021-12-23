@@ -865,6 +865,22 @@ class ElementwiseToDtypeF32ToI64Module(torch.nn.Module):
 def ElementwiseToDtypeF32ToI64Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
+class ElementwiseToDtypeIdentityModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.float32, False, False)
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeIdentityModule())
+def ElementwiseToDtypeIdentityModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
 class ElementwiseLog2Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1000,3 +1016,69 @@ def ElementwiseAndIntegerModule_basic(module, tu: TestUtils):
                    torch.randint(-10, 10, (3, 4)))
 
 
+class ElementwiseSubScalarIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.sub(x, 2.1, alpha = 2)
+
+@register_test_case(module_factory=lambda: ElementwiseSubScalarIntModule())
+def ElementwiseSubScalarIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 4)))
+
+
+class ElementwiseSubScalarFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.sub(x, 2.1)
+
+@register_test_case(module_factory=lambda: ElementwiseSubScalarFloatModule())
+def ElementwiseSubScalarFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+class ElementwiseAddScalarIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.add(x, 3.0)
+
+@register_test_case(module_factory=lambda: ElementwiseAddScalarIntModule())
+def ElementwiseAddScalarIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 4)))
+
+
+class ElementwiseAddScalarFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.add(x, 3.0, alpha = 2)
+
+@register_test_case(module_factory=lambda: ElementwiseAddScalarFloatModule())
+def ElementwiseAddScalarFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))

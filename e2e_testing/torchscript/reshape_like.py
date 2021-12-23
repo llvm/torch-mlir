@@ -107,7 +107,7 @@ def ViewCollapseDynamicWithAtenSizeIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ReshapeExpandModule(torch.nn.Module):
+class View1DFoldModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -118,27 +118,8 @@ class ReshapeExpandModule(torch.nn.Module):
     ])
 
     def forward(self, a):
-        return a.reshape(12, 32)
+        return a.view(-1)
 
-@register_test_case(module_factory=lambda: ReshapeExpandModule())
-def ReshapeExpandModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(384))
-
-# ==============================================================================
-
-class ReshapeCollapseModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
-
-    def forward(self, a):
-        return torch.reshape(a, (-1,))
-
-@register_test_case(module_factory=lambda: ReshapeCollapseModule())
-def ReshapeCollapseModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 4))
+@register_test_case(module_factory=lambda: View1DFoldModule())
+def View1DFoldModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(32))

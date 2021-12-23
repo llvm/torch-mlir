@@ -622,3 +622,24 @@ func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.t
   %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor<[],f32>
   return %0 : !torch.tensor<[],f32>
 }
+
+// CHECK-LABEL:   func @torch.aten.to.dtype$same_dtype(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
+func @torch.aten.to.dtype$same_dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int6 = torch.constant.int 6
+  %0 = torch.aten.to.dtype %arg0, %int6, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
+  return %0 : !torch.tensor<[?,?],f32>
+}
+
+// CHECK-LABEL:   func @torch.aten.view$1D(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?],f32>) -> !torch.tensor<[?],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?],f32>
+func @torch.aten.view$1D(%arg0: !torch.tensor<[?],f32>) -> !torch.tensor<[?],f32> {
+  %int-1 = torch.constant.int -1
+  %0 = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.view %arg0, %0 : !torch.tensor<[?],f32>, !torch.list<!torch.int> -> !torch.tensor<[?],f32>
+  return %1 : !torch.tensor<[?],f32>
+}
