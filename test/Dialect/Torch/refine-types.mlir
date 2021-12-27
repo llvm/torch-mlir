@@ -93,6 +93,18 @@ builtin.func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:
   return %3 :!torch.vtensor
 }
 
+// CHECK-LABEL: func @h
+// CHECK:           torch.aten.conv2d{{.*}} -> !torch.vtensor<[1,16,62,62],f32>
+builtin.func @h(%arg0:!torch.vtensor<[1,8,64,64],f32>, %arg1:!torch.vtensor<[16,8,3,3],f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %3 = torch.aten.conv2d %arg0, %arg1, %arg2, %stride, %padding, %dilation, %int1 : !torch.vtensor<[1,8,64,64],f32>, !torch.vtensor<[16,8,3,3],f32>, !torch.vtensor<*,f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.int ->!torch.vtensor
+  return %3 :!torch.vtensor
+}
+
 // -----
 
 // CHECK-LABEL: func @f
@@ -107,6 +119,70 @@ builtin.func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %24 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
   // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
   %27 = torch.aten.max_pool2d %arg0, %21, %22, %23, %24, %bool_false : !torch.vtensor<[?,?,?,?],f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool -> !torch.vtensor
+  return %27 : !torch.vtensor
+}
+
+// CHECK-LABEL: func @g
+builtin.func @g(%arg0: !torch.vtensor<[1,8,64,64],f32>) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %bool_false = torch.constant.bool false
+  %krnl = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[1,8,32,32],f32>
+  %27 = torch.aten.max_pool2d %arg0, %krnl, %stride, %padding, %dilation, %bool_false : !torch.vtensor<[1,8,64,64],f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool -> !torch.vtensor
+  return %27 : !torch.vtensor
+}
+
+// CHECK-LABEL: func @h
+builtin.func @h(%arg0: !torch.vtensor<[1,8,64,64],f32>) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %bool_false = torch.constant.bool false
+  %krnl = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[1,8,62,62],f32>
+  %27 = torch.aten.max_pool2d %arg0, %krnl, %stride, %padding, %dilation, %bool_false : !torch.vtensor<[1,8,64,64],f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool -> !torch.vtensor
+  return %27 : !torch.vtensor
+}
+
+// CHECK-LABEL: func @i
+builtin.func @i(%arg0: !torch.vtensor<[1,8,64,64],f32>) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %bool_false = torch.constant.bool false
+  %krnl = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %padding = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[1,8,66,66],f32>
+  %27 = torch.aten.max_pool2d %arg0, %krnl, %stride, %padding, %dilation, %bool_false : !torch.vtensor<[1,8,64,64],f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool -> !torch.vtensor
+  return %27 : !torch.vtensor
+}
+
+// CHECK-LABEL: func @j
+builtin.func @j(%arg0: !torch.vtensor<[1,8,64,64],f32>) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %bool_false = torch.constant.bool false
+  %krnl = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.max_pool2d{{.*}} -> !torch.vtensor<[1,8,32,32],f32>
+  %27 = torch.aten.max_pool2d %arg0, %krnl, %stride, %padding, %dilation, %bool_false : !torch.vtensor<[1,8,64,64],f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool -> !torch.vtensor
   return %27 : !torch.vtensor
 }
 
