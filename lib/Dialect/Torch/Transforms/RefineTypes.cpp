@@ -759,6 +759,47 @@ static void fillInSizesGivenSizesList(ValueKnowledge &knowledge, Value sizes) {
   }
 }
 
+static void fillInSizesForBinaryBroadcastingOp(ValueKnowledge &lhs,
+                                               ValueKnowledge &rhs,
+                                               ValueKnowledge &knowledge) {
+  if (lhs.hasSizes && rhs.hasSizes) {
+    knowledge.hasSizes = true;
+    knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
+                           kUnknownSize);
+
+    int64_t resultRank = knowledge.sizes.size();
+    auto increaseRankToResultRank =
+        [&](const std::vector<int64_t> &sizes) -> std::vector<int64_t> {
+      int offset = resultRank - sizes.size();
+      std::vector<int64_t> newSizes(std::max(offset, 0), 1);
+      newSizes.insert(newSizes.end(), sizes.begin(), sizes.end());
+      return newSizes;
+    };
+
+    std::vector<int64_t> rankAdjustedSizesLhs =
+        increaseRankToResultRank(lhs.sizes);
+    std::vector<int64_t> rankAdjustedSizesRhs =
+        increaseRankToResultRank(rhs.sizes);
+
+    for (int64_t i = 0; i < resultRank; i++) {
+      int64_t lhsDimSize = rankAdjustedSizesLhs[i];
+      int64_t rhsDimSize = rankAdjustedSizesRhs[i];
+      // Dynamic shape can't be decided at compilation.
+      if (lhsDimSize == kUnknownSize || rhsDimSize == kUnknownSize)
+        continue;
+
+      // Incompatible broadcasting shape.
+      if (lhsDimSize != rhsDimSize && lhsDimSize != 1 && rhsDimSize != 1) {
+        knowledge.hasSizes = false;
+        knowledge.sizes.clear();
+        return;
+      }
+
+      knowledge.sizes[i] = std::max(lhsDimSize, rhsDimSize);
+    }
+  }
+}
+
 ChangeResult TypeAnalyzer::visitAtenMmOp(
     AtenMmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto &lhs = operands[0]->getValue();
@@ -950,11 +991,7 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   auto rhs = operands[1]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  if (lhs.hasSizes && rhs.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
-                           kUnknownSize);
-  }
+  fillInSizesForBinaryBroadcastingOp(lhs, rhs, knowledge);
 
   // The alpha in `aten.add.Tensor` and `aten.sub.Tensor` has to be lower type
   // category than the lhs and rhs and therefore doesn't really contribute to
@@ -969,12 +1006,8 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
   auto rhs = operands[1]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  if (lhs.hasSizes && rhs.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
-                           kUnknownSize);
-  }
-  knowledge.dtype = IntegerType::get(op->getContext(), 1); 
+  fillInSizesForBinaryBroadcastingOp(lhs, rhs, knowledge);
+  knowledge.dtype = IntegerType::get(op->getContext(), 1);
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
