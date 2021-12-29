@@ -299,9 +299,9 @@ builtin.func @torch.aten.unsqueeze$unknown_position(%arg0: !torch.tensor<[2],f32
 // CHECK-LABEL: func @f
 builtin.func @f(%arg0: !torch.vtensor<[4,6,3],f32>, %arg1: !torch.vtensor<[1,1,3],f32>, %arg2: !torch.vtensor<[?,3],f32>) {
   %int1 = torch.constant.int 1
-  // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[?,?,?],f32>
+  // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[4,6,3],f32>
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[4,6,3],f32>, !torch.vtensor<[1,1,3],f32>, !torch.int -> !torch.vtensor
-  // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[?,?,?],f32>
+  // CHECK: torch.aten.add{{.*}} -> !torch.vtensor<[4,?,3],f32>
   %1 = torch.aten.add.Tensor %arg0, %arg2, %int1 : !torch.vtensor<[4,6,3],f32>, !torch.vtensor<[?,3],f32>, !torch.int -> !torch.vtensor
   return
 }
@@ -1105,4 +1105,17 @@ func @torch.aten.to.dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor{
 func @torch.prim.NumToTensor.Scalar(%arg0: !torch.int) -> !torch.tensor {
   %0 = torch.prim.NumToTensor.Scalar %arg0: !torch.int -> !torch.tensor
   return %0: !torch.tensor
+}
+
+// ----
+// CHECK-LABEL:   func @torch.aten.BinaryBroadcasting(
+// CHECK-SAME:                                        %[[T0:.*]]: !torch.vtensor<[5,4,3,3,1],f32>,
+// CHECK-SAME:                                        %[[T1:.*]]: !torch.vtensor<[?,3,1,2],f32>,
+// CHECK-SAME:                                        %[[SCALAR:.*]]: !torch.int) -> !torch.tensor {
+// CHECK:           %[[ADD:.*]] = torch.aten.add.Tensor %[[T0]], %[[T1]], %[[SCALAR]] : !torch.vtensor<[5,4,3,3,1],f32>, !torch.vtensor<[?,3,1,2],f32>, !torch.int -> !torch.tensor<[5,?,3,3,2],f32>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ADD]] : !torch.tensor<[5,?,3,3,2],f32> to !torch.tensor
+// CHECK:           return %[[CAST]] : !torch.tensor
+func @torch.aten.BinaryBroadcasting(%arg0: !torch.vtensor<[5,4,3,3,1],f32>, %arg1: !torch.vtensor<[?,3,1,2],f32>, %arg2: !torch.int) -> !torch.tensor {
+  %0 = torch.aten.add.Tensor %arg0, %arg1, %arg2: !torch.vtensor<[5,4,3,3,1],f32>, !torch.vtensor<[?,3,1,2],f32>, !torch.int -> !torch.tensor
+  return %0 : !torch.tensor
 }

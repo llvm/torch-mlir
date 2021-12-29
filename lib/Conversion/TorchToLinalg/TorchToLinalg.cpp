@@ -2345,7 +2345,7 @@ struct ConvertElementwiseOp : ConversionPattern {
         // undefined behavior, by doing appropriate checks against the current
         // dimension size.
         auto currentDimSize =
-            rewriter.create<tensor::DimOp>(loc, tensorOperand, size.index());
+            getDimOp(rewriter, loc, tensorOperand, size.index());
 
         // If the result size of this dimension has so far only hit the
         // statically-known-to-be-1 case above (i.e., we have not yet assigned a
@@ -2372,12 +2372,13 @@ struct ConvertElementwiseOp : ConversionPattern {
           /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, getContext()));
     }
 
-    SmallVector<StringRef> iteratorTypes(resultRank, "parallel");
+    SmallVector<StringRef> iteratorTypes(resultRank,
+                                         getParallelIteratorTypeName());
     // Add the indexing map for the outs init tensor.
     indexingMaps.push_back(rewriter.getMultiDimIdentityMap(resultRank));
 
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, resultShape, resultType.getElementType());
+        loc, getAsOpFoldResult(resultShape), resultType.getElementType());
     bool hadErrorCreatingPayload = false;
     auto generic = rewriter.create<linalg::GenericOp>(
         loc, /*resultTensorTypes=*/initTensor.getType(),
