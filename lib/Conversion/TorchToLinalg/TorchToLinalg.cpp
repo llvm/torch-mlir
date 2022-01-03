@@ -11,7 +11,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
@@ -2145,7 +2145,7 @@ public:
       SmallVector<ReassociationIndices> reassociation(1);
       for (auto i : llvm::seq<int64_t>(0, inputType.getRank()))
         reassociation[0].push_back(i);
-      input = rewriter.create<linalg::TensorCollapseShapeOp>(
+      input = rewriter.create<tensor::CollapseShapeOp>(
           argmaxOp->getLoc(), input, reassociation);
       // Becomes 0 for flattened tensor.
       dim = 0;
@@ -2671,7 +2671,7 @@ public:
       if (!(startDim >= -1 && startDim <= 0 && endDim >= -1 && endDim <= 0))
         return rewriter.notifyMatchFailure(
             op, "start_dim and end_dim must be in [-1, 0] when inputRank is 0");
-      rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
           op, resultType, adaptor.self(), reassociation);
       return success();
     }
@@ -2688,7 +2688,7 @@ public:
       if (i < startDim || i >= endDim)
         j++;
     }
-    Value collapsedTensor = rewriter.create<linalg::TensorCollapseShapeOp>(
+    Value collapsedTensor = rewriter.create<tensor::CollapseShapeOp>(
         op->getLoc(), adaptor.self(), reassociation);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 collapsedTensor);
@@ -2913,11 +2913,11 @@ public:
     Value result =
         isCollapse
             ? rewriter
-                  .create<linalg::TensorCollapseShapeOp>(
+                  .create<tensor::CollapseShapeOp>(
                       loc, adjustedResultType, castedInput, reassociation)
                   .result()
             : rewriter
-                  .create<linalg::TensorExpandShapeOp>(
+                  .create<tensor::ExpandShapeOp>(
                       loc, adjustedResultType, castedInput, reassociation)
                   .result();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
@@ -2953,7 +2953,7 @@ public:
     // being unit extent, it will be collapsed to a 0-D tensor.
     if (resultRank == 0) {
       SmallVector<ReassociationIndices> reassociation;
-      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
           op, resultType, input, reassociation);
       return success();
     }
@@ -3004,7 +3004,7 @@ public:
           op, "expected output size mismatches with the result type rank");
 
     if (isSqueezed) {
-      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
           op, resultType, input, reassociation);
 
     } else {
@@ -3080,7 +3080,7 @@ public:
     // Note: In case the operand tensor type is of unit rank and is statically
     // shaped with unit dimension, the `reassociationMap` will be empty and the
     // input will be collapsed to a 0-D tensor.
-    rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
         op, resultType, input, reassociationMap);
     return success();
   }
@@ -3129,7 +3129,7 @@ public:
     auto resultType = getTypeConverter()
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
-    rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
         op, resultType, adaptor.self(), reassociationMap);
     return success();
   }
@@ -3374,7 +3374,7 @@ public:
         if (i != dim)
           resultIdx++;
       }
-      result = rewriter.create<linalg::TensorCollapseShapeOp>(loc, result,
+      result = rewriter.create<tensor::CollapseShapeOp>(loc, result,
                                                               reassociation);
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);

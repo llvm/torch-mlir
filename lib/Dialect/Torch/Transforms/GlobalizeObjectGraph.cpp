@@ -351,7 +351,7 @@ static LogicalResult analyzeInstances(FuncOp func,
 static FailureOr<Monomorphization>
 createMonomorphizationForCall(CallOp op, BlockAndValueMapping &mapping,
                               SymbolTable &symbolTable) {
-  auto func = symbolTable.lookup<FuncOp>(op.callee());
+  auto func = symbolTable.lookup<FuncOp>(op.getCalleeAttr().getValue());
   Monomorphization monomorphization;
   monomorphization.func = func;
   for (auto operand : llvm::enumerate(op->getOperands())) {
