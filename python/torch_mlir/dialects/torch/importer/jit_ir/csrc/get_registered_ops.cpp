@@ -9,6 +9,8 @@
 
 #include "get_registered_ops.h"
 
+#include <torch/csrc/jit/ir/ir.h>
+
 namespace py = pybind11;
 
 static const char kGetRegisteredOpsDocstring[] =
