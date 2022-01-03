@@ -23,6 +23,8 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_CLASS_ANNOTATOR_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_CLASS_ANNOTATOR_H
 
+#include <torch/csrc/jit/ir/ir.h>
+
 #include "pybind.h"
 
 namespace torch_mlir {
