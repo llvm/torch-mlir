@@ -242,7 +242,7 @@ public:
             AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-            AtenAbsOp>(op)) {
+            AtenAbsOp, AtenThresholdOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -318,7 +318,8 @@ public:
       return visitBinaryTensorScalarOp(op, operands);
     } else if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp,
                    AtenDivTensorOp, Aten__And__TensorOp, AtenMinimumOp,
-                   AtenMaximumOp, AtenBitwiseAndTensorOp>(op)) {
+                   AtenMaximumOp, AtenBitwiseAndTensorOp,
+                   AtenThresholdBackwardOp>(op)) {
       return visitBinaryBroadcastingOp(op, operands);
     } else if (isa<AtenEqTensorOp, AtenGtTensorOp, AtenLtTensorOp>(op)) {
       return visitBinaryBroadcastingComparisonOp(op, operands);

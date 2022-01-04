@@ -2061,6 +2061,49 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1.0));
     return b.create<arith::DivFOp>(loc, one, payloadArgs[0]);
   }
+  if (auto thresholdOp = dyn_cast<AtenThresholdOp>(op)) {
+    // The approach used here is as follows:
+    //        result = self <= threshold ? value : self
+    AtenThresholdOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(thresholdOp.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+
+    Value self = payloadArgs[0];
+    Value threshold = convertScalarToDtype(b, loc, adaptor.threshold(), dtype);
+    Value value = convertScalarToDtype(b, loc, adaptor.value(), dtype);
+
+    Value predicate;
+    if (dtype.isa<mlir::FloatType>())
+      predicate = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, self,
+                                          threshold);
+    else
+      predicate = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, self,
+                                          threshold);
+    return b.create<SelectOp>(loc, predicate, value, self);
+  }
+  if (auto thresholdBackward = dyn_cast<AtenThresholdBackwardOp>(op)) {
+    // The approach used here is as follows:
+    //        result = self <= threshold ? 0 : grad
+    AtenThresholdBackwardOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(thresholdBackward.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+
+    Value grad = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value self = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value threshold = convertScalarToDtype(b, loc, adaptor.threshold(), dtype);
+    Value constantZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+
+    Value predicate;
+    if (dtype.isa<mlir::FloatType>())
+      predicate = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, self,
+                                          threshold);
+    else
+      predicate = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, self,
+                                          threshold);
+    return b.create<SelectOp>(loc, predicate, constantZero, grad);
+  }
 
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
@@ -2280,8 +2323,8 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp, AtenReciprocalOp,
              AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenEqScalarOp,
              AtenLtScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
-             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp>(
-            op))
+             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
+             AtenThresholdOp, AtenThresholdBackwardOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -4163,7 +4206,8 @@ public:
         AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp,
         AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
         AtenEqScalarOp, AtenLtScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
-        AtenEqTensorOp, AtenLtTensorOp>();
+        AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp,
+        AtenThresholdBackwardOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);

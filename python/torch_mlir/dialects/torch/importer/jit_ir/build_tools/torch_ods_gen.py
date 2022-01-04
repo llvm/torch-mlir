@@ -480,6 +480,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::abs : (Tensor) -> (Tensor)",
                 "aten::reciprocal : (Tensor) -> (Tensor)",
                 "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
+                "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
 
         ]:
             emit_with_mutating_variants(key)
@@ -492,6 +493,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
         emit("aten::gelu : (Tensor) -> (Tensor)")
         emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
+        emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
