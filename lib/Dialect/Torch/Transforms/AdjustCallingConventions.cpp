@@ -111,7 +111,7 @@ public:
     for (auto operand : llvm::enumerate(adaptor.getOperands())) {
       if (operand.value().getType().isa<Torch::NoneType>())
         continue;
-      auto it = typeBoundMap.find({call.callee(), operand.index()});
+      auto it = typeBoundMap.find({call.getCallee(), operand.index()});
       if (it != typeBoundMap.end()) {
         if (auto valueTensorType = it->second.dyn_cast<ValueTensorType>()) {
           newOperands.push_back(copyTensorToType(
@@ -126,7 +126,7 @@ public:
       newOperands.push_back(operand.value());
     }
 
-    CallOp newCall = rewriter.create<CallOp>(call.getLoc(), call.callee(),
+    CallOp newCall = rewriter.create<CallOp>(call.getLoc(), call.getCallee(),
                                              convertedResults, newOperands);
     int newOpResultIdx = 0;
     SmallVector<Value> newResults;

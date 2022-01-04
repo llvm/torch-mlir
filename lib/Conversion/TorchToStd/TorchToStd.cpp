@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -36,7 +37,7 @@ public:
   LogicalResult
   matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rank = rewriter.create<RankOp>(op->getLoc(), adaptor.self());
+    auto rank = rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.self());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -112,6 +113,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<StandardOpsDialect>();
     registry.insert<arith::ArithmeticDialect>();
+    registry.insert<tensor::TensorDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 

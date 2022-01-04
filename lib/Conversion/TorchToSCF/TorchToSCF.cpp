@@ -53,8 +53,8 @@ public:
       rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
       rewriter.eraseBlock(&dstRegion.back());
     };
-    inlineIfCase(op.thenRegion(), scfIf.thenRegion());
-    inlineIfCase(op.elseRegion(), scfIf.elseRegion());
+    inlineIfCase(op.thenRegion(), scfIf.getThenRegion());
+    inlineIfCase(op.elseRegion(), scfIf.getElseRegion());
     rewriter.replaceOp(op, scfIf.getResults());
     return success();
   }
