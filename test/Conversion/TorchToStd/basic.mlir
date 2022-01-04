@@ -4,7 +4,7 @@
 // CHECK-LABEL:   func @torch.aten.dim(
 // CHECK-SAME:                         %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.int {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<*,f32> -> tensor<*xf32>
-// CHECK:           %[[RANK:.*]] = rank %[[BUILTIN_TENSOR]] : tensor<*xf32>
+// CHECK:           %[[RANK:.*]] = tensor.rank %[[BUILTIN_TENSOR]] : tensor<*xf32>
 // CHECK:           %[[RANK_I64:.*]] = arith.index_cast %[[RANK]] : index to i64
 // CHECK:           %[[RANK_TORCH_INT:.*]] = torch_c.from_i64 %[[RANK_I64]]
 // CHECK:           return %[[RANK_TORCH_INT]] : !torch.int

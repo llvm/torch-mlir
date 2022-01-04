@@ -11,7 +11,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
@@ -134,12 +134,7 @@ static Value castIndexToInt(OpBuilder &b, Location loc, Value idx) {
 }
 
 static Value getDimOp(OpBuilder &b, Location loc, Value v, int dim) {
-  if (auto tensorType = v.getType().cast<RankedTensorType>()) {
-    if (!tensorType.isDynamicDim(dim))
-      return b.create<arith::ConstantOp>(
-          loc, b.getIndexAttr(tensorType.getShape()[dim]));
-  }
-  return b.create<tensor::DimOp>(loc, v, dim);
+  return b.createOrFold<tensor::DimOp>(loc, v, dim);
 }
 
 static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
@@ -2202,8 +2197,8 @@ public:
       SmallVector<ReassociationIndices> reassociation(1);
       for (auto i : llvm::seq<int64_t>(0, inputType.getRank()))
         reassociation[0].push_back(i);
-      input = rewriter.create<linalg::TensorCollapseShapeOp>(
-          argmaxOp->getLoc(), input, reassociation);
+      input = rewriter.create<tensor::CollapseShapeOp>(argmaxOp->getLoc(),
+                                                       input, reassociation);
       // Becomes 0 for flattened tensor.
       dim = 0;
       // Recast to fix shape.
@@ -2780,7 +2775,7 @@ public:
       if (!(startDim >= -1 && startDim <= 0 && endDim >= -1 && endDim <= 0))
         return rewriter.notifyMatchFailure(
             op, "start_dim and end_dim must be in [-1, 0] when inputRank is 0");
-      rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
           op, resultType, adaptor.self(), reassociation);
       return success();
     }
@@ -2797,7 +2792,7 @@ public:
       if (i < startDim || i >= endDim)
         j++;
     }
-    Value collapsedTensor = rewriter.create<linalg::TensorCollapseShapeOp>(
+    Value collapsedTensor = rewriter.create<tensor::CollapseShapeOp>(
         op->getLoc(), adaptor.self(), reassociation);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 collapsedTensor);
@@ -3022,12 +3017,12 @@ public:
     Value result =
         isCollapse
             ? rewriter
-                  .create<linalg::TensorCollapseShapeOp>(
-                      loc, adjustedResultType, castedInput, reassociation)
+                  .create<tensor::CollapseShapeOp>(loc, adjustedResultType,
+                                                   castedInput, reassociation)
                   .result()
             : rewriter
-                  .create<linalg::TensorExpandShapeOp>(
-                      loc, adjustedResultType, castedInput, reassociation)
+                  .create<tensor::ExpandShapeOp>(loc, adjustedResultType,
+                                                 castedInput, reassociation)
                   .result();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
@@ -3062,7 +3057,7 @@ public:
     // being unit extent, it will be collapsed to a 0-D tensor.
     if (resultRank == 0) {
       SmallVector<ReassociationIndices> reassociation;
-      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
           op, resultType, input, reassociation);
       return success();
     }
@@ -3113,7 +3108,7 @@ public:
           op, "expected output size mismatches with the result type rank");
 
     if (isSqueezed) {
-      rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
+      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
           op, resultType, input, reassociation);
 
     } else {
@@ -3189,8 +3184,8 @@ public:
     // Note: In case the operand tensor type is of unit rank and is statically
     // shaped with unit dimension, the `reassociationMap` will be empty and the
     // input will be collapsed to a 0-D tensor.
-    rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
-        op, resultType, input, reassociationMap);
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
+                                                         reassociationMap);
     return success();
   }
 };
@@ -3238,7 +3233,7 @@ public:
     auto resultType = getTypeConverter()
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
-    rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
         op, resultType, adaptor.self(), reassociationMap);
     return success();
   }
@@ -3483,8 +3478,8 @@ public:
         if (i != dim)
           resultIdx++;
       }
-      result = rewriter.create<linalg::TensorCollapseShapeOp>(loc, result,
-                                                              reassociation);
+      result =
+          rewriter.create<tensor::CollapseShapeOp>(loc, result, reassociation);
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
 
@@ -3528,27 +3523,39 @@ public:
     offsets.resize(rank, rewriter.create<arith::ConstantIndexOp>(loc, 0));
 
     for (int i = 0; i < rank; ++i)
-      sizes.push_back(rewriter.create<tensor::DimOp>(loc, tensors[0], i));
+      sizes.push_back(rewriter.createOrFold<tensor::DimOp>(loc, tensors[0], i));
 
     // Calculate the size of the `dim` result dimension by adding the dim size
     // of each tensor together.
     Value resultDimSize = sizes[dim];
-    Value dimIndex = rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getIndexType(), adaptor.dim());
+
+    Value dimIndex = rewriter.createOrFold<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(dim));
     for (auto tensor : makeArrayRef(tensors).drop_front()) {
-      auto size = rewriter.create<tensor::DimOp>(loc, tensor, dimIndex);
-      resultDimSize = rewriter.create<arith::AddIOp>(loc, resultDimSize, size);
+      auto size = rewriter.createOrFold<tensor::DimOp>(loc, tensor, dimIndex);
+      resultDimSize =
+          rewriter.createOrFold<arith::AddIOp>(loc, resultDimSize, size);
     }
     sizes[dim] = resultDimSize;
+
+    auto toOpFoldResult = [](Value v) -> OpFoldResult {
+      auto op = v.getDefiningOp<arith::ConstantIndexOp>();
+      if (!op)
+        return v;
+      return op.getValue();
+    };
 
     Value result = rewriter.create<linalg::InitTensorOp>(
         loc, sizes, newResultType.getElementType());
     for (auto tensor : tensors) {
-      sizes[dim] = rewriter.create<tensor::DimOp>(loc, tensor, dimIndex);
-      result = rewriter.create<tensor::InsertSliceOp>(loc, tensor, result,
-                                                      offsets, sizes, strides);
+      SmallVector<Value> sizes = getTensorSizes(rewriter, loc, tensor);
+      result = rewriter.createOrFold<tensor::InsertSliceOp>(
+          loc, tensor, result,
+          llvm::to_vector(llvm::map_range(offsets, toOpFoldResult)),
+          llvm::to_vector(llvm::map_range(sizes, toOpFoldResult)),
+          llvm::to_vector(llvm::map_range(strides, toOpFoldResult)));
       offsets[dim] =
-          rewriter.create<arith::AddIOp>(loc, offsets[dim], sizes[dim]);
+          rewriter.createOrFold<arith::AddIOp>(loc, offsets[dim], sizes[dim]);
     }
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
