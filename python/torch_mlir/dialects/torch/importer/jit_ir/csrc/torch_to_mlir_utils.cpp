@@ -194,7 +194,6 @@ MlirType torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     return torchMlirTorchNoneTypeGet(context);
   }
   case TypeKind::AnyType: {
-    auto anyType = torchType->cast<c10::AnyType>();
     return torchMlirTorchAnyTypeGet(context);
   }
   case TypeKind::ClassType: {

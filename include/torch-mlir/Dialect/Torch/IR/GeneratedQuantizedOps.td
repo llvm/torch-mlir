@@ -31,6 +31,6 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   let results = (outs
     AnyTorchTensorType:$Y
   );
-  let assemblyFormat = "$X `,` $W_prepack `,` $Y_scale_i `,` $Y_zero_point_i attr-dict `:` type($X) `,` type($W_prepack) `,` type($Y_scale_i) `,` type($Y_zero_point_i) `->` type($Y)";
+  let assemblyFormat = "$X `,` $W_prepack `,` $Y_scale_i `,` $Y_zero_point_i attr-dict `:` qualified(type($X)) `,` qualified(type($W_prepack)) `,` qualified(type($Y_scale_i)) `,` qualified(type($Y_zero_point_i)) `->` qualified(type($Y))";
 }
 

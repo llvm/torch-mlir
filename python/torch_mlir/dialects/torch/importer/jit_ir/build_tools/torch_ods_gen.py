@@ -333,17 +333,17 @@ def raw_emit_op(operator: JitOperator, f: TextIO, *, traits: List[str],
 
         if operator.is_vararg:
             assembly_operands = "`(` $operands `)`"
-            assembly_operand_types = "type($operands)"
+            assembly_operand_types = "qualified(type($operands))"
         else:
             assembly_operands = " `,` ".join("$" + arg["name"]
                                              for arg in operator.arguments)
             assembly_operand_types = " `,` ".join(
-                f"""type(${arg["name"]})""" for arg in operator.arguments)
+                f"""qualified(type(${arg["name"]}))""" for arg in operator.arguments)
         if operator.is_varret:
-            assembly_result_types = "type($results)"
+            assembly_result_types = "qualified(type($results))"
         else:
             assembly_result_types = " `,` ".join(
-                f"""type(${ret["name"] or generic_result_name(e)})"""
+                f"""qualified(type(${ret["name"] or generic_result_name(e)}))"""
                 for e, ret in enumerate(operator.returns))
         if assembly_operand_types and assembly_result_types:
             maybe_arrow = " `->` "

@@ -27,7 +27,7 @@ def Torch_AtenTanhOp : Torch_Op<"aten.tanh", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
@@ -41,7 +41,7 @@ def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenReluOp : Torch_Op<"aten.relu", [
@@ -55,7 +55,7 @@ def Torch_AtenReluOp : Torch_Op<"aten.relu", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenRelu_Op : Torch_Op<"aten.relu_", [
@@ -69,7 +69,7 @@ def Torch_AtenRelu_Op : Torch_Op<"aten.relu_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLeakyReluOp : Torch_Op<"aten.leaky_relu", [
@@ -84,7 +84,7 @@ def Torch_AtenLeakyReluOp : Torch_Op<"aten.leaky_relu", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $negative_slope attr-dict `:` type($self) `,` type($negative_slope) `->` type($result)";
+  let assemblyFormat = "$self `,` $negative_slope attr-dict `:` qualified(type($self)) `,` qualified(type($negative_slope)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLeakyRelu_Op : Torch_Op<"aten.leaky_relu_", [
@@ -99,7 +99,7 @@ def Torch_AtenLeakyRelu_Op : Torch_Op<"aten.leaky_relu_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $negative_slope attr-dict `:` type($self) `,` type($negative_slope) `->` type($result)";
+  let assemblyFormat = "$self `,` $negative_slope attr-dict `:` qualified(type($self)) `,` qualified(type($negative_slope)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLogOp : Torch_Op<"aten.log", [
@@ -113,7 +113,7 @@ def Torch_AtenLogOp : Torch_Op<"aten.log", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLog_Op : Torch_Op<"aten.log_", [
@@ -127,7 +127,7 @@ def Torch_AtenLog_Op : Torch_Op<"aten.log_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSigmoidOp : Torch_Op<"aten.sigmoid", [
@@ -141,7 +141,7 @@ def Torch_AtenSigmoidOp : Torch_Op<"aten.sigmoid", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSigmoid_Op : Torch_Op<"aten.sigmoid_", [
@@ -155,7 +155,7 @@ def Torch_AtenSigmoid_Op : Torch_Op<"aten.sigmoid_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSinOp : Torch_Op<"aten.sin", [
@@ -169,7 +169,7 @@ def Torch_AtenSinOp : Torch_Op<"aten.sin", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSin_Op : Torch_Op<"aten.sin_", [
@@ -183,7 +183,7 @@ def Torch_AtenSin_Op : Torch_Op<"aten.sin_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenExpOp : Torch_Op<"aten.exp", [
@@ -197,7 +197,7 @@ def Torch_AtenExpOp : Torch_Op<"aten.exp", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenExp_Op : Torch_Op<"aten.exp_", [
@@ -211,7 +211,7 @@ def Torch_AtenExp_Op : Torch_Op<"aten.exp_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCosOp : Torch_Op<"aten.cos", [
@@ -225,7 +225,7 @@ def Torch_AtenCosOp : Torch_Op<"aten.cos", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCos_Op : Torch_Op<"aten.cos_", [
@@ -239,7 +239,7 @@ def Torch_AtenCos_Op : Torch_Op<"aten.cos_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNegOp : Torch_Op<"aten.neg", [
@@ -253,7 +253,7 @@ def Torch_AtenNegOp : Torch_Op<"aten.neg", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
@@ -267,7 +267,7 @@ def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFloorOp : Torch_Op<"aten.floor", [
@@ -281,7 +281,7 @@ def Torch_AtenFloorOp : Torch_Op<"aten.floor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFloor_Op : Torch_Op<"aten.floor_", [
@@ -295,7 +295,7 @@ def Torch_AtenFloor_Op : Torch_Op<"aten.floor_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCeilOp : Torch_Op<"aten.ceil", [
@@ -309,7 +309,7 @@ def Torch_AtenCeilOp : Torch_Op<"aten.ceil", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCeil_Op : Torch_Op<"aten.ceil_", [
@@ -323,7 +323,7 @@ def Torch_AtenCeil_Op : Torch_Op<"aten.ceil_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBitwiseNotOp : Torch_Op<"aten.bitwise_not", [
@@ -337,7 +337,7 @@ def Torch_AtenBitwiseNotOp : Torch_Op<"aten.bitwise_not", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBitwiseNot_Op : Torch_Op<"aten.bitwise_not_", [
@@ -351,7 +351,7 @@ def Torch_AtenBitwiseNot_Op : Torch_Op<"aten.bitwise_not_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddTensorOp : Torch_Op<"aten.add.Tensor", [
@@ -367,7 +367,7 @@ def Torch_AtenAddTensorOp : Torch_Op<"aten.add.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAdd_TensorOp : Torch_Op<"aten.add_.Tensor", [
@@ -383,7 +383,7 @@ def Torch_AtenAdd_TensorOp : Torch_Op<"aten.add_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSubTensorOp : Torch_Op<"aten.sub.Tensor", [
@@ -399,7 +399,7 @@ def Torch_AtenSubTensorOp : Torch_Op<"aten.sub.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSub_TensorOp : Torch_Op<"aten.sub_.Tensor", [
@@ -415,7 +415,7 @@ def Torch_AtenSub_TensorOp : Torch_Op<"aten.sub_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMulTensorOp : Torch_Op<"aten.mul.Tensor", [
@@ -430,7 +430,7 @@ def Torch_AtenMulTensorOp : Torch_Op<"aten.mul.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMul_TensorOp : Torch_Op<"aten.mul_.Tensor", [
@@ -445,7 +445,7 @@ def Torch_AtenMul_TensorOp : Torch_Op<"aten.mul_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDivTensorOp : Torch_Op<"aten.div.Tensor", [
@@ -460,7 +460,7 @@ def Torch_AtenDivTensorOp : Torch_Op<"aten.div.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDiv_TensorOp : Torch_Op<"aten.div_.Tensor", [
@@ -475,7 +475,7 @@ def Torch_AtenDiv_TensorOp : Torch_Op<"aten.div_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLerpTensorOp : Torch_Op<"aten.lerp.Tensor", [
@@ -491,7 +491,7 @@ def Torch_AtenLerpTensorOp : Torch_Op<"aten.lerp.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $end `,` $weight attr-dict `:` type($self) `,` type($end) `,` type($weight) `->` type($result)";
+  let assemblyFormat = "$self `,` $end `,` $weight attr-dict `:` qualified(type($self)) `,` qualified(type($end)) `,` qualified(type($weight)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLerp_TensorOp : Torch_Op<"aten.lerp_.Tensor", [
@@ -507,7 +507,7 @@ def Torch_AtenLerp_TensorOp : Torch_Op<"aten.lerp_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $end `,` $weight attr-dict `:` type($self) `,` type($end) `,` type($weight) `->` type($result)";
+  let assemblyFormat = "$self `,` $end `,` $weight attr-dict `:` qualified(type($self)) `,` qualified(type($end)) `,` qualified(type($weight)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqTensorOp : Torch_Op<"aten.eq.Tensor", [
@@ -522,7 +522,7 @@ def Torch_AtenEqTensorOp : Torch_Op<"aten.eq.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEq_TensorOp : Torch_Op<"aten.eq_.Tensor", [
@@ -537,7 +537,7 @@ def Torch_AtenEq_TensorOp : Torch_Op<"aten.eq_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGtTensorOp : Torch_Op<"aten.gt.Tensor", [
@@ -552,7 +552,7 @@ def Torch_AtenGtTensorOp : Torch_Op<"aten.gt.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGt_TensorOp : Torch_Op<"aten.gt_.Tensor", [
@@ -567,7 +567,7 @@ def Torch_AtenGt_TensorOp : Torch_Op<"aten.gt_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLtTensorOp : Torch_Op<"aten.lt.Tensor", [
@@ -582,7 +582,7 @@ def Torch_AtenLtTensorOp : Torch_Op<"aten.lt.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLt_TensorOp : Torch_Op<"aten.lt_.Tensor", [
@@ -597,7 +597,7 @@ def Torch_AtenLt_TensorOp : Torch_Op<"aten.lt_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNeTensorOp : Torch_Op<"aten.ne.Tensor", [
@@ -612,7 +612,7 @@ def Torch_AtenNeTensorOp : Torch_Op<"aten.ne.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNe_TensorOp : Torch_Op<"aten.ne_.Tensor", [
@@ -627,7 +627,7 @@ def Torch_AtenNe_TensorOp : Torch_Op<"aten.ne_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddScalarOp : Torch_Op<"aten.add.Scalar", [
@@ -643,7 +643,7 @@ def Torch_AtenAddScalarOp : Torch_Op<"aten.add.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAdd_ScalarOp : Torch_Op<"aten.add_.Scalar", [
@@ -659,7 +659,7 @@ def Torch_AtenAdd_ScalarOp : Torch_Op<"aten.add_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSubScalarOp : Torch_Op<"aten.sub.Scalar", [
@@ -675,7 +675,7 @@ def Torch_AtenSubScalarOp : Torch_Op<"aten.sub.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSub_ScalarOp : Torch_Op<"aten.sub_.Scalar", [
@@ -691,7 +691,7 @@ def Torch_AtenSub_ScalarOp : Torch_Op<"aten.sub_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMulScalarOp : Torch_Op<"aten.mul.Scalar", [
@@ -706,7 +706,7 @@ def Torch_AtenMulScalarOp : Torch_Op<"aten.mul.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMul_ScalarOp : Torch_Op<"aten.mul_.Scalar", [
@@ -721,7 +721,7 @@ def Torch_AtenMul_ScalarOp : Torch_Op<"aten.mul_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDivScalarOp : Torch_Op<"aten.div.Scalar", [
@@ -736,7 +736,7 @@ def Torch_AtenDivScalarOp : Torch_Op<"aten.div.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDiv_ScalarOp : Torch_Op<"aten.div_.Scalar", [
@@ -751,7 +751,7 @@ def Torch_AtenDiv_ScalarOp : Torch_Op<"aten.div_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNeScalarOp : Torch_Op<"aten.ne.Scalar", [
@@ -766,7 +766,7 @@ def Torch_AtenNeScalarOp : Torch_Op<"aten.ne.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNe_ScalarOp : Torch_Op<"aten.ne_.Scalar", [
@@ -781,7 +781,7 @@ def Torch_AtenNe_ScalarOp : Torch_Op<"aten.ne_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqScalarOp : Torch_Op<"aten.eq.Scalar", [
@@ -796,7 +796,7 @@ def Torch_AtenEqScalarOp : Torch_Op<"aten.eq.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEq_ScalarOp : Torch_Op<"aten.eq_.Scalar", [
@@ -811,7 +811,7 @@ def Torch_AtenEq_ScalarOp : Torch_Op<"aten.eq_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGtScalarOp : Torch_Op<"aten.gt.Scalar", [
@@ -826,7 +826,7 @@ def Torch_AtenGtScalarOp : Torch_Op<"aten.gt.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGt_ScalarOp : Torch_Op<"aten.gt_.Scalar", [
@@ -841,7 +841,7 @@ def Torch_AtenGt_ScalarOp : Torch_Op<"aten.gt_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGeScalarOp : Torch_Op<"aten.ge.Scalar", [
@@ -856,7 +856,7 @@ def Torch_AtenGeScalarOp : Torch_Op<"aten.ge.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGe_ScalarOp : Torch_Op<"aten.ge_.Scalar", [
@@ -871,7 +871,7 @@ def Torch_AtenGe_ScalarOp : Torch_Op<"aten.ge_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLtScalarOp : Torch_Op<"aten.lt.Scalar", [
@@ -886,7 +886,7 @@ def Torch_AtenLtScalarOp : Torch_Op<"aten.lt.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLt_ScalarOp : Torch_Op<"aten.lt_.Scalar", [
@@ -901,7 +901,7 @@ def Torch_AtenLt_ScalarOp : Torch_Op<"aten.lt_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFmodScalarOp : Torch_Op<"aten.fmod.Scalar", [
@@ -916,7 +916,7 @@ def Torch_AtenFmodScalarOp : Torch_Op<"aten.fmod.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFmod_ScalarOp : Torch_Op<"aten.fmod_.Scalar", [
@@ -931,7 +931,7 @@ def Torch_AtenFmod_ScalarOp : Torch_Op<"aten.fmod_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMaskedFillScalarOp : Torch_Op<"aten.masked_fill.Scalar", [
@@ -947,7 +947,7 @@ def Torch_AtenMaskedFillScalarOp : Torch_Op<"aten.masked_fill.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mask `,` $value attr-dict `:` type($self) `,` type($mask) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $mask `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($mask)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMaskedFill_ScalarOp : Torch_Op<"aten.masked_fill_.Scalar", [
@@ -963,7 +963,7 @@ def Torch_AtenMaskedFill_ScalarOp : Torch_Op<"aten.masked_fill_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mask `,` $value attr-dict `:` type($self) `,` type($mask) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $mask `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($mask)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenClampOp : Torch_Op<"aten.clamp", [
@@ -979,7 +979,7 @@ def Torch_AtenClampOp : Torch_Op<"aten.clamp", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` type($self) `,` type($min) `,` type($max) `->` type($result)";
+  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` qualified(type($self)) `,` qualified(type($min)) `,` qualified(type($max)) `->` qualified(type($result))";
 }
 
 def Torch_AtenClamp_Op : Torch_Op<"aten.clamp_", [
@@ -995,7 +995,7 @@ def Torch_AtenClamp_Op : Torch_Op<"aten.clamp_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` type($self) `,` type($min) `,` type($max) `->` type($result)";
+  let assemblyFormat = "$self `,` $min `,` $max attr-dict `:` qualified(type($self)) `,` qualified(type($min)) `,` qualified(type($max)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLog2Op : Torch_Op<"aten.log2", [
@@ -1009,7 +1009,7 @@ def Torch_AtenLog2Op : Torch_Op<"aten.log2", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLog2_Op : Torch_Op<"aten.log2_", [
@@ -1023,7 +1023,7 @@ def Torch_AtenLog2_Op : Torch_Op<"aten.log2_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenRsqrtOp : Torch_Op<"aten.rsqrt", [
@@ -1037,7 +1037,7 @@ def Torch_AtenRsqrtOp : Torch_Op<"aten.rsqrt", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenRsqrt_Op : Torch_Op<"aten.rsqrt_", [
@@ -1051,7 +1051,7 @@ def Torch_AtenRsqrt_Op : Torch_Op<"aten.rsqrt_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAbsOp : Torch_Op<"aten.abs", [
@@ -1065,7 +1065,7 @@ def Torch_AtenAbsOp : Torch_Op<"aten.abs", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAbs_Op : Torch_Op<"aten.abs_", [
@@ -1079,7 +1079,7 @@ def Torch_AtenAbs_Op : Torch_Op<"aten.abs_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenReciprocalOp : Torch_Op<"aten.reciprocal", [
@@ -1093,7 +1093,7 @@ def Torch_AtenReciprocalOp : Torch_Op<"aten.reciprocal", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenReciprocal_Op : Torch_Op<"aten.reciprocal_", [
@@ -1107,7 +1107,7 @@ def Torch_AtenReciprocal_Op : Torch_Op<"aten.reciprocal_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBitwiseAndTensorOp : Torch_Op<"aten.bitwise_and.Tensor", [
@@ -1122,7 +1122,7 @@ def Torch_AtenBitwiseAndTensorOp : Torch_Op<"aten.bitwise_and.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBitwiseAnd_TensorOp : Torch_Op<"aten.bitwise_and_.Tensor", [
@@ -1137,7 +1137,7 @@ def Torch_AtenBitwiseAnd_TensorOp : Torch_Op<"aten.bitwise_and_.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenThresholdOp : Torch_Op<"aten.threshold", [
@@ -1153,7 +1153,7 @@ def Torch_AtenThresholdOp : Torch_Op<"aten.threshold", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $threshold `,` $value attr-dict `:` type($self) `,` type($threshold) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $threshold `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($threshold)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenThreshold_Op : Torch_Op<"aten.threshold_", [
@@ -1169,7 +1169,7 @@ def Torch_AtenThreshold_Op : Torch_Op<"aten.threshold_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $threshold `,` $value attr-dict `:` type($self) `,` type($threshold) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $threshold `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($threshold)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
@@ -1186,7 +1186,7 @@ def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $tensor1 `,` $tensor2 `,` $value attr-dict `:` type($self) `,` type($tensor1) `,` type($tensor2) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $tensor1 `,` $tensor2 `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($tensor1)) `,` qualified(type($tensor2)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddcdivOp : Torch_Op<"aten.addcdiv", [
@@ -1203,7 +1203,7 @@ def Torch_AtenAddcdivOp : Torch_Op<"aten.addcdiv", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $tensor1 `,` $tensor2 `,` $value attr-dict `:` type($self) `,` type($tensor1) `,` type($tensor2) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $tensor1 `,` $tensor2 `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($tensor1)) `,` qualified(type($tensor2)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
@@ -1218,7 +1218,7 @@ def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
@@ -1233,7 +1233,7 @@ def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
@@ -1249,7 +1249,7 @@ def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` type($self) `,` type($other) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
@@ -1263,7 +1263,7 @@ def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
@@ -1278,7 +1278,7 @@ def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $exponent attr-dict `:` type($self) `,` type($exponent) `->` type($result)";
+  let assemblyFormat = "$self `,` $exponent attr-dict `:` qualified(type($self)) `,` qualified(type($exponent)) `->` qualified(type($result))";
 }
 
 def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
@@ -1294,7 +1294,7 @@ def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad_output `,` $self `,` $threshold attr-dict `:` type($grad_output) `,` type($self) `,` type($threshold) `->` type($result)";
+  let assemblyFormat = "$grad_output `,` $self `,` $threshold attr-dict `:` qualified(type($grad_output)) `,` qualified(type($self)) `,` qualified(type($threshold)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTriuOp : Torch_Op<"aten.triu", [
@@ -1309,7 +1309,7 @@ def Torch_AtenTriuOp : Torch_Op<"aten.triu", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $diagonal attr-dict `:` type($self) `,` type($diagonal) `->` type($result)";
+  let assemblyFormat = "$self `,` $diagonal attr-dict `:` qualified(type($self)) `,` qualified(type($diagonal)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTriu_Op : Torch_Op<"aten.triu_", [
@@ -1324,7 +1324,7 @@ def Torch_AtenTriu_Op : Torch_Op<"aten.triu_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $diagonal attr-dict `:` type($self) `,` type($diagonal) `->` type($result)";
+  let assemblyFormat = "$self `,` $diagonal attr-dict `:` qualified(type($self)) `,` qualified(type($diagonal)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIndexPutOp : Torch_Op<"aten.index_put", [
@@ -1341,7 +1341,7 @@ def Torch_AtenIndexPutOp : Torch_Op<"aten.index_put", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` type($self) `,` type($indices) `,` type($values) `,` type($accumulate) `->` type($result)";
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
@@ -1358,7 +1358,7 @@ def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` type($self) `,` type($indices) `,` type($values) `,` type($accumulate) `->` type($result)";
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
@@ -1374,7 +1374,7 @@ def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $weight `,` $bias attr-dict `:` type($input) `,` type($weight) `,` type($bias) `->` type($result)";
+  let assemblyFormat = "$input `,` $weight `,` $bias attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMmOp : Torch_Op<"aten.mm", [
@@ -1389,7 +1389,7 @@ def Torch_AtenMmOp : Torch_Op<"aten.mm", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mat2 attr-dict `:` type($self) `,` type($mat2) `->` type($result)";
+  let assemblyFormat = "$self `,` $mat2 attr-dict `:` qualified(type($self)) `,` qualified(type($mat2)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
@@ -1407,7 +1407,7 @@ def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mat1 `,` $mat2 `,` $beta `,` $alpha attr-dict `:` type($self) `,` type($mat1) `,` type($mat2) `,` type($beta) `,` type($alpha) `->` type($result)";
+  let assemblyFormat = "$self `,` $mat1 `,` $mat2 `,` $beta `,` $alpha attr-dict `:` qualified(type($self)) `,` qualified(type($mat1)) `,` qualified(type($mat2)) `,` qualified(type($beta)) `,` qualified(type($alpha)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
@@ -1422,7 +1422,7 @@ def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
@@ -1442,7 +1442,7 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $weight `,` $bias `,` $stride `,` $padding `,` $dilation `,` $groups attr-dict `:` type($input) `,` type($weight) `,` type($bias) `,` type($stride) `,` type($padding) `,` type($dilation) `,` type($groups) `->` type($result)";
+  let assemblyFormat = "$input `,` $weight `,` $bias `,` $stride `,` $padding `,` $dilation `,` $groups attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($stride)) `,` qualified(type($padding)) `,` qualified(type($dilation)) `,` qualified(type($groups)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
@@ -1464,7 +1464,7 @@ def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $weight `,` $bias `,` $running_mean `,` $running_var `,` $training `,` $momentum `,` $eps `,` $cudnn_enabled attr-dict `:` type($input) `,` type($weight) `,` type($bias) `,` type($running_mean) `,` type($running_var) `,` type($training) `,` type($momentum) `,` type($eps) `,` type($cudnn_enabled) `->` type($result)";
+  let assemblyFormat = "$input `,` $weight `,` $bias `,` $running_mean `,` $running_var `,` $training `,` $momentum `,` $eps `,` $cudnn_enabled attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($running_mean)) `,` qualified(type($running_var)) `,` qualified(type($training)) `,` qualified(type($momentum)) `,` qualified(type($eps)) `,` qualified(type($cudnn_enabled)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLayerNormOp : Torch_Op<"aten.layer_norm", [
@@ -1483,7 +1483,7 @@ def Torch_AtenLayerNormOp : Torch_Op<"aten.layer_norm", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps `,` $cudnn_enable attr-dict `:` type($input) `,` type($normalized_shape) `,` type($weight) `,` type($bias) `,` type($eps) `,` type($cudnn_enable) `->` type($result)";
+  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps `,` $cudnn_enable attr-dict `:` qualified(type($input)) `,` qualified(type($normalized_shape)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($eps)) `,` qualified(type($cudnn_enable)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
@@ -1503,7 +1503,7 @@ def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
     AnyTorchTensorType:$result1,
     AnyTorchTensorType:$result2
   );
-  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps attr-dict `:` type($input) `,` type($normalized_shape) `,` type($weight) `,` type($bias) `,` type($eps) `->` type($result0) `,` type($result1) `,` type($result2)";
+  let assemblyFormat = "$input `,` $normalized_shape `,` $weight `,` $bias `,` $eps attr-dict `:` qualified(type($input)) `,` qualified(type($normalized_shape)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($eps)) `->` qualified(type($result0)) `,` qualified(type($result1)) `,` qualified(type($result2))";
 }
 
 def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
@@ -1522,7 +1522,7 @@ def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $kernel_size `,` $stride `,` $padding `,` $dilation `,` $ceil_mode attr-dict `:` type($self) `,` type($kernel_size) `,` type($stride) `,` type($padding) `,` type($dilation) `,` type($ceil_mode) `->` type($result)";
+  let assemblyFormat = "$self `,` $kernel_size `,` $stride `,` $padding `,` $dilation `,` $ceil_mode attr-dict `:` qualified(type($self)) `,` qualified(type($kernel_size)) `,` qualified(type($stride)) `,` qualified(type($padding)) `,` qualified(type($dilation)) `,` qualified(type($ceil_mode)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
@@ -1538,7 +1538,7 @@ def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLogSoftmaxIntOp : Torch_Op<"aten.log_softmax.int", [
@@ -1554,7 +1554,7 @@ def Torch_AtenLogSoftmaxIntOp : Torch_Op<"aten.log_softmax.int", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
@@ -1569,7 +1569,7 @@ def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $output_size attr-dict `:` type($self) `,` type($output_size) `->` type($result)";
+  let assemblyFormat = "$self `,` $output_size attr-dict `:` qualified(type($self)) `,` qualified(type($output_size)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTopkOp : Torch_Op<"aten.topk", [
@@ -1588,7 +1588,7 @@ def Torch_AtenTopkOp : Torch_Op<"aten.topk", [
     AnyTorchTensorType:$values,
     AnyTorchTensorType:$indices
   );
-  let assemblyFormat = "$self `,` $k `,` $dim `,` $largest `,` $sorted attr-dict `:` type($self) `,` type($k) `,` type($dim) `,` type($largest) `,` type($sorted) `->` type($values) `,` type($indices)";
+  let assemblyFormat = "$self `,` $k `,` $dim `,` $largest `,` $sorted attr-dict `:` qualified(type($self)) `,` qualified(type($k)) `,` qualified(type($dim)) `,` qualified(type($largest)) `,` qualified(type($sorted)) `->` qualified(type($values)) `,` qualified(type($indices))";
 }
 
 def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
@@ -1603,7 +1603,7 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim0 `,` $dim1 attr-dict `:` type($self) `,` type($dim0) `,` type($dim1) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim0 `,` $dim1 attr-dict `:` qualified(type($self)) `,` qualified(type($dim0)) `,` qualified(type($dim1)) `->` qualified(type($result))";
 }
 
 def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
@@ -1617,7 +1617,7 @@ def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dims attr-dict `:` type($self) `,` type($dims) `->` type($result)";
+  let assemblyFormat = "$self `,` $dims attr-dict `:` qualified(type($self)) `,` qualified(type($dims)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
@@ -1632,7 +1632,7 @@ def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mat2 attr-dict `:` type($self) `,` type($mat2) `->` type($result)";
+  let assemblyFormat = "$self `,` $mat2 attr-dict `:` qualified(type($self)) `,` qualified(type($mat2)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
@@ -1648,7 +1648,7 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
@@ -1663,7 +1663,7 @@ def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLogsumexpOp : Torch_Op<"aten.logsumexp", [
@@ -1679,7 +1679,7 @@ def Torch_AtenLogsumexpOp : Torch_Op<"aten.logsumexp", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
@@ -1696,7 +1696,7 @@ def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $keepdim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $keepdim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_Aten__And__TensorOp : Torch_Op<"aten.__and__.Tensor", [
@@ -1711,7 +1711,7 @@ def Torch_Aten__And__TensorOp : Torch_Op<"aten.__and__.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
@@ -1725,7 +1725,7 @@ def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
@@ -1741,7 +1741,7 @@ def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $half_to_float attr-dict `:` type($self) `,` type($dim) `,` type($half_to_float) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $half_to_float attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($half_to_float)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
@@ -1756,7 +1756,7 @@ def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype attr-dict `:` type($self) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
@@ -1775,7 +1775,7 @@ def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
     AnyTorchTensorType:$output,
     AnyTorchTensorType:$total_weight
   );
-  let assemblyFormat = "$self `,` $target `,` $weight `,` $reduction `,` $ignore_index attr-dict `:` type($self) `,` type($target) `,` type($weight) `,` type($reduction) `,` type($ignore_index) `->` type($output) `,` type($total_weight)";
+  let assemblyFormat = "$self `,` $target `,` $weight `,` $reduction `,` $ignore_index attr-dict `:` qualified(type($self)) `,` qualified(type($target)) `,` qualified(type($weight)) `,` qualified(type($reduction)) `,` qualified(type($ignore_index)) `->` qualified(type($output)) `,` qualified(type($total_weight))";
 }
 
 def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
@@ -1791,7 +1791,7 @@ def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $pad `,` $value attr-dict `:` type($self) `,` type($pad) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $pad `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($pad)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
@@ -1805,7 +1805,7 @@ def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -1820,7 +1820,7 @@ def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
@@ -1833,7 +1833,7 @@ def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -1849,7 +1849,7 @@ def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $start_dim `,` $end_dim attr-dict `:` type($self) `,` type($start_dim) `,` type($end_dim) `->` type($result)";
+  let assemblyFormat = "$self `,` $start_dim `,` $end_dim attr-dict `:` qualified(type($self)) `,` qualified(type($start_dim)) `,` qualified(type($end_dim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDimOp : Torch_Op<"aten.dim", [
@@ -1863,7 +1863,7 @@ def Torch_AtenDimOp : Torch_Op<"aten.dim", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -1878,7 +1878,7 @@ def Torch_AtenSizeOp : Torch_Op<"aten.size", [
   let results = (outs
     TorchIntListType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
   let hasCanonicalizer = 1;
 }
 
@@ -1893,7 +1893,7 @@ def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $value attr-dict `:` type($self) `,` type($value) `->` type($result)";
+  let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
@@ -1907,7 +1907,7 @@ def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
@@ -1925,7 +1925,7 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($size) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
@@ -1943,7 +1943,7 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($size) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
@@ -1960,7 +1960,7 @@ def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$data `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($data) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+  let assemblyFormat = "$data `,` $dtype `,` $device `,` $requires_grad attr-dict `:` qualified(type($data)) `,` qualified(type($dtype)) `,` qualified(type($device)) `,` qualified(type($requires_grad)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
@@ -1977,7 +1977,7 @@ def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($t) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` qualified(type($t)) `,` qualified(type($dtype)) `,` qualified(type($device)) `,` qualified(type($requires_grad)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
@@ -1994,7 +1994,7 @@ def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($t) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` qualified(type($t)) `,` qualified(type($dtype)) `,` qualified(type($device)) `,` qualified(type($requires_grad)) `->` qualified(type($result))";
 }
 
 def Torch_Aten_ShapeAsTensorOp : Torch_Op<"aten._shape_as_tensor", [
@@ -2008,7 +2008,7 @@ def Torch_Aten_ShapeAsTensorOp : Torch_Op<"aten._shape_as_tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAllOp : Torch_Op<"aten.all", [
@@ -2022,7 +2022,7 @@ def Torch_AtenAllOp : Torch_Op<"aten.all", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAnyOp : Torch_Op<"aten.any", [
@@ -2036,7 +2036,7 @@ def Torch_AtenAnyOp : Torch_Op<"aten.any", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAnyDimOp : Torch_Op<"aten.any.dim", [
@@ -2052,7 +2052,7 @@ def Torch_AtenAnyDimOp : Torch_Op<"aten.any.dim", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenArangeOp : Torch_Op<"aten.arange", [
@@ -2070,7 +2070,7 @@ def Torch_AtenArangeOp : Torch_Op<"aten.arange", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$end `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($end) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+  let assemblyFormat = "$end `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($end)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenArangeStartOp : Torch_Op<"aten.arange.start", [
@@ -2089,7 +2089,7 @@ def Torch_AtenArangeStartOp : Torch_Op<"aten.arange.start", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$start `,` $end `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($start) `,` type($end) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+  let assemblyFormat = "$start `,` $end `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
@@ -2109,7 +2109,7 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$start `,` $end `,` $step `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` type($start) `,` type($end) `,` type($step) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `->` type($result)";
+  let assemblyFormat = "$start `,` $end `,` $step `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($step)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
@@ -2125,7 +2125,7 @@ def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
@@ -2142,7 +2142,7 @@ def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $boundaries `,` $out_int32 `,` $right attr-dict `:` type($self) `,` type($boundaries) `,` type($out_int32) `,` type($right) `->` type($result)";
+  let assemblyFormat = "$self `,` $boundaries `,` $out_int32 `,` $right attr-dict `:` qualified(type($self)) `,` qualified(type($boundaries)) `,` qualified(type($out_int32)) `,` qualified(type($right)) `->` qualified(type($result))";
 }
 
 def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
@@ -2156,7 +2156,7 @@ def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $memory_format attr-dict `:` type($self) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
@@ -2171,7 +2171,7 @@ def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` type($self) `,` type($src) `,` type($non_blocking) `->` type($result)";
+  let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` qualified(type($self)) `,` qualified(type($src)) `,` qualified(type($non_blocking)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
@@ -2184,7 +2184,7 @@ def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
@@ -2202,7 +2202,7 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$weight `,` $indices `,` $padding_idx `,` $scale_grad_by_freq `,` $sparse attr-dict `:` type($weight) `,` type($indices) `,` type($padding_idx) `,` type($scale_grad_by_freq) `,` type($sparse) `->` type($result)";
+  let assemblyFormat = "$weight `,` $indices `,` $padding_idx `,` $scale_grad_by_freq `,` $sparse attr-dict `:` qualified(type($weight)) `,` qualified(type($indices)) `,` qualified(type($padding_idx)) `,` qualified(type($scale_grad_by_freq)) `,` qualified(type($sparse)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
@@ -2221,7 +2221,7 @@ def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenZerosLikeOp : Torch_Op<"aten.zeros_like", [
@@ -2240,7 +2240,7 @@ def Torch_AtenZerosLikeOp : Torch_Op<"aten.zeros_like", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
@@ -2259,7 +2259,7 @@ def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
@@ -2278,7 +2278,7 @@ def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` type($size) `,` type($dtype) `,` type($layout) `,` type($device) `,` type($pin_memory) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
@@ -2293,7 +2293,7 @@ def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $size `,` $implicit attr-dict `:` type($self) `,` type($size) `,` type($implicit) `->` type($result)";
+  let assemblyFormat = "$self `,` $size `,` $implicit attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `,` qualified(type($implicit)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
@@ -2307,7 +2307,7 @@ def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $size attr-dict `:` type($self) `,` type($size) `->` type($result)";
+  let assemblyFormat = "$self `,` $size attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
@@ -2322,7 +2322,7 @@ def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $indices attr-dict `:` type($self) `,` type($indices) `->` type($result)";
+  let assemblyFormat = "$self `,` $indices attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
@@ -2338,7 +2338,7 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $index attr-dict `:` type($self) `,` type($dim) `,` type($index) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $index attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($index)) `->` qualified(type($result))";
 }
 
 def Torch_AtenItemOp : Torch_Op<"aten.item", [
@@ -2352,7 +2352,7 @@ def Torch_AtenItemOp : Torch_Op<"aten.item", [
   let results = (outs
     AnyTorchScalarType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
@@ -2367,7 +2367,7 @@ def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $mask attr-dict `:` type($self) `,` type($mask) `->` type($result)";
+  let assemblyFormat = "$self `,` $mask attr-dict `:` qualified(type($self)) `,` qualified(type($mask)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNumelOp : Torch_Op<"aten.numel", [
@@ -2381,7 +2381,7 @@ def Torch_AtenNumelOp : Torch_Op<"aten.numel", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [
@@ -2396,7 +2396,7 @@ def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $repeats attr-dict `:` type($self) `,` type($repeats) `->` type($result)";
+  let assemblyFormat = "$self `,` $repeats attr-dict `:` qualified(type($self)) `,` qualified(type($repeats)) `->` qualified(type($result))";
 }
 
 def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
@@ -2410,7 +2410,7 @@ def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $shape attr-dict `:` type($self) `,` type($shape) `->` type($result)";
+  let assemblyFormat = "$self `,` $shape attr-dict `:` qualified(type($self)) `,` qualified(type($shape)) `->` qualified(type($result))";
 }
 
 def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
@@ -2425,7 +2425,7 @@ def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $size `,` $memory_format attr-dict `:` type($self) `,` type($size) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $size `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
@@ -2440,7 +2440,7 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $index attr-dict `:` type($self) `,` type($dim) `,` type($index) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $index attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($index)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
@@ -2455,7 +2455,7 @@ def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$self `,` $dim attr-dict `:` type($self) `,` type($dim) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2471,7 +2471,7 @@ def Torch_AtenStackOp : Torch_Op<"aten.stack", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$tensors `,` $dim attr-dict `:` type($tensors) `,` type($dim) `->` type($result)";
+  let assemblyFormat = "$tensors `,` $dim attr-dict `:` qualified(type($tensors)) `,` qualified(type($dim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSumOp : Torch_Op<"aten.sum", [
@@ -2486,7 +2486,7 @@ def Torch_AtenSumOp : Torch_Op<"aten.sum", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype attr-dict `:` type($self) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
@@ -2503,7 +2503,7 @@ def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $keepdim `,` $dtype attr-dict `:` type($self) `,` type($dim) `,` type($keepdim) `,` type($dtype) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $keepdim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
@@ -2520,7 +2520,7 @@ def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dtype `,` $non_blocking `,` $copy `,` $memory_format attr-dict `:` type($self) `,` type($dtype) `,` type($non_blocking) `,` type($copy) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $dtype `,` $non_blocking `,` $copy `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `,` qualified(type($non_blocking)) `,` qualified(type($copy)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2538,7 +2538,7 @@ def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other `,` $non_blocking `,` $copy `,` $memory_format attr-dict `:` type($self) `,` type($other) `,` type($non_blocking) `,` type($copy) `,` type($memory_format) `->` type($result)";
+  let assemblyFormat = "$self `,` $other `,` $non_blocking `,` $copy `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `,` qualified(type($non_blocking)) `,` qualified(type($copy)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
 }
 
 def Torch_AtenToPrimDeviceOp : Torch_Op<"aten.to.prim_Device", [
@@ -2555,7 +2555,7 @@ def Torch_AtenToPrimDeviceOp : Torch_Op<"aten.to.prim_Device", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $device `,` $dtype `,` $non_blocking `,` $copy attr-dict `:` type($self) `,` type($device) `,` type($dtype) `,` type($non_blocking) `,` type($copy) `->` type($result)";
+  let assemblyFormat = "$self `,` $device `,` $dtype `,` $non_blocking `,` $copy attr-dict `:` qualified(type($self)) `,` qualified(type($device)) `,` qualified(type($dtype)) `,` qualified(type($non_blocking)) `,` qualified(type($copy)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
@@ -2570,7 +2570,7 @@ def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $other attr-dict `:` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenViewOp : Torch_Op<"aten.view", [
@@ -2584,7 +2584,7 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $size attr-dict `:` type($self) `,` type($size) `->` type($result)";
+  let assemblyFormat = "$self `,` $size attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2601,7 +2601,7 @@ def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$condition `,` $self `,` $other attr-dict `:` type($condition) `,` type($self) `,` type($other) `->` type($result)";
+  let assemblyFormat = "$condition `,` $self `,` $other attr-dict `:` qualified(type($condition)) `,` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
@@ -2618,7 +2618,7 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $start `,` $end `,` $step attr-dict `:` type($self) `,` type($dim) `,` type($start) `,` type($end) `,` type($step) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $start `,` $end `,` $step attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($step)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
@@ -2632,7 +2632,7 @@ def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$t attr-dict `:` type($t) `->` type($result)";
+  let assemblyFormat = "$t attr-dict `:` qualified(type($t)) `->` qualified(type($result))";
 }
 
 def Torch_AtenCpuOp : Torch_Op<"aten.cpu", [
@@ -2645,7 +2645,7 @@ def Torch_AtenCpuOp : Torch_Op<"aten.cpu", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGatherOp : Torch_Op<"aten.gather", [
@@ -2662,7 +2662,7 @@ def Torch_AtenGatherOp : Torch_Op<"aten.gather", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self `,` $dim `,` $index `,` $sparse_grad attr-dict `:` type($self) `,` type($dim) `,` type($index) `,` type($sparse_grad) `->` type($result)";
+  let assemblyFormat = "$self `,` $dim `,` $index `,` $sparse_grad attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($index)) `,` qualified(type($sparse_grad)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIntImplicitOp : Torch_Op<"aten.IntImplicit", [
@@ -2676,7 +2676,7 @@ def Torch_AtenIntImplicitOp : Torch_Op<"aten.IntImplicit", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
@@ -2693,7 +2693,7 @@ def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` type($t) `,` type($dtype) `,` type($device) `,` type($requires_grad) `->` type($result)";
+  let assemblyFormat = "$t `,` $dtype `,` $device `,` $requires_grad attr-dict `:` qualified(type($t)) `,` qualified(type($dtype)) `,` qualified(type($device)) `,` qualified(type($requires_grad)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
@@ -2707,7 +2707,7 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2724,7 +2724,7 @@ def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $p `,` $train attr-dict `:` type($input) `,` type($p) `,` type($train) `->` type($result)";
+  let assemblyFormat = "$input `,` $p `,` $train attr-dict `:` qualified(type($input)) `,` qualified(type($p)) `,` qualified(type($train)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTOp : Torch_Op<"aten.t", [
@@ -2737,7 +2737,7 @@ def Torch_AtenTOp : Torch_Op<"aten.t", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
@@ -2752,7 +2752,7 @@ def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$dict `,` $key attr-dict `:` type($dict) `,` type($key) `->` type($result)";
+  let assemblyFormat = "$dict `,` $key attr-dict `:` qualified(type($dict)) `,` qualified(type($key)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2767,7 +2767,7 @@ def Torch_Aten__Getitem__DictStrOp : Torch_Op<"aten.__getitem__.Dict_str", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = "$self `,` $key attr-dict `:` type($self) `,` type($key) `->` type($result)";
+  let assemblyFormat = "$self `,` $key attr-dict `:` qualified(type($self)) `,` qualified(type($key)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2782,7 +2782,7 @@ def Torch_Aten_SetItemStrOp : Torch_Op<"aten._set_item.str", [
   );
   let results = (outs
   );
-  let assemblyFormat = "$l `,` $idx `,` $v attr-dict `:` type($l) `,` type($idx) `,` type($v)";
+  let assemblyFormat = "$l `,` $idx `,` $v attr-dict `:` qualified(type($l)) `,` qualified(type($idx)) `,` qualified(type($v))";
 }
 
 def Torch_AtenKeysStrOp : Torch_Op<"aten.keys.str", [
@@ -2795,7 +2795,7 @@ def Torch_AtenKeysStrOp : Torch_Op<"aten.keys.str", [
   let results = (outs
     TorchStringListType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGetDefaultStrOp : Torch_Op<"aten.get.default_str", [
@@ -2810,7 +2810,7 @@ def Torch_AtenGetDefaultStrOp : Torch_Op<"aten.get.default_str", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = "$self `,` $key `,` $default_value attr-dict `:` type($self) `,` type($key) `,` type($default_value) `->` type($result)";
+  let assemblyFormat = "$self `,` $key `,` $default_value attr-dict `:` qualified(type($self)) `,` qualified(type($key)) `,` qualified(type($default_value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDeleteDictStrOp : Torch_Op<"aten.Delete.Dict_str", [
@@ -2823,7 +2823,7 @@ def Torch_AtenDeleteDictStrOp : Torch_Op<"aten.Delete.Dict_str", [
   );
   let results = (outs
   );
-  let assemblyFormat = "$self `,` $key attr-dict `:` type($self) `,` type($key)";
+  let assemblyFormat = "$self `,` $key attr-dict `:` qualified(type($self)) `,` qualified(type($key))";
 }
 
 def Torch_AtenCatOp : Torch_Op<"aten.cat", [
@@ -2838,7 +2838,7 @@ def Torch_AtenCatOp : Torch_Op<"aten.cat", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$tensors `,` $dim attr-dict `:` type($tensors) `,` type($dim) `->` type($result)";
+  let assemblyFormat = "$tensors `,` $dim attr-dict `:` qualified(type($tensors)) `,` qualified(type($dim)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [
@@ -2852,7 +2852,7 @@ def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [
   let results = (outs
     AnyTorchListType:$result
   );
-  let assemblyFormat = "$self `,` $el attr-dict `:` type($self) `,` type($el) `->` type($result)";
+  let assemblyFormat = "$self `,` $el attr-dict `:` qualified(type($self)) `,` qualified(type($el)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddTOp : Torch_Op<"aten.add.t", [
@@ -2867,7 +2867,7 @@ def Torch_AtenAddTOp : Torch_Op<"aten.add.t", [
   let results = (outs
     AnyTorchListType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [
@@ -2882,7 +2882,7 @@ def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenListTOp : Torch_Op<"aten.list.t", [
@@ -2896,7 +2896,7 @@ def Torch_AtenListTOp : Torch_Op<"aten.list.t", [
   let results = (outs
     AnyTorchListType:$result
   );
-  let assemblyFormat = "$l attr-dict `:` type($l) `->` type($result)";
+  let assemblyFormat = "$l attr-dict `:` qualified(type($l)) `->` qualified(type($result))";
 }
 
 def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
@@ -2913,7 +2913,7 @@ def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
   let results = (outs
     AnyTorchListType:$result
   );
-  let assemblyFormat = "$l `,` $start `,` $end `,` $step attr-dict `:` type($l) `,` type($start) `,` type($end) `,` type($step) `->` type($result)";
+  let assemblyFormat = "$l `,` $start `,` $end `,` $step attr-dict `:` qualified(type($l)) `,` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($step)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
@@ -2928,7 +2928,7 @@ def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
   let results = (outs
     Torch_StringType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
@@ -2943,7 +2943,7 @@ def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -2958,7 +2958,7 @@ def Torch_AtenStrOp : Torch_Op<"aten.str", [
   let results = (outs
     Torch_StringType:$result
   );
-  let assemblyFormat = "$elem attr-dict `:` type($elem) `->` type($result)";
+  let assemblyFormat = "$elem attr-dict `:` qualified(type($elem)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFormatOp : Torch_Op<"aten.format", [
@@ -2971,7 +2971,7 @@ def Torch_AtenFormatOp : Torch_Op<"aten.format", [
   let results = (outs
     Torch_StringType:$result
   );
-  let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands) `->` type($result)";
+  let assemblyFormat = "`(` $operands `)` attr-dict `:` qualified(type($operands)) `->` qualified(type($result))";
 }
 
 def Torch_AtenJoinOp : Torch_Op<"aten.join", [
@@ -2986,7 +2986,7 @@ def Torch_AtenJoinOp : Torch_Op<"aten.join", [
   let results = (outs
     Torch_StringType:$result
   );
-  let assemblyFormat = "$self `,` $values attr-dict `:` type($self) `,` type($values) `->` type($result)";
+  let assemblyFormat = "$self `,` $values attr-dict `:` qualified(type($self)) `,` qualified(type($values)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
@@ -3000,7 +3000,7 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
@@ -3014,7 +3014,7 @@ def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
@@ -3028,7 +3028,7 @@ def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
@@ -3043,7 +3043,7 @@ def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3059,7 +3059,7 @@ def Torch_AtenGeIntOp : Torch_Op<"aten.ge.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3075,7 +3075,7 @@ def Torch_AtenLtIntOp : Torch_Op<"aten.lt.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3091,7 +3091,7 @@ def Torch_AtenLeIntOp : Torch_Op<"aten.le.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3107,7 +3107,7 @@ def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3123,7 +3123,7 @@ def Torch_AtenEqIntOp : Torch_Op<"aten.eq.int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3139,7 +3139,7 @@ def Torch_AtenFloordivIntOp : Torch_Op<"aten.floordiv.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3155,7 +3155,7 @@ def Torch_AtenRemainderIntOp : Torch_Op<"aten.remainder.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3171,7 +3171,7 @@ def Torch_AtenAddIntOp : Torch_Op<"aten.add.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3187,7 +3187,7 @@ def Torch_AtenSubIntOp : Torch_Op<"aten.sub.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3203,7 +3203,7 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3218,7 +3218,7 @@ def Torch_AtenNegIntOp : Torch_Op<"aten.neg.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3233,7 +3233,7 @@ def Torch_AtenLogIntOp : Torch_Op<"aten.log.int", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
@@ -3248,7 +3248,7 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
@@ -3263,7 +3263,7 @@ def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
@@ -3277,7 +3277,7 @@ def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
@@ -3292,7 +3292,7 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
@@ -3307,7 +3307,7 @@ def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3323,7 +3323,7 @@ def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
@@ -3338,7 +3338,7 @@ def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3354,7 +3354,7 @@ def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$self `,` $obj attr-dict `:` type($self) `,` type($obj) `->` type($result)";
+  let assemblyFormat = "$self `,` $obj attr-dict `:` qualified(type($self)) `,` qualified(type($obj)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3370,7 +3370,7 @@ def Torch_Aten__Isnot__Op : Torch_Op<"aten.__isnot__", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$self `,` $obj attr-dict `:` type($self) `,` type($obj) `->` type($result)";
+  let assemblyFormat = "$self `,` $obj attr-dict `:` qualified(type($self)) `,` qualified(type($obj)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3385,7 +3385,7 @@ def Torch_Aten__Not__Op : Torch_Op<"aten.__not__", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -3400,7 +3400,7 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
@@ -3416,7 +3416,7 @@ def Torch_Aten__Getitem__TOp : Torch_Op<"aten.__getitem__.t", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = "$list `,` $idx attr-dict `:` type($list) `,` type($idx) `->` type($result)";
+  let assemblyFormat = "$list `,` $idx attr-dict `:` qualified(type($list)) `,` qualified(type($idx)) `->` qualified(type($result))";
   let hasCanonicalizer = 1;
 }
 
@@ -3432,7 +3432,7 @@ def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
   let results = (outs
     AnyTorchListType:$result
   );
-  let assemblyFormat = "$l `,` $idx `,` $el attr-dict `:` type($l) `,` type($idx) `,` type($el) `->` type($result)";
+  let assemblyFormat = "$l `,` $idx `,` $el attr-dict `:` qualified(type($l)) `,` qualified(type($idx)) `,` qualified(type($el)) `->` qualified(type($result))";
 }
 
 def Torch_AtenDivOp : Torch_Op<"aten.div", [
@@ -3447,7 +3447,7 @@ def Torch_AtenDivOp : Torch_Op<"aten.div", [
   let results = (outs
     Torch_FloatType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
@@ -3462,7 +3462,7 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
   let results = (outs
     Torch_BoolType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [
@@ -3479,7 +3479,7 @@ def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` type($grad_output) `,` type($output) `,` type($dim) `,` type($input_dtype) `->` type($result)";
+  let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` qualified(type($grad_output)) `,` qualified(type($output)) `,` qualified(type($dim)) `,` qualified(type($input_dtype)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTanhBackwardOp : Torch_Op<"aten.tanh_backward", [
@@ -3494,7 +3494,7 @@ def Torch_AtenTanhBackwardOp : Torch_Op<"aten.tanh_backward", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad_output `,` $output attr-dict `:` type($grad_output) `,` type($output) `->` type($result)";
+  let assemblyFormat = "$grad_output `,` $output attr-dict `:` qualified(type($grad_output)) `,` qualified(type($output)) `->` qualified(type($result))";
 }
 
 def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
@@ -3509,7 +3509,7 @@ def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad `,` $self attr-dict `:` type($grad) `,` type($self) `->` type($result)";
+  let assemblyFormat = "$grad `,` $self attr-dict `:` qualified(type($grad)) `,` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_data", [
@@ -3526,6 +3526,6 @@ def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_d
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` type($grad_output) `,` type($output) `,` type($dim) `,` type($input_dtype) `->` type($result)";
+  let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` qualified(type($grad_output)) `,` qualified(type($output)) `,` qualified(type($dim)) `,` qualified(type($input_dtype)) `->` qualified(type($result))";
 }
 

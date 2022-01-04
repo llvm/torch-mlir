@@ -40,7 +40,7 @@ def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor", 
     AnyTensor:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
+    $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($result))
   }];
 }
 
@@ -58,7 +58,7 @@ def TorchConversion_FromBuiltinTensorOp : TorchConversion_Op<"from_builtin_tenso
     Torch_ValueTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($result)
+    $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($result))
   }];
 }
 

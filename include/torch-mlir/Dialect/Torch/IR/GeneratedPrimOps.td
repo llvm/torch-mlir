@@ -27,7 +27,7 @@ def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
@@ -42,7 +42,7 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = "$tup `,` $i attr-dict `:` type($tup) `,` type($i) `->` type($result)";
+  let assemblyFormat = "$tup `,` $i attr-dict `:` qualified(type($tup)) `,` qualified(type($i)) `->` qualified(type($result))";
   let hasCanonicalizer = 1;
 }
 
@@ -57,7 +57,7 @@ def Torch_PrimDeviceOp : Torch_Op<"prim.device", [
   let results = (outs
     Torch_DeviceType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
@@ -71,7 +71,7 @@ def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
   let hasFolder = 1;
 }
 
@@ -85,7 +85,7 @@ def Torch_PrimTupleUnpackOp : Torch_Op<"prim.TupleUnpack", [
   let results = (outs
     Variadic<AnyTorchType>:$results
   );
-  let assemblyFormat = "$tup attr-dict `:` type($tup) `->` type($results)";
+  let assemblyFormat = "$tup attr-dict `:` qualified(type($tup)) `->` qualified(type($results))";
   let hasCanonicalizer = 1;
 }
 
@@ -100,7 +100,7 @@ def Torch_PrimNumToTensorScalarOp : Torch_Op<"prim.NumToTensor.Scalar", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
 def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
@@ -114,7 +114,7 @@ def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
@@ -129,7 +129,7 @@ def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
@@ -143,7 +143,7 @@ def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` type($self) `->` type($result)";
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
 def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
@@ -158,7 +158,7 @@ def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
   let results = (outs
     Torch_IntType:$result
   );
-  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
@@ -171,7 +171,7 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
   );
   let results = (outs
   );
-  let assemblyFormat = "$msg attr-dict `:` type($msg)";
+  let assemblyFormat = "$msg attr-dict `:` qualified(type($msg))";
 }
 
 def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
@@ -184,7 +184,7 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = " attr-dict `:` type($result)";
+  let assemblyFormat = " attr-dict `:` qualified(type($result))";
   let hasCanonicalizer = 1;
 }
 
@@ -199,7 +199,7 @@ def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
   let results = (outs
     AnyTorchType:$result
   );
-  let assemblyFormat = "$x attr-dict `:` type($x) `->` type($result)";
+  let assemblyFormat = "$x attr-dict `:` qualified(type($x)) `->` qualified(type($result))";
 }
 
 def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
@@ -211,7 +211,7 @@ def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
   );
   let results = (outs
   );
-  let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands)";
+  let assemblyFormat = "`(` $operands `)` attr-dict `:` qualified(type($operands))";
 }
 
 def Torch_PrimTolistOp : Torch_Op<"prim.tolist", [
@@ -224,6 +224,6 @@ def Torch_PrimTolistOp : Torch_Op<"prim.tolist", [
   let results = (outs
     Variadic<AnyTorchType>:$results
   );
-  let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands) `->` type($results)";
+  let assemblyFormat = "`(` $operands `)` attr-dict `:` qualified(type($operands)) `->` qualified(type($results))";
 }
 

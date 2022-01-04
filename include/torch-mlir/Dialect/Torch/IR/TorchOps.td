@@ -64,7 +64,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
   let regions = (region SizedRegion<1>:$region);
   let verifier = "return ::verify(*this);";
 
-  let assemblyFormat = "$region attr-dict `:` type($result)";
+  let assemblyFormat = "$region attr-dict `:` qualified(type($result))";
 
   let extraClassDeclaration = [{
     StringRef getClassName() { return getType().getClassName(); }
@@ -97,7 +97,7 @@ def Torch_SlotOp : Torch_Op<"slot", [
   let results = (outs);
 
   let assemblyFormat = [{
-    $name `,` $value attr-dict `:` type($value)
+    $name `,` $value attr-dict `:` qualified(type($value))
   }];
 }
 
@@ -272,7 +272,7 @@ def Torch_GlobalSlotInitOp : Torch_Op<"global_slot.init", [
   // TODO: Have a SingleBlockExplicitTerminator trait.
   let builders = [OpBuilder<(ins), [{ /*nothing to do */ }]>];
 
-  let assemblyFormat = "$initialValue attr-dict `:` type($initialValue)";
+  let assemblyFormat = "$initialValue attr-dict `:` qualified(type($initialValue))";
 }
 
 def Torch_GlobalSlotGetOp : Torch_Op<"global_slot.get", []> {
@@ -284,7 +284,7 @@ def Torch_GlobalSlotGetOp : Torch_Op<"global_slot.get", []> {
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $slot attr-dict `:` type($result)
+    $slot attr-dict `:` qualified(type($result))
   }];
 }
 
@@ -298,7 +298,7 @@ def Torch_GlobalSlotSetOp : Torch_Op<"global_slot.set", []> {
   let results = (outs);
 
   let assemblyFormat = [{
-    $slot `=` $value attr-dict `:` type($value)
+    $slot `=` $value attr-dict `:` qualified(type($value))
   }];
 }
 
@@ -319,7 +319,7 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
   let results = (outs Variadic<AnyTorchType>:$results);
 
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `->` type($results)
+    $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($results))
   }];
 }
 
@@ -343,7 +343,7 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
   );
 
   let assemblyFormat = [{
-    $elements attr-dict `:` type($elements) `->` type($result)
+    $elements attr-dict `:` qualified(type($elements)) `->` qualified(type($result))
   }];
 }
 
@@ -385,7 +385,7 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
   let verifier = "return ::verify(*this);";
 
   let assemblyFormat = [{
-    `keys` `(` ($keys^ `:` type($keys))? `)` `values` `(` ($values^ `:` type($values))? `)` attr-dict `->` type($result)
+    `keys` `(` ($keys^ `:` qualified(type($keys)))? `)` `values` `(` ($values^ `:` qualified(type($values)))? `)` attr-dict `->` qualified(type($result))
   }];
 
   let extraClassDeclaration = [{
@@ -401,7 +401,7 @@ def Torch_PrimGetAttrOp : Torch_Op<"prim.GetAttr", []> {
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` attr-dict `:` type($receiver) `->` type($result)
+    $receiver `[` $name `]` attr-dict `:` qualified(type($receiver)) `->` qualified(type($result))
   }];
 }
 
@@ -416,7 +416,7 @@ def Torch_PrimSetAttrOp : Torch_Op<"prim.SetAttr", []> {
   let results = (outs);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` `=` $value attr-dict `:` type($receiver) `,` type($value)
+    $receiver `[` $name `]` `=` $value attr-dict `:` qualified(type($receiver)) `,` qualified(type($value))
   }];
 }
 
@@ -431,7 +431,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $receiver `[` $name `]` `(` $operands `)` attr-dict `:` type($receiver) `,` functional-type($operands, $result)
+    $receiver `[` $name `]` `(` $operands `)` attr-dict `:` qualified(type($receiver)) `,` functional-type($operands, $result)
   }];
 }
 
@@ -478,7 +478,7 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
 
   let assemblyFormat = [{
     $shouldContinue `,`
-    `iter` `(` ($iterArgs^ `:` type($iterArgs))? `)` attr-dict
+    `iter` `(` ($iterArgs^ `:` qualified(type($iterArgs)))? `)` attr-dict
   }];
 }
 
@@ -525,7 +525,7 @@ def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
   let results = (outs);
 
   let assemblyFormat = [{
-    attr-dict ($results^ `:` type($results))?
+    attr-dict ($results^ `:` qualified(type($results)))?
   }];
 }
 
@@ -662,7 +662,7 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let results = (outs AnyTorchType:$result);
 
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `to` type($result)
+    $operand attr-dict `:` qualified(type($operand)) `to` qualified(type($result))
   }];
 }
 
@@ -698,7 +698,7 @@ def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
   let results = (outs Torch_LinearParamsType:$result);
 
   let assemblyFormat = [{
-    $weight (`,` $bias^)? attr-dict `:` type($weight) (`,` type($bias)^)?
+    $weight (`,` $bias^)? attr-dict `:` qualified(type($weight)) (`,` qualified(type($bias))^)?
   }];
 }
 
@@ -727,7 +727,7 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
 
   let assemblyFormat = [{
     $int_repr `,` $scale `,` $offset attr-dict
-    `:` type($int_repr) `,` type($scale) `,` type($offset) `->` type($result)
+    `:` qualified(type($int_repr)) `,` qualified(type($scale)) `,` qualified(type($offset)) `->` qualified(type($result))
   }];
 }
 
@@ -754,7 +754,7 @@ def Torch_NonValueTensorLiteralOp : Torch_Op<"tensor.literal", [
   let results = (outs Torch_NonValueTensorType:$result);
 
   let assemblyFormat = [{
-    `(` $value `)` attr-dict `:` type($result)
+    `(` $value `)` attr-dict `:` qualified(type($result))
   }];
 
   let extraClassDeclaration = [{
@@ -786,7 +786,7 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
   let results = (outs Torch_ValueTensorType:$result);
 
   let assemblyFormat = [{
-    `(` $value `)` attr-dict `:` type($result)
+    `(` $value `)` attr-dict `:` qualified(type($result))
   }];
 
   let hasFolder = 1;
@@ -817,7 +817,7 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($operand) `to` type($result)
+    $operand attr-dict `:` qualified(type($operand)) `to` qualified(type($result))
   }];
   let hasCanonicalizer = 1;
 }
@@ -849,7 +849,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
     Torch_NonValueTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($result)
+    $operand attr-dict `:` qualified(type($result))
   }];
   let verifier = "return ::verify(*this);";
 }
@@ -879,7 +879,7 @@ def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
     Torch_ValueTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` type($result)
+    $operand attr-dict `:` qualified(type($result))
   }];
   let verifier = "return ::verify(*this);";
 }
@@ -908,7 +908,7 @@ def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
   );
   let assemblyFormat = [{
     $value `overwrites` $overwritten attr-dict
-      `:` type($value) `,` type($overwritten)
+      `:` qualified(type($value)) `,` qualified(type($overwritten))
   }];
 }
 
