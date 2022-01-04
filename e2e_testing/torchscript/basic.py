@@ -1232,3 +1232,18 @@ class TModuleRank0(torch.nn.Module):
 def TModuleRank0_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
 
+class IndexTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, (index,))
+
+@register_test_case(module_factory=lambda: IndexTensorModule())
+def IndexTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), torch.tensor([[0,1], [1,2]]))

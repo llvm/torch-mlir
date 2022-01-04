@@ -39,12 +39,13 @@ from . import backprop
 from . import reduction
 from . import argmax
 from . import matmul
-from . import view
+from . import reshape_like
 from . import scalar
 from . import squeeze
 from . import slice_like
 from . import nll_loss
 from . import index_select
+from . import index_put
 from . import arange
 from . import hbc
 

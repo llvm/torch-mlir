@@ -124,7 +124,7 @@ class ArangeNegativeStartFloatModule(torch.nn.Module):
     ])
 
     def forward(self):
-        return torch.arange(-1.4, 5.7)
+        return torch.arange(-1.0, 5.0)
 
 @register_test_case(module_factory=lambda: ArangeNegativeStartFloatModule())
 def ArangeNegativeStartFloatModule_basic(module, tu: TestUtils):
@@ -158,7 +158,7 @@ class ArangeStartStepFloatModule(torch.nn.Module):
     ])
 
     def forward(self):
-        return torch.arange(-1, 5, 1.3)
+        return torch.arange(-1, 5, 1.0)
 
 @register_test_case(module_factory=lambda: ArangeStartStepFloatModule())
 def ArangeStartStepFloatModule_basic(module, tu: TestUtils):
@@ -192,59 +192,8 @@ class ArangeStartNegativeStepFloatModule(torch.nn.Module):
     ])
 
     def forward(self):
-        return torch.arange(-1, -15, -3.4)
+        return torch.arange(-1, -15, -3.0)
 
 @register_test_case(module_factory=lambda: ArangeStartNegativeStepFloatModule())
 def ArangeStartNegativeStepFloatModule_basic(module, tu: TestUtils):
-    module.forward()
-
-
-class ArangeDtypeFloatModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-    ])
-
-    def forward(self):
-        return torch.arange(-1, 15, dtype=torch.float32)
-
-@register_test_case(module_factory=lambda: ArangeDtypeFloatModule())
-def ArangeDtypeFloatModule_basic(module, tu: TestUtils):
-    module.forward()
-
-
-class ArangeDtypeIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-    ])
-
-    def forward(self):
-        return torch.arange(0.2, 5.0, dtype=torch.int64)
-
-@register_test_case(module_factory=lambda: ArangeDtypeIntModule())
-def ArangeDtypeIntModule_basic(module, tu: TestUtils):
-    module.forward()
-
-
-class ArangeFalsePinMemoryModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-    ])
-
-    def forward(self):
-        return torch.arange(5.0, dtype=torch.int64, pin_memory=False)
-
-@register_test_case(module_factory=lambda: ArangeFalsePinMemoryModule())
-def ArangeFalsePinMemoryModule_basic(module, tu: TestUtils):
     module.forward()

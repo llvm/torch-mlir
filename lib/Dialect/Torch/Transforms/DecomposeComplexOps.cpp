@@ -146,6 +146,19 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenReshapeOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.self(),
+                                            op.shape());
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 template <typename OpTy>
@@ -563,6 +576,51 @@ public:
 };
 } // namespace
 
+// Helper function for generating TorchConstantOp either float or int based
+// on `isFloatDtype` with constant value `val`.
+static Value createConstantOp(Location loc, PatternRewriter &rewriter,
+                              bool isFloatDtype, int64_t val) {
+  if (isFloatDtype)
+    return rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)val));
+  else
+    return rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(val));
+}
+
+namespace {
+// Both the `aten.arange` and `aten.arange.start` op are converted into
+// `aten.arange.start_step` op.
+template <typename OpTy>
+class DecomposeAtenArangeLikeOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value start, step;
+    Value end = op.end();
+    Value result = op.result();
+    BaseTensorType resultType = result.getType().cast<BaseTensorType>();
+    bool isFloatDtype =
+        resultType.hasDtype() && resultType.getDtype().isa<mlir::FloatType>();
+    // If the op is a AtenArangeStartOp then it has a start value. Otherwise we
+    // set it as default value 0.
+    if (isa<AtenArangeStartOp>(op)) {
+      auto arangeStartOp = cast<AtenArangeStartOp>(op);
+      start = arangeStartOp.start();
+    } else
+      start = createConstantOp(loc, rewriter, isFloatDtype, 0);
+    // Both the `aten.arange` and `aten.arange.start` op doesn't have a step
+    // value. We set it to default value 1.
+    step = createConstantOp(loc, rewriter, isFloatDtype, 1);
+    rewriter.replaceOpWithNewOp<AtenArangeStartStepOp>(
+        op, resultType, start, end, step, op.dtype(), op.layout(), op.device(),
+        op.pin_memory());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // The `aten.arange` op is converted to `aten.arange.start_step` op.
 class DecomposeAtenArangeOp : public OpRewritePattern<AtenArangeOp> {
@@ -626,6 +684,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenExpandOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
     target.addIllegalOp<AtenSizeOp>();
+    patterns.add<DecomposeAtenReshapeOp>(context);
+    target.addIllegalOp<AtenReshapeOp>();
     patterns.add<DecomposeAten_SoftmaxBackwardDataOp>(context);
     target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
     patterns.add<DecomposeAtenTanhBackwardOp>(context);

@@ -1261,8 +1261,8 @@ public:
           op, "expected  input and target to be rank 2 and 1 respectively");
     }
     RankedTensorType resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
 
     Type elementType = resultType.getElementType();
 
@@ -1303,8 +1303,7 @@ public:
             .getResult(0);
 
     // TODO: Update the second result tensor.
-    Value weightUpdated =
-        createZeroInitTensor(rewriter, loc, {}, elementType);
+    Value weightUpdated = createZeroInitTensor(rewriter, loc, {}, elementType);
     rewriter.replaceOp(op, {finalRes, weightUpdated});
     return success();
   }
@@ -1402,8 +1401,7 @@ public:
           rewriter.getMultiDimIdentityMap(inputType.getRank())};
     } else {
       initTensor = rewriter.create<linalg::InitTensorOp>(
-          loc, ValueRange{inputDim0, weightDim0},
-          inputType.getElementType());
+          loc, ValueRange{inputDim0, weightDim0}, inputType.getElementType());
       transposedWeightInitTensor = rewriter.create<linalg::InitTensorOp>(
           loc, ValueRange{weightDim1, weightDim0}, weightType.getElementType());
       broadcastIndexingMaps = {
@@ -1596,10 +1594,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], constZero);
-    Value positivePart = b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
-    Value negativePart = b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
+    Value positivePart =
+        b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+    Value negativePart =
+        b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
     Value scale = convertScalarToDtype(b, loc, operands[1], elementType);
-    Value scaledNegativePart = b.create<arith::MulFOp>(loc, negativePart, scale);
+    Value scaledNegativePart =
+        b.create<arith::MulFOp>(loc, negativePart, scale);
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
@@ -2005,6 +2006,38 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
     Value mult = b.create<arith::MulFOp>(loc, self, alpha);
     return b.create<arith::SubFOp>(loc, other, mult);
+  }
+  if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
+    Type dtype = converter->convertType(subScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>()) {
+      subScalar.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value self = payloadArgs[0];
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    Value mult = b.create<arith::MulFOp>(loc, self, alpha);
+    return b.create<arith::SubFOp>(loc, mult, other);
+  }
+  if (auto addScalar = dyn_cast<AtenAddScalarOp>(op)) {
+    Type dtype = converter->convertType(addScalar.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value self = payloadArgs[0];
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value mult = b.create<arith::MulFOp>(loc, self, alpha);
+      return b.create<arith::AddFOp>(loc, mult, other);
+    } else if (dtype.isa<mlir::IntegerType>()) {
+      Value mult = b.create<arith::MulIOp>(loc, self, alpha);
+      return b.create<arith::AddIOp>(loc, mult, other);
+    } else {
+      addScalar.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
   }
   if (auto mulScalar = dyn_cast<AtenMulScalarOp>(op)) {
     Type dtype = converter->convertType(mulScalar.getType())
@@ -3598,7 +3631,6 @@ public:
 };
 } // namespace
 
-
 namespace {
 class ConvertAtenFill_ScalarOp : public OpConversionPattern<AtenFill_ScalarOp> {
 public:
@@ -3623,7 +3655,6 @@ public:
   }
 };
 } // namespace
-
 
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
@@ -3718,6 +3749,132 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, result);
 
+    return success();
+  }
+};
+} // namespace
+
+// Collapses a `tensor` of rank k into a `tensor` of rank 1.
+// Special case 0d tensor, in that case it's an expansion.
+static Value collapseTo1dTensor(OpBuilder &b, Location loc, Value tensor) {
+  auto tensorType = tensor.getType().cast<RankedTensorType>();
+  if (tensorType.getRank() == 0) {
+    Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+    Value scalarVal = b.create<tensor::ExtractOp>(loc, tensor);
+    return createInitTensor(b, loc, {one}, tensorType.getElementType(),
+                            scalarVal);
+  }
+  if (tensorType.getRank() == 1)
+    return tensor;
+  SmallVector<ReassociationIndices> reassociation(1);
+  for (auto i : llvm::seq<int64_t>(0, tensorType.getRank()))
+    reassociation[0].push_back(i);
+  return b.create<linalg::TensorCollapseShapeOp>(loc, tensor, reassociation);
+}
+
+namespace {
+class ConvertAtenIndexPutOp : public OpConversionPattern<AtenIndexPutOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIndexPutOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    Value input = adaptor.self();
+    Value indices = op.indices();
+    Value elemVal = adaptor.values();
+    auto inputType = input.getType().cast<RankedTensorType>();
+    unsigned inputRank = inputType.getRank();
+
+    SmallVector<Value> indicesTuple;
+    if (!getListConstructElements(indices, indicesTuple)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the indices are not present.");
+    }
+    unsigned noOfIndices = indicesTuple.size();
+    SmallVector<Value> indicesVal =
+        getTypeConvertedValues(rewriter, loc, getTypeConverter(), indicesTuple);
+
+    // TODO: Support broadcasting along dim.
+    if (inputRank != noOfIndices)
+      return rewriter.notifyMatchFailure(
+          op, "invalid shape: Broadcasting value along dim is not supported");
+
+    // TODO: More comprehensive checks:-
+    //   1. Since broadcasting is not implemented the number of elements in each
+    //   indexes as well as the output tensor should be same.
+    //
+    //   2. Since broadcasting is not supported and no. of elements should be
+    //   same hence the shape of tensors should be equivalent, for example:
+    //   [x,y] and [x,y,1] or [x,y,1,1] is considered equivalent but [y,x] and
+    //   [x,y] are not considered equivalent.
+    //
+    //  3. There should be an assert that the index_values lies in the bounds of
+    //  the input tensor.
+
+    // The value tensor along with all the indices are collapsed to 1d tensor.
+    SmallVector<Value> collapsedIndices;
+    for (Value val : indicesVal)
+      collapsedIndices.push_back(collapseTo1dTensor(rewriter, loc, val));
+
+    elemVal = collapseTo1dTensor(rewriter, loc, elemVal);
+
+    AffineExpr zeroIdxExpr = rewriter.getAffineDimExpr(0);
+    // `indicesExpr` points to the mapping {d0,d1...} -> {d0} i.e., the
+    // outermost dimension.
+    SmallVector<AffineExpr, 4> indicesExpr{zeroIdxExpr};
+    SmallVector<AffineExpr, 4> inputExpr;
+    for (unsigned i = 0; i < inputRank; i++)
+      inputExpr.push_back(rewriter.getAffineDimExpr(i + 1));
+
+    SmallVector<SmallVector<AffineExpr, 4>, 4> indexExpr;
+    for (unsigned i = 0; i < noOfIndices; i++)
+      indexExpr.push_back(indicesExpr);
+
+    // The arguments to the linalg.generic are: inputs: (indices1, indices2 ..
+    // indicesN, input, elemVal), output = (input).
+    indexExpr.insert(indexExpr.end(),
+                     {inputExpr /* input */, indicesExpr /* elemVal */,
+                      /* input */ inputExpr});
+
+    auto indexingMaps = AffineMap::inferFromExprList(indexExpr);
+    SmallVector<StringRef> iteratorTypes(inputRank + 1, "parallel");
+
+    SmallVector<Value> genericInputs(collapsedIndices.begin(),
+                                     collapsedIndices.end());
+    genericInputs.insert(genericInputs.end(), {input, elemVal});
+
+    Value updatedInput =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, input.getType(), genericInputs, input,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value truePredicate = rewriter.create<arith::ConstantOp>(
+                      loc, rewriter.getI1Type(), rewriter.getBoolAttr(true));
+                  for (unsigned i = 0; i < noOfIndices; i++) {
+                    Value putIdx = args[i];
+                    Value castPutIdx = castIntToIndex(b, loc, putIdx);
+                    Value inpIdx = b.create<linalg::IndexOp>(loc, i + 1);
+                    Value idxEqual = rewriter.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::eq, castPutIdx, inpIdx);
+                    truePredicate = rewriter.create<arith::AndIOp>(
+                        loc, idxEqual, truePredicate);
+                  }
+                  Value putVal = b.create<SelectOp>(
+                      loc, truePredicate, args[noOfIndices + 1], args.back());
+                  b.create<linalg::YieldOp>(loc, putVal);
+                })
+            .getResult(0);
+
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                updatedInput);
     return success();
   }
 };
@@ -3832,8 +3989,8 @@ public:
     for (auto size : resultSize)
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
-    auto resultType =
-        typeConverter->convertType(op.getType()).template cast<RankedTensorType>();
+    auto resultType = typeConverter->convertType(op.getType())
+                          .template cast<RankedTensorType>();
     Type outElemType = resultType.getElementType();
 
     // Create an uninitialized tensor of `resultSize` shape and fill it with
@@ -4115,6 +4272,84 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenIndexTensorOp : public OpConversionPattern<AtenIndexTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIndexTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    Value input = adaptor.self();
+    Value indices = op.indices();
+    SmallVector<Value> indicesTuple;
+    if (!getListConstructElements(indices, indicesTuple)) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the indices list is not from a list construct");
+    }
+
+    SmallVector<Value> indicesVal =
+        getTypeConvertedValues(rewriter, loc, getTypeConverter(), indicesTuple);
+
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
+    unsigned inputRank = inputType.getRank();
+    unsigned numIndexTensors = indicesTuple.size();
+    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+
+    // Case 1 : When numIndexTensors == 1 and `input` is a 1-d tensor.
+    // TODO: generalize the implementation for other cases.
+    if (numIndexTensors == 1 && inputRank == 1) {
+      if (failed(checkNotNone(rewriter, op, indicesVal[0])))
+        return failure();
+      unsigned resultRank =
+          indicesVal[0].getType().cast<RankedTensorType>().getRank();
+      SmallVector<Value> resultShape;
+      SmallVector<AffineExpr> indicesExpr, resultExpr;
+      SmallVector<StringRef> iteratorTypes;
+      for (unsigned i = 0; i < resultRank; i++)
+        resultShape.push_back(getDimOp(rewriter, loc, indicesVal[0], i));
+      Value initTensor =
+          rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
+      for (unsigned i = 0; i < resultRank; i++) {
+        indicesExpr.push_back(rewriter.getAffineDimExpr(i));
+        resultExpr.push_back(rewriter.getAffineDimExpr(i));
+        iteratorTypes.push_back(getParallelIteratorTypeName());
+      }
+      auto indexingMaps =
+          AffineMap::inferFromExprList({indicesExpr, resultExpr});
+
+      Value finalRes =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, initTensor.getType(), ValueRange{indicesVal[0]},
+                  initTensor,
+                  /*indexingMaps=*/indexingMaps,
+                  /*iteratorTypes=*/iteratorTypes,
+                  [&](OpBuilder &b, Location loc, ValueRange args) {
+                    Value indexTarget = castIntToIndex(b, loc, args[0]);
+                    Value extractedElement =
+                        b.create<tensor::ExtractOp>(loc, input, indexTarget);
+                    b.create<linalg::YieldOp>(loc, extractedElement);
+                  })
+              .getResult(0);
+
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+      return success();
+    } else
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: support for this set of inputs not present");
+  }
+};
+} // namespace
+
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -4162,7 +4397,7 @@ public:
         AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp,
         AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
         AtenEqScalarOp, AtenLtScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
-        AtenEqTensorOp, AtenLtTensorOp>();
+        AtenEqTensorOp, AtenLtTensorOp, AtenAddScalarOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
@@ -4211,6 +4446,8 @@ public:
     patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
     target.addIllegalOp<AtenIntTensorOp>();
     patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
+    patterns.add<ConvertAtenIndexPutOp>(typeConverter, context);
+    target.addIllegalOp<AtenIndexPutOp>();
     target.addIllegalOp<PrimNumToTensorScalarOp>();
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenDropoutOp>();
@@ -4227,6 +4464,8 @@ public:
     patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
     patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
     target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
+    target.addIllegalOp<AtenIndexTensorOp>();
+    patterns.add<ConvertAtenIndexTensorOp>(typeConverter, context);
     patterns.add<ConvertAtenArangeStartStepOp>(typeConverter, context);
     target.addIllegalOp<AtenArangeStartStepOp>();
 

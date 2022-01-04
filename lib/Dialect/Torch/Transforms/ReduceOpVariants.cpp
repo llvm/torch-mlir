@@ -39,7 +39,8 @@ public:
         opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                            opOperand.get()));
       } else if (auto listType = operandType.dyn_cast<ListType>()) {
-        if (!listType.getContainedType().isa<NonValueTensorType>())
+        if (!(listType.getContainedType().isa<NonValueTensorType>() ||
+              listType.getContainedType().isa<OptionalType>()))
           continue;
 
         // Construct a new list whose elements are value tensors copied from
@@ -48,9 +49,9 @@ public:
             opOperand.get().getDefiningOp<PrimListConstructOp>();
         if (!listConstruct) {
           rewriter.cancelRootUpdate(op);
-          return rewriter.notifyMatchFailure(op, 
-              "unimplemented: list of non vtensor type not constructed "
-              "from list construct");
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: list of non vtensor type not constructed "
+                  "from list construct");
         }
 
         if (listConstruct.elements().empty())
