@@ -526,40 +526,111 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
-    AtenSqueezeOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+template <typename AtenOpT>
+class ConvertAtenSqueezeOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
 
-  Value self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
-
-  if (!selfTy)
-    return op.emitError("Only ranked tensor types supported in TOSA argmax");
-
-  auto selfShape = selfTy.getShape();
-
-  SmallVector<int64_t> newOutputShape;
-  for (auto &dim : selfShape) {
-    if (dim != 1)
-      newOutputShape.push_back(dim);
+  // Each variant must implement corresponding parameter parsing options
+  virtual LogicalResult
+  generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
+                        ConversionPatternRewriter &rewriter,
+                        SmallVector<int64_t> &squeezedShape) const {
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented dim/dim-list parsing function");
   }
 
-  auto resultTy = getTypeConverter()
-                      ->convertType(op.getResult().getType())
-                      .cast<RankedTensorType>();
-  auto resultElemTy = resultTy.getElementType();
+  // Common rewriter for all squeeze ops, calls the specific implementation of
+  // generateSqueezedShape() needed for the op variant.
+  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                                ConversionPatternRewriter &rewriter) const {
+    Value self = adaptor.self();
+    auto selfTy = self.getType().template cast<RankedTensorType>();
 
-  auto newOutputTy = RankedTensorType::get(newOutputShape, resultElemTy);
+    if (!selfTy)
+      return op.emitError("Only ranked tensor types supported in TOSA argmax");
 
-  auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
-      op->getLoc(), getTypeConverter()->convertType(newOutputTy), self,
-      rewriter.getI64ArrayAttr(newOutputShape));
-  rewriter.replaceOpWithNewOp<tensor::CastOp>(
-      op, getTypeConverter()->convertType(newOutputTy), reshapeOp);
+    SmallVector<int64_t> newOutputShape;
+    if (failed(generateSqueezedShape(op, selfTy, rewriter, newOutputShape)))
+      return op.emitError("Squeeze could not compute new shape");
 
-  return success();
-}
+    auto resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
+                        ->convertType(op.getResult().getType())
+                        .template cast<RankedTensorType>();
+    auto resultElemTy = resultTy.getElementType();
+
+    auto newOutputTy = RankedTensorType::get(newOutputShape, resultElemTy);
+
+    auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(),
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            newOutputTy),
+        self, rewriter.getI64ArrayAttr(newOutputShape));
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            newOutputTy),
+        reshapeOp);
+
+    return success();
+  }
+};
+
+template <typename AtenOpT>
+class ConvertAtenSqueezeOneDimOp : public ConvertAtenSqueezeOp<AtenOpT> {
+  using ConvertAtenSqueezeOp<AtenOpT>::ConvertAtenSqueezeOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
+                        ConversionPatternRewriter &rewriter,
+                        SmallVector<int64_t> &squeezedShape) const {
+    int64_t squeezeDim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&squeezeDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+
+    // Handle negative dim
+    if (squeezeDim < 0)
+      squeezeDim = squeezeDim + selfTy.getRank();
+
+    auto selfShape = selfTy.getShape();
+
+    // Only dims statically known to have size=1 are reduced.
+    // Dynamic dims are treated as unknowns and will not be squeezed
+    // even if dim parameter says it should be.
+    uint32_t dimNum = 0;
+    for (auto &dim : selfShape) {
+      if (dim != 1 || squeezeDim != dimNum)
+        squeezedShape.push_back(dim);
+      dimNum++;
+    }
+
+    return success();
+  }
+};
+
+template <typename AtenOpT>
+class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
+  using ConvertAtenSqueezeOp<AtenOpT>::ConvertAtenSqueezeOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
+                        ConversionPatternRewriter &rewriter,
+                        SmallVector<int64_t> &squeezedShape) const {
+    auto selfShape = selfTy.getShape();
+
+    // Dims that may dynamically resolve to 1 are not reduced here. Only
+    // compile-time resolvable dims are handled here.
+    for (auto &dim : selfShape) {
+      if (dim != 1)
+        squeezedShape.push_back(dim);
+    }
+    return success();
+  }
+};
 
 } // namespace
 
@@ -606,8 +677,8 @@ public:
     INSERT_UNARY_PATTERN(AtenBitwiseNotOp, tosa::BitwiseNotOp)
 #undef INSERT_UNARY_PATTERN
 
-#define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                   \
-  target.addIllegalOp<AtenOp>();                                                \
+#define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                  \
+  target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
@@ -650,6 +721,13 @@ public:
                                         mlir::tosa::convertReduceSumOp)
 #undef INSERT_ALLDIMS_REDUCTION_OP_PATTERN
 
+#define INSERT_SQUEEZE_OP_PATTERN(AtenOp, TemplateForm)                        \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<TemplateForm<AtenOp>>(typeConverter, context);
+    INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeOp, ConvertAtenSqueezeAllDimsOp)
+    INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeDimOp, ConvertAtenSqueezeOneDimOp)
+#undef INSERT_SQUEEZE_OP_PATTERN
+
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
@@ -659,7 +737,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenMulTensorOp);
     INSERT_ATENOP_PATTERN(AtenDivTensorOp);
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
-    INSERT_ATENOP_PATTERN(AtenSqueezeOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
