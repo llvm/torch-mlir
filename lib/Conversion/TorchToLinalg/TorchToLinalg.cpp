@@ -3769,7 +3769,7 @@ static Value collapseTo1dTensor(OpBuilder &b, Location loc, Value tensor) {
   SmallVector<ReassociationIndices> reassociation(1);
   for (auto i : llvm::seq<int64_t>(0, tensorType.getRank()))
     reassociation[0].push_back(i);
-  return b.create<linalg::TensorCollapseShapeOp>(loc, tensor, reassociation);
+  return b.create<tensor::CollapseShapeOp>(loc, tensor, reassociation);
 }
 
 namespace {

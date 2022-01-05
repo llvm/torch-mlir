@@ -40,24 +40,24 @@ class HistogramBinningCalibrationByFeature(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1], torch.int64, True),
-        ([-1, -1], torch.int64, True),
-        ([5, 1], torch.float32, True),
+        ([-1], torch.int32, True),
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, segment_value, segment_lengths, logit):
         origin_prediction = torch.sigmoid(logit - 0.9162907600402832)
         # HistogramBinningCalibrationByFeature
         _3251 = origin_prediction.view(-1)  # Reshape
-        dense_segment_value = torch.zeros(logit.numel(), dtype=torch.int64)
+        dense_segment_value = torch.zeros(logit.numel(), dtype=torch.int32)
         offsets = torch.arange(segment_lengths.numel())
         offsets = offsets.unsqueeze(1)
         dense_segment_value[offsets] = segment_value[offsets] + 1
         _3257 = dense_segment_value
         _3253 = segment_lengths.view(-1)
         _3258 = _3257.view(-1)  # Reshape
-        _3259 = _3258.long()  # Cast
-        _3260 = torch.empty_like(_3253, dtype=torch.int64).fill_(0)  # ConstantFill
-        _3261 = torch.empty_like(_3253, dtype=torch.int64).fill_(1)  # ConstantFill
+        _3259 = _3258  # Cast
+        _3260 = torch.empty_like(_3253, dtype=torch.int32).fill_(0)  # ConstantFill
+        _3261 = torch.empty_like(_3253, dtype=torch.int32).fill_(1)  # ConstantFill
         _3262 = torch.gt(_3259, self._num_segments)  # GT
         _3263 = torch.gt(_3260, _3259)  # GT
         _3264 = _3253 == _3261  # EQ
@@ -83,8 +83,8 @@ class HistogramBinningCalibrationByFeature(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: HistogramBinningCalibrationByFeature())
 def HBC_basic(module, tu: TestUtils):
-    segment_value = torch.tensor([40, 31, 32, 13, 31])
-    segment_lengths = torch.tensor([[1], [1], [1], [1], [1]])
+    segment_value = torch.tensor([40, 31, 32, 13, 31], dtype=torch.int32)
+    segment_lengths = torch.tensor([[1], [1], [1], [1], [1]], dtype=torch.int32)
     logit = torch.tensor([[-0.0018], [0.0085], [0.0090], [0.0003], [0.0029]])
 
     module.forward(segment_value, segment_lengths, logit)
