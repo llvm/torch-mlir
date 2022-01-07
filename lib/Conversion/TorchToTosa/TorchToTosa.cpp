@@ -117,8 +117,9 @@ class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
-  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const {
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.self();
     auto lhsTy = lhs.getType().cast<TensorType>();
     Value rhs = adaptor.other();
@@ -312,8 +313,9 @@ public:
 
   // Common rewriter for all reduction ops, calls the specific implementation of
   // readReduceDimsAndKeepDims() needed for the op variant.
-  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const {
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.self();
     auto selfTy = self.getType().cast<TensorType>();
 
@@ -360,7 +362,7 @@ class ConvertAtenMultipleDimsReductionOp
   LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
                                           ConversionPatternRewriter &rewriter,
                                           ElementsAttr &reduceDimsAttr,
-                                          bool &keepDims) const {
+                                          bool &keepDims) const override {
     SmallVector<int64_t, 4> reduceDims;
     if (!matchPattern(op.dim(), m_TorchConstantIntList(reduceDims)))
       return rewriter.notifyMatchFailure(op,
@@ -391,7 +393,7 @@ class ConvertAtenOneDimReductionOp
   LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
                                           ConversionPatternRewriter &rewriter,
                                           ElementsAttr &reduceDimsAttr,
-                                          bool &keepDims) const {
+                                          bool &keepDims) const override {
     int64_t reduceDim;
     if (!matchPattern(op.dim(), m_TorchConstantInt(&reduceDim)))
       return rewriter.notifyMatchFailure(op,
@@ -421,7 +423,7 @@ public:
   LogicalResult readReduceDimsAndKeepDims(AtenOpT op, OpAdaptor adaptor,
                                           ConversionPatternRewriter &rewriter,
                                           ElementsAttr &reduceDimsAttr,
-                                          bool &keepDims) const {
+                                          bool &keepDims) const override {
     auto self = adaptor.self();
     auto selfTy = self.getType().template cast<RankedTensorType>();
 
@@ -543,8 +545,9 @@ public:
 
   // Common rewriter for all squeeze ops, calls the specific implementation of
   // generateSqueezedShape() needed for the op variant.
-  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const {
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.self();
     auto selfTy = self.getType().template cast<RankedTensorType>();
 
@@ -585,7 +588,7 @@ class ConvertAtenSqueezeOneDimOp : public ConvertAtenSqueezeOp<AtenOpT> {
   LogicalResult
   generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
                         ConversionPatternRewriter &rewriter,
-                        SmallVector<int64_t> &squeezedShape) const {
+                        SmallVector<int64_t> &squeezedShape) const override {
     int64_t squeezeDim;
     if (!matchPattern(op.dim(), m_TorchConstantInt(&squeezeDim)))
       return rewriter.notifyMatchFailure(op,
@@ -619,7 +622,7 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
   LogicalResult
   generateSqueezedShape(AtenOpT op, RankedTensorType selfTy,
                         ConversionPatternRewriter &rewriter,
-                        SmallVector<int64_t> &squeezedShape) const {
+                        SmallVector<int64_t> &squeezedShape) const override {
     auto selfShape = selfTy.getShape();
 
     // Dims that may dynamically resolve to 1 are not reduced here. Only
