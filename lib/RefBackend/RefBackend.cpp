@@ -163,9 +163,9 @@ static LogicalResult mungeFunction(
     auto supportedFuncsEnd = supportedConsumeFuncReturnFuncs.end();
     std::string funcName = getConsumeReturnFunctionNameForReturnTypes(retTypes);
     if (supportedConsumeFuncReturnFuncs.find(funcName) == supportedFuncsEnd) {
-      op.emitError(
-          "must have one return value of memref types or scalar types "
-          "of i32, i64, f32, f64, i1, or three return values of memref f32");
+      op.emitError("must have one return value of memref types or scalar types "
+                   "of i32, i64, f32, f64, i1, or two return values of memref "
+                   "f32 and i64, or three return values of memref f32");
       isSupported = false;
     }
 
@@ -194,7 +194,8 @@ static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
   Type f64 = b.getF64Type();
 
   SmallVector<TypeRange> supportedReturnTypes = {
-      mri1, mri32, mri64, mrf32, mrf64, i64, f32, f64, {mrf32, mrf32, mrf32}};
+      mri1, mri32, mri64, mrf32,          mrf64,
+      i64,  f32,   f64,   {mrf32, mri64}, {mrf32, mrf32, mrf32}};
 
   llvm::for_each(supportedReturnTypes, [&](TypeRange &types) {
     funcNames.insert(getConsumeReturnFunctionNameForReturnTypes(types));

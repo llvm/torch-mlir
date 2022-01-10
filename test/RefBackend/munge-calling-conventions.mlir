@@ -53,3 +53,20 @@ func @elemental_type(%arg0: memref<i64>) -> i64 {
 func @multiple_return_values(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>) -> (memref<?xf32>, memref<?xf32>, memref<?xf32>) {
   return %arg0 ,%arg1, %arg2 : memref<?xf32>, memref<?xf32>, memref<?xf32>
 }
+
+// -----
+
+// CHECK-LABEL:   func @two_return_values(
+// CHECK-SAME:                                 %[[ARG0:.*]]: memref<*xf32>, %[[ARG1:.*]]: memref<*xi64>)
+// CHECK-SAME:                                 attributes {llvm.emit_c_interface} {
+// CHECK:           %[[VAL0:.*]] = memref.cast %[[ARG0]] : memref<*xf32> to memref<?xf32>
+// CHECK:           %[[VAL1:.*]] = memref.cast %[[ARG1]] : memref<*xi64> to memref<?xi64>
+// CHECK:           %[[RET0:.*]] = memref.cast %[[VAL0]] : memref<?xf32> to memref<*xf32>
+// CHECK:           %[[RET1:.*]] = memref.cast %[[VAL1]] : memref<?xi64> to memref<*xi64>
+// CHECK:           call @refbackend_consume_func_return_mrf32_mri64(%[[RET0]], %[[RET1]])
+// CHECK-SAME:          : (memref<*xf32>, memref<*xi64>) -> ()
+// CHECK:           return
+
+func @two_return_values(%arg0: memref<?xf32>, %arg1: memref<?xi64>) -> (memref<?xf32>, memref<?xi64>) {
+  return %arg0 ,%arg1 : memref<?xf32>, memref<?xi64>
+}

@@ -49,4 +49,5 @@ TOSA_PASS_SET = {
     "SqueezeDimModule_static",
     "SqueezeDimModule_identity",
     "SqueezeDimModule_unitDim",
+    "ReturnTwoTensorF32I64_basic",
 }

@@ -66,6 +66,14 @@ class RefBackendInvoker:
             self.result = a
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
+                          ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_return_mrf32_mri64(arg0, arg1):
+            self.result = unranked_memref_to_numpy(
+                arg0, np.float32), unranked_memref_to_numpy(
+                    arg1,
+                    np.int64)
+
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
                           ctypes.POINTER(UnrankedMemRefDescriptor),
                           ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return_mrf32_mrf32_mrf32(arg0, arg1, arg2):
@@ -97,6 +105,10 @@ class RefBackendInvoker:
 
         self.ee.register_runtime("refbackend_consume_func_return_f64",
                                  consume_return_f64)
+
+        self.ee.register_runtime(
+            "refbackend_consume_func_return_mrf32_mri64",
+            consume_return_mrf32_mri64)
 
         self.ee.register_runtime(
             "refbackend_consume_func_return_mrf32_mrf32_mrf32",
