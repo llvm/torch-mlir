@@ -1778,6 +1778,22 @@ def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
   let assemblyFormat = "$self `,` $target `,` $weight `,` $reduction `,` $ignore_index attr-dict `:` type($self) `,` type($target) `,` type($weight) `,` type($reduction) `,` type($ignore_index) `->` type($output) `,` type($total_weight)";
 }
 
+def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$pad,
+    AnyTorchScalarType:$value
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $pad `,` $value attr-dict `:` type($self) `,` type($pad) `,` type($value) `->` type($result)";
+}
+
 def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
     AllowsTypeRefinement
   ]> {
@@ -2915,6 +2931,22 @@ def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
 }
 
+def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::eq.str : (str, str) -> (bool)`";
+  let arguments = (ins
+    Torch_StringType:$a,
+    Torch_StringType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let hasFolder = 1;
+}
+
 def Torch_AtenStrOp : Torch_Op<"aten.str", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -3175,6 +3207,21 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
   let hasFolder = 1;
 }
 
+def Torch_AtenNegIntOp : Torch_Op<"aten.neg.int", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::neg.int : (int) -> (int)`";
+  let arguments = (ins
+    Torch_IntType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$a attr-dict `:` type($a) `->` type($result)";
+  let hasFolder = 1;
+}
+
 def Torch_AtenLogIntOp : Torch_Op<"aten.log.int", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -3246,6 +3293,22 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
     Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+}
+
+def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::eq.float : (float, float) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` type($a) `,` type($b) `->` type($result)";
+  let hasFolder = 1;
 }
 
 def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [

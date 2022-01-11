@@ -11,7 +11,6 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
-
 class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -38,7 +37,6 @@ def MmModule_chained(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class BmmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -57,9 +55,7 @@ class BmmModule(torch.nn.Module):
 def BmmModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
 
-
 # ==============================================================================
-
 
 # A subgraph with multiple mm ops.
 class MmDagModule(torch.nn.Module):
@@ -80,9 +76,7 @@ class MmDagModule(torch.nn.Module):
 def MmDagModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4), tu.rand(4, 4))
 
-
 # ==============================================================================
-
 
 class MmTanhModule(torch.nn.Module):
     def __init__(self):
@@ -100,15 +94,12 @@ class MmTanhModule(torch.nn.Module):
     def matmul(self, lhs, rhs):
         return torch.mm(lhs, rhs)
 
-# ==============================================================================
-
 
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
 
 # ==============================================================================
-
 
 class AddmmModuleFloat(torch.nn.Module):
     def __init__(self):
@@ -196,7 +187,6 @@ def AdaptiveAvgPool2dModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class FlattenStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -216,7 +206,6 @@ def FlattenStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3, 8, 9, 3, 4))
 
 # ==============================================================================
-
 
 class FlattenRank0Module(torch.nn.Module):
     def __init__(self):
@@ -238,7 +227,6 @@ def FlattenRank0Module_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class FlattenDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -259,7 +247,6 @@ def FlattenDynamicModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class MaxPool2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -276,13 +263,85 @@ class MaxPool2dModule(torch.nn.Module):
     def forward(self, x):
         return self.mp2d(x)
 
-# ==============================================================================
-
 
 @register_test_case(module_factory=lambda: MaxPool2dModule())
 def MaxPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
 
+
+class ConstantPad2dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pad2d = torch.nn.ConstantPad2d((0, 1, 2, 3), -float('inf'))
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 20, 20], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.pad2d(x)
+
+
+@register_test_case(module_factory=lambda: ConstantPad2dStaticModule())
+def ConstantPad2dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+
+# ==============================================================================
+
+class ConstantPadNdModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.constant_pad_nd(x, (0, 1), -float('inf'))
+
+
+@register_test_case(module_factory=lambda: ConstantPadNdModule())
+def ConstantPadNdModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+
+
+class ConstantPadNdStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 20, 20, 4, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.constant_pad_nd(x, (0, 1), -float('inf'))
+
+
+@register_test_case(module_factory=lambda: ConstantPadNdStaticModule())
+def ConstantPadNdStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+
+class ConstantPadNdPartialStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 20, 20, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.constant_pad_nd(x, (0, 1, 2, 3), -float('inf'))
+
+
+@register_test_case(module_factory=lambda: ConstantPadNdPartialStaticModule())
+def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+
+# ==============================================================================
 
 class TransposeIntModule(torch.nn.Module):
     def __init__(self):
@@ -296,12 +355,12 @@ class TransposeIntModule(torch.nn.Module):
     def forward(self, x):
         return torch.transpose(x, 0, 1)
 
-# ==============================================================================
-
 
 @register_test_case(module_factory=lambda: TransposeIntModule())
 def TransposeIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
+
+# ==============================================================================
 
 class PermuteModule(torch.nn.Module):
     def __init__(self):
@@ -333,13 +392,12 @@ class TransposeIntNegDimsModule(torch.nn.Module):
     def forward(self, x):
         return torch.transpose(x, -1, -2)
 
-# ==============================================================================
-
 
 @register_test_case(module_factory=lambda: TransposeIntNegDimsModule())
 def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
+# ==============================================================================
 
 class PermuteNegativeIndexModule(torch.nn.Module):
     def __init__(self):
@@ -353,11 +411,12 @@ class PermuteNegativeIndexModule(torch.nn.Module):
     def forward(self, x):
         return x.permute(0, -1, 1)
 
-# ==============================================================================
-
 @register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
 def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
+
+# ==============================================================================
+
 class TensorsConcatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -378,7 +437,6 @@ def TensorsConcatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
 
 # ==============================================================================
-
 
 class GatherModule(torch.nn.Module):
     def __init__(self):
@@ -421,7 +479,6 @@ def AddSizeIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3))
 
 # ==============================================================================
-
 
 class AddSizeIntNegDimModule(torch.nn.Module):
     def __init__(self):
@@ -505,7 +562,6 @@ def _SoftmaxModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class SoftmaxIntNegDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -526,7 +582,6 @@ def SoftmaxIntNegDimModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
 # ==============================================================================
-
 
 class SoftmaxIntArgTypeF64Module(torch.nn.Module):
     def __init__(self):

@@ -414,7 +414,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::max.self_int : (int[]) -> (int)")
         emit("prim::max.int : (int, int) -> (int)")
         emit("prim::RaiseException : (str) -> ()")
-        emit("prim::Uninitialized : () -> (Any)")
+        emit("prim::Uninitialized : () -> (Any)", has_canonicalizer=True)
         emit("prim::unchecked_cast : (t) -> (t)",
              traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
         emit("prim::Print : (...) -> ()")
@@ -540,6 +540,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
 
         # Misc tensor ops.
+        emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
         emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
         emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
         emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
@@ -619,6 +620,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
 
         # Str ops.
         emit("aten::add.str : (str, str) -> (str)")
+        emit("aten::eq.str : (str, str) -> (bool)", has_folder=True)
         emit("aten::str : (t) -> (str)")
         emit("aten::format : (...) -> (str)")
         emit("aten::join : (str, str[]) -> (str)")
@@ -640,11 +642,13 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::add.int : (int, int) -> (int)", has_folder=True)
         emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
         emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
+        emit("aten::neg.int : (int) -> (int)", has_folder=True)
         emit("aten::log.int : (int) -> (float)")
         emit("aten::add.float_int : (float, int) -> (float)")
         emit("aten::mul.float : (float, float) -> (float)")
         emit("aten::neg.float : (float) -> (float)")
         emit("aten::lt.float_int : (float, int) -> (bool)")
+        emit("aten::eq.float : (float, float) -> (bool)", has_folder=True)
         emit("aten::__and__.bool : (bool, bool) -> (bool)")
         emit("aten::ne.bool : (bool, bool) -> (bool)", has_folder=True)
         emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
