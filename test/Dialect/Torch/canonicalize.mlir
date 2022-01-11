@@ -249,6 +249,55 @@ func @torch.aten.ge.int$same_value() -> !torch.bool {
   return %2 : !torch.bool
 }
 
+// CHECK-LABEL:   func @torch.aten.eq.float$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.eq.float$different_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float5 = torch.constant.float 5.0
+  %2 = torch.aten.eq.float %float4, %float5 : !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.float$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.eq.float$same_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float4_0 = torch.constant.float 4.0
+  %2 = torch.aten.eq.float %float4, %float4_0 : !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.str$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.eq.str$different_value() -> !torch.bool {
+  %str4 = torch.constant.str "4"
+  %str5 = torch.constant.str "5"
+  %2 = torch.aten.eq.str %str4, %str5 : !torch.str, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.str$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.str) -> !torch.bool {
+// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool true
+// CHECK-NEXT:       return %[[F]] : !torch.bool
+func @torch.aten.eq.str$same_operand(%arg0: !torch.str) -> !torch.bool {
+  %0 = torch.aten.eq.str %arg0, %arg0 : !torch.str, !torch.str -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.str$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.eq.str$same_value() -> !torch.bool {
+  %str4 = torch.constant.str "4"
+  %str4_0 = torch.constant.str "4"
+  %2 = torch.aten.eq.str %str4, %str4_0 : !torch.str, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.__not__
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool

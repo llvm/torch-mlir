@@ -275,7 +275,27 @@ static SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 }
 
 // Helper function to get the padding tensor given the padding int values.
-// It's assumed that the padding on the low end and high end are the same.
+static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
+                             SmallVectorImpl<int64_t> &lowPaddingInts,
+                             SmallVectorImpl<int64_t> &highPaddingInts,
+                             Value pad) {
+  Location loc = op->getLoc();
+  Type rankedTensorType = linalg::PadTensorOp::inferResultType(
+      input.getType().cast<RankedTensorType>(), lowPaddingInts,
+      highPaddingInts);
+  SmallVector<OpFoldResult> lowPaddings =
+      getAsOpFoldResult(b, loc, lowPaddingInts);
+  SmallVector<OpFoldResult> highPaddings =
+      getAsOpFoldResult(b, loc, highPaddingInts);
+  Value paddedInput = linalg::PadTensorOp::createPadScalarOp(
+      rankedTensorType, input, pad, /*low=*/lowPaddings, /*high=*/highPaddings,
+      /*packing=*/false, loc, b);
+  return paddedInput;
+}
+
+// Helper function to get the padding tensor given the padding int values.
+// It's assumed that the padding on the low end and high end are the same,
+// and that zero padding is required.
 static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                              SmallVectorImpl<int64_t> &paddingInts) {
   assert(input.getType().isa<RankedTensorType>() &&
@@ -284,13 +304,7 @@ static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
   Value c0 = b.create<arith::ConstantOp>(
       loc,
       b.getZeroAttr(input.getType().cast<RankedTensorType>().getElementType()));
-  SmallVector<OpFoldResult> paddings = getAsOpFoldResult(b, loc, paddingInts);
-  Type ranked4DTensorType = linalg::PadTensorOp::inferResultType(
-      input.getType().cast<RankedTensorType>(), paddingInts, paddingInts);
-  Value paddedInput = linalg::PadTensorOp::createPadScalarOp(
-      ranked4DTensorType, input, c0, /*low=*/paddings, /*high=*/paddings,
-      /*packing=*/false, loc, b);
-  return paddedInput;
+  return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
 
 static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
@@ -2686,6 +2700,57 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenConstantPadNdOp
+    : public OpConversionPattern<AtenConstantPadNdOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenConstantPadNdOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op->getLoc();
+    Value self = adaptor.self();
+    auto type = self.getType().cast<RankedTensorType>();
+    int64_t rank = type.getRank();
+
+    // Pattern match against the op's original operands, because otherwise we
+    // will get the lowered version of the operands which is harder to pattern
+    // match.
+    SmallVector<int64_t> padInts;
+    if (!matchPattern(op.pad(), m_TorchConstantIntList(padInts)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant int pad ranges");
+    uint64_t padRank = padInts.size() / 2;
+    if (padRank * 2 != padInts.size())
+      return rewriter.notifyMatchFailure(op, "pad range size is not even");
+    if (rank < 0 || padRank > (uint64_t)rank)
+      return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+
+    // Initialize low/high paddings with the dims that should not be padded.
+    SmallVector<int64_t, 4> lowPadding(/*Size=*/rank - padRank, /*Value=*/0);
+    SmallVector<int64_t, 4> highPadding(/*Size=*/rank - padRank, /*Value=*/0);
+    // Add the requested padding - note op.pad() is highest dim first ordered
+    // pairs of low,high.
+    for (uint64_t i = padRank; i > 0; --i) {
+      lowPadding.push_back(padInts[i * 2 - 2]);
+      highPadding.push_back(padInts[i * 2 - 1]);
+    }
+
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    Type elementType = newResultType.cast<RankedTensorType>().getElementType();
+    Value castedValue =
+        convertScalarToDtype(rewriter, loc, adaptor.value(), elementType);
+    Value paddedInput = getPaddedTensor(op, rewriter, self, lowPadding,
+                                        highPadding, castedValue);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, paddedInput);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenFlattenUsingIntsOp
     : public OpConversionPattern<AtenFlattenUsingIntsOp> {
 public:
@@ -4225,6 +4290,8 @@ public:
     patterns.add<ConvertAtenViewOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
+    target.addIllegalOp<AtenConstantPadNdOp>();
+    patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
     target.addIllegalOp<AtenSumOp>();
     patterns.add<ConvertReductionOp>(typeConverter, context);
     target.addIllegalOp<AtenTransposeIntOp>();

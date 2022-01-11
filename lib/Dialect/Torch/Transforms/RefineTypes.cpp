@@ -490,6 +490,8 @@ public:
       return visitAtenNllLossForwardOp(nllForwardOp, operands);
     } else if (auto nativeLayerNormOp = dyn_cast<AtenNativeLayerNormOp>(op)) {
       return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
+    } else if (auto constantPadNdOp = dyn_cast<AtenConstantPadNdOp>(op)) {
+      return visitAtenConstantPadNdOp(constantPadNdOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -513,6 +515,9 @@ private:
   ChangeResult
   visitAtenMaxPool2dOp(AtenMaxPool2dOp op,
                        ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenConstantPadNdOp(AtenConstantPadNdOp op,
+                           ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitAtenAdaptiveAvgPool2dOp(
       AtenAdaptiveAvgPool2dOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -920,18 +925,18 @@ ChangeResult TypeAnalyzer::visitAtenConv2dOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
-  auto &ifm = operands[0]->getValue();
+  auto &input = operands[0]->getValue();
   auto &weights = operands[1]->getValue();
-  if (weights.hasSizes && ifm.hasSizes)
+  if (weights.hasSizes && input.hasSizes)
     knowledge.sizes = computeOpWithKernelOutputShape(
-        op, ifm, weights.sizes[0], weights.sizes[2], weights.sizes[3]);
+        op, input, weights.sizes[0], weights.sizes[2], weights.sizes[3]);
   else
     knowledge.sizes.resize(4, kUnknownSize);
 
   // Running some experiments in PyTorch, the bias doesn't seem to
   // contribute to the final element type.
-  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(op->getContext(),
-                                                             {&ifm, &weights});
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
+      op->getContext(), {&input, &weights});
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
@@ -940,15 +945,41 @@ ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.hasSizes = true;
-  auto &ifm = operands[0]->getValue();
+  auto &input = operands[0]->getValue();
   SmallVector<int64_t, 2> kernelSize;
   if (!matchPattern(op.kernel_size(), m_TorchConstantIntList(kernelSize)))
     kernelSize = SmallVector<int64_t, 2>{kUnknownSize, kUnknownSize};
-  if (ifm.hasSizes)
+  if (input.hasSizes)
     knowledge.sizes = computeOpWithKernelOutputShape(
-        op, ifm, ifm.sizes[1], kernelSize[0], kernelSize[1]);
+        op, input, input.sizes[1], kernelSize[0], kernelSize[1]);
   else
     knowledge.sizes.resize(4, kUnknownSize);
+  knowledge.dtype = operands[0]->getValue().dtype;
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
+    AtenConstantPadNdOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto &input = operands[0]->getValue();
+  if (input.hasSizes) {
+    knowledge.hasSizes = true;
+    SmallVector<int64_t> padInts;
+    if (matchPattern(op.pad(), m_TorchConstantIntList(padInts))) {
+      knowledge.sizes = input.sizes;
+      uint64_t padRank = padInts.size() / 2;
+      uint64_t padOffset = knowledge.sizes.size() - padRank;
+      // op.pad() is highest dim first ordered pairs of low,high.
+      for (uint64_t i = padRank, r = padOffset; i > 0; --i, ++r) {
+        if (knowledge.sizes[r] != kUnknownSize)
+          knowledge.sizes[r] += padInts[i * 2 - 2] + padInts[i * 2 - 1];
+      }
+    } else
+      knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+  }
+
   knowledge.dtype = operands[0]->getValue().dtype;
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }

@@ -1,4 +1,5 @@
 *.swp
+.cache/
 .vscode
 .env
 *.code-workspace
