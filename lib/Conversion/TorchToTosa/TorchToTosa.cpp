@@ -635,6 +635,49 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
   }
 };
 
+// FIXME(AG): This will eventually go into a Tosa*Utils file
+// Convert an fp32 scalar into tosa fp32 tensor.
+static LogicalResult
+tosaF32TensorFromTorchFloat(ConversionPatternRewriter &rewriter, Operation *op,
+                            Value torchScalarValue, Value &tosaTensor) {
+  double scalarValue;
+
+  if (!matchPattern(torchScalarValue, m_TorchConstantFloat(&scalarValue)))
+    return failure();
+
+  // Construct a tosa.const
+  tosaTensor =
+      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, scalarValue);
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
+    AtenPowTensorScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Value self = adaptor.self();
+  auto selfTy = self.getType().template cast<RankedTensorType>();
+
+  if (!selfTy)
+    return op.emitError("Only ranked tensor types supported in TOSA Pow");
+
+  if (!selfTy.getElementType().isa<mlir::FloatType>())
+    return op.emitError("Only floating-point datatype legalization supported");
+
+  Value expTensor;
+  Value expScalar = op.exponent();
+  if (failed(tosaF32TensorFromTorchFloat(rewriter, op.getOperation(), expScalar,
+                                         expTensor)))
+    return op.emitError("Currently only scalar constants are supported for "
+                        "conversion in TOSA Pow operation");
+
+  rewriter.replaceOpWithNewOp<tosa::PowOp>(
+      op, getTypeConverter()->convertType(op.getType()), self, expTensor);
+
+  return success();
+}
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -740,6 +783,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMulTensorOp);
     INSERT_ATENOP_PATTERN(AtenDivTensorOp);
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
+    INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,

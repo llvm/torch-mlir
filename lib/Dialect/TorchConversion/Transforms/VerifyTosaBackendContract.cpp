@@ -44,6 +44,7 @@ class VerifyTosaBackendContractPass
     target.addLegalDialect<tosa::TosaDialect>();
     target.addDynamicallyLegalOp<tensor::CastOp>(opHasLegalTypes);
     target.addDynamicallyLegalOp<arith::ExtSIOp>(opHasLegalTypes);
+    target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
 
     RewritePatternSet patterns(context);
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {

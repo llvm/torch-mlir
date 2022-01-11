@@ -12,6 +12,7 @@
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
+#include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
@@ -100,6 +101,9 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
     // The resolution of `dim` ops tends to create identical ops. CSE them.
     pm.addNestedPass<FuncOp>(createCSEPass());
   }
+
+  // Add the ToStandard pass for lowering some ops
+  pm.addNestedPass<FuncOp>(createTosaToStandard());
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
