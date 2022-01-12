@@ -25,7 +25,7 @@ class NllLossModule(torch.nn.Module):
   ])
   # Here the 2nd index is ignored.
   def forward(self, x, y):
-    return torch.ops.aten.nll_loss_forward(self=x,
+    return torch.ops.aten.nll_loss_forward(x,
                                            target=y,
                                            weight=None,
                                            reduction=0,
@@ -50,7 +50,7 @@ class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
   ])
   # None of the index is ignored here, since the ignored index is out of bounds.
   def forward(self, x, y):
-    return torch.ops.aten.nll_loss_forward(self=x,
+    return torch.ops.aten.nll_loss_forward(x,
                                            target=y,
                                            weight=None,
                                            reduction=0,

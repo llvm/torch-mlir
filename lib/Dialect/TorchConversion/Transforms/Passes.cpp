@@ -102,9 +102,6 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
     pm.addNestedPass<FuncOp>(createCSEPass());
   }
 
-  // Add the ToStandard pass for lowering some ops
-  pm.addNestedPass<FuncOp>(createTosaToStandard());
-
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
