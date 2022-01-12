@@ -912,4 +912,23 @@ def Torch_OverwriteTensorOp : Torch_Op<"overwrite.tensor", [
   }];
 }
 
+// The corresponding without underscore variant for `torch.aten.uniform_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+  ]> {
+  let summary = "`uniform op : (Tensor, float, float, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_FloatType:$from,
+    Torch_FloatType:$to,
+    TorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $from `,` $to `,` $generator attr-dict `:` type($self) `,` type($from) `,` type($to) `,` type($generator) `->` type($result)";
+}
+
 #endif // TORCH_OPS

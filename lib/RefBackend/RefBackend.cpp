@@ -21,9 +21,10 @@
 #include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "set"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/RefBackend/Passes.h"
 #include <numeric>
+#include <set>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -112,6 +113,10 @@ static void replaceReturnWithCall(OpBuilder b, ReturnOp op, StringRef funcName,
 static LogicalResult mungeFunction(
     FuncOp func, std::set<std::string> &supportedConsumeFuncReturnFuncs,
     std::map<std::string, std::vector<Type>> &invokedConsumeFuncReturnFuncs) {
+  // Only need to call mungeFunction for functions callable from outside of the
+  // module.
+  if (func.isPrivate())
+    return success();
   // Add `llvm.emit_c_interface`.
   // This allows ExecutionEngine to resolve the symbol properly.
   addEmitCInterfaceAttr(func);
@@ -163,9 +168,10 @@ static LogicalResult mungeFunction(
     auto supportedFuncsEnd = supportedConsumeFuncReturnFuncs.end();
     std::string funcName = getConsumeReturnFunctionNameForReturnTypes(retTypes);
     if (supportedConsumeFuncReturnFuncs.find(funcName) == supportedFuncsEnd) {
-      op.emitError("must have one return value of memref types or scalar types "
-                   "of i32, i64, f32, f64, i1, or two return values of memref "
-                   "f32 and i64, or three return values of memref f32");
+      op.emitError("Supported return types:"
+                   "mri1, mri32, mri64, mrf32, mrf64, i64, f32, f64,"
+                   "(mrf32, mri64), (mrf32, mrf32), (mrf64, mrf64),"
+                   "(mrf32, mrf32, mrf32)");
       isSupported = false;
     }
 
@@ -193,9 +199,18 @@ static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
   Type f32 = b.getF32Type();
   Type f64 = b.getF64Type();
 
-  SmallVector<TypeRange> supportedReturnTypes = {
-      mri1, mri32, mri64, mrf32,          mrf64,
-      i64,  f32,   f64,   {mrf32, mri64}, {mrf32, mrf32, mrf32}};
+  SmallVector<TypeRange> supportedReturnTypes = {mri1,
+                                                 mri32,
+                                                 mri64,
+                                                 mrf32,
+                                                 mrf64,
+                                                 i64,
+                                                 f32,
+                                                 f64,
+                                                 {mrf32, mri64},
+                                                 {mrf32, mrf32},
+                                                 {mrf64, mrf64},
+                                                 {mrf32, mrf32, mrf32}};
 
   llvm::for_each(supportedReturnTypes, [&](TypeRange &types) {
     funcNames.insert(getConsumeReturnFunctionNameForReturnTypes(types));
@@ -232,6 +247,80 @@ class MungeCallingConventions
 std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::RefBackend::createMungeCallingConventionsPass() {
   return std::make_unique<MungeCallingConventions>();
+}
+
+//===----------------------------------------------------------------------===//
+// InsertRngGlobals
+//===----------------------------------------------------------------------===//
+
+static constexpr StringRef getSeedGobalVarName() { return "global_seed"; }
+
+// Declare a memref<i64> global variable for the seed.
+static void createGlobalVariableForSeed(OpBuilder &b, ModuleOp module) {
+  b.setInsertionPointToStart(module.getBody());
+  Type elemTy = b.getI64Type();
+  auto memref0D = MemRefType::get({}, elemTy);
+  auto tensor0D = RankedTensorType::get({}, elemTy);
+  b.create<memref::GlobalOp>(
+      UnknownLoc::get(b.getContext()), getSeedGobalVarName(),
+      /*sym_visibility=*/b.getStringAttr("private"),
+      /*type=*/memref0D,
+      /*initial_value=*/DenseIntElementsAttr::get(tensor0D, {APInt(64, 0)}),
+      /*constant=*/false,
+      /*alignment=*/nullptr);
+}
+
+// Generate sequence for getting the next seed with LCG step:
+//    nextSeed = (multiplier * currentSeed + incrementStep) mod 64.
+// Refer to https://en.wikipedia.org/wiki/Linear_congruential_generator.
+static Value lowerGetNextSeed(OpBuilder &b, Location loc) {
+  // Get the current seed value.
+  auto memref1DType = MemRefType::get({}, b.getI64Type());
+  Value globalVar =
+      b.create<memref::GetGlobalOp>(loc, memref1DType, getSeedGobalVarName());
+  Value currentSeed = b.create<memref::LoadOp>(loc, globalVar);
+
+  // The value of multiplier and incrementStep are referenced from
+  // https://en.wikipedia.org/wiki/Linear_congruential_generator for 2^64.
+  Value multiplier = b.create<arith::ConstantOp>(
+      loc, b.getI64IntegerAttr(6364136223846793005));
+  Value incrementStep = b.create<arith::ConstantOp>(
+      loc, b.getI64IntegerAttr(1442695040888963407));
+  // temp = multiplier * currentSeed + incrementStep
+  Value mul = b.create<arith::MulIOp>(loc, currentSeed, multiplier);
+  Value temp = b.create<arith::AddIOp>(loc, mul, incrementStep);
+  // temp mod 64 = temp & 63
+  Value cst127 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(127));
+  Value nextSeed = b.create<arith::AndIOp>(loc, temp, cst127);
+  b.create<memref::StoreOp>(loc, nextSeed, globalVar);
+  return nextSeed;
+}
+
+// The global seed is stored into a memref<i64> global variable as the only
+// element.
+namespace {
+class InsertRngGlobals : public InsertRngGlobalsBase<InsertRngGlobals> {
+  void runOnOperation() override {
+    auto module = getOperation();
+    OpBuilder b(module.getBodyRegion());
+    createGlobalVariableForSeed(b, module);
+    SmallVector<Operation *> toErase;
+    module.walk([&](TorchConversion::GetNextSeedOp op) {
+      b.setInsertionPoint(op);
+      Value seed = lowerGetNextSeed(b, op.getLoc());
+      op.replaceAllUsesWith(seed);
+      toErase.push_back(op);
+    });
+
+    for (auto op : toErase)
+      op->erase();
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::torch::RefBackend::createInsertRngGlobalsPass() {
+  return std::make_unique<InsertRngGlobals>();
 }
 
 //===----------------------------------------------------------------------===//

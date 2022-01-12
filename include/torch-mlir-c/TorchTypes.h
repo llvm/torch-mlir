@@ -73,6 +73,16 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchDevice(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchDeviceTypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
+// torch.Generator type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.Generator type
+MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchGenerator(MlirType t);
+
+/// Gets the !torch.Generator type.
+MLIR_CAPI_EXPORTED MlirType torchMlirTorchGeneratorTypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
 // torch.bool type.
 //===----------------------------------------------------------------------===//
 

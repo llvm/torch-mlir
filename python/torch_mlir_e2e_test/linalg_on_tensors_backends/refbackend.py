@@ -74,6 +74,22 @@ class RefBackendInvoker:
                     np.int64)
 
         @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
+                          ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_return_mrf32_mrf32(arg0, arg1):
+            self.result = unranked_memref_to_numpy(
+                arg0, np.float32), unranked_memref_to_numpy(
+                    arg1,
+                    np.float32)
+
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
+                          ctypes.POINTER(UnrankedMemRefDescriptor))
+        def consume_return_mrf64_mrf64(arg0, arg1):
+            self.result = unranked_memref_to_numpy(
+                arg0, np.float64), unranked_memref_to_numpy(
+                    arg1,
+                    np.float64)
+
+        @ctypes.CFUNCTYPE(None, ctypes.POINTER(UnrankedMemRefDescriptor),
                           ctypes.POINTER(UnrankedMemRefDescriptor),
                           ctypes.POINTER(UnrankedMemRefDescriptor))
         def consume_return_mrf32_mrf32_mrf32(arg0, arg1, arg2):
@@ -109,6 +125,14 @@ class RefBackendInvoker:
         self.ee.register_runtime(
             "refbackend_consume_func_return_mrf32_mri64",
             consume_return_mrf32_mri64)
+
+        self.ee.register_runtime(
+            "refbackend_consume_func_return_mrf32_mrf32",
+            consume_return_mrf32_mrf32)
+
+        self.ee.register_runtime(
+            "refbackend_consume_func_return_mrf64_mrf64",
+            consume_return_mrf64_mrf64)
 
         self.ee.register_runtime(
             "refbackend_consume_func_return_mrf32_mrf32_mrf32",
@@ -148,6 +172,9 @@ LOWERING_PIPELINE = ",".join([
     # returns void at the C level -- we get the return value by providing the
     # callback).
     "refback-munge-calling-conventions",
+    # Insert global variable and instruction sequence for getting the next
+    # global seed used in stateful rng.
+    "refback-insert-rng-globals",
     # Lower to LLVM
     "builtin.func(convert-linalg-to-loops)",
     "builtin.func(lower-affine)",

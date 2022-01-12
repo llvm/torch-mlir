@@ -24,6 +24,7 @@ std::unique_ptr<OperationPass<ModuleOp>> createMungeCallingConventionsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createExpandOpsForLLVMPass();
 
+std::unique_ptr<OperationPass<ModuleOp>> createInsertRngGlobalsPass();
 } // namespace RefBackend
 } // namespace torch
 } // namespace mlir

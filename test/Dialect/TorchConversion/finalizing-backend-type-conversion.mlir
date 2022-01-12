@@ -34,12 +34,22 @@ func @eliminate_materializations$torch.int(%arg0: i64) -> i64 {
 }
 
 // CHECK-LABEL:   func @eliminate_materializations$torch.float(
-// CHECK-SAME:                                                 %[[ARG:.*]]: f64) -> f64 {
+// CHECK-SAME:                                     %[[ARG:.*]]: f64) -> f64 {
 // CHECK:           return %[[ARG]] : f64
 func @eliminate_materializations$torch.float(%arg0: f64) -> f64 {
   %0 = torch_c.from_f64 %arg0
   %1 = torch_c.to_f64 %0
   return %1 : f64
+}
+
+// CHECK-LABEL:   func @eliminate_materializations$torch.Generator(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: i64) -> i64 {
+// CHECK:           return %[[VAL_0]] : i64
+// CHECK:         }
+func @eliminate_materializations$torch.Generator(%arg0: i64) -> i64 {
+  %0 = torch_c.i64_to_generator %arg0
+  %1 = torch_c.generator_to_i64 %0
+  return %1 : i64
 }
 
 // -----

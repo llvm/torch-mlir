@@ -155,7 +155,7 @@ class ValueReport:
                 )
             if value.dtype != golden.dtype:
                 return self._record_failure(
-                    f'shape ({value.dtype}) is not equal to golden dtype ({golden.dtype})'
+                    f'dtype ({value.dtype}) is not equal to golden dtype ({golden.dtype})'
                 )
             if not torch.allclose(value, golden, rtol=1e-03, atol=1e-07, equal_nan=True):
                 return self._record_failure(
