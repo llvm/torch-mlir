@@ -593,6 +593,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
         emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
         emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
+        emit("aten::segment_reduce : (Tensor, str, Tensor?, Tensor?, int, bool, Scalar?) -> (Tensor)")
         emit("aten::len.Tensor : (Tensor) -> (int)")
         emit("aten::cpu : (Tensor) -> (Tensor)")
         emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")

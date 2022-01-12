@@ -2621,6 +2621,26 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
   let assemblyFormat = "$self `,` $dim `,` $start `,` $end `,` $step attr-dict `:` type($self) `,` type($dim) `,` type($start) `,` type($end) `,` type($step) `->` type($result)";
 }
 
+def Torch_AtenSegmentReduceOp : Torch_Op<"aten.segment_reduce", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::segment_reduce : (Tensor, str, Tensor?, Tensor?, int, bool, Scalar?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$data,
+    Torch_StringType:$reduce,
+    AnyTorchOptionalTensorType:$lengths,
+    AnyTorchOptionalTensorType:$indices,
+    Torch_IntType:$axis,
+    Torch_BoolType:$unsafe,
+    AnyTorchOptionalScalarType:$initial
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$data `,` $reduce `,` $lengths `,` $indices `,` $axis `,` $unsafe `,` $initial attr-dict `:` type($data) `,` type($reduce) `,` type($lengths) `,` type($indices) `,` type($axis) `,` type($unsafe) `,` type($initial) `->` type($result)";
+}
+
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics

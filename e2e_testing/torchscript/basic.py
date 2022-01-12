@@ -1069,3 +1069,26 @@ class ReturnTwoTensorF32I64(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReturnTwoTensorF32I64())
 def ReturnTwoTensorF32I64_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), torch.randint(5, (2, 3)))
+
+# ==============================================================================
+
+class EmbeddingBagModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, bag_weight, indices, lengths):
+        index_select_val = torch.index_select(bag_weight, 0, indices)
+        return torch.segment_reduce(index_select_val, 'sum', lengths=lengths)
+
+@register_test_case(module_factory=lambda: EmbeddingBagModule())
+def EmbeddingBagModule_basic(module, tu: TestUtils):
+    indices = torch.tensor([1,2,4,4,4,3,2,4], dtype=torch.long)
+    lengths = torch.tensor([3,5], dtype=torch.long)
+    module.forward(tu.rand(10, 3), indices, lengths)
