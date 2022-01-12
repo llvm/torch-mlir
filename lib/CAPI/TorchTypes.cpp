@@ -85,6 +85,18 @@ MlirType torchMlirTorchDeviceTypeGet(MlirContext context) {
 }
 
 //===----------------------------------------------------------------------===//
+// torch.Generator type.
+//===----------------------------------------------------------------------===//
+
+bool torchMlirTypeIsATorchGenerator(MlirType t) {
+  return unwrap(t).isa<Torch::GeneratorType>();
+}
+
+MlirType torchMlirTorchGeneratorTypeGet(MlirContext context) {
+  return wrap(Torch::GeneratorType::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
 // torch.bool type.
 //===----------------------------------------------------------------------===//
 

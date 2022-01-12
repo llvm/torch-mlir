@@ -108,3 +108,10 @@ func @identity$torch.int(%arg0: !torch.int) -> !torch.int {
 func @identity$torch.float(%arg0: !torch.float) -> !torch.float {
   return %arg0 : !torch.float
 }
+
+// CHECK-LABEL:   func @identity$torch.Generator(
+// CHECK-SAME:                                   %[[VAL_0:.*]]: i64) -> i64 {
+// CHECK:           return %[[VAL_0]] : i64
+func @identity$torch.Generator(%arg0: !torch.Generator) -> !torch.Generator {
+  return %arg0 : !torch.Generator
+}

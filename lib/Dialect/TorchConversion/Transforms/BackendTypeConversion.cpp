@@ -97,8 +97,11 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
     // Other builtin integer types could be handled by other materializers.
     if (!(type.getWidth() == 64 && type.isSignless()))
       return None;
+    // Other input type to be converted to i64 are handled by other
+    // materializers.
+    if (!inputs[0].getType().isa<Torch::IntType>())
+      return None;
     assert(inputs.size() == 1);
-    assert(inputs[0].getType().isa<Torch::IntType>());
     return builder.create<ToI64Op>(loc, inputs[0]).getResult();
   });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::IntType type,
@@ -134,12 +137,43 @@ static void setupTorchFloatToF64Conversion(ConversionTarget &target,
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
+static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
+                                               TypeConverter &typeConverter) {
+  target.addLegalOp<TorchConversion::GeneratorToI64Op,
+                    TorchConversion::I64ToGeneratorOp>();
+  typeConverter.addConversion([](Torch::GeneratorType type) -> Optional<Type> {
+    return IntegerType::get(type.getContext(), 64);
+  });
+  typeConverter.addTargetMaterialization([](OpBuilder &builder,
+                                            IntegerType type, ValueRange inputs,
+                                            Location loc) -> Optional<Value> {
+    // Other builtin integer types could be handled by other materializers.
+    if (!(type.getWidth() == 64 && type.isSignless()))
+      return None;
+    // Other input type to be converted to i64 are handled by other
+    // materializers.
+    if (!inputs[0].getType().isa<Torch::GeneratorType>())
+      return None;
+    assert(inputs.size() == 1);
+    return builder.create<GeneratorToI64Op>(loc, inputs[0]).getResult();
+  });
+  auto sourceMaterialization = [](OpBuilder &builder, Torch::GeneratorType type,
+                                  ValueRange inputs, Location loc) -> Value {
+    assert(inputs.size() == 1);
+    assert(inputs[0].getType().isa<IntegerType>());
+    return builder.create<I64ToGeneratorOp>(loc, inputs[0]);
+  };
+  typeConverter.addSourceMaterialization(sourceMaterialization);
+  typeConverter.addArgumentMaterialization(sourceMaterialization);
+}
+
 void mlir::torch::TorchConversion::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
   setupValueTensorToBuiltinTensorConversion(target, typeConverter);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);
+  setupTorchGeneratorToI64Conversion(target, typeConverter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -255,8 +289,8 @@ struct FinalizingBackendTypeConversionPass
     // Mark materializations as illegal in this pass (since we are finalizing)
     // and add patterns that eliminate them.
     setupFinalization<ToBuiltinTensorOp, FromBuiltinTensorOp, FromI1Op, ToI1Op,
-                      FromI64Op, ToI64Op, FromF64Op, ToF64Op>(target, patterns,
-                                                              typeConverter);
+                      FromI64Op, ToI64Op, FromF64Op, ToF64Op, I64ToGeneratorOp,
+                      GeneratorToI64Op>(target, patterns, typeConverter);
 
     // If all result types are legal, and all block arguments are legal, then
     // all types in the program are legal.

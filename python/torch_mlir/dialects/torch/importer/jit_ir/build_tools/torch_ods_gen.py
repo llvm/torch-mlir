@@ -237,6 +237,8 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Any": "AnyTorchType",
     "Device": "Torch_DeviceType",
     "Device?": "TorchOptionalDeviceType",
+    "Generator": "Torch_GeneratorType",
+    "Generator?": "TorchOptionalGeneratorType",
     "str": "Torch_StringType",
     "str?": "TorchOptionalStringType",
     "str[]": "TorchStringListType",
@@ -496,6 +498,10 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::gelu : (Tensor) -> (Tensor)")
         emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
+
+        # Ops without value semantics but the corresponding without trailing
+        # underscore variant doesn't exist.
+        emit("aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")

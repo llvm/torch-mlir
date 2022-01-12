@@ -18,6 +18,12 @@ def MungeCallingConventions : Pass<"refback-munge-calling-conventions", "ModuleO
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
+def InsertRngGlobals: Pass<"refback-insert-rng-globals", "ModuleOp"> {
+  let summary = "Insert global variables and sequence to get the next global seed for RNG ops";
+  let constructor = "mlir::torch::RefBackend::createInsertRngGlobalsPass();";
+  let dependentDialects = ["memref::MemRefDialect"];
+}
+
 def ExpandOpsForLLVM : Pass<"refback-expand-ops-for-llvm", "FuncOp"> {
   let summary = "Expand ops into more primitive ops before LLVM lowering.";
   let constructor = "mlir::torch::RefBackend::createExpandOpsForLLVMPass();";

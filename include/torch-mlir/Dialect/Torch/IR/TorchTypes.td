@@ -243,6 +243,10 @@ def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
 
+def Torch_GeneratorType : Torch_Type<"Generator", "Generator"> {
+  let summary = "Torch Generator for producing pseudo-random numbers";
+}
+
 def Torch_BoolType : Torch_Type<"Bool", "bool"> {
   let summary = "Torch BoolType";
   let description = [{
@@ -384,6 +388,8 @@ def TorchOptionalStringType:
       OptionalOf<Torch_StringType, "Optional torch Str type">;
 def TorchOptionalDeviceType:
       OptionalOf<Torch_DeviceType, "Optional torch device type">;
+def TorchOptionalGeneratorType:
+      OptionalOf<Torch_GeneratorType, "Optional torch Generator type">;
 
 def IsListTypePred : CPred<"$_self.isa<::mlir::torch::Torch::ListType>()">;
 class ListOf<list<Type> allowedTypes, string descr> :
@@ -430,6 +436,7 @@ def AnyTorchType : AnyTypeOf<[
   Torch_BoolType,
   Torch_DictType,
   Torch_DeviceType,
+  Torch_GeneratorType,
   Torch_ListType,
   Torch_LinearParamsType,
   Torch_NumberType,

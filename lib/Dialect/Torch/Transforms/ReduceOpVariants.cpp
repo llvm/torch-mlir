@@ -117,6 +117,29 @@ public:
 };
 } // namespace
 
+// Reduce Ops without value semantics but the corresponding without trailing
+// underscore variant doesn't exist.
+namespace {
+class ReduceNonValueSemanticOps : public RewritePattern {
+public:
+  ReduceNonValueSemanticOps(MLIRContext *context)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (!isa<AtenUniform_Op>(op))
+      return failure();
+
+    Operation *newOp = rewriter.create<PseudoAtenUniformOp>(
+        op->getLoc(), op->getResultTypes(), op->getOperands());
+    auto tensor =
+        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
+    rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
+    rewriter.replaceOp(op, op->getOperand(0));
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Reduce the "trailing underscore inplace variant" to the value semantic
 // variant + an overwrite of the original "self" argument.
@@ -174,9 +197,11 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     patterns.add<ConvertToImmutableTensors>(context);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
+    patterns.add<ReduceNonValueSemanticOps>(context);
 
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
+    target.addIllegalOp<AtenUniform_Op>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {

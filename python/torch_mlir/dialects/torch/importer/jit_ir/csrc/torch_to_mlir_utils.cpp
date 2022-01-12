@@ -210,6 +210,9 @@ MlirType torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
   case TypeKind::DeviceObjType: {
     return torchMlirTorchDeviceTypeGet(context);
   }
+  case TypeKind::GeneratorType: {
+    return torchMlirTorchGeneratorTypeGet(context);
+  }
   default: {
     std::stringstream message;
     message << "unable to map Torch type '" << *torchType << "' to MLIR type";

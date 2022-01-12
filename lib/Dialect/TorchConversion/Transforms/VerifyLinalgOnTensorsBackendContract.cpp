@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -54,6 +55,8 @@ class VerifyLinalgOnTensorsBackendContractPass
 
     // Structural operations.
     target.addDynamicallyLegalOp<ModuleOp, FuncOp, ReturnOp>(opHasLegalTypes);
+
+    target.addDynamicallyLegalOp<GetNextSeedOp>(opHasLegalTypes);
 
     // Basic scalar operations.
     target.addDynamicallyLegalDialect<StandardOpsDialect>(isLegalScalarOp);
