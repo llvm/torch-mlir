@@ -17,9 +17,16 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "torch-mlir/RefBackend/Passes.h"
 
+#ifdef TORCH_MLIR_ENABLE_IREE_DIALECTS
+#include "iree-dialects/Dialect/LinalgExt/IR/LinalgExtDialect.h"
+#endif
+
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::torch::Torch::TorchDialect>();
   registry.insert<mlir::torch::TorchConversion::TorchConversionDialect>();
+#ifdef TORCH_MLIR_ENABLE_IREE_DIALECTS
+  registry.insert<mlir::iree_compiler::IREE::LinalgExt::IREELinalgExtDialect>();
+#endif
 }
 
 void mlir::torch::registerAllPasses() {

@@ -21,6 +21,13 @@ project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
+if(LLVM_EXTERNAL_IREE_DIALECTS_SOURCE_DIR)
+  message(STATUS "Enabling iree_dialects in torch-mlir")
+  add_compile_definitions("TORCH_MLIR_ENABLE_IREE_DIALECTS")
+  include_directories(SYSTEM ${LLVM_EXTERNAL_IREE_DIALECTS_SOURCE_DIR}/include)
+  set(TORCH_MLIR_ENABLE_IREE_DIALECTS ON)
+endif()
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # Out-of-tree build
 
