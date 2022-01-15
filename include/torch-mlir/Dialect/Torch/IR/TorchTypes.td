@@ -378,8 +378,6 @@ class OptionalOf<Type type, string descr> :
 def AnyTorchOptionalTensorType :
       OptionalOf<AnyTorchTensorType, "Optional torch tensor type">;
 def TorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
-def TorchOptionalFloatType: OptionalOf<Torch_FloatType, "Optional torch float type">;
-def TorchOptionalStringType: OptionalOf<Torch_StringType, "Optional torch string type">;
 def TorchOptionalBoolType:
       OptionalOf<Torch_BoolType, "Optional torch bool type">;
 def TorchOptionalDeviceType:
@@ -394,16 +392,10 @@ class ListOf<list<Type> allowedTypes, string descr> :
 
 def TorchBoolListType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
 def TorchIntListType : ListOf<[Torch_IntType], "Int list type (int[])">;
-def TorchFloatListType: ListOf<[Torch_FloatType], "Float list type (float[])">;
 def TorchStringListType : ListOf<[Torch_StringType], "Str list type (str[])">;
-
-def TorchOptionalIntListType : OptionalOf<TorchIntListType, "Optional torch int list type (int[]?)">;
-def TorchOptionalFloatListType : OptionalOf<TorchFloatListType, "Optional torch float list type (float[]?)">;
-def TorchOptionalStringListType : OptionalOf<TorchStringListType, "Optional torch string list type (string[]?)">;
-
 def AnyTorchTensorListType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
-def AnyTorchListOptionalTensorType :
+def AnyTorchOptionalTensorListType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
 
@@ -415,8 +407,6 @@ def AnyTorchScalarType : AnyTypeOf<[
 ], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
 def AnyTorchOptionalScalarType:
       OptionalOf<AnyTorchScalarType, "Optional torch scalar type">;
-def AnyTorchScalarListType:
-      ListOf<[AnyTorchScalarType], "Any list type (Scalar[])">;
 
 // See function `DictTypePtr create(TypePtr key, TypePtr value)`
 // in aten/src/ATen/core/jit_type.h.
