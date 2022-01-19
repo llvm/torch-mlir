@@ -70,8 +70,8 @@ cmake -GNinja -Bbuild \
 
 # Additional quality of life CMake flags:
 # Enable ccache:
-#   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-# Enale LLD (links in seconds compared to minutes)
+#  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+# Enable LLD (links in seconds compared to minutes)
 # -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
 
@@ -82,7 +82,7 @@ cmake --build build --target tools/torch-mlir/all
 cmake --build build --target check-torch-mlir
 
 # Build everything (including LLVM)
-# cmake --build build
+cmake --build build
 ```
 ## Demos
 
