@@ -51,4 +51,7 @@ TOSA_PASS_SET = {
     "SqueezeDimModule_unitDim",
     "ReturnTwoTensorF32I64_basic",
     "ElementwisePowModule_basic",
+    "BmmModule_basic",
+    "Matmul_dot",
+    "Matmul_3d",
 }
