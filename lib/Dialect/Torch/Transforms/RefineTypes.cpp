@@ -1926,9 +1926,14 @@ ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
   SmallVector<Value> normalizedShapeSizesTorchInt;
   getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
   std::vector<int64_t> meanVarSizes;
+  int64_t axis = layerNormSize - normalizedShapeSizesTorchInt.size();
   if (input.hasSizes) {
-    for (int i = normalizedShapeSizesTorchInt.size(); i < layerNormSize; i++)
-      meanVarSizes.push_back(input.sizes[i]);
+    for (int i = 0; i < layerNormSize; i++) {
+      if (i < axis)
+        meanVarSizes.push_back(input.sizes[i]);
+      else
+        meanVarSizes.push_back(1);
+    }
   }
   meanKnowledge.hasSizes = input.hasSizes;
   meanKnowledge.sizes = meanVarSizes;
