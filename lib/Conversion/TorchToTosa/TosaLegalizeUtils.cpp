@@ -141,5 +141,9 @@ template llvm::Optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                        ArrayRef<int32_t> vec,
                                                        ArrayRef<int64_t> shape);
 
+template llvm::Optional<Value> getConstTensor<int64_t>(PatternRewriter &,
+                                                       Operation *,
+                                                       ArrayRef<int64_t> vec,
+                                                       ArrayRef<int64_t> shape);
 } // namespace tosa
 } // namespace mlir
