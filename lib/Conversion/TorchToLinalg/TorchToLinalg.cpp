@@ -638,6 +638,9 @@ public:
     auto runningMeanType = runningMean.getType().cast<RankedTensorType>();
     auto runningVarType = runningVar.getType().cast<RankedTensorType>();
 
+    SmallVector<StringRef> runningVarIterationTypes(
+        runningVarType.getRank(), getParallelIteratorTypeName());
+
     auto inputRank = inputType.getRank();
     if (inputRank <= 2)
       return rewriter.notifyMatchFailure(
@@ -924,13 +927,38 @@ public:
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
+
+    SmallVector<int64_t> expandShape(inputRank, 1);
+    for (int i = 0; i < meanAndVarShapeRank; i++) {
+      // `mean` and `rstd` are not yet casted, so they will be having dynamic
+      // shape. Hence to match them, for each dimension corresponding to `mean`
+      // or `rstd` assign -1.
+      expandShape[i] = -1;
+    }
+    auto expandShapeType = RankedTensorType::get(expandShape, elemTy);
+    SmallVector<ReassociationIndices> reassociation(meanAndVarShapeRank);
+    for (auto i : llvm::seq<int64_t>(0, meanAndVarShapeRank)) {
+      if (i != meanAndVarShapeRank - 1) {
+        reassociation[i].push_back(i);
+      } else {
+        reassociation[i].push_back(i);
+        for (auto j : llvm::seq<int64_t>(0, normalizedShapeRank))
+          reassociation[i].push_back(i + j + 1);
+      }
+    }
+    Value meanResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, mean, reassociation);
+    Value rSTDResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, rSTD, reassociation);
     Type layerNormResultType = getTypeConverter()->convertType(op.getType(0));
     Type meanResultType = getTypeConverter()->convertType(op.getType(1));
-    Type varResultType = getTypeConverter()->convertType(op.getType(2));
+    Type rSTDResultType = getTypeConverter()->convertType(op.getType(2));
     Value layerNorm_ =
         rewriter.create<tensor::CastOp>(loc, layerNormResultType, layerNorm);
-    Value mean_ = rewriter.create<tensor::CastOp>(loc, meanResultType, mean);
-    Value var_ = rewriter.create<tensor::CastOp>(loc, varResultType, var);
+    Value mean_ =
+        rewriter.create<tensor::CastOp>(loc, meanResultType, meanResult);
+    Value var_ =
+        rewriter.create<tensor::CastOp>(loc, rSTDResultType, rSTDResult);
     rewriter.replaceOp(op, {layerNorm_, mean_, var_});
     return success();
   }

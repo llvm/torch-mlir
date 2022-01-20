@@ -827,9 +827,10 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
     Value normalizedShape = op.normalized_shape();
     SmallVector<Value> normalizedShapeSizesTorchInt;
     getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
-    std::vector<int64_t> meanVarSizes;
-    for (int i = normalizedShapeSizesTorchInt.size(); i < inputRank; i++)
-      meanVarSizes.push_back(input.getSizes()[i]);
+    int64_t axis = inputRank - normalizedShapeSizesTorchInt.size();
+    std::vector<int64_t> meanVarSizes(inputRank, 1);
+    for (int i = 0; i < axis; i++)
+      meanVarSizes[i] = input.getSizes()[i];
     auto meanVarType = input.getWithSizesAndDtype(
         llvm::makeArrayRef(meanVarSizes), input.getDtype());
     auto nativeLayerNorm = rewriter.create<AtenNativeLayerNormOp>(
