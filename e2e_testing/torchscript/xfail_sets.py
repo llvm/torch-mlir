@@ -16,6 +16,7 @@
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
     "IouOfModule_basic",
+    "TableBatchEmbeddingModule_basic",
 }
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
