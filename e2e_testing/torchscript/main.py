@@ -48,6 +48,7 @@ from . import index_select
 from . import arange
 from . import constant_alloc
 from . import threshold
+from . import histogram_binning_calibration
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
