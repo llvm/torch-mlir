@@ -233,12 +233,14 @@ public:
         continue;
       }
 
-      Value result = op->getResult(i);
+      Type resultType = op->getResult(i).getType();
       auto impliedTypeFromShape =
-          result.getType().cast<BaseTensorType>().getWithSizesAndDtype(
+          resultType.cast<BaseTensorType>().getWithSizesAndDtype(
               makeArrayRef(shapes[i]), nullptr);
-      // TODO: Meet it with existing shape/dtype informeation.
-      updatedResultTypes.push_back(impliedTypeFromShape);
+      auto updatedType =
+          meetTensorTypes(resultType.cast<BaseTensorType>(),
+                          impliedTypeFromShape.cast<BaseTensorType>());
+      updatedResultTypes.push_back(updatedType);
     }
     // Update uses of the results.
     bool madeChange = false;
@@ -248,7 +250,7 @@ public:
       Value result = op->getResult(i);
       auto originalType = result.getType();
       auto updatedType = updatedResultTypes[i];
-      if (updatedType == originalType)
+      if (!updatedType || updatedType == originalType)
         continue;
       Value originalTypedValue;
       for (OpOperand &use : result.getUses()) {
@@ -304,6 +306,7 @@ namespace {
 class SimplifyShapeCalculationsPass
     : public SimplifyShapeCalculationsBase<SimplifyShapeCalculationsPass> {
   void runOnOperation() override {
+    // XXX: This pass needs tests!
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);

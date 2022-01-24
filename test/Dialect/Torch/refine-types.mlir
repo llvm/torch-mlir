@@ -66,48 +66,6 @@ builtin.func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f3
 // -----
 
 // CHECK-LABEL: func @f
-// CHECK:           %[[CONV2D:.*]] = torch.aten.conv2d{{.*}} -> !torch.vtensor<[?,?,?,?],unk>
-// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],unk> to !torch.vtensor
-// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-builtin.func @f(%arg0:!torch.vtensor, %arg1:!torch.vtensor, %arg2:!torch.vtensor) ->!torch.vtensor {
-  %int0 = torch.constant.int 0
-  %int1 = torch.constant.int 1
-  %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %1 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %3 = torch.aten.conv2d %arg0, %arg1, %arg2, %0, %1, %2, %int1 : !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.int ->!torch.vtensor
-  return %3 :!torch.vtensor
-}
-
-// CHECK-LABEL: func @g
-// CHECK:           %[[CONV2D:.*]] = torch.aten.conv2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
-// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[CONV2D]] : !torch.vtensor<[?,?,?,?],f32> to !torch.vtensor
-// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
-builtin.func @g(%arg0:!torch.vtensor<*,f32>, %arg1:!torch.vtensor<*,f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
-  %int0 = torch.constant.int 0
-  %int1 = torch.constant.int 1
-  %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %1 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %3 = torch.aten.conv2d %arg0, %arg1, %arg2, %0, %1, %2, %int1 : !torch.vtensor<*,f32>, !torch.vtensor<*,f32>, !torch.vtensor<*,f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.int ->!torch.vtensor
-  return %3 :!torch.vtensor
-}
-
-// CHECK-LABEL: func @h
-// CHECK:           torch.aten.conv2d{{.*}} -> !torch.vtensor<[1,16,62,62],f32>
-builtin.func @h(%arg0:!torch.vtensor<[1,8,64,64],f32>, %arg1:!torch.vtensor<[16,8,3,3],f32>, %arg2:!torch.vtensor<*,f32>) ->!torch.vtensor {
-  %int0 = torch.constant.int 0
-  %int1 = torch.constant.int 1
-  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  %3 = torch.aten.conv2d %arg0, %arg1, %arg2, %stride, %padding, %dilation, %int1 : !torch.vtensor<[1,8,64,64],f32>, !torch.vtensor<[16,8,3,3],f32>, !torch.vtensor<*,f32>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.int ->!torch.vtensor
-  return %3 :!torch.vtensor
-}
-
-// -----
-
-// CHECK-LABEL: func @f
 builtin.func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %int3 = torch.constant.int 3

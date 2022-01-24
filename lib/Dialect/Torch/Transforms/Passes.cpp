@@ -127,9 +127,10 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
   // Do shape and dtype refinement.
-  // TODO: Bring this back, but refining only dtypes of new ops.
-  // pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
   createTorchShapeRefinementPipeline(pm, options);
+  // TODO: Simplify RefineTypes to only have dtype propagation for ops that
+  // have shape functions handled by createTorchShapeRefinementPipeline.
+  pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
 
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.

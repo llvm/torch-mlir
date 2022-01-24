@@ -912,20 +912,19 @@ ChangeResult TypeAnalyzer::visitAtenConv2dOp(
     AtenConv2dOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = true;
   auto &input = operands[0]->getValue();
   auto &weights = operands[1]->getValue();
-  if (weights.hasSizes && input.hasSizes)
-    knowledge.sizes = computeOpWithKernelOutputShape(
-        op, input, weights.sizes[0], weights.sizes[2], weights.sizes[3]);
-  else
-    knowledge.sizes.resize(4, kUnknownSize);
 
   // Running some experiments in PyTorch, the bias doesn't seem to
   // contribute to the final element type.
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
       op->getContext(), {&input, &weights});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+
+  // XXX: We need to join with the static knowledge because we are holding
+  // the dataflow framework wrong. we need to change meet to join etc.
+  return getLatticeElement(op->getResult(0)).join(knowledge) |
+         getLatticeElement(op->getResult(0))
+             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
 }
 
 ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
