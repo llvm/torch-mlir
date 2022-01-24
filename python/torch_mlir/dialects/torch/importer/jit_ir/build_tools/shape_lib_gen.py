@@ -189,6 +189,33 @@ def aten〇zeros(size: List[int], dtype: Optional[int] = None, layout: Optional[
 def aten〇add〇Tensor(self: List[int], other: List[int], alpha: float = 1) -> List[int]:
     return shape_helpers.broadcast(self, other)
 
+def aten〇sub〇Tensor(self: List[int], other: List[int], alpha: float = 1) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇mul〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇div〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇__and__〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇minimum(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇threshold_backward(grad_output: List[int], self: List[int], threshold: float) -> List[int]:
+    return shape_helpers.broadcast(grad_output, self)
+
+def aten〇unsqueeze(self: List[int], dim: int) -> List[int]:
+    return shape_helpers.unsqueeze(self, dim)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.
     Invocation(TensorOfShape(2, 3), 2, dim=0), # Test explicit `dim`.

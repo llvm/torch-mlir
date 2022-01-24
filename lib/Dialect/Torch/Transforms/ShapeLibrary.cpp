@@ -506,35 +506,34 @@ module  {
         } : (!torch.int, !torch.bool) -> ()
         torch.prim.If.yield %10 : !torch.list<!torch.int>
       } else {
-        %10 = torch.aten.sub.int %3, %1 : !torch.int, !torch.int -> !torch.int
-        %11 = torch.aten.add.int %10, %int1 : !torch.int, !torch.int -> !torch.int
-        %12 = torch.aten.__range_length %1, %11, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
-        %13 = torch.prim.Loop %12, %true, init(%int1)  {
+        %10 = torch.aten.add.int %3, %int1 : !torch.int, !torch.int -> !torch.int
+        %11 = torch.aten.__range_length %1, %10, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+        %12 = torch.prim.Loop %11, %true, init(%int1)  {
         ^bb0(%arg3: !torch.int, %arg4: !torch.int):  // no predecessors
-          %19 = torch.aten.__derive_index %arg3, %1, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
-          %20 = torch.aten.__getitem__.t %arg0, %19 : !torch.list<!torch.int>, !torch.int -> !torch.int
-          %21 = torch.aten.mul.int %arg4, %20 : !torch.int, !torch.int -> !torch.int
-          torch.prim.Loop.condition %true, iter(%21 : !torch.int)
+          %18 = torch.aten.__derive_index %arg3, %1, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+          %19 = torch.aten.__getitem__.t %arg0, %18 : !torch.list<!torch.int>, !torch.int -> !torch.int
+          %20 = torch.aten.mul.int %arg4, %19 : !torch.int, !torch.int -> !torch.int
+          torch.prim.Loop.condition %true, iter(%20 : !torch.int)
         } : (!torch.int, !torch.bool, !torch.int) -> !torch.int
-        %14 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+        %13 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
         torch.prim.Loop %1, %true, init()  {
         ^bb0(%arg3: !torch.int):  // no predecessors
-          %19 = torch.aten.__getitem__.t %arg0, %arg3 : !torch.list<!torch.int>, !torch.int -> !torch.int
-          %20 = torch.aten.append.t %14, %19 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+          %18 = torch.aten.__getitem__.t %arg0, %arg3 : !torch.list<!torch.int>, !torch.int -> !torch.int
+          %19 = torch.aten.append.t %13, %18 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
           torch.prim.Loop.condition %true, iter()
         } : (!torch.int, !torch.bool) -> ()
-        %15 = torch.aten.append.t %14, %13 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-        %16 = torch.aten.add.int %3, %int1 : !torch.int, !torch.int -> !torch.int
-        %17 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-        %18 = torch.aten.__range_length %16, %17, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
-        torch.prim.Loop %18, %true, init()  {
+        %14 = torch.aten.append.t %13, %12 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+        %15 = torch.aten.add.int %3, %int1 : !torch.int, !torch.int -> !torch.int
+        %16 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+        %17 = torch.aten.__range_length %15, %16, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+        torch.prim.Loop %17, %true, init()  {
         ^bb0(%arg3: !torch.int):  // no predecessors
-          %19 = torch.aten.__derive_index %arg3, %16, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
-          %20 = torch.aten.__getitem__.t %arg0, %19 : !torch.list<!torch.int>, !torch.int -> !torch.int
-          %21 = torch.aten.append.t %14, %20 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+          %18 = torch.aten.__derive_index %arg3, %15, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+          %19 = torch.aten.__getitem__.t %arg0, %18 : !torch.list<!torch.int>, !torch.int -> !torch.int
+          %20 = torch.aten.append.t %13, %19 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
           torch.prim.Loop.condition %true, iter()
         } : (!torch.int, !torch.bool) -> ()
-        torch.prim.If.yield %14 : !torch.list<!torch.int>
+        torch.prim.If.yield %13 : !torch.list<!torch.int>
       }
       torch.prim.If.yield %9 : !torch.list<!torch.int>
     }
@@ -557,7 +556,7 @@ module  {
     } else {
       torch.prim.If.yield %arg1 : !torch.int
     }
-    %2 = torch.operator "aten.neg.int"(%1) : (!torch.int) -> !torch.int
+    %2 = torch.aten.neg.int %1 : !torch.int -> !torch.int
     %3 = torch.aten.sub.int %1, %int1 : !torch.int, !torch.int -> !torch.int
     %4 = torch.aten.lt.int %arg0, %2 : !torch.int, !torch.int -> !torch.bool
     %5 = torch.prim.If %4 -> (!torch.bool) {
@@ -975,6 +974,42 @@ module  {
   }
   func @"__torch_mlir_shape_fn.aten.add.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.float) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.sub.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.float) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.mul.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.div.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.__and__.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.minimum"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.maximum"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.bitwise_and.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.threshold_backward"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.float) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.unsqueeze"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unsqueeze(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.int) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
   func @"__torch_mlir_shape_fn.aten.topk"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.tuple<!torch.list<!torch.int>, !torch.list<!torch.int>> {

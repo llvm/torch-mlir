@@ -598,7 +598,10 @@ def flatten(input: List[int], start_dim: int, end_dim: int):
       out.append(elem)
     return out
   slice_numel = 1
-  for i in range(start_dim, end_dim - start_dim + 1):
+  # TODO(torch-mlir): Remove this local patch once we can pull in
+  # https://github.com/pytorch/pytorch/pull/71727
+  #for i in range(start_dim, end_dim - start_dim + 1):
+  for i in range(start_dim, end_dim + 1):
     slice_numel *= input[i]
   # TODO: use slicing when slice optimization has landed
   # slice_numel = multiply_integers(input[start_dim:end_dim - start_dim + 1])

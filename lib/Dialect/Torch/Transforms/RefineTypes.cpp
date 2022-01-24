@@ -870,44 +870,6 @@ ChangeResult TypeAnalyzer::visitAtenLinearOp(
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
-static int64_t getOutputDimForOpWithKernel(int64_t dimIn, int64_t padding,
-                                           int64_t dilation, int64_t kernelSize,
-                                           int64_t stride) {
-  return ((dimIn + 2 * padding - dilation * (kernelSize - 1) - 1) / stride) + 1;
-}
-
-template <class Op>
-std::vector<int64_t>
-computeOpWithKernelOutputShape(Op op, const ValueKnowledge &ifm,
-                               int64_t features, int64_t kernelHeight,
-                               int64_t kernelWidth) {
-  std::vector<int64_t> result = {ifm.sizes[0], // N
-                                 features,     // F
-                                 kUnknownSize, kUnknownSize};
-
-  SmallVector<int64_t> padding;
-  if (!matchPattern(op.padding(), m_TorchConstantIntList(padding)))
-    return result;
-  SmallVector<int64_t, 2> stride;
-  if (!matchPattern(op.stride(), m_TorchConstantIntList(stride)))
-    return result;
-  SmallVector<int64_t, 2> dilation;
-  if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilation)))
-    return result;
-
-  int64_t ifmHeight = ifm.sizes[2];
-  if (ifmHeight != kUnknownSize && kernelHeight != kUnknownSize)
-    result[2] = getOutputDimForOpWithKernel(ifmHeight, padding[0], dilation[0],
-                                            kernelHeight, stride[0]);
-
-  int64_t ifmWidth = ifm.sizes[3];
-  if (ifmWidth != kUnknownSize && kernelWidth != kUnknownSize)
-    result[3] = getOutputDimForOpWithKernel(ifmWidth, padding[1], dilation[1],
-                                            kernelWidth, stride[1]);
-
-  return result;
-}
-
 ChangeResult TypeAnalyzer::visitAtenConv2dOp(
     AtenConv2dOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
@@ -931,18 +893,12 @@ ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
     AtenMaxPool2dOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = true;
-  auto &input = operands[0]->getValue();
-  SmallVector<int64_t, 2> kernelSize;
-  if (!matchPattern(op.kernel_size(), m_TorchConstantIntList(kernelSize)))
-    kernelSize = SmallVector<int64_t, 2>{kUnknownSize, kUnknownSize};
-  if (input.hasSizes)
-    knowledge.sizes = computeOpWithKernelOutputShape(
-        op, input, input.sizes[1], kernelSize[0], kernelSize[1]);
-  else
-    knowledge.sizes.resize(4, kUnknownSize);
   knowledge.dtype = operands[0]->getValue().dtype;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  // XXX: We need to join with the static knowledge because we are holding
+  // the dataflow framework wrong. we need to change meet to join etc.
+  return getLatticeElement(op->getResult(0)).join(knowledge) |
+         getLatticeElement(op->getResult(0))
+             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
 }
 
 ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
@@ -1010,13 +966,15 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   auto rhs = operands[1]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  fillInSizesForBinaryBroadcastingOp(lhs, rhs, knowledge);
 
   // The alpha in `aten.add.Tensor` and `aten.sub.Tensor` has to be lower type
   // category than the lhs and rhs and therefore doesn't really contribute to
   // type promotion.
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  // XXX: Change sense of join/meet.
+  return getLatticeElement(op->getResult(0)).join(knowledge) |
+         getLatticeElement(op->getResult(0))
+             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
 }
 
 ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
@@ -1075,36 +1033,14 @@ ChangeResult TypeAnalyzer::visitAtenLerpTensorOp(
 ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
     AtenFlattenUsingIntsOp op,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  int64_t startDim;
-  int64_t endDim;
   auto operand = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
-  if (operand.hasSizes && operand.sizes.size() == 0) {
-    // Rank 0 is special and flattens to rank 1 with size 1.
-    knowledge.hasSizes = true;
-    knowledge.sizes.push_back(1);
-  } else if (operand.hasSizes &&
-             matchPattern(op.start_dim(), m_TorchConstantInt(&startDim)) &&
-             matchPattern(op.end_dim(), m_TorchConstantInt(&endDim))) {
-    int64_t inputRank = operand.sizes.size();
-    if (startDim < 0)
-      startDim += inputRank;
-    if (endDim < 0)
-      endDim += inputRank;
-    // Careful: dimension numbers might be out of bounds.
-    if (0 <= startDim && startDim <= (inputRank - 1) && 0 <= endDim &&
-        endDim <= (inputRank - 1) && startDim <= endDim) {
-      knowledge.hasSizes = true;
-      for (auto i = 0; i < startDim; i++)
-        knowledge.sizes.push_back(operand.sizes[i]);
-      knowledge.sizes.push_back(kUnknownSize);
-      for (auto i = endDim + 1; i < inputRank; i++)
-        knowledge.sizes.push_back(operand.sizes[i]);
-    }
-  }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  // XXX: Reverse sense of join/meet.
+  return getLatticeElement(op.getResult()).join(knowledge) |
+         getLatticeElement(op->getResult(0))
+             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
 }
 
 ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
