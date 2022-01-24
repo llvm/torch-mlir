@@ -175,6 +175,7 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
 }
 
 def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
+    NoSideEffect,
     AllowsTypeRefinement,
     HasValueSemantics
   ]> {
@@ -185,7 +186,6 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
     AnyTorchType:$result
   );
   let assemblyFormat = " attr-dict `:` qualified(type($result))";
-  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [

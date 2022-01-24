@@ -11,6 +11,7 @@
 #include "function_importer.h"
 #include "ivalue_importer.h"
 
+#include <ATen/TensorUtils.h>
 #include <unordered_map>
 
 #include "mlir_utils.h"

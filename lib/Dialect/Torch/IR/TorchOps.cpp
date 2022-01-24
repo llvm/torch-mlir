@@ -1038,20 +1038,6 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
-// PrimUninitializedOp
-//===----------------------------------------------------------------------===//
-
-void PrimUninitializedOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add(+[](PrimUninitializedOp op, PatternRewriter &rewriter) {
-    if (!op.use_empty())
-      return failure();
-    rewriter.eraseOp(op);
-    return success();
-  });
-}
-
-//===----------------------------------------------------------------------===//
 // PrimTupleUnpackOp
 //===----------------------------------------------------------------------===//
 
