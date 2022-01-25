@@ -2506,6 +2506,37 @@ def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
   let assemblyFormat = "$self `,` $dim `,` $keepdim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
+def Torch_AtenMaxOp : Torch_Op<"aten.max", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::max : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
+def Torch_AtenMaxDimOp : Torch_Op<"aten.max.dim", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$values,
+    AnyTorchTensorType:$indices
+  );
+  let assemblyFormat = "$self `,` $dim `,` $keepdim attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($keepdim)) `->` qualified(type($values)) `,` qualified(type($indices))";
+}
+
 def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
     AllowsTypeRefinement
   ]> {

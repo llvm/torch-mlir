@@ -2126,6 +2126,13 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
       elementType.isa<mlir::FloatType>())
     return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+  if (isa<AtenMaxOp>(op) && elementType.isa<mlir::FloatType>())
+    return b.create<arith::ConstantOp>(
+        loc, b.getFloatAttr(
+                 elementType,
+                 APFloat::getLargest(
+                     elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                     /*Negative=*/true)));
 
   op->emitError("unimplemented lowering in "
                 "createLinalgNeutralElementForReduceOp");
@@ -2141,6 +2148,11 @@ static Value createLinalgPayloadCalculationForReduceOp(
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
     return b.create<arith::AddFOp>(loc, self, result);
+  } else if (isa<AtenMaxOp>(op) && resultElementType.isa<mlir::FloatType>()) {
+    Value self =
+        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value result = payloadArgs[1];
+    return b.create<arith::MaxFOp>(loc, self, result);
   }
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForReduceOp");
@@ -2148,68 +2160,56 @@ static Value createLinalgPayloadCalculationForReduceOp(
 }
 
 namespace {
-// Aten argmax lowering represents the ArgMax op as an linalg.indexed_generic
+// Aten maxdim lowering represents the MaxDim op as an linalg.indexed_generic
 // op, producing two output buffers.
 //
-// The first output buffer contains the index of the found maximum value. It is
-// initialized to 0 and is resulting integer type.
+// The first output buffer contains the maximum value found. It is initialized
+// to the minimum representable value of the input element type.
 //
-// The second output buffer contains the maximum value found. It is initialized
-// to the minimum representable value of the input element type. After being
-// populated by indexed_generic, this buffer is disgarded as only the index is
-// requested.
+// The second output buffer contains the index of the found maximum value. It is
+// initialized to 0 and is resulting integer type.
 //
 // The indexed_generic op updates both the maximum value and index if the
 // current value exceeds the running max.
-class ConvertAtenArgmaxOp : public OpConversionPattern<AtenArgmaxOp> {
+class ConvertAtenMaxDimOp : public OpConversionPattern<AtenMaxDimOp> {
 public:
-  using OpConversionPattern<AtenArgmaxOp>::OpConversionPattern;
+  using OpConversionPattern<AtenMaxDimOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(AtenArgmaxOp argmaxOp, OpAdaptor adaptor,
+  matchAndRewrite(AtenMaxDimOp maxDimOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Location loc = argmaxOp.getLoc();
+    Location loc = maxDimOp.getLoc();
     Value input = adaptor.self();
-    RankedTensorType resultType =
+    RankedTensorType valResultType =
         getTypeConverter()
-            ->convertType(argmaxOp.getResult().getType())
+            ->convertType(maxDimOp.getResult(0).getType())
+            .cast<RankedTensorType>();
+    RankedTensorType idxResultType =
+        getTypeConverter()
+            ->convertType(maxDimOp.getResult(1).getType())
             .cast<RankedTensorType>();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-    Type outElementType = resultType.getElementType();
-    if (!outElementType.isa<IntegerType>())
+    Type idxElementType = idxResultType.getElementType();
+    if (!idxElementType.isa<IntegerType>())
       return rewriter.notifyMatchFailure(
-          argmaxOp,
-          "aten.arg_max to linalg.* requires integer-like result type");
+          maxDimOp,
+          "aten.max_dim to linalg.* requires integer-like result type");
 
     bool keepDim = false;
-    if (!matchPattern(argmaxOp.keepdim(), m_TorchConstantBool(&keepDim)))
+    if (!matchPattern(maxDimOp.keepdim(), m_TorchConstantBool(&keepDim)))
       return failure();
 
     int64_t dim;
-    if (!matchPattern(argmaxOp.dim(), m_TorchConstantInt(&dim))) {
-      if (!argmaxOp.dim().getType().isa<Torch::NoneType>())
-        return rewriter.notifyMatchFailure(
-            argmaxOp,
-            "aten.arg_max to linalg.* requires int or NoneType value for Dim");
-      // For pytorch, if the value of Dim is None, argmax
-      // returns the index of the max value of the flattened input tensor,
-      // so here we flatten the input tensor.
-      SmallVector<ReassociationIndices> reassociation(1);
-      for (auto i : llvm::seq<int64_t>(0, inputType.getRank()))
-        reassociation[0].push_back(i);
-      input = rewriter.create<tensor::CollapseShapeOp>(argmaxOp->getLoc(),
-                                                       input, reassociation);
-      // Becomes 0 for flattened tensor.
-      dim = 0;
-      // Recast to fix shape.
-      inputType = input.getType().cast<RankedTensorType>();
-    }
+    if (!matchPattern(maxDimOp.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          maxDimOp, "aten.max_dim to linalg.* requires int value for Dim");
+
     Type inElementType = inputType.getElementType();
     if (!inElementType.isa<mlir::FloatType>()) {
       return rewriter.notifyMatchFailure(
-          argmaxOp,
-          "aten.arg_max to linalg.* requires Float input element type");
+          maxDimOp,
+          "aten.max_dim to linalg.* requires Float input element type");
     }
 
     // Constant op to account for the reduction along dim.
@@ -2224,7 +2224,7 @@ public:
     }
     // First fill the output buffer for the index.
     Value filledTensorIdx =
-        createZeroInitTensor(rewriter, loc, resultShape, outElementType);
+        createZeroInitTensor(rewriter, loc, resultShape, idxElementType);
 
     // Second fill the output buffer for the running max.
     Value initTensorMax =
@@ -2265,14 +2265,14 @@ public:
     auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs});
     auto linalgOp = rewriter.create<linalg::GenericOp>(
         loc,
-        ArrayRef<Type>({filledTensorIdx.getType(), filledTensorMax.getType()}),
-        input, ValueRange({filledTensorIdx, filledTensorMax}), maps,
+        ArrayRef<Type>({filledTensorMax.getType(), filledTensorIdx.getType()}),
+        input, ValueRange({filledTensorMax, filledTensorIdx}), maps,
         iteratorTypes,
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
           Value newValue = blockArgs[0];
-          Value oldIndex = blockArgs[1];
-          Value oldValue = blockArgs[2];
+          Value oldValue = blockArgs[1];
+          Value oldIndex = blockArgs[2];
 
           Value newIndex = rewriter.create<arith::IndexCastOp>(
               nestedLoc, oldIndex.getType(),
@@ -2287,12 +2287,15 @@ public:
           auto resultIndex = rewriter.create<mlir::SelectOp>(
               nestedLoc, predicate, newIndex, oldIndex);
           nestedBuilder.create<linalg::YieldOp>(
-              nestedLoc, ValueRange({resultIndex, resultMax}));
+              nestedLoc, ValueRange({resultMax, resultIndex}));
         });
 
     // This cast is required to fix the shape in the case of keepDim=True
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(argmaxOp, resultType,
-                                                linalgOp.getResult(0));
+    Value maxValuesCast = rewriter.create<tensor::CastOp>(
+        loc, valResultType, linalgOp.getResult(0));
+    Value maxIdxCast = rewriter.create<tensor::CastOp>(loc, idxResultType,
+                                                       linalgOp.getResult(1));
+    rewriter.replaceOp(maxDimOp, {maxValuesCast, maxIdxCast});
     return success();
   }
 };
@@ -2558,11 +2561,12 @@ struct ConvertReductionOp : ConversionPattern {
     // `keepDim` in accordance with their specification.
     DenseSet<int64_t> dimSet;
     bool keepDim = false;
-    if (isa<AtenSumOp>(op)) {
+    if (isa<AtenSumOp>(op) || isa<AtenMaxOp>(op)) {
       auto tensorOperand = operands[0];
       auto inputType = tensorOperand.getType().cast<RankedTensorType>();
 
-      // `AtenSumOp` reduces along all the dimensiosn of the input tensor.
+      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
+      // input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         dimSet.insert(i);
     } else if (auto sumDimIntListOp = dyn_cast<AtenSumDimIntListOp>(op)) {
@@ -2587,7 +2591,6 @@ struct ConvertReductionOp : ConversionPattern {
     } else {
       return rewriter.notifyMatchFailure(op, "not a supported reduce op");
     }
-
     return createReductionLinalgGeneric(op, operands, dimSet, keepDim,
                                         rewriter);
   }
@@ -4378,6 +4381,8 @@ public:
     target.addIllegalOp<AtenConstantPadNdOp>();
     patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
     target.addIllegalOp<AtenSumOp>();
+    target.addIllegalOp<AtenSumDimIntListOp>();
+    target.addIllegalOp<AtenMaxOp>();
     patterns.add<ConvertReductionOp>(typeConverter, context);
     target.addIllegalOp<AtenTransposeIntOp>();
     patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
@@ -4391,8 +4396,8 @@ public:
     patterns.add<ConvertAtenNativeLayerNormOp>(typeConverter, context);
     target.addIllegalOp<AtenBroadcastToOp>();
     patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
-    target.addIllegalOp<AtenArgmaxOp>();
-    patterns.add<ConvertAtenArgmaxOp>(typeConverter, context);
+    target.addIllegalOp<AtenMaxDimOp>();
+    patterns.add<ConvertAtenMaxDimOp>(typeConverter, context);
     target.addIllegalOp<AtenSizeIntOp>();
     patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
     target.addIllegalOp<AtenEmbeddingOp>();

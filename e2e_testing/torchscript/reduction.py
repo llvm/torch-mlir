@@ -122,3 +122,97 @@ class ReduceMeanDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMeanDtypeModule())
 def ReduceMeanDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+# ==============================================================================
+
+class ReduceMaxAlongDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1)[0]
+
+
+@register_test_case(module_factory=lambda: ReduceMaxAlongDim())
+def ReduceMaxAlongDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+# ==============================================================================
+
+class ReduceMaxAlongDimNegative(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1)[0]
+
+
+@register_test_case(module_factory=lambda: ReduceMaxAlongDimNegative())
+def ReduceMaxAlongDimNegative_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, low=-10, high=10).to(torch.float64))
+
+# ==============================================================================
+
+class ReduceMaxKeepDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1, keepdim=True)[1]
+
+
+@register_test_case(module_factory=lambda: ReduceMaxKeepDim())
+def ReduceMaxKeepDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+# ==============================================================================
+
+class ReduceMaxKeepDimReturnBoth(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1, keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceMaxKeepDimReturnBoth())
+def ReduceMaxKeepDimReturnBoth_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, low=-10, high=-5))
+
+# ==============================================================================
+
+class ReduceMaxAllDims(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1], torch.float32, True),
+  ])
+  def forward(self, a):
+    return torch.ops.aten.max(a)
+
+@register_test_case(module_factory=lambda: ReduceMaxAllDims())
+def ReduceMaxAllDims_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, low=-10, high=-5))
