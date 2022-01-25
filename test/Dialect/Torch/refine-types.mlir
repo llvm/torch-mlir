@@ -663,7 +663,7 @@ builtin.func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.ten
   return %res: !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.tensor.float(
 // CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
@@ -680,7 +680,7 @@ builtin.func @torch.aten.tensor.float(%t: !torch.float) -> !torch.tensor {
   return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.tensor.float$specified_dtype(
 // CHECK-SAME:                                          %[[t:.*]]: !torch.float) -> !torch.tensor {
@@ -699,7 +699,7 @@ builtin.func @torch.aten.tensor.float$specified_dtype(%t: !torch.float) -> !torc
   return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.tensor(
 // CHECK-SAME:        %[[DATA:.*]]: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
@@ -718,7 +718,7 @@ builtin.func @torch.aten.tensor(%t: !torch.list<!torch.list<!torch.float>>) -> !
     return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.tensor$empty_list() -> !torch.tensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -735,7 +735,7 @@ builtin.func @torch.aten.tensor$empty_list() -> !torch.tensor {
     return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.tensor$specified_dtype(
 // CHECK-SAME:        %[[DATA:.*]]: !torch.list<!torch.list<!torch.float>>) -> !torch.tensor {
@@ -754,7 +754,7 @@ builtin.func @torch.aten.tensor$specified_dtype(%t: !torch.list<!torch.list<!tor
     return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.zeros(
 // CHECK-SAME:        %[[DIM0:.*]]: !torch.int) -> !torch.tensor {
@@ -773,7 +773,7 @@ builtin.func @torch.aten.zeros(%dim0: !torch.int) -> !torch.tensor {
     return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.index_select(
 // CHECK-SAME:                                          %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -789,7 +789,7 @@ builtin.func @torch.aten.index_select(%input: !torch.tensor<[2,3,4], f32>, %inde
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.index_select$unknown_indexes(
 // CHECK-SAME:                                                      %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -805,7 +805,7 @@ builtin.func @torch.aten.index_select$unknown_indexes(%input: !torch.tensor<[2,3
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.index_select$unknown_dim(
 // CHECK-SAME:                                                          %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -820,7 +820,7 @@ builtin.func @torch.aten.index_select$unknown_dim(%input: !torch.tensor<[2,3,4],
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.select.int(
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -836,7 +836,7 @@ builtin.func @torch.aten.select.int(%input: !torch.tensor<[2,3,4], f32>, %index:
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.type_as(
 // CHECK-SAME:                                     %[[INPUT:.*]]: !torch.tensor<[?],si64>,
 // CHECK-SAME:                                     %[[OTHER:.*]]: !torch.tensor<[?,2],f32>) -> !torch.tensor {
@@ -849,7 +849,7 @@ builtin.func @torch.aten.type_as(%self: !torch.tensor<[?], si64>, %other: !torch
       return %ret: !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.gather(
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -866,7 +866,7 @@ builtin.func @torch.aten.gather(%input: !torch.tensor<[2,3,4], f32>, %dim: !torc
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.expand(
 // CHECK-SAME:                                    %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>) -> !torch.tensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
@@ -888,7 +888,7 @@ builtin.func @torch.aten.expand(%input: !torch.tensor<[2,1,4], f32>) -> !torch.t
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.expand$higher_rank(
 // CHECK-SAME:                                        %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>) -> !torch.tensor {
@@ -913,7 +913,7 @@ builtin.func @torch.aten.expand$higher_rank(%input: !torch.tensor<[2,1,4], f32>)
 }
 
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.expand$unknown_sizes(
 // CHECK-SAME:                                                  %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>,
 // CHECK-SAME:                                                  %[[SIZEX:.*]]: !torch.int) -> !torch.tensor {
@@ -933,7 +933,7 @@ builtin.func @torch.aten.expand$unknown_sizes(%input: !torch.tensor<[2,1,4], f32
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.repeat(
 // CHECK-SAME:                                    %[[INPUT:.*]]: !torch.tensor<[2,1,4],f32>,
 // CHECK-SAME:                                    %[[REPEATX:.*]]: !torch.int) -> !torch.tensor {
@@ -952,7 +952,7 @@ builtin.func @torch.aten.repeat(%input: !torch.tensor<[2,1,4], f32>, %repeat: !t
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func @torch.aten.cat(
 // CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[?,1,4],f32>,
@@ -970,7 +970,7 @@ builtin.func @torch.aten.cat(%t0: !torch.tensor<[?,1,4], f32>, %t1: !torch.tenso
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.cat$unknown_dim(
 // CHECK-SAME:                                 %[[T1:.*]]: !torch.tensor<[?,1,4],f32>,
 // CHECK-SAME:                                 %[[T2:.*]]: !torch.tensor<[2,3,4],f32>,
@@ -986,7 +986,7 @@ builtin.func @torch.aten.cat$unknown_dim(%t0: !torch.tensor<[?,1,4], f32>, %t1: 
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten._shape_as_tensor(
 // CHECK-SAME:                                 %[[INPUT:.*]]: !torch.tensor<[?,1,4],f32>) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor<[?,1,4],f32> -> !torch.tensor<[3],si64>
@@ -997,7 +997,7 @@ builtin.func @torch.aten._shape_as_tensor(%input: !torch.tensor<[?,1,4], f32>) -
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten._shape_as_tensor$unknown_input_shape(
 // CHECK-SAME:                                 %[[INPUT:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[RET:.*]] = torch.aten._shape_as_tensor %[[INPUT]] : !torch.tensor -> !torch.tensor<[?],si64>
@@ -1008,7 +1008,7 @@ builtin.func @torch.aten._shape_as_tensor$unknown_input_shape(%input: !torch.ten
       return %ret : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.embedding(
 // CHECK-SAME:                                       %[[INPUT:.*]]: !torch.tensor<[104,512],f32>,
 // CHECK-SAME:                                       %[[INDEXES:.*]]: !torch.tensor<[2,3],si64>) -> !torch.tensor {
@@ -1024,7 +1024,7 @@ builtin.func @torch.aten.embedding(%weight: !torch.tensor<[104,512],f32>, %indic
        return %ret: !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int(
 // CHECK-SAME:                                 %[[T:.*]]: !torch.tensor<[2,3],f32>,
 // CHECK-SAME:                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor {
@@ -1039,7 +1039,7 @@ func @torch.aten.softmax.int(%t: !torch.tensor<[2,3],f32>, %dim: !torch.int) -> 
 }
 
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int$specified_dtype(
 // CHECK-SAME:                                                 %[[T:.*]]: !torch.tensor<[2,3],f32>,
 // CHECK-SAME:                                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor {
@@ -1054,7 +1054,7 @@ func @torch.aten.softmax.int$specified_dtype(%t: !torch.tensor<[2,3],f32>, %dim:
 }
 
 
-// ----
+// -----
 // CHECK-LABEL:  func @torch.aten.Matmul.Broadcast.Matrix(
 // CHECK-SAME:                                            %[[LHS:.*]]: !torch.vtensor<[?,?,?,?,?],f32>,
 // CHECK-SAME:                                            %[[RHS:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
@@ -1067,7 +1067,7 @@ func @torch.aten.Matmul.Broadcast.Matrix(%arg0: !torch.vtensor<[?,?,?,?,?],f32>,
 }
 
 
-// ----
+// -----
 // CHECK-LABEL:  func @torch.aten.Matmul.Broadcast.Vector(
 // CHECK-SAME:                                            %[[LHS:.*]]: !torch.vtensor<[?,?,?,?,?],f32>,
 // CHECK-SAME:                                            %[[RHS:.*]]: !torch.vtensor<[?],f32>) -> !torch.tensor {
@@ -1096,7 +1096,7 @@ func @torch.aten.to.dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor{
     return %0 : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:  func @torch.prim.NumToTensor.Scalar(
 // CHECK-SAME:                                       %[[SELF:.*]]: !torch.int) -> !torch.tensor {
 // CHECK:           %[[NTT:.*]] = torch.prim.NumToTensor.Scalar %[[SELF]] : !torch.int -> !torch.tensor<[],si64>
@@ -1107,7 +1107,7 @@ func @torch.prim.NumToTensor.Scalar(%arg0: !torch.int) -> !torch.tensor {
   return %0: !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.BinaryBroadcasting(
 // CHECK-SAME:                                        %[[T0:.*]]: !torch.vtensor<[5,4,3,3,1],f32>,
 // CHECK-SAME:                                        %[[T1:.*]]: !torch.vtensor<[?,3,1,2],f32>,

@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -275,14 +276,14 @@ static Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                              SmallVectorImpl<int64_t> &highPaddingInts,
                              Value pad) {
   Location loc = op->getLoc();
-  Type rankedTensorType = linalg::PadTensorOp::inferResultType(
+  Type rankedTensorType = tensor::PadOp::inferResultType(
       input.getType().cast<RankedTensorType>(), lowPaddingInts,
       highPaddingInts);
   SmallVector<OpFoldResult> lowPaddings =
       getAsOpFoldResult(b, loc, lowPaddingInts);
   SmallVector<OpFoldResult> highPaddings =
       getAsOpFoldResult(b, loc, highPaddingInts);
-  Value paddedInput = linalg::PadTensorOp::createPadScalarOp(
+  Value paddedInput = tensor::createPadScalarOp(
       rankedTensorType, input, pad, /*low=*/lowPaddings, /*high=*/highPaddings,
       /*packing=*/false, loc, b);
   return paddedInput;

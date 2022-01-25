@@ -64,28 +64,6 @@ void TorchDialect::initialize() {
 }
 
 //===----------------------------------------------------------------------===//
-// Type-related Dialect methods.
-//===----------------------------------------------------------------------===//
-
-Type TorchDialect::parseType(DialectAsmParser &parser) const {
-  StringRef keyword;
-  if (parser.parseKeyword(&keyword))
-    return Type();
-  Type type;
-  if (generatedTypeParser(parser, keyword, type).hasValue())
-    return type;
-
-  parser.emitError(parser.getNameLoc(), "invalid 'torch' type: `")
-      << keyword << "'";
-  return Type();
-}
-
-void TorchDialect::printType(Type type, DialectAsmPrinter &printer) const {
-  if (failed(generatedTypePrinter(type, printer)))
-    llvm_unreachable("unknown 'torch' type");
-}
-
-//===----------------------------------------------------------------------===//
 // Dialect-level verifiers.
 //===----------------------------------------------------------------------===//
 

@@ -1059,7 +1059,7 @@ public:
       // Step: generate the common dim/shape information
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
         bool isDynamicDim =
-            lhsBroadcastedTy.isDynamic(lhsBroadcastedShape[dim]);
+            ShapedType::isDynamic(lhsBroadcastedShape[dim]);
         if (isDynamicDim ||
             lhsBroadcastedShape[dim] == rhsBroadcastedShape[dim]) {
           commonValue *= lhsBroadcastedShape[dim];
@@ -1071,7 +1071,7 @@ public:
       bool hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
         bool isDynamicDim =
-            lhsBroadcastedTy.isDynamic(lhsBroadcastedShape[dim]);
+            ShapedType::isDynamic(lhsBroadcastedShape[dim]);
         hasDynamicDims |= isDynamicDim;
         if (!isDynamicDim &&
             lhsBroadcastedShape[dim] != rhsBroadcastedShape[dim]) {
@@ -1156,7 +1156,7 @@ public:
       hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
         bool isDynamicDim =
-            rhsBroadcastedTy.isDynamic(rhsBroadcastedShape[dim]);
+            ShapedType::isDynamic(rhsBroadcastedShape[dim]);
         hasDynamicDims |= isDynamicDim;
         if (!isDynamicDim &&
             rhsBroadcastedShape[dim] != lhsBroadcastedShape[dim]) {

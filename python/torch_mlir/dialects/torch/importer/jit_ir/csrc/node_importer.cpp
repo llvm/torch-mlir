@@ -303,7 +303,8 @@ MlirBlock NodeImporter::createBlockFor(Block *jitBlock) {
   MlirLocation loc = getMlirLocationFromNode(context, paramNode);
   std::vector<MlirType> blockArgTypes =
       getMlirTypesFromValues(loc, paramNode->outputs());
-  MlirBlock block = mlirBlockCreate(blockArgTypes.size(), blockArgTypes.data());
+  std::vector<MlirLocation> blockArgLocs(blockArgTypes.size(), loc);
+  MlirBlock block = mlirBlockCreate(blockArgTypes.size(), blockArgTypes.data(), blockArgLocs.data());
   for (int i = 0, e = mlirBlockGetNumArguments(block); i < e; i++) {
     Value *jitValue = paramNode->outputs()[i];
     MlirValue value = mlirBlockGetArgument(block, i);

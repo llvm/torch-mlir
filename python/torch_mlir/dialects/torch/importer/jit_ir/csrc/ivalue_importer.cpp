@@ -173,7 +173,7 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
       torchMlirTorchNnModuleTypeGet(context, toMlirStringRef(moduleTypeName)),
       mlirRegionCreate());
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
-  mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr));
+  mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
   auto inserter = caffe2::MakeGuard([&]() {
     mlirBlockInsertOwnedOperationBefore(
@@ -441,7 +441,7 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
           mlirStringAttrGet(
               context, toMlirStringRef(classType->name()->qualifiedName()))));
   MlirRegion region = mlirOperationGetRegion(op, 0);
-  mlirRegionAppendOwnedBlock(region, mlirBlockCreate(0, nullptr));
+  mlirRegionAppendOwnedBlock(region, mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock classTypeBody = mlirRegionGetFirstBlock(region);
 
   ClassAnnotation &classAnnotation =

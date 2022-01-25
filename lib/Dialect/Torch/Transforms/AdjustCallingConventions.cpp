@@ -38,7 +38,7 @@ public:
   matchAndRewrite(FuncOp func, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = func.getContext();
-    auto typeBoundIdent = Identifier::get("torch.type_bound", context);
+    auto typeBoundIdent = StringAttr::get(context, "torch.type_bound");
     TypeConverter::SignatureConversion conversion(func.getNumArguments());
 
     // The TypeConverter hooks for type conversion are "context free", so we

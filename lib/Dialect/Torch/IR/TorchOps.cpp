@@ -321,9 +321,9 @@ static ParseResult parsePrimIfOp(OpAsmParser &parser, OperationState &result) {
 
 static void print(OpAsmPrinter &p, PrimIfOp op) {
   p << " " << op.condition();
-  p << " -> (" << op.getResultTypes() << ")";
+  p << " -> (" << op.getResultTypes() << ") ";
   p.printRegion(op.thenRegion(), /*printEntryBlockArgs=*/false);
-  p << " else";
+  p << " else ";
   p.printRegion(op.elseRegion(), /*printEntryBlockArgs=*/false);
 
   p.printOptionalAttrDict(op->getAttrs());
