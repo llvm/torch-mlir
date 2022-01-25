@@ -325,6 +325,56 @@ public:
 };
 } // namespace
 
+// Decompose `AtenArgMaxOp` into `AtenMaxDimOp`.
+namespace {
+class DecomposeAtenArgMaxOp : public OpRewritePattern<AtenArgmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenArgmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value dim = op.dim();
+    Value keepDim = op.keepdim();
+    Value result = op.result();
+
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    BaseTensorType indicesTensorType = result.getType().cast<BaseTensorType>();
+
+    if (!indicesTensorType.hasSizes())
+      return failure();
+    BaseTensorType valueTensorType =
+        inputType
+            .getWithSizesAndDtype(indicesTensorType.getSizes(),
+                                  inputType.getDtype())
+            .cast<BaseTensorType>();
+
+    // If the dim type is `NoneType` i.e. reduce along all the dimensions.
+    // `AtenMaxDimOp` doesn't support dim as `NoneType` so first the input
+    // tensor is flattened to 1d tensor and then the reduction happens on the
+    // 0th dimension.
+    if (dim.getType().isa<Torch::NoneType>()) {
+      BaseTensorType flattenType =
+          inputType.getWithSizesAndDtype({kUnknownSize}, inputType.getDtype())
+              .cast<BaseTensorType>();
+      dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value end = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(getTensorRank(input) - 1));
+      input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
+                                                      dim, end);
+    }
+    Value maxResult =
+        rewriter
+            .create<AtenMaxDimOp>(loc, valueTensorType, indicesTensorType,
+                                  input, dim, keepDim)
+            .indices();
+
+    rewriter.replaceOp(op, maxResult);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.log_softmax op into: log(softmax(x))
 namespace {
 class DecomposeAtenLogSoftmaxIntOp
@@ -678,6 +728,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);
     target.addIllegalOp<AtenArangeStartOp>();
+    patterns.add<DecomposeAtenArgMaxOp>(context);
+    target.addIllegalOp<AtenArgmaxOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

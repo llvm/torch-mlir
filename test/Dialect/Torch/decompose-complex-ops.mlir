@@ -154,3 +154,34 @@ func @torch.aten.arange.start() -> !torch.vtensor<[?],si64> {
   %0 = torch.aten.arange.start %int0, %int10, %none, %none, %none, %none : !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],si64>
   return %0 : !torch.vtensor<[?],si64>
 }
+
+// ----
+// CHECK-LABEL: func @torch.aten.argmax(
+// CHECK-SAME:  %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[1,?],si64> {
+// CHECK:       %[[CST0:.*]] = torch.constant.int 0
+// CHECK:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:       %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[INP]], %[[CST0]], %[[TRUE]] : !torch.vtensor<[?,?],f32>, !torch.int, !torch.bool -> !torch.vtensor<[1,?],f32>, !torch.vtensor<[1,?],si64>
+// CHECK:       return %[[IND]] : !torch.vtensor<[1,?],si64>
+func @torch.aten.argmax(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[1,?],si64> {
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %0 = torch.aten.argmax %arg0, %int0, %true : !torch.vtensor<[?,?],f32>, !torch.int, !torch.bool -> !torch.vtensor<[1,?],si64>
+  return %0 : !torch.vtensor<[1,?],si64>
+}
+
+// ----
+// CHECK-LABEL: func @torch.aten.argmax$reduceall(
+// CHECK-SAME:   %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[],si64> {
+// CHECK:        %[[NONE:.*]] = torch.constant.none
+// CHECK:        %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:        %[[CST0:.*]] = torch.constant.int 0
+// CHECK:        %[[CST1:.*]] = torch.constant.int 1
+// CHECK:        %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[INP]], %[[CST0]], %[[CST1]] : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
+// CHECK:        %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[FLATTEN]], %[[CST0]], %[[FALSE]] : !torch.vtensor<[?],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+// CHECK:        return %[[IND]] : !torch.vtensor<[],si64>
+func @torch.aten.argmax$reduceall(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[],si64> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.aten.argmax %arg0, %none, %false : !torch.vtensor<[?,?],f32>, !torch.none, !torch.bool -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}

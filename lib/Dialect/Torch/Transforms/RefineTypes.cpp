@@ -354,6 +354,15 @@ public:
       Type dtype = operands[0]->getValue().dtype;
       return visitReductionAlongDimIntOp(anyDim, anyDim.dim(), anyDim.keepdim(),
                                          dtype, operands);
+    } else if (auto maxDim = dyn_cast<AtenMaxDimOp>(op)) {
+      Type firstResDtype = operands[0]->getValue().dtype;
+      Type secondResDtype =
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+      ChangeResult firstRes = visitReductionAlongDimIntOp(
+          maxDim, maxDim.dim(), maxDim.keepdim(), firstResDtype, operands);
+      return firstRes | visitReductionAlongDimIntOp(
+                            maxDim, maxDim.dim(), maxDim.keepdim(),
+                            secondResDtype, operands, /*resNum=*/1);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
       return visitReshapeLikeOp(view, operands);
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {
@@ -457,6 +466,9 @@ public:
       Type dtype =
           getDtypeOrDefault(mean.getContext(), mean.dtype(), defaultDtype);
       return visitReductionAlongAllDimsOp(mean, dtype, operands);
+    } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
+      Type dtype = operands[0]->getValue().dtype;
+      return visitReductionAlongAllDimsOp(max, dtype, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {
@@ -547,7 +559,7 @@ private:
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitReductionAlongDimIntOp(
       Operation *op, Value dim, Value keepdim, Type dtype,
-      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands, int resNum = 0);
   template <typename OpTy>
   ChangeResult
   visitReshapeLikeOp(OpTy op,
@@ -1307,7 +1319,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
 
 ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
     Operation *op, Value dim, Value keepdim, Type dtype,
-    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands, int resNum) {
   assert(dim.getType().isa<Torch::IntType>() && "dim must be int type");
   auto input = operands[0]->getValue();
   auto knowledge =
@@ -1331,7 +1343,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
       knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1, kUnknownSize);
     }
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return getLatticeElement(op->getResult(resNum)).join(knowledge);
 }
 
 // Reshape like ops are given a size list which specify the shape of the
