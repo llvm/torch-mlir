@@ -1058,8 +1058,7 @@ public:
 
       // Step: generate the common dim/shape information
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
-        bool isDynamicDim =
-            ShapedType::isDynamic(lhsBroadcastedShape[dim]);
+        bool isDynamicDim = ShapedType::isDynamic(lhsBroadcastedShape[dim]);
         if (isDynamicDim ||
             lhsBroadcastedShape[dim] == rhsBroadcastedShape[dim]) {
           commonValue *= lhsBroadcastedShape[dim];
@@ -1070,8 +1069,7 @@ public:
       // Step: generate the LHS squeezed dim/shape information.
       bool hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
-        bool isDynamicDim =
-            ShapedType::isDynamic(lhsBroadcastedShape[dim]);
+        bool isDynamicDim = ShapedType::isDynamic(lhsBroadcastedShape[dim]);
         hasDynamicDims |= isDynamicDim;
         if (!isDynamicDim &&
             lhsBroadcastedShape[dim] != rhsBroadcastedShape[dim]) {
@@ -1155,8 +1153,7 @@ public:
       // finally all the rhs_squeeze dims
       hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
-        bool isDynamicDim =
-            ShapedType::isDynamic(rhsBroadcastedShape[dim]);
+        bool isDynamicDim = ShapedType::isDynamic(rhsBroadcastedShape[dim]);
         hasDynamicDims |= isDynamicDim;
         if (!isDynamicDim &&
             rhsBroadcastedShape[dim] != lhsBroadcastedShape[dim]) {
@@ -1374,7 +1371,7 @@ public:
   // Other versions may add a bias, apply GEMM-style alpha/beta scaling etc.
   virtual LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const {
+                  ConversionPatternRewriter &rewriter) const override {
 
     Value lhs, rhs;
 
@@ -1607,6 +1604,175 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenConv2dOp>::matchAndRewrite(
+    AtenConv2dOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto input = adaptor.input();
+  auto weight = adaptor.weight();
+
+  auto inputTy = input.getType().template cast<RankedTensorType>();
+  auto weightTy = weight.getType().template cast<RankedTensorType>();
+  auto outputTy = getTypeConverter()
+                      ->convertType(op.getType())
+                      .template cast<RankedTensorType>();
+
+  if (!inputTy || !weightTy || !outputTy)
+    return op.emitError(
+        "Input, weight and output to Conv2d must be ranked tensors");
+
+  auto inputElemTy = inputTy.getElementType();
+  auto weightElemTy = weightTy.getElementType();
+  auto inputShape = inputTy.getShape();
+  auto weightShape = weightTy.getShape();
+
+  // Bias is optional. TOSA mandates a zero tensor here, so construct one if
+  // required.
+  auto bias = adaptor.bias();
+  if (adaptor.bias().getType().template isa<Torch::NoneType>()) {
+    // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
+    // accumulator) are 48-bit and not 32-bit, and requires the use of APInt to
+    // define a 48-bit int.
+    if (inputElemTy.isa<quant::QuantizedType>()) {
+      SmallVector<int32_t> zeroVec(weightShape[0], 0);
+      bias = tosa::getConstTensor<int32_t>(
+                 rewriter, op, zeroVec, {static_cast<int32_t>(weightShape[0])})
+                 .getValue();
+    } else {
+      SmallVector<float> zeroVec(weightShape[0], 0);
+      bias = tosa::getConstTensor<float>(rewriter, op, zeroVec,
+                                         {static_cast<int32_t>(weightShape[0])})
+                 .getValue();
+    }
+  } else {
+    if (!bias.getType().cast<RankedTensorType>())
+      return op.emitError("Bias provided but not a ranked tensor");
+  }
+  auto biasElemTy = inputElemTy.template isa<mlir::FloatType>()
+                        ? inputElemTy
+                        : rewriter.getI32Type();
+
+  SmallVector<int64_t, 2> stride;
+  if (!matchPattern(adaptor.stride(), m_TorchConstantIntList(stride)))
+    return rewriter.notifyMatchFailure(op, "non-const stride list unsupported");
+
+  SmallVector<int64_t, 2> padding_2d;
+  if (!matchPattern(adaptor.padding(), m_TorchConstantIntList(padding_2d)))
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const padding list unsupported");
+  // TOSA uses 4D padding {t, b, l, r} while Torch defines 2D padding {t, l}.
+  // The Torch OFM computation uses 2*pad in each spatial direction, implying
+  // the same t=b and l=r values for TOSA.
+  SmallVector<int64_t> padding(
+      {padding_2d[0], padding_2d[0], padding_2d[1], padding_2d[1]});
+
+  SmallVector<int64_t, 2> dilation;
+  if (!matchPattern(adaptor.dilation(), m_TorchConstantIntList(dilation)))
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const dilation list unsupported");
+
+  // TOSA works in NHWC and takes OHWI weights. Perform the necessary transpose.
+  llvm::Optional<Value> nchwToNhwcTransposeConst =
+      tosa::getConstTensor<int32_t>(rewriter, op,
+                                    /*vec=*/{0, 2, 3, 1},
+                                    /*shape=*/{static_cast<int32_t>(4)});
+  SmallVector<int64_t> transposedInputShape(
+      {inputShape[0], inputShape[2], inputShape[3], inputShape[1]});
+  auto transposedInputType =
+      RankedTensorType::get(transposedInputShape, inputElemTy);
+  auto transposedInput =
+      rewriter
+          .create<tosa::TransposeOp>(
+              op->getLoc(),
+              getTypeConverter()->convertType(transposedInputType), input,
+              nchwToNhwcTransposeConst.getValue())
+          .getResult();
+
+  SmallVector<int64_t> transposedWeightShape(
+      {weightShape[0], weightShape[2], weightShape[3], weightShape[1]});
+  auto transposedWeightType =
+      RankedTensorType::get(transposedWeightShape, weightElemTy);
+  auto transposedWeight =
+      rewriter
+          .create<tosa::TransposeOp>(
+              op->getLoc(),
+              getTypeConverter()->convertType(transposedWeightType), weight,
+              nchwToNhwcTransposeConst.getValue())
+          .getResult();
+
+  int64_t outputHDim, outputWDim;
+  if (inputTy.hasStaticShape()) {
+    outputHDim = (transposedInputShape[1] + padding[0] + padding[1] -
+                  dilation[0] * (transposedWeightShape[1] - 1) - 1) /
+                     stride[0] +
+                 1;
+    outputWDim = (transposedInputShape[2] + padding[2] + padding[3] -
+                  dilation[1] * (transposedWeightShape[2] - 1) - 1) /
+                     stride[1] +
+                 1;
+  } else {
+    outputHDim = ShapedType::kDynamicSize;
+    outputWDim = ShapedType::kDynamicSize;
+  }
+
+  // Output shape is NHWC, to be transposed back to NCHW. Output elemTy for
+  // quantized input is i32, which gets rescaled down to quantized output range.
+  SmallVector<int64_t> outputShape = {transposedInputShape[0], outputHDim,
+                                      outputWDim, transposedWeightShape[0]};
+  auto convOpTy = RankedTensorType::get(outputShape, biasElemTy);
+
+  Value convOpResult =
+      rewriter
+          .create<tosa::Conv2DOp>(op->getLoc(),
+                                  getTypeConverter()->convertType(convOpTy),
+                                  transposedInput, transposedWeight, bias,
+                                  rewriter.getI64ArrayAttr(padding),
+                                  rewriter.getI64ArrayAttr(stride),
+                                  rewriter.getI64ArrayAttr(dilation))
+          .getResult();
+
+  llvm::Optional<Value> nhwcToNchwTransposeConst =
+      tosa::getConstTensor<int32_t>(rewriter, op,
+                                    /*vec=*/{0, 3, 1, 2},
+                                    /*shape=*/{static_cast<int32_t>(4)});
+  SmallVector<int64_t> transposedOutputShape(
+      {outputShape[0], outputShape[3], outputShape[1], outputShape[2]});
+  auto transposedOutputType =
+      RankedTensorType::get(transposedOutputShape, biasElemTy);
+  auto transposedOutput =
+      rewriter
+          .create<tosa::TransposeOp>(
+              op->getLoc(),
+              getTypeConverter()->convertType(transposedOutputType),
+              convOpResult, nhwcToNchwTransposeConst.getValue())
+          .getResult();
+
+  Value rescaledResult = transposedOutput;
+  if (inputElemTy.template isa<quant::QuantizedType>()) {
+    rescaledResult = tosa::buildRescaleOpConvOutput(
+        rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
+  }
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), rescaledResult);
+
+  return success();
+}
+
+// Torch constants are converted to tosa.const .
+template <>
+LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
+    ValueTensorLiteralOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outputTy = getTypeConverter()
+                      ->convertType(op.getType())
+                      .template cast<RankedTensorType>();
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.value());
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -1760,6 +1926,8 @@ public:
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
     INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
+    INSERT_ATENOP_PATTERN(AtenConv2dOp);
+    INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,

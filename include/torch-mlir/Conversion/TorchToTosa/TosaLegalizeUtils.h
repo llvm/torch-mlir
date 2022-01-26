@@ -33,6 +33,14 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
                           Value input_val, double input_scale,
                           int64_t input_zp);
 
+// Creates a TOSA rescale op based on conv2d parameters.
+Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
+                               Value conv_val, ShapedType input_type,
+                               ShapedType weight_type, ShapedType output_type);
+
+// Check if scale32 mode is used for given output_element_type
+bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
+
 // Create a 32-bit float constant operator from a float
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val);
