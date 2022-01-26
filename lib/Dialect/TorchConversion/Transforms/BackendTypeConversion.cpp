@@ -164,7 +164,7 @@ struct FuncBackendTypeConversionPass
     typeConverter.addConversion([](Type type) { return type; });
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
-    populateFuncOpTypeConversionPattern(patterns, typeConverter);
+    populateFunctionOpInterfaceTypeConversionPattern<FuncOp>(patterns, typeConverter);
     target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
       return typeConverter.isSignatureLegal(op.getType()) &&
              typeConverter.isLegal(&op.getBody());
