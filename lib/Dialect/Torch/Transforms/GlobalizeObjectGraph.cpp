@@ -569,7 +569,7 @@ rewriteMonomorphizedFuncClone(FuncOp func, BlockAndValueMapping mapping,
     op->dropAllDefinedValueUses();
     op->erase();
   }
-  llvm::BitVector argsToErase(func.getNumResults());
+  llvm::BitVector argsToErase(func.getNumArguments());
   for (auto type : llvm::enumerate(func.getArgumentTypes())) {
     if (type.value().isa<NnModuleType>()) {
       argsToErase.set(type.index());
