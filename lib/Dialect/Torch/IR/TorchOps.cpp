@@ -63,6 +63,17 @@ Value mlir::torch::Torch::copyTensorToType(OpBuilder &builder, Location loc,
   return tensor;
 }
 
+bool mlir::torch::Torch::isListPotentiallyMutated(Value list) {
+  assert(list.getType().isa<Torch::ListType>());
+  return llvm::any_of(list.getUsers(), potentiallyMutatesListOperands);
+}
+
+bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
+  // A simple allowlist of ops that we know don't mutate lists.
+  return !isa<AtenEqIntListOp, Aten__Getitem__TOp, AtenLenTOp,
+              ShapeCalculateYieldShapesOp>(op);
+}
+
 static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
   return IntegerAttr::get(IntegerType::get(context, 64), value);
 }
@@ -619,11 +630,13 @@ OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
-  // `len([1,1,1])` -> `3`
+  // `len([1,1,1])` -> `3`, if it is not mutated.
   if (auto listConstruct =
           getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
-    return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                            listConstruct.getNumOperands());
+    if (!isListPotentiallyMutated(listConstruct)) {
+      return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                              listConstruct.getNumOperands());
+    }
   }
   return nullptr;
 }
@@ -1113,11 +1126,7 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
     auto torchList = op.getOperand(0);
-    // TODO: Use a proper effects interface when more operands taking a list
-    // are implemented.
-    if (!llvm::all_of(torchList.getUsers(), [](Operation *op) {
-          return isa<Aten__Getitem__TOp, AtenLenTOp>(op);
-        }))
+    if (isListPotentiallyMutated(torchList))
       return failure();
 
     auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();

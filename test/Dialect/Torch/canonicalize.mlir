@@ -386,6 +386,16 @@ func @torch.aten.len.t$of_build_list(%arg0: !torch.int) -> !torch.int {
   return %1 : !torch.int
 }
 
+// CHECK-LABEL: func @torch.aten.len.t$no_fold_list_mutated()
+func @torch.aten.len.t$no_fold_list_mutated() -> !torch.int {
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+  %1 = torch.aten.append.t %0, %int4 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+  // CHECK: torch.aten.len.t
+  %2 = torch.aten.len.t %0 : !torch.list<!torch.int> -> !torch.int
+  return %2 : !torch.int
+}
+
 // CHECK-LABEL:   func @torch.aten.__getitem__.t(
 // CHECK:           %[[C5:.*]] = torch.constant.int 5
 // CHECK:           return %[[C5]] : !torch.int

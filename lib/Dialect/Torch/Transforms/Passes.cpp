@@ -126,7 +126,10 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
   pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
-  // Do shape and dtype refinement.
+  // Do shape refinement.
+  // This must be run before RefineTypes (which primarily does dtype inference),
+  // because Torch type promotion rules actually depend on the shape of the
+  // operand.
   createTorchShapeRefinementPipeline(pm, options);
   // TODO: Simplify RefineTypes to only have dtype propagation for ops that
   // have shape functions handled by createTorchShapeRefinementPipeline.

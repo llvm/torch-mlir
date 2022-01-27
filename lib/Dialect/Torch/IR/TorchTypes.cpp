@@ -353,5 +353,6 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
       return nullptr;
     }
   }
-  return ValueTensorType::get(lhs.getContext(), makeArrayRef(newSizes), dtype);
+
+  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
 }

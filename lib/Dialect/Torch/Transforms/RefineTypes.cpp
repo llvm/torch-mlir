@@ -126,14 +126,16 @@ static Type joinElementTypes(Type lhs, Type rhs) {
   return Type();
 }
 
-static Type meetElementTypes(Type lhs, Type rhs) {
+/// Returns the dtype that assumes information from both `lhs` and `rhs`.
+/// Returns `None` if the types are contradictory.
+static Optional<Type> meetElementTypes(Type lhs, Type rhs) {
   if (!lhs)
     return rhs;
   if (!rhs)
     return lhs;
   if (lhs == rhs)
     return lhs;
-  return Type();
+  return None;
 }
 
 
@@ -157,6 +159,32 @@ static Type getDefaultDtypeForTorchScalar(Type type) {
   return Type();
 }
 
+enum class OptionalKnowledge {
+  unKnown,
+  isNone,
+  notNone,
+};
+
+/// Returns the OptionalKnowledge that assumes information from both `lhs` and
+/// `rhs`. Returns `None` if the knowledges are contradictory.
+static Optional<OptionalKnowledge>
+meetOptionalKnowledge(OptionalKnowledge lhs, OptionalKnowledge rhs) {
+  if (lhs == OptionalKnowledge::unKnown)
+    return rhs;
+  if (rhs == OptionalKnowledge::unKnown)
+    return lhs;
+  if (lhs == rhs)
+    return lhs;
+  return None;
+}
+
+static OptionalKnowledge joinOptionalKnowledge(OptionalKnowledge lhs,
+                                               OptionalKnowledge rhs) {
+  if (lhs == rhs)
+    return lhs;
+  return OptionalKnowledge::unKnown;
+}
+
 namespace {
 // Statically known information for a particular Value.
 //
@@ -168,11 +196,6 @@ namespace {
 // we cannot claim to know something about a value which is false.
 // This class could also be called "dataflow facts", "lattice value", etc.
 struct ValueKnowledge {
-  enum class OptionalKnowledge {
-    unKnown,
-    isNone,
-    notNone,
-  };
   ValueKnowledge() = delete;
   ValueKnowledge(bool hasSizes, std::vector<int64_t> sizes, Type dtype,
                  OptionalKnowledge optionalKnowledge)
@@ -219,8 +242,16 @@ struct ValueKnowledge {
            std::make_tuple(rhs.hasSizes, rhs.sizes, rhs.dtype, rhs.optional);
   }
 
-  // Given two pieces of static knowledge, calculate conservatively the
-  // information we can be sure about.
+  // Given two pieces of static knowledge, intersect the facts that are known in
+  // both knowledges. This always produces knowledge that has less (or equal)
+  // facts than both the lhs and rhs.
+  //
+  // This operator is used, for example, at control flow join points: if
+  // predecessors A and B forward a block argument to a common successor C, then
+  // we need to calculate what can be known for sure about the block argument if
+  // the control flow is coming from either A or B. So we can't assume facts
+  // just because they are true on one control flow edge. They must be true on
+  // both.
   static ValueKnowledge join(const ValueKnowledge &lhs,
                              const ValueKnowledge &rhs) {
     // Mental model: All conditions are checking how to change from the safe "no
@@ -228,12 +259,72 @@ struct ValueKnowledge {
     // consistent with lhs and rhs.
     ValueKnowledge result = getPessimisticValueState(nullptr);
 
-    // If lhs and rhs are not equal, the knowledge state must be the
-    // pessimistic state.
-    if (lhs.optional == rhs.optional)
-      result.optional = lhs.optional;
-
+    result.optional = joinOptionalKnowledge(lhs.optional, rhs.optional);
     result.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
+
+    // // XXX: switch this to actual join.
+    // auto printArrayRef = [](ArrayRef<int64_t> a, llvm::raw_ostream &os) {
+    //   os << "[";
+    //   if (!a.empty())
+    //     os << a[0];
+    //   for (size_t i = 1, e = a.size(); i < e; ++i)
+    //     os << ", " << a[i];
+    //   os << "]";
+    // };
+    // llvm::errs() << "sizes: lhs: ";
+    // printArrayRef(lhs.sizes, llvm::errs());
+    // llvm::errs() << "rhs: ";
+    // printArrayRef(rhs.sizes, llvm::errs());
+    // llvm::errs() << "\n";
+
+    if (lhs.hasSizes && rhs.hasSizes && lhs.sizes.size() == rhs.sizes.size()) {
+      result.hasSizes = true;
+      result.sizes.resize(lhs.sizes.size(), kUnknownSize);
+      for (int i = 0, e = result.sizes.size(); i != e; i++) {
+        int64_t lhsSize = lhs.sizes[i];
+        int64_t rhsSize = rhs.sizes[i];
+        int64_t &resultSize = result.sizes[i];
+        if (lhsSize == rhsSize) {
+          resultSize = lhsSize;
+        }
+      }
+    }
+
+    return result;
+  }
+
+  // Given two pieces of static knowledge, calculate new knowledge that assumes
+  // the facts from both.
+  // If the two pieces of knowledge are contradictory, None is returned.
+  static Optional<ValueKnowledge> meet(const ValueKnowledge &lhs,
+                                       const ValueKnowledge &rhs) {
+    ValueKnowledge result = getPessimisticValueState(nullptr);
+
+    Optional<OptionalKnowledge> optional =
+        meetOptionalKnowledge(lhs.optional, rhs.optional);
+    if (!optional.hasValue())
+      return None;
+    result.optional = optional.getValue();
+
+    Optional<Type> dtype = meetElementTypes(lhs.dtype, rhs.dtype);
+    if (!dtype.hasValue())
+      return None;
+    result.dtype = dtype.getValue();
+
+    // // XXX: switch this to actual join.
+    // auto printArrayRef = [](ArrayRef<int64_t> a, llvm::raw_ostream &os) {
+    //   os << "[";
+    //   if (!a.empty())
+    //     os << a[0];
+    //   for (size_t i = 1, e = a.size(); i < e; ++i)
+    //     os << ", " << a[i];
+    //   os << "]";
+    // };
+    // llvm::errs() << "sizes: lhs: ";
+    // printArrayRef(lhs.sizes, llvm::errs());
+    // llvm::errs() << "rhs: ";
+    // printArrayRef(rhs.sizes, llvm::errs());
+    // llvm::errs() << "\n";
 
     if (lhs.hasSizes && !rhs.hasSizes) {
       result.hasSizes = true;
@@ -255,10 +346,12 @@ struct ValueKnowledge {
           resultSize = lhsSize;
         } else if (lhsSize == rhsSize) {
           resultSize = lhsSize;
+        } else {
+          // The two pieces of knowledge are contradictory.
+          return None;
         }
       }
     }
-
 
     return result;
   }
@@ -295,7 +388,8 @@ public:
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
             AtenAbsOp, AtenThresholdOp>(op)) {
-      return getLatticeElement(op->getResult(0)).join(*operands[0]);
+      ValueKnowledge knowledge = operands[0]->getValue();
+      return incorporateKnowledge(op->getResult(0), knowledge);
     }
 
     // These comparison ops return a tensor with 1-bit integer dtype.
@@ -309,7 +403,7 @@ public:
         knowledge.sizes = operand.sizes;
       }
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
-      return getLatticeElement(op->getResult(0)).join(knowledge);
+      return incorporateKnowledge(op->getResult(0), knowledge);
     }
 
     // Resize to [1, 1] with integer dtype.
@@ -320,7 +414,7 @@ public:
       knowledge.hasSizes = true;
       knowledge.sizes.resize(1, 1);
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
-      return getLatticeElement(op->getResult(0)).join(knowledge);
+      return incorporateKnowledge(op->getResult(0), knowledge);
     }
     // `torch.aten.masked_select` returns a new 1-D tensor which indexes the
     // input tensor according to the boolean mask which is a BoolTensor.
@@ -332,7 +426,7 @@ public:
       knowledge.hasSizes = true;
       knowledge.sizes.resize(1, kUnknownSize);
       knowledge.dtype = input.dtype;
-      return getLatticeElement(op->getResult(0)).join(knowledge);
+      return incorporateKnowledge(op->getResult(0), knowledge);
     }
     if (auto mm = llvm::dyn_cast<AtenMmOp>(op)) {
       return visitAtenMmOp(mm, operands);
@@ -537,6 +631,15 @@ public:
   }
 
 private:
+
+  /// Incorporates `knowledge` into the lattice state of `v`.
+  ///
+  /// This method should be used instead of
+  /// `getLatticeElement(v).join(knowledge)`, because this method knows how to
+  /// correctly handle the case of existing static knowledge from the type
+  /// of `v`.
+  ChangeResult incorporateKnowledge(Value v, const ValueKnowledge &knowledge);
+
   ChangeResult
   visitAtenMmOp(AtenMmOp op,
                 ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -846,6 +949,14 @@ static void fillInSizesForBinaryBroadcastingOp(ValueKnowledge &lhs,
   }
 }
 
+ChangeResult
+TypeAnalyzer::incorporateKnowledge(Value v, const ValueKnowledge &knowledge) {
+  auto updatedKnowledge = ValueKnowledge::meet(
+      knowledge, ValueKnowledge::getPessimisticValueState(v));
+  assert(updatedKnowledge.hasValue() && "IR has contradictory type!");
+  return getLatticeElement(v).join(updatedKnowledge.getValue());
+}
+
 ChangeResult TypeAnalyzer::visitAtenMmOp(
     AtenMmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto &lhs = operands[0]->getValue();
@@ -880,7 +991,7 @@ ChangeResult TypeAnalyzer::visitAtenMmOp(
   // the same, then the result is of that same element type.
   knowledge.dtype =
       getPromotedResultTypeAssumingNonZeroRank(op->getContext(), {&lhs, &rhs});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenAddmmOp(
@@ -894,32 +1005,30 @@ ChangeResult TypeAnalyzer::visitAtenAddmmOp(
   knowledge.sizes.resize(2, kUnknownSize);
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
       op->getContext(), {&input, &mat1, &mat2});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenLinearOp(
     AtenLinearOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  // The output shape is the input shape with the last dimension changed
-  // to the weight's output dimension.
-  auto knowledge = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto input = operands[0]->getValue();
   auto weight = operands[1]->getValue();
   auto bias = operands[2]->getValue();
-  if (knowledge.hasSizes && knowledge.sizes.size() > 0)
-    knowledge.sizes[knowledge.sizes.size() - 1] = kUnknownSize;
   switch (bias.optional) {
-  case ValueKnowledge::OptionalKnowledge::isNone:
+  case OptionalKnowledge::isNone:
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&knowledge, &weight});
+        op->getContext(), {&input, &weight});
     break;
-  case ValueKnowledge::OptionalKnowledge::notNone:
+  case OptionalKnowledge::notNone:
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
-        op->getContext(), {&knowledge, &weight, &bias});
+        op->getContext(), {&input, &weight, &bias});
     break;
-  case ValueKnowledge::OptionalKnowledge::unKnown:
+  case OptionalKnowledge::unKnown:
     // When it's unknown, type promotion can't be decided at compile time.
     break;
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenConv2dOp(
@@ -934,11 +1043,7 @@ ChangeResult TypeAnalyzer::visitAtenConv2dOp(
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
       op->getContext(), {&input, &weights});
 
-  // XXX: We need to join with the static knowledge because we are holding
-  // the dataflow framework wrong. we need to change meet to join etc.
-  return getLatticeElement(op->getResult(0)).join(knowledge) |
-         getLatticeElement(op->getResult(0))
-             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
@@ -946,11 +1051,7 @@ ChangeResult TypeAnalyzer::visitAtenMaxPool2dOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = operands[0]->getValue().dtype;
-  // XXX: We need to join with the static knowledge because we are holding
-  // the dataflow framework wrong. we need to change meet to join etc.
-  return getLatticeElement(op->getResult(0)).join(knowledge) |
-         getLatticeElement(op->getResult(0))
-             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
@@ -976,7 +1077,7 @@ ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
   }
 
   knowledge.dtype = operands[0]->getValue().dtype;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenAdaptiveAvgPool2dOp(
@@ -985,12 +1086,8 @@ ChangeResult TypeAnalyzer::visitAtenAdaptiveAvgPool2dOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  if (input.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  }
   knowledge.dtype = input.dtype;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitBinaryTensorScalarOp(
@@ -1004,7 +1101,7 @@ ChangeResult TypeAnalyzer::visitBinaryTensorScalarOp(
     knowledge.sizes = lhs.sizes;
   }
   knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
@@ -1023,10 +1120,7 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingOp(
   // category than the lhs and rhs and therefore doesn't really contribute to
   // type promotion.
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
-  // XXX: Change sense of join/meet.
-  return getLatticeElement(op->getResult(0)).join(knowledge) |
-         getLatticeElement(op->getResult(0))
-             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
@@ -1037,7 +1131,7 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
   fillInSizesForBinaryBroadcastingOp(lhs, rhs, knowledge);
   knowledge.dtype = IntegerType::get(op->getContext(), 1);
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenWhereSelfOp(
@@ -1056,7 +1150,7 @@ ChangeResult TypeAnalyzer::visitAtenWhereSelfOp(
   }
 
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenLerpTensorOp(
@@ -1079,7 +1173,7 @@ ChangeResult TypeAnalyzer::visitAtenLerpTensorOp(
         kUnknownSize);
   }
   knowledge.dtype = getPromotedResultType(getContext(), {&self, &end, &weight});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
@@ -1089,10 +1183,7 @@ ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
-  // XXX: Reverse sense of join/meet.
-  return getLatticeElement(op.getResult()).join(knowledge) |
-         getLatticeElement(op->getResult(0))
-             .join(ValueKnowledge::getPessimisticValueState(op->getResult(0)));
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
@@ -1111,7 +1202,7 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
       if (operand.sizes[i] != 1)
         knowledge.sizes.push_back(operand.sizes[i]);
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
@@ -1140,9 +1231,9 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
   }
   outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
   outputKnowledge.hasSizes = true;
-  auto resultLattice = getLatticeElement(op.getResult(0)).join(outputKnowledge);
+  auto resultLattice = incorporateKnowledge(op.getResult(0), outputKnowledge);
   resultLattice |=
-      getLatticeElement(op.getResult(1)).join(totalWeightKnowledge);
+      incorporateKnowledge(op.getResult(1), totalWeightKnowledge);
   return resultLattice;
 }
 
@@ -1159,7 +1250,7 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
       if (dim == -1 || dim == 0) {
         knowledge.hasSizes = true;
       }
-      return getLatticeElement(op.getResult()).join(knowledge);
+      return incorporateKnowledge(op.getResult(), knowledge);
     }
     // The dim value is allowed to be in the range `[-inputRank, inputRank)`.
     if (dim < 0)
@@ -1171,7 +1262,7 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
         knowledge.sizes.erase(knowledge.sizes.begin() + dim);
     }
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
@@ -1196,7 +1287,7 @@ ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
       knowledge.sizes.insert(knowledge.sizes.begin() + dim, 1);
     }
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // Arange like ops returns a 1-D tensor of size ceil(end - start).
@@ -1227,7 +1318,7 @@ ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
       knowledge.dtype =
           IntegerType::get(op->getContext(), 64, IntegerType::Signed);
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult
@@ -1252,7 +1343,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
   // Reduction along all dims always results in a tensor of rank zero,
   // which is represented by the default empty `knowledge.sizes` vector
   knowledge.hasSizes = true;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // These ops do caculation along the dims given by the integer list and reduce
@@ -1289,7 +1380,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
                              kUnknownSize);
     }
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
@@ -1318,7 +1409,7 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
       knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1, kUnknownSize);
     }
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // Reshape like ops are given a size list which specify the shape of the
@@ -1332,7 +1423,7 @@ ChangeResult TypeAnalyzer::visitReshapeLikeOp(
   knowledge.dtype = input.dtype;
 
   fillInSizesGivenSizesList(knowledge, op.size());
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
@@ -1355,12 +1446,12 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
     dim1Int = toPositiveDim(dim1Int, inputRank);
     if (isValidDim(dim0Int, inputRank) && isValidDim(dim1Int, inputRank)) {
       std::swap(knowledge.sizes[dim0Int], knowledge.sizes[dim1Int]);
-      return getLatticeElement(op.getResult()).join(knowledge);
+      return incorporateKnowledge(op.getResult(), knowledge);
     }
   }
 
   knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenTOp(
@@ -1370,7 +1461,7 @@ ChangeResult TypeAnalyzer::visitAtenTOp(
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
   int64_t inputRank = input.sizes.size();
   if (inputRank >= 0 && inputRank <= 2) {
     knowledge.hasSizes = input.hasSizes;
@@ -1378,7 +1469,7 @@ ChangeResult TypeAnalyzer::visitAtenTOp(
     if (inputRank == 2)
       std::swap(knowledge.sizes[0], knowledge.sizes[1]);
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenPermuteOp(
@@ -1388,7 +1479,7 @@ ChangeResult TypeAnalyzer::visitAtenPermuteOp(
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
   knowledge.hasSizes = input.hasSizes;
   knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
   Value dims = op.dims();
@@ -1398,12 +1489,12 @@ ChangeResult TypeAnalyzer::visitAtenPermuteOp(
     for (unsigned i = 0; i < inputRank; i++) {
       int64_t dim = toPositiveDim(dimensions[i], inputRank);
       if (!isValidDim(dim, inputRank)) {
-        return getLatticeElement(op.getResult()).join(knowledge);
+        return incorporateKnowledge(op.getResult(), knowledge);
       }
       knowledge.sizes[i] = input.sizes[dim];
     }
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 template <typename OpTy>
@@ -1414,7 +1505,7 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
   Value dtype = op.dtype();
   knowledge.hasSizes = true;
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitBinaryScalarOp(
@@ -1423,7 +1514,7 @@ ChangeResult TypeAnalyzer::visitBinaryScalarOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = getPromotedResultType(
       {op->getOperand(0).getType(), op->getOperand(1).getType()});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // `torch.aten.tensor` get a tensor from a list. Each layer of the list
@@ -1445,7 +1536,7 @@ ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
     knowledge.sizes.resize(rank, kUnknownSize);
   }
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, type);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 template <typename OpTy>
@@ -1455,7 +1546,7 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
   fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(),
                                    Torch::FloatType::get(op->getContext()));
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 template <typename OpTy>
@@ -1469,7 +1560,7 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocLikeOp(
     knowledge.sizes = input.sizes;
   }
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), input.dtype);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // Convert input tensor type to the given `dtype`.
@@ -1483,7 +1574,7 @@ ChangeResult TypeAnalyzer::visitAtenToDtypeOp(
     knowledge.sizes = input.sizes;
   Value dtype = op.dtype();
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, input.dtype);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // Convert input tensor type to the same as the other tensor.
@@ -1499,7 +1590,7 @@ ChangeResult TypeAnalyzer::visitTypeConversionOp(
   BaseTensorType type = other.getType().cast<BaseTensorType>();
   if (type.hasDtype())
     knowledge.dtype = type.getDtype();
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // The returned tensor has the same number of dimensions as the input tensor.
@@ -1514,7 +1605,7 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
 
   knowledge.hasSizes = true;
   bool dimIsUnknown = false;
@@ -1530,13 +1621,13 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
 
   if (dimIsUnknown) {
     knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
   }
   knowledge.sizes = input.sizes;
   setDim(knowledge.sizes[dim], dim, operands);
   if (!keepDim)
     knowledge.sizes.erase(knowledge.sizes.begin() + dim);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // For `torch.aten.gather` input and index must have the same number of
@@ -1551,7 +1642,7 @@ ChangeResult TypeAnalyzer::visitAtenGatherOp(
   knowledge.dtype = input.dtype;
   knowledge.hasSizes = index.hasSizes;
   knowledge.sizes = index.sizes;
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // A list is given for setting dims of the output tensor. Each item in the list
@@ -1566,18 +1657,18 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
   if (!input.hasSizes)
-    return getLatticeElement(op->getResult(0)).join(knowledge);
+    return incorporateKnowledge(op->getResult(0), knowledge);
   int64_t inputRank = input.sizes.size();
 
   SmallVector<Value, 4> listItems;
   if (!getListConstructElements(list, listItems))
-    return getLatticeElement(op->getResult(0)).join(knowledge);
+    return incorporateKnowledge(op->getResult(0), knowledge);
   int64_t listRank = listItems.size();
   knowledge.hasSizes = true;
   knowledge.sizes.resize(listRank, kUnknownSize);
 
   if (listRank < inputRank)
-    return getLatticeElement(op->getResult(0)).join(knowledge);
+    return incorporateKnowledge(op->getResult(0), knowledge);
 
   for (auto en : llvm::enumerate(listItems)) {
     int64_t listDim = en.index();
@@ -1595,7 +1686,7 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
 
     setDim(knowledge.sizes[listDim], input.sizes[inputDim], size);
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // `torch.aten.cat` concatenates the given sequence of seq tensors in the given
@@ -1608,16 +1699,16 @@ ChangeResult TypeAnalyzer::visitAtenCatOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto listConstruct = tensorList.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
 
   auto tensors = llvm::to_vector<4>(
       llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
         return getLatticeElement(v).getValue();
       }));
   for (auto tensor : tensors)
-    knowledge = ValueKnowledge::join(knowledge, tensor);
+    knowledge = ValueKnowledge::meet(knowledge, tensor).getValue();
   if (!knowledge.hasSizes)
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
 
   int64_t dim;
   bool dimIsUnknown = false;
@@ -1632,10 +1723,10 @@ ChangeResult TypeAnalyzer::visitAtenCatOp(
 
   if (dimIsUnknown) {
     knowledge.sizes.assign(knowledge.sizes.size(), kUnknownSize);
-    return getLatticeElement(op.getResult()).join(knowledge);
+    return incorporateKnowledge(op.getResult(), knowledge);
   }
   knowledge.sizes[dim] = kUnknownSize;
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 // Get the shape of the input tensor as a 1-D tensor.
@@ -1651,7 +1742,7 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
     knowledge.sizes.push_back(kUnknownSize);
   knowledge.hasSizes = true;
   knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
@@ -1673,7 +1764,7 @@ ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
     knowledge.dtype =
         IntegerType::get(op.getContext(), 64, IntegerType::Signed);
 
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
@@ -1693,7 +1784,7 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
       knowledge.sizes.push_back(kUnknownSize);
   }
   knowledge.dtype = Float32Type::get(op->getContext());
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 static ValueKnowledge
@@ -1715,7 +1806,7 @@ ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
   auto dtype = op.dtype();
   ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, input.dtype);
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAten_SoftmaxOp(
@@ -1727,7 +1818,7 @@ ChangeResult TypeAnalyzer::visitAten_SoftmaxOp(
     knowledge.dtype =
         halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
   }
-  return getLatticeElement(op.getResult()).join(knowledge);
+  return incorporateKnowledge(op.getResult(), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenBmmOp(
@@ -1740,7 +1831,7 @@ ChangeResult TypeAnalyzer::visitAtenBmmOp(
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(op->getContext(),
                                                              {&self, &mat2});
   knowledge.hasSizes = true;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenMatmulOp(
@@ -1750,7 +1841,7 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
   auto self = operands[0]->getValue();
   auto other = operands[1]->getValue();
   if (!self.hasSizes || !other.hasSizes)
-    return getLatticeElement(op->getResult(0)).join(knowledge);
+    return incorporateKnowledge(op->getResult(0), knowledge);
   unsigned maxRank = self.sizes.size() > other.sizes.size()
                          ? self.sizes.size()
                          : other.sizes.size();
@@ -1760,9 +1851,9 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
   unsigned matDim = (lhsDim - 1) + (rhsDim - 1);
   unsigned resultRank = batchDim + matDim;
   knowledge.sizes.resize(resultRank, kUnknownSize);
-  knowledge.dtype = meetElementTypes(self.dtype, other.dtype);
+  knowledge.dtype = meetElementTypes(self.dtype, other.dtype).getValue();
   knowledge.hasSizes = true;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
@@ -1781,7 +1872,7 @@ ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
   }
   knowledge.dtype =
       getPromotedResultType(getContext(), {&self, &tensor1, &tensor2});
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
@@ -1817,9 +1908,9 @@ ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
   varKnowledge.dtype = input.dtype;
 
   auto resultLattice =
-      getLatticeElement(op.getResult(0)).join(layerNormKnowledge);
-  resultLattice |= getLatticeElement(op.getResult(1)).join(meanKnowledge);
-  resultLattice |= getLatticeElement(op.getResult(2)).join(varKnowledge);
+      incorporateKnowledge(op.getResult(0), layerNormKnowledge);
+  resultLattice |= incorporateKnowledge(op.getResult(1), meanKnowledge);
+  resultLattice |= incorporateKnowledge(op.getResult(2), varKnowledge);
 
   return resultLattice;
 }
@@ -1837,7 +1928,7 @@ ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto listConstruct = indicesList.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
-    return getLatticeElement(op->getResult(0)).join(knowledge);
+    return incorporateKnowledge(op->getResult(0), knowledge);
 
   auto indices = llvm::to_vector(
       llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
@@ -1851,7 +1942,7 @@ ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
     knowledge.hasSizes = true;
     knowledge.sizes = indices[0].sizes;
   }
-  return getLatticeElement(op->getResult(0)).join(knowledge);
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 // -----------------------------------------------------------------------------
 // Transforms.
@@ -1862,10 +1953,12 @@ ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
 static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
   auto getRefinedTensorType = [](BaseTensorType tensorType,
                                  ValueKnowledge const &knowledge) {
-    return tensorType.getWithSizesAndDtype(
-        knowledge.hasSizes ? llvm::makeArrayRef(knowledge.sizes)
-                           : Optional<ArrayRef<int64_t>>(),
-        knowledge.dtype);
+    return tensorType
+        .getWithSizesAndDtype(knowledge.hasSizes
+                                  ? llvm::makeArrayRef(knowledge.sizes)
+                                  : Optional<ArrayRef<int64_t>>(),
+                              knowledge.dtype)
+        .cast<BaseTensorType>();
   };
 
   if (auto tensorType = v.getType().dyn_cast<BaseTensorType>()) {
@@ -1881,9 +1974,9 @@ static Type getMostRefinedStaticType(Value v, TypeAnalyzer &analyzer) {
     if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
-    if (knowledge.optional == ValueKnowledge::OptionalKnowledge::isNone)
+    if (knowledge.optional == OptionalKnowledge::isNone)
       return Torch::NoneType::get(v.getContext());
-    else if (knowledge.optional == ValueKnowledge::OptionalKnowledge::notNone) {
+    else if (knowledge.optional == OptionalKnowledge::notNone) {
       auto containedType = optionalType.getContainedType();
       if (auto tensorType = containedType.dyn_cast<BaseTensorType>())
         return getRefinedTensorType(tensorType, knowledge);
