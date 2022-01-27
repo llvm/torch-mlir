@@ -61,7 +61,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
   pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
   pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
-  pm.addNestedPass<FuncOp>(createStdExpandOpsPass());
+  pm.addNestedPass<FuncOp>(memref::createExpandOpsPass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced above..
