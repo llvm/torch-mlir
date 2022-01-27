@@ -1760,6 +1760,161 @@ LogicalResult ConvertAtenOp<AtenConv2dOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
+    AtenReshapeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto self = adaptor.self();
+
+  auto selfTy = self.getType().template cast<RankedTensorType>();
+  if (!selfTy)
+    return op.emitError("Only ranked tensor types supported in TOSA Reshape");
+
+  // Check that at most one dimension is -1
+  SmallVector<int64_t> newShape;
+  if (!matchPattern(op.shape(), m_TorchConstantIntList(newShape)))
+    return op.emitError("Only constant shape supported in TOSA Reshape");
+
+  int auto_sz = 0;
+  for (auto s : newShape)
+    auto_sz += (s == -1 ? 1 : 0);
+  if (auto_sz > 1)
+    op.emitError("At most one dimension may be specified as -1 to "
+                 "automatically calculate its size");
+
+  auto newType = RankedTensorType::get(newShape, selfTy.getElementType());
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(newType), self,
+      rewriter.getI64ArrayAttr(newShape));
+
+  return success();
+}
+
+// Normalization ops perform elementwise ops of a single mean/stdev value
+// against the feature map and because input is NCHW, the rank-1 value must be
+// reshaped so it sits on the same dim as 'C'.
+static LogicalResult reshapeToNormInputDim(Operation *op,
+                                           ConversionPatternRewriter &rewriter,
+                                           TypeConverter *converter,
+                                           Type outType, const Value toBcast,
+                                           Value &result) {
+  RankedTensorType toBcastType = toBcast.getType().dyn_cast<RankedTensorType>();
+  if (toBcastType.getRank() > 1)
+    op->emitError("Rank cannot be more than 1");
+
+  RankedTensorType outTensorType = outType.cast<RankedTensorType>();
+  SmallVector<int64_t> newShape = {toBcastType.getShape()[0]};
+  for (auto i = 2; i < outTensorType.getRank(); ++i)
+    newShape.push_back(1);
+  auto newType =
+      RankedTensorType::get(newShape, outTensorType.getElementType());
+
+  result = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), converter->convertType(newType), toBcast,
+      rewriter.getI64ArrayAttr(newShape));
+
+  return success();
+}
+
+// This lowering is based on the TensorFlow to TOSA lowering.
+template <>
+LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
+    AtenBatchNormOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a ranked tensor output
+  if (!adaptor.input().getType().dyn_cast<RankedTensorType>())
+    return op.emitError("Only ranked tensor types are supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // FIXME: Handle training, momentum and cudnn_enabled
+  if (op.momentum().getType().isa<Torch::NoneType>())
+    op.emitError("Unsupported None for momentum");
+
+  // For PyTorch:
+  //   scale  = gamma = weight
+  //   offset = beta  = bias
+  // Lowering:
+  // fused batchnorm = (input-mean) * scale * rsqrt(var+epsilon)) + offset
+  //
+  // shape_0 = ones(input.rank)
+  // shape_0[input.rank-1] = input.shape[input.rank-1]
+  // shape_1 = ones(1)
+  //
+  // bmean  = reshape(mean, shape_0)
+  // bscale = reshape(scale, shape_0)
+  // boffset= reshape(offset, shape_0)
+  // beps   = reshape(epsilon, shape_1)
+  //
+  // op1 = sub(input, bmean)
+  // op2 = add(var, beps)
+  // op3 = rsqrt(op2)
+  // bvar = reshape(op3, shape_0)
+  // op4 = mul(op1, bvar)
+  // op5 = mul(op4, bscale)
+  // op6 = add(op5, boffset)
+
+  auto meanType = adaptor.running_mean().getType().dyn_cast<TensorType>();
+  auto varianceType = adaptor.running_var().getType().dyn_cast<TensorType>();
+  if (!varianceType || !meanType)
+    return op.emitError("Only ranked tensor types are supported");
+
+  Value meanVal, varianceVal, weightVal, biasVal;
+  assert(meanType.getNumElements() != 0 && varianceType.getNumElements() != 0);
+  if (failed(reshapeToNormInputDim(op.getOperation(), rewriter,
+                                   getTypeConverter(), outType,
+                                   adaptor.running_mean(), meanVal)))
+    op.emitError("Failed to reshape running mean");
+
+  if (failed(reshapeToNormInputDim(op.getOperation(), rewriter,
+                                   getTypeConverter(), outType,
+                                   adaptor.running_var(), varianceVal)))
+    op.emitError("Failed to reshape running variance");
+
+  if (failed(reshapeToNormInputDim(op.getOperation(), rewriter,
+                                   getTypeConverter(), outType,
+                                   adaptor.weight(), weightVal)))
+    op.emitError("Failed to reshape weight");
+
+  if (failed(reshapeToNormInputDim(op.getOperation(), rewriter,
+                                   getTypeConverter(), outType, adaptor.bias(),
+                                   biasVal)))
+    op.emitError("Failed to reshape bias");
+
+  double eps;
+  if (!matchPattern(op.eps(), m_TorchConstantFloat(&eps)))
+    return op.emitError("eps must be a scalar constant");
+
+  auto epsilonConst =
+      mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, eps);
+
+  auto op1SubInputMean = rewriter.create<tosa::SubOp>(op->getLoc(), outType,
+                                                      adaptor.input(), meanVal);
+
+  auto op2AddVarEpsilon = rewriter.create<tosa::AddOp>(
+      op->getLoc(), varianceVal.getType(), varianceVal, epsilonConst);
+
+  auto op3RsqrtOp2 = rewriter.create<tosa::RsqrtOp>(
+      op->getLoc(), varianceVal.getType(), op2AddVarEpsilon.getResult());
+
+  auto op4MulOp1Op3 = rewriter.create<tosa::MulOp>(op->getLoc(), outType,
+                                                   op1SubInputMean.getResult(),
+                                                   op3RsqrtOp2.getResult(), 0);
+
+  auto op5MulOp4Scale = rewriter.create<tosa::MulOp>(
+      op->getLoc(), outType, op4MulOp1Op3.getResult(), weightVal, 0);
+
+  auto op6AddOp5Offset = rewriter.create<tosa::AddOp>(
+      op->getLoc(), outType, op5MulOp4Scale.getResult(), biasVal);
+
+  rewriter.replaceOp(op, {op6AddOp5Offset.getResult()});
+
+  return success();
+}
+
 // Torch constants are converted to tosa.const .
 template <>
 LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
@@ -1928,6 +2083,8 @@ public:
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
     INSERT_ATENOP_PATTERN(AtenConv2dOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
+    INSERT_ATENOP_PATTERN(AtenReshapeOp);
+    INSERT_ATENOP_PATTERN(AtenBatchNormOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
