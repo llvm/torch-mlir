@@ -81,4 +81,5 @@ TOSA_PASS_SET = {
     "ElementwiseCeilModule_basic",
     "ElementwiseReciprocalModule_basic",
     "TypePromotionAlphaWiderModule_basic",
+    "Conv2dWithPaddingDilationStrideStaticModule_basic",
 }

@@ -52,6 +52,92 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
                       input_zp, 0, false, true);
 }
 
+// Creates a TOSA rescale op based on conv2d parameters.
+Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
+                               Value conv_val, ShapedType input_type,
+                               ShapedType weight_type, ShapedType output_type) {
+  auto input_qtype =
+      input_type.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
+  auto output_qtype = output_type.getElementType()
+                          .dyn_cast<mlir::quant::UniformQuantizedType>();
+
+  double input_scale = input_qtype.getScale();
+
+  int64_t output_zp = output_qtype.getZeroPoint();
+  double output_scale = output_qtype.getScale();
+
+  bool scale32 = isScale32(output_qtype);
+  int32_t scale_width = scale32 ? 32 : 16;
+
+  if (auto weight_per_tensor_qtype =
+          weight_type.getElementType()
+              .dyn_cast<mlir::quant::UniformQuantizedType>()) {
+    // Per-tensor quantization
+    double weight_scale = weight_per_tensor_qtype.getScale();
+
+    int32_t multiplier;
+    int32_t shift;
+
+    double op_tensor_scale = (input_scale * weight_scale) / output_scale;
+
+    computeMultiplierAndShift(op_tensor_scale, multiplier, shift, scale_width);
+
+    auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
+        rewriter, op->getLoc(), output_type, conv_val,
+        rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(output_zp),
+        rewriter.getI32ArrayAttr({multiplier}),
+        rewriter.getI32ArrayAttr({shift}), rewriter.getBoolAttr(scale32),
+        rewriter.getBoolAttr(true), rewriter.getBoolAttr(false));
+
+    return rescale_op.getResult();
+
+  } else if (auto weight_per_channel_qtype =
+                 weight_type.getElementType()
+                     .dyn_cast<mlir::quant::UniformQuantizedPerAxisType>()) {
+    // Per-channel quantization
+    SmallVector<int32_t> multiplier_arr;
+    SmallVector<int32_t> shift_arr;
+
+    SmallVector<double> weight_scale_arr(
+        weight_per_channel_qtype.getScales().begin(),
+        weight_per_channel_qtype.getScales().end());
+
+    int64_t output_zp = output_qtype.getZeroPoint();
+    double output_scale = output_qtype.getScale();
+
+    for (double weight_scale : weight_scale_arr) {
+      int32_t multiplier;
+      int32_t shift;
+
+      double op_channel_scale = (input_scale * weight_scale) / output_scale;
+
+      computeMultiplierAndShift(op_channel_scale, multiplier, shift,
+                                scale_width);
+
+      multiplier_arr.push_back(multiplier);
+      shift_arr.push_back(shift);
+    }
+
+    auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
+        rewriter, op->getLoc(), output_type, conv_val,
+        rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(output_zp),
+        rewriter.getI32ArrayAttr(multiplier_arr),
+        rewriter.getI32ArrayAttr(shift_arr), rewriter.getBoolAttr(scale32),
+        rewriter.getBoolAttr(true), rewriter.getBoolAttr(true));
+
+    return rescale_op.getResult();
+
+  } else {
+    op->emitOpError("buildConvRescaleOp: unknown weight quantized type");
+    return nullptr;
+  }
+}
+
+// Check if scale32 mode is used for given output_element_type
+bool isScale32(mlir::quant::UniformQuantizedType output_element_type) {
+  return (output_element_type.getStorageTypeIntegralWidth() == 8);
+}
+
 // Create a 32-bit float constant operator from a float
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val) {
