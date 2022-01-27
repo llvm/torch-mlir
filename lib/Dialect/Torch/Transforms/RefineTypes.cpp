@@ -6,6 +6,49 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
+//
+// This file implements a dataflow analysis primarily used to infer dtypes
+// of tensors in the program. Shapes are handles separately with a
+// more involved mechanism (see createTorchShapeRefinementPipeline).
+//
+// The analysis performed in this file is implemented with MLIR's dataflow
+// analysis framework, which was originally developed for SCCP, and so is an
+// optimistic framework. It proceeds by assuming that all Value's have a
+// maximally optimistic ("bottom") lattice element associated with them, and
+// then the `visitOperation` method (and some built-in handling for control
+// flow) gradually relaxes that optimism until the lattice elements associated
+// with each Value either settle to a (optimistic) fixed-point, or need to fall
+// back on a suitable pessimistic lattice element.
+//
+// A note on dataflow analysis terminology:
+// In dataflow analysis (or other contexts where lattices appear), it is
+// frequently confusing because meet/join and related aspects of lattices
+// (such as what is "up"/"down" or "top"/"bottom" in the lattice) are dual to
+// each other and so a convention has to be chosen to ground the terminology.
+//
+// In the context of this dataflow analysis, we use the terms with the following
+// senses (many examples are given to build intuition):
+// - "top" means the state of least specific knowledge (i.e. most pessimistic
+// possible knowledge)
+// - "bottom" is the lattice element with such specific knowledge that "join"ing
+// with it is an identity operation. (i.e. most optimistic possible knowledge)
+// - "moving down the lattice" means moving towards having more specific
+// knowledge
+// - "moving up the lattice" means moving towards having less specific knowledge
+// - "top" means the state of least specific knowledge (i.e. most pessimistic
+// possible knowledge)
+// - "meet" means
+//   - "move down the lattice" (greatest lower bound)
+//   - "constrict"
+//   - "refine"
+//   - "assume union of information from both lattice elements"
+// - "join" means
+//   - "move up the lattice" (least upper bound)
+//   - "widen"
+//   - "relax"
+//   - "assume intersection of information from both lattice elements"
+//
+//===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
 
@@ -78,6 +121,12 @@ static Type getDtypeOrDefault(MLIRContext *context, Value optionalDtype,
 }
 
 static Type joinElementTypes(Type lhs, Type rhs) {
+  if (lhs == rhs)
+    return lhs;
+  return Type();
+}
+
+static Type meetElementTypes(Type lhs, Type rhs) {
   if (!lhs)
     return rhs;
   if (!rhs)
@@ -86,6 +135,7 @@ static Type joinElementTypes(Type lhs, Type rhs) {
     return lhs;
   return Type();
 }
+
 
 // This is the type rule used for deciding dtype for:
 // 1. A new tensor created from given data.
@@ -183,6 +233,8 @@ struct ValueKnowledge {
     if (lhs.optional == rhs.optional)
       result.optional = lhs.optional;
 
+    result.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
+
     if (lhs.hasSizes && !rhs.hasSizes) {
       result.hasSizes = true;
       result.sizes = lhs.sizes;
@@ -207,7 +259,7 @@ struct ValueKnowledge {
       }
     }
 
-    result.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
+
     return result;
   }
 
@@ -1708,7 +1760,7 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
   unsigned matDim = (lhsDim - 1) + (rhsDim - 1);
   unsigned resultRank = batchDim + matDim;
   knowledge.sizes.resize(resultRank, kUnknownSize);
-  knowledge.dtype = joinElementTypes(self.dtype, other.dtype);
+  knowledge.dtype = meetElementTypes(self.dtype, other.dtype);
   knowledge.hasSizes = true;
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
