@@ -2883,6 +2883,7 @@ def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [
     Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_AtenListTOp : Torch_Op<"aten.list.t", [

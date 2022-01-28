@@ -468,6 +468,35 @@ func @torch.aten.__getitem__.t$invalid_index() -> !torch.int {
   return %1 : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.aten.eq.int_list$fold$literals_of_different_sizes
+// CHECK:           %[[RET:.*]] = torch.constant.bool false
+// CHECK:           return %[[RET]] : !torch.bool
+func @torch.aten.eq.int_list$fold$literals_of_different_sizes(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.prim.ListConstruct : () -> !torch.list<!torch.int>
+  %1 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<!torch.int>
+  %2 = torch.aten.eq.int_list %0, %1 : !torch.list<!torch.int>, !torch.list<!torch.int> -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int_list$fold$same_literal
+// CHECK:           %[[RET:.*]] = torch.constant.bool true
+// CHECK:           return %[[RET]] : !torch.bool
+func @torch.aten.eq.int_list$fold$same_literal(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<!torch.int>
+  %1 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<!torch.int>
+  %2 = torch.aten.eq.int_list %0, %1 : !torch.list<!torch.int>, !torch.list<!torch.int> -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int_list$no_fold$different_literals(
+func @torch.aten.eq.int_list$no_fold$different_literals(%arg0: !torch.int, %arg1: !torch.int) -> !torch.bool {
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<!torch.int>
+  %1 = torch.prim.ListConstruct %arg1 : (!torch.int) -> !torch.list<!torch.int>
+  // CHECK: torch.aten.eq.int_list
+  %2 = torch.aten.eq.int_list %0, %1 : !torch.list<!torch.int>, !torch.list<!torch.int> -> !torch.bool
+  return %2 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.Float.Scalar$constant_fold_int_to_float() -> !torch.float {
 // CHECK:           %[[VAL_0:.*]] = torch.constant.float 3.000000e+00
 // CHECK:           return %[[VAL_0]] : !torch.float

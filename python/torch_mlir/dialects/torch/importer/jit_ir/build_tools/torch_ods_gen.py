@@ -417,7 +417,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::cat : (Tensor[], int) -> (Tensor)")
         emit("aten::append.t : (t[], t) -> (t[])")
         emit("aten::add.t : (t[], t[]) -> (t[])")
-        emit("aten::eq.int_list : (int[], int[]) -> (bool)")
+        emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
         emit("aten::list.t : (t[]) -> (t[])")
         emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
 

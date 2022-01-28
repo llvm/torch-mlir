@@ -1163,6 +1163,35 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenEqIntListOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqIntListOp::fold(ArrayRef<Attribute> operands) {
+  auto lhsLiteral = a().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!lhsLiteral)
+    return nullptr;
+  auto rhsLiteral = b().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!rhsLiteral)
+    return nullptr;
+
+  // If the sizes don't match, then we know the lists aren't equal.
+  if (lhsLiteral.getNumOperands() != rhsLiteral.getNumOperands())
+    return getI1IntegerAttr(getContext(), false);
+
+  // If the sizes match and all corresponding list elements are the same Value,
+  // then we know the lists are equal.
+  // Note that we can't prove that the lists are not-equal with this method,
+  // since two different Value's might dynamically be equal.
+  if (llvm::all_of(
+          llvm::zip(lhsLiteral.getOperands(), rhsLiteral.getOperands()),
+          [](const auto &pair) {
+            return std::get<0>(pair) == std::get<1>(pair);
+          }))
+    return getI1IntegerAttr(getContext(), true);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // PrimTupleIndexOp
 //===----------------------------------------------------------------------===//
 
