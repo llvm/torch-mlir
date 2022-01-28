@@ -238,6 +238,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Device": "Torch_DeviceType",
     "Device?": "TorchOptionalDeviceType",
     "str": "Torch_StringType",
+    "str?": "TorchOptionalStringType",
     "str[]": "TorchStringListType",
     "Dict": "Torch_DictType",
     "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
@@ -413,7 +414,7 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::min.int : (int, int) -> (int)")
         emit("prim::max.self_int : (int[]) -> (int)")
         emit("prim::max.int : (int, int) -> (int)")
-        emit("prim::RaiseException : (str) -> ()")
+        emit("prim::RaiseException : (str, str?) -> ()")
         emit("prim::Uninitialized : () -> (Any)", traits=["NoSideEffect"])
         emit("prim::unchecked_cast : (t) -> (t)",
              traits=["DeclareOpInterfaceMethods<CastOpInterface>"])

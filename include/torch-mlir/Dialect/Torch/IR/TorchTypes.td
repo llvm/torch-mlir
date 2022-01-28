@@ -380,6 +380,8 @@ def AnyTorchOptionalTensorType :
 def TorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
 def TorchOptionalBoolType:
       OptionalOf<Torch_BoolType, "Optional torch bool type">;
+def TorchOptionalStringType:
+      OptionalOf<Torch_StringType, "Optional torch Str type">;
 def TorchOptionalDeviceType:
       OptionalOf<Torch_DeviceType, "Optional torch device type">;
 

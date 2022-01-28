@@ -165,13 +165,14 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
     AllowsTypeRefinement,
     HasValueSemantics
   ]> {
-  let summary = "Generated op for `prim::RaiseException : (str) -> ()`";
+  let summary = "Generated op for `prim::RaiseException : (str, str?) -> ()`";
   let arguments = (ins
-    Torch_StringType:$msg
+    Torch_StringType:$msg,
+    TorchOptionalStringType:$cls
   );
   let results = (outs
   );
-  let assemblyFormat = "$msg attr-dict `:` qualified(type($msg))";
+  let assemblyFormat = "$msg `,` $cls attr-dict `:` qualified(type($msg)) `,` qualified(type($cls))";
 }
 
 def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
