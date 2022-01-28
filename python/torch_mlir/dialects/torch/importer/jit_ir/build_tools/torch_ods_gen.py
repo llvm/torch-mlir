@@ -683,6 +683,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
         emit("aten::gelu_backward : (Tensor, Tensor) -> (Tensor)")
         emit("aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
+        emit("aten::native_layer_norm_backward : (Tensor, Tensor, int[], Tensor, Tensor, Tensor?, Tensor?, bool[]) -> (Tensor, Tensor, Tensor)")
 
 
 

@@ -212,6 +212,7 @@ class NativeLayerNormModule(torch.nn.Module):
 def NativeLayerNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
 
+
 class NativeLayerNormDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
