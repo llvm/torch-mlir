@@ -69,9 +69,19 @@ bool mlir::torch::Torch::isListPotentiallyMutated(Value list) {
 }
 
 bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
-  // A simple allowlist of ops that we know don't mutate lists.
-  return !isa<AtenEqIntListOp, Aten__Getitem__TOp, AtenLenTOp,
-              ShapeCalculateYieldShapesOp>(op);
+  // Ops with value semantics trivially do not mutate any list operands.
+  if (op->hasTrait<Torch::OpTrait::HasValueSemantics>())
+    return false;
+
+  // Some ops don't have value semantics (e.g. they return aliases of their
+  // inputs), but we still know they are read-only.
+  // TODO: Have a trait for this property, and derive it from the registry from
+  // the `alias_info`.
+  if (isa<Aten__Getitem__TOp>(op))
+    return false;
+
+  // Conservatively assume that an op might mutate any list operands.
+  return true;
 }
 
 static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
@@ -1156,7 +1166,8 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     // they always return a new SSA value that is aliased to the input.
     // Can we have a pass to normalize the `t_` case and then elsewhere in the
     // compiler treat the size as having value semantics?
-    // TODO: Investigate the `t_` case. Why is it such an outlier?
+    // There's a small number of such ops, and they are marked as `inplace_view`
+    // in PyTorch's `native_functions.yaml` file.
     rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.self(), op.idx());
     return success();
   });

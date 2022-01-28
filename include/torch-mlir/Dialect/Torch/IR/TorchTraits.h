@@ -23,8 +23,9 @@ namespace Torch {
 namespace OpTrait {
 
 // If a Torch op has this trait, it means that the op does not exploit the
-// mutability / aliasing properties of torch tensors. This enables a
-// transformation which locally replaces mutable arrays with immutable tensors.
+// mutability / aliasing properties of torch tensors, lists, or dictionaries.
+// This enables transformations to locally reason about immutability for those
+// types.
 template <typename ConcreteType>
 class HasValueSemantics
     : public ::mlir::OpTrait::TraitBase<ConcreteType, HasValueSemantics> {};

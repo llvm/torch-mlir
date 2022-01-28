@@ -964,6 +964,7 @@ def Torch_ShapeCalculateYieldOp : Torch_Op<"shape.calculate.yield", [
 def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes", [
     DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
     Terminator,
+    HasValueSemantics,
     HasParent<"::mlir::torch::Torch::ShapeCalculateOp">]> {
   let summary = "yield-like terminator for torch.shape.calculate shape region";
   let description = [{
