@@ -125,6 +125,9 @@ public:
       return getParentInBlock(lhs)->isBeforeInBlock(getParentInBlock(rhs));
     });
 
+    // For each mutating op (which must be in the same block), we save the
+    // current state of the list as a vector of Value's. These will then
+    // be converted to PrimListConstructOp's at the correct program points.
     SmallVector<SmallVector<Value>> listLiterals;
     SmallVector<Value> runningList;
     llvm::append_range(runningList, op->getOperands());
@@ -136,24 +139,51 @@ public:
         listLiterals.push_back(runningList);
         continue;
       }
+      if (auto insert = dyn_cast<AtenInsertTOp>(user)) {
+        if (!insert.use_empty())
+          return failure();
+        int64_t index;
+        if (!matchPattern(insert.idx(), m_TorchConstantInt(&index)))
+          return failure();
+        // The index might be statically out of bounds.
+        if (index < 0 || index > static_cast<int64_t>(runningList.size()))
+          return failure();
+        runningList.insert(runningList.begin() + index, insert.el());
+        listLiterals.push_back(runningList);
+        continue;
+      }
       // If this user potentially mutates the list and isn't handled above, then
       // we can't abstractly interpret any further.
       if (potentiallyMutatesListOperands(user))
         break;
     }
+
     if (listLiterals.empty())
       return failure();
 
-    Value latestLiteral = nullptr;
-    for (const auto &t : llvm::zip(
-             makeArrayRef(users).slice(0, listLiterals.size()), listLiterals)) {
-      Operation *user = std::get<0>(t);
-      auto listLiteral = std::get<1>(t);
-      rewriter.setInsertionPoint(getParentInBlock(user));
-      latestLiteral = rewriter.replaceOpWithNewOp<PrimListConstructOp>(
-          user, user->getResultTypes()[0], listLiteral);
+    // Rewrite all users to use the appropriate list literals.
+    Value latestLiteral = op;
+    int nextLiteral = 0;
+    for (Operation *user : users) {
+      if (auto append = dyn_cast<AtenAppendTOp>(user)) {
+        rewriter.setInsertionPoint(append);
+        latestLiteral = rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+            append, append.getType(), listLiterals[nextLiteral++]);
+        continue;
+      }
+      if (auto insert = dyn_cast<AtenInsertTOp>(user)) {
+        rewriter.setInsertionPoint(insert);
+        latestLiteral = rewriter.create<PrimListConstructOp>(
+            op->getLoc(), insert.self().getType(), listLiterals[nextLiteral++]);
+        rewriter.eraseOp(insert);
+        continue;
+      }
+      for (OpOperand &opOperand : user->getOpOperands()) {
+        if (opOperand.get() == op.getResult()) {
+          opOperand.set(latestLiteral);
+        }
+      }
     }
-    rewriter.replaceOp(op, latestLiteral);
 
     return success();
   }

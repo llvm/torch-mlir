@@ -169,6 +169,9 @@ def aten〇softmax〇int(self: List[int], dim: int, dtype: Optional[int] = None)
 def aten〇log_softmax〇int(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return shape_helpers.unary(self)
 
+def aten〇clamp(self: List[int], min: Optional[float] = None, max: Optional[float] = None) -> List[int]:
+    return shape_helpers.unary(self)
+
 def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> List[int]:
     return shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 

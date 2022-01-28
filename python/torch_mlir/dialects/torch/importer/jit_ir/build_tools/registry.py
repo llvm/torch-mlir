@@ -29,6 +29,8 @@ def _pytype_to_shape_fn_pytype(pytype: str) -> str:
     # function.
     if pytype == "number":
         return "float"
+    if pytype == "Optional[number]":
+        return "Optional[float]"
     # `torch.device` is lowercase.
     if pytype == "Device":
         return "device"

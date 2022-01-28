@@ -55,6 +55,10 @@ module  {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten.clamp"(%arg0: !torch.list<!torch.int>, %arg1: !torch.optional<!torch.float>, %arg2: !torch.optional<!torch.float>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
   func @"__torch_mlir_shape_fn.aten.max_pool2d"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.list<!torch.int>, %arg3: !torch.list<!torch.int>, %arg4: !torch.list<!torch.int>, %arg5: !torch.bool) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
@@ -879,7 +883,7 @@ module  {
     %1 = torch.aten.add.int %0, %int1 : !torch.int, !torch.int -> !torch.int
     %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers._copy(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
-    torch.operator "aten.insert.t"(%3, %2, %int1) : (!torch.list<!torch.int>, !torch.int, !torch.int) -> ()
+    torch.aten.insert.t %3, %2, %int1 : !torch.list<!torch.int>, !torch.int, !torch.int
     return %3 : !torch.list<!torch.int>
   }
   func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {

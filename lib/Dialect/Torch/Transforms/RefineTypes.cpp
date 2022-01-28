@@ -1271,22 +1271,6 @@ ChangeResult TypeAnalyzer::visitAtenUnsqueezeOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
-  int64_t dim;
-  if (operand.hasSizes && matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
-    int64_t inputRank = operand.sizes.size();
-    // Careful, it's easy to be off by one here for negative values.
-    // The dim value is allowed to be in the range
-    // `[-inputRank - 1, inputRank]`.
-    // And negative values have `inputRank + 1` added to them rather
-    // than the more typical `inputRank`.
-    if (dim < 0)
-      dim += inputRank + 1;
-    if (0 <= dim && dim <= inputRank) {
-      knowledge.hasSizes = true;
-      knowledge.sizes = operand.sizes;
-      knowledge.sizes.insert(knowledge.sizes.begin() + dim, 1);
-    }
-  }
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 

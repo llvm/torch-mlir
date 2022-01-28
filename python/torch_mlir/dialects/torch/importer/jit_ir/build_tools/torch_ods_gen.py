@@ -420,6 +420,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
         emit("aten::list.t : (t[]) -> (t[])")
         emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
+        emit("aten::insert.t : (t[], int, t) -> ()")
 
         # Str ops.
         emit("aten::add.str : (str, str) -> (str)")

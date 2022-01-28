@@ -135,11 +135,6 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // have shape functions handled by createTorchShapeRefinementPipeline.
   pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
 
-  // XXX: Do shape refinement again. This fixes some simple test cases by
-  // effectively iterating TorchShapeRefinementPipeline and RefineTypes one
-  // iteration more towards a fixed-point.
-  createTorchShapeRefinementPipeline(pm, options);
-
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());

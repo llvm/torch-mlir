@@ -2917,6 +2917,20 @@ def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
   let assemblyFormat = "$l `,` $start `,` $end `,` $step attr-dict `:` qualified(type($l)) `,` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($step)) `->` qualified(type($result))";
 }
 
+def Torch_AtenInsertTOp : Torch_Op<"aten.insert.t", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::insert.t : (t[], int, t) -> ()`";
+  let arguments = (ins
+    AnyTorchListType:$self,
+    Torch_IntType:$idx,
+    AnyTorchType:$el
+  );
+  let results = (outs
+  );
+  let assemblyFormat = "$self `,` $idx `,` $el attr-dict `:` qualified(type($self)) `,` qualified(type($idx)) `,` qualified(type($el))";
+}
+
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
     AllowsTypeRefinement,
     HasValueSemantics
