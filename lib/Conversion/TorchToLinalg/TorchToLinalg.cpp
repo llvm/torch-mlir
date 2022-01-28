@@ -553,20 +553,35 @@ public:
 };
 } // namespace
 
-// Normalization formula:
-//   ((input - mean) / sqrt(var + eps)) * weight + bias
-static Value createLinalgPayloadCalculationForNormOps(
-    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
-    Value eps, Value weight, Value bias) {
-  Value inputSubMean = b.create<arith::SubFOp>(loc, input, mean);
+/// Inverted STD: rSTD = 1 / sqrt(var + eps).
+static Value calculateRSTD(OpBuilder &b, Location loc, Type elemTy, Value eps,
+                           Value var) {
   // The eps is always f64.
   Value truncatedEps = b.create<arith::TruncFOp>(loc, elemTy, eps);
   Value varPlusEps = b.create<arith::AddFOp>(loc, var, truncatedEps);
   Value rSTD = b.create<math::RsqrtOp>(loc, varPlusEps);
+  return rSTD;
+}
+
+// Normalization formula:
+//   ((input - mean) * rSTD * weight + bias
+static Value createLinalgPayloadCalculationForNormOpsWithRSTD(
+    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean,
+    Value rSTD, Value eps, Value weight, Value bias) {
+  Value inputSubMean = b.create<arith::SubFOp>(loc, input, mean);
   Value temp = b.create<arith::MulFOp>(loc, inputSubMean, rSTD);
   Value timesWeight = b.create<arith::MulFOp>(loc, temp, weight);
   Value plusBias = b.create<arith::AddFOp>(loc, timesWeight, bias);
   return plusBias;
+}
+
+static Value createLinalgPayloadCalculationForNormOpsWithVar(
+    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
+    Value eps, Value weight, Value bias) {
+  Value rSTD = calculateRSTD(b, loc, elemTy, eps, var);
+  Value result = createLinalgPayloadCalculationForNormOpsWithRSTD(
+      b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
+  return result;
 }
 
 static void createLinalgPayloadCalculationForGatherOps(
@@ -638,9 +653,6 @@ public:
     auto runningMeanType = runningMean.getType().cast<RankedTensorType>();
     auto runningVarType = runningVar.getType().cast<RankedTensorType>();
 
-    SmallVector<StringRef> runningVarIterationTypes(
-        runningVarType.getRank(), getParallelIteratorTypeName());
-
     auto inputRank = inputType.getRank();
     if (inputRank <= 2)
       return rewriter.notifyMatchFailure(
@@ -699,9 +711,10 @@ public:
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value input = args[0], weight = args[1], bias = args[2],
                         mean = args[3], var = args[4];
-                  Value result = createLinalgPayloadCalculationForNormOps(
-                      b, loc, var.getType(), input, mean, var, eps, weight,
-                      bias);
+                  Value result =
+                      createLinalgPayloadCalculationForNormOpsWithVar(
+                          b, loc, var.getType(), input, mean, var, eps, weight,
+                          bias);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
@@ -727,7 +740,7 @@ public:
 // Step 2. Common parts to be used for getting mean and var.
 //         This includes elements count, affineMap and iteratorTypes.
 // Step 3. Get mean.
-// Step 4. Get var.
+// Step 4. Get rSTD.
 // Step 5. Get layernorm.
 namespace {
 class ConvertAtenNativeLayerNormOp
@@ -865,7 +878,7 @@ public:
                     .getResult(0);
     Value mean = genMeanOrVarCalculation(sum);
 
-    // Step 4. Get var.
+    // Step 4. Get rSTD.
 
     // Calculate squareSum for the layer.
     SmallVector<AffineMap> squareSumIndexingMaps{
@@ -892,6 +905,21 @@ public:
                 })
             .getResult(0);
     Value var = genMeanOrVarCalculation(squareSum);
+    Value rSTDTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, meanAndVarShapeSizes, elemTy);
+    SmallVector<AffineMap> rSTDIndexingMap(
+        2, rewriter.getMultiDimIdentityMap(meanAndVarShapeRank));
+
+    Value rSTD = rewriter
+                     .create<linalg::GenericOp>(
+                         loc, rSTDTensor.getType(), var, rSTDTensor,
+                         rSTDIndexingMap, meanAndVarIterationTypes,
+                         [&](OpBuilder &b, Location loc, ValueRange args) {
+                           Value result =
+                               calculateRSTD(b, loc, elemTy, eps, args[0]);
+                           b.create<linalg::YieldOp>(loc, result);
+                         })
+                     .getResult(0);
 
     // Step 5. Get layernorm.
 
@@ -916,14 +944,16 @@ public:
         rewriter
             .create<linalg::GenericOp>(
                 loc, initLayerNormTensor.getType(),
-                ValueRange{input, mean, var, weight, bias}, initLayerNormTensor,
+                ValueRange{input, mean, rSTD, weight, bias},
+                initLayerNormTensor,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/layerNormIterationTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value input = args[0], mean = args[1], var = args[2],
+                  Value input = args[0], mean = args[1], rSTD = args[2],
                         weight = args[3], bias = args[4];
-                  Value result = createLinalgPayloadCalculationForNormOps(
-                      b, loc, elemTy, input, mean, var, eps, weight, bias);
+                  Value result =
+                      createLinalgPayloadCalculationForNormOpsWithRSTD(
+                          b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
@@ -938,10 +968,8 @@ public:
     auto expandShapeType = RankedTensorType::get(expandShape, elemTy);
     SmallVector<ReassociationIndices> reassociation(meanAndVarShapeRank);
     for (auto i : llvm::seq<int64_t>(0, meanAndVarShapeRank)) {
-      if (i != meanAndVarShapeRank - 1) {
-        reassociation[i].push_back(i);
-      } else {
-        reassociation[i].push_back(i);
+      reassociation[i].push_back(i);
+      if (i == meanAndVarShapeRank - 1) {
         for (auto j : llvm::seq<int64_t>(0, normalizedShapeRank))
           reassociation[i].push_back(i + j + 1);
       }
@@ -960,6 +988,411 @@ public:
     Value var_ =
         rewriter.create<tensor::CastOp>(loc, rSTDResultType, rSTDResult);
     rewriter.replaceOp(op, {layerNorm_, mean_, var_});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+
+// Converts the `aten.native_layer_norm_backward` op to linalg. There are three
+// components to be calculated here:
+//  1) Gradient of the weights(dWeight).
+//  2) Gradiend of the bias(dBias).
+//  3) Gradient of the input(dInput).
+class ConvertAtenNativeLayerNormBackwardOp
+    : public OpConversionPattern<AtenNativeLayerNormBackwardOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNativeLayerNormBackwardOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    MLIRContext *context = op->getContext();
+    Location loc = op->getLoc();
+    Value gradOut = adaptor.grad_out();
+    Value input = adaptor.input();
+    Value normalizedShape = adaptor.normalized_shape();
+    Value mean = adaptor.mean();
+    Value rSTD = adaptor.rstd();
+    Value weight = adaptor.weight();
+    Value bias = adaptor.bias();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // TODO: Handle the None cases for the optional parameters:
+    // weight, bias.
+    if (failed(checkNotNone(rewriter, op, weight)) ||
+        failed(checkNotNone(rewriter, op, bias)))
+      return failure();
+
+    SmallVector<bool> outputMask;
+    if (!matchPattern(op.output_mask(), m_TorchConstantBoolList(outputMask)))
+      return rewriter.notifyMatchFailure(op,
+                                         "output masks must be constant bools");
+    if (outputMask.size() != 3)
+      return op.emitError("output mask must have only 3 values");
+
+    // TODO: Handle false values for output mask.
+    if (!outputMask[0] || !outputMask[1] || !outputMask[2]) {
+      return rewriter.notifyMatchFailure(
+          op, "false values for output mask is not supported");
+    }
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto meanType = mean.getType().cast<RankedTensorType>();
+    auto rSTDType = rSTD.getType().cast<RankedTensorType>();
+    auto weightType = weight.getType().cast<RankedTensorType>();
+    auto biasType = bias.getType().cast<RankedTensorType>();
+    unsigned inputRank = inputType.getRank();
+    Type elemTy = inputType.getElementType();
+
+    // Check if the arguments meet the following requirements.
+    //  1. Rank(weight) == Rank(bias) == Rank(normalizedShape).
+    //  2. Rank(mean) == Rank(rstd) == Rank(input).
+    //  3. Rank(input) >= Rank(normalizedShape).
+    //  4. Rank(normalizedShape) >= 1.
+    SmallVector<Value> normalizedShapeSizesTorchInt;
+    if (!getListConstructElements(normalizedShape,
+                                  normalizedShapeSizesTorchInt)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented normalized_shape not"
+                                         "constructed from ListConstruct");
+    }
+    SmallVector<Value> normalizedShapeSizesInt = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), normalizedShapeSizesTorchInt);
+    unsigned normalizedShapeRank = normalizedShapeSizesInt.size();
+    unsigned axis = inputRank - normalizedShapeRank;
+    if (weightType.getRank() != normalizedShapeRank ||
+        biasType.getRank() != normalizedShapeRank)
+      return rewriter.notifyMatchFailure(
+          op, "weight, bias and normalize_shape must be of same rank");
+
+    if (meanType.getRank() != inputRank || rSTDType.getRank() != inputRank)
+      return rewriter.notifyMatchFailure(
+          op, "input, rstd and mean must be of same rank");
+
+    if (inputRank < normalizedShapeRank)
+      return rewriter.notifyMatchFailure(
+          op, "input cannot have rank less than normalized_shape");
+    if (normalizedShapeRank < 1)
+      return rewriter.notifyMatchFailure(
+          op, "normalized_shape must have rank atleast 1");
+
+    // Check the dimensions of weight and bias to match the dimensions of
+    // normalized_shape.
+    SmallVector<Value> weightAndBiasShape;
+    for (auto en : enumerate((normalizedShapeSizesInt))) {
+      auto index = en.index();
+      auto inputDim = getDimOp(rewriter, loc, input, index + axis);
+      auto weightDim = getDimOp(rewriter, loc, weight, index);
+      auto biasDim = getDimOp(rewriter, loc, bias, index);
+
+      auto expectedSize = en.value();
+      checkDimEqualHelper(rewriter, loc, inputDim, expectedSize);
+      checkDimEqualHelper(rewriter, loc, weightDim, expectedSize);
+      checkDimEqualHelper(rewriter, loc, biasDim, expectedSize);
+      weightAndBiasShape.push_back(weightDim);
+    }
+
+    // Check the dimensions of mean and rSTD to match with the input dims.
+    SmallVector<Value> meanAndSTDShape;
+    for (unsigned i = 0; i < axis; i++) {
+      auto meanDim = getDimOp(rewriter, loc, mean, i);
+      auto rSTDDim = getDimOp(rewriter, loc, rSTD, i);
+      auto inputDim = getDimOp(rewriter, loc, input, i);
+
+      checkDimEqualHelper(rewriter, loc, meanDim, inputDim);
+      checkDimEqualHelper(rewriter, loc, rSTDDim, inputDim);
+      meanAndSTDShape.push_back(inputDim);
+    }
+
+    SmallVector<Value> inputShape = meanAndSTDShape;
+    inputShape.append(weightAndBiasShape);
+
+    // Calculate input_hat = (input - mean) * rSTD
+    AffineMap inputAffineMap = rewriter.getMultiDimIdentityMap(inputRank);
+    SmallVector<AffineExpr> meanAndVarAffineExpr;
+    for (unsigned i = 0; i < axis; i++)
+      meanAndVarAffineExpr.push_back(mlir::getAffineDimExpr(i, context));
+    auto meanAndVarAffineMap = AffineMap::get(
+        /*dimCount=*/inputRank, /*symbolCount=*/0, meanAndVarAffineExpr,
+        context);
+    Value inputHatTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    SmallVector<StringRef> inputIteratorType(inputRank,
+                                             getParallelIteratorTypeName());
+    SmallVector<StringRef> reshapedMeanVarIteratorType(
+        inputRank, getParallelIteratorTypeName());
+    Value reshapedMeanTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, meanAndSTDShape, elemTy);
+    Value reshapedRSTDTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, meanAndSTDShape, elemTy);
+    SmallVector<AffineMap> meanAndVarIndexingMap{inputAffineMap,
+                                                 meanAndVarAffineMap};
+    Value reshapedMean =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, reshapedMeanTensor.getType(), mean, reshapedMeanTensor,
+                /*indexingMaps=*/meanAndVarIndexingMap,
+                /*iteratorTypes=*/reshapedMeanVarIteratorType,
+                [](OpBuilder &b, Location loc, ValueRange args) {
+                  b.create<linalg::YieldOp>(loc, args[0]);
+                })
+            .getResult(0);
+    Value reshapedRSTD =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, reshapedRSTDTensor.getType(), rSTD, reshapedRSTDTensor,
+                /*indexingMaps=*/meanAndVarIndexingMap,
+                /*iteratorTypes=*/inputIteratorType,
+                [](OpBuilder &b, Location loc, ValueRange args) {
+                  b.create<linalg::YieldOp>(loc, args[0]);
+                })
+            .getResult(0);
+    SmallVector<AffineMap> inputHatIndexingMap{
+        inputAffineMap, meanAndVarAffineMap, meanAndVarAffineMap,
+        inputAffineMap};
+    Value inputHat =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, inputHatTensor.getType(),
+                ValueRange{input, reshapedMean, reshapedRSTD}, inputHatTensor,
+                /*indexingMaps=*/inputHatIndexingMap,
+                /*iteratorTypes=*/inputIteratorType,
+                [](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0], mean = args[1], rSTD = args[2];
+                  Value xSubMean = b.create<arith::SubFOp>(loc, input, mean);
+                  Value result = b.create<arith::MulFOp>(loc, xSubMean, rSTD);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+
+    // Step 1. Calculate dWeight = reduce_sum(gradOut * input_hat) across
+    // dimensions until `axis`.
+    SmallVector<AffineExpr> weightAndBiasAffineExpr;
+    for (unsigned i = axis; i < inputRank; i++)
+      weightAndBiasAffineExpr.push_back(mlir::getAffineDimExpr(i, context));
+    auto weightAndBiasAffineMap =
+        AffineMap::get(/*dimCount=*/inputRank, /*symbolCount=*/0,
+                       weightAndBiasAffineExpr, context);
+    SmallVector<AffineMap> dWeightIndexingMaps{
+        inputAffineMap,          // gradOut * inputHat
+        weightAndBiasAffineMap}; // dWeight
+    SmallVector<StringRef> dWeightdBiasIteratorTypes;
+    for (unsigned i = 0; i < inputRank; i++) {
+      if (i < axis)
+        dWeightdBiasIteratorTypes.push_back(getReductionIteratorTypeName());
+      else
+        dWeightdBiasIteratorTypes.push_back(getParallelIteratorTypeName());
+    }
+    SmallVector<AffineMap> prodIndexingMaps(3, inputAffineMap);
+    Value prodTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    Value prod = rewriter
+                     .create<linalg::GenericOp>(
+                         loc, prodTensor.getType(),
+                         ValueRange{gradOut, inputHat}, prodTensor,
+                         /*indexingMaps=*/prodIndexingMaps,
+                         /*iteratorTypes=*/inputIteratorType,
+                         [](OpBuilder &b, Location loc, ValueRange args) {
+                           Value gradOut = args[0], inputHat = args[1];
+                           Value result =
+                               b.create<arith::MulFOp>(loc, gradOut, inputHat);
+                           b.create<linalg::YieldOp>(loc, result);
+                         })
+                     .getResult(0);
+    Value dWeightTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, weightAndBiasShape, elemTy);
+    Value dWeight = rewriter
+                        .create<linalg::GenericOp>(
+                            loc, dWeightTensor.getType(), prod, dWeightTensor,
+                            /*indexingMaps=*/dWeightIndexingMaps,
+                            /*iteratorTypes=*/dWeightdBiasIteratorTypes,
+                            [](OpBuilder &b, Location loc, ValueRange args) {
+                              Value temp = args[0], sum = args[1];
+                              Value result =
+                                  b.create<arith::AddFOp>(loc, temp, sum);
+                              b.create<linalg::YieldOp>(loc, result);
+                            })
+                        .getResult(0);
+
+    // Step 2. Calculate dBias = reduce_sum(gradOut) over dimensions until
+    // `axis`.
+    SmallVector<AffineMap> dBiasIndexingMaps{inputAffineMap,          // gradOut
+                                             weightAndBiasAffineMap}; // dB
+    Value dBiasTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, weightAndBiasShape, elemTy);
+    Value dBias = rewriter
+                      .create<linalg::GenericOp>(
+                          loc, dBiasTensor.getType(), gradOut, dBiasTensor,
+                          /*indexingMaps=*/dBiasIndexingMaps,
+                          /*iteratorTypes=*/dWeightdBiasIteratorTypes,
+                          [](OpBuilder &b, Location loc, ValueRange args) {
+                            Value gradOut = args[0], sum = args[1];
+                            Value result =
+                                b.create<arith::AddFOp>(loc, gradOut, sum);
+                            b.create<linalg::YieldOp>(loc, result);
+                          })
+                      .getResult(0);
+
+    // Step 3. Calculate dInput.
+    // Step 3.1. Calculate dInputHat = gradOut * weight
+    SmallVector<AffineMap> dInputHatIndexingMap{
+        inputAffineMap,         // gradOut
+        weightAndBiasAffineMap, // weight
+        inputAffineMap};        // dInputHat
+    Value dInputHatTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    Value dInputHat =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, dInputHatTensor.getType(), ValueRange{gradOut, weight},
+                dInputHatTensor,
+                /*indexingMaps=*/dInputHatIndexingMap,
+                /*iteratorTypes=*/inputIteratorType,
+                [](OpBuilder &b, Location loc, ValueRange args) {
+                  Value gradOut = args[0], weight = args[1];
+                  Value result = b.create<arith::MulFOp>(loc, gradOut, weight);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+
+    // Step 3.2. Calculate a, b, c1, c2, c3 constants.
+    // a = (num_features * dInputHat)
+    // b = reduceSum(dInputHat) over dimensions from axis to end.
+    // c1 = (dInputHat * inputHat)
+    // c2 = reduceSum(c1) overdimensions from axis to end.
+    // c3 = inputHat * c2.
+
+    // Get number of features.
+    Value numFeatures = normalizedShapeSizesInt[0];
+    for (unsigned i = 1; i < normalizedShapeRank; i++) {
+      numFeatures = rewriter.create<arith::MulIOp>(loc, numFeatures,
+                                                   normalizedShapeSizesInt[i]);
+    }
+    Value numFeaturesFloat =
+        rewriter.create<arith::SIToFPOp>(loc, elemTy, numFeatures);
+
+    // GetIndexingMaps for all the constants.
+    SmallVector<AffineMap> aIndexingMap(2, inputAffineMap);
+    SmallVector<AffineMap> bIndexingMap{inputAffineMap,       // dInputHat
+                                        meanAndVarAffineMap}; // b
+    SmallVector<AffineMap> c1IndexingMap(3, inputAffineMap);
+    SmallVector<AffineMap> c2IndexingMap{inputAffineMap,       // c1
+                                         meanAndVarAffineMap}; // c2
+    SmallVector<AffineMap> c3IndexingMap{inputAffineMap,       // inputHat
+                                         meanAndVarAffineMap,  // c2
+                                         inputAffineMap};      // c3
+
+    // Get Iterator types for the constants.
+    SmallVector<StringRef> bAndC2IteratorTypes;
+    for (unsigned i = 0; i < inputRank; i++) {
+      if (i >= axis)
+        bAndC2IteratorTypes.push_back(getReductionIteratorTypeName());
+      else
+        bAndC2IteratorTypes.push_back(getParallelIteratorTypeName());
+    }
+
+    Value aTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    Value bTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, meanAndSTDShape, elemTy);
+    Value c1Tensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    Value c2Tensor =
+        rewriter.create<linalg::InitTensorOp>(loc, meanAndSTDShape, elemTy);
+    Value c3Tensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+
+    Value a = rewriter
+                  .create<linalg::GenericOp>(
+                      loc, aTensor.getType(), dInputHat, aTensor,
+                      /*indexingMaps=*/aIndexingMap,
+                      /*iteratorTypes=*/inputIteratorType,
+                      [&](OpBuilder &b, Location loc, ValueRange args) {
+                        Value dInputHat = args[0];
+                        Value result = b.create<arith::MulFOp>(
+                            loc, dInputHat, numFeaturesFloat);
+                        b.create<linalg::YieldOp>(loc, result);
+                      })
+                  .getResult(0);
+    Value b = rewriter
+                  .create<linalg::GenericOp>(
+                      loc, bTensor.getType(), dInputHat, bTensor, bIndexingMap,
+                      bAndC2IteratorTypes,
+                      [](OpBuilder &b, Location loc, ValueRange args) {
+                        Value dInputHat = args[0], sum = args[1];
+                        Value result =
+                            b.create<arith::AddFOp>(loc, dInputHat, sum);
+                        b.create<linalg::YieldOp>(loc, result);
+                      })
+                  .getResult(0);
+    Value c1 = rewriter
+                   .create<linalg::GenericOp>(
+                       loc, c1Tensor.getType(), ValueRange{dInputHat, inputHat},
+                       c1Tensor, c1IndexingMap, inputIteratorType,
+                       [](OpBuilder &b, Location loc, ValueRange args) {
+                         Value dInputHat = args[0], inputHat = args[1];
+                         Value result =
+                             b.create<arith::MulFOp>(loc, dInputHat, inputHat);
+                         b.create<linalg::YieldOp>(loc, result);
+                       })
+                   .getResult(0);
+    Value c2 = rewriter
+                   .create<linalg::GenericOp>(
+                       loc, c2Tensor.getType(), c1, c2Tensor, c2IndexingMap,
+                       bAndC2IteratorTypes,
+                       [](OpBuilder &b, Location loc, ValueRange args) {
+                         Value c1 = args[0], sum = args[1];
+                         Value result = b.create<arith::AddFOp>(loc, c1, sum);
+                         b.create<linalg::YieldOp>(loc, result);
+                       })
+                   .getResult(0);
+    Value c3 = rewriter
+                   .create<linalg::GenericOp>(
+                       loc, c3Tensor.getType(), ValueRange{inputHat, c2},
+                       c3Tensor, c3IndexingMap, inputIteratorType,
+                       [](OpBuilder &b, Location loc, ValueRange args) {
+                         Value inputHat = args[0], c2 = args[1];
+                         Value result =
+                             b.create<arith::MulFOp>(loc, inputHat, c2);
+                         b.create<linalg::YieldOp>(loc, result);
+                       })
+                   .getResult(0);
+
+    // Step 3.3. Calculate dInput = (rSTD / numFeatures) * ((a-b)- c3).
+    SmallVector<AffineMap> dInputIndexingMap{meanAndVarAffineMap, // rSTD
+                                             inputAffineMap,      // a
+                                             meanAndVarAffineMap, // b
+                                             inputAffineMap,      // c3
+                                             inputAffineMap};     // dInput
+    Value dInputTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputShape, elemTy);
+    Value dInput =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, dInputTensor.getType(), ValueRange{reshapedRSTD, a, b, c3},
+                dInputTensor, dInputIndexingMap, inputIteratorType,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value rSTD = args[0], a_ = args[1], b_ = args[2], c = args[3];
+                  Value aSubB = b.create<arith::SubFOp>(loc, a_, b_);
+                  Value inner = b.create<arith::SubFOp>(loc, aSubB, c);
+                  Value outer =
+                      b.create<arith::DivFOp>(loc, rSTD, numFeaturesFloat);
+                  Value result = b.create<arith::MulFOp>(loc, outer, inner);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    Type dInputResultType = getTypeConverter()->convertType(op.getType(0));
+    Value dInput_ =
+        rewriter.create<tensor::CastOp>(loc, dInputResultType, dInput);
+    Type dWeightResultType = getTypeConverter()->convertType(op.getType(1));
+    Value dWeight_ =
+        rewriter.create<tensor::CastOp>(loc, dWeightResultType, dWeight);
+    Type dBiasResultType = getTypeConverter()->convertType(op.getType(2));
+    Value dBias_ = rewriter.create<tensor::CastOp>(loc, dBiasResultType, dBias);
+    rewriter.replaceOp(op, {dInput_, dWeight_, dBias_});
     return success();
   }
 };
@@ -4640,6 +5073,8 @@ public:
     patterns.add<ConvertAtenGatherOp>(typeConverter, context);
     target.addIllegalOp<AtenNativeLayerNormOp>();
     patterns.add<ConvertAtenNativeLayerNormOp>(typeConverter, context);
+    target.addIllegalOp<AtenNativeLayerNormBackwardOp>();
+    patterns.add<ConvertAtenNativeLayerNormBackwardOp>(typeConverter, context);
     target.addIllegalOp<AtenBroadcastToOp>();
     patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxDimOp>();

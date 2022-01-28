@@ -74,6 +74,7 @@ class GeluBackwardModule(torch.nn.Module):
 def GeluBackwardModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3), tu.rand(5, 3))
 
+
 class LogSoftmaxBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -90,6 +91,63 @@ class LogSoftmaxBackwardModule(torch.nn.Module):
                                                          dim=1,
                                                          input_dtype=6)
 
+
 @register_test_case(module_factory=lambda: LogSoftmaxBackwardModule())
 def LogSoftmaxBackwardModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4), torch.randn(3, 2, 4))
+
+# ==============================================================================
+
+
+class NativeLayerNormBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input, weight, bias):
+        normalized_shape = [2, 2, 3]
+        output_mask = [True, True, True]
+        _, mean, rSTD = torch.ops.aten.native_layer_norm(
+            input, normalized_shape, weight, bias, eps=0.5)
+        return torch.ops.aten.native_layer_norm_backward(
+            grad_out, input, normalized_shape, mean, rSTD, weight, bias, output_mask)
+
+
+@register_test_case(module_factory=lambda: NativeLayerNormBackwardModule())
+def NativeLayerNormBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(
+        2, 5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
+
+
+class NativeLayerNormBackwardLastDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input, weight, bias):
+        normalized_shape = [3]
+        output_mask = [True, True, True]
+        _, mean, rSTD = torch.ops.aten.native_layer_norm(
+            input, normalized_shape, weight, bias, eps=0.5)
+        return torch.ops.aten.native_layer_norm_backward(
+            grad_out, input, normalized_shape, mean, rSTD, weight, bias, output_mask)
+
+
+@register_test_case(module_factory=lambda: NativeLayerNormBackwardLastDimModule())
+def NativeLayerNormBackwardLastDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(
+        2, 5, 2, 2, 3), tu.rand(3), tu.rand(3))

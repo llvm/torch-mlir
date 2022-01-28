@@ -484,6 +484,10 @@ public:
       return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
     } else if (auto nativeBatchNormOp = dyn_cast<AtenNativeBatchNormOp>(op)) {
       return visitAtenNativeBatchNormOp(nativeBatchNormOp, operands);
+    } else if (auto nativeLayerNormBackwardOp =
+                   dyn_cast<AtenNativeLayerNormBackwardOp>(op)) {
+      return visitAtenNativeLayerNormBackwardOp(nativeLayerNormBackwardOp,
+                                                operands);
     } else if (auto constantPadNdOp = dyn_cast<AtenConstantPadNdOp>(op)) {
       return visitAtenConstantPadNdOp(constantPadNdOp, operands);
     } else if (auto indexTensorOp = dyn_cast<AtenIndexTensorOp>(op)) {
@@ -653,6 +657,10 @@ private:
   ChangeResult
   visitAtenIndexTensorOp(AtenIndexTensorOp op,
                          ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+
+  ChangeResult visitAtenNativeLayerNormBackwardOp(
+      AtenNativeLayerNormBackwardOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1975,6 +1983,37 @@ ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
   }
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
+
+ChangeResult TypeAnalyzer::visitAtenNativeLayerNormBackwardOp(
+    AtenNativeLayerNormBackwardOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[1]->getValue();
+  auto weight = operands[5]->getValue();
+  auto bias = operands[6]->getValue();
+  SmallVector<bool> outputMask;
+  auto dXKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto dWKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto dBKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+
+  auto getKnowledge = [](ValueKnowledge &src, ValueKnowledge &dest) {
+    dest.hasSizes = src.hasSizes;
+    dest.sizes = src.sizes;
+    dest.dtype = src.dtype;
+  };
+
+  getKnowledge(input, dXKnowledge);
+  getKnowledge(weight, dWKnowledge);
+  getKnowledge(bias, dBKnowledge);
+
+  auto resultLattice = getLatticeElement(op.getResult(0)).join(dXKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(1)).join(dWKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(2)).join(dBKnowledge);
+  return resultLattice;
+}
+
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------

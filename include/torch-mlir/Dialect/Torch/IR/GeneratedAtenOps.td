@@ -3753,3 +3753,26 @@ def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_d
   let assemblyFormat = "$grad_output `,` $output `,` $dim `,` $input_dtype attr-dict `:` qualified(type($grad_output)) `,` qualified(type($output)) `,` qualified(type($dim)) `,` qualified(type($input_dtype)) `->` qualified(type($result))";
 }
 
+def Torch_AtenNativeLayerNormBackwardOp : Torch_Op<"aten.native_layer_norm_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::native_layer_norm_backward : (Tensor, Tensor, int[], Tensor, Tensor, Tensor?, Tensor?, bool[]) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_out,
+    AnyTorchTensorType:$input,
+    TorchIntListType:$normalized_shape,
+    AnyTorchTensorType:$mean,
+    AnyTorchTensorType:$rstd,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    TorchBoolListType:$output_mask
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2
+  );
+  let assemblyFormat = "$grad_out `,` $input `,` $normalized_shape `,` $mean `,` $rstd `,` $weight `,` $bias `,` $output_mask attr-dict `:` qualified(type($grad_out)) `,` qualified(type($input)) `,` qualified(type($normalized_shape)) `,` qualified(type($mean)) `,` qualified(type($rstd)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($output_mask)) `->` qualified(type($result0)) `,` qualified(type($result1)) `,` qualified(type($result2))";
+}
+
