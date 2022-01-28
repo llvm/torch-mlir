@@ -43,6 +43,18 @@ module  {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten._softmax"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.softmax.int"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.log_softmax.int"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
   func @"__torch_mlir_shape_fn.aten.max_pool2d"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.list<!torch.int>, %arg3: !torch.list<!torch.int>, %arg4: !torch.list<!torch.int>, %arg5: !torch.bool) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.bool) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>

@@ -1787,24 +1787,14 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
-static ValueKnowledge
-getSameSizeAsInput(Operation *op,
-                   ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto input = operands[0]->getValue();
-  auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = input.hasSizes;
-  knowledge.sizes = input.sizes;
-  return knowledge;
-}
-
 // Common template for softmax like ops, eg., log_softmax.
 template <typename OpTy>
 ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
     OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   auto dtype = op.dtype();
-  ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
+  ValueKnowledge knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, input.dtype);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1812,7 +1802,8 @@ ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
 ChangeResult TypeAnalyzer::visitAten_SoftmaxOp(
     Aten_SoftmaxOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
+  ValueKnowledge knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   bool halfToFloat;
   if (matchPattern(op.half_to_float(), m_TorchConstantBool(&halfToFloat))) {
     knowledge.dtype =
