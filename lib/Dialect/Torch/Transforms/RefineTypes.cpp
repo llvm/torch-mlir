@@ -242,7 +242,7 @@ public:
             AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-            AtenAbsOp, AtenThresholdOp>(op)) {
+            AtenAbsOp, AtenThresholdOp, AtenSquareOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -469,6 +469,9 @@ public:
     } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
       Type dtype = operands[0]->getValue().dtype;
       return visitReductionAlongAllDimsOp(max, dtype, operands);
+    } else if (isa<AtenStdOp, AtenVarOp>(op)) {
+      auto input = operands[0]->getValue();
+      return visitReductionAlongAllDimsOp(op, input.dtype, operands);
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {

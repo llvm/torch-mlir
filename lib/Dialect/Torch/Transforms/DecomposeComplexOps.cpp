@@ -403,7 +403,7 @@ public:
 };
 } // namespace
 
-// Decompose torch.matmul into: torch.mm and torch.bmm according to ranks.
+// Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
 public:
@@ -459,7 +459,7 @@ public:
 };
 } // namespace
 
-// Decompose torch.expand into torch.broadcast_to op.
+// Decompose aten.expand into aten.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
 public:
@@ -479,7 +479,7 @@ public:
 };
 } // namespace
 
-// Decompose torch.addmm into torch.mm and torch.add.Tensor op.
+// Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
 public:
@@ -519,7 +519,7 @@ public:
 };
 } // namespace
 
-// Decompose torch.mean into: sum(x)/div(numTensorElements).
+// Decompose aten.mean into: sum(x)/div(numTensorElements).
 namespace {
 class DecomposeAtenMeanOp : public OpRewritePattern<AtenMeanOp> {
 public:
@@ -534,6 +534,94 @@ public:
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
     rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputTensorType, sum,
                                                  numTensorElements);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenSquareOp : public OpRewritePattern<AtenSquareOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSquareOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.self();
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), self, self);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.var into: sum(square(x - mean))/(numTensorElements-1)
+// for unbiased and mean(square(x - mean)) for biased case.
+namespace {
+class DecomposeAtenVarOp : public OpRewritePattern<AtenVarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
+    if (!inputTensorTy.hasDtype() ||
+        !inputTensorTy.getDtype().isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Only aten.var support floating type");
+    }
+    BaseTensorType rank0FloatTensorTy = op.getType().cast<BaseTensorType>();
+    assert(rank0FloatTensorTy.getSizes().size() == 0 &&
+           "Op should have rank 0 tensor type");
+
+    bool unbiased;
+    if (!matchPattern(op.unbiased(), m_TorchConstantBool(&unbiased))) {
+      return rewriter.notifyMatchFailure(
+          op, "Only support constant unbiased for aten.var");
+    }
+
+    Value dtype = rewriter.create<ConstantNoneOp>(loc);
+    Value mean =
+        rewriter.create<AtenMeanOp>(loc, rank0FloatTensorTy, self, dtype);
+    Value subMean = createTensorSub(rewriter, loc, inputTensorTy, self, mean);
+    Value square = rewriter.create<AtenSquareOp>(loc, inputTensorTy, subMean);
+    Value var;
+    if (unbiased) {
+      // Bessel’s correction is used. Divide the square sum by
+      // numTensorElements-1.
+      Value squareSum =
+          rewriter.create<AtenSumOp>(loc, rank0FloatTensorTy, square, dtype);
+      Value numTensorElements = rewriter.create<AtenNumelOp>(loc, square);
+      Value cst1 = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      Value numTensorElementsSub1 =
+          rewriter.create<AtenSubIntOp>(loc, numTensorElements, cst1);
+      var = rewriter.replaceOpWithNewOp<AtenDivScalarOp>(
+          op, rank0FloatTensorTy, squareSum, numTensorElementsSub1);
+    } else {
+      var = rewriter.replaceOpWithNewOp<AtenMeanOp>(op, rank0FloatTensorTy,
+                                                    square, dtype);
+    }
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.std to sqrt(var(x))
+namespace {
+class DecomposeAtenStdOp : public OpRewritePattern<AtenStdOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStdOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.self();
+    BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
+    if (!inputTensorTy.hasDtype() ||
+        !inputTensorTy.getDtype().isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Only aten.std support floating type");
+    }
+    Value var = rewriter.create<AtenVarOp>(op->getLoc(), op.getType(),
+                                           op.self(), op.unbiased());
+    rewriter.replaceOpWithNewOp<AtenSqrtOp>(op, op.getType(), var);
     return success();
   }
 };
@@ -730,6 +818,12 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenArangeStartOp>();
     patterns.add<DecomposeAtenArgMaxOp>(context);
     target.addIllegalOp<AtenArgmaxOp>();
+    patterns.add<DecomposeAtenSquareOp>(context);
+    target.addIllegalOp<AtenSquareOp>();
+    patterns.add<DecomposeAtenVarOp>(context);
+    target.addIllegalOp<AtenVarOp>();
+    patterns.add<DecomposeAtenStdOp>(context);
+    target.addIllegalOp<AtenStdOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
