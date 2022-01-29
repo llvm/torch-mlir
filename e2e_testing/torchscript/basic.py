@@ -1006,6 +1006,7 @@ class TModuleRank2(torch.nn.Module):
 def TModuleRank2_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+# ==============================================================================
 
 class TModuleRank1(torch.nn.Module):
     def __init__(self):
@@ -1023,6 +1024,7 @@ class TModuleRank1(torch.nn.Module):
 def TModuleRank1_basic(module, tu: TestUtils):
     module.forward(tu.rand(3))
 
+# ==============================================================================
 
 class TModuleRank0(torch.nn.Module):
     def __init__(self):
@@ -1039,6 +1041,8 @@ class TModuleRank0(torch.nn.Module):
 @register_test_case(module_factory=lambda: TModuleRank0())
 def TModuleRank0_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
+
+# ==============================================================================
 
 class TensorLiteralModule(torch.nn.Module):
     def __init__(self):
@@ -1057,6 +1061,7 @@ class TensorLiteralModule(torch.nn.Module):
 def TensorLiteralModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class TensorOpaqueLiteralModule(torch.nn.Module):
     def __init__(self):
@@ -1075,6 +1080,8 @@ class TensorOpaqueLiteralModule(torch.nn.Module):
 def TensorOpaqueLiteralModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
+
 class ReturnTwoTensorF32I64(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1092,6 +1099,7 @@ class ReturnTwoTensorF32I64(torch.nn.Module):
 def ReturnTwoTensorF32I64_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), torch.randint(5, (2, 3)))
 
+# ==============================================================================
 
 class IndexTensorModule(torch.nn.Module):
     def __init__(self):
@@ -1109,3 +1117,93 @@ class IndexTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexTensorModule())
 def IndexTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5), torch.randint(4, (2, 3)))
+
+# ==============================================================================
+
+class SquareModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.square(x)
+
+@register_test_case(module_factory=lambda: SquareModule())
+def SquareModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class VarUnbiasedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, unbiased=True)
+
+@register_test_case(module_factory=lambda: VarUnbiasedModule())
+def VarUnbiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class VarBiasedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, unbiased=False)
+
+@register_test_case(module_factory=lambda: VarBiasedModule())
+def VarBiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class StdUnbiasedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, unbiased=True)
+
+@register_test_case(module_factory=lambda: StdUnbiasedModule())
+def StdUnbiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class StdBiasedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, unbiased=False)
+
+@register_test_case(module_factory=lambda: StdBiasedModule())
+def StdBiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))

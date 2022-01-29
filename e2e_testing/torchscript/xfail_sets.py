@@ -89,4 +89,5 @@ TOSA_PASS_SET = {
     "FlattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "ElementwiseFlattenBroadcastModule_basic",
+    "SquareModule_basic",
 }

@@ -1172,6 +1172,34 @@ def Torch_AtenThreshold_Op : Torch_Op<"aten.threshold_", [
   let assemblyFormat = "$self `,` $threshold `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($threshold)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
+def Torch_AtenSquareOp : Torch_Op<"aten.square", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::square : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
+def Torch_AtenSquare_Op : Torch_Op<"aten.square_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::square_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
 def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -1757,6 +1785,36 @@ def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `->` qualified(type($result))";
+}
+
+def Torch_AtenStdOp : Torch_Op<"aten.std", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::std : (Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_BoolType:$unbiased
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $unbiased attr-dict `:` qualified(type($self)) `,` qualified(type($unbiased)) `->` qualified(type($result))";
+}
+
+def Torch_AtenVarOp : Torch_Op<"aten.var", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::var : (Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_BoolType:$unbiased
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $unbiased attr-dict `:` qualified(type($self)) `,` qualified(type($unbiased)) `->` qualified(type($result))";
 }
 
 def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
