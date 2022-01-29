@@ -86,4 +86,7 @@ TOSA_PASS_SET = {
     "BatchNorm1DModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "FlattenStaticModule_basic",
+    "FlattenRank0Module_basic",
+    "ElementwiseFlattenBroadcastModule_basic",
 }

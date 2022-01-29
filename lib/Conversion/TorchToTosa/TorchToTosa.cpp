@@ -17,6 +17,7 @@
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
@@ -1928,6 +1929,64 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
+    AtenFlattenUsingIntsOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a ranked tensor type
+  auto selfType = adaptor.self().getType().dyn_cast<RankedTensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return op.emitError(
+        "Only ranked tensor types with static shapes are currently supported");
+
+  int64_t selfRank = selfType.getRank();
+
+  int64_t start_dim, end_dim;
+
+  if (!matchPattern(op.start_dim(), m_TorchConstantInt(&start_dim)))
+    return op.emitError("start_dim must be a Scalar constant");
+  start_dim = toPositiveDim(start_dim, selfRank);
+
+  if (!matchPattern(op.end_dim(), m_TorchConstantInt(&end_dim)))
+    return op.emitError("end_dim must be a Scalar constant");
+  end_dim = toPositiveDim(end_dim, selfRank);
+
+  if (selfRank > 0 && !isValidDim(start_dim, selfRank))
+    return op.emitError("start_dim is statically invalid");
+  if (selfRank > 0 && !isValidDim(end_dim, selfRank))
+    return op.emitError("end_dim is statically invalid");
+  if (end_dim < start_dim)
+    return op.emitError("end_dim must be larger than start_dim");
+
+  SmallVector<int64_t> newShape;
+  for (auto s : llvm::enumerate(selfType.getShape())) {
+    int64_t idx = s.index();
+    if (idx < start_dim || idx > end_dim) {
+      newShape.push_back(s.value());
+    } else {
+      if (idx == start_dim)
+        newShape.push_back(s.value());
+      else
+        newShape.back() *= s.value();
+    }
+  }
+
+  // Handle the Scalar case
+  if (newShape.size() == 0)
+    newShape.push_back(1);
+
+  auto newType = RankedTensorType::get(newShape, selfType.getElementType());
+  auto reshapeOp =
+      rewriter.create<tosa::ReshapeOp>(op->getLoc(), newType, adaptor.self(),
+                                       rewriter.getI64ArrayAttr(newShape));
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), reshapeOp);
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -2085,6 +2144,7 @@ public:
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
     INSERT_ATENOP_PATTERN(AtenReshapeOp);
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);
+    INSERT_ATENOP_PATTERN(AtenFlattenUsingIntsOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
