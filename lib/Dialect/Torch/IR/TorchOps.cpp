@@ -390,19 +390,12 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
 
 template <typename OpTy>
 static OpFoldResult atenIsOrIsNotFoldHelper(OpTy op, bool equalIsTrue) {
-  Value lhs = op.self();
-  Value rhs = op.obj();
+  Type lhsType = op.self().getType();
+  Type rhsType = op.obj().getType();
 
-  // If either value is typed NoneType, make it be the lhs.
-  if (rhs.getType().template isa<Torch::NoneType>())
-    std::swap(lhs, rhs);
-
-  if (rhs.getType().template isa<Torch::OptionalType>())
-    if (auto derefine = rhs.getDefiningOp<Torch::DerefineOp>())
-      rhs = derefine.operand();
-
-  Type lhsType = lhs.getType();
-  Type rhsType = rhs.getType();
+  // If either type is a NoneType, make it be the lhsType.
+  if (rhsType.template isa<Torch::NoneType>())
+    std::swap(lhsType, rhsType);
   // TODO: Implement and use subtype infra for this.
   // If neither type is a subtype of the other, then the result is false.
   if (lhsType.template isa<Torch::NoneType>() &&
@@ -991,14 +984,6 @@ void Torch::ConstantBoolOp::getAsmResultNames(
 bool PrimUncheckedCastOp::areCastCompatible(mlir::TypeRange inputs,
                                             mlir::TypeRange outputs) {
   return isValidSubtype(outputs[0], inputs[0]);
-}
-
-OpFoldResult PrimUncheckedCastOp::fold(ArrayRef<Attribute> operands) {
-  if (auto derefineOp = x().getDefiningOp<Torch::DerefineOp>()) {
-    if (derefineOp.operand().getType() == getType())
-      return derefineOp.operand();
-  }
-  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

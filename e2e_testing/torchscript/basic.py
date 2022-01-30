@@ -268,28 +268,6 @@ class MaxPool2dModule(torch.nn.Module):
 def MaxPool2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
 
-class MaxPool2dStaticModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mp2d = torch.nn.MaxPool2d(kernel_size=[3, 3],
-                                       stride=[2, 2],
-                                       padding=[1, 1],
-                                       dilation=[1, 1])
-
-    @export
-    @annotate_args([
-        None,
-        ([1, 64, 112, 112], torch.float32, True),
-    ])
-    def forward(self, x):
-        return self.mp2d(x)
-
-
-@register_test_case(module_factory=lambda: MaxPool2dStaticModule())
-def MaxPool2dStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 64, 112, 112))
-
-# ==============================================================================
 
 class ConstantPad2dStaticModule(torch.nn.Module):
     def __init__(self):

@@ -8,15 +8,6 @@ func @torch.aten.__is__(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !
   return %0 : !torch.bool
 }
 
-// CHECK-LABEL:   func @torch.aten.__is__$derefine_is_none
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           return %[[FALSE]] : !torch.bool
-func @torch.aten.__is__$derefine_is_none(%arg0: !torch.list<!torch.int>, %arg1: !torch.none) -> !torch.bool {
-  %0 = torch.derefine %arg0 : !torch.list<!torch.int> to !torch.optional<!torch.list<!torch.int>>
-  %1 = torch.aten.__is__ %0, %arg1 : !torch.optional<!torch.list<!torch.int>>, !torch.none -> !torch.bool
-  return %1 : !torch.bool
-}
-
 // CHECK-LABEL:   func @torch.aten.__is__$none_is_none
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
@@ -653,13 +644,6 @@ func @torch.prim.TupleIndex$out_of_bound(%t0: !torch.tensor, %t1: !torch.tensor,
     return %1 : !torch.tensor
 }
 
-// CHECK-LABEL:   func @torch.prim.unchecked_cast$derefine
-// CHECK-next:      return %arg0 : !torch.list<!torch.int>
-func @torch.prim.unchecked_cast$derefine(%arg0: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-  %0 = torch.derefine %arg0 : !torch.list<!torch.int> to !torch.optional<!torch.list<!torch.int>>
-  %1 = torch.prim.unchecked_cast %0 : !torch.optional<!torch.list<!torch.int>> -> !torch.list<!torch.int>
-  return %1 : !torch.list<!torch.int>
-}
 
 // CHECK-LABEL:   func @torch.aten.Int.Tensor(
 // CHECK-SAME:            %[[NUM:.*]]: !torch.int) -> !torch.int {
