@@ -30,7 +30,13 @@ func @matmul_decompose_3d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vten
 // CHECK-SAME:                                 %[[T:.*]]: !torch.tensor<[2,3],f32>,
 // CHECK-SAME:                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor<[2,3],f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
-// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[T]] : !torch.tensor<[2,3],f32> -> !torch.tensor<[2,3],f32>
+// CHECK:           %[[KEEP_DIM0:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[T]], %[[DIM]], %[[KEEP_DIM0]] : 
+// CHECK-SAME:                 !torch.tensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.tensor<[?,?],f32>, !torch.tensor<[?,?],si64>
+// CHECK:           %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[T]], %[[VAL]], %[[FLOAT1]] : !torch.tensor<[2,3],f32>, 
+// CHECK-SAME:          !torch.tensor<[?,?],f32>, !torch.float -> !torch.tensor<[2,3],f32>
+// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[SUB]] : !torch.tensor<[2,3],f32> -> !torch.tensor<[2,3],f32>
 // CHECK:           %[[DIM_LIST:.*]] = torch.prim.ListConstruct %[[DIM]] : (!torch.int) -> !torch.list<!torch.int>
 // CHECK:           %[[KEEP_DIM:.*]] = torch.constant.bool true
 // CHECK:           %[[SUM_DTYPE:.*]] = torch.constant.none
@@ -45,12 +51,19 @@ func @torch.aten.softmax.int(%t: !torch.tensor<[2,3],f32>, %dim: !torch.int) -> 
   return %ret : !torch.tensor<[2,3],f32>
 }
 
+
 // ----
 // CHECK-LABEL:   func @torch.aten.softmax.int$cst_dim(
 // CHECK-SAME:                                         %[[T:.*]]: !torch.tensor<[2,3],f32>) -> !torch.tensor<[2,3],f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
-// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[T]] : !torch.tensor<[2,3],f32> -> !torch.tensor<[2,3],f32>
+// CHECK:           %[[TRU:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[T]], %[[DIM]], %[[TRU]] : !torch.tensor<[2,3],f32>, !torch.int, !torch.bool -> 
+// CHECK-SAME:              !torch.tensor<[2,1],f32>, !torch.tensor<[2,1],si64>
+// CHECK:           %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[T]], %[[VAL]], %[[FLOAT1]] : !torch.tensor<[2,3],f32>, 
+// CHECK-SAME:          !torch.tensor<[2,1],f32>, !torch.float -> !torch.tensor<[2,3],f32>
+// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[SUB]] : !torch.tensor<[2,3],f32> -> !torch.tensor<[2,3],f32>
 // CHECK:           %[[DIM_LIST:.*]] = torch.prim.ListConstruct %[[DIM]] : (!torch.int) -> !torch.list<!torch.int>
 // CHECK:           %[[KEEP_DIM:.*]] = torch.constant.bool true
 // CHECK:           %[[SUM_DTYPE:.*]] = torch.constant.none
@@ -71,7 +84,13 @@ func @torch.aten.softmax.int$cst_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.ten
 // CHECK-SAME:                                           %[[T:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
-// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[T]] : !torch.tensor<[?,?],f32> -> !torch.tensor<[?,?],f32>
+// CHECK:           %[[TRU:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[T]], %[[DIM]], %[[TRU]] : !torch.tensor<[?,?],f32>, !torch.int, !torch.bool ->
+// CHECK-SAME:          !torch.tensor<[?,1],f32>, !torch.tensor<[?,1],si64>
+// CHECK:           %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[T]], %[[VAL]], %[[FLOAT1]] : !torch.tensor<[?,?],f32>, 
+// CHECK-SAME:          !torch.tensor<[?,1],f32>, !torch.float -> !torch.tensor<[?,?],f32>
+// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[SUB]] : !torch.tensor<[?,?],f32> -> !torch.tensor<[?,?],f32>
 // CHECK:           %[[DIM_LIST:.*]] = torch.prim.ListConstruct %[[DIM]] : (!torch.int) -> !torch.list<!torch.int>
 // CHECK:           %[[KEEP_DIM:.*]] = torch.constant.bool true
 // CHECK:           %[[SUM_DTYPE:.*]] = torch.constant.none
@@ -92,7 +111,13 @@ func @torch.aten.softmax.int$dyn_shape(%t: !torch.tensor<[?,?],f32>) -> !torch.t
 // CHECK-SAME:                                               %[[T:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
 // CHECK:           %[[DIM:.*]] = torch.constant.int 1
-// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[T]] : !torch.tensor<*,f32> -> !torch.tensor<*,f32>
+// CHECK:           %[[TRU:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[T]], %[[DIM]], %[[TRU]] : !torch.tensor<*,f32>, !torch.int, !torch.bool 
+// CHECK-SAME:          -> !torch.tensor<*,f32>, !torch.tensor<*,si64>
+// CHECK:           %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[T]], %[[VAL]], %[[FLOAT1]] : !torch.tensor<*,f32>, !torch.tensor<*,f32>,
+// CHECK-SAME:          !torch.float -> !torch.tensor<*,f32>
+// CHECK:           %[[EXP:.*]] = torch.aten.exp %[[SUB]] : !torch.tensor<*,f32> -> !torch.tensor<*,f32>
 // CHECK:           %[[DIM_LIST:.*]] = torch.prim.ListConstruct %[[DIM]] : (!torch.int) -> !torch.list<!torch.int>
 // CHECK:           %[[KEEP_DIM:.*]] = torch.constant.bool true
 // CHECK:           %[[SUM_DTYPE:.*]] = torch.constant.none

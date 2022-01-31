@@ -216,3 +216,21 @@ class ReduceMaxAllDims(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMaxAllDims())
 def ReduceMaxAllDims_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5, low=-10, high=-5))
+
+# ==============================================================================
+
+class ReduceMaxNegativeDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a, -1, keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceMaxNegativeDim())
+def ReduceMaxNegativeDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))

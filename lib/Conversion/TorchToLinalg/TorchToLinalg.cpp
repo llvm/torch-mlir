@@ -2204,6 +2204,9 @@ public:
     if (!matchPattern(maxDimOp.dim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(
           maxDimOp, "aten.max_dim to linalg.* requires int value for Dim");
+    dim = toPositiveDim(dim, inputType.getRank());
+    if (!isValidDim(dim, inputType.getRank()))
+      return rewriter.notifyMatchFailure(maxDimOp, "dim is not a valid dim");
 
     Type inElementType = inputType.getElementType();
     if (!inElementType.isa<mlir::FloatType>()) {

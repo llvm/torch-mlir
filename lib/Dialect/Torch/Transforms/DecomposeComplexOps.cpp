@@ -33,14 +33,12 @@ static int getTensorRank(Value tensor) {
   return tensorRank;
 }
 
-static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
-                           Operation *op, Value input, Value dim,
-                           bool keepDim) {
+// Helper function to compute the return type of the reduction function.
+// `dim` specifies the dimension to reduce and `keepDim` preserves the rank of
+// the input tensor.
+static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
+                                 Value input, Value dim, bool keepDim) {
   BaseTensorType tensorType = input.getType().cast<BaseTensorType>();
-  Value dimList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(dim.getType()), dim);
-  Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
-  Value dtype = rewriter.create<ConstantNoneOp>(loc);
   SmallVector<int64_t> sizes;
   int64_t dimInt;
   if (tensorType.hasSizes()) {
@@ -53,9 +51,15 @@ static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
         return nullptr;
       }
       sizes.append(inputShape.begin(), inputShape.end());
-      sizes[dimInt] = 1;
+      // The dimension to be reduced is set to 1 when `keepDim` is true else it
+      // is removed.
+      if (keepDim)
+        sizes[dimInt] = 1;
+      else
+        sizes.erase(sizes.begin() + dimInt - 1);
     } else {
-      sizes.resize(inputRank, kUnknownSize);
+      unsigned reducedRank = keepDim ? inputRank : inputRank - 1;
+      sizes.resize(reducedRank, kUnknownSize);
     }
   }
 
@@ -63,9 +67,44 @@ static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
       sizes.size() == 0 ? Optional<ArrayRef<int64_t>>()
                         : llvm::makeArrayRef(sizes),
       tensorType.getDtype());
-  Value sum = rewriter.create<AtenSumDimIntListOp>(loc, resultType, input,
-                                                   dimList, keepDimCst, dtype);
-  return sum;
+  return resultType;
+}
+
+// Reduction function to calculate sum along given `dim`.
+static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
+                                     Operation *op, Value input, Value dim,
+                                     bool keepDim) {
+  Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(dim.getType()), dim);
+  Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
+  Value dtype = rewriter.create<ConstantNoneOp>(loc);
+  Type resultType = computeReductionType(rewriter, op, input, dim, keepDim);
+  if (!resultType)
+    return nullptr;
+  return rewriter.create<AtenSumDimIntListOp>(loc, resultType, input, dimList,
+                                              keepDimCst, dtype);
+}
+
+// Redunction function to calculate max along given `dim`.
+static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
+                                     Operation *op, Value input, Value dim,
+                                     bool keepDim) {
+  Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
+  BaseTensorType valueType =
+      computeReductionType(rewriter, op, input, dim, keepDim)
+          .cast<BaseTensorType>();
+  if (!valueType)
+    return nullptr;
+  BaseTensorType indexType =
+      valueType
+          .getWithSizesAndDtype(
+              !valueType.hasSizes() ? Optional<ArrayRef<int64_t>>()
+                                    : llvm::makeArrayRef(valueType.getSizes()),
+              IntegerType::get(op->getContext(), 64, IntegerType::Signed))
+          .cast<BaseTensorType>();
+  return rewriter
+      .create<AtenMaxDimOp>(loc, valueType, indexType, input, dim, keepDimCst)
+      .values();
 }
 
 // Helper for creating `aten::sub_tensor_op`.
@@ -148,22 +187,29 @@ public:
 
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
+// To avoid overflow we use the following decomposition rule:
+//     x_max = max(input, dim, keepdim = True)
+//     unnorm = aten.exp(input - x_max)
+//     softmax = unnorm / sum(unnorm, dim, keepdim = True)
 template <typename OpTy>
 static Value getSoftmaxResult(OpTy op, Type resultType,
                               PatternRewriter &rewriter) {
   Location loc = op.getLoc();
   Value dim = op.dim();
   Value self = op.self();
-
-  // exp(x)
-  Value exp = rewriter.create<AtenExpOp>(loc, resultType, self);
-  // sum(exp(x))
-  Value sum =
-      createSumAlongDimension(rewriter, loc, op, exp, dim, /*keepDim=*/true);
+  Value xMax =
+      createMaxAlongDimension(rewriter, loc, op, self, dim, /*keepDim=*/true);
+  if (!xMax)
+    return nullptr;
+  Value unNormalized = createTensorSub(rewriter, loc, resultType, self, xMax);
+  Value unNormalizedExp =
+      rewriter.create<AtenExpOp>(loc, resultType, unNormalized);
+  Value sum = createSumAlongDimension(rewriter, loc, op, unNormalizedExp, dim,
+                                      /*keepDim=*/true);
   if (!sum)
     return nullptr;
-  // exp(x) / sum(exp(x))
-  return rewriter.create<AtenDivTensorOp>(loc, resultType, exp, sum);
+  return rewriter.create<AtenDivTensorOp>(loc, resultType, unNormalizedExp,
+                                          sum);
 }
 
 // Decompose softmax into: exp(x) / sum(exp(x))
