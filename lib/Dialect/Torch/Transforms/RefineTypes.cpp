@@ -641,9 +641,9 @@ private:
   visitAten_SoftmaxOp(Aten_SoftmaxOp op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
-  ChangeResult
-  visitAtenNllLossForwardOp(AtenNllLossForwardOp op,
-                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitAtenNllLossForwardOp(
+      AtenNllLossForwardOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitAtenNativeLayerNormOp(
       AtenNativeLayerNormOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -868,8 +868,12 @@ ChangeResult TypeAnalyzer::visitAtenLinearOp(
   auto knowledge = operands[0]->getValue();
   auto weight = operands[1]->getValue();
   auto bias = operands[2]->getValue();
-  if (knowledge.hasSizes && knowledge.sizes.size() > 0)
-    knowledge.sizes[knowledge.sizes.size() - 1] = kUnknownSize;
+  if (knowledge.hasSizes && knowledge.sizes.size() > 0) {
+    if (weight.hasSizes)
+      knowledge.sizes[knowledge.sizes.size() - 1] = weight.sizes[0];
+    else
+      knowledge.sizes[knowledge.sizes.size() - 1] = kUnknownSize;
+  }
   switch (bias.optional) {
   case ValueKnowledge::OptionalKnowledge::isNone:
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -991,12 +995,21 @@ ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
 ChangeResult TypeAnalyzer::visitAtenAdaptiveAvgPool2dOp(
     AtenAdaptiveAvgPool2dOp op,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto input = operands[0]->getValue();
+  auto &input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   if (input.hasSizes) {
     knowledge.hasSizes = true;
     knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
+    uint32_t index = 0;
+    knowledge.sizes[index++] = input.sizes[0];
+    if (input.sizes.size() == 4)
+      knowledge.sizes[index++] = input.sizes[1];
+    SmallVector<int64_t> output_size;
+    if (matchPattern(op.output_size(), m_TorchConstantIntList(output_size))) {
+      knowledge.sizes[index++] = output_size[0];
+      knowledge.sizes[index++] = output_size[1];
+    }
   }
   knowledge.dtype = input.dtype;
   return getLatticeElement(op->getResult(0)).join(knowledge);
@@ -1116,7 +1129,15 @@ ChangeResult TypeAnalyzer::visitAtenFlattenUsingIntsOp(
       knowledge.hasSizes = true;
       for (auto i = 0; i < startDim; i++)
         knowledge.sizes.push_back(operand.sizes[i]);
-      knowledge.sizes.push_back(kUnknownSize);
+      int64_t dimProduct = 1;
+      for (auto i = startDim; i <= endDim; i++) {
+        if (operand.sizes[i] == kUnknownSize) {
+          dimProduct = kUnknownSize;
+          break;
+        }
+        dimProduct *= operand.sizes[i];
+      }
+      knowledge.sizes.push_back(dimProduct);
       for (auto i = endDim + 1; i < inputRank; i++)
         knowledge.sizes.push_back(operand.sizes[i]);
     }

@@ -55,8 +55,8 @@ builtin.func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f3
 // CHECK-SAME:            %[[INPUT:.*]]: !torch.vtensor<[?,3],f32>,
 // CHECK-SAME:            %[[WEIGHT:.*]]: !torch.vtensor<[5,3],f32>,
 // CHECK-SAME:            %[[BIAS:.*]]: !torch.vtensor<[5],f32>) -> !torch.vtensor {
-// CHECK:           %[[LINEAR:.*]] = torch.aten.linear %[[INPUT]], %[[WEIGHT]], %[[BIAS]] : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[?,?],f32>
-// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[LINEAR]] : !torch.vtensor<[?,?],f32> to !torch.vtensor
+// CHECK:           %[[LINEAR:.*]] = torch.aten.linear %[[INPUT]], %[[WEIGHT]], %[[BIAS]] : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[?,5],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[LINEAR]] : !torch.vtensor<[?,5],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
 builtin.func @f(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor {
   %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor
@@ -192,7 +192,7 @@ builtin.func @j(%arg0: !torch.vtensor<[1,8,64,64],f32>) -> !torch.vtensor {
 builtin.func @f(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-  // CHECK: torch.aten.adaptive_avg_pool2d{{.*}} -> !torch.vtensor<[?,?,?,?],f32>
+  // CHECK: torch.aten.adaptive_avg_pool2d{{.*}} -> !torch.vtensor<[?,?,1,1],f32>
   %1 = torch.aten.adaptive_avg_pool2d %arg0, %0 : !torch.vtensor<[?,?,?,?],f32>, !torch.list<!torch.int> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
