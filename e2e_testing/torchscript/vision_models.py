@@ -12,6 +12,7 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class ResNet18Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -19,6 +20,7 @@ class ResNet18Module(torch.nn.Module):
         torch.manual_seed(0)
         self.resnet = models.resnet18()
         self.train(False)
+
     @export
     @annotate_args([
         None,
@@ -27,8 +29,31 @@ class ResNet18Module(torch.nn.Module):
     def forward(self, img):
         return self.resnet.forward(img)
 
+
 @register_test_case(module_factory=lambda: ResNet18Module())
 def ResNet18Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 224, 224))
+
+
+class ResNet18StaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Reset seed to make model deterministic.
+        torch.manual_seed(0)
+        self.resnet = models.resnet18()
+        self.train(False)
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 3, 224, 224], torch.float32, True),
+    ])
+    def forward(self, img):
+        return self.resnet.forward(img)
+
+
+@register_test_case(module_factory=lambda: ResNet18StaticModule())
+def ResNet18StaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))
 
 
@@ -53,6 +78,7 @@ class IouOfModule(torch.nn.Module):
         union = area1 + area2 - overlap
 
         return overlap / union
+
 
 @register_test_case(module_factory=lambda: IouOfModule())
 def IouOfModule_basic(module, tu: TestUtils):
