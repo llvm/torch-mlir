@@ -25,6 +25,22 @@ project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
+macro(torch_mlir_add_llvm_external_project name identifier location)
+  message(STATUS "Adding LLVM external project ${name} (${identifier}) -> ${location}")
+  if(NOT EXISTS "${location}/CMakeLists.txt")
+    message(FATAL_ERROR "External project location ${location} is not valid")
+  endif()
+  list(APPEND LLVM_EXTERNAL_PROJECTS ${name})
+  list(REMOVE_DUPLICATES LLVM_EXTERNAL_PROJECTS)
+  set(LLVM_EXTERNAL_${identifier}_SOURCE_DIR ${location} CACHE STRING "" FORCE)
+  set(LLVM_EXTERNAL_PROJECTS ${LLVM_EXTERNAL_PROJECTS} CACHE STRING "" FORCE)
+endmacro()
+
+torch_mlir_add_llvm_external_project(
+  torch-mlir-dialects
+  TORCH_MLIR_DIALECTS
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-external-projects/torch-mlir-dialects)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # Out-of-tree build
 
@@ -129,6 +145,7 @@ add_subdirectory(tools)
 add_custom_target(check-torch-mlir-all)
 add_dependencies(check-torch-mlir-all
   check-torch-mlir
+  check-torch-mlir-dialects
   )
 
 if(MLIR_ENABLE_BINDINGS_PYTHON)
