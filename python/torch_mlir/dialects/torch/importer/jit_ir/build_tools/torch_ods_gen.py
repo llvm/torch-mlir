@@ -548,6 +548,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::std : (Tensor, bool) -> (Tensor)")
         emit("aten::var : (Tensor, bool) -> (Tensor)")
         emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
+        emit("aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)")
 
         # Misc tensor ops.
         emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")

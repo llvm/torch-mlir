@@ -60,3 +60,61 @@ class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
 @register_test_case(module_factory=lambda: NllLossModule_ignore_index_out_of_bounds())
 def NllLossModule_ignore_index(module, tu: TestUtils):
   module.forward(tu.rand(2, 3), torch.tensor([0, 1]))
+
+class NllLossModule_backward(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.float32, True),
+      ([-1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([], torch.float32, True),
+  ])
+  def forward(self, grad_output, input, target, total_weight):
+    return torch.ops.aten.nll_loss_backward(grad_output=grad_output,
+                                           self=input,
+                                           target=target,
+                                           weight=None,
+                                           reduction=0,
+                                           ignore_index=10,
+                                           total_weight=total_weight)
+
+
+@register_test_case(module_factory=lambda: NllLossModule_backward())
+def NllLossModuleBackward_basic(module, tu: TestUtils):
+  module.forward(tu.rand(3), tu.rand(3, 4), torch.tensor([2, 3, 0]),
+                 torch.tensor(3.))
+
+
+class NllLossModule_backward_ignore_index(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.float32, True),
+      ([-1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([], torch.float32, True),
+  ])
+  def forward(self, grad_output, input, target, total_weight):
+    return torch.ops.aten.nll_loss_backward(grad_output=grad_output,
+                                            self=input,
+                                            target=target,
+                                            weight=None,
+                                            reduction=0,
+                                            ignore_index=1,
+                                            total_weight=total_weight)
+
+
+@register_test_case(
+    module_factory=lambda: NllLossModule_backward_ignore_index())
+def NllLossModuleBackward_ignore_index(module, tu: TestUtils):
+  module.forward(tu.rand(3), tu.rand(3, 4), torch.tensor([2, 3, 0]),
+                 torch.tensor(3.))

@@ -70,6 +70,15 @@ struct ResultTypeState {
 ScalarType result_type(const ResultTypeState &in_state);
 ScalarType promote_skip_undefined(ScalarType a, ScalarType b);
 
+//===----------------------------------------------------------------------===//
+// These constants control the reduction behavior of the loss functions.
+// None, Mean and Sum corresponds to "do not reduce", "Mean of losses", and "sum
+// of losses" respectively.
+// Source:
+// https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/core/Reduction.h
+//===----------------------------------------------------------------------===//
+enum Reduction { None, Mean, Sum, END };
+
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir
