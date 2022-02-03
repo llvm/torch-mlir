@@ -114,6 +114,31 @@ def NativeLayerNormModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class NativeLayerNormModule4D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2, 2, 3], torch.float32, True),
+        ([2, 2, 3], torch.float32, True),
+        ([2, 2, 3], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        list = [2, 2, 3]
+        return torch.ops.aten.native_layer_norm(
+            x, list, weight, bias, eps=0.5)[0]
+
+
+@register_test_case(module_factory=lambda: NativeLayerNormModule4D())
+def NativeLayerNormModule4D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
+
+
+# ==============================================================================
+
+
 class LayerNormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
