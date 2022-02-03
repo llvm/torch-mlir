@@ -489,6 +489,8 @@ public:
       return visitBinaryScalarOp(op, operands);
     } else if (auto nllForwardOp = dyn_cast<AtenNllLossForwardOp>(op)) {
       return visitAtenNllLossForwardOp(nllForwardOp, operands);
+    } else if (auto nllBackwardOp = dyn_cast<AtenNllLossBackwardOp>(op)) {
+      return visitAtenNllLossBackwardOp(nllBackwardOp, operands);
     } else if (auto nativeLayerNormOp = dyn_cast<AtenNativeLayerNormOp>(op)) {
       return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
     } else if (auto constantPadNdOp = dyn_cast<AtenConstantPadNdOp>(op)) {
@@ -646,6 +648,9 @@ private:
 
   ChangeResult visitAtenNllLossForwardOp(
       AtenNllLossForwardOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitAtenNllLossBackwardOp(
+      AtenNllLossBackwardOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitAtenNativeLayerNormOp(
       AtenNativeLayerNormOp op,
@@ -1188,8 +1193,8 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
 
   if (self.hasSizes &&
       matchPattern(op.reduction(), m_TorchConstantInt(&reduction))) {
-    // reduction == 1 means reduce 1st dim.
-    resultRank = reduction == 1 ? resultRank - 1 : resultRank;
+    if (reduction != Reduction::None)
+      resultRank -= 1;
   }
   outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
   outputKnowledge.hasSizes = true;
@@ -1197,6 +1202,22 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
   resultLattice |=
       getLatticeElement(op.getResult(1)).join(totalWeightKnowledge);
   return resultLattice;
+}
+
+ChangeResult TypeAnalyzer::visitAtenNllLossBackwardOp(
+    AtenNllLossBackwardOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto self = operands[1]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
+
+  knowledge.dtype = self.dtype;
+  if (self.hasSizes) {
+    unsigned resultRank = self.sizes.size();
+    knowledge.sizes.resize(resultRank, kUnknownSize);
+    knowledge.hasSizes = true;
+  }
+  return getLatticeElement(op.getResult()).join(knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
