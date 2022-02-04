@@ -1341,6 +1341,36 @@ def Torch_AtenUniform_Op : Torch_Op<"aten.uniform_", [
   let assemblyFormat = "$self `,` $from `,` $to `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($from)) `,` qualified(type($to)) `,` qualified(type($generator)) `->` qualified(type($result))";
 }
 
+def Torch_AtenBernoulliOp : Torch_Op<"aten.bernoulli", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::bernoulli : (Tensor, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($generator)) `->` qualified(type($result))";
+}
+
+def Torch_AtenBernoulli_FloatOp : Torch_Op<"aten.bernoulli_.float", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_FloatType:$p,
+    TorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($p)) `,` qualified(type($generator)) `->` qualified(type($result))";
+}
+
 def Torch_AtenTriuOp : Torch_Op<"aten.triu", [
     AllowsTypeRefinement,
     HasValueSemantics

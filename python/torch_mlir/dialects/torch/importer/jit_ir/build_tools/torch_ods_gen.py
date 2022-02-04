@@ -502,6 +502,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # Ops without value semantics but the corresponding without trailing
         # underscore variant doesn't exist.
         emit("aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)")
+        emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
+        emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")

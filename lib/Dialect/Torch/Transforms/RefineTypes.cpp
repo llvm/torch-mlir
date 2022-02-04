@@ -31,21 +31,6 @@ using namespace mlir::torch::torch_upstream; // For ScalarType and type
 // -----------------------------------------------------------------------------
 // Analysis.
 // -----------------------------------------------------------------------------
-
-static ScalarType getScalarTypeForType(Type type) {
-  if (type.isa<Float32Type>())
-    return ScalarType::Float;
-  if (type.isa<Float64Type>())
-    return ScalarType::Double;
-  if (type.isSignedInteger(64))
-    return ScalarType::Long;
-  if (type.isSignedInteger(32))
-    return ScalarType::Int;
-  if (type.isUnsignedInteger(1))
-    return ScalarType::Bool;
-  llvm::report_fatal_error("unhandled type for getScalarTypeForType");
-}
-
 static Type getTypeForScalarType(MLIRContext *context, ScalarType dtypeInt) {
   switch (dtypeInt) {
   case ScalarType::Float:
@@ -243,7 +228,7 @@ public:
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
             AtenAbsOp, AtenThresholdOp, AtenSquareOp, PseudoAtenUniformOp,
-            AtenCloneOp>(op)) {
+            AtenCloneOp, AtenBernoulliOp, AtenBernoulli_FloatOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 

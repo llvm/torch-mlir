@@ -5,6 +5,8 @@
 // https://github.com/pytorch/pytorch/blob/master/LICENSE
 //
 //===----------------------------------------------------------------------===//
+#ifndef TORCHMLIR_DIALECT_TORCH_UPSTREAM_H
+#define TORCHMLIR_DIALECT_TORCH_UPSTREAM_H
 
 #include "mlir/Support/LLVM.h"
 
@@ -82,3 +84,5 @@ enum Reduction { None, Mean, Sum, END };
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir
+
+#endif // TORCHMLIR_DIALECT_TORCH_UPSTREAM_H
