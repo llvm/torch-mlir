@@ -10,6 +10,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
+using namespace mlir::torch::torch_upstream;
+
 namespace mlir {
 namespace torch {
 namespace Torch {
@@ -28,6 +30,20 @@ bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
     return false;
   elems = llvm::to_vector<4>(listConstruct.elements());
   return true;
+}
+
+ScalarType getScalarTypeForType(Type type) {
+  if (type.isa<Float32Type>())
+    return ScalarType::Float;
+  if (type.isa<Float64Type>())
+    return ScalarType::Double;
+  if (type.isSignedInteger(64))
+    return ScalarType::Long;
+  if (type.isSignedInteger(32))
+    return ScalarType::Int;
+  if (type.isUnsignedInteger(1))
+    return ScalarType::Bool;
+  llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
 } // namespace Torch

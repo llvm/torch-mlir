@@ -19,6 +19,7 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+using namespace mlir::torch::torch_upstream; // For ScalarType and type
 
 // Helper funtion to get rank of `Base tensor type`.
 // -1 is returned if the tensorRank can't be determined.
@@ -707,6 +708,92 @@ public:
 };
 } // namespace
 
+// Returns a tensor with bernoulli(p) distribution.
+// Decompose aten.bernoulli(x, p) to aten.gtTensor(aten.uniform(x), p).
+static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
+                                      Location loc, Value input, double p) {
+  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+
+  // `intType` contains the corresponding integer for the dtype which is used
+  // by the aten.to.dtype op.
+  int intType = (int)getScalarTypeForType(inputType.getDtype());
+  Value convertIntVal =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(intType));
+  if (!inputType.hasSizes())
+    return nullptr;
+  BaseTensorType boolType =
+      inputType
+          .getWithSizesAndDtype(
+              inputType.getSizes(),
+              IntegerType::get(op->getContext(), 1, IntegerType::Signless))
+          .cast<BaseTensorType>();
+  Value prob =
+      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(p));
+  Value lb =
+      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+  Value ub =
+      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+
+  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+
+  // Create a uniform random op with low and high set to lb and ub respectively.
+  Value uniformRandom = rewriter.create<PseudoAtenUniformOp>(
+      loc, inputType, input, lb, ub, noneVal);
+  Value gtValue = rewriter.create<AtenLtScalarOp>(loc, boolType, uniformRandom,
+                                                  prob);
+  // Since `gtValue` will be a boolean tensor convert it back to the original
+  // type.
+  Value convertBack = rewriter.create<AtenToDtypeOp>(
+      loc, inputType, gtValue, convertIntVal, falseVal, falseVal, noneVal);
+  return convertBack;
+}
+
+namespace {
+class DecomposeAtenBernoulliOp : public OpRewritePattern<AtenBernoulliOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBernoulliOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value generator = op.generator();
+    if (!generator.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to ben None because only global default "
+              "generator is supported");
+    Value result = decomposeBernoulliLikeOp(rewriter, op, loc, self, /*p=*/0.5);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenBernoulli_FloatOp
+    : public OpRewritePattern<AtenBernoulli_FloatOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBernoulli_FloatOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value generator = op.generator();
+    double p;
+    if (!matchPattern(op.p(), m_TorchConstantFloat(&p)))
+      return rewriter.notifyMatchFailure(op, "p should be constant float");
+
+    if (!generator.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to ben None because only global default "
+              "generator is supported");
+    Value result = decomposeBernoulliLikeOp(rewriter, op, loc, self, p);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 template<typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
@@ -1058,6 +1145,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenStdOp>();
     patterns.add<DecomposeAten_UnsafeViewOp>(context);
     target.addIllegalOp<Aten_UnsafeViewOp>();
+    patterns.add<DecomposeAtenBernoulliOp>(context);
+    target.addIllegalOp<AtenBernoulliOp>();
+    patterns.add<DecomposeAtenBernoulli_FloatOp>(context);
+    target.addIllegalOp<AtenBernoulli_FloatOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

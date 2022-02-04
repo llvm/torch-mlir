@@ -11,6 +11,8 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
+#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
+
 
 namespace mlir {
 namespace torch {
@@ -19,6 +21,7 @@ namespace Torch {
 int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
 bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
+torch_upstream::ScalarType getScalarTypeForType(Type type);
 
 } // namespace Torch
 } // namespace torch

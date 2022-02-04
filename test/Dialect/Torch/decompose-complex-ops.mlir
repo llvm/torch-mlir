@@ -367,3 +367,25 @@ func @_log.softmax(%arg0: !torch.vtensor<[?,?,?],f32> loc(unknown)) -> !torch.vt
   %0 = torch.aten._log_softmax %arg0, %int0, %false : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.bool -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
 }
+
+// -----
+// CHECK-LABEL:  func @bernoulli
+// CHECK-SAME:               (%[[INP:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor {
+// CHECK:    %[[NONE:.*]] = torch.constant.none
+// CHECK:    %[[INT6:.*]] = torch.constant.int 6
+// CHECK:    %[[FLOAT0_5:.*]] = torch.constant.float 5.000000e-01
+// CHECK:    %[[FLOAT0:.*]] = torch.constant.float 0.000000e+00
+// CHECK:    %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:    %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:    %[[NONE0:.*]] = torch.constant.none
+// CHECK:    %[[UNF:.*]] = torch.pseudo.aten.uniform %[[INP]], %[[FLOAT0]], %[[FLOAT1]], %[[NONE0]] : !torch.vtensor<[?,?,?],f32>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[?,?,?],f32>
+// CHECK:    %[[GT:.*]] = torch.aten.lt.Scalar %[[UNF]], %[[FLOAT0_5]] : !torch.vtensor<[?,?,?],f32>, !torch.float -> !torch.vtensor<[?,?,?],i1>
+// CHECK:    %[[TODTYPE:.*]] = torch.aten.to.dtype %[[GT]], %[[INT6]], %[[FALSE]], %[[FALSE]], %[[NONE0]] : !torch.vtensor<[?,?,?],i1>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,?],f32>
+// CHECK:    %[[CAST:.*]] = torch.tensor_static_info_cast %[[TODTYPE]] : !torch.vtensor<[?,?,?],f32> to !torch.vtensor
+// CHECK:    return %[[CAST]] : !torch.vtensor
+func @bernoulli(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor {
+    %none = torch.constant.none
+    %0 = torch.aten.bernoulli %arg0, %none : !torch.vtensor<[?,?,?],f32>, !torch.none -> !torch.vtensor<[?,?,?],f32>
+    %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<[?,?,?],f32> to !torch.vtensor
+    return %1 : !torch.vtensor
+}
