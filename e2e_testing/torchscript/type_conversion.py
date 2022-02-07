@@ -75,3 +75,71 @@ class TypeConversionI64ToI32Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: TypeConversionI64ToI32Module())
 def TypeConversionI64ToI32Module_basic(module, tu: TestUtils):
     module.forward(torch.randint(5, [2, 3]))
+
+class TypeConversionI1ToI32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.bool, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.int32)
+
+@register_test_case(module_factory=lambda: TypeConversionI1ToI32Module())
+def TypeConversionI1ToI32Module_basic(module, tu: TestUtils):
+    tensor = torch.randint(0, 2, (3,4),dtype=torch.bool)
+    module.forward(tensor)
+
+class TypeConversionI1ToI64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.bool, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.int64)
+
+@register_test_case(module_factory=lambda: TypeConversionI1ToI64Module())
+def TypeConversionI1ToI64Module_basic(module, tu: TestUtils):
+    tensor = torch.randint(0, 2, (3,4), dtype=torch.bool)
+    module.forward(tensor)
+
+class TypeConversionI1ToF32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.bool, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.float32)
+
+@register_test_case(module_factory=lambda: TypeConversionI1ToF32Module())
+def TypeConversionI1ToF32Module_basic(module, tu: TestUtils):
+    tensor = torch.randint(0, 2, (3,4), dtype=torch.bool)
+    module.forward(tensor)
+
+class TypeConversionI1ToF64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1,-1], torch.bool, True)
+    ])
+    def forward(self, x):
+        return x.to(torch.float64)
+
+@register_test_case(module_factory=lambda: TypeConversionI1ToF64Module())
+def TypeConversionI1ToF64Module_basic(module, tu: TestUtils):
+    tensor = torch.randint(0, 2, (3,4), dtype=torch.bool)
+    module.forward(tensor)
