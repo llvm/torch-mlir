@@ -30,7 +30,7 @@ from . import basic
 from . import vision_models
 from . import mlp
 from . import conv
-from . import batchnorm
+from . import norm_like
 from . import quantized_models
 from . import elementwise
 from . import type_promotion

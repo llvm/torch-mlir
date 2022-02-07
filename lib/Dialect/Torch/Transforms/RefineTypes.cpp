@@ -493,6 +493,8 @@ public:
       return visitAtenNllLossBackwardOp(nllBackwardOp, operands);
     } else if (auto nativeLayerNormOp = dyn_cast<AtenNativeLayerNormOp>(op)) {
       return visitAtenNativeLayerNormOp(nativeLayerNormOp, operands);
+    } else if (auto nativeBatchNormOp = dyn_cast<AtenNativeBatchNormOp>(op)) {
+      return visitAtenNativeBatchNormOp(nativeBatchNormOp, operands);
     } else if (auto constantPadNdOp = dyn_cast<AtenConstantPadNdOp>(op)) {
       return visitAtenConstantPadNdOp(constantPadNdOp, operands);
     } else if (auto indexTensorOp = dyn_cast<AtenIndexTensorOp>(op)) {
@@ -654,6 +656,9 @@ private:
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitAtenNativeLayerNormOp(
       AtenNativeLayerNormOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitAtenNativeBatchNormOp(
+      AtenNativeBatchNormOp op,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenIndexTensorOp(AtenIndexTensorOp op,
@@ -1857,6 +1862,47 @@ ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
   knowledge.dtype =
       getPromotedResultType(getContext(), {&self, &tensor1, &tensor2});
   return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenNativeBatchNormOp(
+    AtenNativeBatchNormOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+
+  auto batchNormKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto meanKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  auto invStdKnowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+
+  batchNormKnowledge.dtype = input.dtype;
+  meanKnowledge.dtype = input.dtype;
+  invStdKnowledge.dtype = input.dtype;
+
+  // Rank of the input tensor must be greater than or equal to 2. The size of
+  // the input tensor as well as the output tensor should be (N, C, D?, H?, W?).
+  // The running_mean, running_var, weight, and bias should be of size (C).
+  bool training = false;
+  if (matchPattern(op.training(), m_TorchConstantBool(&training)) &&
+      input.hasSizes && input.sizes.size() >= 2) {
+    batchNormKnowledge.hasSizes = true;
+    meanKnowledge.hasSizes = true;
+    invStdKnowledge.hasSizes = true;
+    batchNormKnowledge.sizes = input.sizes;
+    meanKnowledge.sizes = {0};
+    invStdKnowledge.sizes = {0};
+    if (training) {
+      meanKnowledge.sizes[0] = input.sizes[1];
+      invStdKnowledge.sizes[0] = input.sizes[1];
+    }
+  }
+
+  auto resultLattice =
+      getLatticeElement(op.getResult(0)).join(batchNormKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(1)).join(meanKnowledge);
+  resultLattice |= getLatticeElement(op.getResult(2)).join(invStdKnowledge);
+  return resultLattice;
 }
 
 ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
