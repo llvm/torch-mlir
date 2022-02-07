@@ -17,6 +17,8 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
     "IouOfModule_basic",
     "TableBatchEmbeddingModule_basic",
+    "MobilenetV2Module_basic",
+    "MobilenetV3Module_basic",
 }
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 

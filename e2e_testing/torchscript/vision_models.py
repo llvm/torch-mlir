@@ -83,3 +83,45 @@ class IouOfModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: IouOfModule())
 def IouOfModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 4), tu.rand(1024, 4))
+
+class MobilenetV2Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Reset seed to make model deterministic.
+        torch.manual_seed(0)
+        self.mobilenetv2 = models.mobilenet_v2()
+        self.train(False)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 3, -1, -1], torch.float32, True),
+    ])
+    def forward(self, img):
+        return self.mobilenetv2.forward(img)
+
+
+@register_test_case(module_factory=lambda: MobilenetV2Module())
+def MobilenetV2Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 224, 224))
+
+class MobilenetV3Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Reset seed to make model deterministic.
+        torch.manual_seed(0)
+        self.mobilenetv3 = models.mobilenet_v3_small()
+        self.train(False)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 3, -1, -1], torch.float32, True),
+    ])
+    def forward(self, img):
+        return self.mobilenetv3.forward(img)
+
+
+@register_test_case(module_factory=lambda: MobilenetV3Module())
+def MobilenetV3Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 224, 224))
