@@ -9,8 +9,8 @@ from torch_mlir_e2e_test.torchscript.framework import TestUtils
 from torch_mlir_e2e_test.torchscript.registry import register_test_case
 from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
-
 # ==============================================================================
+
 class BatchNorm1DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -35,8 +35,8 @@ class BatchNorm1DModule(torch.nn.Module):
 def BatchNorm1DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 4, 3))
 
-
 # ==============================================================================
+
 class BatchNorm2DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -60,8 +60,8 @@ class BatchNorm2DModule(torch.nn.Module):
 def BatchNorm2DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 2, 3, 3))
 
-
 # ==============================================================================
+
 class BatchNorm3DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -89,6 +89,107 @@ def BatchNorm3DModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class NativeBatchNorm1DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias, running_mean, running_var):
+        return torch.ops.aten.native_batch_norm(
+            x, weight, bias, running_mean, running_var, training=False, 
+            momentum=0.1, eps=0.00001)
+
+
+@register_test_case(module_factory=lambda: NativeBatchNorm1DModule())
+def NativeBatchNorm1DModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 5, 3), tu.rand(5), tu.rand(5), tu.rand(5), tu.rand(5))
+
+# ==============================================================================
+
+class NativeBatchNorm2DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias, running_mean, running_var):
+        return torch.ops.aten.native_batch_norm(
+            x, weight, bias, running_mean, running_var, training=False, 
+            momentum=0.1, eps=0.00001)
+
+
+@register_test_case(module_factory=lambda: NativeBatchNorm2DModule())
+def NativeBatchNorm2DModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 5, 2, 3), tu.rand(5), tu.rand(5), tu.rand(5), tu.rand(5))
+
+# ==============================================================================
+
+class NativeBatchNorm3DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias, running_mean, running_var):
+        return torch.ops.aten.native_batch_norm(
+            x, weight, bias, running_mean, running_var, training=False, 
+            momentum=0.1, eps=0.00001)
+
+
+@register_test_case(module_factory=lambda: NativeBatchNorm3DModule())
+def NativeBatchNorm3DModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 5, 2, 2, 3), tu.rand(5), tu.rand(5), tu.rand(5), tu.rand(5))
+
+# ==============================================================================
+
+class NativeBatchNormNoneWeightModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x, bias, running_mean, running_var):
+        return torch.ops.aten.native_batch_norm(
+            x, None, bias, running_mean, running_var, training=False, 
+            momentum=0.1, eps=0.00001)
+
+
+@register_test_case(module_factory=lambda: NativeBatchNormNoneWeightModule())
+def NativeBatchNormNoneWeightModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(5), tu.rand(5), tu.rand(5))
+
+# ==============================================================================
 
 class NativeLayerNormModule(torch.nn.Module):
     def __init__(self):
@@ -113,7 +214,6 @@ def NativeLayerNormModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-
 class NativeLayerNormModule4D(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -135,9 +235,7 @@ class NativeLayerNormModule4D(torch.nn.Module):
 def NativeLayerNormModule4D_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
 
-
 # ==============================================================================
-
 
 class LayerNormModule(torch.nn.Module):
     def __init__(self):
@@ -164,8 +262,8 @@ class LayerNormModule(torch.nn.Module):
 def LayerNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5, 2, 2, 3))
 
-
 # ==============================================================================
+
 class LayerNormLastDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -188,7 +286,6 @@ def LayerNormLastDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5, 2, 2, 3))
 
 # ==============================================================================
-
 
 class LayerNormNormalizeOverAllDimsModule(torch.nn.Module):
     def __init__(self):

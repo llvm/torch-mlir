@@ -1489,6 +1489,29 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
   let assemblyFormat = "$input `,` $weight `,` $bias `,` $stride `,` $padding `,` $dilation `,` $groups attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($stride)) `,` qualified(type($padding)) `,` qualified(type($dilation)) `,` qualified(type($groups)) `->` qualified(type($result))";
 }
 
+def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalTensorType:$running_mean,
+    AnyTorchOptionalTensorType:$running_var,
+    Torch_BoolType:$training,
+    Torch_FloatType:$momentum,
+    Torch_FloatType:$eps
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2
+  );
+  let assemblyFormat = "$input `,` $weight `,` $bias `,` $running_mean `,` $running_var `,` $training `,` $momentum `,` $eps attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($running_mean)) `,` qualified(type($running_var)) `,` qualified(type($training)) `,` qualified(type($momentum)) `,` qualified(type($eps)) `->` qualified(type($result0)) `,` qualified(type($result1)) `,` qualified(type($result2))";
+}
+
 def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
     AllowsTypeRefinement,
     HasValueSemantics

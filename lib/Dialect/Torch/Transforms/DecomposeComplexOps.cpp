@@ -823,6 +823,127 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
 } // namespace
 
 namespace {
+class DecomposeAtenNativeBatchNormOp
+    : public OpRewritePattern<AtenNativeBatchNormOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNativeBatchNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Value input = op.input();
+    Value weight = op.weight();
+    Value bias = op.bias();
+    Value runningMean = op.running_mean();
+    Value runningVar = op.running_var();
+    Value eps = op.eps();
+
+    // TODO: Add support for `training` mode.
+    bool training = false;
+    if (!matchPattern(op.training(), m_TorchConstantBool(&training)) ||
+        training)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: training mode is not supported");
+
+    // Rank of the input tensor must be greater than or equal to 2. The shape of
+    // the `input` is supposed to be (N, C, D?, H?, W?).
+    int64_t inputRank = getTensorRank(input);
+    if (inputRank < 2)
+      return rewriter.notifyMatchFailure(
+          op, "input must have rank greater than or equal to 2");
+
+    // In the inference mode, the `runningMean` and `runningVar` must not be
+    // None.
+    if (runningMean.getType().isa<Torch::NoneType>() ||
+        runningVar.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "running stats must not be None in inference mode");
+
+    // Rank of `runningMean` and `runningVar` must be exactly 1.
+    if (getTensorRank(runningMean) != 1 || getTensorRank(runningVar) != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected running_mean and running_var to be rank 1");
+
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value numFeatures = rewriter.create<AtenSizeIntOp>(loc, input, /*dim=*/one);
+    // TODO: Add Runtime Asserts to check the shape of weight, bias,
+    // running_mean and running_var to be (numFeatures).
+
+    // The `runningMean` and `runningVar` must be reshaped to (1, C, 1?, 1?, 1?)
+    // to make it broadcast-compatible with (N, C, D?, H?, W?).
+    // 1. runningMean = runningMean.view(1, C, 1?, 1?, 1?)
+    // 2. runningVar = runningVar.view(1, C, 1?, 1?, 1?)
+    SmallVector<Value> runningStatsShape(inputRank, one);
+    runningStatsShape[1] = numFeatures;
+    Value runningStatsSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), runningStatsShape);
+
+    SmallVector<int64_t> runningStatsShapeInt(inputRank, 1);
+    runningStatsShapeInt[1] = ShapedType::kDynamicSize;
+    Type dtype = input.getType().cast<ValueTensorType>().getDtype();
+    Type reshapeType = ValueTensorType::get(
+        context, llvm::makeArrayRef(runningStatsShapeInt), dtype);
+
+    runningMean = rewriter.create<AtenViewOp>(loc, reshapeType, runningMean,
+                                              runningStatsSizeList);
+    runningVar = rewriter.create<AtenViewOp>(loc, reshapeType, runningVar,
+                                             runningStatsSizeList);
+
+    // normalizedInput = (input - runningMean) / (sqrt(runningVar + eps)).
+    Value inputSubMean = rewriter.create<AtenSubTensorOp>(
+        loc, input.getType(), input, runningMean, /*alpha=*/one);
+    Value varEps = rewriter.create<AtenAddScalarOp>(
+        loc, runningVar.getType(), runningVar, eps, /*alpha=*/one);
+    Value invStd = rewriter.create<AtenRsqrtOp>(loc, varEps.getType(), varEps);
+    Value normalizedInput = rewriter.create<AtenMulTensorOp>(
+        loc, inputSubMean.getType(), inputSubMean, invStd);
+
+    // The `weight` and `bias` must be reshaped to (1, C, 1?, 1?, 1?) to make it
+    // broadcast-compatible with (N, C, D?, H?, W?).
+    // 1. weight = weight.view(1, C, 1?, 1?, 1?)
+    // 2. bias = bias.view(1, C, 1?, 1?, 1?)
+    // 3. output = normalizedInput * weight + bias
+    Value batchNormOutput = normalizedInput;
+    if (!weight.getType().isa<Torch::NoneType>()) {
+      // Rank of `weight` must be exactly 1.
+      if (getTensorRank(weight) != 1)
+        return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
+      weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
+                                           runningStatsSizeList);
+      batchNormOutput = rewriter.create<AtenMulTensorOp>(
+          loc, batchNormOutput.getType(), batchNormOutput, weight);
+    }
+    if (!bias.getType().isa<Torch::NoneType>()) {
+      // Rank of `bias` must be exactly 1.
+      if (getTensorRank(bias) != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+      bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
+                                         runningStatsSizeList);
+      batchNormOutput = rewriter.create<AtenAddTensorOp>(
+          loc, batchNormOutput.getType(), batchNormOutput, bias, /*alpha=*/one);
+    }
+
+    // The `mean` and `invstd` outputs are empty tensors in inference mode.
+    Value zeroList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(zero.getType()), zero);
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value emptyMeanTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, op.getType(1), zeroList, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
+    Value emptyInvStdTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, op.getType(2), zeroList, /*dtype=*/none, /*layout=*/none,
+        /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
+
+    rewriter.replaceOp(op,
+                       {batchNormOutput, emptyMeanTensor, emptyInvStdTensor});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -879,6 +1000,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenAddcdivOp>();
     target.addIllegalOp<AtenLayerNormOp>();
     patterns.add<DecomposeAtenLayerNormOp>(context);
+    target.addIllegalOp<AtenNativeBatchNormOp>();
+    patterns.add<DecomposeAtenNativeBatchNormOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);

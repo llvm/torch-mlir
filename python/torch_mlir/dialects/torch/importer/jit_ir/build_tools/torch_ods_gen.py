@@ -515,6 +515,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
             "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
         )
         emit(
+            "aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
+        )
+        emit(
             "aten::batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)"
         )
         emit(
