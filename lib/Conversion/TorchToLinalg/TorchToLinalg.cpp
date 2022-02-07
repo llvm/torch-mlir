@@ -1602,8 +1602,8 @@ static Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
   };
 
   if (isByteOrChar(scalarType) || isByteOrChar(dtype) ||
-      scalarType.isSignlessInteger(1) || dtype.isSignlessInteger(1)) {
-    // TODO: Handle bool type.
+      dtype.isSignlessInteger(1)) {
+    // TODO: Handle to-boolean conversion(from-boolean conversion is handled).
     mlir::emitError(loc)
         << "unsupported byte, char or bool type for convertScalarToDtype "
         << scalarType << "(scalar type) -> " << dtype << "(dtype)";
@@ -1618,6 +1618,8 @@ static Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
       return b.create<arith::ExtFOp>(loc, scalar, dtype);
     }
     assert(scalarType.isa<mlir::IntegerType>());
+    if (scalarType.isSignlessInteger(1))
+      return b.create<arith::UIToFPOp>(loc, scalar, dtype);
     // It's safe to use SIToFPOp because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
     return b.create<arith::SIToFPOp>(loc, scalar, dtype);
@@ -1630,6 +1632,8 @@ static Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
     auto scalarInteger = scalarType.cast<mlir::IntegerType>();
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())
       return b.create<arith::TruncIOp>(loc, scalar, dtype);
+    if (scalarType.isSignlessInteger(1))
+      return b.create<arith::ExtUIOp>(loc, scalar, dtype);
     // Only scalarInteger width < dtypeInteger width can reach here.
     // It's safe to use ExtSIOp here because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
