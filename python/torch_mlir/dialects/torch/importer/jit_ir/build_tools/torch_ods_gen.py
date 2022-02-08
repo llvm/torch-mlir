@@ -446,6 +446,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # Elementwise tensor compute ops
         for key in [
                 "aten::tanh : (Tensor) -> (Tensor)",
+                "aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)",
                 "aten::relu : (Tensor) -> (Tensor)",
                 "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
                 "aten::log : (Tensor) -> (Tensor)",

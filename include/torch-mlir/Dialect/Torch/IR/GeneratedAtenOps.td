@@ -44,6 +44,38 @@ def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
+def Torch_AtenHardtanhOp : Torch_Op<"aten.hardtanh", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$min_val,
+    AnyTorchScalarType:$max_val
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $min_val `,` $max_val attr-dict `:` qualified(type($self)) `,` qualified(type($min_val)) `,` qualified(type($max_val)) `->` qualified(type($result))";
+}
+
+def Torch_AtenHardtanh_Op : Torch_Op<"aten.hardtanh_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::hardtanh_ : (Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$min_val,
+    AnyTorchScalarType:$max_val
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $min_val `,` $max_val attr-dict `:` qualified(type($self)) `,` qualified(type($min_val)) `,` qualified(type($max_val)) `->` qualified(type($result))";
+}
+
 def Torch_AtenReluOp : Torch_Op<"aten.relu", [
     AllowsTypeRefinement,
     HasValueSemantics
