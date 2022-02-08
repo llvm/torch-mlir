@@ -9,6 +9,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -116,6 +117,55 @@ static Value createTensorSub(PatternRewriter &rewriter, Location loc,
   Value sub =
       rewriter.create<AtenSubTensorOp>(loc, tensorType, lhs, rhs, alpha);
   return sub;
+}
+
+static Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                                     Type dtype) {
+  int intType = (int)getScalarTypeForType(dtype);
+  return rewriter.create<ConstantIntOp>(loc,
+                                        rewriter.getI64IntegerAttr(intType));
+}
+
+// Helper to convert a tensor to a specific scalar type.
+static Value convertTensorToDtype(PatternRewriter &rewriter, Location loc,
+                                  Value input, Type dtype) {
+  BaseTensorType origType = input.getType().cast<BaseTensorType>();
+  Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
+  // `convertIntVal` contains the corresponding integer for the dtype which is used
+  // by the aten.to.dtype op.
+  Value convertIntVal = getDtypeIntValueForType(rewriter, loc, dtype);
+  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value converted = rewriter.create<AtenToDtypeOp>(
+      loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
+  return converted;
+}
+
+// Helper to create a tensor filled with the given scalar. Scalar would be
+// converted the to the element type of the given tensor type.
+static Value createInitTensor(PatternRewriter &rewriter, Location loc,
+                              Type resultType, Value scalar, Value sizeList) {
+  BaseTensorType tensorType = resultType.cast<BaseTensorType>();
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+      loc, tensorType, sizeList, /*dtype=*/noneVal, /*layout=*/noneVal,
+      /*device=*/noneVal,
+      /*pin_memory=*/noneVal, /*memory_format=*/noneVal);
+  return rewriter.create<PseudoAtenFillScalarOp>(loc, resultType, emptyTensor,
+                                                 scalar);
+}
+
+// Helper to create a rank0 tensor filled with the given scalar. Scalar would be
+// converted the to the element type of the given tensor type.
+static Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
+                               BaseTensorType inputType, Value scalar) {
+  SmallVector<int64_t> sizes;
+  Type rank0TensorTy = inputType.getWithSizesAndDtype(
+      makeArrayRef(sizes), inputType.getOptionalDtype());
+  Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
+      ValueRange{});
+  return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
 }
 
 // Share code between `softmax_backward` and `log_softmax_backward` ops.
@@ -563,23 +613,11 @@ public:
 static Value getRelu6Results(PatternRewriter &rewriter, Location loc,
                              Value input) {
   BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-  Value constantOne =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+
   Value relu = rewriter.create<AtenReluOp>(loc, inputType, input);
-  Value dimList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(constantOne.getType()), constantOne);
-  BaseTensorType oneDTensorType =
-      inputType.getWithSizesAndDtype({1}, inputType.getDtype())
-          .cast<BaseTensorType>();
-  Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
-      loc, oneDTensorType, dimList, /*dtype=*/none, /*layout=*/none,
-      /*device=*/none,
-      /*pin_memory=*/none, /*memory_format=*/none);
-  Value constantSix =
+  Value cst6 =
       rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(6));
-  Value sixTensor = rewriter.create<PseudoAtenFillScalarOp>(
-      loc, oneDTensorType, emptyTensor, constantSix);
+  Value sixTensor = createRank0Tensor(rewriter, loc, inputType, cst6);
   Value relu6Out =
       rewriter.create<AtenMinimumOp>(loc, inputType, relu, sixTensor);
   return relu6Out;
@@ -841,7 +879,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
-    Type inputType = input.getType();
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
 
     // outputTensor = (input + 3) / 6.
     Value constantOne = rewriter.create<Torch::ConstantIntOp>(
@@ -856,15 +894,13 @@ public:
         loc, inputType, inputPlusThree, constantSix);
 
     // result = max(0, min(1, (input+3)/6))
-    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-    Value zeroTensor = rewriter.create<AtenZerosLikeOp>(
-        loc, inputType, input, /*dtype=*/none, /*layout=*/none, /*device=*/none,
-        /*pin_memory=*/none, /*memory_format=*/none);
-    Value oneTensor = rewriter.create<AtenOnesLikeOp>(
-        loc, inputType, input, /*dtype=*/none, /*layout=*/none, /*device=*/none,
-        /*pin_memory=*/none, /*memory_format=*/none);
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value oneTensor = createRank0Tensor(rewriter, loc, inputType, constantOne);
     Value minResult =
         rewriter.create<AtenMinimumOp>(loc, inputType, oneTensor, outputTensor);
+    Value zeroTensor =
+        createRank0Tensor(rewriter, loc, inputType, constantZero);
     rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), zeroTensor,
                                                minResult);
     return success();
@@ -872,19 +908,39 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenHardtanhOp : public OpRewritePattern<AtenHardtanhOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHardtanhOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+
+    // result = min(maxVal, max(minVal, x))
+    Value minVal = createRank0Tensor(rewriter, loc, inputType, op.min_val());
+    Value maxResult =
+        rewriter.create<AtenMaximumOp>(loc, inputType, input, minVal);
+    Value maxVal = createRank0Tensor(rewriter, loc, inputType, op.max_val());
+    rewriter.replaceOpWithNewOp<AtenMinimumOp>(op, op.getType(), maxVal,
+                                               maxResult);
+    return success();
+  }
+};
+} // namespace
+
 // Returns a tensor with bernoulli(p) distribution.
 // Decompose aten.bernoulli(x, p) to aten.gtTensor(aten.uniform(x), p).
-static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
-                                      Location loc, Value input, double p) {
+static LogicalResult decomposeBernoulliLikeOp(PatternRewriter &rewriter,
+                                              Operation *op, Location loc,
+                                              Value input, double p,
+                                              Value &result) {
   BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-
-  // `intType` contains the corresponding integer for the dtype which is used
-  // by the aten.to.dtype op.
-  int intType = (int)getScalarTypeForType(inputType.getDtype());
-  Value convertIntVal =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(intType));
-  if (!inputType.hasSizes())
-    return nullptr;
+  if (!inputType.hasSizes() || !inputType.hasDtype()) {
+    return rewriter.notifyMatchFailure(
+        op, "Can't decomposeBernoulliLikeOp without sizes or dtype");
+  }
   BaseTensorType boolType =
       inputType
           .getWithSizesAndDtype(
@@ -898,9 +954,7 @@ static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
   Value ub =
       rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
 
-  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
   Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-
   // Create a uniform random op with low and high set to lb and ub respectively.
   Value uniformRandom = rewriter.create<PseudoAtenUniformOp>(
       loc, inputType, input, lb, ub, noneVal);
@@ -908,9 +962,8 @@ static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
       rewriter.create<AtenLtScalarOp>(loc, boolType, uniformRandom, prob);
   // Since `gtValue` will be a boolean tensor convert it back to the original
   // type.
-  Value convertBack = rewriter.create<AtenToDtypeOp>(
-      loc, inputType, gtValue, convertIntVal, falseVal, falseVal, noneVal);
-  return convertBack;
+  result = convertTensorToDtype(rewriter, loc, gtValue, inputType.getDtype());
+  return success();
 }
 
 namespace {
@@ -926,7 +979,10 @@ public:
       return rewriter.notifyMatchFailure(
           op, "The generator has to ben None because only global default "
               "generator is supported");
-    Value result = decomposeBernoulliLikeOp(rewriter, op, loc, self, /*p=*/0.5);
+    Value result;
+    if (failed(decomposeBernoulliLikeOp(rewriter, op, loc, self, /*p=*/0.5,
+                                        result)))
+      return failure();
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -951,7 +1007,9 @@ public:
       return rewriter.notifyMatchFailure(
           op, "The generator has to ben None because only global default "
               "generator is supported");
-    Value result = decomposeBernoulliLikeOp(rewriter, op, loc, self, p);
+    Value result;
+    if (failed(decomposeBernoulliLikeOp(rewriter, op, loc, self, p, result)))
+      return failure();
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -1343,6 +1401,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(
         context);
     target.addIllegalOp<AtenNewOnesOp>();
+    patterns.add<DecomposeAtenHardtanhOp>(context);
+    target.addIllegalOp<AtenHardtanhOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

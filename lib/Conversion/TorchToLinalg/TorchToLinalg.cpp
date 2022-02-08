@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -161,6 +162,37 @@ static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
       loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
   b.create<cf::AssertOp>(loc, contractingDimEqual,
                          b.getStringAttr("mismatching contracting dimension"));
+}
+
+template <arith::CmpFPredicate fpred, arith::CmpIPredicate iupred,
+          arith::CmpIPredicate ispred>
+static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
+                                      Value lhs, Value rhs) {
+  if (type.isa<mlir::FloatType>())
+    return b.create<arith::CmpFOp>(loc, fpred, lhs, rhs);
+  if (IntegerType intType = type.dyn_cast<mlir::IntegerType>()) {
+    if (intType.isUnsigned())
+      return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
+    if (intType.isSigned())
+      return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
+  }
+  assert(false && "Unhandled element type for comparison");
+}
+
+static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
+                               Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UGT,
+                                  arith::CmpIPredicate::ugt,
+                                  arith::CmpIPredicate::sgt>(
+      b, loc, elementalType, lhs, rhs);
+}
+
+static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
+                            Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::ULT,
+                                  arith::CmpIPredicate::ult,
+                                  arith::CmpIPredicate::slt>(
+      b, loc, elementalType, lhs, rhs);
 }
 
 static SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
@@ -2072,20 +2104,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Type elementalType =
         gtTensor.self().getType().cast<BaseTensorType>().getDtype();
-
-    if (elementalType.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                     payloadArgs[0], payloadArgs[1]);
-    if (IntegerType intType = elementalType.dyn_cast<mlir::IntegerType>()) {
-      if (intType.isUnsigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt,
-                                       payloadArgs[0], payloadArgs[1]);
-      if (intType.isSigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt,
-                                       payloadArgs[0], payloadArgs[1]);
-    }
-    gtTensor.emitError("unimplemented: dtype isn't supported.");
-    return nullptr;
+    return createGreaterThan(b, loc, elementalType, payloadArgs[0],
+                             payloadArgs[1]);
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
     AtenEqTensorOp::Adaptor adaptor(operands);
@@ -2126,20 +2146,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Type elementalType =
         ltTensor.self().getType().cast<BaseTensorType>().getDtype();
-
-    if (elementalType.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                     payloadArgs[0], payloadArgs[1]);
-    if (IntegerType intType = elementalType.dyn_cast<mlir::IntegerType>()) {
-      if (intType.isUnsigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ult,
-                                       payloadArgs[0], payloadArgs[1]);
-      if (intType.isSigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
-                                       payloadArgs[0], payloadArgs[1]);
-    }
-    ltTensor.emitError("unimplemented: dtype isn't supported.");
-    return nullptr;
+    return createLessThan(b, loc, elementalType, payloadArgs[0],
+                          payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -2329,28 +2337,24 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AddFOp>(loc, start, weightedDelta);
   }
   if (auto minimum = dyn_cast<AtenMinimumOp>(op)) {
-    if (!minimum.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      minimum.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                         payloadArgs[0], payloadArgs[1]);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    Type dtype = minimum.getType().cast<BaseTensorType>().getDtype();
+    Type elemTy = converter->convertType(minimum.getType())
+                      .cast<RankedTensorType>()
+                      .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value pred = createLessThan(b, loc, dtype, lhs, rhs);
+    return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto maximum = dyn_cast<AtenMaximumOp>(op)) {
-    if (!maximum.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      maximum.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                         payloadArgs[0], payloadArgs[1]);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    Type dtype = maximum.getType().cast<BaseTensorType>().getDtype();
+    Type elemTy = converter->convertType(maximum.getType())
+                      .cast<RankedTensorType>()
+                      .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value pred = createGreaterThan(b, loc, dtype, lhs, rhs);
+    return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
     Type dtype = converter->convertType(clamp.getType())
