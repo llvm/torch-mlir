@@ -13,6 +13,20 @@ func @torch.aten.dim(%arg0: !torch.vtensor<*,f32>) -> !torch.int {
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.runtime.assert(
+// CHECK-SAME:                            %[[X:.*]]: !torch.int,
+// CHECK-SAME:                            %[[Y:.*]]: !torch.int) {
+// CHECK:           %[[X_I64:.*]] = torch_c.to_i64 %[[X]]
+// CHECK:           %[[Y_I64:.*]] = torch_c.to_i64 %[[Y]]
+// CHECK:           %[[CMP:.*]] = arith.cmpi ne, %[[X_I64]], %[[Y_I64]] : i64
+// CHECK:           assert %[[CMP]], "x must not be equal to y"
+// CHECK:           return
+func @torch.runtime.assert(%arg0: !torch.int, %arg1: !torch.int) {
+  %0 = torch.aten.ne.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.bool
+  torch.runtime.assert %0, "x must not be equal to y"
+  return
+}
+
 // CHECK-LABEL:   func @torch.aten.ne.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {

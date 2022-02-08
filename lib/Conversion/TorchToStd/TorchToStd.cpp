@@ -46,6 +46,20 @@ public:
 } // namespace
 
 namespace {
+class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(RuntimeAssertOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AssertOp>(op, adaptor.condition(),
+                                          adaptor.message());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename AtenOp, typename BinOp>
 class ConvertAtenBinaryOp : public OpConversionPattern<AtenOp> {
 public:
@@ -173,6 +187,8 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenDimOp>();
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
+    target.addIllegalOp<RuntimeAssertOp>();
+    patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp>();
     patterns.add<ConvertAtenNeIntOp>(typeConverter, context);
     target.addIllegalOp<AtenGtIntOp>();

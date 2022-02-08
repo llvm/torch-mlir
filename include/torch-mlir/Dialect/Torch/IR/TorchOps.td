@@ -931,4 +931,33 @@ def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
   let assemblyFormat = "$self `,` $from `,` $to `,` $generator attr-dict `:` type($self) `,` type($from) `,` type($to) `,` type($generator) `->` type($result)";
 }
 
+// To handle runtime assertions, torchscript provides us `torch._assert` operation. 
+// But TS compiler introduces control flow for `torch._assert` operation. The 
+// `torch._assert` would introduce control flow like: 
+// 
+//            %cond = "torch.aten.Bool.Tensor"(%0) : (!torch.tensor) -> !torch.bool
+//            "torch.prim.If"(%cond) ({
+//              "torch.prim.If.yield"() : () -> ()
+//            }, {
+//              "torch.prim.RaiseException"(%msg) : (!torch.str) -> () 
+//              "torch.prim.If.yield"() : () -> () 
+//            }) : (!torch.bool) -> ()
+// 
+// This new operation `torch.runtime.assert` is added to simplify the IR control
+// flow by avoiding unnecessary branches. It also makes insertion of the runtime 
+// assert in the source code easier. 
+def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+  ]> {
+  let summary = "Runtime Assertion";
+  let arguments = (ins
+    Torch_BoolType:$condition,
+    StrAttr:$message
+  );
+  let results = (outs
+  );
+  let assemblyFormat = "$condition `,` $message attr-dict";
+}
+
 #endif // TORCH_OPS
