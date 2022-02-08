@@ -51,6 +51,7 @@ from . import threshold
 from . import histogram_binning_calibration
 from . import table_batch_embedding
 from . import rng
+from . import model_xlmr
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
