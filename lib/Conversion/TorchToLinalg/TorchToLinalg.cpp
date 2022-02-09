@@ -3804,29 +3804,40 @@ public:
 };
 } // namespace
 
-// Casts a 0d integer tensor to elemental type.
 namespace {
-class ConvertAtenIntTensorOp : public OpConversionPattern<AtenIntTensorOp> {
+// Casts a tensor of exactly one element to an elemental type.
+template <typename OpTy>
+class ConvertAtenTensorToScalarLikeOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenIntTensorOp op, OpAdaptor adaptor,
+  matchAndRewrite(OpTy op,
+                  typename OpConversionPattern<OpTy>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    Value intTensor = adaptor.a();
-    auto tensorType = intTensor.getType().cast<RankedTensorType>();
+    Location loc = op.getLoc();
+    Value input = adaptor.a();
+    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+    int64_t inputRank = inputSizes.size();
 
-    if (tensorType.getRank() != 0)
-      return rewriter.notifyMatchFailure(
-          op, "invalid rank: the rank of the input tensor must be 0");
+    // The `input` tensor must contain exactly one element, i.e., either the
+    // `input` is a zero rank tensor or all the dimensions of the `input` tensor
+    // are unit.
+    Value constantOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(1));
+    for (int64_t i = 0; i < inputRank; i++)
+      checkDimEqualHelper(rewriter, loc, inputSizes[i], constantOne);
 
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, intTensor);
+    // Extract the only element from the `input` tensor.
+    Value constantZero =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+    SmallVector<Value> indices(inputRank, constantZero);
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, input, indices);
     return success();
   }
 };
 } // namespace
-
 
 namespace {
 class ConvertAtenFill_ScalarOp : public OpConversionPattern<AtenFill_ScalarOp> {
@@ -3852,7 +3863,6 @@ public:
   }
 };
 } // namespace
-
 
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
@@ -4618,8 +4628,13 @@ public:
                                                               context);
     target.addIllegalOp<AtenContiguousOp>();
     patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
-    target.addIllegalOp<AtenIntTensorOp>();
-    patterns.add<ConvertAtenIntTensorOp>(typeConverter, context);
+    target.addIllegalOp<AtenIntTensorOp, AtenFloatTensorOp, AtenBoolTensorOp>();
+    patterns.add<ConvertAtenTensorToScalarLikeOp<AtenIntTensorOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenTensorToScalarLikeOp<AtenFloatTensorOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenTensorToScalarLikeOp<AtenBoolTensorOp>>(
+        typeConverter, context);
     target.addIllegalOp<PrimNumToTensorScalarOp>();
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenDropoutOp>();

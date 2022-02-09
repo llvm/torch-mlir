@@ -2935,6 +2935,21 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
   let hasFolder = 1;
 }
 
+def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::Float.Tensor : (Tensor) -> (float)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
 def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
     AllowsTypeRefinement,
     HasValueSemantics
