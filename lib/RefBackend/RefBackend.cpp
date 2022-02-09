@@ -169,7 +169,7 @@ static LogicalResult mungeFunction(
     std::string funcName = getConsumeReturnFunctionNameForReturnTypes(retTypes);
     if (supportedConsumeFuncReturnFuncs.find(funcName) == supportedFuncsEnd) {
       op.emitError("Supported return types:"
-                   "mri1, mri32, mri64, mrf32, mrf64, i64, f32, f64,"
+                   "mri1, mri32, mri64, mrf32, mrf64, i1, i64, f32, f64,"
                    "(mrf32, mri64), (mrf32, mrf32), (mrf64, mrf64),"
                    "(mrf32, mrf32, mrf32)");
       isSupported = false;
@@ -195,6 +195,7 @@ static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
   Type mri64 = UnrankedMemRefType::get(b.getI64Type(), 0);
   Type mrf32 = UnrankedMemRefType::get(b.getF32Type(), 0);
   Type mrf64 = UnrankedMemRefType::get(b.getF64Type(), 0);
+  Type i1 = b.getI1Type();
   Type i64 = b.getI64Type();
   Type f32 = b.getF32Type();
   Type f64 = b.getF64Type();
@@ -204,6 +205,7 @@ static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
                                                  mri64,
                                                  mrf32,
                                                  mrf64,
+                                                 i1,
                                                  i64,
                                                  f32,
                                                  f64,

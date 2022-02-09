@@ -122,7 +122,6 @@ def AddmmModuleFloat_basic(module, tu: TestUtils):
 
 #  ==============================================================================
 
-
 class AddmmModuleBroadcastable(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -144,7 +143,6 @@ def AddmmModule_broadcastable(module, tu: TestUtils):
 
 #  ==============================================================================
 
-
 class AddmmModuleDifferentRankBroadcastable(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -165,7 +163,6 @@ def AddmmModule_differentRankBroadcastable(module, tu: TestUtils):
     module.forward(tu.rand(3), tu.rand(3, 2), tu.rand(2, 3))
 
 #  ==============================================================================
-
 
 class AdaptiveAvgPool2dModule(torch.nn.Module):
     def __init__(self):
@@ -263,6 +260,7 @@ class MaxPool2dModule(torch.nn.Module):
     def forward(self, x):
         return self.mp2d(x)
 
+# ==============================================================================
 
 @register_test_case(module_factory=lambda: MaxPool2dModule())
 def MaxPool2dModule_basic(module, tu: TestUtils):
@@ -328,6 +326,7 @@ class ConstantPadNdModule(torch.nn.Module):
 def ConstantPadNdModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
 
+# ==============================================================================
 
 class ConstantPadNdStaticModule(torch.nn.Module):
     def __init__(self):
@@ -345,6 +344,8 @@ class ConstantPadNdStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConstantPadNdStaticModule())
 def ConstantPadNdStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+
+# ==============================================================================
 
 class ConstantPadNdPartialStaticModule(torch.nn.Module):
     def __init__(self):
@@ -585,6 +586,8 @@ class SoftmaxIntModule(torch.nn.Module):
 def SoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
+# ==============================================================================
+
 class _SoftmaxModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -718,22 +721,7 @@ class ContiguousModule(torch.nn.Module):
 def ContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1))
 
-class TensorToInt(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-    ])
-    def forward(self, x):
-        return int(x)
-
-
-@register_test_case(module_factory=lambda: TensorToInt())
-def TensorToInt_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10,[]))
+# ==============================================================================
 
 class LogSoftmaxIntModule(torch.nn.Module):
     def __init__(self):
@@ -752,6 +740,7 @@ class LogSoftmaxIntModule(torch.nn.Module):
 def LogSoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).double())
 
+# ==============================================================================
 
 class NumToTensorIntModule(torch.nn.Module):
     def __init__(self):
@@ -769,6 +758,7 @@ class NumToTensorIntModule(torch.nn.Module):
 def NumToTensorIntModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
 
 class NumToTensorFloatModule(torch.nn.Module):
     def __init__(self):
@@ -808,6 +798,8 @@ class ReturnThreeTensorFloat32(torch.nn.Module):
 def ReturnThreeTensorFloat32_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.rand(2, 3), tu.rand(2, 3))
 
+# ==============================================================================
+
 class AddCMulModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -826,6 +818,8 @@ class AddCMulModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AddCMulModule())
 def AddCMulModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1,3), tu.rand(1,3), tu.rand(1,3))
+
+# ==============================================================================
 
 class AddCDivModule(torch.nn.Module):
     def __init__(self):
@@ -865,6 +859,8 @@ class tensorIntModule(torch.nn.Module):
 def TensorIntModule_basic(module, tu: TestUtils):
     module.forward()
 
+# ==============================================================================
+
 class tensorFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -902,6 +898,7 @@ class DropoutModule(torch.nn.Module):
 def DropoutModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+# ==============================================================================
 
 class MeanModule(torch.nn.Module):
     def __init__(self):
@@ -920,6 +917,7 @@ class MeanModule(torch.nn.Module):
 def MeanModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 4))
 
+# ==============================================================================
 
 class MeanDynamicSizesModule(torch.nn.Module):
     def __init__(self):
@@ -938,6 +936,7 @@ class MeanDynamicSizesModule(torch.nn.Module):
 def MeanDynamicSizesModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 4))
 
+# ==============================================================================
 
 class NumelModule(torch.nn.Module):
     def __init__(self):
@@ -955,6 +954,7 @@ class NumelModule(torch.nn.Module):
 def NumelModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 3, 5))
 
+# ==============================================================================
 
 class NumelZeroRankModule(torch.nn.Module):
     def __init__(self):
@@ -972,6 +972,7 @@ class NumelZeroRankModule(torch.nn.Module):
 def NumelZeroRankModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10,[]))
 
+# ==============================================================================
 
 class BoolTensorReturnFalseModule(torch.nn.Module):
     def __init__(self):
@@ -990,6 +991,7 @@ class BoolTensorReturnFalseModule(torch.nn.Module):
 def BoolTensorReturnFalseModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([0, 0], dtype=torch.bool))
 
+# ==============================================================================
 
 class BoolTensorReturnTrueModule(torch.nn.Module):
     def __init__(self):
@@ -1008,6 +1010,7 @@ class BoolTensorReturnTrueModule(torch.nn.Module):
 def BoolTensorReturnTrueModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([1, 1, 1, 1, 1], dtype=torch.bool))
 
+# ==============================================================================
 
 class BoolTensorReturnMixedModule(torch.nn.Module):
     def __init__(self):

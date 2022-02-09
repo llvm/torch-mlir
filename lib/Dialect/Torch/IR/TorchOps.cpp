@@ -1201,13 +1201,31 @@ OpFoldResult PrimDtypeOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// AtenIntTensorOp
+//===----------------------------------------------------------------------===//
+
 OpFoldResult AtenIntTensorOp::fold(ArrayRef<Attribute> operands) {
-  // If an scalar number is converted to a 0-d tensor and passed on to
+  // If a scalar number is converted to a 0-d tensor and passed on to
   // aten.Int.Tensor, fold to the scalar number.
   if (auto numToTensorScalar = a().getDefiningOp<PrimNumToTensorScalarOp>())
     return numToTensorScalar.a();
   return nullptr;
 }
+
+//===----------------------------------------------------------------------===//
+// AtenFloatTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFloatTensorOp::fold(ArrayRef<Attribute> operands) {
+  // If a scalar number is converted to a 0-d tensor and passed on to
+  // aten.Float.Tensor, fold to the scalar number.
+  if (auto numToTensorScalar = a().getDefiningOp<PrimNumToTensorScalarOp>())
+    return numToTensorScalar.a();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"

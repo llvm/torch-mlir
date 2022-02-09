@@ -53,6 +53,10 @@ class RefBackendInvoker:
         def consume_return_mrf64(a):
             self.result = unranked_memref_to_numpy(a, np.float64)
 
+        @ctypes.CFUNCTYPE(None, ctypes.c_bool)
+        def consume_return_i1(a):
+            self.result = a
+
         @ctypes.CFUNCTYPE(None, ctypes.c_int)
         def consume_return_i64(a):
             self.result = a
@@ -112,6 +116,9 @@ class RefBackendInvoker:
 
         self.ee.register_runtime("refbackend_consume_func_return_mrf64",
                                  consume_return_mrf64)
+
+        self.ee.register_runtime("refbackend_consume_func_return_i1",
+                                 consume_return_i1)
 
         self.ee.register_runtime("refbackend_consume_func_return_i64",
                                  consume_return_i64)

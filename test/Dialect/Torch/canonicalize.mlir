@@ -671,6 +671,16 @@ func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
   return %scalar : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.aten.Float.Tensor(
+// CHECK-SAME:            %[[NUM:.*]]: !torch.float) -> !torch.float {
+// CHECK:           %[[T:.*]] = torch.prim.NumToTensor.Scalar %[[NUM]] : !torch.float -> !torch.vtensor<[],f64>
+// CHECK:           return %[[NUM]] : !torch.float
+func @torch.aten.Float.Tensor(%arg0: !torch.float) -> !torch.float {
+  %tensor = torch.prim.NumToTensor.Scalar %arg0: !torch.float -> !torch.vtensor<[],f64>
+  %scalar = torch.aten.Float.Tensor %tensor : !torch.vtensor<[],f64> -> !torch.float
+  return %scalar : !torch.float
+}
+
 // CHECK-LABEL:   func @torch.aten.squeeze$zero_rank(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[],f32>
