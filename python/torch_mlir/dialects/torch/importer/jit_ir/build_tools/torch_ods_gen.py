@@ -608,6 +608,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)")
         emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")
         emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
+        emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
         emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
         emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
         emit("aten::len.Tensor : (Tensor) -> (int)")
