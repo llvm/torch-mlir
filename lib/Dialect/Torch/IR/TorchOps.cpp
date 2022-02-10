@@ -629,10 +629,52 @@ static IntegerAttr getI1IntegerAttr(MLIRContext *context, bool value) {
                           static_cast<int64_t>(value));
 }
 
+using ConstantFloatComparator = std::function<bool(double, double)>;
+template <typename OpTy>
+static OpFoldResult
+floatComparatorFoldHelper(OpTy op, ConstantFloatComparator comparator) {
+  if (op.getOperand(0) == op.getOperand(1))
+    return getI1IntegerAttr(op.getContext(), comparator(0, 0));
+
+  double lhs, rhs;
+  if (!matchPattern(op.getOperand(0), m_TorchConstantFloat(&lhs)) ||
+      !matchPattern(op.getOperand(1), m_TorchConstantFloat(&rhs)))
+    return nullptr;
+
+  return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
+}
+
+//===----------------------------------------------------------------------===//
+// AtenLtFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLtFloatOp::fold(ArrayRef<Attribute> operands) {
+  return floatComparatorFoldHelper(*this,
+                                   [](double a, double b) { return a < b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenGtFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGtFloatOp::fold(ArrayRef<Attribute> operands) {
+  return floatComparatorFoldHelper(*this,
+                                   [](double a, double b) { return a > b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqFloatOp::fold(ArrayRef<Attribute> operands) {
+  return floatComparatorFoldHelper(*this,
+                                   [](double a, double b) { return a == b; });
+}
+
 using ConstantIntComparator = std::function<bool(int64_t, int64_t)>;
 template <typename OpTy>
-static OpFoldResult comparatorFoldHelper(OpTy op,
-                                         ConstantIntComparator comparator) {
+static OpFoldResult intComparatorFoldHelper(OpTy op,
+                                            ConstantIntComparator comparator) {
   if (op.getOperand(0) == op.getOperand(1))
     return getI1IntegerAttr(op.getContext(), comparator(0, 0));
 
@@ -649,8 +691,8 @@ static OpFoldResult comparatorFoldHelper(OpTy op,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a != b; });
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a != b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -658,22 +700,8 @@ OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenEqIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a == b; });
-}
-
-//===----------------------------------------------------------------------===//
-// AtenEqFloatOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenEqFloatOp::fold(ArrayRef<Attribute> operands) {
-  double lhs, rhs;
-
-  if (!matchPattern(getOperand(0), m_TorchConstantFloat(&lhs)) ||
-      !matchPattern(getOperand(1), m_TorchConstantFloat(&rhs)))
-    return nullptr;
-
-  return getI1IntegerAttr(getContext(), lhs == rhs);
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a == b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -697,8 +725,8 @@ OpFoldResult AtenEqStrOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenLtIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a < b; });
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a < b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -706,8 +734,8 @@ OpFoldResult AtenLtIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenLeIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a <= b; });
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a <= b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -715,8 +743,8 @@ OpFoldResult AtenLeIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a > b; });
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a > b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -724,8 +752,8 @@ OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenGeIntOp::fold(ArrayRef<Attribute> operands) {
-  return comparatorFoldHelper(*this,
-                              [](int64_t a, int64_t b) { return a >= b; });
+  return intComparatorFoldHelper(*this,
+                                 [](int64_t a, int64_t b) { return a >= b; });
 }
 
 //===----------------------------------------------------------------------===//
