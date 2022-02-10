@@ -111,38 +111,63 @@ public:
   }
 };
 
+template <typename T>
+static bool isInValidRange(bool isFloat, const double &doubleValue, bool isInt,
+                           const int64_t &intValue) {
+  if (isFloat) {
+    return (doubleValue >= std::numeric_limits<T>::min()) &&
+           (doubleValue <= std::numeric_limits<T>::max());
+  } else {
+    assert(isInt);
+    return (intValue >= std::numeric_limits<T>::min()) &&
+           (intValue <= std::numeric_limits<T>::max());
+  }
+  return true;
+}
+
 // FIXME: This will eventually go into a Tosa*Utils file.
 LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
                                       Operation *op, Value torchScalarValue,
-                                      Value &tosaTensor, Type dtype) {
+                                      Value &tosaTensor, Type dtype,
+                                      llvm::ArrayRef<int64_t> dshape) {
+  // Retrieve a const float or int value but create the out Tensor with dtype.
+  double doubleValue;
+  auto isFloat =
+      matchPattern(torchScalarValue, m_TorchConstantFloat(&doubleValue));
+
+  int64_t intValue;
+  auto isInt = matchPattern(torchScalarValue, m_TorchConstantInt(&intValue));
+
+  if (!isFloat && !isInt)
+    return op->emitError("Unable to extract the scalar constant");
+
   if (dtype.isa<mlir::FloatType>()) {
-    double scalarValue;
-
-    if (!matchPattern(torchScalarValue, m_TorchConstantFloat(&scalarValue)))
-      return failure();
-
-    tosaTensor =
-        mlir::tosa::getTosaConstTensorSingleF32(rewriter, op, scalarValue);
+    tosaTensor = tosa::getConstTensor<float>(
+                     rewriter, op, (isFloat ? doubleValue : intValue), dshape)
+                     .getValue();
   } else if (auto intType = dtype.dyn_cast<mlir::IntegerType>()) {
-    int64_t scalarValue;
-
-    if (!matchPattern(torchScalarValue, m_TorchConstantInt(&scalarValue)))
-      return failure();
-
     auto w = intType.getWidth();
     if (w != 32 && w != 64)
       return op->emitError("Unsupported integer type") << intType;
 
     if (w == 32) {
-      tosaTensor = tosa::getConstTensor<int32_t>(
-                       rewriter, op, {static_cast<int32_t>(scalarValue)}, {})
-                       .getValue();
-    } else if (w == 64) {
+      if (!isInValidRange<int32_t>(isFloat, doubleValue, isInt, intValue)) {
+        return op->emitError("Supplied value of scalar constant exceeds limits "
+                             "of destination type");
+      }
+      int32_t d = isFloat ? static_cast<int32_t>(doubleValue)
+                          : static_cast<int32_t>(intValue);
       tosaTensor =
-          tosa::getConstTensor<int64_t>(rewriter, op, {scalarValue}, {})
-              .getValue();
+          tosa::getConstTensor<int32_t>(rewriter, op, {d}, dshape).getValue();
+    } else if (w == 64) {
+      if (!isInValidRange<int64_t>(isFloat, doubleValue, isInt, intValue)) {
+        return op->emitError("Supplied value of scalar constant exceeds limits "
+                             "of destination type");
+      }
+      int64_t d = (isFloat ? static_cast<int64_t>(doubleValue) : intValue);
+      tosaTensor =
+          tosa::getConstTensor<int64_t>(rewriter, op, {d}, dshape).getValue();
     }
-    return success();
   } else
     return op->emitError("Usupported element type");
 
@@ -154,7 +179,7 @@ LogicalResult torchAlphaToTosaTensor(ConversionPatternRewriter &rewriter,
                                      Value &alphaTensor, Type dtype,
                                      bool checkForUnity) {
   if (succeeded(torchScalarToTosaTensor(rewriter, op, alphaScalar, alphaTensor,
-                                        dtype)))
+                                        dtype, {})))
     return success();
 
   // `alpha` has not been specified.
@@ -183,44 +208,59 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.self();
-    auto lhsTy = lhs.getType().dyn_cast<TensorType>();
+    auto lhsType = lhs.getType().dyn_cast<TensorType>();
     Value rhs = adaptor.other();
-    auto rhsTy = rhs.getType().dyn_cast<TensorType>();
+    auto rhsType = rhs.getType().dyn_cast<TensorType>();
 
-    if (!lhsTy)
+    if (!lhsType)
       return op.emitError("Only Tensor types supported in TOSA");
 
-    auto lhsElemTy = lhsTy.getElementType();
-    if (!lhsElemTy.isIntOrFloat())
+    if (auto lhsElemTy = lhsType.getElementType().dyn_cast<IntegerType>()) {
+      if (lhsElemTy.getWidth() > 32)
+        return op.emitError(
+            "Integers with widths greater than 32 are not supported");
+    }
+
+    auto outType =
+        static_cast<Type>(
+            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                op.getType()))
+            .cast<TensorType>();
+
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat()) {
       return op.emitError(
           "Only floating-point or integer datatype legalization supported");
+    }
 
     Value rhsAsTensor;
-    if (!rhsTy) {
-      if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(),
-                                         op.other(), rhsAsTensor, lhsElemTy)))
+    if (!rhsType) {
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.other(), rhsAsTensor,
+                                         outElemTy, {})))
         return op.emitError("Currently only scalar constants are supported for "
                             "conversion in TOSA operation");
     }
-    auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
+    auto rhsTensor = rhsType ? rhs : rhsAsTensor;
 
     // Handle alpha.
     Value alphaTensor;
     if (failed(torchAlphaToTosaTensor(rewriter, op.getOperation(), op.alpha(),
-                                      alphaTensor, lhsElemTy, false)))
+                                      alphaTensor, outElemTy,
+                                      /*checkForUnity=*/false))) {
       return op.emitError("Currently only scalar constants are supported for "
                           "alpha in conversion to TOSA operation");
+    }
 
     auto multTensor = rewriter.create<tosa::MulOp>(
-        op.getLoc(), rhsTy ? rhsTy : RankedTensorType::get({}, lhsElemTy),
-        rhsTensor, alphaTensor, /*shift*/ 0);
+        op.getLoc(), rhsType ? rhsType : RankedTensorType::get({}, outElemTy),
+        rhsTensor, alphaTensor, /*shift=*/0);
 
-    if (lhsElemTy.isa<mlir::FloatType>()) {
-      rewriter.replaceOpWithNewOp<TosaOpT>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          lhs, multTensor);
+    if (outElemTy.isa<mlir::FloatType>()) {
+      if (lhsType.getElementType() != outElemTy)
+        lhs = rewriter.create<tosa::CastOp>(op.getLoc(), outType, lhs);
+
+      rewriter.replaceOpWithNewOp<TosaOpT>(op, outType, lhs, multTensor);
+
       return success();
     } else {
       return op.emitError(
@@ -251,23 +291,42 @@ public:
       return op.emitError(
           "Only floating-point or integer datatype legalization supported");
 
+    // For bitwise operators, only integer datatype legalization is supported
+    if (lhsElemTy.isa<mlir::FloatType>() &&
+        std::is_same<AtenOpT, AtenBitwiseAndTensorOp>()) {
+      return op.emitError("For bitwise operators, only integer datatype "
+                          "legalization is supported");
+    }
+
     Value rhsAsTensor;
     if (!rhsTy) {
-      if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(),
-                                         op.other(), rhsAsTensor, lhsElemTy)))
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.other(), rhsAsTensor,
+                                         lhsElemTy, {})))
         return op.emitError("Currently only scalar constants are supported for "
                             "conversion in TOSA operation");
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
-    // There is no Lesser operator in TOSA
+    // There is no Lesser operator in TOSA.
     auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
                        std::is_same<AtenOpT, AtenLtScalarOp>());
 
-    rewriter.replaceOpWithNewOp<TosaOpT>(
-        op,
+    auto resultOp = rewriter.create<TosaOpT>(
+        op.getLoc(),
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
         (swapLhsRhs ? rhsTensor : lhs), (swapLhsRhs ? lhs : rhsTensor));
+
+    // There is no NE operator in TOSA.
+    if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+        std::is_same<AtenOpT, AtenNeScalarOp>())
+      rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(
+          op,
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              op.getType()),
+          resultOp.getResult());
+    else
+      rewriter.replaceOp(op, resultOp.getResult());
+
     return success();
   }
 };
@@ -282,29 +341,44 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.self();
-    auto lhsTy = lhs.getType().dyn_cast<TensorType>();
-    Value rhs = adaptor.other();
-    auto rhsTy = rhs.getType().dyn_cast<TensorType>();
+    auto lhsType = lhs.getType().dyn_cast<TensorType>();
 
-    if (!lhsTy)
+    if (!lhsType)
       return op.emitError("Only Tensor types supported in TOSA");
 
-    auto lhsElemTy = lhsTy.getElementType();
-    if (!lhsElemTy.isIntOrFloat())
+    auto outType =
+        static_cast<Type>(
+            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                op.getType()))
+            .cast<TensorType>();
+
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat())
       return op.emitError(
           "Only floating-point or integer datatype legalization supported");
 
-    Value rhsAsTensor;
-    if (!rhsTy) {
-      if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(),
-                                         op.other(), rhsAsTensor, lhsElemTy)))
-        return op.emitError("Currently only scalar constants are supported for "
-                            "conversion in TOSA operation");
+    Value rhsTensor;
+    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+      rhsTensor = lhs;
+    } else {
+      Value rhsAsTensor;
+      Value rhs = adaptor.other();
+      auto rhsType = rhs.getType().dyn_cast<TensorType>();
+      if (!rhsType) {
+        if (failed(torchScalarToTosaTensor(rewriter, op, op.other(),
+                                           rhsAsTensor, outElemTy, {})))
+          return op.emitError(
+              "Currently only scalar constants are supported for "
+              "conversion in TOSA operation");
+      }
+      rhsTensor = rhsType ? rhs : rhsAsTensor;
     }
-    auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
 
-    if (lhsElemTy.isa<mlir::FloatType>() ||
-        lhsElemTy.isa<mlir::IntegerType>()) {
+    if (outElemTy.isa<mlir::FloatType>() ||
+        outElemTy.isa<mlir::IntegerType>()) {
+      if (lhsType.getElementType() != outElemTy)
+        lhs = rewriter.create<tosa::CastOp>(op.getLoc(), outType, lhs);
+
       rewriter.replaceOpWithNewOp<tosa::MulOp>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -343,8 +417,8 @@ public:
 
     Value rhsAsTensor;
     if (!rhsTy) {
-      if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(),
-                                         op.other(), rhsAsTensor, lhsElemTy)))
+      if (failed(torchScalarToTosaTensor(rewriter, op, op.other(), rhsAsTensor,
+                                         lhsElemTy, {})))
         return op.emitError("Currently only scalar constants are supported for "
                             "conversion in TOSA operation");
     }
@@ -807,8 +881,8 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
 
   Value expTensor;
   Value expScalar = op.exponent();
-  if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), expScalar,
-                                     expTensor, selfTy.getElementType())))
+  if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
+                                     selfTy.getElementType(), {})))
     return op.emitError("Currently only scalar constants are supported for "
                         "conversion in TOSA Pow operation");
 
@@ -1584,19 +1658,19 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
 
   Value otherTensor, alphaTensor;
 
-  if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), otherScalar,
-                                     otherTensor, selfTy.getElementType())))
+  if (failed(torchScalarToTosaTensor(rewriter, op, otherScalar, otherTensor,
+                                     selfTy.getElementType(), {})))
     return op.emitError("Currently only scalar constants are supported for "
                         "conversion in TOSA Rsub operation");
 
   if (failed(torchAlphaToTosaTensor(rewriter, op.getOperation(), alphaScalar,
                                     alphaTensor, selfTy.getElementType(),
-                                    true)))
+                                    /*checkForUnity=*/true)))
     return failure();
 
   auto multTensor = rewriter.create<tosa::MulOp>(
       op->getLoc(), getTypeConverter()->convertType(op.getType()), self,
-      alphaTensor, /*shift*/ 0);
+      alphaTensor, /*shift=*/0);
 
   rewriter.replaceOpWithNewOp<tosa::SubOp>(
       op, getTypeConverter()->convertType(op.getType()), otherTensor,
@@ -2142,7 +2216,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 
   auto newType = RankedTensorType::get(newShape, selfType.getElementType());
   auto reshapeOp =
-      rewriter.create<tosa::ReshapeOp>(op->getLoc(), newType, adaptor.self(),
+      rewriter.create<tosa::ReshapeOp>(op.getLoc(), newType, adaptor.self(),
                                        rewriter.getI64ArrayAttr(newShape));
 
   rewriter.replaceOpWithNewOp<tensor::CastOp>(
@@ -2180,6 +2254,80 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
       transposeDimsConst.getValue());
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
+    AtenLog2Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+
+  // Constant value of ln2.
+  SmallVector<int64_t> ln2Shape(selfType.getRank(), 1);
+  auto ln2Op =
+      tosa::getConstTensor<float>(rewriter, op, {0.69314718056}, ln2Shape)
+          .getValue();
+  auto rcpOp =
+      rewriter.create<tosa::ReciprocalOp>(op.getLoc(), ln2Op.getType(), ln2Op);
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  auto logOp =
+      rewriter.create<tosa::LogOp>(op.getLoc(), outType, adaptor.self());
+  rewriter.replaceOpWithNewOp<tosa::MulOp>(op, outType, logOp, rcpOp,
+                                           /*shift=*/0);
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
+    AtenThresholdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+
+  auto selfElemTy = selfType.getElementType();
+  if (!selfElemTy.isIntOrFloat())
+    return op.emitError(
+        "Only floating-point or integer datatype legalization supported");
+
+  // Integer types with width > 32 are not supported
+  auto selfIntType = selfElemTy.dyn_cast<IntegerType>();
+  if (selfIntType && selfIntType.getWidth() > 32) {
+    return op.emitError(
+        "Integer types with width greater than 32 are not supported");
+  }
+
+  SmallVector<int64_t> constTypeShape(selfType.getRank(), 1);
+  Value threshold, value;
+  if (failed(torchScalarToTosaTensor(rewriter, op, op.threshold(), threshold,
+                                     selfElemTy, constTypeShape)))
+    return op.emitError("Only scalar constant is supported for threshold");
+
+  if (failed(torchScalarToTosaTensor(rewriter, op, op.value(), value,
+                                     selfElemTy, constTypeShape)))
+    return op.emitError("Only scalar constant is supported for value");
+
+  // Threshold only clamps the upper values. tosa::ClampOp has the same
+  // value for both threshold and clamped value so cannot be used.
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  auto cmpOp = rewriter.create<tosa::GreaterOp>(
+      op.getLoc(),
+      RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
+      adaptor.self(), threshold);
+
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, cmpOp,
+                                              adaptor.self(), value);
 
   return success();
 }
@@ -2527,6 +2675,9 @@ public:
     INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqScalarOp, tosa::EqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenNeTensorOp, tosa::EqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenNeScalarOp, tosa::EqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndTensorOp, tosa::BitwiseAndOp)
 #undef INSERT_BINARY_COMPARE_PATTERN
 
 #define INSERT_BINARY_MUL_PATTERN(AtenOp)                                      \
@@ -2629,6 +2780,8 @@ public:
     INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
     INSERT_ATENOP_PATTERN(AtenFlattenUsingIntsOp);
     INSERT_ATENOP_PATTERN(AtenPermuteOp);
+    INSERT_ATENOP_PATTERN(AtenLog2Op);
+    INSERT_ATENOP_PATTERN(AtenThresholdOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
