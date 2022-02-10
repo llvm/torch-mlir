@@ -559,11 +559,11 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
   }
 }
 
-void torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
+MlirValue torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
                               MlirContext context, ClassAnnotator &annotator) {
   // When debugging module importing, it can be useful to dump as so:
   // if (ivalue.isModule())
   //   ivalue.toModule().dump(true, false, false);
   IValueImporter importer(block, context, annotator);
-  importer.importIValue(ivalue);
+  return importer.importIValue(ivalue);
 }

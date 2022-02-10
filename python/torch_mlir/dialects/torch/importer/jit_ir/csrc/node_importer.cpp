@@ -12,6 +12,8 @@
 
 #include <unordered_map>
 
+#include "class_annotator.h"
+#include "ivalue_importer.h"
 #include "mlir_utils.h"
 
 #include "mlir-c/BuiltinAttributes.h"
@@ -180,6 +182,14 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
           toMlirNamedAttribute(
               "value",
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
+    } else if (output->type()->cast<c10::ListType>()) {
+      ClassAnnotator dummyAnnotator;
+      MlirValue listValue = importIValue(node->ival(c10::attr::value),
+                                         appendToBlock,
+                                         context,
+                                         dummyAnnotator);
+      mapResults(node, mlirOpResultGetOwner(listValue));
+      return; // Early return, since `importIValue` already added op to block.
     } else {
       std::stringstream msg;
       msg << "unhandled prim::Constant node: ";

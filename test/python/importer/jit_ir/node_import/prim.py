@@ -5,6 +5,7 @@
 import typing
 
 import torch
+from torch._C import CompilationUnit
 from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 import typing
@@ -14,12 +15,16 @@ import typing
 mb = ModuleBuilder()
 
 
+# Import TorchScript IR string as ScriptFunction.
+def import_ts_ir(func_name, ts_ir_str):
+    cu = CompilationUnit()
+    mb.import_function(cu.create_function(func_name, torch._C.parse_ir(ts_ir_str)))
+
 # CHECK-LABEL:   func @__torch__.prim_NumToTensor(
 # CHECK-SAME:                           %[[ARG:.*]]: !torch.int) -> !torch.tensor {
 # CHECK:           %[[RET:.*]] = torch.prim.NumToTensor.Scalar %[[ARG]] : !torch.int -> !torch.tensor
 # CHECK:           return %[[RET]] : !torch.tensor
 # CHECK:         }
-
 @mb.import_function
 @torch.jit.script
 def prim_NumToTensor(i: int):
@@ -146,6 +151,17 @@ def prim_min(x: int):
 @torch.jit.script
 def prim_max(x: int):
     return max(x), max(x,x), max(x, x, x)
+
+# CHECK-LABEL:   func @__torch__.prim_Constant_list() -> !torch.list<!torch.int> {
+# CHECK:           %[[A:.*]] = torch.constant.int 1
+# CHECK:           %[[B:.*]] = torch.constant.int 2
+# CHECK:           %[[C:.*]] = torch.constant.int 3
+# CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %[[A]], %[[B]], %[[C]] :
+# CHECK-SAME:          (!torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+# CHECK:           return %[[RET]] : !torch.list<!torch.int>
+import_ts_ir('__torch__.prim_Constant_list', '''graph():
+  %list : int[] = prim::Constant[value=[1, 2, 3]]()
+  return (%list)''')
 
 mb.module.operation.print()
 print()
