@@ -535,6 +535,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit(
             "aten::log_softmax.int : (Tensor, int, int?) -> (Tensor)"
         )
+        emit(
+            "aten::_log_softmax : (Tensor, int, bool) -> (Tensor)"
+        )
         emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
         emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
         emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")

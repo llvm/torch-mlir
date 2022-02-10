@@ -1624,6 +1624,22 @@ def Torch_AtenLogSoftmaxIntOp : Torch_Op<"aten.log_softmax.int", [
   let assemblyFormat = "$self `,` $dim `,` $dtype attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($dtype)) `->` qualified(type($result))";
 }
 
+def Torch_Aten_LogSoftmaxOp : Torch_Op<"aten._log_softmax", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::_log_softmax : (Tensor, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$half_to_float
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dim `,` $half_to_float attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($half_to_float)) `->` qualified(type($result))";
+}
+
 def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
     AllowsTypeRefinement,
     HasValueSemantics
