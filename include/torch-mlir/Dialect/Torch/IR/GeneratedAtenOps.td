@@ -3504,21 +3504,6 @@ def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
   let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
-def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
-    AllowsTypeRefinement,
-    HasValueSemantics
-  ]> {
-  let summary = "Generated op for `aten::lt.float_int : (float, int) -> (bool)`";
-  let arguments = (ins
-    Torch_FloatType:$a,
-    Torch_IntType:$b
-  );
-  let results = (outs
-    Torch_BoolType:$result
-  );
-  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
-}
-
 def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -3533,6 +3518,53 @@ def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
   let hasFolder = 1;
+}
+
+def Torch_AtenGtFloatOp : Torch_Op<"aten.gt.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::gt.float : (float, float) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
+def Torch_AtenLtFloatOp : Torch_Op<"aten.lt.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::lt.float : (float, float) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
+def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::lt.float_int : (float, int) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_IntType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
 }
 
 def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
