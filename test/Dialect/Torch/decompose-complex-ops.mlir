@@ -25,7 +25,7 @@ func @matmul_decompose_3d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vten
   return %0 : !torch.tensor
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int(
 // CHECK-SAME:                                 %[[T:.*]]: !torch.tensor<[2,3],f32>,
 // CHECK-SAME:                                 %[[DIM:.*]]: !torch.int) -> !torch.tensor<[2,3],f32> {
@@ -52,7 +52,7 @@ func @torch.aten.softmax.int(%t: !torch.tensor<[2,3],f32>, %dim: !torch.int) -> 
 }
 
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int$cst_dim(
 // CHECK-SAME:                                         %[[T:.*]]: !torch.tensor<[2,3],f32>) -> !torch.tensor<[2,3],f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
@@ -79,7 +79,7 @@ func @torch.aten.softmax.int$cst_dim(%t: !torch.tensor<[2,3],f32>) -> !torch.ten
   return %ret : !torch.tensor<[2,3],f32>
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int$dyn_shape(
 // CHECK-SAME:                                           %[[T:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
@@ -106,7 +106,7 @@ func @torch.aten.softmax.int$dyn_shape(%t: !torch.tensor<[?,?],f32>) -> !torch.t
   return %ret : !torch.tensor<[?,?],f32>
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.softmax.int$unknown_shape(
 // CHECK-SAME:                                               %[[T:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK:           %[[DTYPE:.*]] = torch.constant.none
@@ -133,7 +133,7 @@ func @torch.aten.softmax.int$unknown_shape(%t: !torch.tensor<*,f32>) -> !torch.t
   return %ret : !torch.tensor<*,f32>
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.size(
 // CHECK-SAME:                         %[[T:.*]]: !torch.vtensor<[?,3],f32>) -> !torch.list<!torch.int> {
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
@@ -147,7 +147,7 @@ func @torch.aten.size(%arg0: !torch.vtensor<[?,3],f32>) -> !torch.list<!torch.in
   return %0 : !torch.list<!torch.int>
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.arange() -> !torch.vtensor<[?],si64> {
 // CHECK:           %[[CST5:.*]] = torch.constant.int 5
 // CHECK:           %[[CSTN:.*]] = torch.constant.none
@@ -163,7 +163,7 @@ func @torch.aten.arange() -> !torch.vtensor<[?],si64> {
   return %0 : !torch.vtensor<[?],si64>
 }
 
-// ----
+// -----
 // CHECK-LABEL:   func @torch.aten.arange.start() -> !torch.vtensor<[?],si64> {
 // CHECK:           %[[CST10:.*]] = torch.constant.int 10
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
@@ -180,7 +180,7 @@ func @torch.aten.arange.start() -> !torch.vtensor<[?],si64> {
   return %0 : !torch.vtensor<[?],si64>
 }
 
-// ----
+// -----
 // CHECK-LABEL: func @torch.aten.argmax(
 // CHECK-SAME:  %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[1,?],si64> {
 // CHECK:       %[[CST0:.*]] = torch.constant.int 0
@@ -194,7 +194,7 @@ func @torch.aten.argmax(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[1,?
   return %0 : !torch.vtensor<[1,?],si64>
 }
 
-// ----
+// -----
 // CHECK-LABEL: func @torch.aten.argmax$reduceall(
 // CHECK-SAME:   %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[],si64> {
 // CHECK:        %[[NONE:.*]] = torch.constant.none
@@ -309,4 +309,36 @@ func @torch.aten.std$biased(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtenso
   %false = torch.constant.bool false
   %0 = torch.aten.std %arg0, %false: !torch.vtensor<[?,?,?],f32>, !torch.bool -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+// CHECK-LABEL: func @torch.aten._unsafe_view$static
+// CHECK-SAME:  (%[[ARG0:.*]]: !torch.vtensor<[1,512,32],f32>)
+// CHECK:       %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK-NOT:   torch.aten._unsafe_view
+// CHECK-NEXT:  %[[RES:.*]] = torch.aten.view %[[ARG0]], %[[LIST]]
+// CHECK-NEXT:  return
+func @torch.aten._unsafe_view$static(%arg0: !torch.vtensor<[1,512,32],f32>) -> !torch.vtensor<[1,2,256,32],f32> {
+  %c1 = torch.constant.int 1
+  %c2 = torch.constant.int 2
+  %c256 = torch.constant.int 256
+  %c32 = torch.constant.int 32
+  %0 = torch.prim.ListConstruct %c1, %c2, %c256, %c32 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten._unsafe_view %arg0, %0 : !torch.vtensor<[1,512,32],f32>, !torch.list<!torch.int> -> !torch.vtensor<[1,2,256,32],f32>
+  return %1 : !torch.vtensor<[1,2,256,32],f32>
+}
+
+// -----
+// CHECK-LABEL: func @torch.aten._unsafe_view$dynamic
+// CHECK-SAME:  (%[[ARG0:.*]]: !torch.vtensor<[?,?,?],f32>)
+// CHECK:       %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK-NOT:   torch.aten._unsafe_view
+// CHECK-NEXT:  %[[RES:.*]] = torch.aten.view %[[ARG0]], %[[LIST]]
+// CHECK-NEXT:  return
+func @torch.aten._unsafe_view$dynamic(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[512,32],f32> {
+  %c256 = torch.constant.int 512
+  %c32 = torch.constant.int 32
+  %0 = torch.prim.ListConstruct %c256, %c32 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten._unsafe_view %arg0, %0 : !torch.vtensor<[?,?,?],f32>, !torch.list<!torch.int> -> !torch.vtensor<[512,32],f32>
+  return %1 : !torch.vtensor<[512,32],f32>
 }

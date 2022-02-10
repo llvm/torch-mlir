@@ -2751,6 +2751,21 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
   let hasFolder = 1;
 }
 
+def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::_unsafe_view : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$size
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $size attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `->` qualified(type($result))";
+}
+
 def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
     AllowsTypeRefinement,
     HasValueSemantics

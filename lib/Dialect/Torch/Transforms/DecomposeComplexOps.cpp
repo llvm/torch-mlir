@@ -943,6 +943,31 @@ class DecomposeAtenNativeBatchNormOp
 };
 } // namespace
 
+// Decompse `Aten_UnsafeViewOp` into `AtenViewOp`. _unsafe_view() differs from
+// view() in that the returned tensor isn't treated as a view for the purposes
+// of automatic differentiation.  It's only safe to use if the `self` tensor is
+// temporary. For example, the viewed tensor here (a + b) is discarded
+// immediately after viewing:
+//
+//  res = _unsafe_view(a + b, size);
+//
+// This is a hack because in-place operations on tensors treated like views
+// can be much more expensive than the same operations on non-view tensors.
+
+// Refer to
+// https://github.com/pytorch/pytorch/blob/364055b2771ecf9b54f1d67a8bf44bb5496476d4/aten/src/ATen/native/TensorShape.cpp#L2072
+namespace {
+class DecomposeAten_UnsafeViewOp : public OpRewritePattern<Aten_UnsafeViewOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_UnsafeViewOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.self(),
+                                            op.size());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -1014,6 +1039,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenVarOp>();
     patterns.add<DecomposeAtenStdOp>(context);
     target.addIllegalOp<AtenStdOp>();
+    patterns.add<DecomposeAten_UnsafeViewOp>(context);
+    target.addIllegalOp<Aten_UnsafeViewOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

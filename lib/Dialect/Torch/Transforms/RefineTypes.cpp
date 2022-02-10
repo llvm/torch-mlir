@@ -366,6 +366,8 @@ public:
                             secondResDtype, operands, /*resNum=*/1);
     } else if (auto view = dyn_cast<AtenViewOp>(op)) {
       return visitReshapeLikeOp(view, operands, view.size());
+    } else if (auto unsafeView = dyn_cast<Aten_UnsafeViewOp>(op)) {
+      return visitReshapeLikeOp(unsafeView, operands, unsafeView.size());
     } else if (auto reshape = dyn_cast<AtenReshapeOp>(op)) {
       return visitReshapeLikeOp(reshape, operands, reshape.shape());
     } else if (auto resize = dyn_cast<AtenResize_Op>(op)) {

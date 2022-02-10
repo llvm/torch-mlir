@@ -126,6 +126,122 @@ def View1DFoldModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class UnsafeViewExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 4], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._unsafe_view(a, [2, 3, 4])
+
+@register_test_case(module_factory=lambda: UnsafeViewExpandModule())
+def UnsafeViewExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4))
+
+# ==============================================================================
+
+class UnsafeViewDynamicExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 30, 384], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._unsafe_view(a,[2, 4, 5, 6, 12, 32])
+
+@register_test_case(module_factory=lambda: UnsafeViewDynamicExpandModule())
+def UnsafeViewDynamicExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 30, 384))
+
+# ==============================================================================
+
+class UnsafeViewDynamicExpandWithAtenSizeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._unsafe_view(a, [a.size(0), a.size(1), 12, 32])
+
+@register_test_case(module_factory=lambda: UnsafeViewDynamicExpandWithAtenSizeIntModule())
+def UnsafeViewDynamicExpandWithAtenSizeIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 384))
+
+# ==============================================================================
+
+class UnsafeViewCollapseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._unsafe_view(a,[8])
+
+@register_test_case(module_factory=lambda: UnsafeViewCollapseModule())
+def UnsafeViewCollapseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4))
+
+# ==============================================================================
+
+class UnsafeViewCollapseDynamicWithAtenSizeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1, -1], torch.float32, True),
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+
+    def forward(self, a, b, c):
+        return torch.ops.aten._unsafe_view(a, [a.size(0), int(b), int(c), a.size(3), 384])
+
+@register_test_case(module_factory=lambda: UnsafeViewCollapseDynamicWithAtenSizeIntModule())
+def UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 5, 4, 12, 32), torch.tensor(3), torch.tensor(5))
+
+# ==============================================================================
+
+class UnsafeView1DFoldModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._unsafe_view(a, [-1])
+
+@register_test_case(module_factory=lambda: UnsafeView1DFoldModule())
+def UnsafeView1DFoldModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(32))
+
+# ==============================================================================
+
 class ReshapeExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
