@@ -752,6 +752,8 @@ static void fillInDTypeGivenDTypeIntAndInputDType(ValueKnowledge &knowledge,
 // type.
 static void fillInDTypeGivenDTypeAndDataType(ValueKnowledge &knowledge,
                                              Value dtype, Type dataType) {
+  assert(isa<TorchDialect>(dataType.getDialect()) &&
+         "`dataType` must be a torch type");
   Type dtypeForDataType = getDefaultDtypeForTorchScalar(dataType);
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, dtypeForDataType);
 }
@@ -1538,7 +1540,7 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocLikeOp(
     knowledge.hasSizes = true;
     knowledge.sizes = input.sizes;
   }
-  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), input.dtype);
+  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.dtype(), input.dtype);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
@@ -1552,7 +1554,9 @@ ChangeResult TypeAnalyzer::visitAtenToDtypeOp(
   if (input.hasSizes)
     knowledge.sizes = input.sizes;
   Value dtype = op.dtype();
-  fillInDTypeGivenDTypeAndDataType(knowledge, dtype, input.dtype);
+  int64_t dtypeInt;
+  if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
