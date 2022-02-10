@@ -625,6 +625,24 @@ def SoftmaxIntArgTypeF64Module_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class _LogSoftmaxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten._log_softmax(tensor, dim=0, half_to_float=False)
+
+
+@register_test_case(module_factory=lambda: _LogSoftmaxModule())
+def _LogSoftmaxModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4))
+
+# ==============================================================================
 class BroadcastToModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

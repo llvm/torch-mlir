@@ -480,7 +480,9 @@ public:
     } else if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     } else if (auto _softmaxOp = dyn_cast<Aten_SoftmaxOp>(op)) {
-      return visitAten_SoftmaxOp(_softmaxOp, operands);
+      return visitAten_SoftmaxLikeOp(_softmaxOp, operands);
+    } else if (auto _logSoftmaxOp = dyn_cast<Aten_LogSoftmaxOp>(op)) {
+      return visitAten_SoftmaxLikeOp(_logSoftmaxOp, operands);
     } else if (auto logSoftmaxIntOp = dyn_cast<AtenLogSoftmaxIntOp>(op)) {
       return visitAtenSoftmaxLikeOp(logSoftmaxIntOp, operands);
     } else if (auto numToTensorOp = dyn_cast<PrimNumToTensorScalarOp>(op)) {
@@ -646,8 +648,9 @@ private:
   visitAtenAddCLikeOp(Operation *op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
+  template <typename OpTy>
   ChangeResult
-  visitAten_SoftmaxOp(Aten_SoftmaxOp op,
+  visitAten_SoftmaxLikeOp(OpTy op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
   ChangeResult visitAtenNllLossForwardOp(
@@ -1800,8 +1803,10 @@ ChangeResult TypeAnalyzer::visitAtenSoftmaxLikeOp(
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 
-ChangeResult TypeAnalyzer::visitAten_SoftmaxOp(
-    Aten_SoftmaxOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+// Common template for softmax like ops, eg., log_softmax.(underscore variant)
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitAten_SoftmaxLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
   ValueKnowledge knowledge = getSameSizeAsInput(op, operands);
   bool halfToFloat;

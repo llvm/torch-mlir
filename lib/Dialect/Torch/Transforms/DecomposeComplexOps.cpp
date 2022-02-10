@@ -468,6 +468,21 @@ public:
 };
 } // namespace
 
+// Decompose aten._log_softmax op into: log(_softmax(x))
+namespace {
+class DecomposeAten_LogSoftmaxOp : public OpRewritePattern<Aten_LogSoftmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_LogSoftmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Value softmax = rewriter.create<Aten_SoftmaxOp>(
+        op.getLoc(), op.getType(), op.self(), op.dim(), op.half_to_float());
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), softmax);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
@@ -981,6 +996,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenSoftmaxIntOp>();
     patterns.add<DecomposeAten_SoftmaxOp>(context);
     target.addIllegalOp<Aten_SoftmaxOp>();
+    patterns.add<DecomposeAten_LogSoftmaxOp>(context);
+    target.addIllegalOp<Aten_LogSoftmaxOp>();
     patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
     target.addIllegalOp<AtenLogSoftmaxIntOp>();
     patterns.add<DecomposeAtenEmptyLikeOp>(context);
