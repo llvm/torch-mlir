@@ -1106,3 +1106,21 @@ class ElementwiseAddScalarFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseAddScalarFloatModule())
 def ElementwiseAddScalarFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+class ElementwiseCloneModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.clone(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCloneModule())
+def ElementwiseCloneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))

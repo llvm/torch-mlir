@@ -2262,6 +2262,21 @@ def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
   let assemblyFormat = "$self `,` $boundaries `,` $out_int32 `,` $right attr-dict `:` qualified(type($self)) `,` qualified(type($boundaries)) `,` qualified(type($out_int32)) `,` qualified(type($right)) `->` qualified(type($result))";
 }
 
+def Torch_AtenCloneOp : Torch_Op<"aten.clone", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::clone : (Tensor, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalIntType:$memory_format
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
+}
+
 def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
     AllowsTypeRefinement
   ]> {
