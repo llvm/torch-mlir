@@ -577,6 +577,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::arange.start_step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
         emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
+        emit("aten::clone : (Tensor, int?) -> (Tensor)")
         emit("aten::contiguous : (Tensor, int) -> (Tensor)")
         emit("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)")
         emit("aten::detach : (Tensor) -> (Tensor)")

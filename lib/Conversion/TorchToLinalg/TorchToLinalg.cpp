@@ -1660,6 +1660,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::SqrtOp>(loc, payloadArgs[0]);
   if (isa<AtenRsqrtOp>(op))
     return b.create<math::RsqrtOp>(loc, payloadArgs[0]);
+  if (auto clone = dyn_cast<AtenCloneOp>(op)) {
+    if (!clone.memory_format().getType().isa<Torch::NoneType>()) {
+      clone.emitError("unimplemented: only default memory format is supported");
+      return nullptr;
+    }
+    return payloadArgs[0];
+  }
   if (auto bitwiseAndTensor = dyn_cast<AtenBitwiseAndTensorOp>(op)) {
     if (bitwiseAndTensor.getType()
             .cast<ValueTensorType>()
@@ -2450,7 +2457,7 @@ struct ConvertElementwiseOp : ConversionPattern {
              AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenEqScalarOp,
              AtenLtScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
              AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
-             AtenThresholdOp, AtenThresholdBackwardOp>(op))
+             AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -4571,7 +4578,7 @@ public:
         AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
         AtenEqScalarOp, AtenLtScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
         AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp,
-        AtenThresholdBackwardOp>();
+        AtenThresholdBackwardOp, AtenCloneOp>();
     patterns.add<ConvertElementwiseOp>(typeConverter, context);
     target.addIllegalOp<AtenSqueezeOp>();
     patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
