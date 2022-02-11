@@ -67,6 +67,8 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 if config.enable_bindings_python:
   llvm_config.with_environment('PYTHONPATH', [
-      os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
-  ],
-                               append_path=True)
+      os.pathsep.join([
+          os.path.join(config.torch_mlir_python_packages_dir, 'torch_mlir'),
+          os.environ['PYTHONPATH'],
+      ]),
+  ], append_path=True)
