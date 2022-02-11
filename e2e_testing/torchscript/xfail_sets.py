@@ -15,7 +15,6 @@
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "QuantizedMLP_basic",
-    "IouOfModule_basic",
     "TableBatchEmbeddingModule_basic",
     "MobilenetV2Module_basic",
     "MobilenetV3Module_basic",

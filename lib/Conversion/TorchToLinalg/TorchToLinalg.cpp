@@ -3521,7 +3521,6 @@ public:
     RankedTensorType resultType =
         typeConverter->convertType(op->getResult(0).getType())
             .cast<RankedTensorType>();
-    int64_t resultRank = resultType.getRank();
     Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
@@ -3592,21 +3591,7 @@ public:
     Value result = rewriter.create<tensor::ExtractSliceOp>(
         loc, input, offsets, resultShape, strides);
 
-    // TODO: This code is for selectOp, remove once squeeze dim is added
-    if (resultRank < inputType.getRank()) {
-      SmallVector<ReassociationIndices> reassociation(resultRank);
-      int64_t resultIdx = 0;
-      for (auto i : llvm::seq<int64_t>(0, inputType.getRank())) {
-        if (resultIdx < resultRank)
-          reassociation[resultIdx].push_back(i);
-        if (i != dim)
-          resultIdx++;
-      }
-      result =
-          rewriter.create<tensor::CollapseShapeOp>(loc, result, reassociation);
-    }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
-
     return success();
   }
 };
