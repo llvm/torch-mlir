@@ -449,7 +449,37 @@ public:
 };
 } // namespace
 
-// Decompose aten.log_softmax op into: log(softmax(x))
+// To avoid overflow we use the following decomposition rule:
+//  x_max = aten.max(x, dim, keepdim=True)[0]
+//  shifted = x - x_max
+//  shifted_logsumexp = aten.log(aten.sum(aten.exp(shifted), dim, keepdim=True))
+//  log_softmax = shifted - shifted_logsumexp
+template <typename OpTy>
+static Value getLogSoftmaxResult(OpTy op, PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value dim = op.dim();
+  Value self = op.self();
+  BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
+  Value xMax =
+      createMaxAlongDimension(rewriter, loc, op, self, dim, /*keepDim=*/true);
+  if (!xMax)
+    return nullptr;
+
+  Value shifted = createTensorSub(rewriter, loc, tensorType, self, xMax);
+  Value shiftedExp = rewriter.create<AtenExpOp>(loc, tensorType, shifted);
+  Value shiftedSumExp =
+      createSumAlongDimension(rewriter, loc, op, shiftedExp, dim,
+                              /*keepDim=*/true);
+  if (!shiftedSumExp)
+    return nullptr;
+
+  Value shiftedLogSumExp =
+      rewriter.create<AtenLogOp>(loc, shiftedSumExp.getType(), shiftedSumExp);
+  Value result =
+      createTensorSub(rewriter, loc, op.getType(), shifted, shiftedLogSumExp);
+  return result;
+}
+
 namespace {
 class DecomposeAtenLogSoftmaxIntOp
     : public OpRewritePattern<AtenLogSoftmaxIntOp> {
@@ -457,9 +487,7 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLogSoftmaxIntOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     Value self = op.self();
-    Value dim = op.dim();
     if (!op.dtype().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "Unimplemented non-None dtype for log_softmax");
@@ -468,25 +496,37 @@ public:
     if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(op, "Only support floating type");
 
-    // softmax(x, dim)
-    Value softmax = rewriter.create<AtenSoftmaxIntOp>(loc, tensorType, self,
-                                                      dim, op.dtype());
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), softmax);
+    Value logSoftmax = getLogSoftmaxResult(op, rewriter);
+    if (!logSoftmax)
+      return rewriter.notifyMatchFailure(
+          op, "getLogSoftmaxResult function returned nullptr");
+    rewriter.replaceOp(op, logSoftmax);
     return success();
   }
 };
 } // namespace
 
-// Decompose aten._log_softmax op into: log(_softmax(x))
 namespace {
 class DecomposeAten_LogSoftmaxOp : public OpRewritePattern<Aten_LogSoftmaxOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten_LogSoftmaxOp op,
                                 PatternRewriter &rewriter) const override {
-    Value softmax = rewriter.create<Aten_SoftmaxOp>(
-        op.getLoc(), op.getType(), op.self(), op.dim(), op.half_to_float());
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), softmax);
+    bool halfToFloat;
+    if (!matchPattern(op.half_to_float(), m_TorchConstantBool(&halfToFloat)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a boolean value for half_to_float");
+
+    // Currently, setting `halfToFloat` is not supported as the E2E testing for
+    // the same is not present on CPU.
+    if (halfToFloat)
+      return rewriter.notifyMatchFailure(
+          op, "halfToFloat is currently not supported.");
+    Value _logSoftmax = getLogSoftmaxResult(op, rewriter);
+    if (!_logSoftmax)
+      return rewriter.notifyMatchFailure(
+          op, "getLogSoftmaxResult function returned nullptr");
+    rewriter.replaceOp(op, _logSoftmax);
     return success();
   }
 };
