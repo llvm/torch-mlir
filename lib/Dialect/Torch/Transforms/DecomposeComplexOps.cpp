@@ -173,14 +173,22 @@ public:
   LogicalResult matchAndRewrite(AtenSelectIntOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
+    Value start = op.index();
+    Value dim = op.dim();
+    Value self = op.self();
+
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    Value end =
-        rewriter.create<AtenAddIntOp>(loc, one.getType(), op.index(), one);
-    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(op, op.getResult().getType(),
-                                                   op.self(), op.dim(),
-                                                   op.index(), end, one);
+    Value startPlusOne =
+        rewriter.create<AtenAddIntOp>(loc, one.getType(), start, one);
+    Value slice = rewriter.create<AtenSliceTensorOp>(
+        loc, computeReductionType(rewriter, op, self, dim, /*keepDim=*/true),
+        op.self(), dim, start, startPlusOne, /*step=*/one);
 
+    // `aten.slice.tensor` doesn't squeeze the dim even when it's size 1 after
+    // slicing, while `aten.select.int` does.
+    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getResult().getType(),
+                                                  slice, op.dim());
     return success();
   }
 };
