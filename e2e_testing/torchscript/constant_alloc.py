@@ -11,6 +11,22 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+class ZerosModuleDefaultDtype(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.zeros(3, 4)
+
+@register_test_case(module_factory=lambda: ZerosModuleDefaultDtype())
+def ZerosModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
 class ZerosModuleInt2D(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -92,6 +108,22 @@ def ZerosModuleFalsePinMemory_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class OnesModuleDefaultDtype(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4)
+
+@register_test_case(module_factory=lambda: OnesModuleDefaultDtype())
+def OnesModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
 class OnesModuleInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -140,6 +172,22 @@ def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward()
 
 # ==============================================================================
+
+class EmptyDefaultDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.pow(torch.empty((3, 4)), 0)
+
+@register_test_case(module_factory=lambda: EmptyDefaultDtypeModule())
+def EmptyModule_defaultDtype(module, tu: TestUtils):
+    module.forward()
+
 
 class EmptyIntModule(torch.nn.Module):
     def __init__(self):
@@ -190,6 +238,23 @@ def EmptyModule_falsePinMemory(module, tu: TestUtils):
     module.forward()
 
 # ==============================================================================
+
+class EmptyLikeDefaultDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.pow(torch.empty_like(a), 0.0)
+
+@register_test_case(module_factory=lambda: EmptyLikeDefaultDtypeModule())
+def EmptyLikeModule_defaultDtype(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
 
 class EmptyLikeIntModule(torch.nn.Module):
     def __init__(self):
@@ -244,6 +309,23 @@ def EmptyLikeModule_falsePinMemory(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ZerosLikeDefaultDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.zeros_like(a)
+
+@register_test_case(module_factory=lambda: ZerosLikeDefaultDtypeModule())
+def ZerosLikeModule_defaultDtype(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
+
 class ZerosLikeIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -295,6 +377,23 @@ def ZerosLikeModule_falsePinMemory(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
 # ==============================================================================
+
+class OnesLikeDefaultDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ones_like(a)
+
+@register_test_case(module_factory=lambda: OnesLikeDefaultDtypeModule())
+def OnesLikeModule_defaultDtype(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
 
 class OnesLikeIntModule(torch.nn.Module):
     def __init__(self):
