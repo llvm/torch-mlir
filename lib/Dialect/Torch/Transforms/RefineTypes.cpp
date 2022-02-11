@@ -1183,26 +1183,28 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
   auto self = operands[0]->getValue();
   auto outputKnowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
-
-  // Contains Knowledge of shape and dtype for the 1st result.
-  outputKnowledge.dtype = self.dtype;
-  int64_t reduction;
-  unsigned resultRank = self.sizes.size();
-
-  // Contains Knowledge of shape and dtype for the 2nd result.
   auto totalWeightKnowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
-  totalWeightKnowledge.dtype = self.dtype;
-  totalWeightKnowledge.sizes.resize(0, kUnknownSize);
-  totalWeightKnowledge.hasSizes = true;
 
-  if (self.hasSizes &&
-      matchPattern(op.reduction(), m_TorchConstantInt(&reduction))) {
-    if (reduction != Reduction::None)
-      resultRank -= 1;
+  // Contains Knowledge of dtype for both results.
+  outputKnowledge.dtype = self.dtype;
+  totalWeightKnowledge.dtype = self.dtype;
+  if (self.hasSizes) {
+    int64_t reduction;
+    unsigned resultRank = self.sizes.size();
+
+    // Contains Knowledge of shape for the both results.
+    totalWeightKnowledge.sizes.resize(0, kUnknownSize);
+    totalWeightKnowledge.hasSizes = true;
+
+    if (self.hasSizes &&
+        matchPattern(op.reduction(), m_TorchConstantInt(&reduction))) {
+      if (reduction != Reduction::None)
+        resultRank -= 1;
+    }
+    outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
+    outputKnowledge.hasSizes = true;
   }
-  outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
-  outputKnowledge.hasSizes = true;
   auto resultLattice = getLatticeElement(op.getResult(0)).join(outputKnowledge);
   resultLattice |=
       getLatticeElement(op.getResult(1)).join(totalWeightKnowledge);
