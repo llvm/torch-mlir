@@ -41,6 +41,7 @@ from . import argmax
 from . import matmul
 from . import reshape_like
 from . import scalar
+from . import scalar_comparison
 from . import squeeze
 from . import slice_like
 from . import nll_loss
