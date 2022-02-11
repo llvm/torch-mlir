@@ -99,4 +99,12 @@ TOSA_PASS_SET = {
     "LayerNormNormalizeOverAllDimsModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
+    "ElementwiseLog2Module_basic",
+    "Threshold1dIntI32Module_basic",
+    "Threshold1dFloatModule_basic",
+    "Threshold2dFloatModule_basic",
+    "Threshold3dFloatModule_basic",
+    "ElementwiseSubScalarIntModule_basic",
+    "ElementwiseAddScalarIntModule_basic",
+    "ElementwiseMulScalarModule_basic",
 }

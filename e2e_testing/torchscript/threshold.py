@@ -12,6 +12,24 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 # ==============================================================================
 
 
+class Threshold1dIntI32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+    ])
+
+    def forward(self, input):
+        return torch.ops.aten.threshold(input, 1, 2)
+
+@register_test_case(module_factory=lambda: Threshold1dIntI32Module())
+def Threshold1dIntI32Module_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (4,), dtype=torch.int32))
+
+
 class Threshold1dIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
