@@ -75,28 +75,17 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenNeIntOp : public OpConversionPattern<AtenNeIntOp> {
+// Lowers aten integer comparison ops.
+template <typename AtenOp, arith::CmpIPredicate Pred>
+class ConvertAtenIntComparisonOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenNeIntOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::ne,
-                                               adaptor.a(), adaptor.b());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAtenGtIntOp : public OpConversionPattern<AtenGtIntOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenGtIntOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, arith::CmpIPredicate::sgt,
-                                               adaptor.a(), adaptor.b());
+    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, Pred, adaptor.a(),
+                                               adaptor.b());
     return success();
   }
 };
@@ -189,10 +178,16 @@ public:
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
-    target.addIllegalOp<AtenNeIntOp>();
-    patterns.add<ConvertAtenNeIntOp>(typeConverter, context);
-    target.addIllegalOp<AtenGtIntOp>();
-    patterns.add<ConvertAtenGtIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp>();
+    patterns
+        .add<ConvertAtenIntComparisonOp<AtenNeIntOp, arith::CmpIPredicate::ne>>(
+            typeConverter, context);
+    patterns
+        .add<ConvertAtenIntComparisonOp<AtenEqIntOp, arith::CmpIPredicate::eq>>(
+            typeConverter, context);
+    patterns.add<
+        ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
+        typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
     patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);
 
