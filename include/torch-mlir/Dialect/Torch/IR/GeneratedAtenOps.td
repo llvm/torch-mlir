@@ -2931,6 +2931,28 @@ def Torch_AtenCpuOp : Torch_Op<"aten.cpu", [
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
+def Torch_AtenConvolutionOverrideableOp : Torch_Op<"aten.convolution_overrideable", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::convolution_overrideable : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    TorchIntListType:$stride,
+    TorchIntListType:$padding,
+    TorchIntListType:$dilation,
+    Torch_BoolType:$transposed,
+    TorchIntListType:$output_padding,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$input `,` $weight `,` $bias `,` $stride `,` $padding `,` $dilation `,` $transposed `,` $output_padding `,` $groups attr-dict `:` qualified(type($input)) `,` qualified(type($weight)) `,` qualified(type($bias)) `,` qualified(type($stride)) `,` qualified(type($padding)) `,` qualified(type($dilation)) `,` qualified(type($transposed)) `,` qualified(type($output_padding)) `,` qualified(type($groups)) `->` qualified(type($result))";
+}
+
 def Torch_AtenGatherOp : Torch_Op<"aten.gather", [
     AllowsTypeRefinement,
     HasValueSemantics

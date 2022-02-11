@@ -3118,6 +3118,19 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenConvolutionOverrideableOp : public OpConversionPattern<AtenConvolutionOverrideableOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenConvolutionOverrideableOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // TODO:
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenSqueezeOp : public OpConversionPattern<AtenSqueezeOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -4557,6 +4570,8 @@ public:
     patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
     target.addIllegalOp<AtenViewOp>();
     patterns.add<ConvertAtenViewOp>(typeConverter, context);
+    target.addIllegalOp<AtenConvolutionOverrideableOp>();
+    patterns.add<ConvertAtenConvolutionOverrideableOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
     target.addIllegalOp<AtenConstantPadNdOp>();

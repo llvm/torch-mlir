@@ -1144,6 +1144,24 @@ def TModuleRank0_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ConvolutionOverrideableModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.convolution_overrideable(x, y, None, [1], [0], [1], False, [0], 1)
+
+@register_test_case(module_factory=lambda: ConvolutionOverrideableModule())
+def ConvolutionOverrideableModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+
+# ==============================================================================
+
 class TensorLiteralModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
