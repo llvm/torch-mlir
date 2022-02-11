@@ -665,6 +665,26 @@ class _LogSoftmaxModule(torch.nn.Module):
 def _LogSoftmaxModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
+class _LogSoftmaxModuleStable(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten._log_softmax(tensor, dim=0, half_to_float=False)
+
+
+@register_test_case(module_factory=lambda: _LogSoftmaxModuleStable())
+def _LogSoftmaxModuleStable_basic(module, tu: TestUtils):
+    # testing for numerical stability.
+    # Should result in  tensor([-1e9, 0.00]) rather than tensor([-inf, 0.]).
+    a = torch.tensor([0, 1e9])
+    module.forward(a)
+
 # ==============================================================================
 
 class HardsigmoidModule(torch.nn.Module):
