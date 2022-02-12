@@ -1151,7 +1151,8 @@ class ConvolutionOverrideableModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
         return torch.ops.aten.convolution_overrideable(x, y, None, [1], [0], [1], False, [0], 1)
