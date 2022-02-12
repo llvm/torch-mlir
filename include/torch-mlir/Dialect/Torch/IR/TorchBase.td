@@ -38,7 +38,7 @@ def Torch_Dialect : Dialect {
   let hasConstantMaterializer = 1;
 }
 
-class TorchOpTrait<string name> : OpTrait, NativeTrait<"", ""> {
+class TorchOpTrait<string name> : NativeOpTrait<""> {
   let trait = name;
   let cppNamespace = "::mlir::torch::Torch::OpTrait";
 }

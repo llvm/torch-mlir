@@ -30,7 +30,7 @@ class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type
   }];
 
   let parser = [{
-    if (parser.parseLess())
+    if ($_parser.parseLess())
       return Type();
     Type containedType;
     if ($_parser.parseType(containedType))
@@ -39,7 +39,6 @@ class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type
       return Type();
     return get($_ctxt, containedType);
   }];
-
   let builders = [
     TypeBuilderWithInferredContext<(ins "::mlir::Type":$containedType), [{
       return Base::get(containedType.getContext(), containedType);
@@ -61,9 +60,9 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   }];
 
   let parser = [{
-    if (parser.parseLess())
+    if ($_parser.parseLess())
       return Type();
-    std::string className;
+   std::string className;
     if ($_parser.parseOptionalString(&className))
       return Type();
     if ($_parser.parseGreater())
@@ -349,7 +348,7 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
   }];
 
   let parser = [{
-    if (parser.parseLess())
+    if ($_parser.parseLess())
       return Type();
     Type keyType;
     if ($_parser.parseType(keyType))
@@ -363,7 +362,6 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
       return Type();
     return get($_ctxt, keyType, valueType);
   }];
-
   let builders = [
     TypeBuilderWithInferredContext<(ins "::mlir::Type":$keyType,
                                         "::mlir::Type":$valueType), [{

@@ -290,7 +290,7 @@ PrimLoopConditionOp::getMutableSuccessorOperands(Optional<unsigned> index) {
 // PrimIfOp
 //===----------------------------------------------------------------------===//
 
-static ParseResult parsePrimIfOp(OpAsmParser &parser, OperationState &result) {
+ParseResult PrimIfOp::parse(OpAsmParser &parser, OperationState &result) {
   // Create the regions.
   result.regions.reserve(2);
   Region *thenRegion = result.addRegion();
@@ -319,14 +319,14 @@ static ParseResult parsePrimIfOp(OpAsmParser &parser, OperationState &result) {
   return success();
 }
 
-static void print(OpAsmPrinter &p, PrimIfOp op) {
-  p << " " << op.condition();
-  p << " -> (" << op.getResultTypes() << ") ";
-  p.printRegion(op.thenRegion(), /*printEntryBlockArgs=*/false);
+void PrimIfOp::print(OpAsmPrinter &p) {
+  p << " " << condition();
+  p << " -> (" << getResultTypes() << ") ";
+  p.printRegion(thenRegion(), /*printEntryBlockArgs=*/false);
   p << " else ";
-  p.printRegion(op.elseRegion(), /*printEntryBlockArgs=*/false);
+  p.printRegion(elseRegion(), /*printEntryBlockArgs=*/false);
 
-  p.printOptionalAttrDict(op->getAttrs());
+  p.printOptionalAttrDict((*this)->getAttrs());
 }
 
 void PrimIfOp::getSuccessorRegions(Optional<unsigned> index,
@@ -938,8 +938,7 @@ void ConstantDeviceOp::getAsmResultNames(
 // ConstantIntOp
 //===----------------------------------------------------------------------===//
 
-static ParseResult parseConstantIntOp(OpAsmParser &parser,
-                                      OperationState &result) {
+ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
   Builder builder(result.getContext());
   result.addTypes(builder.getType<Torch::IntType>());
   if (parser.parseOptionalAttrDict(result.attributes))
@@ -951,10 +950,10 @@ static ParseResult parseConstantIntOp(OpAsmParser &parser,
   return success();
 }
 
-static void print(OpAsmPrinter &p, Torch::ConstantIntOp op) {
+void ConstantIntOp::print(OpAsmPrinter &p) {
   p << " ";
-  p << op.value().getSExtValue();
-  p.printOptionalAttrDict(op->getAttrs(), {"value"});
+  p << value().getSExtValue();
+  p.printOptionalAttrDict((*this)->getAttrs(), {"value"});
 }
 
 OpFoldResult Torch::ConstantIntOp::fold(ArrayRef<Attribute> operands) {

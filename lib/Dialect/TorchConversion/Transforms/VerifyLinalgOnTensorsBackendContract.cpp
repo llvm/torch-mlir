@@ -9,8 +9,10 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -68,9 +70,8 @@ class VerifyLinalgOnTensorsBackendContractPass
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<AffineDialect>(opHasLegalTypes);
+    target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
 
-    // AssertOp is used to terminate the program for error guards.
-    target.addLegalOp<AssertOp>();
     // ConstantOp is used for tensors and for scalars.
     target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
 

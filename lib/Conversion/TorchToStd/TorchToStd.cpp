@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
@@ -52,8 +53,8 @@ public:
   LogicalResult
   matchAndRewrite(RuntimeAssertOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AssertOp>(op, adaptor.condition(),
-                                          adaptor.message());
+    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, adaptor.condition(),
+                                              adaptor.message());
     return success();
   }
 };
@@ -160,6 +161,7 @@ public:
     registry.insert<StandardOpsDialect>();
     registry.insert<arith::ArithmeticDialect>();
     registry.insert<tensor::TensorDialect>();
+    registry.insert<cf::ControlFlowDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -167,7 +169,8 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect,
-                           arith::ArithmeticDialect, tensor::TensorDialect>();
+                           arith::ArithmeticDialect, tensor::TensorDialect,
+                           cf::ControlFlowDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

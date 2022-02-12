@@ -10,7 +10,7 @@ func @mm(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<?x?xf32> {
   %2 = tensor.dim %arg1, %c0 : tensor<?x?xf32>
   %3 = tensor.dim %arg1, %c1 : tensor<?x?xf32>
   %4 = arith.cmpi eq, %1, %2 : index
-  assert %4, "mismatching contracting dimension for aten.mm"
+  cf.assert %4, "mismatching contracting dimension for aten.mm"
   %5 = linalg.init_tensor [%0, %3] : tensor<?x?xf32>
   %6 = linalg.fill(%cst, %5) : f32, tensor<?x?xf32> -> tensor<?x?xf32>
   %7 = linalg.matmul ins(%arg0, %arg1 : tensor<?x?xf32>, tensor<?x?xf32>) outs(%6 : tensor<?x?xf32>) -> tensor<?x?xf32>

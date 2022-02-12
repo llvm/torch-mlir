@@ -18,7 +18,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-class Torch_Op<string mnemonic, list<OpTrait> traits = []>
+class Torch_Op<string mnemonic, list<Trait> traits = []>
     : Op<Torch_Dialect, mnemonic, traits> {
 }
 
@@ -503,8 +503,8 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
   let arguments = (ins Torch_BoolType:$condition);
   let results = (outs Variadic<AnyTorchType>:$results);
   let regions = (region SizedRegion<1>:$thenRegion, SizedRegion<1>:$elseRegion);
-  let printer = [{ return ::print(p, *this); }];
-  let parser = [{ return ::parsePrimIfOp(parser, result); }];
+  // Indicate that the operation has a custom parser and printer method.
+  let hasCustomAssemblyFormat = 1;
   let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
   let hasCanonicalizer = 1;
 }
@@ -594,8 +594,8 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int",
   let results = (outs
     Torch_IntType:$result
   );
-  let printer = [{ return ::print(p, *this); }];
-  let parser = [{ return ::parseConstantIntOp(parser, result); }];
+  // Indicate that the operation has a custom parser and printer method.
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
 }
 
