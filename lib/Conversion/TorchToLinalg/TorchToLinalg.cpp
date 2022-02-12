@@ -1590,7 +1590,7 @@ public:
       Value finalRes =
           rewriter
               .create<linalg::GenericOp>(
-                  loc, newResultType, ValueRange{lhs, rhs}, initTensor0,
+                  loc, initTensor0.getType(), ValueRange{lhs, rhs}, initTensor0,
                   /*indexingMaps=*/indexingMaps,
                   /*iteratorTypes=*/iteratorTypes,
                   [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -1754,7 +1754,7 @@ public:
     Value finalRes =
         rewriter
             .create<linalg::GenericOp>(
-                loc, resultType, ValueRange{target}, initTensor0,
+                loc, initTensor0.getType(), ValueRange{target}, initTensor0,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -1856,7 +1856,8 @@ public:
     Value finalRes =
         rewriter
             .create<linalg::GenericOp>(
-                loc, resultType, ValueRange{target, gradOutput}, initTensor0,
+                loc, initTensor0.getType(), ValueRange{target, gradOutput},
+                initTensor0,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
@@ -4178,14 +4179,17 @@ public:
     SmallVector<AffineMap, 2> affineMaps(2,
                                          rewriter.getMultiDimIdentityMap(rank));
     SmallVector<StringRef> iteratorTypes(rank, getParallelIteratorTypeName());
-    auto genericOp = rewriter.create<linalg::GenericOp>(
-        loc, newResultTy, indices, result, affineMaps, iteratorTypes,
-        [&](OpBuilder &b, Location loc, ValueRange args) {
-          auto index = args[0];
-          createLinalgPayloadCalculationForGatherOps(b, loc, self, rank, index,
-                                                     dim, rank);
-        });
-    rewriter.replaceOp(op, genericOp.getResult(0));
+    auto genericOp = rewriter
+                         .create<linalg::GenericOp>(
+                             loc, result.getType(), indices, result, affineMaps,
+                             iteratorTypes,
+                             [&](OpBuilder &b, Location loc, ValueRange args) {
+                               auto index = args[0];
+                               createLinalgPayloadCalculationForGatherOps(
+                                   b, loc, self, rank, index, dim, rank);
+                             })
+                         .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultTy, genericOp);
     return success();
   }
 };
@@ -4957,7 +4961,7 @@ public:
     Value uniformRes =
         rewriter
             .create<linalg::GenericOp>(
-                loc, resultType, /*inputs=*/ValueRange{},
+                loc, initTensor.getType(), /*inputs=*/ValueRange{},
                 /*outputs=*/initTensor, indexingMaps, iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value temp = initialSeed;

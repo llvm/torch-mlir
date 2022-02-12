@@ -6,6 +6,7 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 
 # ==============================================================================
+
 class UniformModule(torch.nn.Module):
 
     def __init__(self):
@@ -37,6 +38,44 @@ class UniformModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: UniformModule())
 def UniformModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(256, 512, 8).double(),
+        tu.rand(512, 1024, 4).double(),
+        tu.rand(512, 256, 4).double())
+
+# ==============================================================================
+
+class UniformStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([256, 512, 8], torch.float64, True),
+        ([512, 1024, 4], torch.float64, True),
+        ([512, 256, 4], torch.float64, True),
+    ])
+    def forward(self, x, y, z):
+        a = torch.ops.aten.uniform_(x, 1.0, 10.0)
+        b = torch.ops.aten.uniform_(y, -20.0, -5.0)
+        c = torch.ops.aten.uniform_(z, -15.0, 3.0)
+        std = torch.cat([
+            torch.flatten(torch.std(a)),
+            torch.flatten(torch.std(b)),
+            torch.flatten(torch.std(c))
+        ])
+        mean = torch.cat([
+            torch.flatten(torch.mean(a)),
+            torch.flatten(torch.mean(b)),
+            torch.flatten(torch.mean(c))
+        ])
+        return std, mean
+
+
+@register_test_case(module_factory=lambda: UniformStaticModule())
+def UniformStaticModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(256, 512, 8).double(),
         tu.rand(512, 1024, 4).double(),
