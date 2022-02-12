@@ -343,7 +343,7 @@ builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> (!torch.vtensor, !torch.v
 // CHECK: return %[[CAST]] : !torch.vtensor
 builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
   %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3,?],f32> to !torch.vtensor
-  br ^bb1(%cast: !torch.vtensor)
+  cf.br ^bb1(%cast: !torch.vtensor)
 ^bb1(%arg1: !torch.vtensor):
   %1 = torch.aten.tanh %arg1 : !torch.vtensor -> !torch.vtensor
   return %1 : !torch.vtensor

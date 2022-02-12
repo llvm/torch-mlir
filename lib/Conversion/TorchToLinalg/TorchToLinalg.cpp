@@ -11,8 +11,10 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Traits.h"
@@ -78,7 +80,8 @@ static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predDimGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
-  Value dimInt = b.create<SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
+  Value dimInt =
+      b.create<arith::SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
   return dimInt;
 }
 
@@ -91,12 +94,12 @@ static void assertIsValidDim(OpBuilder &b, Location loc, Value dim,
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
   Value predGEZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
-  b.create<AssertOp>(loc, predGEZero,
-                     b.getStringAttr("dim must be greater or equal to zero"));
+  b.create<cf::AssertOp>(
+      loc, predGEZero, b.getStringAttr("dim must be greater or equal to zero"));
   Value predLTInputRank =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, dim, inputRank);
-  b.create<AssertOp>(loc, predLTInputRank,
-                     b.getStringAttr("dim must be smaller than inputRank"));
+  b.create<cf::AssertOp>(loc, predLTInputRank,
+                         b.getStringAttr("dim must be smaller than inputRank"));
 }
 
 // Hack to deal with the Torch list type arguments which is not supported end
@@ -147,8 +150,8 @@ static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   Value rhsDimInt = rhsType.isIndex() ? castIndexToInt(b, loc, rhsDim) : rhsDim;
   Value contractingDimEqual = b.create<arith::CmpIOp>(
       loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
-  b.create<AssertOp>(loc, contractingDimEqual,
-                     b.getStringAttr("mismatching contracting dimension"));
+  b.create<cf::AssertOp>(loc, contractingDimEqual,
+                         b.getStringAttr("mismatching contracting dimension"));
 }
 
 static SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
@@ -471,8 +474,8 @@ public:
         rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(intType, 1));
     Value groupEqual1 = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, groups, c1);
-    rewriter.create<AssertOp>(loc, groupEqual1,
-                              rewriter.getStringAttr("expect groups to be 1"));
+    rewriter.create<cf::AssertOp>(
+        loc, groupEqual1, rewriter.getStringAttr("expect groups to be 1"));
 
     // Pad the input tensor according to padding.
     SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
@@ -581,15 +584,16 @@ static void createLinalgPayloadCalculationForGatherOps(
   Value indexLTInputDim = b.create<arith::CmpIOp>(
       loc, arith::CmpIPredicate::slt, index,
       castIndexToInt(b, loc, getDimOp(b, loc, input, dim)));
-  b.create<AssertOp>(loc, indexLTInputDim,
-                     b.getStringAttr("index must be smaller than dim size"));
+  b.create<cf::AssertOp>(
+      loc, indexLTInputDim,
+      b.getStringAttr("index must be smaller than dim size"));
 
   // Assert index >= 0
   Value cst0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(index.getType()));
   Value indexGEThanZero =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, index, cst0);
-  b.create<AssertOp>(loc, indexGEThanZero,
-                     b.getStringAttr("index must be larger or equal to 0"));
+  b.create<cf::AssertOp>(loc, indexGEThanZero,
+                         b.getStringAttr("index must be larger or equal to 0"));
 
   Value extract = b.create<tensor::ExtractOp>(loc, input, indices);
   b.create<linalg::YieldOp>(loc, extract);
@@ -858,7 +862,7 @@ public:
     Value rhsDim1 = rewriter.create<tensor::DimOp>(loc, rhs, 1);
     Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
-    rewriter.create<AssertOp>(
+    rewriter.create<cf::AssertOp>(
         loc, contractingDimEqual,
         rewriter.getStringAttr(
             "mismatching contracting dimension for torch.aten.mm"));
@@ -1196,7 +1200,7 @@ public:
                       loc, input, ValueRange{indI, indTarget});
                   Value negate =
                       rewriter.create<arith::NegFOp>(loc, elementType, result);
-                  Value selectFinal = rewriter.create<mlir::SelectOp>(
+                  Value selectFinal = rewriter.create<arith::SelectOp>(
                       loc, cmpEq, zeroVal, negate);
                   b.create<linalg::YieldOp>(loc, selectFinal);
                 })
@@ -1302,7 +1306,7 @@ public:
                       rewriter.create<arith::AndIOp>(loc, cmpEq, cmpNe);
                   Value negate =
                       rewriter.create<arith::NegFOp>(loc, elementType, args[1]);
-                  Value selectFinal = rewriter.create<mlir::SelectOp>(
+                  Value selectFinal = rewriter.create<arith::SelectOp>(
                       loc, finalPredicate, negate, zeroVal);
                   b.create<linalg::YieldOp>(loc, selectFinal);
                 })
@@ -1376,7 +1380,7 @@ public:
     Value biasDim0 = getDimOp(rewriter, loc, bias, 0);
     Value contractingDimEqual = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, inputDim1, weightDim1);
-    rewriter.create<AssertOp>(
+    rewriter.create<cf::AssertOp>(
         loc, contractingDimEqual,
         rewriter.getStringAttr(
             "mismatching contracting dimension for aten.linear"));
@@ -1384,7 +1388,7 @@ public:
     // In the static-size-1 case, we will not emit this check at all.
     Value biasSizeCorrect = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, weightDim0, biasDim0);
-    rewriter.create<AssertOp>(
+    rewriter.create<cf::AssertOp>(
         loc, biasSizeCorrect,
         rewriter.getStringAttr("mismatching bias size for aten.linear"));
 
@@ -1500,31 +1504,31 @@ static Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
   if (auto dtypeFloat = dtype.dyn_cast<mlir::FloatType>()) {
     if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>()) {
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
-        return b.create<arith::TruncFOp>(loc, scalar, dtype);
+        return b.create<arith::TruncFOp>(loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
-      return b.create<arith::ExtFOp>(loc, scalar, dtype);
+      return b.create<arith::ExtFOp>(loc, dtype, scalar);
     }
     assert(scalarType.isa<mlir::IntegerType>());
     if (scalarType.isSignlessInteger(1))
-      return b.create<arith::UIToFPOp>(loc, scalar, dtype);
+      return b.create<arith::UIToFPOp>(loc, dtype, scalar);
     // It's safe to use SIToFPOp because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
-    return b.create<arith::SIToFPOp>(loc, scalar, dtype);
+    return b.create<arith::SIToFPOp>(loc, dtype, scalar);
   }
 
   if (auto dtypeInteger = dtype.dyn_cast<mlir::IntegerType>()) {
     if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>())
-      return b.create<arith::FPToSIOp>(loc, scalar, dtype);
+      return b.create<arith::FPToSIOp>(loc, dtype, scalar);
     assert(scalarType.isa<mlir::IntegerType>());
     auto scalarInteger = scalarType.cast<mlir::IntegerType>();
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())
-      return b.create<arith::TruncIOp>(loc, scalar, dtype);
+      return b.create<arith::TruncIOp>(loc, dtype, scalar);
     if (scalarType.isSignlessInteger(1))
-      return b.create<arith::ExtUIOp>(loc, scalar, dtype);
+      return b.create<arith::ExtUIOp>(loc, dtype, scalar);
     // Only scalarInteger width < dtypeInteger width can reach here.
     // It's safe to use ExtSIOp here because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
-    return b.create<arith::ExtSIOp>(loc, scalar, dtype);
+    return b.create<arith::ExtSIOp>(loc, dtype, scalar);
   }
 
   llvm_unreachable("convertScalarToDtype should handle all the types");
@@ -1595,7 +1599,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], constZero);
-    return b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
+    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
   }
   if (auto lrelu = dyn_cast<AtenLeakyReluOp>(op)) {
     if (!lrelu.getType()
@@ -1610,8 +1614,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], constZero);
-    Value positivePart = b.create<SelectOp>(loc, pred, payloadArgs[0], constZero);
-    Value negativePart = b.create<SelectOp>(loc, pred, constZero, payloadArgs[0]);
+    Value positivePart =
+        b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
+    Value negativePart =
+        b.create<arith::SelectOp>(loc, pred, constZero, payloadArgs[0]);
     Value scale = convertScalarToDtype(b, loc, operands[1], elementType);
     Value scaledNegativePart = b.create<arith::MulFOp>(loc, negativePart, scale);
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
@@ -1990,7 +1996,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[2], dtype);
-    return b.create<SelectOp>(loc, payloadArgs[0], lhs, rhs);
+    return b.create<arith::SelectOp>(loc, payloadArgs[0], lhs, rhs);
   }
 
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
@@ -2019,7 +2025,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                          payloadArgs[0], payloadArgs[1]);
-    return b.create<SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
   }
   if (auto maximum = dyn_cast<AtenMaximumOp>(op)) {
     if (!maximum.getType()
@@ -2031,7 +2037,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                          payloadArgs[0], payloadArgs[1]);
-    return b.create<SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
     Type dtype = converter->convertType(clamp.getType())
@@ -2054,13 +2060,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       auto minPromoted = convertScalarToDtype(b, loc, min, dtype);
       auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                           result, minPromoted);
-      result = b.create<SelectOp>(loc, pred, minPromoted, result);
+      result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
     }
     if (!max.getType().isa<Torch::NoneType>()) {
       auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
       auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
                                           result, maxPromoted);
-      result = b.create<SelectOp>(loc, pred, maxPromoted, result);
+      result = b.create<arith::SelectOp>(loc, pred, maxPromoted, result);
     }
     return result;
   }
@@ -2126,7 +2132,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
     auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE,
                                         payloadArgs[0], zero);
-    b.create<AssertOp>(
+    b.create<cf::AssertOp>(
         loc, pred, b.getStringAttr("unimplemented: tensor with zero element"));
 
     auto one =
@@ -2152,7 +2158,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     else
       predicate = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, self,
                                           threshold);
-    return b.create<SelectOp>(loc, predicate, value, self);
+    return b.create<arith::SelectOp>(loc, predicate, value, self);
   }
   if (auto thresholdBackward = dyn_cast<AtenThresholdBackwardOp>(op)) {
     // The approach used here is as follows:
@@ -2174,7 +2180,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     else
       predicate = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle, self,
                                           threshold);
-    return b.create<SelectOp>(loc, predicate, constantZero, grad);
+    return b.create<arith::SelectOp>(loc, predicate, constantZero, grad);
   }
 
   op->emitError("unimplemented lowering in "
@@ -2347,9 +2353,9 @@ public:
           if (inElementType.isa<mlir::FloatType>())
             predicate = rewriter.create<arith::CmpFOp>(
                 nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
-          auto resultMax = rewriter.create<mlir::SelectOp>(nestedLoc, predicate,
-                                                           newValue, oldValue);
-          auto resultIndex = rewriter.create<mlir::SelectOp>(
+          auto resultMax = rewriter.create<arith::SelectOp>(
+              nestedLoc, predicate, newValue, oldValue);
+          auto resultIndex = rewriter.create<arith::SelectOp>(
               nestedLoc, predicate, newIndex, oldIndex);
           nestedBuilder.create<linalg::YieldOp>(
               nestedLoc, ValueRange({resultMax, resultIndex}));
@@ -2487,8 +2493,8 @@ struct ConvertElementwiseOp : ConversionPattern {
         auto equalToRunning = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::eq, resultShape[resultDim],
             currentDimSize);
-        rewriter.create<AssertOp>(loc, equalToRunning,
-                                  "mismatched size for broadcast");
+        rewriter.create<cf::AssertOp>(loc, equalToRunning,
+                                      "mismatched size for broadcast");
       }
       indexingMaps.push_back(AffineMap::get(
           /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, getContext()));
@@ -2703,7 +2709,7 @@ public:
         loc, IntegerAttr::get(rewriter.getIntegerType(1), 0));
     Value ceilModeFalse = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, ceilMode, falseValue);
-    rewriter.create<AssertOp>(
+    rewriter.create<cf::AssertOp>(
         loc, ceilModeFalse,
         rewriter.getStringAttr("only ceil_mode false is supported"));
 
@@ -3155,7 +3161,7 @@ public:
         Value dimSize = getDimOp(rewriter, loc, input, i);
         Value dimSizeNotOne = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::ne, dimSize, one);
-        rewriter.create<AssertOp>(
+        rewriter.create<cf::AssertOp>(
             loc, dimSizeNotOne,
             rewriter.getStringAttr(
                 "unimplemented: size 1 dynamic dimension is not supported"));
@@ -3489,12 +3495,12 @@ public:
           loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
       Value predDimSltZero = rewriter.create<arith::CmpIOp>(
           loc, arith::CmpIPredicate::slt, startOrEndToPositive, cst0);
-      Value startOrEndAtLeastZero = rewriter.create<SelectOp>(
+      Value startOrEndAtLeastZero = rewriter.create<arith::SelectOp>(
           loc, predDimSltZero, cst0, startOrEndToPositive);
       // startOrEnd > dimSizeAsInt ? dimSizeAsInt : startOrEnd
       Value startOrEndSgtDimSize = rewriter.create<arith::CmpIOp>(
           loc, arith::CmpIPredicate::sgt, startOrEndAtLeastZero, dimSizeAsInt);
-      Value startOrEndBoundedByDimSize = rewriter.create<SelectOp>(
+      Value startOrEndBoundedByDimSize = rewriter.create<arith::SelectOp>(
           loc, startOrEndSgtDimSize, dimSizeAsInt, startOrEndAtLeastZero);
 
       return castIntToIndex(rewriter, loc, startOrEndBoundedByDimSize);
@@ -3509,7 +3515,7 @@ public:
     // end >= start ? end : start
     Value endSgeStart = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::sge, end, start);
-    end = rewriter.create<SelectOp>(loc, endSgeStart, end, start);
+    end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
 
     int64_t step;
     if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
@@ -3851,7 +3857,7 @@ public:
       if (i < diff) {
         Value isValid = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::sge, shapeValue, zero);
-        rewriter.create<AssertOp>(
+        rewriter.create<cf::AssertOp>(
             loc, isValid,
             rewriter.getStringAttr(
                 "negative values not allowed in new dimensions"));
@@ -3864,7 +3870,7 @@ public:
             rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
         Value isNegative = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::slt, shapeValue, zero);
-        Value select = rewriter.create<SelectOp>(
+        Value select = rewriter.create<arith::SelectOp>(
             loc, isNegative, one, castIntToIndex(rewriter, loc, shapeValue));
         outShape.push_back(select);
         outExpr.push_back(mlir::getAffineConstantExpr(0, context));
@@ -3878,7 +3884,7 @@ public:
           loc, arith::CmpIPredicate::eq, castIndexToInt(rewriter, loc, dim),
           shapeValue);
       Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
-      rewriter.create<AssertOp>(
+      rewriter.create<cf::AssertOp>(
           loc, isValid,
           rewriter.getStringAttr(
               "only broadcasting singleton dimensions supported"));
@@ -4490,6 +4496,7 @@ public:
     registry.insert<StandardOpsDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithmeticDialect>();
+    registry.insert<cf::ControlFlowDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -4497,8 +4504,8 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, StandardOpsDialect,
-                           math::MathDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect>();
+                           cf::ControlFlowDialect, math::MathDialect,
+                           tensor::TensorDialect, arith::ArithmeticDialect>();
     target.addLegalOp<GetNextSeedOp>();
 
     TypeConverter typeConverter;

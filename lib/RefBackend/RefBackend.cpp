@@ -16,12 +16,15 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/RefBackend/Passes.h"
 #include <numeric>
 #include <set>
@@ -136,7 +139,7 @@ static LogicalResult mungeFunction(
     if (!isArgMemRefTypeValid(type))
       return emitError(arg.getLoc(),
                        "argument must be a memref of f32, f64, i32, i64, i1");
-    auto cast = b.create<memref::CastOp>(arg.getLoc(), arg, type);
+    auto cast = b.create<memref::CastOp>(arg.getLoc(), type, arg);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
     newArgTypes.push_back(arg.getType());
@@ -159,7 +162,7 @@ static LogicalResult mungeFunction(
         // Cast to unranked memref type before sending it as a function
         // argument.
         retVal = b.create<memref::CastOp>(
-            op.getLoc(), retVal, getAbiTypeForMemRef(types[en.index()]));
+            op.getLoc(), getAbiTypeForMemRef(types[en.index()]), retVal);
       }
       retTypes.push_back(retType);
       retVals.push_back(retVal);
@@ -353,4 +356,65 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::torch::RefBackend::createExpandOpsForLLVMPass() {
   return std::make_unique<ExpandOpsForLLVM>();
+}
+
+//===----------------------------------------------------------------------===//
+// MungeMemrefCopy
+//===----------------------------------------------------------------------===//
+
+Operation *createLinalgCopyOp(OpBuilder &b, Location loc, Value from,
+                              Value to) {
+  auto memrefTypeFrom = from.getType().cast<MemRefType>();
+  auto memrefTypeTo = to.getType().cast<MemRefType>();
+  (void)memrefTypeFrom;
+  assert(memrefTypeFrom && memrefTypeTo &&
+         memrefTypeFrom.getRank() == memrefTypeTo.getRank());
+  AffineMap id =
+      AffineMap::getMultiDimIdentityMap(memrefTypeTo.getRank(), b.getContext());
+  SmallVector<StringRef> iteratorTypes(memrefTypeTo.getRank(),
+                                       getParallelIteratorTypeName());
+  return b.create<linalg::GenericOp>(
+      loc,
+      /*inputs=*/from,
+      /*outputs=*/to,
+      /*indexingMaps=*/llvm::makeArrayRef({id, id}),
+      /*iteratorTypes=*/iteratorTypes,
+      [](OpBuilder &b, Location loc, ValueRange args) {
+        b.create<linalg::YieldOp>(loc, args.front());
+      });
+}
+
+namespace {
+class MemrefCopyOpToLinalg : public OpRewritePattern<memref::CopyOp> {
+  using OpRewritePattern<memref::CopyOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CopyOp copyOp,
+                                PatternRewriter &rewriter) const override {
+    Operation *linalgCopy = createLinalgCopyOp(
+        rewriter, copyOp.getLoc(), copyOp.source(), copyOp.target());
+    rewriter.replaceOp(copyOp, linalgCopy->getResults());
+    return success();
+  }
+};
+
+class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect>();
+  }
+
+  void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    RewritePatternSet patterns(&getContext());
+    patterns.insert<MemrefCopyOpToLinalg>(context);
+    if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                            std::move(patterns)))) {
+      return signalPassFailure();
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::torch::RefBackend::createMungeMemrefCopyPass() {
+  return std::make_unique<MungeMemrefCopy>();
 }

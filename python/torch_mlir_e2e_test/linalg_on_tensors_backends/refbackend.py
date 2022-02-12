@@ -165,12 +165,12 @@ class RefBackendInvoker:
 
 LOWERING_PIPELINE = ",".join([
     # Bufferize.
-    "tensor-constant-bufferize",
     "builtin.func(scf-bufferize)",
     "builtin.func(linalg-bufferize)",
-    "builtin.func(std-bufferize)",
-    "builtin.func(tensor-bufferize)",
+    "builtin.func(refback-munge-memref-copy)",
     "func-bufferize",
+    "arith-bufferize",
+    "builtin.func(tensor-bufferize)",
     "builtin.func(finalizing-bufferize)",
     # Munge to make it ExecutionEngine compatible.
     # Specifically, we rewrite calling convention boundaries to be in terms
@@ -185,12 +185,15 @@ LOWERING_PIPELINE = ",".join([
     # Lower to LLVM
     "builtin.func(convert-linalg-to-loops)",
     "builtin.func(lower-affine)",
-    "builtin.func(convert-scf-to-std)",
+    "convert-scf-to-cf",
     "builtin.func(refback-expand-ops-for-llvm)",
     "builtin.func(arith-expand)",
     "builtin.func(convert-math-to-llvm)",
+    "convert-linalg-to-llvm",
     "convert-memref-to-llvm",
+    "builtin.func(convert-arith-to-llvm)",
     "convert-std-to-llvm",
+    "convert-cf-to-llvm",
     "reconcile-unrealized-casts",
 ])
 

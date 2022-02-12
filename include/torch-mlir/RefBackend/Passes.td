@@ -29,4 +29,10 @@ def ExpandOpsForLLVM : Pass<"refback-expand-ops-for-llvm", "FuncOp"> {
   let constructor = "mlir::torch::RefBackend::createExpandOpsForLLVMPass();";
 }
 
+def MungeMemrefCopy : Pass<"refback-munge-memref-copy", "FuncOp"> {
+  let summary = "Munge memref.copy to linalg.copy";
+  let constructor = "mlir::torch::RefBackend::createMungeMemrefCopyPass();";
+  let dependentDialects = ["memref::MemRefDialect"];
+}
+
 #endif // TORCHMLIR_REFBACKEND_PASSES

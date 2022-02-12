@@ -20,11 +20,11 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 // Base class.
 //===----------------------------------------------------------------------===//
 
-class TMTensor_PureOp<string mnemonic, list<OpTrait> traits = []> :
+class TMTensor_PureOp<string mnemonic, list<Trait> traits = []> :
     Op<TMTensor_Dialect, mnemonic, traits> {
 }
 
-class TMTensor_Op<string mnemonic, list<OpTrait> traits = []> :
+class TMTensor_Op<string mnemonic, list<Trait> traits = []> :
     TMTensor_PureOp<mnemonic, !listconcat(traits,
         [AttrSizedOperandSegments,
          DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,

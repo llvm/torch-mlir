@@ -17,7 +17,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "torch-mlir/Dialect/Torch/IR/TorchTypes.td"
 include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionBase.td"
 
-class TorchConversion_Op<string mnemonic, list<OpTrait> traits = []>
+class TorchConversion_Op<string mnemonic, list<Trait> traits = []>
     : Op<TorchConversion_Dialect, mnemonic, traits> {
 }
 
