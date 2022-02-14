@@ -904,6 +904,36 @@ def Torch_AtenLt_ScalarOp : Torch_Op<"aten.lt_.Scalar", [
   let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
 }
 
+def Torch_AtenLeScalarOp : Torch_Op<"aten.le.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::le.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
+}
+
+def Torch_AtenLe_ScalarOp : Torch_Op<"aten.le_.Scalar", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::le_.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
+}
+
 def Torch_AtenFmodScalarOp : Torch_Op<"aten.fmod.Scalar", [
     AllowsTypeRefinement,
     HasValueSemantics

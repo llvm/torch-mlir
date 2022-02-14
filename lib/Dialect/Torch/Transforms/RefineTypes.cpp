@@ -235,7 +235,7 @@ public:
 
     // These comparison ops return a tensor with 1-bit integer dtype.
     if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenLtScalarOp,
-            AtenNeScalarOp>(op)) {
+            AtenLeScalarOp, AtenNeScalarOp>(op)) {
       auto operand = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
