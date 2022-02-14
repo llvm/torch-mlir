@@ -75,13 +75,13 @@ class NllLossModule_backward(torch.nn.Module):
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
-    return torch.ops.aten.nll_loss_backward(grad_output=grad_output,
-                                           self=input,
-                                           target=target,
-                                           weight=None,
-                                           reduction=0,
-                                           ignore_index=10,
-                                           total_weight=total_weight)
+    return torch.ops.aten.nll_loss_backward(grad_output,
+                                            input,
+                                            target=target,
+                                            weight=None,
+                                            reduction=0,
+                                            ignore_index=10,
+                                            total_weight=total_weight)
 
 
 @register_test_case(module_factory=lambda: NllLossModule_backward())
@@ -104,8 +104,8 @@ class NllLossModule_backward_ignore_index(torch.nn.Module):
       ([], torch.float32, True),
   ])
   def forward(self, grad_output, input, target, total_weight):
-    return torch.ops.aten.nll_loss_backward(grad_output=grad_output,
-                                            self=input,
+    return torch.ops.aten.nll_loss_backward(grad_output,
+                                            input,
                                             target=target,
                                             weight=None,
                                             reduction=0,
