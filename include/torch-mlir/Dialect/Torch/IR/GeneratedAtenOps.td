@@ -158,6 +158,34 @@ def Torch_AtenSigmoid_Op : Torch_Op<"aten.sigmoid_", [
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
+def Torch_AtenHardsigmoidOp : Torch_Op<"aten.hardsigmoid", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::hardsigmoid : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
+def Torch_AtenHardsigmoid_Op : Torch_Op<"aten.hardsigmoid_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::hardsigmoid_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
 def Torch_AtenSinOp : Torch_Op<"aten.sin", [
     AllowsTypeRefinement,
     HasValueSemantics

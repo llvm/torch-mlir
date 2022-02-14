@@ -716,6 +716,46 @@ public:
 };
 } // namespace
 
+// Hardsigmoid(x) = max(0, min(1, (x+3)/6))
+namespace {
+class DecomposeAtenHardsigmoidOp : public OpRewritePattern<AtenHardsigmoidOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHardsigmoidOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Type inputType = input.getType();
+
+    // outputTensor = (input + 3) / 6.
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantThree = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(3));
+    Value constantSix = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(6));
+    Value inputPlusThree = rewriter.create<AtenAddScalarOp>(
+        loc, inputType, input, constantThree, /*alpha=*/constantOne);
+    Value outputTensor = rewriter.create<AtenDivScalarOp>(
+        loc, inputType, inputPlusThree, constantSix);
+
+    // result = max(0, min(1, (input+3)/6))
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value zeroTensor = rewriter.create<AtenZerosLikeOp>(
+        loc, inputType, input, /*dtype=*/none, /*layout=*/none, /*device=*/none,
+        /*pin_memory=*/none, /*memory_format=*/none);
+    Value oneTensor = rewriter.create<AtenOnesLikeOp>(
+        loc, inputType, input, /*dtype=*/none, /*layout=*/none, /*device=*/none,
+        /*pin_memory=*/none, /*memory_format=*/none);
+    Value minResult =
+        rewriter.create<AtenMinimumOp>(loc, inputType, oneTensor, outputTensor);
+    rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), zeroTensor,
+                                               minResult);
+    return success();
+  }
+};
+} // namespace
+
 // Returns a tensor with bernoulli(p) distribution.
 // Decompose aten.bernoulli(x, p) to aten.gtTensor(aten.uniform(x), p).
 static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
@@ -1157,6 +1197,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenBernoulliOp>();
     patterns.add<DecomposePseudoAtenBernoulliFloatOp>(context);
     target.addIllegalOp<PseudoAtenBernoulliFloatOp>();
+    patterns.add<DecomposeAtenHardsigmoidOp>(context);
+    target.addIllegalOp<AtenHardsigmoidOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

@@ -666,6 +666,45 @@ def _LogSoftmaxModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
 # ==============================================================================
+
+class HardsigmoidModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardsigmoid(x)
+
+
+@register_test_case(module_factory=lambda: HardsigmoidModule())
+def HardsigmoidModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[4.0, -5.0, 3.0], [2.9, -1.5, -3.0]]))
+
+# ==============================================================================
+
+class HardsigmoidRandomModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardsigmoid(x)
+
+
+@register_test_case(module_factory=lambda: HardsigmoidRandomModule())
+def HardsigmoidRandomModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, low=-10, high=10))
+
+# ==============================================================================
+
 class BroadcastToModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
