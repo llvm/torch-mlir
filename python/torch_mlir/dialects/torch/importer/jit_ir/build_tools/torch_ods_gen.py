@@ -475,6 +475,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)",
+                "aten::le.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
                 "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
                 "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
