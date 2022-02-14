@@ -68,15 +68,6 @@ static LogicalResult verifyLinalgCompatibleTypes(Operation *op,
   return success();
 }
 
-static LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op,
-                                  Value v) {
-  Type type = v.getType();
-  if (type.isa<OptionalType>() || type.isa<Torch::NoneType>() ||
-      type.isa<mlir::NoneType>())
-    return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
-  return success();
-}
-
 // Generate IR: dim = dim >= 0 ? dim : dim + inputRank
 static Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
                                   Value inputRank) {
@@ -603,111 +594,6 @@ static void createLinalgPayloadCalculationForGatherOps(
   Value extract = b.create<tensor::ExtractOp>(loc, input, indices);
   b.create<linalg::YieldOp>(loc, extract);
 }
-
-namespace {
-class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenBatchNormOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    MLIRContext *context = op->getContext();
-    Location loc = op->getLoc();
-    Value input = adaptor.input();
-    Value weight = adaptor.weight();
-    Value bias = adaptor.bias();
-    Value runningMean = adaptor.running_mean();
-    Value runningVar = adaptor.running_var();
-    Value training = adaptor.training();
-    Value eps = adaptor.eps();
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    // TODO: Handle the None cases for the optional parameters:
-    // weight, bias.
-    if (failed(checkNotNone(rewriter, op, weight)) ||
-        failed(checkNotNone(rewriter, op, bias)) ||
-        failed(checkNotNone(rewriter, op, runningMean)) ||
-        failed(checkNotNone(rewriter, op, runningVar)))
-      return failure();
-
-    auto inputType = input.getType().cast<RankedTensorType>();
-    auto weightType = weight.getType().cast<RankedTensorType>();
-    auto biasType = bias.getType().cast<RankedTensorType>();
-    auto runningMeanType = runningMean.getType().cast<RankedTensorType>();
-    auto runningVarType = runningVar.getType().cast<RankedTensorType>();
-
-    auto inputRank = inputType.getRank();
-    if (inputRank <= 2)
-      return rewriter.notifyMatchFailure(
-          op, "input should have rank larger than 2");
-
-    if (weightType.getRank() != 1 || biasType.getRank() != 1 ||
-        runningMeanType.getRank() != 1 || runningVarType.getRank() != 1) {
-      return rewriter.notifyMatchFailure(
-          op, "expect weight, bias, running_mean and running_var to be rank 1");
-    }
-
-    // TODO: Add support for training.
-    auto constFalse = rewriter.create<arith::ConstantOp>(
-        loc, IntegerAttr::get(IntegerType::get(context, 1), 0));
-    auto trainingFalse = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, training, constFalse);
-    rewriter.create<AssertOp>(
-        loc, trainingFalse,
-        rewriter.getStringAttr("training is not supported for now"));
-
-    // num_features – C from an expected input of size (N,C,D,H,W ...)
-    Value numFeatures = rewriter.create<tensor::DimOp>(loc, input, 1);
-    auto contractingDim0EqualsNumFeatures = [&](Value v) {
-      auto dim0 = rewriter.create<tensor::DimOp>(loc, v, 0);
-      auto dim0Equal = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::eq, numFeatures, dim0);
-      rewriter.create<AssertOp>(
-          loc, dim0Equal,
-          rewriter.getStringAttr(
-              "expect the size of dim 0 equal to the number of features"));
-    };
-    contractingDim0EqualsNumFeatures(weight);
-    contractingDim0EqualsNumFeatures(bias);
-    contractingDim0EqualsNumFeatures(runningMean);
-    contractingDim0EqualsNumFeatures(runningVar);
-
-    auto indexingMap = AffineMap::get(
-        /*dimCount=*/inputRank,
-        /*symbolCount=*/0, rewriter.getAffineDimExpr(1), context);
-    SmallVector<AffineMap> indexingMaps = {
-        rewriter.getMultiDimIdentityMap(inputRank), // input
-        indexingMap,                                // weight
-        indexingMap,                                // bias
-        indexingMap,                                // runningMean
-        indexingMap,                                // runningVar
-        rewriter.getMultiDimIdentityMap(inputRank), // output
-    };
-    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
-    Value batchNorm =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, input.getType(),
-                ValueRange{input, weight, bias, runningMean, runningVar}, input,
-                /*indexingMaps=*/indexingMaps,
-                /*iteratorTypes=*/iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value input = args[0], weight = args[1], bias = args[2],
-                        mean = args[3], var = args[4];
-                  Value result = createLinalgPayloadCalculationForNormOps(
-                      b, loc, var.getType(), input, mean, var, eps, weight,
-                      bias);
-                  b.create<linalg::YieldOp>(loc, result);
-                })
-            .getResult(0);
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, batchNorm);
-    return success();
-  }
-};
-} // namespace
 
 // For layernorm, the mean and standard-deviation are calculated separately over
 // the last certain number dimensions which have to be of the shape specified by
@@ -4628,8 +4514,6 @@ public:
     patterns.add<ConvertAtenBmmOp>(typeConverter, context);
     target.addIllegalOp<AtenLinearOp>();
     patterns.add<ConvertAtenLinearOp>(typeConverter, context);
-    target.addIllegalOp<AtenBatchNormOp>();
-    patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
     target.addIllegalOp<
         AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp,
         AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,

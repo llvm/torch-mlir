@@ -46,6 +46,14 @@ ScalarType getScalarTypeForType(Type type) {
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
+LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v) {
+  Type type = v.getType();
+  if (type.isa<OptionalType>() || type.isa<Torch::NoneType>() ||
+      type.isa<mlir::NoneType>())
+    return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
+  return success();
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
