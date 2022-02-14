@@ -450,6 +450,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
                 "aten::log : (Tensor) -> (Tensor)",
                 "aten::sigmoid : (Tensor) -> (Tensor)",
+                "aten::hardsigmoid : (Tensor) -> (Tensor)",
                 "aten::sin : (Tensor) -> (Tensor)",
                 "aten::exp : (Tensor) -> (Tensor)",
                 "aten::cos : (Tensor) -> (Tensor)",
