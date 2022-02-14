@@ -115,8 +115,9 @@ template <typename T>
 static bool isInValidRange(bool isFloat, const double &doubleValue, bool isInt,
                            const int64_t &intValue) {
   if (isFloat) {
-    return (doubleValue >= std::numeric_limits<T>::min()) &&
-           (doubleValue <= std::numeric_limits<T>::max());
+    // Do a round-trip check here instead of numeric limits due to
+    // compiler warnings around double <-> int conversion.
+    return (doubleValue == static_cast<double>(static_cast<T>(doubleValue)));
   } else {
     assert(isInt);
     return (intValue >= std::numeric_limits<T>::min()) &&
