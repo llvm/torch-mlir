@@ -778,11 +778,11 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenBernoulli_FloatOp
-    : public OpRewritePattern<AtenBernoulli_FloatOp> {
+class DecomposePseudoAtenBernoulliFloatOp
+    : public OpRewritePattern<PseudoAtenBernoulliFloatOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenBernoulli_FloatOp op,
+  LogicalResult matchAndRewrite(PseudoAtenBernoulliFloatOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value self = op.self();
@@ -1155,8 +1155,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_UnsafeViewOp>();
     patterns.add<DecomposeAtenBernoulliOp>(context);
     target.addIllegalOp<AtenBernoulliOp>();
-    patterns.add<DecomposeAtenBernoulli_FloatOp>(context);
-    target.addIllegalOp<AtenBernoulli_FloatOp>();
+    patterns.add<DecomposePseudoAtenBernoulliFloatOp>(context);
+    target.addIllegalOp<PseudoAtenBernoulliFloatOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
