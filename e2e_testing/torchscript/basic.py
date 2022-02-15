@@ -1307,3 +1307,41 @@ class StdBiasedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: StdBiasedModule())
 def StdBiasedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class HardswishModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardswish(x)
+
+
+@register_test_case(module_factory=lambda: HardswishModule())
+def HardswishModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[4.0, -5.0, 3.0], [2.9, -1.5, -3.0]]))
+
+
+class HardswishRandomModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardswish(x)
+
+
+@register_test_case(module_factory=lambda: HardswishRandomModule())
+def HardswishRandomModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128, 128, low=-10, high=10))
+
