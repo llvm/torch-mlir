@@ -925,8 +925,8 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
     Value constVal = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(fillVal));
     // Initialize the allocated memory block with `fillVal`.
-    rewriter.replaceOpWithNewOp<AtenFill_ScalarOp>(op, initTensor.getType(),
-                                                   initTensor, constVal);
+    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+        op, initTensor.getType(), initTensor, constVal);
     return success();
   }
 };

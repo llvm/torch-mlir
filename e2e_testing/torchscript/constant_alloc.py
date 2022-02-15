@@ -182,7 +182,7 @@ class EmptyDefaultDtypeModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.pow(torch.empty((3, 4)), 0)
+        return torch.empty((3, 4)).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyDefaultDtypeModule())
 def EmptyModule_defaultDtype(module, tu: TestUtils):
@@ -198,7 +198,7 @@ class EmptyIntModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return 0 * torch.empty((3, 4), dtype=torch.int64)
+        return torch.empty((3, 4), dtype=torch.int64).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyIntModule())
 def EmptyModule_int(module, tu: TestUtils):
@@ -214,7 +214,7 @@ class EmptyFloatModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.pow(torch.empty((3, 4), dtype=torch.float32), 0)
+        return torch.empty((3, 4), dtype=torch.float32).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyFloatModule())
 def EmptyModule_float(module, tu: TestUtils):
@@ -230,8 +230,8 @@ class EmptyFalsePinMemoryModule(torch.nn.Module):
         None,
     ])
     def forward(self):
-        return torch.pow(torch.empty((3, 4), dtype=torch.float32, 
-                                     pin_memory=False), 0)
+        return torch.empty((3, 4), dtype=torch.float32, 
+                           pin_memory=False).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyFalsePinMemoryModule())
 def EmptyModule_falsePinMemory(module, tu: TestUtils):
@@ -249,7 +249,7 @@ class EmptyLikeDefaultDtypeModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.pow(torch.empty_like(a), 0.0)
+        return torch.empty_like(a).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyLikeDefaultDtypeModule())
 def EmptyLikeModule_defaultDtype(module, tu: TestUtils):
@@ -266,7 +266,7 @@ class EmptyLikeIntModule(torch.nn.Module):
         ([-1, -1], torch.int64, True),
     ])
     def forward(self, a):
-        return 0 * torch.empty_like(a, dtype=torch.int32)
+        return torch.empty_like(a, dtype=torch.int32).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyLikeIntModule())
 def EmptyLikeModule_int(module, tu: TestUtils):
@@ -283,7 +283,7 @@ class EmptyLikeFloatModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.pow(torch.empty_like(a, dtype=torch.float32), 0)
+        return torch.empty_like(a, dtype=torch.float32).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyLikeFloatModule())
 def EmptyLikeModule_float(module, tu: TestUtils):
@@ -300,8 +300,8 @@ class EmptyLikeFalsePinMemoryModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.pow(torch.empty_like(a, dtype=torch.float64, 
-                                     pin_memory=False), 0)
+        return torch.empty_like(a, dtype=torch.float64,
+                                pin_memory=False).fill_(0)
 
 @register_test_case(module_factory=lambda: EmptyLikeFalsePinMemoryModule())
 def EmptyLikeModule_falsePinMemory(module, tu: TestUtils):
