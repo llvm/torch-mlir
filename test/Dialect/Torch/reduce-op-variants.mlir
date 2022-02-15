@@ -144,3 +144,20 @@ func @torch.aten.uniform_(%t: !torch.tensor, %min: !torch.float, %max: !torch.fl
   %ret = torch.aten.uniform_ %t, %min, %max, %generator: !torch.tensor, !torch.float, !torch.float, !torch.none -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// CHECK-LABEL:   func @torch.aten.bernoulli_.float(
+// CHECK-SAME:                                      %[[T:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:           %[[GENERATOR:.*]] = torch.constant.none
+// CHECK:           %[[P:.*]] = torch.constant.float 5.000000e-01
+// CHECK:           %[[T_VTENSOR:.*]] = torch.copy.to_vtensor %[[T]] : !torch.vtensor
+// CHECK:           %[[VRET:.*]] = torch.pseudo.aten.bernoulli.float %[[T_VTENSOR]], %[[P]], %[[GENERATOR]] : !torch.vtensor, !torch.float, !torch.none -> !torch.vtensor
+// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
+// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
+// CHECK:           torch.overwrite.tensor %[[COPY_VTENSOR]] overwrites %[[T]] : !torch.vtensor, !torch.tensor
+// CHECK:           return %[[T]] : !torch.tensor
+func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
+  %generator = torch.constant.none
+  %p = torch.constant.float 5.000000e-01
+  %ret = torch.aten.bernoulli_.float %t, %p, %generator : !torch.tensor, !torch.float, !torch.none -> !torch.tensor
+  return %ret : !torch.tensor
+}

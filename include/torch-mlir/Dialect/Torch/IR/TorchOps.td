@@ -931,6 +931,24 @@ def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
   let assemblyFormat = "$self `,` $from `,` $to `,` $generator attr-dict `:` type($self) `,` type($from) `,` type($to) `,` type($generator) `->` type($result)";
 }
 
+// The corresponding without underscore variant for `torch.aten.bernoulli_.float`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_PseudoAtenBernoulliFloatOp: Torch_Op<"pseudo.aten.bernoulli.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+  ]> {
+  let summary = "`bernoulli.float op : (Tensor, float, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_FloatType:$p,
+    TorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` type($self) `,` type($p) `,` type($generator) `->` type($result)";
+}
+
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 
 // But TS compiler introduces control flow for `torch._assert` operation. The 
 // `torch._assert` would introduce control flow like: 

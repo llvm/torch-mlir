@@ -126,14 +126,21 @@ public:
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    if (!isa<AtenUniform_Op>(op))
+    Location loc = op->getLoc();
+    Operation *newOp;
+    if (isa<AtenUniform_Op>(op)) {
+      newOp = rewriter.create<PseudoAtenUniformOp>(loc, op->getResultTypes(),
+                                                   op->getOperands());
+    } else if (isa<AtenBernoulli_FloatOp>(op)) {
+      newOp = rewriter.create<PseudoAtenBernoulliFloatOp>(
+          loc, op->getResultTypes(), op->getOperands());
+    } else {
       return failure();
+    }
 
-    Operation *newOp = rewriter.create<PseudoAtenUniformOp>(
-        op->getLoc(), op->getResultTypes(), op->getOperands());
     auto tensor =
-        rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
-    rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
+        rewriter.create<CopyToValueTensorOp>(loc, newOp->getResult(0));
+    rewriter.create<OverwriteTensorOp>(loc, tensor, op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
     return success();
   }
@@ -202,6 +209,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     ConversionTarget target(*context);
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenUniform_Op>();
+    target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {
