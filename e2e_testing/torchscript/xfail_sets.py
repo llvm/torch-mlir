@@ -56,6 +56,7 @@ TOSA_PASS_SET = {
     "ReturnTwoTensorF32I64_basic",
     "ElementwisePowModule_basic",
     "BmmModule_basic",
+    "MmDagModule_basic",
     "Matmul_dot",
     "Matmul_3d",
     "RsubModule_basic",
