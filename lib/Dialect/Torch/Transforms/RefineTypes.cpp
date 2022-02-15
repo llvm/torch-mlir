@@ -229,7 +229,7 @@ public:
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
             AtenAbsOp, AtenThresholdOp, AtenSquareOp, PseudoAtenUniformOp,
             AtenCloneOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
-            PseudoAtenBernoulliFloatOp>(op)) {
+            PseudoAtenBernoulliFloatOp, PseudoAtenFillScalarOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 

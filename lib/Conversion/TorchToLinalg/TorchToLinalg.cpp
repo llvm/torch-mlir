@@ -3899,11 +3899,12 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenFill_ScalarOp : public OpConversionPattern<AtenFill_ScalarOp> {
+class ConvertPseudoAtenFillScalarOp
+    : public OpConversionPattern<PseudoAtenFillScalarOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenFill_ScalarOp op, OpAdaptor adaptor,
+  matchAndRewrite(PseudoAtenFillScalarOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -3911,13 +3912,15 @@ public:
     Value self = adaptor.self();
     Value initVal = adaptor.value();
     auto tensorType = self.getType().cast<RankedTensorType>();
+    RankedTensorType resultType =
+        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
 
     Value initValCasted = convertScalarToDtype(rewriter, loc, initVal,
                                                tensorType.getElementType());
     Value result =
         createInitTensor(rewriter, loc, getTensorSizes(rewriter, loc, self),
                          tensorType.getElementType(), initValCasted);
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
 };
@@ -4698,8 +4701,8 @@ public:
     patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenDropoutOp>();
     patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
-    target.addIllegalOp<AtenFill_ScalarOp>();
-    patterns.add<ConvertAtenFill_ScalarOp>(typeConverter, context);
+    target.addIllegalOp<PseudoAtenFillScalarOp>();
+    patterns.add<ConvertPseudoAtenFillScalarOp>(typeConverter, context);
     target.addIllegalOp<AtenNumelOp>();
     patterns.add<ConvertAtenNumelOp>(typeConverter, context);
     target.addIllegalOp<AtenSliceTensorOp>();

@@ -161,3 +161,18 @@ func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
   %ret = torch.aten.bernoulli_.float %t, %p, %generator : !torch.tensor, !torch.float, !torch.none -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// CHECK-LABEL:   func @torch.aten.fill_.Scalar(
+// CHECK-SAME:                                  %[[T:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:           %[[VALUE:.*]] = torch.constant.int 1
+// CHECK:           %[[T_VTENSOR:.*]] = torch.copy.to_vtensor %[[T]] : !torch.vtensor
+// CHECK:           %[[VRET:.*]] = torch.pseudo.aten.fill.Scalar %[[T_VTENSOR]], %[[VALUE]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
+// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
+// CHECK:           torch.overwrite.tensor %[[COPY_VTENSOR]] overwrites %[[T]] : !torch.vtensor, !torch.tensor
+// CHECK:           return %[[T]] : !torch.tensor
+func @torch.aten.fill_.Scalar(%t: !torch.tensor) -> !torch.tensor {
+  %value = torch.constant.int 1
+  %ret = torch.aten.fill_.Scalar %t, %value : !torch.tensor, !torch.int -> !torch.tensor
+  return %ret : !torch.tensor
+}

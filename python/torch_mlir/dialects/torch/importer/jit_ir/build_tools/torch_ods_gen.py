@@ -502,6 +502,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
 
         # Ops without value semantics but the corresponding without trailing
         # underscore variant doesn't exist.
+        emit("aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)")
         emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
         emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
@@ -567,7 +568,6 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
         emit("aten::dim : (Tensor) -> (int)", has_folder=True)
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
-        emit("aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::Bool.Tensor : (Tensor) -> (bool)")
         emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
