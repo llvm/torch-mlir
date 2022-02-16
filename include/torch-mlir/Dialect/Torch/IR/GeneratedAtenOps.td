@@ -3047,6 +3047,27 @@ def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
   let assemblyFormat = "$input `,` $p `,` $train attr-dict `:` qualified(type($input)) `,` qualified(type($p)) `,` qualified(type($train)) `->` qualified(type($result))";
 }
 
+def Torch_AtenMaxPool2dWithIndicesBackwardOp : Torch_Op<"aten.max_pool2d_with_indices_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    TorchIntListType:$kernel_size,
+    TorchIntListType:$stride,
+    TorchIntListType:$padding,
+    TorchIntListType:$dilation,
+    Torch_BoolType:$ceil_mode,
+    AnyTorchTensorType:$indices
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$grad_output `,` $self `,` $kernel_size `,` $stride `,` $padding `,` $dilation `,` $ceil_mode `,` $indices attr-dict `:` qualified(type($grad_output)) `,` qualified(type($self)) `,` qualified(type($kernel_size)) `,` qualified(type($stride)) `,` qualified(type($padding)) `,` qualified(type($dilation)) `,` qualified(type($ceil_mode)) `,` qualified(type($indices)) `->` qualified(type($result))";
+}
+
 def Torch_AtenTOp : Torch_Op<"aten.t", [
     AllowsTypeRefinement
   ]> {

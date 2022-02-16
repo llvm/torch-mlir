@@ -627,6 +627,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)
         emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
         emit("aten::dropout : (Tensor, float, bool) -> (Tensor)")
+        emit("aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)")
         emit("aten::t : (Tensor) -> (Tensor)")
 
         # Dict ops.

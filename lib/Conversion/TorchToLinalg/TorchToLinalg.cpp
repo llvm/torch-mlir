@@ -3118,13 +3118,43 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenConvolutionOverrideableOp : public OpConversionPattern<AtenConvolutionOverrideableOp> {
+class ConvertAtenMaxPool2dWithIndicesBackwardOp : public OpConversionPattern<AtenMaxPool2dWithIndicesBackwardOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenConvolutionOverrideableOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenMaxPool2dWithIndicesBackwardOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    // TODO:
+    // Verify types
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    Value grad = adaptor.grad_output();
+    Value self = adaptor.self();
+    // auto inputType = input.getType().cast<RankedTensorType>();
+    // ArrayRef<int64_t> inputShape = inputType.getShape();
+    // int64_t inputRank = inputType.getRank();
+    // TypeConverter *typeConverter = getTypeConverter();
+    // auto resultType =
+    //     typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    // int64_t resultRank = resultType.getRank();
+
+    // Get values
+    SmallVector<Value> kernelSize;
+    if (!getListConstructElements(op.kernel_size(), kernelSize))
+      return rewriter.notifyMatchFailure(op, "kernel size not constructed from ListConstruct");
+    SmallVector<Value> stride;
+    if (!getListConstructElements(op.stride(), stride))
+      return rewriter.notifyMatchFailure(op, "stride not constructed from ListConstruct");
+    SmallVector<Value> padding;
+    if (!getListConstructElements(op.padding(), padding))
+      return rewriter.notifyMatchFailure(op, "padding not constructed from ListConstruct");
+    SmallVector<Value> dilation;
+    if (!getListConstructElements(op.dilation(), dilation))
+      return rewriter.notifyMatchFailure(op, "dilation not constructed from ListConstruct");
+
+    // Create output
+    // Fill output with zero
+    // Add in indices
     return success();
   }
 };
@@ -4570,8 +4600,8 @@ public:
     patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
     target.addIllegalOp<AtenViewOp>();
     patterns.add<ConvertAtenViewOp>(typeConverter, context);
-    target.addIllegalOp<AtenConvolutionOverrideableOp>();
-    patterns.add<ConvertAtenConvolutionOverrideableOp>(typeConverter, context);
+    target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
+    patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
     target.addIllegalOp<AtenConstantPadNdOp>();

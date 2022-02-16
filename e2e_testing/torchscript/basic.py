@@ -1144,22 +1144,23 @@ def TModuleRank0_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ConvolutionOverrideableModule(torch.nn.Module):
+class MaxPool2dWithIndicesBackwardsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
     ])
-    def forward(self, x, y):
-        return torch.ops.aten.convolution_overrideable(x, y, None, [1], [0], [1], False, [0], 1)
+    def forward(self, x, y, z):
+        return torch.ops.aten.max_pool2d_with_indices_backward(x, y, [2, 2], [1, 1], [0, 0], [1, 1], False, z)
 
-@register_test_case(module_factory=lambda: ConvolutionOverrideableModule())
-def ConvolutionOverrideableModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3), tu.rand(2, 3))
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardsModule())
+def MaxPool2dWithIndicesBackwardsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 1), tu.rand(2, 4, 2), torch.ones(2, 3, 1, dtype=torch.long))
 
 # ==============================================================================
 
