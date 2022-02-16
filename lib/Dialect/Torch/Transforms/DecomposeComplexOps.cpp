@@ -771,6 +771,46 @@ public:
 };
 } // namespace
 
+// pDash = 1.0 - p
+// boolMask = aten.rand_like(input) < pDash
+// dropout(input, p, train=True) = (boolMask * input) / pDash
+// dropout(input, p, train=False) = input
+namespace {
+class DecomposeAtenDropoutOp : public OpRewritePattern<AtenDropoutOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDropoutOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.input();
+    Value prob = op.p();
+    bool train = false;
+    if (!matchPattern(op.train(), m_TorchConstantBool(&train)))
+      return rewriter.notifyMatchFailure(op,
+                                         "train must be a boolean constant");
+    if (!train) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "only support floating type input for training mode");
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value floatOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value oneMinusP = rewriter.create<AtenSubFloatOp>(loc, floatOne, prob);
+    Value boolMask = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
+        loc, inputType, input, oneMinusP, /*generator=*/noneVal);
+    Value maskedInput =
+        rewriter.create<AtenMulTensorOp>(loc, inputType, boolMask, input);
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, op.getType(), maskedInput,
+                                                 oneMinusP);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.var into: sum(square(x - mean))/(numTensorElements-1)
 // for unbiased and mean(square(x - mean)) for biased case.
 namespace {
@@ -1572,6 +1612,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenExpandAsOp>();
     patterns.add<DecomposeAten_ToCopyOp>(context);
     target.addIllegalOp<Aten_ToCopyOp>();
+    patterns.add<DecomposeAtenDropoutOp>(context);
+    target.addIllegalOp<AtenDropoutOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

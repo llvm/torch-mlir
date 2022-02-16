@@ -210,6 +210,9 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenSubFloatOp>();
+    patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
