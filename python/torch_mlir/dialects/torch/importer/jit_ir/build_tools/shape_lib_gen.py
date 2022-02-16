@@ -190,6 +190,9 @@ def aten〇linear(input: List[int], weight: List[int], bias: Optional[List[int]]
 def aten〇zeros(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇ones(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return size
+
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3)), # Basic case.
@@ -228,6 +231,12 @@ def aten〇threshold_backward(grad_output: List[int], self: List[int], threshold
 def aten〇unsqueeze(self: List[int], dim: int) -> List[int]:
     return shape_helpers.unsqueeze(self, dim)
 
+def aten〇squeeze(self: List[int]) -> List[int]:
+    return shape_helpers.squeeze_nodim(self)
+
+def prim〇NumToTensor〇Scalar(a: float) -> List[int]:
+    return []
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.
     Invocation(TensorOfShape(2, 3), 2, dim=0), # Test explicit `dim`.
@@ -255,6 +264,14 @@ def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optio
     #return shape_helpers.batch_norm(input, weight, bias, running_mean, running_var, training, momentum, eps, cudnn_enabled)
     return input
 
+def aten〇slice〇Tensor(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
+    return shape_helpers.slice(self, dim, start, end, step)
+
+def aten〇select〇int(self: List[int], dim: int, index: int) -> List[int]:
+    return shape_helpers.select(self, dim, index)
+
+def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int]:
+    return shape_helpers.index_select(self, dim, index)
 
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)
@@ -295,6 +312,7 @@ def main(args):
     # Use a unique prefix on functon names to avoid collisions with
     # user-defined symbols.
     asm = asm.replace("__torch__.aten", "__torch_mlir_shape_fn.aten")
+    asm = asm.replace("__torch__.prim", "__torch_mlir_shape_fn.prim")
 
     # Write out the shape library .cpp file.
     shape_lib_cpp_file = os.path.join(

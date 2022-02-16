@@ -1588,29 +1588,6 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
-  if (!input.hasSizes)
-    return incorporateKnowledge(op.getResult(), knowledge);
-
-  knowledge.hasSizes = true;
-  bool dimIsUnknown = false;
-  int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
-    dimIsUnknown = true;
-  else {
-    int64_t inputRank = input.sizes.size();
-    dim = toPositiveDim(dim, inputRank);
-    if (!isValidDim(dim, inputRank))
-      dimIsUnknown = true;
-  }
-
-  if (dimIsUnknown) {
-    knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-    return incorporateKnowledge(op.getResult(), knowledge);
-  }
-  knowledge.sizes = input.sizes;
-  setDim(knowledge.sizes[dim], dim, operands);
-  if (!keepDim)
-    knowledge.sizes.erase(knowledge.sizes.begin() + dim);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 

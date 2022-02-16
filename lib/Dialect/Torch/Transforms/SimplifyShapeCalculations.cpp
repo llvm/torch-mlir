@@ -152,6 +152,19 @@ public:
         listLiterals.push_back(runningList);
         continue;
       }
+      if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
+        if (!setItem.use_empty())
+          return failure();
+        int64_t index;
+        if (!matchPattern(setItem.idx(), m_TorchConstantInt(&index)))
+          return failure();
+        // The index might be statically out of bounds.
+        if (index < 0 || index >= static_cast<int64_t>(runningList.size()))
+          return failure();
+        runningList[index] = setItem.el();
+        listLiterals.push_back(runningList);
+        continue;
+      }
       // If this user potentially mutates the list and isn't handled above, then
       // we can't abstractly interpret any further.
       if (potentiallyMutatesListOperands(user))
@@ -176,6 +189,12 @@ public:
         latestLiteral = rewriter.create<PrimListConstructOp>(
             op->getLoc(), insert.self().getType(), listLiterals[nextLiteral++]);
         rewriter.eraseOp(insert);
+        continue;
+      }
+      if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
+        rewriter.setInsertionPoint(setItem);
+        latestLiteral = rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+            setItem, setItem.l().getType(), listLiterals[nextLiteral++]);
         continue;
       }
       for (OpOperand &opOperand : user->getOpOperands()) {

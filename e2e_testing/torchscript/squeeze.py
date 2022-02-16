@@ -34,50 +34,6 @@ def SqueezeModule_static(module, tu: TestUtils):
 # ==============================================================================
 
 
-class SqueezeDynamicModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([1, -1, 1, 384, -1, 1, 1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.squeeze(a)
-
-
-@register_test_case(
-    module_factory=lambda: SqueezeDynamicModule())
-def SqueezeModule_dynamic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 8, 1, 384, 12, 1, 1))
-
-
-# ==============================================================================
-
-
-class SqueezeNoUnitDimModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([4, -1, -1], torch.float32, True),
-    ])
-    def forward(self, a):
-        return torch.squeeze(a)
-
-
-@register_test_case(
-    module_factory=lambda: SqueezeNoUnitDimModule())
-def SqueezeModule_noUnitDim(module, tu: TestUtils):
-    module.forward(tu.rand(4, 2, 3))
-
-
-# ==============================================================================
-
-
 class SqueezeAllUnitDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -228,4 +184,3 @@ class SqueezeDimUnitDimModule(torch.nn.Module):
     module_factory=lambda: SqueezeDimUnitDimModule())
 def SqueezeDimModule_unitDim(module, tu: TestUtils):
     module.forward(tu.rand(1))
-
