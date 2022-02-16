@@ -939,7 +939,27 @@ def TensorFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class DropoutModule(torch.nn.Module):
+class DropoutEvalIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+
+    def forward(self, x):
+        return torch.dropout(x, 0.2, train=False)
+
+
+@register_test_case(module_factory=lambda: DropoutEvalIntModule())
+def DropoutEvalIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(5, 10, (3, 4)))
+
+# ==============================================================================
+
+class DropoutEvalFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -950,12 +970,33 @@ class DropoutModule(torch.nn.Module):
     ])
 
     def forward(self, x):
-        return torch.dropout(x, 0.0, False)
+        return torch.dropout(x, 0.1, train=False)
 
 
-@register_test_case(module_factory=lambda: DropoutModule())
-def DropoutModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: DropoutEvalFloatModule())
+def DropoutEvalFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+class DropoutTrainModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, x):
+        res = torch.dropout(x, 0.3, train=True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: DropoutTrainModule())
+def DropoutTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256, 256))
 
 # ==============================================================================
 
