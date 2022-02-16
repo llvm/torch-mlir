@@ -2105,7 +2105,44 @@ void optimize(FuncOp func, TypeAnalyzer &analyzer) {
             if (isSafeToRefineOperandInPlace(use, refinedType)) {
               use->set(newTypedValue);
               continue;
+            } else if (auto overwriteTensorContents =
+                           dyn_cast<OverwriteTensorContentsOp>(
+                               use->getOwner())) {
+              // `OverwriteTensorContentsOp` has special handling here because
+              // it requires that both of its operands always have the same
+              // shape and dtype.
+              //
+              // WARNING: In order to simplify the implementation, the type
+              // used for both operands is the type of the overwritten tensor.
+              // A better way of doing this would be to join the two operand
+              // types to create the most specific type possible and use that
+              // for both arguments, allowing static sizes to always propagate.
+              const unsigned overwriterOperandIndex = 0;
+              const unsigned overwrittenOperandIndex = 1;
+              unsigned operandNumber = use->getOperandNumber();
+              if (operandNumber != overwrittenOperandIndex)
+                continue;
+
+              Location loc = overwriteTensorContents.getLoc();
+              Value overwriterTensor = overwriteTensorContents.value();
+              Type overwriterTensorType = overwriterTensor.getType();
+              Type overwrittenTensorType = newTypedValue.getType()
+                                               .dyn_cast<NonValueTensorType>()
+                                               .getWithValueSemantics();
+              if (overwriterTensorType == overwrittenTensorType)
+                continue;
+
+              {
+                OpBuilder::InsertionGuard guard(b);
+                b.setInsertionPoint(overwriteTensorContents);
+                Value castedOverwriterTensor = b.create<TensorStaticInfoCastOp>(
+                    loc, overwrittenTensorType, overwriterTensor);
+                overwriteTensorContents.setOperand(overwriterOperandIndex,
+                                                   castedOverwriterTensor);
+              }
+              continue;
             }
+
             // If needed, create a value of the original type to appease users
             // that cannot accept the new type.
             if (!oldTypedValue) {

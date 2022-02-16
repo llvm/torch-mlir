@@ -17,7 +17,7 @@ func @torch.copy.tensor$basic(%arg0: !torch.vtensor) -> (!torch.vtensor, !torch.
 func @one_mutation_in_a_block(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
   %0 = torch.copy.to_tensor %arg0 : !torch.tensor
   %equal_to_arg0 = torch.copy.to_vtensor %0 : !torch.vtensor
-  torch.overwrite.tensor %arg1 overwrites %0 : !torch.vtensor, !torch.tensor
+  torch.overwrite.tensor.contents %arg1 overwrites %0 : !torch.vtensor, !torch.tensor
   %equal_to_arg1 = torch.copy.to_vtensor %0 : !torch.vtensor
   return %equal_to_arg0, %equal_to_arg1 : !torch.vtensor, !torch.vtensor
 }
@@ -34,12 +34,12 @@ func @multiple_mutations_in_a_block(%arg0: !torch.vtensor, %arg1: !torch.vtensor
   %equal_to_arg0 = torch.copy.to_vtensor %tensor : !torch.vtensor
 
   // Overwrite with %arg1
-  torch.overwrite.tensor %arg1 overwrites %tensor : !torch.vtensor, !torch.tensor
+  torch.overwrite.tensor.contents %arg1 overwrites %tensor : !torch.vtensor, !torch.tensor
   %equal_to_arg1 = torch.copy.to_vtensor %tensor : !torch.vtensor
   %equal_to_arg1_again = torch.copy.to_vtensor %tensor : !torch.vtensor
 
   // Overwrite with %arg2
-  torch.overwrite.tensor %arg2 overwrites %tensor : !torch.vtensor, !torch.tensor
+  torch.overwrite.tensor.contents %arg2 overwrites %tensor : !torch.vtensor, !torch.tensor
   %equal_to_arg2 = torch.copy.to_vtensor %tensor : !torch.vtensor
 
   return %equal_to_arg0, %equal_to_arg1, %equal_to_arg1_again, %equal_to_arg2 : !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.vtensor
@@ -52,7 +52,7 @@ func @multiple_mutations_in_a_block(%arg0: !torch.vtensor, %arg1: !torch.vtensor
 // CHECK:           return %[[RESULT]] : !torch.vtensor
 func @mutation_followed_by_view_like_ops(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<!torch.int>) -> !torch.vtensor {
   %t = torch.copy.to_tensor %value_t : !torch.tensor
-  torch.overwrite.tensor %overwriter overwrites %t : !torch.vtensor, !torch.tensor
+  torch.overwrite.tensor.contents %overwriter overwrites %t : !torch.vtensor, !torch.tensor
   %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
   %result = torch.aten.permute %view, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
   %value_result = torch.copy.to_vtensor %result : !torch.vtensor
@@ -60,10 +60,10 @@ func @mutation_followed_by_view_like_ops(%value_t: !torch.vtensor, %overwriter: 
 }
 
 // CHECK-LABEL:   func @unmodeled_mutation(
-// CHECK:           torch.overwrite.tensor
+// CHECK:           torch.overwrite.tensor.contents
 func @unmodeled_mutation(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.copy.to_tensor %arg0 : !torch.tensor
-  torch.overwrite.tensor %arg1 overwrites %0 : !torch.vtensor, !torch.tensor
+  torch.overwrite.tensor.contents %arg1 overwrites %0 : !torch.vtensor, !torch.tensor
   "some.op"(%0) : (!torch.tensor) -> ()
   %result = torch.copy.to_vtensor %0 : !torch.vtensor
   return %result : !torch.vtensor
@@ -76,7 +76,7 @@ func @unimplemented_control_flow(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %
   %tensor = torch.copy.to_tensor %arg0 : !torch.tensor
   %equal_to_arg0 = torch.copy.to_vtensor %tensor : !torch.vtensor
   torch.prim.If %cond -> () {
-    torch.overwrite.tensor %arg1 overwrites %tensor : !torch.vtensor, !torch.tensor
+    torch.overwrite.tensor.contents %arg1 overwrites %tensor : !torch.vtensor, !torch.tensor
     torch.prim.If.yield
   } else {
     torch.prim.If.yield
