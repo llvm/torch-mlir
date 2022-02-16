@@ -665,3 +665,45 @@ func @torch.aten.log2$basic(%arg0: !torch.vtensor<[?,?],f32> ) -> !torch.vtensor
   %0 = torch.aten.log2 %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func @torch.aten.zeros$basic() -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_0:.*]] = torch.constant.int 4
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_2:.*]] = torch.constant.none
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_0]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() {value = dense<0> : tensor<3x4xi32>} : () -> tensor<3x4xi32>
+// CHECK:           %[[VAL_5:.*]] = "tosa.cast"(%[[VAL_4]]) : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func @torch.aten.zeros$basic() -> !torch.vtensor<[3,4],f32> {
+  %int4 = torch.constant.int 4
+  %int3 = torch.constant.int 3
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int3, %int4 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.zeros %0, %none, %none, %none, %none : !torch.list<!torch.int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
+  return %1 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func @torch.aten.ones$basic() -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_0:.*]] = torch.constant.int 4
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_2:.*]] = torch.constant.none
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_0]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() {value = dense<1> : tensor<3x4xi32>} : () -> tensor<3x4xi32>
+// CHECK:           %[[VAL_5:.*]] = "tosa.cast"(%[[VAL_4]]) : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func @torch.aten.ones$basic() -> !torch.vtensor<[3,4],f32> {
+  %int4 = torch.constant.int 4
+  %int3 = torch.constant.int 3
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int3, %int4 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.ones %0, %none, %none, %none, %none : !torch.list<!torch.int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
+  return %1 : !torch.vtensor<[3,4],f32>
+}
