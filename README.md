@@ -62,7 +62,7 @@ cmake -GNinja -Bbuild \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \

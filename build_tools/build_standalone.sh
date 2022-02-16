@@ -19,7 +19,7 @@ cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$project_dir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=${project_dir}/external/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
