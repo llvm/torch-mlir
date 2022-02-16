@@ -177,18 +177,8 @@ def emit_op(operator: JitOperator,
 
     # All Torch operators allow type refinement.
     traits += ["AllowsTypeRefinement"]
-    # If no operands have aliasing relations, then the op has value semantics.
-    # Note that this is different from MLIR's NoSideEffect which is much
-    # stronger (for example, it cannot be applied to ops that might emit errors
-    # when operand shapes mismatch).
-    if not operator.is_vararg and not operator.is_varret and all(
-            "alias_info" not in x
-            for x in itertools.chain(operator.arguments, operator.returns)):
-      # It seems the FunctionSchema of "prim::unchecked_cast : (t) -> (t)" has
-      # incorrect alias information. The result can alias with other tensors
-      # but the alias annotation is empty.
-      if operator.unique_key != "prim::unchecked_cast : (t) -> (t)":
-          traits += ["HasValueSemantics"]
+    if operator.has_value_semantics():
+        traits += ["HasValueSemantics"]
 
     raw_emit_op(operator,
                 f,

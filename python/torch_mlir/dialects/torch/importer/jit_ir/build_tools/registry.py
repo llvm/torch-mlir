@@ -8,6 +8,7 @@
 from typing import Dict, List, Tuple, Union
 
 import io
+import itertools
 
 from .utils import TextEmitter
 
@@ -209,6 +210,25 @@ class JitOperator:
                     for ret in self.returns:
                         p(f"ret: {ret}")
         return f.getvalue()
+
+    def has_value_semantics(self):
+        """Indicates whether the operator HasValueSemantics."""
+        # Vararg and varret ops don't have sufficient annotations for us to
+        # be sure whether they satisfy the requirements of HasValueSemantics.
+        if self.is_vararg or self.is_varret:
+            return False
+        # If no operands have aliasing relations, then the op has value semantics.
+        # Note that this is different from MLIR's NoSideEffect which is much
+        # stronger (for example, it cannot be applied to ops that might emit errors
+        # when operand shapes mismatch).
+        if any("alias_info" in x for x in itertools.chain(self.arguments, self.returns)):
+            return False
+        # It seems the FunctionSchema of "prim::unchecked_cast : (t) -> (t)" has
+        # incorrect alias information. The result can alias with other tensors
+        # but the alias annotation is empty.
+        if self.unique_key == "prim::unchecked_cast : (t) -> (t)":
+            return False
+        return True
 
 
 class Registry:

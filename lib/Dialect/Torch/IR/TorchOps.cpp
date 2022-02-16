@@ -77,7 +77,13 @@ bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
   // inputs), but we still know they are read-only.
   // TODO: Have a trait for this property, and derive it from the registry from
   // the `alias_info`.
-  if (isa<Aten__Getitem__TOp>(op))
+  // One thing that makes it tricky to auto-generate this is that currently it
+  // appears that the registry only has `alias_info` on arguments that are
+  // actually aliased. But it can occur that an argument is not aliased, yet it
+  // is mutated, in which case there is a missing annotation. An example of this
+  // is `aten::batch_norm`, where the running_mean/running_var are not aliased,
+  // but they are mutated.
+  if (isa<Aten__Getitem__TOp, AtenExpandOp>(op))
     return false;
 
   // Conservatively assume that an op might mutate any list operands.
