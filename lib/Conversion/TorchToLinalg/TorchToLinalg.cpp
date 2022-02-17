@@ -3130,6 +3130,9 @@ public:
     Location loc = op.getLoc();
     Value grad = adaptor.grad_output();
     Value self = adaptor.self();
+    auto selfType = self.getType().cast<RankedTensorType>();
+    SmallVector<Value> selfShape = getTensorSizes(rewriter, loc, self);
+    Type selfEType = selfType.getElementType();
     // auto inputType = input.getType().cast<RankedTensorType>();
     // ArrayRef<int64_t> inputShape = inputType.getShape();
     // int64_t inputRank = inputType.getRank();
@@ -3152,9 +3155,56 @@ public:
     if (!getListConstructElements(op.dilation(), dilation))
       return rewriter.notifyMatchFailure(op, "dilation not constructed from ListConstruct");
 
-    // Create output
-    // Fill output with zero
+    // Add asserts/compile-time checks for values
+    // TODO
+
+    // Create empty output tensor
+    Value output = createZeroInitTensor(rewriter, loc, selfShape, selfEType);
+    // Value output = rewriter.create<linalg::InitTensorOp>(loc, selfShape, selfEType);
+
     // Add in indices
+    Attribute attrs[2];
+    if (selfEType.isa<mlir::FloatType>()) {
+      attrs[0] = rewriter.getFloatAttr(selfEType, 0);
+      attrs[1] = rewriter.getFloatAttr(selfEType, 1);
+    } else if (selfEType.isa<mlir::IntegerType>()) {
+      attrs[0] = rewriter.getIntegerAttr(selfEType, 0);
+      attrs[1] = rewriter.getIntegerAttr(selfEType, 1);
+    } else {
+      return rewriter.notifyMatchFailure(op, "unsupported dtype");
+    }
+    Value zero = rewriter.create<arith::ConstantOp>(loc, attrs[0]);
+    Value one = rewriter.create<arith::ConstantOp>(loc, attrs[1]); 
+
+    // Collapse input to 1d
+    SmallVector<ReassociationIndices> reassociation(1);
+    for(auto i = 0; i < selfType.getRank(); i++)
+      reassociation[0].push_back(i);
+    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, selfEType), self, reassociation);
+    // Fill with 0
+    Value zeroed = rewriter.create<linalg::FillOp>(loc, zero, flattened).getResult(0);
+    // Put 1 at each index in indices
+    SmallVector<ReassociationIndices> association{{1}};
+    //Value filled = rewriter.create<tensor::InsertOp>(loc);
+    // Expand back
+    // Return
+
+    //Value outputFilled = rewriter.create<linalg::GenericOp>(loc, selfType, self, output,
+    //  indexingMaps, iteratorTypes,
+    //  [&](OpBuilder &b, Location loc, ValueRange args) {
+    //    // Copy the stuff here
+    //    Value cmp;
+    //    if(selfEType.isa<mlir::FloatType>()) {
+    //      cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, args[0], zero);
+    //    } else {
+    //      cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, args[0], zero);
+    //    }
+    //    b.create<linalg::YieldOp>(loc, b.create<SelectOp>(loc, cmp, zero, args[1]).getResult());
+    //  }).getResult(0);
+
+    // Replace op
+    //rewriter.replaceOpWithNewOp<tensor::CastOp>(op, selfType, outputFilled);
+
     return success();
   }
 };
