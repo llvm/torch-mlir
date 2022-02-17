@@ -512,7 +512,6 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
   let printer = [{ return ::print(p, *this); }];
   let parser = [{ return ::parsePrimIfOp(parser, result); }];
   let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
-  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 

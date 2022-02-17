@@ -83,7 +83,7 @@ bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
   // is mutated, in which case there is a missing annotation. An example of this
   // is `aten::batch_norm`, where the running_mean/running_var are not aliased,
   // but they are mutated.
-  if (isa<Aten__Getitem__TOp, AtenExpandOp>(op))
+  if (isa<Aten__Getitem__TOp, AtenExpandOp, AtenViewOp>(op))
     return false;
 
   // Conservatively assume that an op might mutate any list operands.
@@ -397,28 +397,6 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   rewriter.eraseOp(terminator);
 }
 
-LogicalResult PrimIfOp::fold(ArrayRef<Attribute> operands,
-                             SmallVectorImpl<OpFoldResult> &results) {
-  auto trueTerminator = thenRegion().front().getTerminator();
-  auto falseTerminator = elseRegion().front().getTerminator();
-  bool allFolded = true;
-  bool madeChange = false;
-  for (int i = 0, e = trueTerminator->getNumOperands(); i < e; ++i) {
-    auto trueValue = trueTerminator->getOperand(i);
-    auto falseValue = falseTerminator->getOperand(i);
-    if (trueValue == falseValue) {
-      results.push_back(trueValue);
-      madeChange = true;
-    } else {
-      results.push_back(getOperation()->getResult(i));
-      allFolded = false;
-    }
-  }
-  // The folding utilities only allow replacing all results at once. We could
-  // be more precise here if we only replaced a subset.
-  return success(madeChange && allFolded);
-}
-
 void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                            MLIRContext *context) {
   // If the condition is constant, delete the dead branch and inline the live
@@ -430,6 +408,29 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     replaceOpWithRegion(
         rewriter, op, constantBool.value() ? op.thenRegion() : op.elseRegion());
     return success();
+  });
+  // If the thenRegion and elseRegion yield the same Value's, then use those
+  // directly.
+  patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
+    auto trueTerminator = op.thenRegion().front().getTerminator();
+    auto falseTerminator = op.elseRegion().front().getTerminator();
+    bool madeChange = false;
+    SmallVector<int> resultsToErase;
+    for (auto t : llvm::zip(trueTerminator->getOperands(),
+                            falseTerminator->getOperands(), op->getResults())) {
+      auto trueVal = std::get<0>(t);
+      auto falseVal = std::get<1>(t);
+      auto resultToBeReplaced = std::get<2>(t);
+      if (trueVal == falseVal) {
+        madeChange |= !resultToBeReplaced.use_empty();
+        resultToBeReplaced.replaceAllUsesWith(trueVal);
+      }
+    }
+    // We leave it up to a separate pattern (not yet implemented) to erase the
+    // results that are now dead. That transformation is independently useful,
+    // and also pretty tricky to implement because it changes the number of
+    // results.
+    return success(madeChange);
   });
 }
 
@@ -738,15 +739,46 @@ using ConstantIntComparator = std::function<bool(int64_t, int64_t)>;
 template <typename OpTy>
 static OpFoldResult comparatorFoldHelper(OpTy op,
                                          ConstantIntComparator comparator) {
-  if (op.getOperand(0) == op.getOperand(1))
+
+  Value lhsValue = op->getOperand(0);
+  Value rhsValue = op->getOperand(1);
+  if (lhsValue == rhsValue)
     return getI1IntegerAttr(op.getContext(), comparator(0, 0));
 
   int64_t lhs, rhs;
-  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
-      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
-    return nullptr;
+  bool lhsIsConstant = matchPattern(lhsValue, m_TorchConstantInt(&lhs));
+  bool rhsIsConstant = matchPattern(rhsValue, m_TorchConstantInt(&rhs));
+  if (lhsIsConstant && rhsIsConstant)
+    return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
 
-  return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
+  // Ensure that if there is a constant, it is on the right.
+  if (lhsIsConstant && !rhsIsConstant) {
+    std::swap(lhs, rhs);
+    std::swap(lhsValue, rhsValue);
+    std::swap(lhsIsConstant, rhsIsConstant);
+    auto newComparator = [comparator](int64_t lhs, int64_t rhs) {
+      return comparator(rhs, lhs);
+    };
+    comparator = newComparator;
+  }
+  // Fold comparisons of negative values with the result of AtenSizeIntOp, which
+  // is known to always be non-negative.
+  if (rhsIsConstant && rhs < 0) {
+    // We can return `comparator(0, -1)` here because of the property:
+    // If x >= 0 && y < 0, then:
+    // - cmp(x, y) == cmp(x + 1, y)
+    // - cmp(x, y) == cmp(x, y - 1)
+    // By induction all cases here are covered.
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
+      return getI1IntegerAttr(op->getContext(), comparator(0, -1));
+  }
+  // A special case of importance: size.int >= 0 ==> True.
+  if (rhsIsConstant && rhs == 0 && isa<AtenGeIntOp>(op)) {
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
+      return getI1IntegerAttr(op->getContext(), true);
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

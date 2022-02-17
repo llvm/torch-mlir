@@ -178,11 +178,20 @@ def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> Lis
 def aten〇to〇dtype(self: List[int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return shape_helpers.unary(self)
 
+def aten〇dropout(input: List[int], p: float, train: bool) -> List[int]:
+    return shape_helpers.unary(input)
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
 def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> List[int]:
     return shape_helpers.expand(self, size)
+
+def aten〇view(self: List[int], size: List[int]) -> List[int]:
+    return shape_helpers.view(self, size)
+
+def aten〇layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> List[int]:
+    return shape_helpers.unary(input)
 
 def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> List[int]:
     return shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)

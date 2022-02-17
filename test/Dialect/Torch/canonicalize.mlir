@@ -174,6 +174,41 @@ func @torch.aten.eq.int$same_value() -> !torch.bool {
   return %2 : !torch.bool
 }
 
+// CHECK-LABEL:   func @torch.aten.eq.int$of_size.int(
+// CHECK-SAME:                                        %[[ARG:.*]]: !torch.tensor) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.eq.int$of_size.int(%arg0: !torch.tensor) -> !torch.bool {
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.tensor, !torch.int -> !torch.int
+  %1 = torch.aten.eq.int %0, %int-1 : !torch.int, !torch.int -> !torch.bool
+  return %1 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int$of_size.int_lhs_constant(
+// CHECK-SAME:                                                     %[[ARG:.*]]: !torch.tensor) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.eq.int$of_size.int_lhs_constant(%arg0: !torch.tensor) -> !torch.bool {
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.tensor, !torch.int -> !torch.int
+  %1 = torch.aten.eq.int %int-1, %0  : !torch.int, !torch.int -> !torch.bool
+  return %1 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.eq.int$no_change_minus1(
+// CHECK-SAME:                                             %[[ARG:.*]]: !torch.int) -> !torch.bool {
+// CHECK:           %[[CM1:.*]] = torch.constant.int -1
+// CHECK:           %[[RESULT:.*]] = torch.aten.eq.int %[[CM1]], %[[ARG]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           return %[[RESULT]] : !torch.bool
+func @torch.aten.eq.int$no_change_minus1(%arg0: !torch.int) -> !torch.bool {
+  %int-1 = torch.constant.int -1
+  %1 = torch.aten.eq.int %int-1, %arg0  : !torch.int, !torch.int -> !torch.bool
+  return %1 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.lt.int$evaluate_to_true() -> !torch.bool {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
@@ -279,6 +314,17 @@ func @torch.aten.ge.int$same_value() -> !torch.bool {
   %int4_0 = torch.constant.int 4
   %2 = torch.aten.ge.int %int4, %int4_0 : !torch.int, !torch.int -> !torch.bool
   return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.int$of_size.int(
+// CHECK-SAME:                                        %[[ARG:.*]]: !torch.tensor) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.int$of_size.int(%arg0: !torch.tensor) -> !torch.bool {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.tensor, !torch.int -> !torch.int
+  %1 = torch.aten.ge.int %0, %int0  : !torch.int, !torch.int -> !torch.bool
+  return %1 : !torch.bool
 }
 
 // CHECK-LABEL:   func @torch.aten.eq.float$different_value() -> !torch.bool {
@@ -563,9 +609,9 @@ func @torch.prim.If$erase_dead_branch(%arg0: !torch.int) -> !torch.int {
 
 
 // CHECK-LABEL:   func @torch.prim.If$fold_same_result(
-// CHECK-SAME:                                         %[[VAL_0:.*]]: !torch.bool,
-// CHECK-SAME:                                         %[[VAL_1:.*]]: !torch.int) -> (!torch.int, !torch.int) {
-// CHECK:           return %[[VAL_1]], %[[VAL_1]] : !torch.int, !torch.int
+// CHECK-SAME:                                         %[[PRED:.*]]: !torch.bool,
+// CHECK-SAME:                                         %[[ARG1:.*]]: !torch.int) -> (!torch.int, !torch.int) {
+// CHECK:           return %[[ARG1]], %[[ARG1]] : !torch.int, !torch.int
 func @torch.prim.If$fold_same_result(%arg0: !torch.bool, %arg1: !torch.int) -> (!torch.int, !torch.int) {
   %0, %1 = torch.prim.If %arg0 -> (!torch.int, !torch.int) {
     torch.prim.If.yield %arg1, %arg1 : !torch.int, !torch.int
@@ -575,10 +621,17 @@ func @torch.prim.If$fold_same_result(%arg0: !torch.bool, %arg1: !torch.int) -> (
   return %0, %1: !torch.int, !torch.int
 }
 
-// Due to limitations in the folding framework, we can't fold this one.
-// CHECK-LABEL:   func @torch.prim.If$fold_same_result$dont_fold
-// CHECK:           torch.prim.If
-func @torch.prim.If$fold_same_result$dont_fold(%arg0: !torch.bool, %arg1: !torch.int, %arg2: !torch.int) -> (!torch.int, !torch.int) {
+// CHECK-LABEL:   func @torch.prim.If$fold_same_result$subset_of_results(
+// CHECK-SAME:                                                   %[[PRED:.*]]: !torch.bool,
+// CHECK-SAME:                                                   %[[ARG1:.*]]: !torch.int,
+// CHECK-SAME:                                                   %[[ARG2:.*]]: !torch.int) -> (!torch.int, !torch.int) {
+// CHECK:           %[[IFRESULTS:.*]]:2 = torch.prim.If %[[PRED]] -> (!torch.int, !torch.int) {
+// CHECK:             torch.prim.If.yield %[[ARG1]], %[[ARG1]] : !torch.int, !torch.int
+// CHECK:           } else {
+// CHECK:             torch.prim.If.yield %[[ARG1]], %[[ARG2]] : !torch.int, !torch.int
+// CHECK:           }
+// CHECK:           return %[[ARG1]], %[[IFRESULTS:.*]]#1 : !torch.int, !torch.int
+func @torch.prim.If$fold_same_result$subset_of_results(%arg0: !torch.bool, %arg1: !torch.int, %arg2: !torch.int) -> (!torch.int, !torch.int) {
   %0, %1 = torch.prim.If %arg0 -> (!torch.int, !torch.int) {
     torch.prim.If.yield %arg1, %arg1: !torch.int, !torch.int
   } else {
