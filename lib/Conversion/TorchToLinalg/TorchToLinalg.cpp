@@ -1630,6 +1630,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       gelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
+    // TODO: Take approximation into account.
+    std::string approximate;
+    if (!matchPattern(gelu.approximate(), m_TorchConstantStr(approximate)) ||
+        approximate != "none")
+      return nullptr;
     Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[0]);
     return b.create<arith::MulFOp>(loc, payloadArgs[0], cdf);
   }
@@ -1641,6 +1646,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       geluBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
+    // TODO: Take approximation into account.
+    std::string approximate;
+    if (!matchPattern(geluBackward.approximate(),
+                      m_TorchConstantStr(approximate)) ||
+        approximate != "none")
+      return nullptr;
     Type elementType = payloadArgs[1].getType();
     Value cstAlpha0 = b.create<arith::ConstantOp>(
         loc, FloatAttr::get(elementType, 1.12837916709551257390));

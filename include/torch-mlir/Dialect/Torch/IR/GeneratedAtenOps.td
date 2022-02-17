@@ -1342,14 +1342,15 @@ def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
     AllowsTypeRefinement,
     HasValueSemantics
   ]> {
-  let summary = "Generated op for `aten::gelu : (Tensor) -> (Tensor)`";
+  let summary = "Generated op for `aten::gelu : (Tensor, str) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$self
+    AnyTorchTensorType:$self,
+    Torch_StringType:$approximate
   );
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+  let assemblyFormat = "$self `,` $approximate attr-dict `:` qualified(type($self)) `,` qualified(type($approximate)) `->` qualified(type($result))";
 }
 
 def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
@@ -1381,6 +1382,20 @@ def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$grad_output `,` $self `,` $threshold attr-dict `:` qualified(type($grad_output)) `,` qualified(type($self)) `,` qualified(type($threshold)) `->` qualified(type($result))";
+}
+
+def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$value
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenUniform_Op : Torch_Op<"aten.uniform_", [
@@ -2101,20 +2116,6 @@ def Torch_AtenSizeOp : Torch_Op<"aten.size", [
   );
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
   let hasCanonicalizer = 1;
-}
-
-def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
-    AllowsTypeRefinement
-  ]> {
-  let summary = "Generated op for `aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchScalarType:$value
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
 def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
@@ -3830,15 +3831,16 @@ def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
     AllowsTypeRefinement,
     HasValueSemantics
   ]> {
-  let summary = "Generated op for `aten::gelu_backward : (Tensor, Tensor) -> (Tensor)`";
+  let summary = "Generated op for `aten::gelu_backward : (Tensor, Tensor, str) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$grad,
-    AnyTorchTensorType:$self
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    Torch_StringType:$approximate
   );
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$grad `,` $self attr-dict `:` qualified(type($grad)) `,` qualified(type($self)) `->` qualified(type($result))";
+  let assemblyFormat = "$grad_output `,` $self `,` $approximate attr-dict `:` qualified(type($grad_output)) `,` qualified(type($self)) `,` qualified(type($approximate)) `->` qualified(type($result))";
 }
 
 def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_data", [
