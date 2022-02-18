@@ -181,6 +181,21 @@ def aten〇to〇dtype(self: List[int], dtype: int, non_blocking: bool = False, c
 def aten〇dropout(input: List[int], p: float, train: bool) -> List[int]:
     return shape_helpers.unary(input)
 
+def aten〇gelu(self: List[int]) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇contiguous(self: List[int], memory_format: int = 0) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
+    return shape_helpers.permute(self, dims)
+
+def aten〇transpose〇int(self: List[int], dim0: int, dim1: int) -> List[int]:
+    return shape_helpers.transpose(self, dim0, dim1)
+
+def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.matmul(self, other)
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 

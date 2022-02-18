@@ -1124,7 +1124,7 @@ public:
       Value finalRes =
           rewriter
               .create<linalg::GenericOp>(
-                  loc, newResultType, ValueRange{lhs, rhs}, initTensor0,
+                  loc, initTensor0.getType(), ValueRange{lhs, rhs}, initTensor0,
                   /*indexingMaps=*/indexingMaps,
                   /*iteratorTypes=*/iteratorTypes,
                   [&](OpBuilder &b, Location loc, ValueRange args) {

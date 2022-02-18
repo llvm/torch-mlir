@@ -83,7 +83,8 @@ bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
   // is mutated, in which case there is a missing annotation. An example of this
   // is `aten::batch_norm`, where the running_mean/running_var are not aliased,
   // but they are mutated.
-  if (isa<Aten__Getitem__TOp, AtenExpandOp, AtenViewOp>(op))
+  // See https://github.com/pytorch/pytorch/issues/73050
+  if (isa<Aten__Getitem__TOp, AtenExpandOp, AtenViewOp, AtenPermuteOp>(op))
     return false;
 
   // Conservatively assume that an op might mutate any list operands.

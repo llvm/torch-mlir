@@ -71,6 +71,479 @@ module  {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten.gelu"(%arg0: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.contiguous"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.permute"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.permute(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.permute(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int1 = torch.constant.int 1
+    %str = torch.constant.str "AssertionError: "
+    %true = torch.constant.bool true
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %2 = torch.aten.eq.int %0, %1 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %3 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %4 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    %5 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    torch.prim.Loop %3, %true, init()  {
+    ^bb0(%arg2: !torch.int):  // no predecessors
+      %7 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+      %8 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%7, %3, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+      %9 = torch.aten.append.t %4, %8 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+      %10 = torch.aten.__getitem__.t %arg0, %8 : !torch.list<!torch.int>, !torch.int -> !torch.int
+      %11 = torch.aten.append.t %5, %10 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    %6 = torch.aten.__range_length %int1, %3, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+    torch.prim.Loop %6, %true, init()  {
+    ^bb0(%arg2: !torch.int):  // no predecessors
+      %7 = torch.aten.__derive_index %arg2, %int1, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+      torch.prim.Loop %7, %true, init()  {
+      ^bb0(%arg3: !torch.int):  // no predecessors
+        %8 = torch.aten.__getitem__.t %4, %7 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        %9 = torch.aten.__getitem__.t %4, %arg3 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        %10 = torch.aten.ne.int %8, %9 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If %10 -> () {
+          torch.prim.If.yield
+        } else {
+          torch.prim.RaiseException %str : !torch.str
+          torch.prim.If.yield
+        }
+        torch.prim.Loop.condition %true, iter()
+      } : (!torch.int, !torch.bool) -> ()
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %5 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.int {
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %str = torch.constant.str "AssertionError: "
+    %true = torch.constant.bool true
+    %0 = torch.aten.le.int %arg1, %int0 : !torch.int, !torch.int -> !torch.bool
+    %1 = torch.prim.If %0 -> (!torch.int) {
+      torch.prim.If %arg2 -> () {
+        torch.prim.If.yield
+      } else {
+        torch.prim.RaiseException %str : !torch.str
+        torch.prim.If.yield
+      }
+      torch.prim.If.yield %int1 : !torch.int
+    } else {
+      torch.prim.If.yield %arg1 : !torch.int
+    }
+    %2 = torch.aten.neg.int %1 : !torch.int -> !torch.int
+    %3 = torch.aten.sub.int %1, %int1 : !torch.int, !torch.int -> !torch.int
+    %4 = torch.aten.lt.int %arg0, %2 : !torch.int, !torch.int -> !torch.bool
+    %5 = torch.prim.If %4 -> (!torch.bool) {
+      torch.prim.If.yield %true : !torch.bool
+    } else {
+      %9 = torch.aten.gt.int %arg0, %3 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If.yield %9 : !torch.bool
+    }
+    %6 = torch.aten.__not__ %5 : !torch.bool -> !torch.bool
+    torch.prim.If %6 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %7 = torch.aten.lt.int %arg0, %int0 : !torch.int, !torch.int -> !torch.bool
+    %8 = torch.prim.If %7 -> (!torch.int) {
+      %9 = torch.aten.add.int %arg0, %1 : !torch.int, !torch.int -> !torch.int
+      torch.prim.If.yield %9 : !torch.int
+    } else {
+      torch.prim.If.yield %arg0 : !torch.int
+    }
+    return %8 : !torch.int
+  }
+  func @"__torch_mlir_shape_fn.aten.transpose.int"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.transpose(%arg0, %arg1, %arg2) : (!torch.list<!torch.int>, !torch.int, !torch.int) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.transpose(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<!torch.int> {
+    %true = torch.constant.bool true
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg2, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %3 = torch.aten.eq.int %1, %2 : !torch.int, !torch.int -> !torch.bool
+    %4 = torch.prim.If %3 -> (!torch.list<!torch.int>) {
+      %5 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers._copy(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+      torch.prim.If.yield %5 : !torch.list<!torch.int>
+    } else {
+      %5 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+      torch.prim.Loop %0, %true, init()  {
+      ^bb0(%arg3: !torch.int):  // no predecessors
+        %6 = torch.aten.eq.int %arg3, %1 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If %6 -> () {
+          %7 = torch.aten.__getitem__.t %arg0, %2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+          %8 = torch.aten.append.t %5, %7 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+          torch.prim.If.yield
+        } else {
+          %7 = torch.aten.eq.int %arg3, %2 : !torch.int, !torch.int -> !torch.bool
+          torch.prim.If %7 -> () {
+            %8 = torch.aten.__getitem__.t %arg0, %1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+            %9 = torch.aten.append.t %5, %8 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+            torch.prim.If.yield
+          } else {
+            %8 = torch.aten.__getitem__.t %arg0, %arg3 : !torch.list<!torch.int>, !torch.int -> !torch.int
+            %9 = torch.aten.append.t %5, %8 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+            torch.prim.If.yield
+          }
+          torch.prim.If.yield
+        }
+        torch.prim.Loop.condition %true, iter()
+      } : (!torch.int, !torch.bool) -> ()
+      torch.prim.If.yield %5 : !torch.list<!torch.int>
+    }
+    return %4 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.matmul"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.matmul(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.matmul(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %int1 = torch.constant.int 1
+    %false = torch.constant.bool false
+    %int-2 = torch.constant.int -2
+    %true = torch.constant.bool true
+    %int-1 = torch.constant.int -1
+    %str = torch.constant.str "AssertionError: both  arguments to matmul need to be at least 1D"
+    %0 = torch.prim.Uninitialized : !torch.list<!torch.int>
+    %1 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %2 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %3 = torch.aten.eq.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
+    %4 = torch.prim.If %3 -> (!torch.bool) {
+      %6 = torch.aten.eq.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If.yield %6 : !torch.bool
+    } else {
+      torch.prim.If.yield %false : !torch.bool
+    }
+    %5 = torch.prim.If %4 -> (!torch.list<!torch.int>) {
+      %6 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.dot(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+      torch.prim.If.yield %6 : !torch.list<!torch.int>
+    } else {
+      %6 = torch.aten.eq.int %1, %int2 : !torch.int, !torch.int -> !torch.bool
+      %7 = torch.prim.If %6 -> (!torch.bool) {
+        %9 = torch.aten.eq.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If.yield %9 : !torch.bool
+      } else {
+        torch.prim.If.yield %false : !torch.bool
+      }
+      %8 = torch.prim.If %7 -> (!torch.list<!torch.int>) {
+        %9 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mv(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+        torch.prim.If.yield %9 : !torch.list<!torch.int>
+      } else {
+        %9 = torch.aten.eq.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
+        %10 = torch.prim.If %9 -> (!torch.bool) {
+          %12 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
+          torch.prim.If.yield %12 : !torch.bool
+        } else {
+          torch.prim.If.yield %false : !torch.bool
+        }
+        %11 = torch.prim.If %10 -> (!torch.list<!torch.int>) {
+          %12 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unsqueeze(%arg0, %int0) : (!torch.list<!torch.int>, !torch.int) -> !torch.list<!torch.int>
+          %13 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%12, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+          %14 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.squeeze(%13, %int0) : (!torch.list<!torch.int>, !torch.int) -> !torch.list<!torch.int>
+          torch.prim.If.yield %14 : !torch.list<!torch.int>
+        } else {
+          %12 = torch.aten.eq.int %1, %int2 : !torch.int, !torch.int -> !torch.bool
+          %13 = torch.prim.If %12 -> (!torch.bool) {
+            %15 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
+            torch.prim.If.yield %15 : !torch.bool
+          } else {
+            torch.prim.If.yield %false : !torch.bool
+          }
+          %14 = torch.prim.If %13 -> (!torch.list<!torch.int>) {
+            %15 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+            torch.prim.If.yield %15 : !torch.list<!torch.int>
+          } else {
+            %15 = torch.aten.ge.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
+            %16 = torch.prim.If %15 -> (!torch.bool) {
+              %18 = torch.aten.ge.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
+              torch.prim.If.yield %18 : !torch.bool
+            } else {
+              torch.prim.If.yield %false : !torch.bool
+            }
+            %17 = torch.prim.If %16 -> (!torch.list<!torch.int>) {
+              %18 = torch.aten.gt.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
+              %19 = torch.prim.If %18 -> (!torch.int) {
+                %28 = torch.aten.__getitem__.t %arg0, %int-2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+                torch.prim.If.yield %28 : !torch.int
+              } else {
+                torch.prim.If.yield %int1 : !torch.int
+              }
+              %20 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+              %21 = torch.aten.sub.int %1, %int2 : !torch.int, !torch.int -> !torch.int
+              torch.prim.Loop %21, %true, init()  {
+              ^bb0(%arg2: !torch.int):  // no predecessors
+                %28 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+                %29 = torch.aten.append.t %20, %28 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+                torch.prim.Loop.condition %true, iter()
+              } : (!torch.int, !torch.bool) -> ()
+              %22 = torch.aten.__getitem__.t %arg1, %int-1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+              %23 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+              %24 = torch.aten.sub.int %2, %int2 : !torch.int, !torch.int -> !torch.int
+              torch.prim.Loop %24, %true, init()  {
+              ^bb0(%arg2: !torch.int):  // no predecessors
+                %28 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+                %29 = torch.aten.append.t %23, %28 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+                torch.prim.Loop.condition %true, iter()
+              } : (!torch.int, !torch.bool) -> ()
+              %25 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%20, %23) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+              %26 = torch.aten.gt.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
+              torch.prim.If %26 -> () {
+                %28 = torch.aten.append.t %25, %19 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+                torch.prim.If.yield
+              } else {
+                torch.prim.If.yield
+              }
+              %27 = torch.aten.gt.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
+              torch.prim.If %27 -> () {
+                %28 = torch.aten.append.t %25, %22 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+                torch.prim.If.yield
+              } else {
+                torch.prim.If.yield
+              }
+              torch.prim.If.yield %25 : !torch.list<!torch.int>
+            } else {
+              torch.prim.RaiseException %str : !torch.str
+              torch.prim.If.yield %0 : !torch.list<!torch.int>
+            }
+            torch.prim.If.yield %17 : !torch.list<!torch.int>
+          }
+          torch.prim.If.yield %14 : !torch.list<!torch.int>
+        }
+        torch.prim.If.yield %11 : !torch.list<!torch.int>
+      }
+      torch.prim.If.yield %8 : !torch.list<!torch.int>
+    }
+    return %5 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.dot(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %false = torch.constant.bool false
+    %str = torch.constant.str "AssertionError: "
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.eq.int %0, %int1 : !torch.int, !torch.int -> !torch.bool
+    %2 = torch.prim.If %1 -> (!torch.bool) {
+      %7 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+      %8 = torch.aten.eq.int %7, %int1 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If.yield %8 : !torch.bool
+    } else {
+      torch.prim.If.yield %false : !torch.bool
+    }
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %3 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %4 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %5 = torch.aten.eq.int %3, %4 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %5 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %6 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    return %6 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mv(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %false = torch.constant.bool false
+    %str = torch.constant.str "AssertionError: "
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.eq.int %0, %int2 : !torch.int, !torch.int -> !torch.bool
+    %2 = torch.prim.If %1 -> (!torch.bool) {
+      %8 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+      %9 = torch.aten.eq.int %8, %int1 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If.yield %9 : !torch.bool
+    } else {
+      torch.prim.If.yield %false : !torch.bool
+    }
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %3 = torch.aten.__getitem__.t %arg0, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %4 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %5 = torch.aten.eq.int %3, %4 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %5 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %6 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %7 = torch.prim.ListConstruct %6 : (!torch.int) -> !torch.list<!torch.int>
+    return %7 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.squeeze(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
+    %int1 = torch.constant.int 1
+    %true = torch.constant.bool true
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    %1 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %3 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    torch.prim.Loop %3, %true, init()  {
+    ^bb0(%arg2: !torch.int):  // no predecessors
+      %4 = torch.aten.eq.int %arg2, %2 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If %4 -> () {
+        %5 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        %6 = torch.aten.ne.int %5, %int1 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If %6 -> () {
+          %7 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+          %8 = torch.aten.append.t %0, %7 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+          torch.prim.If.yield
+        } else {
+          torch.prim.If.yield
+        }
+        torch.prim.If.yield
+      } else {
+        %5 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        %6 = torch.aten.append.t %0, %5 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+        torch.prim.If.yield
+      }
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %0 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %str = torch.constant.str "AssertionError: self must be a matrix"
+    %str_0 = torch.constant.str "AssertionError: mat2 must be a matrix"
+    %str_1 = torch.constant.str "AssertionError: "
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.eq.int %0, %int2 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %1 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %2 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %3 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %3 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str_0 : !torch.str
+      torch.prim.If.yield
+    }
+    %4 = torch.aten.__getitem__.t %arg0, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %5 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %6 = torch.aten.eq.int %4, %5 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %6 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str_1 : !torch.str
+      torch.prim.If.yield
+    }
+    %7 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %8 = torch.aten.__getitem__.t %arg1, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
+    %9 = torch.prim.ListConstruct %7, %8 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+    return %9 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unsqueeze(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
+    %int1 = torch.constant.int 1
+    %true = torch.constant.bool true
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.add.int %0, %int1 : !torch.int, !torch.int -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers._copy(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    torch.aten.insert.t %3, %2, %int1 : !torch.list<!torch.int>, !torch.int, !torch.int
+    return %3 : !torch.list<!torch.int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %true = torch.constant.bool true
+    %false = torch.constant.bool false
+    %str = torch.constant.str "The size of tensor a {} must match the size of tensor b ({}) at non-singleton dimension {}"
+    %str_0 = torch.constant.str "AssertionError: "
+    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %2 = torch.prim.max.int %0, %1 : !torch.int, !torch.int -> !torch.int
+    %3 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    torch.prim.Loop %2, %true, init()  {
+    ^bb0(%arg2: !torch.int):  // no predecessors
+      %4 = torch.aten.sub.int %2, %int1 : !torch.int, !torch.int -> !torch.int
+      %5 = torch.aten.sub.int %4, %arg2 : !torch.int, !torch.int -> !torch.int
+      %6 = torch.aten.sub.int %0, %int1 : !torch.int, !torch.int -> !torch.int
+      %7 = torch.aten.sub.int %6, %5 : !torch.int, !torch.int -> !torch.int
+      %8 = torch.aten.sub.int %1, %int1 : !torch.int, !torch.int -> !torch.int
+      %9 = torch.aten.sub.int %8, %5 : !torch.int, !torch.int -> !torch.int
+      %10 = torch.aten.ge.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
+      %11 = torch.prim.If %10 -> (!torch.int) {
+        %20 = torch.aten.__getitem__.t %arg0, %7 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        torch.prim.If.yield %20 : !torch.int
+      } else {
+        torch.prim.If.yield %int1 : !torch.int
+      }
+      %12 = torch.aten.ge.int %9, %int0 : !torch.int, !torch.int -> !torch.bool
+      %13 = torch.prim.If %12 -> (!torch.int) {
+        %20 = torch.aten.__getitem__.t %arg1, %9 : !torch.list<!torch.int>, !torch.int -> !torch.int
+        torch.prim.If.yield %20 : !torch.int
+      } else {
+        torch.prim.If.yield %int1 : !torch.int
+      }
+      %14 = torch.aten.ne.int %11, %13 : !torch.int, !torch.int -> !torch.bool
+      %15 = torch.prim.If %14 -> (!torch.bool) {
+        %20 = torch.aten.ne.int %11, %int1 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If.yield %20 : !torch.bool
+      } else {
+        torch.prim.If.yield %false : !torch.bool
+      }
+      %16 = torch.prim.If %15 -> (!torch.bool) {
+        %20 = torch.aten.ne.int %13, %int1 : !torch.int, !torch.int -> !torch.bool
+        torch.prim.If.yield %20 : !torch.bool
+      } else {
+        torch.prim.If.yield %false : !torch.bool
+      }
+      torch.prim.If %16 -> () {
+        %20 = torch.aten.format(%str, %11, %13, %arg2) : !torch.str, !torch.int, !torch.int, !torch.int -> !torch.str
+        %21 = torch.aten.add.str %str_0, %20 : !torch.str, !torch.str -> !torch.str
+        torch.prim.RaiseException %21 : !torch.str
+        torch.prim.If.yield
+      } else {
+        torch.prim.If.yield
+      }
+      %17 = torch.aten.eq.int %11, %int1 : !torch.int, !torch.int -> !torch.bool
+      %18 = torch.prim.If %17 -> (!torch.int) {
+        torch.prim.If.yield %13 : !torch.int
+      } else {
+        torch.prim.If.yield %11 : !torch.int
+      }
+      %19 = torch.aten.append.t %3, %18 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %3 : !torch.list<!torch.int>
+  }
   func @"__torch_mlir_shape_fn.aten.embedding"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.embedding(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<!torch.int>, !torch.list<!torch.int>, !torch.int, !torch.bool, !torch.bool) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
@@ -147,48 +620,6 @@ module  {
       torch.prim.Loop.condition %true, iter()
     } : (!torch.int, !torch.bool) -> ()
     return %7 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.int {
-    %int1 = torch.constant.int 1
-    %int0 = torch.constant.int 0
-    %str = torch.constant.str "AssertionError: "
-    %true = torch.constant.bool true
-    %0 = torch.aten.le.int %arg1, %int0 : !torch.int, !torch.int -> !torch.bool
-    %1 = torch.prim.If %0 -> (!torch.int) {
-      torch.prim.If %arg2 -> () {
-        torch.prim.If.yield
-      } else {
-        torch.prim.RaiseException %str : !torch.str
-        torch.prim.If.yield
-      }
-      torch.prim.If.yield %int1 : !torch.int
-    } else {
-      torch.prim.If.yield %arg1 : !torch.int
-    }
-    %2 = torch.aten.neg.int %1 : !torch.int -> !torch.int
-    %3 = torch.aten.sub.int %1, %int1 : !torch.int, !torch.int -> !torch.int
-    %4 = torch.aten.lt.int %arg0, %2 : !torch.int, !torch.int -> !torch.bool
-    %5 = torch.prim.If %4 -> (!torch.bool) {
-      torch.prim.If.yield %true : !torch.bool
-    } else {
-      %9 = torch.aten.gt.int %arg0, %3 : !torch.int, !torch.int -> !torch.bool
-      torch.prim.If.yield %9 : !torch.bool
-    }
-    %6 = torch.aten.__not__ %5 : !torch.bool -> !torch.bool
-    torch.prim.If %6 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %7 = torch.aten.lt.int %arg0, %int0 : !torch.int, !torch.int -> !torch.bool
-    %8 = torch.prim.If %7 -> (!torch.int) {
-      %9 = torch.aten.add.int %arg0, %1 : !torch.int, !torch.int -> !torch.int
-      torch.prim.If.yield %9 : !torch.int
-    } else {
-      torch.prim.If.yield %arg0 : !torch.int
-    }
-    return %8 : !torch.int
   }
   func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.multiply_integers(%arg0: !torch.list<!torch.int>) -> !torch.int {
     %int1 = torch.constant.int 1
@@ -907,334 +1338,6 @@ module  {
       torch.prim.If.yield
     }
     return %1 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.matmul(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-    %int0 = torch.constant.int 0
-    %int2 = torch.constant.int 2
-    %int1 = torch.constant.int 1
-    %false = torch.constant.bool false
-    %int-2 = torch.constant.int -2
-    %true = torch.constant.bool true
-    %int-1 = torch.constant.int -1
-    %str = torch.constant.str "AssertionError: both  arguments to matmul need to be at least 1D"
-    %0 = torch.prim.Uninitialized : !torch.list<!torch.int>
-    %1 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %2 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
-    %3 = torch.aten.eq.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
-    %4 = torch.prim.If %3 -> (!torch.bool) {
-      %6 = torch.aten.eq.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
-      torch.prim.If.yield %6 : !torch.bool
-    } else {
-      torch.prim.If.yield %false : !torch.bool
-    }
-    %5 = torch.prim.If %4 -> (!torch.list<!torch.int>) {
-      %6 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.dot(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
-      torch.prim.If.yield %6 : !torch.list<!torch.int>
-    } else {
-      %6 = torch.aten.eq.int %1, %int2 : !torch.int, !torch.int -> !torch.bool
-      %7 = torch.prim.If %6 -> (!torch.bool) {
-        %9 = torch.aten.eq.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
-        torch.prim.If.yield %9 : !torch.bool
-      } else {
-        torch.prim.If.yield %false : !torch.bool
-      }
-      %8 = torch.prim.If %7 -> (!torch.list<!torch.int>) {
-        %9 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mv(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
-        torch.prim.If.yield %9 : !torch.list<!torch.int>
-      } else {
-        %9 = torch.aten.eq.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
-        %10 = torch.prim.If %9 -> (!torch.bool) {
-          %12 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
-          torch.prim.If.yield %12 : !torch.bool
-        } else {
-          torch.prim.If.yield %false : !torch.bool
-        }
-        %11 = torch.prim.If %10 -> (!torch.list<!torch.int>) {
-          %12 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unsqueeze(%arg0, %int0) : (!torch.list<!torch.int>, !torch.int) -> !torch.list<!torch.int>
-          %13 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%12, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
-          %14 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.squeeze(%13, %int0) : (!torch.list<!torch.int>, !torch.int) -> !torch.list<!torch.int>
-          torch.prim.If.yield %14 : !torch.list<!torch.int>
-        } else {
-          %12 = torch.aten.eq.int %1, %int2 : !torch.int, !torch.int -> !torch.bool
-          %13 = torch.prim.If %12 -> (!torch.bool) {
-            %15 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
-            torch.prim.If.yield %15 : !torch.bool
-          } else {
-            torch.prim.If.yield %false : !torch.bool
-          }
-          %14 = torch.prim.If %13 -> (!torch.list<!torch.int>) {
-            %15 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
-            torch.prim.If.yield %15 : !torch.list<!torch.int>
-          } else {
-            %15 = torch.aten.ge.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
-            %16 = torch.prim.If %15 -> (!torch.bool) {
-              %18 = torch.aten.ge.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
-              torch.prim.If.yield %18 : !torch.bool
-            } else {
-              torch.prim.If.yield %false : !torch.bool
-            }
-            %17 = torch.prim.If %16 -> (!torch.list<!torch.int>) {
-              %18 = torch.aten.gt.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
-              %19 = torch.prim.If %18 -> (!torch.int) {
-                %28 = torch.aten.__getitem__.t %arg0, %int-2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-                torch.prim.If.yield %28 : !torch.int
-              } else {
-                torch.prim.If.yield %int1 : !torch.int
-              }
-              %20 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
-              %21 = torch.aten.sub.int %1, %int2 : !torch.int, !torch.int -> !torch.int
-              torch.prim.Loop %21, %true, init()  {
-              ^bb0(%arg2: !torch.int):  // no predecessors
-                %28 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-                %29 = torch.aten.append.t %20, %28 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-                torch.prim.Loop.condition %true, iter()
-              } : (!torch.int, !torch.bool) -> ()
-              %22 = torch.aten.__getitem__.t %arg1, %int-1 : !torch.list<!torch.int>, !torch.int -> !torch.int
-              %23 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
-              %24 = torch.aten.sub.int %2, %int2 : !torch.int, !torch.int -> !torch.int
-              torch.prim.Loop %24, %true, init()  {
-              ^bb0(%arg2: !torch.int):  // no predecessors
-                %28 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-                %29 = torch.aten.append.t %23, %28 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-                torch.prim.Loop.condition %true, iter()
-              } : (!torch.int, !torch.bool) -> ()
-              %25 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%20, %23) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
-              %26 = torch.aten.gt.int %1, %int1 : !torch.int, !torch.int -> !torch.bool
-              torch.prim.If %26 -> () {
-                %28 = torch.aten.append.t %25, %19 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-                torch.prim.If.yield
-              } else {
-                torch.prim.If.yield
-              }
-              %27 = torch.aten.gt.int %2, %int1 : !torch.int, !torch.int -> !torch.bool
-              torch.prim.If %27 -> () {
-                %28 = torch.aten.append.t %25, %22 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-                torch.prim.If.yield
-              } else {
-                torch.prim.If.yield
-              }
-              torch.prim.If.yield %25 : !torch.list<!torch.int>
-            } else {
-              torch.prim.RaiseException %str : !torch.str
-              torch.prim.If.yield %0 : !torch.list<!torch.int>
-            }
-            torch.prim.If.yield %17 : !torch.list<!torch.int>
-          }
-          torch.prim.If.yield %14 : !torch.list<!torch.int>
-        }
-        torch.prim.If.yield %11 : !torch.list<!torch.int>
-      }
-      torch.prim.If.yield %8 : !torch.list<!torch.int>
-    }
-    return %5 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.dot(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-    %int0 = torch.constant.int 0
-    %int1 = torch.constant.int 1
-    %false = torch.constant.bool false
-    %str = torch.constant.str "AssertionError: "
-    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %1 = torch.aten.eq.int %0, %int1 : !torch.int, !torch.int -> !torch.bool
-    %2 = torch.prim.If %1 -> (!torch.bool) {
-      %7 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
-      %8 = torch.aten.eq.int %7, %int1 : !torch.int, !torch.int -> !torch.bool
-      torch.prim.If.yield %8 : !torch.bool
-    } else {
-      torch.prim.If.yield %false : !torch.bool
-    }
-    torch.prim.If %2 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %3 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %4 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %5 = torch.aten.eq.int %3, %4 : !torch.int, !torch.int -> !torch.bool
-    torch.prim.If %5 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %6 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
-    return %6 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mv(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-    %int0 = torch.constant.int 0
-    %int1 = torch.constant.int 1
-    %int2 = torch.constant.int 2
-    %false = torch.constant.bool false
-    %str = torch.constant.str "AssertionError: "
-    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %1 = torch.aten.eq.int %0, %int2 : !torch.int, !torch.int -> !torch.bool
-    %2 = torch.prim.If %1 -> (!torch.bool) {
-      %8 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
-      %9 = torch.aten.eq.int %8, %int1 : !torch.int, !torch.int -> !torch.bool
-      torch.prim.If.yield %9 : !torch.bool
-    } else {
-      torch.prim.If.yield %false : !torch.bool
-    }
-    torch.prim.If %2 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %3 = torch.aten.__getitem__.t %arg0, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %4 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %5 = torch.aten.eq.int %3, %4 : !torch.int, !torch.int -> !torch.bool
-    torch.prim.If %5 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %6 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %7 = torch.prim.ListConstruct %6 : (!torch.int) -> !torch.list<!torch.int>
-    return %7 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.squeeze(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
-    %int1 = torch.constant.int 1
-    %true = torch.constant.bool true
-    %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
-    %1 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
-    %3 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    torch.prim.Loop %3, %true, init()  {
-    ^bb0(%arg2: !torch.int):  // no predecessors
-      %4 = torch.aten.eq.int %arg2, %2 : !torch.int, !torch.int -> !torch.bool
-      torch.prim.If %4 -> () {
-        %5 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-        %6 = torch.aten.ne.int %5, %int1 : !torch.int, !torch.int -> !torch.bool
-        torch.prim.If %6 -> () {
-          %7 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-          %8 = torch.aten.append.t %0, %7 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-          torch.prim.If.yield
-        } else {
-          torch.prim.If.yield
-        }
-        torch.prim.If.yield
-      } else {
-        %5 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<!torch.int>, !torch.int -> !torch.int
-        %6 = torch.aten.append.t %0, %5 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-        torch.prim.If.yield
-      }
-      torch.prim.Loop.condition %true, iter()
-    } : (!torch.int, !torch.bool) -> ()
-    return %0 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.mm(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-    %int0 = torch.constant.int 0
-    %int1 = torch.constant.int 1
-    %int2 = torch.constant.int 2
-    %str = torch.constant.str "AssertionError: self must be a matrix"
-    %str_0 = torch.constant.str "AssertionError: mat2 must be a matrix"
-    %str_1 = torch.constant.str "AssertionError: "
-    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %1 = torch.aten.eq.int %0, %int2 : !torch.int, !torch.int -> !torch.bool
-    torch.prim.If %1 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str : !torch.str
-      torch.prim.If.yield
-    }
-    %2 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
-    %3 = torch.aten.eq.int %2, %int2 : !torch.int, !torch.int -> !torch.bool
-    torch.prim.If %3 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str_0 : !torch.str
-      torch.prim.If.yield
-    }
-    %4 = torch.aten.__getitem__.t %arg0, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %5 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %6 = torch.aten.eq.int %4, %5 : !torch.int, !torch.int -> !torch.bool
-    torch.prim.If %6 -> () {
-      torch.prim.If.yield
-    } else {
-      torch.prim.RaiseException %str_1 : !torch.str
-      torch.prim.If.yield
-    }
-    %7 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %8 = torch.aten.__getitem__.t %arg1, %int1 : !torch.list<!torch.int>, !torch.int -> !torch.int
-    %9 = torch.prim.ListConstruct %7, %8 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-    return %9 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unsqueeze(%arg0: !torch.list<!torch.int>, %arg1: !torch.int) -> !torch.list<!torch.int> {
-    %int1 = torch.constant.int 1
-    %true = torch.constant.bool true
-    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %1 = torch.aten.add.int %0, %int1 : !torch.int, !torch.int -> !torch.int
-    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
-    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers._copy(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
-    torch.aten.insert.t %3, %2, %int1 : !torch.list<!torch.int>, !torch.int, !torch.int
-    return %3 : !torch.list<!torch.int>
-  }
-  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
-    %int0 = torch.constant.int 0
-    %int1 = torch.constant.int 1
-    %true = torch.constant.bool true
-    %false = torch.constant.bool false
-    %str = torch.constant.str "The size of tensor a {} must match the size of tensor b ({}) at non-singleton dimension {}"
-    %str_0 = torch.constant.str "AssertionError: "
-    %0 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
-    %1 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
-    %2 = torch.prim.max.int %0, %1 : !torch.int, !torch.int -> !torch.int
-    %3 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
-    torch.prim.Loop %2, %true, init()  {
-    ^bb0(%arg2: !torch.int):  // no predecessors
-      %4 = torch.aten.sub.int %2, %int1 : !torch.int, !torch.int -> !torch.int
-      %5 = torch.aten.sub.int %4, %arg2 : !torch.int, !torch.int -> !torch.int
-      %6 = torch.aten.sub.int %0, %int1 : !torch.int, !torch.int -> !torch.int
-      %7 = torch.aten.sub.int %6, %5 : !torch.int, !torch.int -> !torch.int
-      %8 = torch.aten.sub.int %1, %int1 : !torch.int, !torch.int -> !torch.int
-      %9 = torch.aten.sub.int %8, %5 : !torch.int, !torch.int -> !torch.int
-      %10 = torch.aten.ge.int %7, %int0 : !torch.int, !torch.int -> !torch.bool
-      %11 = torch.prim.If %10 -> (!torch.int) {
-        %20 = torch.aten.__getitem__.t %arg0, %7 : !torch.list<!torch.int>, !torch.int -> !torch.int
-        torch.prim.If.yield %20 : !torch.int
-      } else {
-        torch.prim.If.yield %int1 : !torch.int
-      }
-      %12 = torch.aten.ge.int %9, %int0 : !torch.int, !torch.int -> !torch.bool
-      %13 = torch.prim.If %12 -> (!torch.int) {
-        %20 = torch.aten.__getitem__.t %arg1, %9 : !torch.list<!torch.int>, !torch.int -> !torch.int
-        torch.prim.If.yield %20 : !torch.int
-      } else {
-        torch.prim.If.yield %int1 : !torch.int
-      }
-      %14 = torch.aten.ne.int %11, %13 : !torch.int, !torch.int -> !torch.bool
-      %15 = torch.prim.If %14 -> (!torch.bool) {
-        %20 = torch.aten.ne.int %11, %int1 : !torch.int, !torch.int -> !torch.bool
-        torch.prim.If.yield %20 : !torch.bool
-      } else {
-        torch.prim.If.yield %false : !torch.bool
-      }
-      %16 = torch.prim.If %15 -> (!torch.bool) {
-        %20 = torch.aten.ne.int %13, %int1 : !torch.int, !torch.int -> !torch.bool
-        torch.prim.If.yield %20 : !torch.bool
-      } else {
-        torch.prim.If.yield %false : !torch.bool
-      }
-      torch.prim.If %16 -> () {
-        %20 = torch.aten.format(%str, %11, %13, %arg2) : !torch.str, !torch.int, !torch.int, !torch.int -> !torch.str
-        %21 = torch.aten.add.str %str_0, %20 : !torch.str, !torch.str -> !torch.str
-        torch.prim.RaiseException %21 : !torch.str
-        torch.prim.If.yield
-      } else {
-        torch.prim.If.yield
-      }
-      %17 = torch.aten.eq.int %11, %int1 : !torch.int, !torch.int -> !torch.bool
-      %18 = torch.prim.If %17 -> (!torch.int) {
-        torch.prim.If.yield %13 : !torch.int
-      } else {
-        torch.prim.If.yield %11 : !torch.int
-      }
-      %19 = torch.aten.append.t %3, %18 : !torch.list<!torch.int>, !torch.int -> !torch.list<!torch.int>
-      torch.prim.Loop.condition %true, iter()
-    } : (!torch.int, !torch.bool) -> ()
-    return %3 : !torch.list<!torch.int>
   }
   func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.t(%arg0: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
     %int1 = torch.constant.int 1
