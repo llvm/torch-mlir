@@ -57,6 +57,12 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 )
 
 ################################################################################
+# Lazy Tensor Core
+################################################################################
+
+add_subdirectory(torch_mlir/csrc)
+
+################################################################################
 # Optionally handle JIT IR importer.
 ################################################################################
 
@@ -116,5 +122,8 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   # Build the E2E Tests (which depend on the JIT IR importer now).
   add_dependencies(TorchMLIRPythonModules TorchMLIRE2ETestPythonModules)
 endif()
+
+# Add Torch-MLIR LTC backend as dependency
+add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
 
 add_subdirectory(test)
