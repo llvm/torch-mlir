@@ -2,7 +2,7 @@
 # Setup PyTorch
 #-------------------------------------------------------------------------------
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
 include(TorchMLIRPyTorch)
 
 TorchMLIRProbeForPyTorchInstall()
