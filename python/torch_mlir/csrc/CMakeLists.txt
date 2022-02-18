@@ -2,33 +2,13 @@
 # Setup PyTorch/LTC
 #-------------------------------------------------------------------------------
 
-# Attempts to find a Torch installation and set the Torch_ROOT variable
-# based on introspecting the python environment. This allows a subsequent
-# call to find_package(Torch) to work.
-function(find_torch_cmake)
-    if(Torch_ROOT)
-        message(STATUS "Using cached Torch cmake directory: ${Torch_ROOT}")
-    else()
-        message(STATUS "Checking for PyTorch using ${Python3_EXECUTABLE} ...")
-        execute_process(
-            COMMAND ${Python3_EXECUTABLE} -c
-            "import torch; print(torch.utils.cmake_prefix_path, end='')"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            RESULT_VARIABLE PYTORCH_STATUS
-            OUTPUT_VARIABLE PYTORCH_PACKAGE_DIR)
-        if(NOT PYTORCH_STATUS EQUAL "0")
-            message(STATUS "Unable to 'import torch' with ${Python3_EXECUTABLE} (fallback to explicit config)")
-            return()
-        endif()
-        message(STATUS "Found PyTorch installation at ${PYTORCH_PACKAGE_DIR}")
 
-        set(Torch_ROOT "${PYTORCH_PACKAGE_DIR}" CACHE STRING
-            "Torch configure directory" FORCE)
-    endif()
-endfunction()
-
-find_torch_cmake()
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
+include(TorchMLIRPyTorch)
+TorchMLIRProbeForPyTorchInstall()
 find_package(Torch 1.11 REQUIRED)
+
+TorchMLIRConfigurePyTorch()
 
 include_directories(BEFORE
   ${TORCH_INCLUDE_DIRS}
