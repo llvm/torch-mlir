@@ -1153,7 +1153,7 @@ class MaxPool2dWithIndicesBackwardsModule(torch.nn.Module):
         None,
         ([-1, -1, -1], torch.float32, True),
         ([-1, -1, -1], torch.float32, True),
-        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int, True),
     ])
     def forward(self, x, y, z):
         return torch.ops.aten.max_pool2d_with_indices_backward(x, y, [2, 2], [1, 1], [0, 0], [1, 1], False, z)
