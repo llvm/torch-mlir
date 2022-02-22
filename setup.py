@@ -83,19 +83,12 @@ class CMakeBuild(build_py):
                                           "tools", "torch-mlir", "python_packages",
                                           "torch_mlir")
 
-        if sys.version_info.minor >= 8:  # python >= 3.8
-            shutil.copytree(python_package_dir,
-                            target_dir,
-                            symlinks=False,
-                            dirs_exist_ok=True)
+        if os.path.exists(target_dir):
+            shutil.rmtree(target_dir, ignore_errors=False, onerror=None)
 
-        elif os.path.exists(python_package_dir):  # python <= 3.7
-            if os.path.exists(target_dir):
-                shutil.rmtree(target_dir, ignore_errors=False, onerror=None)
-
-            shutil.copytree(python_package_dir,
-                            target_dir,
-                            symlinks=False)
+        shutil.copytree(python_package_dir,
+                        target_dir,
+                        symlinks=False)
 
 
 class CMakeExtension(Extension):
