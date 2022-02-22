@@ -83,10 +83,13 @@ class CMakeBuild(build_py):
         python_package_dir = os.path.join(cmake_build_dir,
                                           "tools", "torch-mlir", "python_packages",
                                           "torch_mlir")
+
+        if os.path.exists(target_dir):
+            shutil.rmtree(target_dir, ignore_errors=False, onerror=None)
+
         shutil.copytree(python_package_dir,
                         target_dir,
-                        symlinks=False,
-                        dirs_exist_ok=True)
+                        symlinks=False)
 
 
 class CMakeExtension(Extension):
