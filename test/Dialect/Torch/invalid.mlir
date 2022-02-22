@@ -169,3 +169,13 @@ builtin.func @torch.prim.ListConstruct() {
   torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<!torch.tensor>
   return
 }
+
+// -----
+
+builtin.func @torch.overwrite.tensor.contents(%arg0: !torch.vtensor<[1],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[1],f32> {
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor<[1],f32>
+  // expected-error@+1 {{'torch.overwrite.tensor.contents' op failed to verify that overwritten tensor type is corresponding !torch.tensor of value tensor type}}
+  torch.overwrite.tensor.contents %arg1 overwrites %0 : !torch.vtensor<[?],f32>, !torch.tensor<[1],f32>
+  %1 = torch.copy.to_vtensor %0 : !torch.vtensor<[1],f32>
+  return %1 : !torch.vtensor<[1],f32>
+}

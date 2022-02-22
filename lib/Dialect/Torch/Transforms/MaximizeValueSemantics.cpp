@@ -47,7 +47,7 @@ public:
       if (user->getBlock() != copy->getBlock())
         return failure();
       // We can only analyze these ops or view-like ops.
-      if (isa<CopyToValueTensorOp, OverwriteTensorOp>(user))
+      if (isa<CopyToValueTensorOp, OverwriteTensorContentsOp>(user))
         foundNonViewLikeOpUser = true;
       else if (!isViewLikeOp(user))
         return failure();
@@ -71,9 +71,10 @@ public:
     for (Operation *user : users) {
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
         rewriter.replaceOp(copyToValueTensor, {currentlyHeldValueTensor});
-      } else if (auto overwriteTensor = dyn_cast<OverwriteTensorOp>(user)) {
-        currentlyHeldValueTensor = overwriteTensor.value();
-        rewriter.eraseOp(overwriteTensor);
+      } else if (auto overwriteTensorContents =
+                     dyn_cast<OverwriteTensorContentsOp>(user)) {
+        currentlyHeldValueTensor = overwriteTensorContents.value();
+        rewriter.eraseOp(overwriteTensorContents);
       } else if (isViewLikeOp(user)) {
         // This case currently only handles view-like ops that have one tensor
         // input and one tensor output.
