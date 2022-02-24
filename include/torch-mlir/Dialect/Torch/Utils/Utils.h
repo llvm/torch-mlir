@@ -9,7 +9,6 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_UTILS_H
 #define TORCHMLIR_DIALECT_TORCH_UTILS_H
 
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
@@ -23,7 +22,6 @@ int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
 bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
 torch_upstream::ScalarType getScalarTypeForType(Type type);
-LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v);
 
 } // namespace Torch
 } // namespace torch

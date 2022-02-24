@@ -1867,10 +1867,9 @@ ChangeResult TypeAnalyzer::visitAtenNativeBatchNormOp(
   meanKnowledge.dtype = input.dtype;
   invStdKnowledge.dtype = input.dtype;
 
-  // Rank of the input tensor must be greater than or equal to 2. The shape
-  // of the input tensor as well as the batch norm output tensor should be
-  // (N, C, D?, H?, W?). In inference mode, the mean and inv-std outputs should
-  // be empty tensors, whereas they should be of shape (C) in the training mode.
+  // Rank of the input tensor must be greater than or equal to 2. The size of
+  // the input tensor as well as the output tensor should be (N, C, D?, H?, W?).
+  // The running_mean, running_var, weight, and bias should be of size (C).
   bool training = false;
   if (matchPattern(op.training(), m_TorchConstantBool(&training)) &&
       input.hasSizes && input.sizes.size() >= 2) {
