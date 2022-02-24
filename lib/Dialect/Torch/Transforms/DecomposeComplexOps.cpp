@@ -900,9 +900,7 @@ class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
     return success();
   }
 };
-} // namespace
 
-namespace {
 class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
   using OpRewritePattern<AtenLayerNormOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLayerNormOp op,
@@ -926,40 +924,6 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
         loc, op.getType(), meanVarType, meanVarType, op.input(),
         op.normalized_shape(), op.weight(), op.bias(), op.eps());
     rewriter.replaceOp(op, nativeLayerNorm.getResult(0));
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class DecomposeAtenBatchNormOp : public OpRewritePattern<AtenBatchNormOp> {
-  using OpRewritePattern<AtenBatchNormOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenBatchNormOp op,
-                                PatternRewriter &rewriter) const override {
-    // TODO: Add support for `training` mode.
-    bool training = false;
-    if (!matchPattern(op.training(), m_TorchConstantBool(&training)) ||
-        training)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: training mode is not supported");
-
-    // The `mean` and `invstd` outputs shape should be {0} in the inference
-    // mode.
-    BaseTensorType tensorType = op.getType().cast<BaseTensorType>();
-    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non-floating point type input");
-    Type emptyType =
-        tensorType.getWithSizesAndDtype({0}, tensorType.getDtype());
-
-    // The first output tensor of the `AtenNativeBatchNormOp` is essentially
-    // `AtenBatchNormOp` result.
-    auto nativeBatchNorm = rewriter.create<AtenNativeBatchNormOp>(
-        op.getLoc(), op.getType(), /*meanType=*/emptyType,
-        /*invStdType=*/emptyType, op.input(), op.weight(), op.bias(),
-        op.running_mean(), op.running_var(), op.training(), op.momentum(),
-        op.eps());
-    rewriter.replaceOp(op, nativeBatchNorm.getResult(0));
     return success();
   }
 };
@@ -1063,14 +1027,6 @@ class DecomposeAtenNativeBatchNormOp
     Value runningVar = op.running_var();
     Value eps = op.eps();
 
-    // TODO: Add support for optional type parameters.
-    if (weight.getType().isa<OptionalType>() ||
-        bias.getType().isa<OptionalType>() ||
-        runningMean.getType().isa<OptionalType>() ||
-        runningVar.getType().isa<OptionalType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: optional type arg is not supported");
-
     // TODO: Add support for `training` mode.
     bool training = false;
     if (!matchPattern(op.training(), m_TorchConstantBool(&training)) ||
@@ -1097,24 +1053,13 @@ class DecomposeAtenNativeBatchNormOp
       return rewriter.notifyMatchFailure(
           op, "expected running_mean and running_var to be rank 1");
 
-    // The shape of `runningMean` and `runningVar` must be (numFeatures). Here,
-    // 'numFeatures' is C from an expected 'input' of size (N,C,D?,H?,W?).
     Value zero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value numFeatures = rewriter.create<AtenSizeIntOp>(loc, input, /*dim=*/one);
-    auto dim0EqualsNumFeatures = [&](Value v) {
-      Value dim0 = rewriter.create<AtenSizeIntOp>(loc, v, /*dim=*/zero);
-      Value eqCmp = rewriter.create<AtenEqIntOp>(loc, BoolType::get(context),
-                                                 dim0, numFeatures);
-      rewriter.create<RuntimeAssertOp>(
-          loc, eqCmp,
-          rewriter.getStringAttr("size of the 0th dimension must be equal to "
-                                 "the number of features"));
-    };
-    dim0EqualsNumFeatures(runningMean);
-    dim0EqualsNumFeatures(runningVar);
+    // TODO: Add Runtime Asserts to check the shape of weight, bias,
+    // running_mean and running_var to be (numFeatures).
 
     // The `runningMean` and `runningVar` must be reshaped to (1, C, 1?, 1?, 1?)
     // to make it broadcast-compatible with (N, C, D?, H?, W?).
@@ -1152,22 +1097,18 @@ class DecomposeAtenNativeBatchNormOp
     // 3. output = normalizedInput * weight + bias
     Value batchNormOutput = normalizedInput;
     if (!weight.getType().isa<Torch::NoneType>()) {
-      // The shape of the `weight` tensor must be (numFeatures).
+      // Rank of `weight` must be exactly 1.
       if (getTensorRank(weight) != 1)
         return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
-      dim0EqualsNumFeatures(weight);
-
       weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
                                            runningStatsSizeList);
       batchNormOutput = rewriter.create<AtenMulTensorOp>(
           loc, batchNormOutput.getType(), batchNormOutput, weight);
     }
     if (!bias.getType().isa<Torch::NoneType>()) {
-      // The shape of the `bias` tensor must be (numFeatures).
+      // Rank of `bias` must be exactly 1.
       if (getTensorRank(bias) != 1)
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      dim0EqualsNumFeatures(bias);
-
       bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
                                          runningStatsSizeList);
       batchNormOutput = rewriter.create<AtenAddTensorOp>(
@@ -1278,8 +1219,6 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenLayerNormOp>(context);
     target.addIllegalOp<AtenNativeBatchNormOp>();
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
-    target.addIllegalOp<AtenBatchNormOp>();
-    patterns.add<DecomposeAtenBatchNormOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);
