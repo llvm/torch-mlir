@@ -131,8 +131,8 @@ static Value convertTensorToDtype(PatternRewriter &rewriter, Location loc,
                                   Value input, Type dtype) {
   BaseTensorType origType = input.getType().cast<BaseTensorType>();
   Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
-  // `convertIntVal` contains the corresponding integer for the dtype which is used
-  // by the aten.to.dtype op.
+  // `convertIntVal` contains the corresponding integer for the dtype which is
+  // used by the aten.to.dtype op.
   Value convertIntVal = getDtypeIntValueForType(rewriter, loc, dtype);
   Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
   Value noneVal = rewriter.create<ConstantNoneOp>(loc);
@@ -141,22 +141,21 @@ static Value convertTensorToDtype(PatternRewriter &rewriter, Location loc,
   return converted;
 }
 
-// Helper to create a tensor filled with the given scalar. Scalar would be
-// converted the to the element type of the given tensor type.
+// Helper to create a tensor filled with the given `scalar`. `scalar` would be
+// converted to the element type of the given `resultType`.
 static Value createInitTensor(PatternRewriter &rewriter, Location loc,
                               Type resultType, Value scalar, Value sizeList) {
   BaseTensorType tensorType = resultType.cast<BaseTensorType>();
   Value noneVal = rewriter.create<ConstantNoneOp>(loc);
   Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
       loc, tensorType, sizeList, /*dtype=*/noneVal, /*layout=*/noneVal,
-      /*device=*/noneVal,
-      /*pin_memory=*/noneVal, /*memory_format=*/noneVal);
+      /*device=*/noneVal, /*pin_memory=*/noneVal, /*memory_format=*/noneVal);
   return rewriter.create<PseudoAtenFillScalarOp>(loc, resultType, emptyTensor,
                                                  scalar);
 }
 
-// Helper to create a rank0 tensor filled with the given scalar. Scalar would be
-// converted the to the element type of the given tensor type.
+// Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
+// would be converted to the element type of the given `inputType`.
 static Value createRank0Tensor(PatternRewriter &rewriter, Location loc,
                                BaseTensorType inputType, Value scalar) {
   SmallVector<int64_t> sizes;
@@ -930,66 +929,125 @@ public:
 };
 } // namespace
 
-// Returns a tensor with bernoulli(p) distribution.
-// Decompose aten.bernoulli(x, p) to aten.gtTensor(aten.uniform(x), p).
-static LogicalResult decomposeBernoulliLikeOp(PatternRewriter &rewriter,
-                                              Operation *op, Location loc,
-                                              Value input, double p,
-                                              Value &result) {
-  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-  if (!inputType.hasSizes() || !inputType.hasDtype()) {
-    return rewriter.notifyMatchFailure(
-        op, "Can't decomposeBernoulliLikeOp without sizes or dtype");
-  }
-  BaseTensorType boolType =
-      inputType
-          .getWithSizesAndDtype(
-              inputType.getSizes(),
-              IntegerType::get(op->getContext(), 1, IntegerType::Signless))
-          .cast<BaseTensorType>();
-  Value prob =
-      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(p));
-  Value lb =
-      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
-  Value ub =
-      rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  // Create a uniform random op with low and high set to lb and ub respectively.
-  Value uniformRandom = rewriter.create<PseudoAtenUniformOp>(
-      loc, inputType, input, lb, ub, noneVal);
-  Value gtValue =
-      rewriter.create<AtenLtScalarOp>(loc, boolType, uniformRandom, prob);
-  // Since `gtValue` will be a boolean tensor convert it back to the original
-  // type.
-  result = convertTensorToDtype(rewriter, loc, gtValue, inputType.getDtype());
-  return success();
-}
-
 namespace {
-class DecomposeAtenBernoulliOp : public OpRewritePattern<AtenBernoulliOp> {
+class DecomposeAtenRandLikeOp : public OpRewritePattern<AtenRandLikeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenBernoulliOp op,
+  LogicalResult matchAndRewrite(AtenRandLikeOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value self = op.self();
-    Value generator = op.generator();
-    if (!generator.getType().isa<Torch::NoneType>())
+    Value input = op.self();
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(op,
+                                         "only support floating-point type");
+
+    // TODO: Add support for layout, pin_memory and memory_format features.
+    // Only `none` layout is supported.
+    if (!op.layout().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
-          op, "The generator has to ben None because only global default "
-              "generator is supported");
-    Value result;
-    if (failed(decomposeBernoulliLikeOp(rewriter, op, loc, self, /*p=*/0.5,
-                                        result)))
-      return failure();
-    rewriter.replaceOp(op, result);
+          op, "unimplemented: only default layout is supported");
+
+    // The pin_memory should be either `none` or constant `False`.
+    if (!op.pin_memory().getType().isa<Torch::NoneType>()) {
+      bool pinMemory;
+      if (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: pin_memory must be a constant");
+      else if (pinMemory)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: pin_memory is expected to be false");
+    }
+
+    // Only `none` memory_format is supported.
+    if (!op.memory_format().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only default memory format is supported");
+
+    // Create a uniform random op with low and high set to 0.0 and 1.0
+    // respectively.
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value lb =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value ub =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    rewriter.replaceOpWithNewOp<PseudoAtenUniformOp>(
+        op, op.getType(), input, lb, ub, /*generator=*/none);
     return success();
   }
 };
 } // namespace
 
 namespace {
+// Bernoulli(x, p) = (rand_like(float(x)) < p).cast(type(x)). Here,
+// 1. p must be a float tensor.
+// 2. The shape of p should be broadcastable to the shape of x.
+// 3. Bernoulli(x, p) returns a tensor of the same type as that of x.
+static LogicalResult decomposeBernoulliLikeOp(PatternRewriter &rewriter,
+                                              Operation *op, Location loc,
+                                              Value input, Value prob,
+                                              Value &output) {
+  auto inputType = input.getType().cast<BaseTensorType>();
+  auto probType = prob.getType().cast<BaseTensorType>();
+  // Both the `input` and `prob` must be ranked tensors.
+  if (!inputType.hasSizes() || !inputType.hasDtype() || !probType.hasSizes() ||
+      !probType.hasDtype()) {
+    return rewriter.notifyMatchFailure(
+        op, "can't decompose bernoulli like ops without sizes or dtype");
+  }
+  // The `prob` is expected to be a float type tensor.
+  if (!probType.getDtype().isa<mlir::FloatType>()) {
+    return rewriter.notifyMatchFailure(
+        op, "probabilities must be a float type tensor");
+  }
+
+  // Since the `aten.rand_like` op expects float-type operand, create a
+  // float-type tensor with the same shape as that of the `input`.
+  Value floatTensor =
+      convertTensorToDtype(rewriter, loc, input, rewriter.getF64Type());
+  Value none = rewriter.create<ConstantNoneOp>(loc);
+  Value randomVal = rewriter.create<AtenRandLikeOp>(
+      loc, floatTensor.getType(), floatTensor, /*dtype=*/none, /*layout=*/none,
+      /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
+
+  // Bernoulli(x, p) = rand_like(float(x)) < p.
+  auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                    rewriter.getI1Type());
+  Value lessThanP =
+      rewriter.create<AtenLtTensorOp>(loc, boolResType, randomVal, prob);
+
+  // As the `output` is expected to be of the `input` type, convert the boolean
+  // tensor `lessThanP` to a `input` type tensor.
+  output = convertTensorToDtype(rewriter, loc, lessThanP, inputType.getDtype());
+  return success();
+}
+
+// aten.bernoulli(x) = rand_like(x) < x. Here, the input x is a tensor
+// containing probabilities to be used for drawing the binary random number.
+class DecomposeAtenBernoulliOp : public OpRewritePattern<AtenBernoulliOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBernoulliOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    if (!op.generator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to ben None because only global default "
+              "generator is supported");
+    Value output;
+    if (failed(
+            decomposeBernoulliLikeOp(rewriter, op, loc, input, input, output)))
+      return rewriter.notifyMatchFailure(
+          op, "decomposeBernoulliLikeOp failed to decompose the op");
+    rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+
+// aten.bernoulli.float(x, p) = (rand_like(float(x)) < tensor(p)).cast(type(x)).
+// Since the input x can be an integer tensor, it's important to cast it to
+// float type before passing it to the `aten.rand_like` op.
 class DecomposePseudoAtenBernoulliFloatOp
     : public OpRewritePattern<PseudoAtenBernoulliFloatOp> {
 public:
@@ -997,20 +1055,50 @@ public:
   LogicalResult matchAndRewrite(PseudoAtenBernoulliFloatOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value self = op.self();
-    Value generator = op.generator();
-    double p;
-    if (!matchPattern(op.p(), m_TorchConstantFloat(&p)))
-      return rewriter.notifyMatchFailure(op, "p should be constant float");
-
-    if (!generator.getType().isa<Torch::NoneType>())
+    Value input = op.self();
+    Value p = op.p();
+    if (!op.generator().getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
           op, "The generator has to ben None because only global default "
               "generator is supported");
-    Value result;
-    if (failed(decomposeBernoulliLikeOp(rewriter, op, loc, self, p, result)))
-      return failure();
-    rewriter.replaceOp(op, result);
+
+    auto inputType = input.getType().cast<BaseTensorType>();
+    SmallVector<int64_t> empty;
+    Type tensorType = inputType.getWithSizesAndDtype(llvm::makeArrayRef(empty),
+                                                     rewriter.getF64Type());
+    Value prob = rewriter.create<PrimNumToTensorScalarOp>(loc, tensorType, p);
+    Value output;
+    if (failed(
+            decomposeBernoulliLikeOp(rewriter, op, loc, input, prob, output)))
+      return rewriter.notifyMatchFailure(
+          op, "decomposeBernoulliLikeOp failed to decompose the op");
+    rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+
+// aten.bernoulli.Tensor(x, p) = (rand_like(float(x)) < p).cast(type(x)).
+// Since the input x can be an integer tensor, it's important to cast it to
+// float type before passing it to the `aten.rand_like` op.
+class DecomposePseudoAtenBernoulliTensorOp
+    : public OpRewritePattern<PseudoAtenBernoulliTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PseudoAtenBernoulliTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value prob = op.p();
+    if (!op.generator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to ben None because only global default "
+              "generator is supported");
+    Value output;
+    if (failed(
+            decomposeBernoulliLikeOp(rewriter, op, loc, input, prob, output)))
+      return rewriter.notifyMatchFailure(
+          op, "decomposeBernoulliLikeOp failed to decompose the op");
+    rewriter.replaceOp(op, output);
     return success();
   }
 };
@@ -1425,6 +1513,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenBernoulliOp>();
     patterns.add<DecomposePseudoAtenBernoulliFloatOp>(context);
     target.addIllegalOp<PseudoAtenBernoulliFloatOp>();
+    patterns.add<DecomposePseudoAtenBernoulliTensorOp>(context);
+    target.addIllegalOp<PseudoAtenBernoulliTensorOp>();
+    patterns.add<DecomposeAtenRandLikeOp>(context);
+    target.addIllegalOp<AtenRandLikeOp>();
     patterns.add<DecomposeAtenHardsigmoidOp>(context);
     target.addIllegalOp<AtenHardsigmoidOp>();
     patterns.add<DecomposeAtenHardswishOp>(context);

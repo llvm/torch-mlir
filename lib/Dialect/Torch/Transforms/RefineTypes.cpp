@@ -229,10 +229,10 @@ public:
             AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
             AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
             AtenAbsOp, AtenThresholdOp, AtenSquareOp, PseudoAtenUniformOp,
-            AtenCloneOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
-            PseudoAtenBernoulliFloatOp, PseudoAtenFillScalarOp,
-            AtenHardsigmoidOp, AtenHardswishOp, AtenSiluOp, AtenHardtanhOp>(
-            op)) {
+            AtenBernoulliOp, AtenBernoulli_FloatOp, AtenBernoulli_TensorOp,
+            PseudoAtenBernoulliFloatOp, PseudoAtenBernoulliTensorOp,
+            PseudoAtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
+            AtenHardswishOp, AtenSiluOp, AtenHardtanhOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -399,6 +399,8 @@ public:
       return visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
     } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {
       return visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
+    } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
+      return visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
     } else if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
       return visitAtenToDtypeOp(toDtype, operands);
     } else if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {

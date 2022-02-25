@@ -508,8 +508,10 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # underscore variant doesn't exist.
         emit("aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)")
+        emit("aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
         emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
+        emit("aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
