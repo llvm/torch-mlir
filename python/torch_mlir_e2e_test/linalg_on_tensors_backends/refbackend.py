@@ -166,6 +166,7 @@ class RefBackendInvoker:
 LOWERING_PIPELINE = ",".join([
     # Bufferize.
     "builtin.func(scf-bufferize)",
+    "builtin.func(tm-tensor-bufferize)",
     "builtin.func(linalg-bufferize)",
     "builtin.func(refback-munge-memref-copy)",
     "func-bufferize",
@@ -183,6 +184,7 @@ LOWERING_PIPELINE = ",".join([
     # global seed used in stateful rng.
     "refback-insert-rng-globals",
     # Lower to LLVM
+    "builtin.func(tm-tensor-to-loops)",
     "builtin.func(convert-linalg-to-loops)",
     "builtin.func(lower-affine)",
     "convert-scf-to-cf",
