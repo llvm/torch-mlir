@@ -67,6 +67,14 @@ module  {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten.to.other"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.bool, %arg3: !torch.bool, %arg4: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.type_as"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
   func @"__torch_mlir_shape_fn.aten.dropout"(%arg0: !torch.list<!torch.int>, %arg1: !torch.float, %arg2: !torch.bool) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
@@ -129,6 +137,10 @@ module  {
   }
   func @"__torch_mlir_shape_fn.aten.leaky_relu"(%arg0: !torch.list<!torch.int>, %arg1: !torch.float) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.gather"(%arg0: !torch.list<!torch.int>, %arg1: !torch.int, %arg2: !torch.list<!torch.int>, %arg3: !torch.bool) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg2) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }
   func @"__torch_mlir_shape_fn.aten.any"(%arg0: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
@@ -375,6 +387,12 @@ module  {
       torch.prim.If.yield %5 : !torch.list<!torch.int>
     }
     return %4 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.t"(%arg0: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.transpose(%arg0, %int0, %int1) : (!torch.list<!torch.int>, !torch.int, !torch.int) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
   }
   func @"__torch_mlir_shape_fn.aten.matmul"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.matmul(%arg0, %arg1) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
@@ -1562,6 +1580,14 @@ module  {
   func @"__torch_mlir_shape_fn.aten.empty.memory_format"(%arg0: !torch.list<!torch.int>, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.int>, %arg3: !torch.optional<!torch.Device>, %arg4: !torch.optional<!torch.bool>, %arg5: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
     return %arg0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten.zeros_like"(%arg0: !torch.list<!torch.int>, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.int>, %arg3: !torch.optional<!torch.Device>, %arg4: !torch.optional<!torch.bool>, %arg5: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.ones_like"(%arg0: !torch.list<!torch.int>, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.int>, %arg3: !torch.optional<!torch.Device>, %arg4: !torch.optional<!torch.bool>, %arg5: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
   func @"__torch_mlir_shape_fn.aten.empty_like"(%arg0: !torch.list<!torch.int>, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.int>, %arg3: !torch.optional<!torch.Device>, %arg4: !torch.optional<!torch.bool>, %arg5: !torch.optional<!torch.int>) -> !torch.list<!torch.int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.unary(%arg0) : (!torch.list<!torch.int>) -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
@@ -1743,6 +1769,18 @@ module  {
     return %0 : !torch.list<!torch.int>
   }
   func @"__torch_mlir_shape_fn.prim.NumToTensor.Scalar"(%arg0: !torch.float) -> !torch.list<!torch.int> {
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.tensor.float"(%arg0: !torch.float, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.Device>, %arg3: !torch.bool) -> !torch.list<!torch.int> {
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.tensor.int"(%arg0: !torch.int, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.Device>, %arg3: !torch.bool) -> !torch.list<!torch.int> {
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    return %0 : !torch.list<!torch.int>
+  }
+  func @"__torch_mlir_shape_fn.aten.tensor.bool"(%arg0: !torch.bool, %arg1: !torch.optional<!torch.int>, %arg2: !torch.optional<!torch.Device>, %arg3: !torch.bool) -> !torch.list<!torch.int> {
     %0 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
     return %0 : !torch.list<!torch.int>
   }

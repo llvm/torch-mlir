@@ -869,22 +869,6 @@ static void fillInDTypeGivenDTypeAndDataType(ValueKnowledge &knowledge,
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, dtype, dtypeForDataType);
 }
 
-static void fillInSizesGivenSizesList(ValueKnowledge &knowledge, Value sizes) {
-  // TODO: This is not safe. Need to check the list users and use aliasing
-  // info to safely detect the list is not modified.
-  if (auto listConstruct = sizes.getDefiningOp<PrimListConstructOp>()) {
-    knowledge.hasSizes = true;
-    auto sizes = listConstruct.elements();
-    int64_t size;
-    for (auto sizeValue : sizes) {
-      if (matchPattern(sizeValue, m_TorchConstantInt(&size)))
-        knowledge.sizes.push_back(size);
-      else
-        knowledge.sizes.push_back(kUnknownSize);
-    }
-  }
-}
-
 ChangeResult
 TypeAnalyzer::incorporateKnowledge(Value v, const ValueKnowledge &knowledge) {
   auto updatedKnowledge = ValueKnowledge::meet(
@@ -1223,24 +1207,6 @@ ChangeResult TypeAnalyzer::visitAtenTransposeIntOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
-  knowledge.hasSizes = input.hasSizes;
-  auto dim0 = op.dim0();
-  auto dim1 = op.dim1();
-  int64_t dim0Int;
-  int64_t dim1Int;
-  if (matchPattern(dim0, m_TorchConstantInt(&dim0Int)) &&
-      matchPattern(dim1, m_TorchConstantInt(&dim1Int))) {
-    knowledge.sizes = input.sizes;
-    int64_t inputRank = input.sizes.size();
-    dim0Int = toPositiveDim(dim0Int, inputRank);
-    dim1Int = toPositiveDim(dim1Int, inputRank);
-    if (isValidDim(dim0Int, inputRank) && isValidDim(dim1Int, inputRank)) {
-      std::swap(knowledge.sizes[dim0Int], knowledge.sizes[dim1Int]);
-      return incorporateKnowledge(op.getResult(), knowledge);
-    }
-  }
-
-  knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1250,15 +1216,6 @@ ChangeResult TypeAnalyzer::visitAtenTOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
-  if (!input.hasSizes)
-    return incorporateKnowledge(op.getResult(), knowledge);
-  int64_t inputRank = input.sizes.size();
-  if (inputRank >= 0 && inputRank <= 2) {
-    knowledge.hasSizes = input.hasSizes;
-    knowledge.sizes = input.sizes;
-    if (inputRank == 2)
-      std::swap(knowledge.sizes[0], knowledge.sizes[1]);
-  }
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1268,22 +1225,6 @@ ChangeResult TypeAnalyzer::visitAtenPermuteOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
-  if (!input.hasSizes)
-    return incorporateKnowledge(op.getResult(), knowledge);
-  knowledge.hasSizes = input.hasSizes;
-  knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  Value dims = op.dims();
-  SmallVector<int64_t> dimensions;
-  if (matchPattern(dims, m_TorchConstantIntList(dimensions))) {
-    int64_t inputRank = input.sizes.size();
-    for (unsigned i = 0; i < inputRank; i++) {
-      int64_t dim = toPositiveDim(dimensions[i], inputRank);
-      if (!isValidDim(dim, inputRank)) {
-        return incorporateKnowledge(op.getResult(), knowledge);
-      }
-      knowledge.sizes[i] = input.sizes[dim];
-    }
-  }
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1293,7 +1234,6 @@ ChangeResult TypeAnalyzer::visitScalarToTensorConversionOp(OpTy op) {
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   Value t = op.t();
   Value dtype = op.dtype();
-  knowledge.hasSizes = true;
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, t.getType());
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1307,24 +1247,12 @@ ChangeResult TypeAnalyzer::visitBinaryScalarOp(
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
-// `torch.aten.tensor` get a tensor from a list. Each layer of the list
-// corresponds to one dim of the tensor.
 ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   Value data = op.data();
   Value dtype = op.dtype();
   Type type = data.getType();
-  int64_t rank = 0;
-  while (auto listType = type.dyn_cast<ListType>()) {
-    type = listType.getContainedType();
-    rank++;
-  }
-
-  if (rank != 0) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(rank, kUnknownSize);
-  }
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, type);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1333,7 +1261,6 @@ template <typename OpTy>
 ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(),
                                    Torch::FloatType::get(op->getContext()));
   return incorporateKnowledge(op.getResult(), knowledge);
@@ -1345,10 +1272,6 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocLikeOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  if (input.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes = input.sizes;
-  }
   fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), input.dtype);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1359,9 +1282,6 @@ ChangeResult TypeAnalyzer::visitAtenToDtypeOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = input.hasSizes;
-  if (input.hasSizes)
-    knowledge.sizes = input.sizes;
   Value dtype = op.dtype();
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, input.dtype);
   return incorporateKnowledge(op.getResult(), knowledge);
@@ -1374,8 +1294,6 @@ ChangeResult TypeAnalyzer::visitTypeConversionOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = input.hasSizes;
-  knowledge.sizes = input.sizes;
   Value other = op.other();
   BaseTensorType type = other.getType().cast<BaseTensorType>();
   if (type.hasDtype())
@@ -1403,12 +1321,9 @@ ChangeResult TypeAnalyzer::visitSliceLikeOp(
 ChangeResult TypeAnalyzer::visitAtenGatherOp(
     AtenGatherOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto index = operands[2]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
-  knowledge.hasSizes = index.hasSizes;
-  knowledge.sizes = index.sizes;
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 

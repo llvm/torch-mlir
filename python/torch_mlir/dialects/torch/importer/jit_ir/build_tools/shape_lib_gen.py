@@ -178,6 +178,12 @@ def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> Lis
 def aten〇to〇dtype(self: List[int], dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return shape_helpers.unary(self)
 
+def aten〇to〇other(self: List[int], other: List[int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇type_as(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.unary(self)
+
 def aten〇dropout(input: List[int], p: float, train: bool) -> List[int]:
     return shape_helpers.unary(input)
 
@@ -228,6 +234,9 @@ def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> Lis
 
 def aten〇leaky_relu(self: List[int], negative_slope: float = 0.01) -> List[int]:
     return shape_helpers.unary(self)
+
+def aten〇gather(self: List[int], dim: int, index: List[int], sparse_grad: bool = False) -> List[int]:
+    return shape_helpers.unary(index)
 
 def aten〇any(self: List[int]) -> List[int]:
     return []
@@ -283,6 +292,9 @@ def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
 def aten〇transpose〇int(self: List[int], dim0: int, dim1: int) -> List[int]:
     return shape_helpers.transpose(self, dim0, dim1)
 
+def aten〇t(self: List[int]) -> List[int]:
+    return shape_helpers.transpose(self, 0, 1)
+
 def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
     return shape_helpers.matmul(self, other)
 
@@ -330,6 +342,12 @@ def aten〇ones(size: List[int], dtype: Optional[int] = None, layout: Optional[i
 
 def aten〇empty〇memory_format(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return size
+
+def aten〇zeros_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇ones_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return shape_helpers.unary(self)
 
 def aten〇empty_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return shape_helpers.unary(self)
@@ -395,8 +413,19 @@ def aten〇squeeze(self: List[int]) -> List[int]:
 def aten〇squeeze〇dim(self: List[int], dim: int) -> List[int]:
     return shape_helpers.squeeze(self, dim)
 
+
 def prim〇NumToTensor〇Scalar(a: float) -> List[int]:
     return []
+
+def aten〇tensor〇float(t: float, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return []
+
+def aten〇tensor〇int(t: int, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return []
+
+def aten〇tensor〇bool(t: bool, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
+    return []
+
 
 def aten〇where〇self(condition: List[int], self: List[int], other: List[int]) -> List[int]:
     return shape_helpers.broadcast(condition, shape_helpers.broadcast(self, other))
