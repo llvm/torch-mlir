@@ -166,6 +166,19 @@ SmallVector<StringRef> ScanOp::getLoopIteratorTypes() {
   return iteratorTypes;
 }
 
+bool ScanOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
+  Value operand = opOperand->get();
+  if (operand == accumulator())
+    return !inclusive();
+  else if (operand == output())
+    return false;
+  else {
+    assert(operand == input() &&
+           "operand must belong to the current tm_tensor.scan op");
+    return true;
+  }
+}
+
 // Generates naive scalar implementation of scan for a given operator f.
 // For inclusive,
 //     output[0] = input[0]
@@ -383,6 +396,27 @@ SmallVector<StringRef> ScatterOp::getLoopIteratorTypes() {
     iteratorTypes[0] = getReductionIteratorTypeName();
   }
   return iteratorTypes;
+}
+
+bool ScatterOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
+  unsigned bbArgNumber;
+  Value operand = opOperand->get();
+  if (operand == updates())
+    bbArgNumber = 0; // block arg 0 is `update`.
+  else if (operand == original())
+    bbArgNumber = 1; // block arg 1 is `original`.
+  else {
+    assert(operand == indices() &&
+           "operand must belong to the current tm_tensor.scatter op");
+    return true;
+  }
+
+  assert(this->getOperation()->getNumRegions() == 1 &&
+         "unexpected "
+         "missing region (calling `payloadUsesValueFromOperand` on "
+         "manually defined named TMTensor op?)");
+  Block &block = this->getOperation()->getRegion(0).front();
+  return !block.getArgument(bbArgNumber).use_empty();
 }
 
 SmallVector<Range> ScatterOp::getIterationDomain(OpBuilder &builder) {

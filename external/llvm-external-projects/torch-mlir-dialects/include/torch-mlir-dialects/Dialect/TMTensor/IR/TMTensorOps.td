@@ -46,9 +46,11 @@ class TMTensor_Op<string mnemonic, list<Trait> traits = []> :
 // Non-structured ops
 //===----------------------------------------------------------------------===//
 
-def TMTensor_ScanOp : TMTensor_Op<"scan"
-         ,[DeclareOpInterfaceMethods<ScalarLoopOpInterface,
-           ["generateScalarImplementation"]>]> {
+def TMTensor_ScanOp : TMTensor_Op<"scan",
+    [DeclareOpInterfaceMethods<TMTensorInterface,
+        ["payloadUsesValueFromOperand"]>,
+    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+        ["generateScalarImplementation"]>]> {
   let summary = "Scan operator";
   let description = [{
     Computes the inclusive/exclusive scan along a given dimension.
@@ -97,7 +99,9 @@ def TMTensor_ScanOp : TMTensor_Op<"scan"
 }
 
 def TMTensor_ScatterOp : TMTensor_Op<"scatter",
-    [DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+    [DeclareOpInterfaceMethods<TMTensorInterface,
+        ["payloadUsesValueFromOperand"]>,
+    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
         ["generateScalarImplementation"]>]> {
   let summary = "Scatter operator";
   let description = [{
