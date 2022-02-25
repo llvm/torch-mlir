@@ -1338,36 +1338,6 @@ ChangeResult TypeAnalyzer::visitExpandLikeOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = input.dtype;
-  if (!input.hasSizes)
-    return incorporateKnowledge(op->getResult(0), knowledge);
-  int64_t inputRank = input.sizes.size();
-
-  SmallVector<Value, 4> listItems;
-  if (!getListConstructElements(list, listItems))
-    return incorporateKnowledge(op->getResult(0), knowledge);
-  int64_t listRank = listItems.size();
-  knowledge.hasSizes = true;
-  knowledge.sizes.resize(listRank, kUnknownSize);
-
-  if (listRank < inputRank)
-    return incorporateKnowledge(op->getResult(0), knowledge);
-
-  for (auto en : llvm::enumerate(listItems)) {
-    int64_t listDim = en.index();
-    // Given list rank could be larger than the inputRank, subtract the offset
-    // to get the inputDim.
-    int64_t inputDim = listDim - (listRank - inputRank);
-    int64_t size;
-    if (!matchPattern(en.value(), m_TorchConstantInt(&size)))
-      continue;
-
-    if (inputDim < 0) {
-      knowledge.sizes[listDim] = size;
-      continue;
-    }
-
-    setDim(knowledge.sizes[listDim], input.sizes[inputDim], size);
-  }
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1418,11 +1388,6 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
   auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  if (input.hasSizes)
-    knowledge.sizes.resize(1, input.sizes.size());
-  else
-    knowledge.sizes.push_back(kUnknownSize);
-  knowledge.hasSizes = true;
   knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1430,8 +1395,6 @@ ChangeResult TypeAnalyzer::visitAtenShapeAsTensorOp(
 ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = true;
-
   // The resulting type from converting a Scalar into a Tensor is different
   // if the scalar is part of a tensor operation (such as AtenMulScalar) or
   // not. In the former case, the type promotion rules are captured by the
@@ -1453,18 +1416,6 @@ ChangeResult TypeAnalyzer::visitAtenEmbeddingOp(
     AtenEmbeddingOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  auto weight = operands[0]->getValue();
-  auto indices = operands[1]->getValue();
-  if (indices.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes = indices.sizes;
-    // Weight's shape is [num_embedding, embedding_dim] and the last dim of the
-    // output should also be embedding_dim.
-    if (weight.hasSizes && weight.sizes.size() == 2)
-      knowledge.sizes.push_back(weight.sizes[1]);
-    else
-      knowledge.sizes.push_back(kUnknownSize);
-  }
   knowledge.dtype = Float32Type::get(op->getContext());
   return incorporateKnowledge(op.getResult(), knowledge);
 }
@@ -1500,10 +1451,8 @@ ChangeResult TypeAnalyzer::visitAtenBmmOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto self = operands[0]->getValue();
   auto mat2 = operands[1]->getValue();
-  knowledge.sizes.resize(3, kUnknownSize);
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(op->getContext(),
                                                              {&self, &mat2});
-  knowledge.hasSizes = true;
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1513,19 +1462,7 @@ ChangeResult TypeAnalyzer::visitAtenMatmulOp(
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto self = operands[0]->getValue();
   auto other = operands[1]->getValue();
-  if (!self.hasSizes || !other.hasSizes)
-    return incorporateKnowledge(op->getResult(0), knowledge);
-  unsigned maxRank = self.sizes.size() > other.sizes.size()
-                         ? self.sizes.size()
-                         : other.sizes.size();
-  unsigned lhsDim = self.sizes.size() > 2 ? 2 : self.sizes.size();
-  unsigned rhsDim = other.sizes.size() > 2 ? 2 : other.sizes.size();
-  unsigned batchDim = maxRank > 2 ? maxRank - 2 : 0;
-  unsigned matDim = (lhsDim - 1) + (rhsDim - 1);
-  unsigned resultRank = batchDim + matDim;
-  knowledge.sizes.resize(resultRank, kUnknownSize);
   knowledge.dtype = meetElementTypes(self.dtype, other.dtype).getValue();
-  knowledge.hasSizes = true;
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1536,13 +1473,6 @@ ChangeResult TypeAnalyzer::visitAtenAddCLikeOp(
   auto self = operands[0]->getValue();
   auto tensor1 = operands[1]->getValue();
   auto tensor2 = operands[2]->getValue();
-  if (tensor1.hasSizes && tensor2.hasSizes && self.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(
-        std::max(self.sizes.size(),
-                 std::max(tensor1.sizes.size(), tensor2.sizes.size())),
-        kUnknownSize);
-  }
   knowledge.dtype =
       getPromotedResultType(getContext(), {&self, &tensor1, &tensor2});
   return incorporateKnowledge(op->getResult(0), knowledge);

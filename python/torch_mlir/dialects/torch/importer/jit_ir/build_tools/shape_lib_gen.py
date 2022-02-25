@@ -304,10 +304,27 @@ def aten〇mm(self: List[int], mat2: List[int]) -> List[int]:
 def aten〇addmm(self: List[int], mat1: List[int], mat2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
     return shape_helpers.addmm(self, mat1, mat2, beta, alpha)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4, 5)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 7), TensorOfShape(2, 4, 5)), # Error: mismatching contracting dimension.
+    Invocation(TensorOfShape(7, 3, 4), TensorOfShape(2, 4, 5)), # Error: mismatching batch dimension.
+    Invocation(TensorOfShape(7, 3), TensorOfShape(2, 4, 5)), # Error: LHS is not rank 3.
+    Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4)), # Error: RHS is not rank 3.
+])
+def aten〇bmm(self: List[int], mat2: List[int]) -> List[int]:
+    assert len(self) == 3, "bmm only supports 3D tensors"
+    assert len(mat2) == 3, "bmm only supports 3D tensors"
+    assert self[0] == mat2[0], "mismatching batch dimension"
+    assert self[2] == mat2[1], "mismatching contracting dimension"
+    return [self[0], self[1], mat2[2]]
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
 def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> List[int]:
+    return shape_helpers.expand(self, size)
+
+def aten〇broadcast_to(self: List[int], size: List[int]) -> List[int]:
     return shape_helpers.expand(self, size)
 
 def aten〇view(self: List[int], size: List[int]) -> List[int]:
@@ -426,12 +443,24 @@ def aten〇tensor〇int(t: int, dtype: Optional[int] = None, device: Optional[de
 def aten〇tensor〇bool(t: bool, dtype: Optional[int] = None, device: Optional[device] = None, requires_grad: bool = False) -> List[int]:
     return []
 
+@check_shape_function([
+    Invocation(TensorOfShape()),
+    Invocation(TensorOfShape(2, 3)),
+])
+def aten〇_shape_as_tensor(self: List[int]) -> List[int]:
+    return [len(self)]
 
 def aten〇where〇self(condition: List[int], self: List[int], other: List[int]) -> List[int]:
     return shape_helpers.broadcast(condition, shape_helpers.broadcast(self, other))
 
 def aten〇lerp〇Tensor(self: List[int], end: List[int], weight: List[int]) -> List[int]:
     return shape_helpers.broadcast(self, shape_helpers.broadcast(end, weight))
+
+def aten〇addcmul(self: List[int], tensor1: List[int], tensor2: List[int], value: float = 1) -> List[int]:
+    return shape_helpers.broadcast(self, shape_helpers.broadcast(tensor1, tensor2))
+
+def aten〇addcdiv(self: List[int], tensor1: List[int], tensor2: List[int], value: float = 1) -> List[int]:
+    return shape_helpers.broadcast(self, shape_helpers.broadcast(tensor1, tensor2))
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.
@@ -468,6 +497,9 @@ def aten〇select〇int(self: List[int], dim: int, index: int) -> List[int]:
 
 def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int]:
     return shape_helpers.index_select(self, dim, index)
+
+def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
+    return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)
