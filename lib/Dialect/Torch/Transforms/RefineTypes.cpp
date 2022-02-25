@@ -262,21 +262,6 @@ struct ValueKnowledge {
     result.optional = joinOptionalKnowledge(lhs.optional, rhs.optional);
     result.dtype = joinElementTypes(lhs.dtype, rhs.dtype);
 
-    // // XXX: switch this to actual join.
-    // auto printArrayRef = [](ArrayRef<int64_t> a, llvm::raw_ostream &os) {
-    //   os << "[";
-    //   if (!a.empty())
-    //     os << a[0];
-    //   for (size_t i = 1, e = a.size(); i < e; ++i)
-    //     os << ", " << a[i];
-    //   os << "]";
-    // };
-    // llvm::errs() << "sizes: lhs: ";
-    // printArrayRef(lhs.sizes, llvm::errs());
-    // llvm::errs() << "rhs: ";
-    // printArrayRef(rhs.sizes, llvm::errs());
-    // llvm::errs() << "\n";
-
     if (lhs.hasSizes && rhs.hasSizes && lhs.sizes.size() == rhs.sizes.size()) {
       result.hasSizes = true;
       result.sizes.resize(lhs.sizes.size(), kUnknownSize);
@@ -398,21 +383,15 @@ public:
       auto operand = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-      if (operand.hasSizes) {
-        knowledge.hasSizes = true;
-        knowledge.sizes = operand.sizes;
-      }
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
       return incorporateKnowledge(op->getResult(0), knowledge);
     }
 
-    // Resize to [1, 1] with integer dtype.
+    // Result type is i1.
     if (isa<AtenAnyOp, AtenAllOp>(op)) {
       auto input = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-      knowledge.hasSizes = true;
-      knowledge.sizes.resize(1, 1);
       knowledge.dtype = IntegerType::get(op->getContext(), 1);
       return incorporateKnowledge(op->getResult(0), knowledge);
     }
@@ -423,8 +402,6 @@ public:
       auto input = operands[0]->getValue();
       auto knowledge =
           ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-      knowledge.hasSizes = true;
-      knowledge.sizes.resize(1, kUnknownSize);
       knowledge.dtype = input.dtype;
       return incorporateKnowledge(op->getResult(0), knowledge);
     }
@@ -908,47 +885,6 @@ static void fillInSizesGivenSizesList(ValueKnowledge &knowledge, Value sizes) {
   }
 }
 
-static void fillInSizesForBinaryBroadcastingOp(ValueKnowledge &lhs,
-                                               ValueKnowledge &rhs,
-                                               ValueKnowledge &knowledge) {
-  if (lhs.hasSizes && rhs.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(std::max(lhs.sizes.size(), rhs.sizes.size()),
-                           kUnknownSize);
-
-    int64_t resultRank = knowledge.sizes.size();
-    auto increaseRankToResultRank =
-        [&](const std::vector<int64_t> &sizes) -> std::vector<int64_t> {
-      int offset = resultRank - sizes.size();
-      std::vector<int64_t> newSizes(std::max(offset, 0), 1);
-      newSizes.insert(newSizes.end(), sizes.begin(), sizes.end());
-      return newSizes;
-    };
-
-    std::vector<int64_t> rankAdjustedSizesLhs =
-        increaseRankToResultRank(lhs.sizes);
-    std::vector<int64_t> rankAdjustedSizesRhs =
-        increaseRankToResultRank(rhs.sizes);
-
-    for (int64_t i = 0; i < resultRank; i++) {
-      int64_t lhsDimSize = rankAdjustedSizesLhs[i];
-      int64_t rhsDimSize = rankAdjustedSizesRhs[i];
-      // Dynamic shape can't be decided at compilation.
-      if (lhsDimSize == kUnknownSize || rhsDimSize == kUnknownSize)
-        continue;
-
-      // Incompatible broadcasting shape.
-      if (lhsDimSize != rhsDimSize && lhsDimSize != 1 && rhsDimSize != 1) {
-        knowledge.hasSizes = false;
-        knowledge.sizes.clear();
-        return;
-      }
-
-      knowledge.sizes[i] = std::max(lhsDimSize, rhsDimSize);
-    }
-  }
-}
-
 ChangeResult
 TypeAnalyzer::incorporateKnowledge(Value v, const ValueKnowledge &knowledge) {
   auto updatedKnowledge = ValueKnowledge::meet(
@@ -963,29 +899,6 @@ ChangeResult TypeAnalyzer::visitAtenMmOp(
   auto &rhs = operands[1]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = true;
-  // WARNING: We could be more precise here by calculating the output
-  // shape as "(lhs.shape[0], rhs.shape[1])". However, that is really tricky
-  // at this stage in the compiler because we don't really have many static
-  // guarantees about the input ranks because `aten` ops do dynamic error
-  // checking and safely abort the program. There is nothing preventing us
-  // from (correctly!) statically inferring the shapes of the operands to
-  // shapes that are guaranteed to cause an error at runtime.
-  //
-  // Example: Suppose a user program calls `aten.mm` with two rank-0
-  // operands. The program emits an error when invoked, but when running
-  // this pass, we will (correctly!) infer `lhs.hasSizes && lhs.sizes.size()
-  // == 0 && rhs.hasSizes && rhs.sizes.size() == 0` -- it's not safe to
-  // access `lhs.sizes[0]` / `rhs.sizes[1]`! So when writing this transfer
-  // function, it's not as simple as taking `lhs.sizes[0]` and
-  // `rhs.sizes[1]`, as both of those might read out of bounds of the array.
-  // It would require more complicated logic.
-  //
-  // Just knowing dtypes and ranks is sufficient at this stage
-  // in the compiler. The precise per-dimension size propagation is best
-  // done lower in the stack, such as at the linalg level, where we have
-  // more static guarantees and more structure.
-  knowledge.sizes.resize(2, kUnknownSize);
   // TODO: Investigate promotion rules if element types mismatch.
   // This is conservatively correct, assuming that if both element types are
   // the same, then the result is of that same element type.
@@ -1001,8 +914,6 @@ ChangeResult TypeAnalyzer::visitAtenAddmmOp(
   auto &mat2 = operands[2]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.hasSizes = true;
-  knowledge.sizes.resize(2, kUnknownSize);
   knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
       op->getContext(), {&input, &mat1, &mat2});
   return incorporateKnowledge(op->getResult(0), knowledge);
@@ -1096,10 +1007,6 @@ ChangeResult TypeAnalyzer::visitBinaryTensorScalarOp(
   Value scalar = op->getOperand(1);
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  if (lhs.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes = lhs.sizes;
-  }
   knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
@@ -1129,7 +1036,6 @@ ChangeResult TypeAnalyzer::visitBinaryBroadcastingComparisonOp(
   auto rhs = operands[1]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  fillInSizesForBinaryBroadcastingOp(lhs, rhs, knowledge);
   knowledge.dtype = IntegerType::get(op->getContext(), 1);
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
@@ -1141,37 +1047,17 @@ ChangeResult TypeAnalyzer::visitAtenWhereSelfOp(
   auto rhs = operands[2]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(getContext());
-  if (condition.hasSizes && lhs.hasSizes && rhs.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(
-        std::max(condition.sizes.size(),
-                 std::max(lhs.sizes.size(), rhs.sizes.size())),
-        kUnknownSize);
-  }
-
   knowledge.dtype = getPromotedResultType(getContext(), {&lhs, &rhs});
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenLerpTensorOp(
     AtenLerpTensorOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  // This is a general broadcasting shape transfer function.
-  // We currently don't track "size 1" in our lattice, but we might want to.
-  // We could make this more precise as well. But again, as with the other
-  // shape transfer functions, handling the statically-invalid case is
-  // tricky, so we defer that until we need it.
   auto self = operands[0]->getValue();
   auto end = operands[1]->getValue();
   auto weight = operands[2]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  if (self.hasSizes && end.hasSizes && weight.hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes.resize(
-        std::max(std::max(self.sizes.size(), end.sizes.size()),
-                 weight.sizes.size()),
-        kUnknownSize);
-  }
   knowledge.dtype = getPromotedResultType(getContext(), {&self, &end, &weight});
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
@@ -1192,16 +1078,6 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
-  if (operand.hasSizes) {
-    int64_t inputRank = operand.sizes.size();
-    knowledge.hasSizes = true;
-    // `knowledge.sizes` will be empty when either `inputRank` is 0 or operand
-    // tensor type is statically shaped with all dimensions being unit.
-    // Note: size-1 dynamic dimensions are not supported yet.
-    for (auto i = 0; i < inputRank; i++)
-      if (operand.sizes[i] != 1)
-        knowledge.sizes.push_back(operand.sizes[i]);
-  }
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1243,25 +1119,6 @@ ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = operand.dtype;
-  int64_t dim;
-  if (operand.hasSizes && matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
-    int64_t inputRank = operand.sizes.size();
-    if (inputRank == 0) {
-      if (dim == -1 || dim == 0) {
-        knowledge.hasSizes = true;
-      }
-      return incorporateKnowledge(op.getResult(), knowledge);
-    }
-    // The dim value is allowed to be in the range `[-inputRank, inputRank)`.
-    if (dim < 0)
-      dim += inputRank;
-    if (0 <= dim && dim < inputRank && operand.sizes[dim] != kUnknownSize) {
-      knowledge.hasSizes = true;
-      knowledge.sizes = operand.sizes;
-      if (operand.sizes[dim] == 1)
-        knowledge.sizes.erase(knowledge.sizes.begin() + dim);
-    }
-  }
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1280,8 +1137,6 @@ ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
     llvm::Optional<Value> step, Value dtype) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  knowledge.sizes.resize(1, kUnknownSize);
-  knowledge.hasSizes = true;
   int64_t dtypeInt;
   if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt))) {
     knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
@@ -1324,9 +1179,6 @@ ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
   knowledge.dtype = dtype;
-  // Reduction along all dims always results in a tensor of rank zero,
-  // which is represented by the default empty `knowledge.sizes` vector
-  knowledge.hasSizes = true;
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1339,31 +1191,6 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntListOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = dtype;
-  llvm::SmallVector<int64_t> dimList;
-  bool keepDim;
-  if (matchPattern(keepdim, m_TorchConstantBool(&keepDim))) {
-    knowledge.hasSizes = true;
-    int64_t inputRank = input.sizes.size();
-    // TODO: This is not safe. Need to check the list users and use aliasing
-    // info to safely detect the list is not modified.
-    if (matchPattern(dim, m_TorchConstantIntList(dimList))) {
-      llvm::for_each(
-          dimList, [&](int64_t &dim) { dim = toPositiveDim(dim, inputRank); });
-      DenseSet<int64_t> dimSet(dimList.begin(), dimList.end());
-      for (auto en : llvm::enumerate(input.sizes)) {
-        if (dimSet.contains(en.index())) {
-          if (keepDim)
-            knowledge.sizes.push_back(1);
-        } else {
-          knowledge.sizes.push_back(en.value());
-        }
-      }
-    } else if (auto listConstruct = dim.getDefiningOp<PrimListConstructOp>()) {
-      auto sizes = listConstruct.elements();
-      knowledge.sizes.resize(keepDim ? inputRank : inputRank - sizes.size(),
-                             kUnknownSize);
-    }
-  }
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1371,28 +1198,9 @@ ChangeResult TypeAnalyzer::visitReductionAlongDimIntOp(
     Operation *op, Value dim, Value keepdim, Type dtype,
     ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   assert(dim.getType().isa<Torch::IntType>() && "dim must be int type");
-  auto input = operands[0]->getValue();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   knowledge.dtype = dtype;
-  int64_t dimInt;
-  bool keepDim;
-  if (matchPattern(keepdim, m_TorchConstantBool(&keepDim))) {
-    int64_t inputRank = input.sizes.size();
-    knowledge.hasSizes = true;
-    if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
-      knowledge.sizes = input.sizes;
-      dimInt = toPositiveDim(dimInt, inputRank);
-      if (isValidDim(dimInt, inputRank)) {
-        if (keepDim)
-          knowledge.sizes[dimInt] = 1;
-        else
-          knowledge.sizes.erase(knowledge.sizes.begin() + dimInt);
-      }
-    } else {
-      knowledge.sizes.resize(keepDim ? inputRank : inputRank - 1, kUnknownSize);
-    }
-  }
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1405,8 +1213,6 @@ ChangeResult TypeAnalyzer::visitReshapeLikeOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   knowledge.dtype = input.dtype;
-
-  fillInSizesGivenSizesList(knowledge, op.size());
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 

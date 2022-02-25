@@ -187,6 +187,96 @@ def aten〇gelu(self: List[int]) -> List[int]:
 def aten〇contiguous(self: List[int], memory_format: int = 0) -> List[int]:
     return shape_helpers.unary(self)
 
+def aten〇eq〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇ne〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇gt〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇ge〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇le〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇lt〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇add〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇sub〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇mul〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇div〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇floor_divide〇Scalar(self: List[int], other: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇pow〇Tensor_Scalar(self: List[int], exponent: float) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇leaky_relu(self: List[int], negative_slope: float = 0.01) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇any(self: List[int]) -> List[int]:
+    return []
+
+def aten〇all(self: List[int]) -> List[int]:
+    return []
+
+def aten〇sum(self: List[int], dtype: Optional[int] = None) -> List[int]:
+    return []
+
+def aten〇mean(self: List[int], dtype: Optional[int] = None) -> List[int]:
+    return []
+
+def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
+    dim = shape_helpers.maybe_wrap_dim(dim, len(self))
+    out: List[int] = []
+    for i, self_dim in enumerate(self):
+        if i == dim:
+            if keepdim:
+                out.append(1)
+        else:
+            out.append(self_dim)
+    return out
+
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=0, keepdim=True), # `keepdim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=-3), # Negative `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=2), # Maximum valid `dim`.
+    # Error cases.
+    Invocation(TensorOfShape(2, 3, 4), dim=-4), # `dim` out of bounds.
+    Invocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
+])
+def aten〇argmax(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
+    if dim is None:
+        return []
+    return _reduce_along_dim(self, dim, keepdim)
+
+def aten〇any〇dim(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
+    return _reduce_along_dim(self, dim, keepdim)
+
+def aten〇mean〇dim(self: List[int], dim: List[int], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    return shape_helpers.mean_dim(self, dim, keepdim, dtype)
+
+def aten〇sum〇dim_IntList(self: List[int], dim: List[int], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    return shape_helpers.mean_dim(self, dim, keepdim, dtype)
+
+
 def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
     return shape_helpers.permute(self, dims)
 
@@ -196,6 +286,12 @@ def aten〇transpose〇int(self: List[int], dim0: int, dim1: int) -> List[int]:
 def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
     return shape_helpers.matmul(self, other)
 
+def aten〇mm(self: List[int], mat2: List[int]) -> List[int]:
+    return shape_helpers.mm(self, mat2)
+
+def aten〇addmm(self: List[int], mat1: List[int], mat2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
+    return shape_helpers.addmm(self, mat1, mat2, beta, alpha)
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
@@ -204,6 +300,9 @@ def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> L
 
 def aten〇view(self: List[int], size: List[int]) -> List[int]:
     return shape_helpers.view(self, size)
+
+def aten〇resize_(self: List[int], size: List[int], memory_format: Optional[int] = None) -> List[int]:
+    return size
 
 def aten〇layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> List[int]:
     return shape_helpers.unary(input)
@@ -229,6 +328,20 @@ def aten〇zeros(size: List[int], dtype: Optional[int] = None, layout: Optional[
 def aten〇ones(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇empty〇memory_format(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return size
+
+def aten〇empty_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return shape_helpers.unary(self)
+
+def aten〇arange〇start_step(start: float, end: float, step: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return shape_helpers.arange_start_step(start, end, step, dtype, layout, device, pin_memory)
+
+def aten〇arange〇start(start: float, end: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return shape_helpers.arange_start(start, end, dtype, layout, device, pin_memory)
+
+def aten〇arange(end: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return shape_helpers.arange_end(end, dtype, layout, device, pin_memory)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3)), # Basic case.
@@ -264,14 +377,32 @@ def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
 def aten〇threshold_backward(grad_output: List[int], self: List[int], threshold: float) -> List[int]:
     return shape_helpers.broadcast(grad_output, self)
 
+def aten〇eq〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇gt〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
+def aten〇lt〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, other)
+
 def aten〇unsqueeze(self: List[int], dim: int) -> List[int]:
     return shape_helpers.unsqueeze(self, dim)
 
 def aten〇squeeze(self: List[int]) -> List[int]:
     return shape_helpers.squeeze_nodim(self)
 
+def aten〇squeeze〇dim(self: List[int], dim: int) -> List[int]:
+    return shape_helpers.squeeze(self, dim)
+
 def prim〇NumToTensor〇Scalar(a: float) -> List[int]:
     return []
+
+def aten〇where〇self(condition: List[int], self: List[int], other: List[int]) -> List[int]:
+    return shape_helpers.broadcast(condition, shape_helpers.broadcast(self, other))
+
+def aten〇lerp〇Tensor(self: List[int], end: List[int], weight: List[int]) -> List[int]:
+    return shape_helpers.broadcast(self, shape_helpers.broadcast(end, weight))
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.

@@ -115,6 +115,7 @@ def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [

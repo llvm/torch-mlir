@@ -403,6 +403,28 @@ func @torch.prim.max.int$constant() -> !torch.int {
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func @torch.prim.min.self_int$basic() -> !torch.int {
+// CHECK:           %[[M1:.*]] = torch.constant.int -1
+// CHECK:           return %[[M1]] : !torch.int
+func @torch.prim.min.self_int$basic() -> !torch.int {
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int-1, %int0, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.prim.min.self_int %0 : !torch.list<!torch.int> -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.prim.min.self_int$nofold$dynamic(
+// CHECK:           torch.prim.min.self_int
+func @torch.prim.min.self_int$nofold$dynamic(%arg0: !torch.int) -> !torch.int {
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %int-1, %int0, %arg0: (!torch.int, !torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.prim.min.self_int %0 : !torch.list<!torch.int> -> !torch.int
+  return %1 : !torch.int
+}
+
 // CHECK-LABEL:   func @torch.aten.len.t$of_size(
 // CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.int {
 // CHECK:           %[[DIM:.*]] = torch.aten.dim %[[ARG]] : !torch.vtensor<*,f32> -> !torch.int
@@ -826,6 +848,15 @@ func @torch.prim.unchecked_cast$derefine_identity(%arg0: !torch.int) -> !torch.i
   %0 = torch.derefine %arg0 : !torch.int to !torch.optional<!torch.int>
   %1 = torch.prim.unchecked_cast %0 : !torch.optional<!torch.int> -> !torch.int
   return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.derefine$of_unchecked_cast(
+// CHECK-SAME:                                           %[[ARG:.*]]: !torch.optional<!torch.int>) -> !torch.optional<!torch.int> {
+// CHECK:           return %[[ARG]] : !torch.optional<!torch.int>
+func @torch.derefine$of_unchecked_cast(%arg0: !torch.optional<!torch.int>) -> !torch.optional<!torch.int> {
+  %0 = torch.prim.unchecked_cast %arg0 : !torch.optional<!torch.int> -> !torch.int
+  %1 = torch.derefine %0 : !torch.int to !torch.optional<!torch.int>
+  return %1 : !torch.optional<!torch.int>
 }
 
 // CHECK-LABEL:   func @torch.tensor_static_info_cast$downcast_first(

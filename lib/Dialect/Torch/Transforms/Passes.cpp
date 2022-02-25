@@ -166,5 +166,8 @@ void mlir::torch::Torch::createTorchShapeRefinementPipeline(
   // TODO: Only inline shape functions.
   pm.addPass(createInlinerPass());
   pm.addNestedPass<FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  // Run CSE, then see if we can simplify further.
+  pm.addNestedPass<FuncOp>(createCSEPass());
+  pm.addNestedPass<FuncOp>(Torch::createSimplifyShapeCalculationsPass());
   pm.addNestedPass<FuncOp>(Torch::createDropShapeCalculationsPass());
 }

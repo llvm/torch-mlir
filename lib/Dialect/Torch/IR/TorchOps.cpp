@@ -444,6 +444,15 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
   return isValidSubtype(inputs[0], outputs[0]);
 }
 
+OpFoldResult DerefineOp::fold(ArrayRef<Attribute> operands) {
+  auto uncheckedCast = getOperand().getDefiningOp<PrimUncheckedCastOp>();
+  if (!uncheckedCast)
+    return nullptr;
+  if (uncheckedCast.getOperand().getType() == getType())
+    return uncheckedCast.getOperand();
+  return nullptr;
+}
+
 static OpFoldResult atenIsOrIsNotFoldHelper(Operation *op, bool equalIsTrue) {
   Value lhs = op->getOperand(0);
   Value rhs = op->getOperand(1);
@@ -1456,6 +1465,29 @@ OpFoldResult PrimMaxIntOp::fold(ArrayRef<Attribute> operands) {
   return IntegerAttr::get(
       lhs.getType(),
       std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
+// PrimMinSelfIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
+  auto list = getOperand().getDefiningOp<PrimListConstructOp>();
+  if (!list)
+    return nullptr;
+  // TODO: What does it return for an empty list?
+  if (list->getNumOperands() == 0)
+    return nullptr;
+
+  SmallVector<int64_t> values;
+  for (auto operand : list->getOperands()) {
+    int64_t value;
+    if (!matchPattern(operand, m_TorchConstantInt(&value)))
+      return nullptr;
+    values.push_back(value);
+  }
+  return getI64IntegerAttr(getContext(),
+                           *std::min_element(values.begin(), values.end()));
 }
 
 //===----------------------------------------------------------------------===//

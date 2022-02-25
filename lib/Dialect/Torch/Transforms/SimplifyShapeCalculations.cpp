@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 
@@ -100,8 +101,25 @@ public:
   LogicalResult matchAndRewrite(PrimListConstructOp op,
                                 PatternRewriter &rewriter) const override {
     Block *block = op->getBlock();
-    auto users = llvm::to_vector<6>(op->getUsers());
-    for (Operation *user : users) {
+    auto allUsers = llvm::to_vector<6>(op->getUsers());
+
+    // Sort the users into program order.
+    auto getParentInBlock = [&](Operation *op) {
+      while (op->getBlock() != block)
+        op = op->getParentOp();
+      return op;
+    };
+    // Use a stable sort for deterministic results when users are nested in two
+    // regions of the same parent op.
+    llvm::stable_sort(allUsers, [&](Operation *lhs, Operation *rhs) {
+      return getParentInBlock(lhs)->isBeforeInBlock(getParentInBlock(rhs));
+    });
+
+    // We cannot interpret all ops. So first do a check to see up until which
+    // point we can interpret.
+    int numUsersToInterpret = 0;;
+    for (int i = 0, e = allUsers.size(); i != e; i++, numUsersToInterpret++) {
+      Operation *user = allUsers[i];
       // If a user potentially mutates the list, then we require it to be in the
       // same block for our simple abstract interpretation to work (we can't,
       // for example, handle an "append" operation in a loop or other region).
@@ -111,19 +129,16 @@ public:
       // consideration.
       if (potentiallyMutatesListOperands(user)) {
         if (user->getBlock() != block)
-          return failure();
+          break;
       }
       // TODO: Correctly handle CFG/branch-based control flow.
     }
 
-    auto getParentInBlock = [&](Operation *op) {
-      while (op->getBlock() != block)
-        op = op->getParentOp();
-      return op;
-    };
-    llvm::sort(users, [&](Operation *lhs, Operation *rhs) {
-      return getParentInBlock(lhs)->isBeforeInBlock(getParentInBlock(rhs));
-    });
+    // Truncate the list of users to the number of users we're going to
+    // interpret.
+    allUsers.resize(numUsersToInterpret);
+    auto usersToInterpret =
+        makeArrayRef(allUsers).take_front(numUsersToInterpret);
 
     // For each mutating op (which must be in the same block), we save the
     // current state of the list as a vector of Value's. These will then
@@ -131,7 +146,7 @@ public:
     SmallVector<SmallVector<Value>> listLiterals;
     SmallVector<Value> runningList;
     llvm::append_range(runningList, op->getOperands());
-    for (Operation *user : users) {
+    for (Operation *user : usersToInterpret) {
       if (auto append = dyn_cast<AtenAppendTOp>(user)) {
         if (!append.use_empty())
           return failure();
@@ -177,7 +192,7 @@ public:
     // Rewrite all users to use the appropriate list literals.
     Value latestLiteral = op;
     int nextLiteral = 0;
-    for (Operation *user : users) {
+    for (Operation *user : usersToInterpret) {
       if (auto append = dyn_cast<AtenAppendTOp>(user)) {
         rewriter.setInsertionPoint(append);
         latestLiteral = rewriter.replaceOpWithNewOp<PrimListConstructOp>(
@@ -204,6 +219,8 @@ public:
       }
     }
 
+    // Any remaining uses should use the updated value of the latest literal.
+    rewriter.replaceOp(op, latestLiteral);
     return success();
   }
 };
@@ -251,6 +268,106 @@ public:
 };
 } // namespace
 
+static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
+                                       PatternRewriter &rewriter,
+                                       bool &madeChange) {
+  auto yieldValues = op.body().front().getTerminator();
+  auto yieldShapes = op.shapeCalculation().front().getTerminator();
+  auto shape = yieldShapes->getOperand(resultNum);
+  auto result = op->getResult(resultNum);
+
+  // If the yielded shape is not a list literal, we can't analyze it.
+  // AbstractlyInterpretListOpsWithinABlock should already have converted as
+  // much as possible to literals.
+  auto listConstruct = shape.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return;
+  llvm::BitVector clobberedElements(listConstruct->getNumOperands());
+  // Analyze the users to determine if we can refine the shape. 
+  for (Operation *user : listConstruct->getUsers()) {
+    // If an op doesn't mutate the list, then we can handle it.
+    if (!potentiallyMutatesListOperands(user))
+      continue;
+    // We can handle Aten_SetItemTOp specially, since we know that it doesn't
+    // change the size of the list. It might clobber some elements, which then
+    // become dimensions with unknown size.
+    if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
+      int64_t index;
+      // If the index is statically known, we can clobber only a single index.
+      // Otherwise, we conservatively clobber all of them.
+      if (matchPattern(setItem.idx(), m_TorchConstantInt(&index)) &&
+          isValidDim(index, listConstruct->getNumOperands())) {
+        clobberedElements.set(index);
+      } else {
+        clobberedElements.set();
+      }
+      continue;
+      }
+    // An unhandled op! We can't make any assumptions about the shape.
+    return;
+  }
+
+  // Construct the list of sizes implied by the yielded shape.
+  SmallVector<int64_t> sizes;
+  for (auto operand : llvm::enumerate(listConstruct->getOperands())) {
+    int64_t size;
+    if (matchPattern(operand.value(), m_TorchConstantInt(&size)) &&
+        !clobberedElements[operand.index()])
+      sizes.push_back(size);
+    else
+      sizes.push_back(kUnknownSize);
+  }
+
+  // Calculate the updated type incorporating the new shape information.
+  Type originalResultType = result.getType();
+  auto impliedTypesFromShape =
+      originalResultType.cast<BaseTensorType>().getWithSizesAndDtype(
+          makeArrayRef(sizes), nullptr);
+  auto updatedType =
+      meetTensorTypes(originalResultType.cast<BaseTensorType>(),
+                      impliedTypesFromShape.cast<BaseTensorType>());
+  // If we didn't get any new information, there is nothing left for us to do.
+  if (!updatedType || updatedType == originalResultType)
+    return;
+
+  // Update all the uses of the result type to the new type, if possible. Insert
+  // a TensorStaticInfoCastOp for any users that might require the exact
+  // previous type.
+  Value originalTypedValue;
+  for (OpOperand &use : result.getUses()) {
+    if (use.getOwner()
+            ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
+      continue;
+    }
+    if (!originalTypedValue) {
+      rewriter.setInsertionPointAfter(op);
+      originalTypedValue = rewriter.create<TensorStaticInfoCastOp>(
+          op->getLoc(), originalResultType, result);
+    }
+    use.set(originalTypedValue);
+  }
+  result.setType(updatedType);
+  madeChange = true;
+
+  // Update the value yielded from the body to match the new result type. If we
+  // can refine the def in place, do that, otherwise insert a
+  // TensorStaticInfoCastOp.
+  OpOperand &use = op.body().front().getTerminator()->getOpOperand(resultNum);
+  Value def = use.get();
+  Value newYieldedValue;
+  if (def.isa<OpResult>() &&
+      def.cast<OpResult>()
+          .getDefiningOp()
+          ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
+    newYieldedValue = def;
+  } else {
+    rewriter.setInsertionPoint(yieldValues);
+    newYieldedValue =
+        rewriter.create<TensorStaticInfoCastOp>(op->getLoc(), updatedType, def);
+  }
+  use.set(newYieldedValue);
+  newYieldedValue.setType(updatedType);
+}
 namespace {
 // This pattern propagates information out of the shape calculation region and
 // into the ShapeCalculateOp result types.
@@ -259,100 +376,108 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(ShapeCalculateOp op,
                                 PatternRewriter &rewriter) const override {
-    auto yieldShapes = cast<ShapeCalculateYieldShapesOp>(
-        op.shapeCalculation().front().getTerminator());
-    SmallVector<SmallVector<int64_t>> shapes;
-    SmallVector<bool> hasShapes;
-    for (Value shapeValue : yieldShapes->getOperands()) {
-      auto listConstruct = shapeValue.getDefiningOp<PrimListConstructOp>();
-      if (!listConstruct || isListPotentiallyMutated(listConstruct)) {
-        shapes.emplace_back();
-        hasShapes.push_back(false);
-        continue;
-      }
-      hasShapes.push_back(true);
-      SmallVector<int64_t> &shape = shapes.emplace_back();
-      for (Value dimension : listConstruct->getOperands()) {
-        int64_t constantSize;
-        if (matchPattern(dimension, m_TorchConstantInt(&constantSize)))
-          shape.push_back(constantSize);
-        else
-          shape.push_back(kUnknownSize);
-      }
-    }
-    assert(shapes.size() == hasShapes.size());
-    SmallVector<Type> updatedResultTypes;
-    for (int i = 0, e = shapes.size(); i < e; i++) {
-      if (!hasShapes[i]) {
-        updatedResultTypes.push_back(Type());
-        continue;
-      }
-
-      Type resultType = op->getResult(i).getType();
-      auto impliedTypeFromShape =
-          resultType.cast<BaseTensorType>().getWithSizesAndDtype(
-              makeArrayRef(shapes[i]), nullptr);
-      auto updatedType =
-          meetTensorTypes(resultType.cast<BaseTensorType>(),
-                          impliedTypeFromShape.cast<BaseTensorType>());
-      updatedResultTypes.push_back(updatedType);
-    }
-    // Update uses of the results.
-    bool madeChange = false;
-    for (int i = 0, e = shapes.size(); i < e; i++) {
-      if (!hasShapes[i])
-        continue;
-      Value result = op->getResult(i);
-      auto originalType = result.getType();
-      auto updatedType = updatedResultTypes[i];
-      if (!updatedType || updatedType == originalType)
-        continue;
-      Value originalTypedValue;
-      for (OpOperand &use : result.getUses()) {
-        if (use.getOwner()
-                ->hasTrait<
-                    mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
-          continue;
-        }
-        if (!originalTypedValue) {
-          rewriter.setInsertionPointAfter(op);
-          originalTypedValue = rewriter.create<TensorStaticInfoCastOp>(
-              op->getLoc(), originalType, result);
-        }
-        use.set(originalTypedValue);
-      }
-      result.setType(updatedType);
-      madeChange = true;
-    }
-    if (!madeChange)
-      return rewriter.notifyMatchFailure(op, "No updates to make.");
-
-    // Update the body.
     // TODO: Rename ShapeCalculateYieldOp as ShapeCalculateYieldValuesOp?
-    auto yieldValues =
-        cast<ShapeCalculateYieldOp>(op.body().front().getTerminator());
-    for (int i = 0, e = shapes.size(); i < e; i++) {
-      if (!hasShapes[i])
-        continue;
-      OpOperand &use = yieldValues->getOpOperand(i);
-      Value def = use.get();
-      auto updatedType = updatedResultTypes[i];
-      Value newYieldedValue;
-      // If we can't refine the def in place, then create a new one.
-      if (def.isa<OpResult>() &&
-          def.cast<OpResult>()
-              .getDefiningOp()
-              ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
-        newYieldedValue = def;
-      } else {
-        rewriter.setInsertionPoint(yieldValues);
-        newYieldedValue = rewriter.create<TensorStaticInfoCastOp>(
-            op->getLoc(), updatedType, def);
-      }
-      use.set(newYieldedValue);
-      newYieldedValue.setType(updatedType);
-    }
-    return success();
+    bool madeChange = false;
+    for (int i = 0, e = op->getNumResults(); i != e; i++)
+      refineShapeCalculateResult(op, i, rewriter, madeChange);
+    return success(madeChange);
+    
+    // auto yieldShapes = cast<ShapeCalculateYieldShapesOp>(
+    //     op.shapeCalculation().front().getTerminator());
+    // SmallVector<SmallVector<int64_t>> shapes;
+    // SmallVector<bool> hasShapes;
+    // for (Value shapeValue : yieldShapes->getOperands()) {
+    //   auto listConstruct = shapeValue.getDefiningOp<PrimListConstructOp>();
+    //   // TODO: Increase precision here: SetItem doesn't change the size of the
+    //   // list, but simply clobbers one element.
+    //   if (!listConstruct || isListPotentiallyMutated(listConstruct)) {
+    //     shapes.emplace_back();
+    //     hasShapes.push_back(false);
+    //     continue;
+    //   }
+    //   hasShapes.push_back(true);
+    //   SmallVector<int64_t> &shape = shapes.emplace_back();
+    //   for (Value dimension : listConstruct->getOperands()) {
+    //     int64_t constantSize;
+    //     if (matchPattern(dimension, m_TorchConstantInt(&constantSize)))
+    //       shape.push_back(constantSize);
+    //     else
+    //       shape.push_back(kUnknownSize);
+    //   }
+    // }
+    // assert(shapes.size() == hasShapes.size());
+    // SmallVector<Type> updatedResultTypes;
+    // for (int i = 0, e = shapes.size(); i < e; i++) {
+    //   if (!hasShapes[i]) {
+    //     updatedResultTypes.push_back(Type());
+    //     continue;
+    //   }
+
+    //   Type resultType = op->getResult(i).getType();
+    //   auto impliedTypeFromShape =
+    //       resultType.cast<BaseTensorType>().getWithSizesAndDtype(
+    //           makeArrayRef(shapes[i]), nullptr);
+    //   auto updatedType =
+    //       meetTensorTypes(resultType.cast<BaseTensorType>(),
+    //                       impliedTypeFromShape.cast<BaseTensorType>());
+    //   updatedResultTypes.push_back(updatedType);
+    // }
+    // // Update uses of the results.
+    // bool madeChange = false;
+    // for (int i = 0, e = shapes.size(); i < e; i++) {
+    //   if (!hasShapes[i])
+    //     continue;
+    //   Value result = op->getResult(i);
+    //   auto originalType = result.getType();
+    //   auto updatedType = updatedResultTypes[i];
+    //   if (!updatedType || updatedType == originalType)
+    //     continue;
+    //   Value originalTypedValue;
+    //   for (OpOperand &use : result.getUses()) {
+    //     if (use.getOwner()
+    //             ->hasTrait<
+    //                 mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
+    //       continue;
+    //     }
+    //     if (!originalTypedValue) {
+    //       rewriter.setInsertionPointAfter(op);
+    //       originalTypedValue = rewriter.create<TensorStaticInfoCastOp>(
+    //           op->getLoc(), originalType, result);
+    //     }
+    //     use.set(originalTypedValue);
+    //   }
+    //   result.setType(updatedType);
+    //   madeChange = true;
+    // }
+    // if (!madeChange)
+    //   return rewriter.notifyMatchFailure(op, "No updates to make.");
+
+    // // Update the body.
+    // // TODO: Rename ShapeCalculateYieldOp as ShapeCalculateYieldValuesOp?
+    // auto yieldValues =
+    //     cast<ShapeCalculateYieldOp>(op.body().front().getTerminator());
+    // for (int i = 0, e = shapes.size(); i < e; i++) {
+    //   if (!hasShapes[i])
+    //     continue;
+    //   OpOperand &use = yieldValues->getOpOperand(i);
+    //   Value def = use.get();
+    //   auto updatedType = updatedResultTypes[i];
+    //   Value newYieldedValue;
+    //   // If we can't refine the def in place, then create a new one.
+    //   if (def.isa<OpResult>() &&
+    //       def.cast<OpResult>()
+    //           .getDefiningOp()
+    //           ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
+    //     newYieldedValue = def;
+    //   } else {
+    //     rewriter.setInsertionPoint(yieldValues);
+    //     newYieldedValue = rewriter.create<TensorStaticInfoCastOp>(
+    //         op->getLoc(), updatedType, def);
+    //   }
+    //   use.set(newYieldedValue);
+    //   newYieldedValue.setType(updatedType);
+    // }
+    // return success();
   }
 };
 } // namespace

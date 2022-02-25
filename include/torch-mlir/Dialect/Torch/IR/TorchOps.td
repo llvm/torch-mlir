@@ -670,6 +670,8 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($operand)) `to` qualified(type($result))
   }];
+
+  let hasFolder = 1;
 }
 
 def Torch_OperatorOp : Torch_Op<"operator", [
