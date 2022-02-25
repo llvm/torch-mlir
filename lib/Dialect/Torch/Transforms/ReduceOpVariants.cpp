@@ -152,6 +152,9 @@ public:
     } else if (isa<AtenBernoulli_FloatOp>(op)) {
       newOp = rewriter.create<PseudoAtenBernoulliFloatOp>(
           loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<AtenBernoulli_TensorOp>(op)) {
+      newOp = rewriter.create<PseudoAtenBernoulliTensorOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenFill_ScalarOp>(op)) {
       newOp = rewriter.create<PseudoAtenFillScalarOp>(loc, op->getResultTypes(),
                                                       op->getOperands());
@@ -232,6 +235,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenUniform_Op>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
+    target.addIllegalOp<AtenBernoulli_TensorOp>();
     target.addIllegalOp<AtenFill_ScalarOp>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
