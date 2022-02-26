@@ -187,6 +187,7 @@ def generate_backend(
         node_base_hdr=str(backend_path.joinpath("mlir_node.h")),
         tensor_class="torch::lazy::LazyTensor",
         tensor_class_hdr="torch/csrc/lazy/core/tensor.h",
+        shape_inference_hdr=str(backend_path.joinpath("LazyShapeInference.h")),
         lazy_ir_cls=MlirLazyIr,
     )
 
@@ -204,10 +205,19 @@ def generate_backend(
     import re
 
     sig_re = re.compile(f"std::vector<Shape> (?P<name>[_a-zA-Z0-9]+)\((?P<signature>.+)\);")
+    upstream_shape_inference_decls = set(
+        (name, signature)
+        for name, signature in sig_re.findall(
+            TORCH_DIR.joinpath("torch", "csrc", "lazy", "core", "shape_inference.h").read_text()
+        )
+    )
     shape_inference_decls = backend_path.joinpath("LazyShapeInference.h").read_text()
 
     shape_inference_defs = []
     for name, signature in sig_re.findall(shape_inference_decls):
+        if (name, signature) in upstream_shape_inference_decls:
+            continue
+
         shape_inference_defs.append(
             dedent(
                 f"""
@@ -227,17 +237,13 @@ def generate_backend(
             #include "../utils/exception.h"
 
 
-            namespace torch_lazy_tensors {{
-            namespace ir {{
-            namespace ops {{
-
-            using Shape = torch::lazy::Shape;
+            namespace torch {{
+            namespace lazy {{
 
             {}
 
-            }} // namespace ops
-            }} // namespace ir
-            }} // namespace torch_lazy_tensors
+            }}  // namespace lazy
+            }}  // namespace torch
             """
         ).format("".join(shape_inference_defs))
     )

@@ -12,7 +12,6 @@
 // This file is adapted from pytorch/pytorch
 // https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/backend_impl.h
 //===----------------------------------------------------------------------===//
-//===----------------------------------------------------------------------===//
 
 #pragma once
 
