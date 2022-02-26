@@ -1,8 +1,22 @@
+//===- mlir_lowering_context.h --------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+// This file is adapted from pytorch/pytorch
+// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/torch/csrc/lazy/ts_backend/ts_lowering_context.h
+//===----------------------------------------------------------------------===//
+
+
 #pragma once
 
 #include <vector>
 
 #include <torch/csrc/lazy/backend/lowering_context.h>
+
 
 namespace torch {
 namespace lazy {
@@ -38,9 +52,9 @@ class MlirLoweringContext : public torch::lazy::LoweringContext {
     // shape. Only used for the operator-by-operator execution, mostly for
     // debugging purposes.
     virtual void AddParameter(const torch::lazy::Output& output,
-                      size_t index,
-                      const torch::lazy::Shape& shape,
-                      const std::string& name) override;
+                              size_t index,
+                              const torch::lazy::Shape& shape,
+                              const std::string& name) override;
 
     // Build the computation capturing all the operations created with the
     // embedded builder (returned by the builder() API).
