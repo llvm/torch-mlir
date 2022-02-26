@@ -20,9 +20,14 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 
 add_library(torch_mlir_ltc_backend SHARED
-  backend/backend_impl.cc
-  backend/mlir_lowering_context.cc
-  backend/mlir_node.cc
+  backend/aten_eager_fallback.cpp
+  backend/aten_ltc_mlir_type.cpp
+  backend/backend_impl.cpp
+  backend/LazyNativeFunctions.cpp
+  backend/LazyShapeInference.cpp
+  backend/mlir_lowering_context.cpp
+  backend/mlir_node.cpp
+  backend/RegisterLazy.cpp
 )
 
 target_link_libraries(torch_mlir_ltc_backend
@@ -32,12 +37,13 @@ target_link_libraries(torch_mlir_ltc_backend
   torch_python
 )
 
-message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wpedantic")
+message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
 set_target_properties(torch_mlir_ltc_backend PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/"
   OUTPUT_NAME _MLIR_LTC
   PREFIX "${PYTHON_MODULE_PREFIX}"
   SUFFIX "${PYTHON_MODULE_EXTENSION}"
   CXX_VISIBILITY_PRESET "hidden"
-  COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wpedantic"
+  COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
 )
+
