@@ -3037,6 +3037,37 @@ def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [
   let hasFolder = 1;
 }
 
+def Torch_AtenScatter_ReduceOp : Torch_Op<"aten.scatter_.reduce", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::scatter_.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    AnyTorchTensorType:$index,
+    AnyTorchTensorType:$src,
+    Torch_StringType:$reduce
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dim `,` $index `,` $src `,` $reduce attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($index)) `,` qualified(type($src)) `,` qualified(type($reduce)) `->` qualified(type($result))";
+}
+
+def Torch_AtenNonzeroOp : Torch_Op<"aten.nonzero", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::nonzero : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
 def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
     AllowsTypeRefinement,
     HasValueSemantics

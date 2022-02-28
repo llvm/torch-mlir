@@ -15,6 +15,8 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringExtras.h"
+#include <cstdint>
+#include <llvm/ADT/ArrayRef.h>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -666,7 +668,113 @@ public:
 };
 } // namespace
 
-// Decompose aten.addmm into aten.mm and aten.add.Tensor op.
+// Decompose torch.nonzero.
+namespace {
+class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNonzeroOp op, PatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    auto context = op->getContext();
+
+    Value self = op.self();
+    BaseTensorType selfType = self.getType().cast<BaseTensorType>();
+    BaseTensorType flattenedType = selfType.getWithSizesAndDtype({kUnknownSize}, selfType.getDtype()).cast<BaseTensorType>();
+    Value start = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value end = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(getTensorRank(self) - 1));
+    Value selfFlattened = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenedType, self, start, end);
+
+    // %str = torch.constant.str "add" loc(#loc1)
+    Value str = rewriter.create<ConstantStrOp>(loc, rewriter.getStringAttr("add"));
+    // %int3 = torch.constant.int 3 loc(#loc2)
+    Value int3 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(3));
+    // %false = torch.constant.bool false loc(#loc0)
+    Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+    // %int-1 = torch.constant.int -1 loc(#loc3)
+    Value int_1 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    // %none_0 = torch.constant.none loc(#loc0)
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // %int0 = torch.constant.int 0 loc(#loc4)
+    Value int0 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    // %int1 = torch.constant.int 1 loc(#loc5)
+    Value int1 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    // %1 = torch.aten.ne.Scalar %arg1, %int0 : !torch.tensor, !torch.int -> !torch.tensor loc(#loc6)
+    Type boolType = flattenedType.getWithSizesAndDtype({kUnknownSize}, IntegerType::get(context, 1, IntegerType::Signless));
+    Value v1 = rewriter.create<AtenNeScalarOp>(loc, boolType, selfFlattened, int0);
+    // %2 = torch.aten.cumsum %1, %int0, %none_0 : !torch.tensor, !torch.int, !torch.none -> !torch.tensor loc(#loc7)
+    Value v2 = rewriter.create<AtenCumsumOp>(loc, flattenedType, v1, int0, none);
+    // %3 = torch.aten.sub.Scalar %2, %int1, %int1 : !torch.tensor, !torch.int, !torch.int -> !torch.tensor loc(#loc7)
+    Value v3 = rewriter.create<AtenSubScalarOp>(loc, flattenedType, v2, int1, int1);
+    // %4 = torch.aten.eq.Scalar %3, %int-1 : !torch.tensor, !torch.int -> !torch.tensor loc(#loc8)
+    Value v4 = rewriter.create<AtenEqScalarOp>(loc, boolType, v3, int_1);
+    // %5 = torch.prim.dtype %3 : !torch.tensor -> !torch.int loc(#loc0)
+    Value v5 = rewriter.create<PrimDtypeOp>(loc, v3);
+    // %6 = torch.prim.device %3 : !torch.tensor -> !torch.Device loc(#loc0)
+    Value v6;
+    // %7 = torch.aten.tensor.int %int0, %5, %6, %false : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.tensor loc(#loc0)
+    Type indicesType = flattenedType.getWithSizesAndDtype({kUnknownSize}, IntegerType::get(context, 64, IntegerType::Signed));
+    Value v7 = rewriter.create<AtenTensorIntOp>(loc, indicesType, int0, v5, none, falseVal);
+    // %8 = torch.prim.ListConstruct %4 : (!torch.tensor) -> !torch.list<!torch.optional<!torch.tensor>> loc(#loc0)
+    Value v8 = rewriter.create<PrimListConstructOp>(loc, ListType::get(v4.getType()), v4);
+    // %9 = torch.aten.index_put_ %3, %8, %7, %false : !torch.tensor, !torch.list<!torch.optional<!torch.tensor>>, !torch.tensor, !torch.bool -> !torch.tensor loc(#loc9)
+    Value v9 = rewriter.create<AtenIndexPut_Op>(loc, flattenedType, v3, v8, v7, falseVal);
+    // %10 = torch.aten.len.Tensor %arg1 : !torch.tensor -> !torch.int loc(#loc10)
+    Value v10 = rewriter.create<AtenLenTensorOp>(loc, IntType::get(context), selfFlattened);
+    // %11 = torch.aten.arange %10, %none_0, %none_0, %none_0, %none_0 : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor loc(#loc11)
+    Value v11 = rewriter.create<AtenArangeOp>(loc, indicesType, v10, none, none, none, none);
+    // %12 = torch.aten.to.dtype %1, %int3, %false, %false, %none_0 : !torch.tensor, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.tensor loc(#loc2)
+    Value v12 = rewriter.create<AtenToDtypeOp>(loc, boolType, v1, int3, falseVal, falseVal, none);
+    // %13 = torch.aten.mul.Tensor %11, %12 : !torch.tensor, !torch.tensor -> !torch.tensor loc(#loc11)
+    Value v13 = rewriter.create<AtenMulTensorOp>(loc, v11.getType(), v11, v12);
+    // %14 = torch.aten.zeros_like %13, %none_0, %none_0, %none_0, %none_0, %none_0 : !torch.tensor, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor loc(#loc12)
+    Value v14 = rewriter.create<AtenZerosLikeOp>(loc, v13.getType(), v13, none, none, none, none, none);
+    // %15 = torch.aten.scatter_.reduce %14, %int0, %3, %13, %str : !torch.tensor, !torch.int, !torch.tensor, !torch.tensor, !torch.str -> !torch.tensor loc(#loc12)
+    Value v15 = rewriter.create<AtenScatter_ReduceOp>(loc, v14.getType(), v14, int0, v3, v13, str);
+    // %16 = torch.aten.sum %1, %none_0 : !torch.tensor, !torch.none -> !torch.tensor loc(#loc13)
+    Value v16 = rewriter.create<AtenSumOp>(loc, v1.getType(), v1, none);
+    // %17 = torch.aten.IntImplicit %16 : !torch.tensor -> !torch.int loc(#loc14)
+    Value v17 = rewriter.create<AtenIntImplicitOp>(loc, IntType::get(context), v16);
+    // %18 = torch.aten.slice.Tensor %15, %int0, %none_0, %17, %int1 : !torch.tensor, !torch.int, !torch.none, !torch.int, !torch.int -> !torch.tensor loc(#loc14)
+    Value v18 = rewriter.create<AtenSliceTensorOp>(loc, v15.getType(), v15, int0, none, v17, int1);
+
+    // shape = t.shape
+    SmallVector<Value> selfShape;
+    for(size_t i = 0; i < selfType.getSizes().size(); i++) {
+      Value dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      selfShape.push_back(rewriter.create<AtenSizeIntOp>(loc, self, dim).getResult());
+    }
+    // strides = []
+    SmallVector<Value> strides;
+    // accumulated_stride = 1
+    Value v20 = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    for(SmallVector<Value>::reverse_iterator it = selfShape.rbegin(); it != selfShape.rend(); it++) {
+      strides.push_back(v20);
+      v20 = rewriter.create<AtenMulIntOp>(loc, v20.getType(), v20, *it);
+    }
+    // remainder = t
+    Value v21 = rewriter.create<AtenCloneOp>(loc, self.getType(), self, none);
+    // result = []
+    Value v22 = rewriter.create<PrimListConstructOp>(loc, ListType::get(selfType), SmallVector<Value>());
+    for(SmallVector<Value>::reverse_iterator it = strides.rbegin(); it != strides.rend(); it++) {
+      Value floordiv = rewriter.create<AtenFloorDivideScalarOp>(loc, v21.getType(), v21, *it);
+      v21 = rewriter.create<AtenSubTensorOp>(loc, selfType, v21, rewriter.create<AtenMulScalarOp>(loc, selfType, floordiv, *it), int1);
+      v22 = rewriter.create<AtenAppendTOp>(loc, v22.getType(), v22, floordiv);
+    }
+    Type tType = selfType.getWithSizesAndDtype(llvm::makeArrayRef(SmallVector<int64_t>{static_cast<long>(strides.size()), kUnknownSize}), selfType.getDtype());
+    // torch.stack(result)
+    Value v23 = rewriter.create<AtenStackOp>(loc, tType, v22, int0);
+    // .transpose(0, 1)
+    Value v24 = rewriter.create<AtenTransposeIntOp>(loc, op.getType(), v23, int0, int1);
+
+    rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, op.getType(), v24);
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose torch.addmm into torch.mm and torch.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
 public:
@@ -1245,6 +1353,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenZerosLikeOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
+    patterns.add<DecomposeAtenNonzeroOp>(context);
+    target.addIllegalOp<AtenNonzeroOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
     target.addIllegalOp<AtenSizeOp>();
     patterns.add<DecomposeAtenReshapeOp>(context);

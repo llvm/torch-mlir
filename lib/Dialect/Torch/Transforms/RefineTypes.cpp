@@ -308,6 +308,8 @@ public:
       return visitAtenUnsqueezeOp(unsqueeze, operands);
     } else if (auto arange = dyn_cast<AtenArangeOp>(op)) {
       return visitAtenArangeOp(arange);
+    } else if (auto nonzero = dyn_cast<AtenNonzeroOp>(op)) {
+      return visitAtenNonzeroOp(nonzero, operands);
     } else if (auto arangeStart = dyn_cast<AtenArangeStartOp>(op)) {
       return visitAtenArangeStartOp(arangeStart);
     } else if (auto arangeStartStep = dyn_cast<AtenArangeStartStepOp>(op)) {
@@ -552,6 +554,9 @@ private:
   ChangeResult visitAtenArangeStartStepOp(AtenArangeStartStepOp op);
   ChangeResult visitAtenArangeStartOp(AtenArangeStartOp op);
   ChangeResult visitAtenArangeOp(AtenArangeOp op);
+  ChangeResult visitAtenNonzeroOp(
+      AtenNonzeroOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult visitReductionAlongAllDimsOp(
       Operation *op, Type dtype,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -1304,6 +1309,17 @@ ChangeResult TypeAnalyzer::visitAtenArangeStartOp(AtenArangeStartOp op) {
 
 ChangeResult TypeAnalyzer::visitAtenArangeOp(AtenArangeOp op) {
   return visitAtenArangeLikeOpHelper(op, {}, op.end(), {}, op.dtype());
+}
+
+ChangeResult TypeAnalyzer::visitAtenNonzeroOp(
+    AtenNonzeroOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge = ValueKnowledge::getPessimisticValueState(op->getContext());
+  knowledge.dtype = IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+  knowledge.hasSizes = true;
+  knowledge.sizes.resize(2, kUnknownSize);
+  knowledge.sizes[1] = operands[0]->getValue().sizes.size();
+  return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(

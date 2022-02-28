@@ -626,6 +626,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
         emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)
         emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
+        emit("aten::scatter_.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)")
+        emit("aten::nonzero : (Tensor) -> (Tensor)")
         emit("aten::dropout : (Tensor, float, bool) -> (Tensor)")
         emit("aten::t : (Tensor) -> (Tensor)")
 
