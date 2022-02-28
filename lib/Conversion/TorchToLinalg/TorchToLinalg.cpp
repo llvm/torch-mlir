@@ -27,6 +27,8 @@
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
+#include <numeric>
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -3118,8 +3120,10 @@ public:
     // is violated.
     SmallVector<int64_t> outputShape(resultRank, kUnknownSize);
     SmallVector<ReassociationIndices> reassociation(collapsedRank);
+    llvm::Optional<int64_t> inferredDimension;
     for (auto en : llvm::enumerate(outputSizeTorchInt)) {
       int64_t inputDim;
+      int64_t size;
       int64_t outputDim = en.index();
       // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
       if (matchPattern(en.value(),
@@ -3131,11 +3135,54 @@ public:
           outputShape[outputDim] = inputShape[inputDim];
           continue;
         }
+      } else if (matchPattern(en.value(), m_TorchConstantInt(&size))) {
+        if (size != -1) {
+          outputShape[outputDim] = size;
+          continue;
+        }
+
+        if (inferredDimension.hasValue()) {
+          return rewriter.notifyMatchFailure(
+              op, "at most one element in size list is allowed to be -1");
+        }
+        inferredDimension = outputDim;
+      }
+    }
+
+    // Use static information of input tensor to determine size of inferred
+    // dimension in output shape.
+    //
+    // If there is an inferred dimension and that is the only dimension
+    // in the output shape (i.e. the tensor is getting fully flattened),
+    // then we don't need to analyze the static information of the input
+    // shape since the reassociation of dimensions only requires rank
+    // information.
+    if (inferredDimension.hasValue() && outputShape.size() > 1) {
+      if (llvm::count(outputShape, kUnknownSize) != 1 ||
+          llvm::count(inputShape, kUnknownSize) != 0) {
+        return rewriter.notifyMatchFailure(
+            op,
+            "unimplemented: an inferred dimension is only supported when there "
+            "is enough static shape information to determine its size, or when "
+            "the input tensor is being flattened to a single dimension");
       }
 
-      int64_t size;
-      if (matchPattern(en.value(), m_TorchConstantInt(&size)))
-        outputShape[outputDim] = size;
+      auto productReduceKnownSizes = [](const ArrayRef<int64_t> sizes) {
+        auto knownSizes = llvm::make_filter_range(
+            sizes, [](int64_t val) { return val != kUnknownSize; });
+        return std::accumulate(knownSizes.begin(), knownSizes.end(), /*init=*/1,
+                               std::multiplies<int64_t>());
+      };
+
+      int64_t numOfElements = productReduceKnownSizes(inputShape);
+      int64_t outputKnownNumOfElements = productReduceKnownSizes(outputShape);
+      if (numOfElements % outputKnownNumOfElements != 0) {
+        return rewriter.notifyMatchFailure(
+            op, "number of elements in input tensor must be divisible by "
+                "product of non-inferred dimensions in size list");
+      }
+      outputShape[*inferredDimension] =
+          numOfElements / outputKnownNumOfElements;
     }
 
     SmallVector<int64_t> collapsedShape =
