@@ -2178,6 +2178,25 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
   let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
+def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$size,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
+}
+
 def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
     AllowsTypeRefinement,
     HasValueSemantics
@@ -2194,6 +2213,25 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
+}
+
+def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$size,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $size `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
 def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
