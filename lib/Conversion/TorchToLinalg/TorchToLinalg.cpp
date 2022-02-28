@@ -1850,7 +1850,11 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (isa<AtenRsqrtOp>(op))
     return b.create<math::RsqrtOp>(loc, payloadArgs[0]);
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
-    if (!clone.memory_format().getType().isa<Torch::NoneType>()) {
+    int64_t memoryFormat;
+    if (!clone.memory_format().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(clone.memory_format(),
+                       m_TorchConstantInt(&memoryFormat)) ||
+         memoryFormat != MemoryFormat::Contiguous)) {
       clone.emitError("unimplemented: only default memory format is supported");
       return nullptr;
     }
@@ -4222,8 +4226,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
 
-    // Only `none` memory_format is supported.
-    if (!op.memory_format().getType().template isa<Torch::NoneType>())
+    // Only `none` and `contiguous` memory_format is supported.
+    int64_t memoryFormat;
+    if (!op.memory_format().getType().isa<Torch::NoneType>() &&
+        (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)) ||
+         memoryFormat != MemoryFormat::Contiguous))
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only default memory format is supported");
 

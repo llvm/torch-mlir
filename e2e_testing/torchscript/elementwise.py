@@ -871,3 +871,22 @@ class ElementwiseCloneModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseCloneModule())
 def ElementwiseCloneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class ElementwiseCloneContiguousModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.clone(x, memory_format=torch.contiguous_format)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCloneContiguousModule())
+def ElementwiseCloneContiguousModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
