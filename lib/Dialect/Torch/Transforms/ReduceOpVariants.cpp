@@ -18,6 +18,24 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+// Create an overwrite in a manner that preserves the
+// `OverwriteTensorContentsOp` invariant that both arguments
+// must have the same shape and dtype.
+static void createOverwriteTensorContents(PatternRewriter &rewriter,
+                                          Location loc, Value overwriterTensor,
+                                          Value overwrittenTensor) {
+  Type overwriterTensorType = overwriterTensor.getType();
+  Type overwrittenTensorType = overwrittenTensor.getType()
+                                   .dyn_cast<NonValueTensorType>()
+                                   .getWithValueSemantics();
+  if (overwriterTensorType != overwrittenTensorType) {
+    overwriterTensor = rewriter.create<TensorStaticInfoCastOp>(
+        loc, overwrittenTensorType, overwriterTensor);
+  }
+  rewriter.create<OverwriteTensorContentsOp>(loc, overwriterTensor,
+                                             overwrittenTensor);
+}
+
 namespace {
 // Convert value semantic ops operating on mutable arrays to instead operate on
 // immutable tensors.
@@ -143,7 +161,7 @@ public:
 
     auto tensor =
         rewriter.create<CopyToValueTensorOp>(loc, newOp->getResult(0));
-    rewriter.create<OverwriteTensorOp>(loc, tensor, op->getOperand(0));
+    createOverwriteTensorContents(rewriter, loc, tensor, op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
     return success();
   }
@@ -180,7 +198,8 @@ public:
     Operation *newOp = rewriter.createOperation(state);
     auto tensor =
         rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
-    rewriter.create<OverwriteTensorOp>(op->getLoc(), tensor, op->getOperand(0));
+    createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
+                                  op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
 
     return success();

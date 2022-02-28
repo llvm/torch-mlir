@@ -41,11 +41,49 @@ builtin.func @f(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor {
 // CHECK-LABEL:   func @f(
 // CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,?],f32>,
 // CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor {
-// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
-// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[MM]] : !torch.vtensor<[?,?],f32> to !torch.vtensor
+// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[2,?],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[MM]] : !torch.vtensor<[2,?],f32> to !torch.vtensor
 // CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
 builtin.func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor {
   %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func @g(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,3],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[2,4],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[MM]] : !torch.vtensor<[2,4],f32> to !torch.vtensor
+// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
+builtin.func @g(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+  %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func @h(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,?],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,?],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[2,4],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[MM]] : !torch.vtensor<[2,4],f32> to !torch.vtensor
+// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
+builtin.func @h(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+  %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,?],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func @i(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,5],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[2,5],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
+// CHECK:           return %[[MM]] : !torch.vtensor
+builtin.func @i(%arg0: !torch.vtensor<[2,5],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
+  %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,5],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
 
@@ -1118,4 +1156,36 @@ func @torch.prim.NumToTensor.Scalar(%arg0: !torch.int) -> !torch.tensor {
 func @torch.aten.BinaryBroadcasting(%arg0: !torch.vtensor<[5,4,3,3,1],f32>, %arg1: !torch.vtensor<[?,3,1,2],f32>, %arg2: !torch.int) -> !torch.tensor {
   %0 = torch.aten.add.Tensor %arg0, %arg1, %arg2: !torch.vtensor<[5,4,3,3,1],f32>, !torch.vtensor<[?,3,1,2],f32>, !torch.int -> !torch.tensor
   return %0 : !torch.tensor
+}
+
+// -----
+// CHECK-LABEL:   func @torch.overwrite.tensor.contents$dynamic_overwrites_static(
+// CHECK-SAME:                                                           %[[STATIC:.*]]: !torch.vtensor<[2],f32>,
+// CHECK-SAME:                                                           %[[DYNAMIC:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[2],f32> {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[DYNAMIC_COPY:.*]] : !torch.vtensor<[?],f32> to !torch.vtensor<[2],f32>
+// CHECK:           torch.overwrite.tensor.contents %[[CAST]] overwrites %[[STATIC_COPY:.*]] : !torch.vtensor<[2],f32>, !torch.tensor<[2],f32>
+func @torch.overwrite.tensor.contents$dynamic_overwrites_static(%static: !torch.vtensor<[2],f32>, %dynamic: !torch.vtensor<[?],f32>) -> !torch.vtensor<[2],f32> {
+  %static_no_type = torch.tensor_static_info_cast %static : !torch.vtensor<[2],f32> to !torch.vtensor
+  %static_copy = torch.copy.to_tensor %static_no_type : !torch.tensor
+  %dynamic_no_type = torch.tensor_static_info_cast %dynamic : !torch.vtensor<[?],f32> to !torch.vtensor
+  torch.overwrite.tensor.contents %dynamic_no_type overwrites %static_copy : !torch.vtensor, !torch.tensor
+  %static_value_copy = torch.copy.to_vtensor %static_copy : !torch.vtensor
+  %result = torch.tensor_static_info_cast %static_value_copy : !torch.vtensor to !torch.vtensor<[2],f32>
+  return %result : !torch.vtensor<[2],f32>
+}
+
+// -----
+// CHECK-LABEL:   func @torch.overwrite.tensor.contents$static_overwrites_dynamic(
+// CHECK-SAME:                                                           %[[STATIC:.*]]: !torch.vtensor<[2],f32>,
+// CHECK-SAME:                                                           %[[DYNAMIC:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[STATIC_COPY:.*]] : !torch.vtensor<[2],f32> to !torch.vtensor<[?],f32>
+// CHECK:           torch.overwrite.tensor.contents %[[CAST]] overwrites %[[DYNAMIC_COPY:.*]] : !torch.vtensor<[?],f32>, !torch.tensor<[?],f32>
+func @torch.overwrite.tensor.contents$static_overwrites_dynamic(%static: !torch.vtensor<[2],f32>, %dynamic: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %static_no_type = torch.tensor_static_info_cast %static : !torch.vtensor<[2],f32> to !torch.vtensor
+  %dynamic_no_type = torch.tensor_static_info_cast %dynamic : !torch.vtensor<[?],f32> to !torch.vtensor
+  %dynamic_copy = torch.copy.to_tensor %dynamic_no_type : !torch.tensor
+  torch.overwrite.tensor.contents %static_no_type overwrites %dynamic_copy : !torch.vtensor, !torch.tensor
+  %dynamic_value_copy = torch.copy.to_vtensor %dynamic_copy : !torch.vtensor
+  %result = torch.tensor_static_info_cast %dynamic_value_copy : !torch.vtensor to !torch.vtensor<[?],f32>
+  return %result : !torch.vtensor<[?],f32>
 }

@@ -110,7 +110,7 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
 
 // Helper for creating `aten::sub_tensor_op`.
 static Value createTensorSub(PatternRewriter &rewriter, Location loc,
-                                   Type tensorType, Value lhs, Value rhs) {
+                             Type tensorType, Value lhs, Value rhs) {
   Value alpha =
       rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
   Value sub =
@@ -124,7 +124,8 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
                                                Location loc, Operation *op,
                                                Type tensorType, Value x,
                                                Value y, Value z, Value dim) {
-  Value sum = createSumAlongDimension(rewriter, loc, op, z, dim, /*keepDim=*/true);
+  Value sum =
+      createSumAlongDimension(rewriter, loc, op, z, dim, /*keepDim=*/true);
   if (!sum)
     return nullptr;
   auto broadcastSizeType =
@@ -361,7 +362,7 @@ public:
         loc, tensorType, tanhSquare, gradOutput);
 
     Value newGrad = createTensorSub(rewriter, loc, tensorType, gradOutput,
-                                          gradMulTanhSquare);
+                                    gradMulTanhSquare);
     rewriter.replaceOp(op, newGrad);
     return success();
   }
@@ -558,6 +559,63 @@ public:
 };
 } // namespace
 
+// ReLU6(x) = min(max(0, x), 6) = min(Relu(x), 6)
+static Value getRelu6Results(PatternRewriter &rewriter, Location loc,
+                             Value input) {
+  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  Value constantOne =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+  Value relu = rewriter.create<AtenReluOp>(loc, inputType, input);
+  Value dimList = rewriter.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(constantOne.getType()), constantOne);
+  BaseTensorType oneDTensorType =
+      inputType.getWithSizesAndDtype({1}, inputType.getDtype())
+          .cast<BaseTensorType>();
+  Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+      loc, oneDTensorType, dimList, /*dtype=*/none, /*layout=*/none,
+      /*device=*/none,
+      /*pin_memory=*/none, /*memory_format=*/none);
+  Value constantSix =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(6));
+  Value sixTensor = rewriter.create<PseudoAtenFillScalarOp>(
+      loc, oneDTensorType, emptyTensor, constantSix);
+  Value relu6Out =
+      rewriter.create<AtenMinimumOp>(loc, inputType, relu, sixTensor);
+  return relu6Out;
+}
+
+// Hardswish(x) = x * Relu6(x+3)/6
+namespace {
+class DecomposeAtenHardswishOp : public OpRewritePattern<AtenHardswishOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHardswishOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Type inputType = input.getType();
+
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantThree = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(3));
+    Value constantSix = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(6));
+    Value inputPlusThree = rewriter.create<AtenAddScalarOp>(
+        loc, inputType, input, constantThree, /*alpha=*/constantOne);
+    Value relu6 = getRelu6Results(rewriter, loc, inputPlusThree);
+    Value divTensor =
+        rewriter.create<AtenDivScalarOp>(loc, inputType, relu6, constantSix);
+    Value mulTensor =
+        rewriter.create<AtenMulTensorOp>(loc, inputType, divTensor, input);
+
+    rewriter.replaceOp(op, mulTensor);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenTOp : public OpRewritePattern<AtenTOp> {
 public:
@@ -659,7 +717,8 @@ public:
     Value input = op.self();
     Value output = op.result();
     BaseTensorType outputTensorType = output.getType().cast<BaseTensorType>();
-    Value sum = rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.dtype());
+    Value sum =
+        rewriter.create<AtenSumOp>(loc, outputTensorType, input, op.dtype());
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
     rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputTensorType, sum,
                                                  numTensorElements);
@@ -828,8 +887,8 @@ static Value decomposeBernoulliLikeOp(PatternRewriter &rewriter, Operation *op,
   // Create a uniform random op with low and high set to lb and ub respectively.
   Value uniformRandom = rewriter.create<PseudoAtenUniformOp>(
       loc, inputType, input, lb, ub, noneVal);
-  Value gtValue = rewriter.create<AtenLtScalarOp>(loc, boolType, uniformRandom,
-                                                  prob);
+  Value gtValue =
+      rewriter.create<AtenLtScalarOp>(loc, boolType, uniformRandom, prob);
   // Since `gtValue` will be a boolean tensor convert it back to the original
   // type.
   Value convertBack = rewriter.create<AtenToDtypeOp>(
@@ -883,26 +942,25 @@ public:
 } // namespace
 
 namespace {
-template<typename OpTy, typename T1T2Op>
+template <typename OpTy, typename T1T2Op>
 class DecomposeAtenAddCLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
   LogicalResult matchAndRewrite(OpTy op,
-                                 PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
     Value tensor1 = op.tensor1();
     Value tensor2 = op.tensor2();
     Value value = op.value();
 
-    Value product = rewriter.create<T1T2Op>(loc, op.getType(), tensor1, tensor2);
-    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), input, product,
-                                                  value);
+    Value product =
+        rewriter.create<T1T2Op>(loc, op.getType(), tensor1, tensor2);
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), input,
+                                                 product, value);
     return success();
   }
 };
-} // namespace
 
-namespace {
 class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
   using OpRewritePattern<AtenLayerNormOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLayerNormOp op,
@@ -926,40 +984,6 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
         loc, op.getType(), meanVarType, meanVarType, op.input(),
         op.normalized_shape(), op.weight(), op.bias(), op.eps());
     rewriter.replaceOp(op, nativeLayerNorm.getResult(0));
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class DecomposeAtenBatchNormOp : public OpRewritePattern<AtenBatchNormOp> {
-  using OpRewritePattern<AtenBatchNormOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenBatchNormOp op,
-                                PatternRewriter &rewriter) const override {
-    // TODO: Add support for `training` mode.
-    bool training = false;
-    if (!matchPattern(op.training(), m_TorchConstantBool(&training)) ||
-        training)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: training mode is not supported");
-
-    // The `mean` and `invstd` outputs shape should be {0} in the inference
-    // mode.
-    BaseTensorType tensorType = op.getType().cast<BaseTensorType>();
-    if (!tensorType.hasDtype() || !tensorType.getDtype().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: non-floating point type input");
-    Type emptyType =
-        tensorType.getWithSizesAndDtype({0}, tensorType.getDtype());
-
-    // The first output tensor of the `AtenNativeBatchNormOp` is essentially
-    // `AtenBatchNormOp` result.
-    auto nativeBatchNorm = rewriter.create<AtenNativeBatchNormOp>(
-        op.getLoc(), op.getType(), /*meanType=*/emptyType,
-        /*invStdType=*/emptyType, op.input(), op.weight(), op.bias(),
-        op.running_mean(), op.running_var(), op.training(), op.momentum(),
-        op.eps());
-    rewriter.replaceOp(op, nativeBatchNorm.getResult(0));
     return success();
   }
 };
@@ -1063,14 +1087,6 @@ class DecomposeAtenNativeBatchNormOp
     Value runningVar = op.running_var();
     Value eps = op.eps();
 
-    // TODO: Add support for optional type parameters.
-    if (weight.getType().isa<OptionalType>() ||
-        bias.getType().isa<OptionalType>() ||
-        runningMean.getType().isa<OptionalType>() ||
-        runningVar.getType().isa<OptionalType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: optional type arg is not supported");
-
     // TODO: Add support for `training` mode.
     bool training = false;
     if (!matchPattern(op.training(), m_TorchConstantBool(&training)) ||
@@ -1097,24 +1113,13 @@ class DecomposeAtenNativeBatchNormOp
       return rewriter.notifyMatchFailure(
           op, "expected running_mean and running_var to be rank 1");
 
-    // The shape of `runningMean` and `runningVar` must be (numFeatures). Here,
-    // 'numFeatures' is C from an expected 'input' of size (N,C,D?,H?,W?).
     Value zero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value numFeatures = rewriter.create<AtenSizeIntOp>(loc, input, /*dim=*/one);
-    auto dim0EqualsNumFeatures = [&](Value v) {
-      Value dim0 = rewriter.create<AtenSizeIntOp>(loc, v, /*dim=*/zero);
-      Value eqCmp = rewriter.create<AtenEqIntOp>(loc, BoolType::get(context),
-                                                 dim0, numFeatures);
-      rewriter.create<RuntimeAssertOp>(
-          loc, eqCmp,
-          rewriter.getStringAttr("size of the 0th dimension must be equal to "
-                                 "the number of features"));
-    };
-    dim0EqualsNumFeatures(runningMean);
-    dim0EqualsNumFeatures(runningVar);
+    // TODO: Add Runtime Asserts to check the shape of weight, bias,
+    // running_mean and running_var to be (numFeatures).
 
     // The `runningMean` and `runningVar` must be reshaped to (1, C, 1?, 1?, 1?)
     // to make it broadcast-compatible with (N, C, D?, H?, W?).
@@ -1152,22 +1157,18 @@ class DecomposeAtenNativeBatchNormOp
     // 3. output = normalizedInput * weight + bias
     Value batchNormOutput = normalizedInput;
     if (!weight.getType().isa<Torch::NoneType>()) {
-      // The shape of the `weight` tensor must be (numFeatures).
+      // Rank of `weight` must be exactly 1.
       if (getTensorRank(weight) != 1)
         return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
-      dim0EqualsNumFeatures(weight);
-
       weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
                                            runningStatsSizeList);
       batchNormOutput = rewriter.create<AtenMulTensorOp>(
           loc, batchNormOutput.getType(), batchNormOutput, weight);
     }
     if (!bias.getType().isa<Torch::NoneType>()) {
-      // The shape of the `bias` tensor must be (numFeatures).
+      // Rank of `bias` must be exactly 1.
       if (getTensorRank(bias) != 1)
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      dim0EqualsNumFeatures(bias);
-
       bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
                                          runningStatsSizeList);
       batchNormOutput = rewriter.create<AtenAddTensorOp>(
@@ -1270,16 +1271,16 @@ class DecomposeComplexOpsPass
       // Make aten.matmul legal if the following condition is satisfied.
       return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
     });
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(context);
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(
+        context);
     target.addIllegalOp<AtenAddcmulOp>();
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(context);
+    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(
+        context);
     target.addIllegalOp<AtenAddcdivOp>();
     target.addIllegalOp<AtenLayerNormOp>();
     patterns.add<DecomposeAtenLayerNormOp>(context);
     target.addIllegalOp<AtenNativeBatchNormOp>();
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
-    target.addIllegalOp<AtenBatchNormOp>();
-    patterns.add<DecomposeAtenBatchNormOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);
@@ -1300,6 +1301,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<PseudoAtenBernoulliFloatOp>();
     patterns.add<DecomposeAtenHardsigmoidOp>(context);
     target.addIllegalOp<AtenHardsigmoidOp>();
+    patterns.add<DecomposeAtenHardswishOp>(context);
+    target.addIllegalOp<AtenHardswishOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

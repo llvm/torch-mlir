@@ -451,6 +451,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::log : (Tensor) -> (Tensor)",
                 "aten::sigmoid : (Tensor) -> (Tensor)",
                 "aten::hardsigmoid : (Tensor) -> (Tensor)",
+                "aten::hardswish : (Tensor) -> (Tensor)",
                 "aten::sin : (Tensor) -> (Tensor)",
                 "aten::exp : (Tensor) -> (Tensor)",
                 "aten::cos : (Tensor) -> (Tensor)",
@@ -497,7 +498,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
         emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
-        emit("aten::gelu : (Tensor) -> (Tensor)")
+        emit("aten::gelu : (Tensor, str) -> (Tensor)")
         emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
 
@@ -693,7 +694,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # backprop ops
         emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
         emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
-        emit("aten::gelu_backward : (Tensor, Tensor) -> (Tensor)")
+        emit("aten::gelu_backward : (Tensor, Tensor, str) -> (Tensor)")
         emit("aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
 
 

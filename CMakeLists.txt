@@ -82,6 +82,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
+  # FIXME: This should really be inherited from the LLVM tree.  In particular,
+  # it's going to change when cross-compiling.
+  set(MLIR_TABLEGEN_EXE mlir-tblgen)
 
   option(MLIR_ENABLE_BINDINGS_PYTHON "Enables MLIR Python Bindings" OFF)
   option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
@@ -120,10 +123,9 @@ function(torch_mlir_target_includes target)
   endif()
 endfunction()
 
-# Configure CMake and tablegen.
+# Configure CMake.
 list(APPEND CMAKE_MODULE_PATH ${MLIR_MAIN_SRC_DIR}/cmake/modules)
 list(APPEND CMAKE_MODULE_PATH ${LLVM_MAIN_SRC_DIR}/cmake)
-set(MLIR_TABLEGEN_EXE mlir-tblgen)
 
 include(TableGen)
 include(AddLLVM)
