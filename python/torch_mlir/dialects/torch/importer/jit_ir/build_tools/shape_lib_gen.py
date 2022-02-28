@@ -501,6 +501,50 @@ def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2)), # Basic case.
+    Invocation(TensorOfShape(3), TensorOfShape()), # No batch dim.
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2), reduction='none'), # No reduction.
+    Invocation(TensorOfShape(2, 3), TensorOfShape(7)), # Error: mismatched batch dimension.
+])
+def aten〇nll_loss_forward(self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int) -> Tuple[List[int], List[int]]:
+    # This is taken shamelessly from the meta function in LossNLL.cpp
+    self_dim = len(self)
+    target_dim = len(target)
+    assert 0 < self_dim <= 2
+    assert target_dim <= 1
+    no_batch_dim = self_dim == 1 and target_dim == 0
+    assert no_batch_dim or (self[0] == target[0])
+    n_classes = self[-1]
+    scalar_shape: List[int] = []
+    assert weight is None or (len(weight) == 1 and weight[0] == n_classes)
+    if reduction == 0 and self_dim == 2:
+        return [self[0]], scalar_shape
+    else:
+        return scalar_shape, scalar_shape
+
+# TODO: Fix shape function (see body).
+# @check_shape_function([
+#     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
+# ])
+def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]], bias: Optional[List[int]], eps: float) -> Tuple[List[int], List[int], List[int]]:
+    reduction_shape: List[int] = []
+    # TODO: Fix buggy behavior. TorchToLinalg needs to properly handle the
+    # correctly inferred shapes.
+    # With input=[2, 5, 2, 2, 3] and normalized_shape=[2, 2, 3], we should get
+    # [[2, 5, 2, 2, 3], [2, 5, 1, 1, 1], [2, 5, 1, 1, 1]]
+    for i in range(len(normalized_shape), len(input)):
+        reduction_shape.append(input[i])
+    # Correct code:
+    # num_unreduced_dimensions = len(input) - len(normalized_shape)
+    # assert num_unreduced_dimensions >= 0
+    # for i in range(num_unreduced_dimensions):
+    #     reduction_shape.append(input[i])
+    # for i in range(num_unreduced_dimensions, len(input)):
+    #     reduction_shape.append(1)
+    return input, reduction_shape, reduction_shape
+
+
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)
     signature = None

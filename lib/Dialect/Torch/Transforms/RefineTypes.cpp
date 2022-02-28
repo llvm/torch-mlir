@@ -296,21 +296,6 @@ struct ValueKnowledge {
       return None;
     result.dtype = dtype.getValue();
 
-    // // XXX: switch this to actual join.
-    // auto printArrayRef = [](ArrayRef<int64_t> a, llvm::raw_ostream &os) {
-    //   os << "[";
-    //   if (!a.empty())
-    //     os << a[0];
-    //   for (size_t i = 1, e = a.size(); i < e; ++i)
-    //     os << ", " << a[i];
-    //   os << "]";
-    // };
-    // llvm::errs() << "sizes: lhs: ";
-    // printArrayRef(lhs.sizes, llvm::errs());
-    // llvm::errs() << "rhs: ";
-    // printArrayRef(rhs.sizes, llvm::errs());
-    // llvm::errs() << "\n";
-
     if (lhs.hasSizes && !rhs.hasSizes) {
       result.hasSizes = true;
       result.sizes = lhs.sizes;
@@ -1071,30 +1056,14 @@ ChangeResult TypeAnalyzer::visitAtenNllLossForwardOp(
   auto self = operands[0]->getValue();
   auto outputKnowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
-
-  // Contains Knowledge of shape and dtype for the 1st result.
   outputKnowledge.dtype = self.dtype;
-  int64_t reduction;
-  unsigned resultRank = self.sizes.size();
-
-  // Contains Knowledge of shape and dtype for the 2nd result.
   auto totalWeightKnowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op.getContext());
   totalWeightKnowledge.dtype = self.dtype;
-  totalWeightKnowledge.sizes.resize(0, kUnknownSize);
-  totalWeightKnowledge.hasSizes = true;
-
-  if (self.hasSizes &&
-      matchPattern(op.reduction(), m_TorchConstantInt(&reduction))) {
-    // reduction == 1 means reduce 1st dim.
-    resultRank = reduction == 1 ? resultRank - 1 : resultRank;
-  }
-  outputKnowledge.sizes.resize(resultRank - 1, kUnknownSize);
-  outputKnowledge.hasSizes = true;
-  auto resultLattice = incorporateKnowledge(op.getResult(0), outputKnowledge);
-  resultLattice |=
+  auto change = incorporateKnowledge(op.getResult(0), outputKnowledge);
+  change |=
       incorporateKnowledge(op.getResult(1), totalWeightKnowledge);
-  return resultLattice;
+  return change;
 }
 
 ChangeResult TypeAnalyzer::visitAtenSqueezeDimOp(
@@ -1490,32 +1459,16 @@ ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
   auto varKnowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
 
-  layerNormKnowledge.hasSizes = input.hasSizes;
-  layerNormKnowledge.sizes = input.sizes;
   layerNormKnowledge.dtype = input.dtype;
-
-  int64_t layerNormSize = input.sizes.size();
-  Value normalizedShape = op.normalized_shape();
-  SmallVector<Value> normalizedShapeSizesTorchInt;
-  getListConstructElements(normalizedShape, normalizedShapeSizesTorchInt);
-  std::vector<int64_t> meanVarSizes;
-  if (input.hasSizes) {
-    for (int i = normalizedShapeSizesTorchInt.size(); i < layerNormSize; i++)
-      meanVarSizes.push_back(input.sizes[i]);
-  }
-  meanKnowledge.hasSizes = input.hasSizes;
-  meanKnowledge.sizes = meanVarSizes;
   meanKnowledge.dtype = input.dtype;
-  varKnowledge.hasSizes = input.hasSizes;
-  varKnowledge.sizes = meanVarSizes;
   varKnowledge.dtype = input.dtype;
 
-  auto resultLattice =
+  auto changed =
       incorporateKnowledge(op.getResult(0), layerNormKnowledge);
-  resultLattice |= incorporateKnowledge(op.getResult(1), meanKnowledge);
-  resultLattice |= incorporateKnowledge(op.getResult(2), varKnowledge);
+  changed |= incorporateKnowledge(op.getResult(1), meanKnowledge);
+  changed |= incorporateKnowledge(op.getResult(2), varKnowledge);
 
-  return resultLattice;
+  return changed;
 }
 
 // `torch.aten.index.Tensor` return tensors elements selected by the index
