@@ -81,6 +81,18 @@ ScalarType promote_skip_undefined(ScalarType a, ScalarType b);
 //===----------------------------------------------------------------------===//
 enum Reduction { None, Mean, Sum, END };
 
+//===----------------------------------------------------------------------===//
+// Possible values for `memory_format` argument in PyTorch ops that support it.
+// Source:
+// https://github.com/pytorch/pytorch/blob/master/c10/core/MemoryFormat.h
+//===----------------------------------------------------------------------===//
+enum MemoryFormat {
+  Contiguous,
+  Preserve,
+  ChannelsLast,
+  ChannelsLast3d
+};
+
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir

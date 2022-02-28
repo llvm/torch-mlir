@@ -173,6 +173,23 @@ def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class EmptyContiguousModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.empty((3, 4),
+                           memory_format=torch.contiguous_format).fill_(0)
+
+@register_test_case(module_factory=lambda: EmptyContiguousModule())
+def EmptyModule_contiguous(module, tu: TestUtils):
+    module.forward()
+
+
 class EmptyDefaultDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
