@@ -230,7 +230,7 @@ public:
             AtenAbsOp, AtenThresholdOp, AtenSquareOp, PseudoAtenUniformOp,
             AtenCloneOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
             PseudoAtenBernoulliFloatOp, PseudoAtenFillScalarOp,
-            AtenHardsigmoidOp, AtenHardswishOp>(op)) {
+            AtenHardsigmoidOp, AtenHardswishOp, AtenSiluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 

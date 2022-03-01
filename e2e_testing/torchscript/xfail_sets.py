@@ -129,4 +129,5 @@ TOSA_PASS_SET = {
     "NewOnesModuleFloat2D_basic",
     "NewOnesModuleFloat3D_basic",
     "NewOnesModuleFalsePinMemory_basic",
+    "SiluModule_basic",
 }

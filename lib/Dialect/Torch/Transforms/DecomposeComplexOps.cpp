@@ -740,6 +740,23 @@ public:
 };
 } // namespace
 
+// Silu(x) = sigmoid(x) * x
+namespace {
+class DecomposeAtenSiluOp : public OpRewritePattern<AtenSiluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSiluOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.self();
+    Value sigmoid =
+        rewriter.create<AtenSigmoidOp>(op.getLoc(), op.getType(), self);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), sigmoid,
+                                                 self);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.var into: sum(square(x - mean))/(numTensorElements-1)
 // for unbiased and mean(square(x - mean)) for biased case.
 namespace {
@@ -1318,6 +1335,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenHardsigmoidOp>();
     patterns.add<DecomposeAtenHardswishOp>(context);
     target.addIllegalOp<AtenHardswishOp>();
+    patterns.add<DecomposeAtenSiluOp>(context);
+    target.addIllegalOp<AtenSiluOp>();
     patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
         context);
     target.addIllegalOp<AtenNewZerosOp>();
