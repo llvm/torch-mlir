@@ -53,8 +53,10 @@ def top3_possibilities(res):
 
 
 def predictions(torch_func, jit_func, img, labels):
+    golden_prediction = top3_possibilities(torch_func(img))
     print("PyTorch prediction")
-    prediction = jit_func(img.numpy())
+    print(golden_prediction)
+    prediction = top3_possibilities(torch.from_numpy(jit_func(img.numpy())))
     print("torch-mlir prediction")
     print(prediction)
 
@@ -78,9 +80,19 @@ class TestModule(torch.nn.Module):
         return self.s.forward(x)
 
 
+image_url = (
+    "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
+)
+import sys
+
+print("load image from " + image_url, file=sys.stderr)
+img = load_and_preprocess_image(image_url)
+labels = load_labels()
+
 test_module = TestModule()
 class_annotator = ClassAnnotator()
 recursivescriptmodule = torch.jit.script(test_module)
+torch.jit.save(recursivescriptmodule, "/tmp/foo.pt")
 
 class_annotator.exportNone(recursivescriptmodule._c._type())
 class_annotator.exportPath(recursivescriptmodule._c._type(), ["forward"])
@@ -101,8 +113,6 @@ with mb.module.context:
     pm.run(mb.module)
 
 compiled = backend.compile(mb.module)
-print("done compiling")
 jit_module = backend.load(compiled)
-print("done loading")
 
-predictions(test_module.forward, jit_module.forward, torch.randn((1,3, 32, 32)), None)
+predictions(test_module.forward, jit_module.forward, img, labels)

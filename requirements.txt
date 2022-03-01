@@ -8,9 +8,3 @@ torchvision
 # Build requirements.
 pybind11
 wheel
-
-# IREE Python API
-# Use nightly releases at the GitHub releases page instead of PyPi
--f https://github.com/google/iree/releases
-iree-compiler
-iree-runtime
