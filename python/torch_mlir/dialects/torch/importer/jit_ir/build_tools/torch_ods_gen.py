@@ -452,6 +452,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::sigmoid : (Tensor) -> (Tensor)",
                 "aten::hardsigmoid : (Tensor) -> (Tensor)",
                 "aten::hardswish : (Tensor) -> (Tensor)",
+                "aten::silu : (Tensor) -> (Tensor)",
                 "aten::sin : (Tensor) -> (Tensor)",
                 "aten::exp : (Tensor) -> (Tensor)",
                 "aten::cos : (Tensor) -> (Tensor)",
