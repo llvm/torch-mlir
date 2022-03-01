@@ -60,7 +60,13 @@ class Invocation:
         args = []
         for arg in self.args:
             if isinstance(arg, TensorOfShape):
-                args.append(arg.shape)
+                # Make a copy of the size list, since a shape function might
+                # modify it in-place. In the compiler the lowering always
+                # produces a new list via a fresh invocation of `AtenSizeOp`,
+                # which allocates a new, unaliased list. So in-place mutations
+                # are ok since they make it a bit easier to write some shape
+                # functions.
+                args.append(list(arg.shape))
             else:
                 args.append(arg)
         return args
@@ -543,6 +549,22 @@ def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weig
     # for i in range(num_unreduced_dimensions, len(input)):
     #     reduction_shape.append(1)
     return input, reduction_shape, reduction_shape
+
+@check_shape_function([
+    Invocation(TensorOfShape(2), [1, 2]), # Basic case.
+    Invocation(TensorOfShape(2, 3), [1, 2, 3, 4]), # More dimensions.
+    Invocation(TensorOfShape(2, 3, 4), [1, 2, 3, 4]), # More dimensions than padded dimensions.
+    Invocation(TensorOfShape(2), [1, 2, 3, 4]), # Error: too many pad values.
+    Invocation(TensorOfShape(2), [1]), # Error: unpaired pad value.
+])
+def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) -> List[int]:
+    assert len(pad) % 2 == 0, "Must have paired low-high pad amount values"
+    assert len(pad) // 2 <= len(self), "Number of padded dimensions must be less than or equal to the input dimension"
+    # The `pad` list takes the form of Low-high pairs starting at the
+    # *rightmost* dimension of `self`.
+    for i in range(len(pad) // 2):
+        self[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
+    return self
 
 
 def _verify_signature_matches_registry(f, registry: Registry):

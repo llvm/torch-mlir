@@ -940,22 +940,6 @@ ChangeResult TypeAnalyzer::visitAtenConstantPadNdOp(
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   auto &input = operands[0]->getValue();
-  if (input.hasSizes) {
-    knowledge.hasSizes = true;
-    SmallVector<int64_t> padInts;
-    if (matchPattern(op.pad(), m_TorchConstantIntList(padInts))) {
-      knowledge.sizes = input.sizes;
-      uint64_t padRank = padInts.size() / 2;
-      uint64_t padOffset = knowledge.sizes.size() - padRank;
-      // op.pad() is highest dim first ordered pairs of low,high.
-      for (uint64_t i = padRank, r = padOffset; i > 0; --i, ++r) {
-        if (knowledge.sizes[r] != kUnknownSize)
-          knowledge.sizes[r] += padInts[i * 2 - 2] + padInts[i * 2 - 1];
-      }
-    } else
-      knowledge.sizes.resize(input.sizes.size(), kUnknownSize);
-  }
-
   knowledge.dtype = operands[0]->getValue().dtype;
   return incorporateKnowledge(op->getResult(0), knowledge);
 }

@@ -2346,6 +2346,51 @@ module  {
     %4 = torch.prim.TupleConstruct %arg0, %0, %0 : !torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int> -> !torch.tuple<!torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>>
     return %4 : !torch.tuple<!torch.list<!torch.int>, !torch.list<!torch.int>, !torch.list<!torch.int>>
   }
+  func @"__torch_mlir_shape_fn.aten.constant_pad_nd"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.int>, %arg2: !torch.float) -> !torch.list<!torch.int> {
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %str = torch.constant.str "AssertionError: Must have paired low-high pad amount values"
+    %str_0 = torch.constant.str "AssertionError: Number of padded dimensions must be less than or equal to the input dimension"
+    %true = torch.constant.bool true
+    %0 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %1 = torch.aten.remainder.int %0, %int2 : !torch.int, !torch.int -> !torch.int
+    %2 = torch.aten.eq.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %3 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %4 = torch.aten.floordiv.int %3, %int2 : !torch.int, !torch.int -> !torch.int
+    %5 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %6 = torch.aten.le.int %4, %5 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %6 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str_0 : !torch.str
+      torch.prim.If.yield
+    }
+    %7 = torch.aten.len.t %arg1 : !torch.list<!torch.int> -> !torch.int
+    %8 = torch.aten.floordiv.int %7, %int2 : !torch.int, !torch.int -> !torch.int
+    torch.prim.Loop %8, %true, init()  {
+    ^bb0(%arg3: !torch.int):  // no predecessors
+      %9 = torch.aten.add.int %arg3, %int1 : !torch.int, !torch.int -> !torch.int
+      %10 = torch.aten.neg.int %9 : !torch.int -> !torch.int
+      %11 = torch.aten.mul.int %int2, %arg3 : !torch.int, !torch.int -> !torch.int
+      %12 = torch.aten.__getitem__.t %arg1, %11 : !torch.list<!torch.int>, !torch.int -> !torch.int
+      %13 = torch.aten.mul.int %int2, %arg3 : !torch.int, !torch.int -> !torch.int
+      %14 = torch.aten.add.int %13, %int1 : !torch.int, !torch.int -> !torch.int
+      %15 = torch.aten.__getitem__.t %arg1, %14 : !torch.list<!torch.int>, !torch.int -> !torch.int
+      %16 = torch.aten.add.int %12, %15 : !torch.int, !torch.int -> !torch.int
+      %17 = torch.aten.__getitem__.t %arg0, %10 : !torch.list<!torch.int>, !torch.int -> !torch.int
+      %18 = torch.aten.add.int %17, %16 : !torch.int, !torch.int -> !torch.int
+      %19 = torch.aten._set_item.t %arg0, %10, %18 : !torch.list<!torch.int>, !torch.int, !torch.int -> !torch.list<!torch.int>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %arg0 : !torch.list<!torch.int>
+  }
 }
 )mlir");
   return shapeLib;
