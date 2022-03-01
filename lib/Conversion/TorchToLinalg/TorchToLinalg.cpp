@@ -21,12 +21,14 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "llvm/ADT/APSInt.h"
 
 #include <numeric>
 
@@ -2510,16 +2512,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
                                                    Operation *op,
                                                    Type elementType) {
-  if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
-      elementType.isa<mlir::FloatType>())
-    return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
-  if (isa<AtenMaxOp>(op) && elementType.isa<mlir::FloatType>())
-    return b.create<arith::ConstantOp>(
-        loc, b.getFloatAttr(
-                 elementType,
-                 APFloat::getLargest(
-                     elementType.cast<mlir::FloatType>().getFloatSemantics(),
-                     /*Negative=*/true)));
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
+    if (elementType.isa<mlir::FloatType>())
+      return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+    else if (elementType.isa<mlir::IntegerType>())
+      return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+  }
+
+  if (isa<AtenMaxOp>(op)) {
+    if (elementType.isa<mlir::FloatType>())
+      return b.create<arith::ConstantOp>(
+          loc, b.getFloatAttr(
+                   elementType,
+                   APFloat::getLargest(
+                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       /*Negative=*/true)));
+    else if (elementType.isa<mlir::IntegerType>() &&
+             elementType.getIntOrFloatBitWidth() != 8)
+      return b.create<arith::ConstantOp>(
+          loc, b.getIntegerAttr(elementType,
+                                APSInt::getSignedMinValue(
+                                    elementType.getIntOrFloatBitWidth())));
+  }
 
   op->emitError("unimplemented lowering in "
                 "createLinalgNeutralElementForReduceOp");
@@ -2529,17 +2543,31 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
 static Value createLinalgPayloadCalculationForReduceOp(
     OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
     ArrayRef<Value> operands, Type resultElementType) {
-  if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
-      resultElementType.isa<mlir::FloatType>()) {
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    return b.create<arith::AddFOp>(loc, self, result);
-  } else if (isa<AtenMaxOp>(op) && resultElementType.isa<mlir::FloatType>()) {
+    if (resultElementType.isa<mlir::FloatType>())
+      return b.create<arith::AddFOp>(loc, self, result);
+    else if (resultElementType.isa<mlir::IntegerType>())
+      return b.create<arith::AddIOp>(loc, self, result);
+  } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    return b.create<arith::MaxFOp>(loc, self, result);
+    if (resultElementType.isa<mlir::FloatType>())
+      return b.create<arith::MaxFOp>(loc, self, result);
+    else if (resultElementType.isa<mlir::IntegerType>()) {
+      IntegerType intType = max.self()
+                                .getType()
+                                .cast<BaseTensorType>()
+                                .getDtype()
+                                .dyn_cast<mlir::IntegerType>();
+      if (intType.isUnsigned())
+        return b.create<arith::MaxUIOp>(loc, self, result);
+      if (intType.isSigned())
+        return b.create<arith::MaxSIOp>(loc, self, result);
+    }
   }
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForReduceOp");
