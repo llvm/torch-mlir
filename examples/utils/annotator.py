@@ -34,7 +34,7 @@ class AnnotationConverter:
                            context: ir.Context) -> ir.ArrayAttr:
         dict_attrs = []
         for type_ in annotation:
-            if not isinstance(type_, TorchTensorType):
+            if type_ is None:
                 dict_attrs.append(ir.DictAttr.get({}, context=context))
                 continue
 

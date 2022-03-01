@@ -121,7 +121,10 @@ class PythonType(TorchMlirType):
         return str(self.type_)
 
     def to_mlir(self, context: ir.Context) -> ir.Type:
-        asm = self._type_to_asm_dict.get(self.type_)
+        if self.type_ in self._type_to_asm_dict:
+            asm = self._type_to_asm_dict.get(self.type_)
+        else:
+            asm = str(self.type_)
         if asm is None:
             raise NotImplementedError(f'Unsupported type: {self.type_}')
         return ir.Type.parse(asm, context=context)

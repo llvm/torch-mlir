@@ -25,7 +25,7 @@ __all__ = [
 
 def checkArgTypeIsSupported(ty):
     SUPPORTED = [np.float32, np.float64, np.int32, np.int64, np.bool_]
-    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
+    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported, not {ty}"
 
 
 class RefBackendInvoker:
@@ -167,7 +167,7 @@ LOWERING_PIPELINE = ",".join([
     # Bufferize.
     "builtin.func(scf-bufferize)",
     "builtin.func(linalg-bufferize)",
-    "builtin.func(refback-munge-memref-copy)",
+    # "builtin.func(refback-munge-memref-copy)",
     "func-bufferize",
     "arith-bufferize",
     "builtin.func(tensor-bufferize)",
