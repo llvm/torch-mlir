@@ -19,9 +19,6 @@
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/Registration.h"
 #include "torch-mlir-c/Registration.h"
-#include "torch_to_mlir_utils.h"
-#include "mlir/Bindings/Python/PybindAdaptors.h"
-#include "c10/util/Logging.h"
 
 namespace py = pybind11;
 using namespace torch_mlir;
@@ -183,14 +180,5 @@ void ModuleBuilder::bind(py::module &m) {
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
       .def("import_function", &ModuleBuilder::importFunction)
       .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
-           py::arg("classAnnotator") = py::none())
-      .def("get_mlir_type_from_torch_type",
-           [](const ModuleBuilder &mod, const c10::TypePtr &torchType) {
-             return getMlirTypeFromTorchType(
-                 mlirLocationUnknownGet(mod.context), torchType);
-           })
-      .def("stack_trace",
-           [](const ModuleBuilder &mod) {
-             return c10::get_backtrace();
-           });
+           py::arg("classAnnotator") = py::none());
 }

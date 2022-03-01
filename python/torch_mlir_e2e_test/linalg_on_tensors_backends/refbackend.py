@@ -167,7 +167,7 @@ LOWERING_PIPELINE = ",".join([
     # Bufferize.
     "builtin.func(scf-bufferize)",
     "builtin.func(linalg-bufferize)",
-    # "builtin.func(refback-munge-memref-copy)",
+    "builtin.func(refback-munge-memref-copy)",
     "func-bufferize",
     "arith-bufferize",
     "builtin.func(tensor-bufferize)",
