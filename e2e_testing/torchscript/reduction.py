@@ -11,7 +11,7 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
-class ReduceSumModule(torch.nn.Module):
+class ReduceSumFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -24,13 +24,13 @@ class ReduceSumModule(torch.nn.Module):
         return torch.sum(a)
 
 
-@register_test_case(module_factory=lambda: ReduceSumModule())
-def ReduceSumModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ReduceSumFloatModule())
+def ReduceSumFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
-class ReduceSumDtypeModule(torch.nn.Module):
+class ReduceSumDtypeFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -43,13 +43,13 @@ class ReduceSumDtypeModule(torch.nn.Module):
         return torch.sum(a, dtype=torch.float32)
 
 
-@register_test_case(module_factory=lambda: ReduceSumDtypeModule())
-def ReduceSumDtypeModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ReduceSumDtypeFloatModule())
+def ReduceSumDtypeFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
 
 # ==============================================================================
 
-class ReduceSumDimIntListModule(torch.nn.Module):
+class ReduceSumDimIntListFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -62,13 +62,13 @@ class ReduceSumDimIntListModule(torch.nn.Module):
         return torch.sum(a, (0, 1))
 
 
-@register_test_case(module_factory=lambda: ReduceSumDimIntListModule())
-def ReduceSumDimIntListModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ReduceSumDimIntListFloatModule())
+def ReduceSumDimIntListFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 # ==============================================================================
 
-class ReduceSumDimIntListDtypeModule(torch.nn.Module):
+class ReduceSumDimIntListDtypeFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -81,13 +81,13 @@ class ReduceSumDimIntListDtypeModule(torch.nn.Module):
         return torch.sum(a, (0, 1), dtype=torch.float32)
 
 
-@register_test_case(module_factory=lambda: ReduceSumDimIntListDtypeModule())
-def ReduceSumDimIntListDtypeModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ReduceSumDimIntListDtypeFloatModule())
+def ReduceSumDimIntListDtypeFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
 
 # ==============================================================================
 
-class ReduceSumDimIntListKeepDimModule(torch.nn.Module):
+class ReduceSumDimIntListKeepDimFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -100,9 +100,123 @@ class ReduceSumDimIntListKeepDimModule(torch.nn.Module):
         return torch.sum(a, (1, 2), keepdim=True)
 
 
-@register_test_case(module_factory=lambda: ReduceSumDimIntListKeepDimModule())
-def ReduceSumDimIntListKeepDimModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ReduceSumDimIntListKeepDimFloatModule())
+def ReduceSumDimIntListKeepDimFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceSumUnsignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a)
+
+
+@register_test_case(module_factory=lambda: ReduceSumUnsignedIntModule())
+def ReduceSumUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(0, 100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceSumSignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a)
+
+
+@register_test_case(module_factory=lambda: ReduceSumSignedIntModule())
+def ReduceSumSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceSumDtypeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: ReduceSumDtypeIntModule())
+def ReduceSumDtypeIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4, 5)).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceSumDimIntListIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a, (0, 1))
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListIntModule())
+def ReduceSumDimIntListIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceSumDimIntListDtypeIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a, (0, 1), dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListDtypeIntModule())
+def ReduceSumDimIntListDtypeIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4, 5)).to(torch.int32))
+
+# ==============================================================================
+
+class ReduceSumDimIntListKeepDimIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a, (1, 2), keepdim=True)
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListKeepDimIntModule())
+def ReduceSumDimIntListKeepDimIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4, 5)))
 
 # ==============================================================================
 
@@ -234,3 +348,57 @@ class ReduceMaxNegativeDim(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMaxNegativeDim())
 def ReduceMaxNegativeDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMaxFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a)
+
+@register_test_case(module_factory=lambda: ReduceMaxFloatModule())
+def ReduceMaxFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMaxSignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a)
+
+@register_test_case(module_factory=lambda: ReduceMaxSignedIntModule())
+def ReduceMaxSignedIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceMaxUnsignedIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.max(a)
+
+@register_test_case(module_factory=lambda: ReduceMaxUnsignedIntModule())
+def ReduceMaxUnsignedIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4, 5)))
