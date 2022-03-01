@@ -2319,6 +2319,9 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
       elementType.isa<mlir::FloatType>())
     return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
+      elementType.isa<mlir::IntegerType>())
+    return b.create<arith::ConstantOp>(loc, b.getIntegerAttr(elementType, 0));
   if (isa<AtenMaxOp>(op) && elementType.isa<mlir::FloatType>())
     return b.create<arith::ConstantOp>(
         loc, b.getFloatAttr(
@@ -2341,6 +2344,12 @@ static Value createLinalgPayloadCalculationForReduceOp(
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
     return b.create<arith::AddFOp>(loc, self, result);
+  } else if (isa<AtenSumOp, AtenSumDimIntListOp>(op) &&
+      resultElementType.isa<mlir::IntegerType>()) {
+    Value self =
+        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value result = payloadArgs[1];
+    return b.create<arith::AddIOp>(loc, self, result);
   } else if (isa<AtenMaxOp>(op) && resultElementType.isa<mlir::FloatType>()) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);

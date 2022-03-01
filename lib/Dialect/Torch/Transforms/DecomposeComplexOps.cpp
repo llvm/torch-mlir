@@ -708,13 +708,11 @@ public:
     Value v3 = rewriter.create<AtenSubScalarOp>(loc, flattenedType, v2, int1, int1);
     // %4 = torch.aten.eq.Scalar %3, %int-1 : !torch.tensor, !torch.int -> !torch.tensor loc(#loc8)
     Value v4 = rewriter.create<AtenEqScalarOp>(loc, boolType, v3, int_1);
-    // %5 = torch.prim.dtype %3 : !torch.tensor -> !torch.int loc(#loc0)
-    Value v5 = rewriter.create<PrimDtypeOp>(loc, v3);
     // %6 = torch.prim.device %3 : !torch.tensor -> !torch.Device loc(#loc0)
     Value v6;
     // %7 = torch.aten.tensor.int %int0, %5, %6, %false : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.tensor loc(#loc0)
-    Type indicesType = flattenedType.getWithSizesAndDtype({kUnknownSize}, IntegerType::get(context, 64, IntegerType::Signed));
-    Value v7 = rewriter.create<AtenTensorIntOp>(loc, indicesType, int0, v5, none, falseVal);
+    Type indicesType = flattenedType.getWithSizesAndDtype({}, IntegerType::get(context, 64, IntegerType::Signed));
+    Value v7 = rewriter.create<AtenTensorIntOp>(loc, indicesType, int0, none, none, falseVal);
     // %8 = torch.prim.ListConstruct %4 : (!torch.tensor) -> !torch.list<!torch.optional<!torch.tensor>> loc(#loc0)
     Value v8 = rewriter.create<PrimListConstructOp>(loc, ListType::get(v4.getType()), v4);
     // %9 = torch.aten.index_put_ %3, %8, %7, %false : !torch.tensor, !torch.list<!torch.optional<!torch.tensor>>, !torch.tensor, !torch.bool -> !torch.tensor loc(#loc9)
