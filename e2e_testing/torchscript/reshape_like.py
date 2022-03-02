@@ -126,6 +126,44 @@ def View1DFoldModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewCollapseInferredDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(-1, 4)
+
+@register_test_case(module_factory=lambda: ViewCollapseInferredDimModule())
+def ViewCollapseInferredDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+# ==============================================================================
+
+class ViewExpandInferredDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 6], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, -1, 2)
+
+@register_test_case(module_factory=lambda: ViewExpandInferredDimModule())
+def ViewExpandInferredDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6))
+
+# ==============================================================================
+
 class UnsafeViewExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
