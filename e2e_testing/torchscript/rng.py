@@ -113,9 +113,9 @@ class BernoulliModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BernoulliModule())
 def BernoulliModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(256, 512, 8).double(),
-        tu.rand(512, 1024, 4).double(),
-        tu.rand(512, 256, 4).double())
+        tu.rand(512, 1024, 8).double(),
+        tu.rand(1024, 2048, 4).double(),
+        tu.rand(1024, 256, 4).double())
 
 # ==============================================================================
 
@@ -188,9 +188,9 @@ class BernoulliFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BernoulliFloatModule())
 def BernoulliFloatModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(256, 512, 8).double(),
-        tu.rand(512, 1024, 4).double(),
-        tu.rand(512, 256, 4).double())
+        tu.rand(512, 1024, 8).double(),
+        tu.rand(1024, 2048, 4).double(),
+        tu.rand(1024, 512, 4).double())
 
 # ==============================================================================
 
@@ -228,9 +228,9 @@ class BernoulliTensorModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BernoulliTensorModule())
 def BernoulliTensorModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.rand(512, 512, 8).double(),
-        tu.rand(512, 512, 8).double(),
-        tu.rand(512, 1024, 4).double(),
-        tu.rand(512, 1024, 4).double(),
-        tu.rand(512, 256, 4).double(),
-        tu.rand(512, 256, 4).double())
+        tu.rand(1024, 1024, 16).double(),
+        tu.rand(1024, 1024, 16).double(),
+        tu.rand(1024, 2048, 8).double(),
+        tu.rand(1024, 2048, 8).double(),
+        tu.rand(1024, 512, 8).double(),
+        tu.rand(1024, 512, 8).double())
