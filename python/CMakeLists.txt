@@ -58,6 +58,12 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
 endif()
 
 ################################################################################
+# Eager mode
+################################################################################
+
+add_subdirectory(torch_mlir/eager_mode)
+
+################################################################################
 # Generate packages and shared library
 # Downstreams typically will not use these, but they are useful for local
 # testing.
