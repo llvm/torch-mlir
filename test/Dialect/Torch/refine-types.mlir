@@ -49,8 +49,6 @@ builtin.func @f(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?,?],f3
   return %1 : !torch.vtensor
 }
 
-// -----
-
 // CHECK-LABEL:   func @g(
 // CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,3],f32>,
 // CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
@@ -61,8 +59,6 @@ builtin.func @g(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[3,4],f3
   %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
-
-// -----
 
 // CHECK-LABEL:   func @h(
 // CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,?],f32>,
@@ -75,8 +71,6 @@ builtin.func @h(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[3,4],f3
   return %1 : !torch.vtensor
 }
 
-// -----
-
 // CHECK-LABEL:   func @i(
 // CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[2,5],f32>,
 // CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
@@ -84,6 +78,40 @@ builtin.func @h(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[3,4],f3
 // CHECK:           return %[[MM]] : !torch.vtensor
 builtin.func @i(%arg0: !torch.vtensor<[2,5],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor {
   %1 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[2,5],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func @f(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[?,2,?],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[3,?,?],f32>) -> !torch.vtensor {
+// CHECK:           %[[BMM:.*]] = torch.aten.bmm %[[LHS]], %[[RHS]] : !torch.vtensor<[?,2,?],f32>, !torch.vtensor<[3,?,?],f32> -> !torch.vtensor<[3,2,?],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[BMM]] : !torch.vtensor<[3,2,?],f32> to !torch.vtensor
+// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
+builtin.func @f(%arg0: !torch.vtensor<[?,2,?],f32>, %arg1: !torch.vtensor<[3,?,?],f32>) -> !torch.vtensor {
+  %1 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[?,2,?],f32>, !torch.vtensor<[3,?,?],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @g(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[5,2,3],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[5,3,4],f32>) -> !torch.vtensor {
+// CHECK:           %[[BMM:.*]] = torch.aten.bmm %[[LHS]], %[[RHS]] : !torch.vtensor<[5,2,3],f32>, !torch.vtensor<[5,3,4],f32> -> !torch.vtensor<[5,2,4],f32>
+// CHECK:           %[[SHAPE_ERASED:.*]] = torch.tensor_static_info_cast %[[BMM]] : !torch.vtensor<[5,2,4],f32> to !torch.vtensor
+// CHECK:           return %[[SHAPE_ERASED]] : !torch.vtensor
+builtin.func @g(%arg0: !torch.vtensor<[5,2,3],f32>, %arg1: !torch.vtensor<[5,3,4],f32>) -> !torch.vtensor {
+  %1 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[5,2,3],f32>, !torch.vtensor<[5,3,4],f32> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @h(
+// CHECK-SAME:            %[[LHS:.*]]: !torch.vtensor<[5,2,3],f32>,
+// CHECK-SAME:            %[[RHS:.*]]: !torch.vtensor<[7,3,4],f32>) -> !torch.vtensor {
+// CHECK:           %[[BMM:.*]] = torch.aten.bmm %[[LHS]], %[[RHS]] : !torch.vtensor<[5,2,3],f32>, !torch.vtensor<[7,3,4],f32> -> !torch.vtensor
+// CHECK:           return %[[BMM]] : !torch.vtensor
+builtin.func @h(%arg0: !torch.vtensor<[5,2,3],f32>, %arg1: !torch.vtensor<[7,3,4],f32>) -> !torch.vtensor {
+  %1 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[5,2,3],f32>, !torch.vtensor<[7,3,4],f32> -> !torch.vtensor
   return %1 : !torch.vtensor
 }
 
