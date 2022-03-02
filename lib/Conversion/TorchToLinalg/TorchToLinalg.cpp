@@ -4643,6 +4643,24 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertTensorStaticInfoCastOp
+    : public OpConversionPattern<TensorStaticInfoCastOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorStaticInfoCastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.operand());
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -4775,6 +4793,8 @@ public:
     target.addIllegalOp<AtenIndexTensorOp>();
     patterns.add<ConvertPseudoAtenUniformOp>(typeConverter, context);
     target.addIllegalOp<PseudoAtenUniformOp>();
+    patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
+    target.addIllegalOp<TensorStaticInfoCastOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
