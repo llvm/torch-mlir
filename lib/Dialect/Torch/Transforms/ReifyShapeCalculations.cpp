@@ -27,6 +27,47 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static Value adjustShapeFunctionArg(Value operand, Type desiredType,
+                                    OpBuilder &b, Location loc);
+
+static Value adjustListArg(Value operand, Torch::ListType desiredType,
+                           OpBuilder &b, Location loc) {
+  auto providedType = operand.getType().cast<Torch::ListType>();
+
+  // Pseudocode:
+  //
+  // operand = ...
+  // adjusted_list = []
+  // for i in range(len(operand)):
+  //     adjusted_list.append(adjust(operand[i]))
+  // return adjusted_list
+  Value adjustedList =
+      b.create<PrimListConstructOp>(loc, desiredType, ValueRange({}));
+  // Create a for-like PrimLoopOp.
+  Value maxTripCount = b.create<AtenLenTOp>(loc, operand);
+  Value cTrue = b.create<Torch::ConstantBoolOp>(loc, true);
+  auto loop = b.create<PrimLoopOp>(loc, TypeRange({}), maxTripCount,
+                                   /*initialCondition=*/cTrue,
+                                   /*iterArgsInit=*/ValueRange({}));
+  OpBuilder::InsertionGuard guard(b);
+  Block *body = b.createBlock(&loop.region(), loop.region().begin(),
+                              TypeRange({b.getType<Torch::IntType>()}), {loc});
+  // Create the loop body.
+  {
+    Value iterationNumber = body->getArgument(0);
+    Value element = b.create<Aten__Getitem__TOp>(
+        loc, providedType.getContainedType(), operand, iterationNumber);
+    Value adjustedElement =
+        adjustShapeFunctionArg(element, desiredType.getContainedType(), b, loc);
+    b.create<AtenAppendTOp>(loc, adjustedList.getType(), adjustedList,
+                            adjustedElement);
+    b.create<PrimLoopConditionOp>(loc, /*shouldContinue=*/cTrue,
+                                  /*iterArgs=*/ValueRange({}));
+  }
+
+  return adjustedList;
+}
+
+static Value adjustShapeFunctionArg(Value operand, Type desiredType,
                                     OpBuilder &b, Location loc) {
   auto operandType = operand.getType();
 
@@ -93,6 +134,13 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
     assert(desiredType.isa<Torch::ListType>() &&
            "Don't expect shape functions to have tensor parameters");
     return b.create<AtenSizeOp>(loc, desiredType, operand);
+  }
+
+  // Run this after `operand.getType().isa<Torch::BaseTensorType>()` so that
+  // `!torch.vtensor` -> `!torch.list<!torch.int>` is handled there specially
+  // first.
+  if (auto desiredListType = desiredType.dyn_cast<Torch::ListType>()) {
+    return adjustListArg(operand, desiredListType, b, loc);
   }
 
   // The shape library functions use `float` where the operator

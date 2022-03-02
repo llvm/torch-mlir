@@ -31,12 +31,55 @@ class TensorOfShape:
     A plain list doesn't work, because plain lists are actually legal arguments
     to a shape function (e.g. conv dilations), and we don't want them to receive
     this special treatment.
+
+    This class also tracks a dtype of the tensor, since some ops require a
+    specific dtype.
     """
-    def __init__(self, *shape: int):
+    def __init__(self, *shape: int, dtype: torch.dtype = torch.float32):
         self.shape = list(shape)
+        self.dtype = dtype
     def __repr__(self):
         args_str = ", ".join(repr(x) for x in self.shape)
-        return f"TensorOfShape({args_str})"
+        if self.dtype is torch.float32:
+            return f"TensorOfShape({args_str})"
+        else:
+            return f"TensorOfShape({args_str}, dtype={self.dtype})"
+
+def IntTensorOfShape(*args, **kwargs):
+    """Helper for indicating a TensorOfShape with integer type."""
+    return TensorOfShape(*args, **kwargs, dtype=torch.long)
+
+def _recursively_convert_to_shape_function_args(o: Any) -> Any:
+    if o is None:
+        return None
+    if isinstance(o, TensorOfShape):
+        # Make a copy of the size list, since a shape function might
+        # modify it in-place. In the compiler, the lowering always
+        # produces a new list via a fresh invocation of `AtenSizeOp`,
+        # which allocates a new, unaliased list. So in-place mutations
+        # are ok since they make it a bit easier to write some shape
+        # functions.
+        return list(o.shape)
+    if isinstance(o, list):
+        return [_recursively_convert_to_shape_function_args(x) for x in o]
+    if isinstance(o, tuple):
+        return tuple(_recursively_convert_to_shape_function_args(x) for x in o)
+    if isinstance(o, (float, int)):
+        return o
+    raise Exception(f"Unhandled type {type(o)}")
+
+def _recursively_convert_to_real_op_args(o: Any) -> Any:
+    if o is None:
+        return None
+    if isinstance(o, TensorOfShape):
+        return torch.ones(o.shape, dtype=o.dtype)
+    if isinstance(o, list):
+        return [_recursively_convert_to_real_op_args(x) for x in o]
+    if isinstance(o, tuple):
+        return tuple(_recursively_convert_to_real_op_args(x) for x in o)
+    if isinstance(o, (float, int)):
+        return o
+    raise Exception(f"Unhandled type {type(o)}")
 
 class Invocation:
     """Representation of a single op invocation (i.e. list of args to the op).
@@ -48,6 +91,10 @@ class Invocation:
     Specifically, this class has special knowledge of `TensorOfShape` and
     translates it appropriately to either a tensor (for the real op) or a
     `List[int]` (for the shape function).
+
+    This class also tracks whether the invocation is expected to raise an
+    exception for greater precision when interpreting errors raised during
+    testing.
     """
     def __init__(self, *args: Any, **kwargs: Any):
         self.args = list(args)
@@ -55,31 +102,21 @@ class Invocation:
         # special handling.
         self.kwargs = kwargs
 
+    def is_expected_to_raise_exception(self) -> bool:
+        """Returns true if the invocation is expected to raise an exception.
+
+        The subclass ErrorInvocation overrides this to indicate an Invocation
+        that is expected to raise an exception.
+        """
+        return False
+
     def to_shape_function_args(self):
         """Gets positional arguments appropriate for a shape function."""
-        args = []
-        for arg in self.args:
-            if isinstance(arg, TensorOfShape):
-                # Make a copy of the size list, since a shape function might
-                # modify it in-place. In the compiler the lowering always
-                # produces a new list via a fresh invocation of `AtenSizeOp`,
-                # which allocates a new, unaliased list. So in-place mutations
-                # are ok since they make it a bit easier to write some shape
-                # functions.
-                args.append(list(arg.shape))
-            else:
-                args.append(arg)
-        return args
+        return _recursively_convert_to_shape_function_args(self.args)
 
     def to_real_op_args(self):
         """Gets positional arguments appropriate for the real op."""
-        args = []
-        for arg in self.args:
-            if isinstance(arg, TensorOfShape):
-                args.append(torch.ones(arg.shape))
-            else:
-                args.append(arg)
-        return args
+        return _recursively_convert_to_real_op_args(self.args)
 
     def __repr__(self) -> str:
         args_str = ", ".join(repr(x) for x in self.args)
@@ -87,6 +124,18 @@ class Invocation:
         if self.kwargs:
             kwargs_str = ", " + ", ".join(f"{k}={v}" for k, v in self.kwargs.items())
         return f"Invocation({args_str}{kwargs_str})"
+
+class ErrorInvocation(Invocation):
+    """An Invocation that raises an exception.
+
+    Explicitly knowing that an invocation is expected to raise an exception
+    avoids certain failure modes of the test infrastructure where a bug
+    slips through when both the shape function and the real op fail due to
+    independent bugs (that cancel each other out and spurioiusly make the two
+    appear to "agree").
+    """
+    def is_expected_to_raise_exception(self) -> bool:
+        return True
 
 def _normalize_multiple_results_to_list(t: Union[Tensor, Tuple]):
     """Returns a flat list of tensor results.
@@ -135,17 +184,29 @@ def check_shape_function(invocations: List[Invocation]):
             def report(error_message: str):
                 raise ValueError(f"For shape function {f.__name__!r} with invocation {invocation}: {error_message}")
 
-            # Check for matching error behavior.
+            # Check for error behavior.
+            if invocation.is_expected_to_raise_exception():
+                if shape_fn_error is None and op_error is None:
+                    report(f"Expected to raise an exception, but neither shape function nor op raised an exception")
+                if shape_fn_error is None:
+                    report(f"Op raised error {op_error!r}, but shape function did not.")
+                if op_error is None:
+                    report(f"Shape function raised error {shape_fn_error!r}, but op did not.")
+            else:
+                if shape_fn_error is not None and op_error is not None:
+                    report(f"Both shape function and op raised errors, but were not expected to. Shape function raised error {shape_fn_error!r} and op raised error {op_error!r}.")
+                if shape_fn_error is not None:
+                    report(f"Shape function raised error {shape_fn_error!r} but op did not raise any error.")
+                if op_error is not None:
+                    report(f"Op raised error {op_error!r} but shape function did not raise any error.")
+
             if shape_fn_error is not None or op_error is not None:
                 # If both raised errors, then that is good -- the shape function
                 # and the real op should agree on the erroneous cases.
                 # The exact error message might differ though.
                 if shape_fn_error is not None and op_error is not None:
                     continue
-                if shape_fn_error is not None:
-                    report(f"Shape function raised error {shape_fn_error!r} but op did not raise any error.")
-                if op_error is not None:
-                    report(f"Op raised error {op_error!r} but shape function did not raise any error.")
+
 
             # Check for matching results.
             if len(result_shapes) != len(golden_results):
@@ -273,9 +334,8 @@ def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
     Invocation(TensorOfShape(2, 3, 4), dim=0, keepdim=True), # `keepdim`.
     Invocation(TensorOfShape(2, 3, 4), dim=-3), # Negative `dim`.
     Invocation(TensorOfShape(2, 3, 4), dim=2), # Maximum valid `dim`.
-    # Error cases.
-    Invocation(TensorOfShape(2, 3, 4), dim=-4), # `dim` out of bounds.
-    Invocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=-4), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
 ])
 def aten〇argmax(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
     if dim is None:
@@ -312,10 +372,10 @@ def aten〇addmm(self: List[int], mat1: List[int], mat2: List[int], beta: float 
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4, 5)), # Basic case.
-    Invocation(TensorOfShape(2, 3, 7), TensorOfShape(2, 4, 5)), # Error: mismatching contracting dimension.
-    Invocation(TensorOfShape(7, 3, 4), TensorOfShape(2, 4, 5)), # Error: mismatching batch dimension.
-    Invocation(TensorOfShape(7, 3), TensorOfShape(2, 4, 5)), # Error: LHS is not rank 3.
-    Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4)), # Error: RHS is not rank 3.
+    ErrorInvocation(TensorOfShape(2, 3, 7), TensorOfShape(2, 4, 5)), # mismatching contracting dimension.
+    ErrorInvocation(TensorOfShape(7, 3, 4), TensorOfShape(2, 4, 5)), # mismatching batch dimension.
+    ErrorInvocation(TensorOfShape(7, 3), TensorOfShape(2, 4, 5)), # LHS is not rank 3.
+    ErrorInvocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4)), # RHS is not rank 3.
 ])
 def aten〇bmm(self: List[int], mat2: List[int]) -> List[int]:
     assert len(self) == 3, "bmm only supports 3D tensors"
@@ -388,8 +448,7 @@ def aten〇arange(end: float, dtype: Optional[int] = None, layout: Optional[int]
     Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3)), # Basic case.
     Invocation(TensorOfShape(2, 3), TensorOfShape(3)), # Rank broadcasting.
     Invocation(TensorOfShape(2, 3), TensorOfShape(1, 3)), # Size-1 broadcasting.
-    # Error cases.
-    Invocation(TensorOfShape(2, 3), TensorOfShape(4, 3)), # Non-size-1 dimension size mismatch.
+    ErrorInvocation(TensorOfShape(2, 3), TensorOfShape(4, 3)), # Non-size-1 dimension size mismatch.
 ])
 def aten〇add〇Tensor(self: List[int], other: List[int], alpha: float = 1) -> List[int]:
     return shape_helpers.broadcast(self, other)
@@ -471,9 +530,8 @@ def aten〇addcdiv(self: List[int], tensor1: List[int], tensor2: List[int], valu
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.
     Invocation(TensorOfShape(2, 3), 2, dim=0), # Test explicit `dim`.
-    # Error cases.
-    Invocation(TensorOfShape(2, 3), 10), # `k` too big.
-    Invocation(TensorOfShape(2, 3), 2, dim=100), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3), 10), # `k` too big.
+    ErrorInvocation(TensorOfShape(2, 3), 2, dim=100), # `dim` out of bounds.
 ])
 def aten〇topk(self: List[int], k: int, dim: int = -1, largest: bool = True, sorted: bool = True) -> Tuple[List[int], List[int]]:
     assert k <= self[dim], f"k ({k}) is too big for dimension {dim} of size {self[dim]}"
@@ -508,10 +566,10 @@ def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -
     return shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
 @check_shape_function([
-    Invocation(TensorOfShape(2, 3), TensorOfShape(2)), # Basic case.
-    Invocation(TensorOfShape(3), TensorOfShape()), # No batch dim.
-    Invocation(TensorOfShape(2, 3), TensorOfShape(2), reduction='none'), # No reduction.
-    Invocation(TensorOfShape(2, 3), TensorOfShape(7)), # Error: mismatched batch dimension.
+    Invocation(TensorOfShape(2, 3), IntTensorOfShape(2), None, 1, -100), # Basic case.
+    Invocation(TensorOfShape(3), IntTensorOfShape(), None, 1, -100), # No batch dim.
+    Invocation(TensorOfShape(2, 3), IntTensorOfShape(2), None, 0, -100), # No reduction.
+    ErrorInvocation(TensorOfShape(2, 3), IntTensorOfShape(7), None, 1, -100), # Mismatched batch dimension.
 ])
 def aten〇nll_loss_forward(self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int) -> Tuple[List[int], List[int]]:
     # This is taken shamelessly from the meta function in LossNLL.cpp
@@ -554,8 +612,8 @@ def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weig
     Invocation(TensorOfShape(2), [1, 2]), # Basic case.
     Invocation(TensorOfShape(2, 3), [1, 2, 3, 4]), # More dimensions.
     Invocation(TensorOfShape(2, 3, 4), [1, 2, 3, 4]), # More dimensions than padded dimensions.
-    Invocation(TensorOfShape(2), [1, 2, 3, 4]), # Error: too many pad values.
-    Invocation(TensorOfShape(2), [1]), # Error: unpaired pad value.
+    ErrorInvocation(TensorOfShape(2), [1, 2, 3, 4]), # Too many pad values.
+    ErrorInvocation(TensorOfShape(2), [1]), # Unpaired pad value.
 ])
 def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) -> List[int]:
     assert len(pad) % 2 == 0, "Must have paired low-high pad amount values"
@@ -566,6 +624,22 @@ def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) ->
         self[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
     return self
 
+@check_shape_function([
+    Invocation(TensorOfShape(2), [IntTensorOfShape(4)]), # Basic case.
+    Invocation(TensorOfShape(2, 3), [IntTensorOfShape(4), IntTensorOfShape(4)]), # More dimensions.
+    Invocation(TensorOfShape(2, 3), [IntTensorOfShape(4), IntTensorOfShape(6, 4)]), # Multidimensional index tensor along a dimension.
+    Invocation(TensorOfShape(2, 3), [IntTensorOfShape(4), None]), # Explicit None value.
+    Invocation(TensorOfShape(2, 3), [IntTensorOfShape(4, 5, 6), IntTensorOfShape(1, 5, 1)]), # Broadcasting of index tensors.
+    Invocation(TensorOfShape(2, 3), [IntTensorOfShape(4)]), # Fewer index tensors than dimensions.
+    ErrorInvocation(TensorOfShape(2, 3), [IntTensorOfShape(4), IntTensorOfShape(4), IntTensorOfShape(4)]), # More index tensors than dimensions.
+])
+def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
+    assert len(indices) <= len(self), "More indices than dimensions to index"
+    broadcasted_shape: List[int] = []
+    for index_tensor_shape in indices:
+        if index_tensor_shape is not None:
+            broadcasted_shape = shape_helpers.broadcast(broadcasted_shape, index_tensor_shape)
+    return broadcasted_shape
 
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)

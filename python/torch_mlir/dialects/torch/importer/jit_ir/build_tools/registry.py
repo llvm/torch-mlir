@@ -42,6 +42,8 @@ def _pytype_to_shape_fn_pytype(pytype: str) -> str:
         return "List[int]"
     if pytype == "Optional[Tensor]":
         return "Optional[List[int]]"
+    if pytype == "List[Optional[Tensor]]":
+        return "List[Optional[List[int]]]"
     return pytype
 
 class JitOperator:

@@ -1463,25 +1463,9 @@ ChangeResult TypeAnalyzer::visitAtenNativeLayerNormOp(
 ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
     AtenIndexTensorOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto input = operands[0]->getValue();
-  auto indicesList = op.indices();
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  auto listConstruct = indicesList.getDefiningOp<PrimListConstructOp>();
-  if (!listConstruct)
-    return incorporateKnowledge(op->getResult(0), knowledge);
-
-  auto indices = llvm::to_vector(
-      llvm::map_range(listConstruct.elements(), [&](Value v) -> ValueKnowledge {
-        return getLatticeElement(v).getValue();
-      }));
-
   knowledge.dtype = input.dtype;
-  // Case: If the input is a 1-d tensor and indices list size is equal
-  // to 1.
-  if (input.sizes.size() == 1 && indices.size() == 1 && indices[0].hasSizes) {
-    knowledge.hasSizes = true;
-    knowledge.sizes = indices[0].sizes;
-  }
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 // -----------------------------------------------------------------------------

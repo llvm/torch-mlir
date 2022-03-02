@@ -2391,6 +2391,36 @@ module  {
     } : (!torch.int, !torch.bool) -> ()
     return %arg0 : !torch.list<!torch.int>
   }
+  func @"__torch_mlir_shape_fn.aten.index.Tensor"(%arg0: !torch.list<!torch.int>, %arg1: !torch.list<!torch.optional<!torch.list<!torch.int>>>) -> !torch.list<!torch.int> {
+    %str = torch.constant.str "AssertionError: More indices than dimensions to index"
+    %true = torch.constant.bool true
+    %none = torch.constant.none
+    %0 = torch.aten.len.t %arg1 : !torch.list<!torch.optional<!torch.list<!torch.int>>> -> !torch.int
+    %1 = torch.aten.len.t %arg0 : !torch.list<!torch.int> -> !torch.int
+    %2 = torch.aten.le.int %0, %1 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str : !torch.str
+      torch.prim.If.yield
+    }
+    %3 = torch.prim.ListConstruct  : () -> !torch.list<!torch.int>
+    %4 = torch.aten.len.t %arg1 : !torch.list<!torch.optional<!torch.list<!torch.int>>> -> !torch.int
+    %5 = torch.prim.Loop %4, %true, init(%3)  {
+    ^bb0(%arg2: !torch.int, %arg3: !torch.list<!torch.int>):  // no predecessors
+      %6 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<!torch.optional<!torch.list<!torch.int>>>, !torch.int -> !torch.optional<!torch.list<!torch.int>>
+      %7 = torch.aten.__isnot__ %6, %none : !torch.optional<!torch.list<!torch.int>>, !torch.none -> !torch.bool
+      %8 = torch.prim.If %7 -> (!torch.list<!torch.int>) {
+        %9 = torch.prim.unchecked_cast %6 : !torch.optional<!torch.list<!torch.int>> -> !torch.list<!torch.int>
+        %10 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_helpers.broadcast(%arg3, %9) : (!torch.list<!torch.int>, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+        torch.prim.If.yield %10 : !torch.list<!torch.int>
+      } else {
+        torch.prim.If.yield %arg3 : !torch.list<!torch.int>
+      }
+      torch.prim.Loop.condition %true, iter(%8 : !torch.list<!torch.int>)
+    } : (!torch.int, !torch.bool, !torch.list<!torch.int>) -> !torch.list<!torch.int>
+    return %5 : !torch.list<!torch.int>
+  }
 }
 )mlir");
   return shapeLib;

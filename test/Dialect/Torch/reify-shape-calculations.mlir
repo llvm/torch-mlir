@@ -150,3 +150,35 @@ func @derefine_tensor(%arg0: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.aten.batch_norm %arg0, %derefined_tensor, %none, %none, %none, %false, %float1.000000e-01, %float1.000000e-05, %true : !torch.vtensor, !torch.optional<!torch.vtensor>, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor
   return %0 : !torch.vtensor
 }
+
+// -----
+
+// CHECK-LABEL:   func @shape_function_list_operands(
+// CHECK-SAME:                                       %[[ARG0:.*]]: !torch.vtensor,
+// CHECK-SAME:                                       %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[ARG1]] : (!torch.vtensor) -> !torch.list<!torch.vtensor>
+// CHECK:           %[[VAL_3:.*]] = torch.shape.calculate  {
+// CHECK:             %[[VAL_4:.*]] = torch.aten.index.Tensor %[[ARG0]], %[[LIST]] : !torch.vtensor, !torch.list<!torch.vtensor> -> !torch.vtensor
+// CHECK:             torch.shape.calculate.yield %[[VAL_4]] : !torch.vtensor
+// CHECK:           } shapes  {
+// CHECK:             %[[ARG0_SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<!torch.int>
+// CHECK:             %[[ADJUSTED_LIST:.*]] = torch.prim.ListConstruct  : () -> !torch.list<!torch.optional<!torch.list<!torch.int>>>
+// CHECK:             %[[LIST_SIZE:.*]] = torch.aten.len.t %[[LIST]] : !torch.list<!torch.vtensor> -> !torch.int
+// CHECK:             %[[CTRUE:.*]] = torch.constant.bool true
+// CHECK:             torch.prim.Loop %[[LIST_SIZE]], %[[CTRUE]], init()  {
+// CHECK:             ^bb0(%[[ITER_NUM:.*]]: !torch.int):
+// CHECK:               %[[UNADJUSTED_ELEMENT:.*]] = torch.aten.__getitem__.t %[[LIST]], %[[ITER_NUM]] : !torch.list<!torch.vtensor>, !torch.int -> !torch.vtensor
+// CHECK:               %[[UNADJUSTED_ELEMENT_SHAPE:.*]] = torch.aten.size %[[UNADJUSTED_ELEMENT]] : !torch.vtensor -> !torch.list<!torch.int>
+// CHECK:               %[[ADJUSTED_ELEMENT:.*]] = torch.derefine %[[UNADJUSTED_ELEMENT_SHAPE]] : !torch.list<!torch.int> to !torch.optional<!torch.list<!torch.int>>
+// CHECK:               %{{.*}} = torch.aten.append.t %[[ADJUSTED_LIST]], %[[ADJUSTED_ELEMENT]] : !torch.list<!torch.optional<!torch.list<!torch.int>>>, !torch.optional<!torch.list<!torch.int>> -> !torch.list<!torch.optional<!torch.list<!torch.int>>>
+// CHECK:               torch.prim.Loop.condition %[[CTRUE]], iter()
+// CHECK:             } : (!torch.int, !torch.bool) -> ()
+// CHECK:             %[[RESULT_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.index.Tensor(%[[ARG0_SHAPE]], %[[ADJUSTED_LIST]]) : (!torch.list<!torch.int>, !torch.list<!torch.optional<!torch.list<!torch.int>>>) -> !torch.list<!torch.int>
+// CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<!torch.int>
+// CHECK:           } : !torch.vtensor
+// CHECK:           return %[[VAL_15:.*]] : !torch.vtensor
+func @shape_function_list_operands(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor) -> !torch.list<!torch.vtensor>
+  %1 = torch.aten.index.Tensor %arg0, %0 : !torch.vtensor, !torch.list<!torch.vtensor> -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
