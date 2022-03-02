@@ -452,6 +452,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
                 "aten::sigmoid : (Tensor) -> (Tensor)",
                 "aten::hardsigmoid : (Tensor) -> (Tensor)",
                 "aten::hardswish : (Tensor) -> (Tensor)",
+                "aten::silu : (Tensor) -> (Tensor)",
                 "aten::sin : (Tensor) -> (Tensor)",
                 "aten::exp : (Tensor) -> (Tensor)",
                 "aten::cos : (Tensor) -> (Tensor)",
@@ -572,7 +573,9 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
         emit("aten::Bool.Tensor : (Tensor) -> (bool)")
         emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
         emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
         emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
         emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")

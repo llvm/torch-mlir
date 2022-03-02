@@ -230,7 +230,7 @@ public:
             AtenAbsOp, AtenThresholdOp, AtenSquareOp, PseudoAtenUniformOp,
             AtenCloneOp, AtenBernoulliOp, AtenBernoulli_FloatOp,
             PseudoAtenBernoulliFloatOp, PseudoAtenFillScalarOp,
-            AtenHardsigmoidOp, AtenHardswishOp>(op)) {
+            AtenHardsigmoidOp, AtenHardswishOp, AtenSiluOp>(op)) {
       return getLatticeElement(op->getResult(0)).join(*operands[0]);
     }
 
@@ -388,6 +388,10 @@ public:
     } else if (auto emptyLike = dyn_cast<AtenEmptyLikeOp>(op)) {
       return visitConstantTensorAllocLikeOp<AtenEmptyLikeOp>(emptyLike,
                                                              operands);
+    } else if (auto newZeros = dyn_cast<AtenNewZerosOp>(op)) {
+      return visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
+    } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {
+      return visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
     } else if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
       return visitAtenToDtypeOp(toDtype, operands);
     } else if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
@@ -581,6 +585,9 @@ private:
   template <typename OpTy> ChangeResult visitConstantTensorAllocOp(OpTy op);
   template <typename OpTy>
   ChangeResult visitConstantTensorAllocLikeOp(
+      OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy>
+  ChangeResult visitConstantTensorNewLikeOp(
       OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenToDtypeOp(AtenToDtypeOp op,
@@ -1531,6 +1538,17 @@ ChangeResult TypeAnalyzer::visitConstantTensorAllocLikeOp(
     knowledge.hasSizes = true;
     knowledge.sizes = input.sizes;
   }
+  fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.dtype(), input.dtype);
+  return getLatticeElement(op.getResult()).join(knowledge);
+}
+
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitConstantTensorNewLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  fillInSizesGivenSizesList(knowledge, op.size());
   fillInDTypeGivenDTypeIntAndInputDType(knowledge, op.dtype(), input.dtype);
   return getLatticeElement(op.getResult()).join(knowledge);
 }

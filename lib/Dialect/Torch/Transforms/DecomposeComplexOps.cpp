@@ -740,6 +740,23 @@ public:
 };
 } // namespace
 
+// Silu(x) = sigmoid(x) * x
+namespace {
+class DecomposeAtenSiluOp : public OpRewritePattern<AtenSiluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSiluOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.self();
+    Value sigmoid =
+        rewriter.create<AtenSigmoidOp>(op.getLoc(), op.getType(), self);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), sigmoid,
+                                                 self);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.var into: sum(square(x - mean))/(numTensorElements-1)
 // for unbiased and mean(square(x - mean)) for biased case.
 namespace {
@@ -1219,6 +1236,21 @@ class DecomposeAten_UnsafeViewOp : public OpRewritePattern<Aten_UnsafeViewOp> {
 } // namespace
 
 namespace {
+// Decompose constant tensor like ops.
+template <typename OpTy, typename NewOpTy>
+class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(),
+                                         op.dtype(), op.layout(), op.device(),
+                                         op.pin_memory());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1303,6 +1335,14 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenHardsigmoidOp>();
     patterns.add<DecomposeAtenHardswishOp>(context);
     target.addIllegalOp<AtenHardswishOp>();
+    patterns.add<DecomposeAtenSiluOp>(context);
+    target.addIllegalOp<AtenSiluOp>();
+    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
+        context);
+    target.addIllegalOp<AtenNewZerosOp>();
+    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(
+        context);
+    target.addIllegalOp<AtenNewOnesOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

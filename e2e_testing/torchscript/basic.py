@@ -1345,3 +1345,21 @@ class HardswishRandomModule(torch.nn.Module):
 def HardswishRandomModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(128, 128, low=-10, high=10))
 
+# ==============================================================================
+
+class SiluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.silu(x)
+
+
+@register_test_case(module_factory=lambda: SiluModule())
+def SiluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128, 128, low=-10, high=10))
