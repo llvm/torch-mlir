@@ -2,11 +2,14 @@
 # was compiled with, or else there will be issues in cross module exception
 # handling (which will abort instead of raise). We circumvent the possibility
 # by forcing the torch directories first.
+find_package(Python3 REQUIRED
+        COMPONENTS Interpreter Development NumPy)
 include_directories(BEFORE
   ${TORCH_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${Python3_INCLUDE_DIRS}
+  ${Python3_NumPy_INCLUDE_DIRS}
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
@@ -21,11 +24,13 @@ add_library(TorchMLIRJITIRImporter MODULE
   torch_to_mlir_utils.cpp
   )
 
+
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   ${Python3_LIBRARIES}
   torch_python
+  Python3::NumPy
 )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")

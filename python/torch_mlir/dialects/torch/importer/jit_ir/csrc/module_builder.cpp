@@ -7,18 +7,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "module_builder.h"
 
 #include "function_importer.h"
 #include "ivalue_importer.h"
 #include "mlir_utils.h"
 
+#include <numpy/arrayobject.h>
+#include <numpy/ndarraytypes.h>
+#include <numpy/npy_common.h>
+
 #include "mlir-c/Bindings/Python/Interop.h"
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
 #include "mlir-c/Registration.h"
+#include "pybind11/numpy.h"
 #include "torch-mlir-c/Registration.h"
+#include "torch/csrc/utils/tensor_numpy.h"
+#include <Python.h>
 
 namespace py = pybind11;
 using namespace torch_mlir;
