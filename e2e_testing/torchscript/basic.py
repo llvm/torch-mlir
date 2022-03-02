@@ -1402,3 +1402,53 @@ class HardTanhIntModule(torch.nn.Module):
 def HardTanhIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-5, 5, (100, 100)))
 
+
+class BincountModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x)
+
+@register_test_case(module_factory=lambda: BincountModule())
+def BincountModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (10,)))
+
+
+class BincountStaticSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([20], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x)
+
+@register_test_case(module_factory=lambda: BincountStaticSizeModule())
+def BincountStaticSizeModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(1000, (20,)))
+
+
+class BincountMinlengthModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x, minlength=600)
+
+@register_test_case(module_factory=lambda: BincountMinlengthModule())
+def BincountMinlengthModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(500, (20,)))

@@ -503,6 +503,8 @@ public:
       return visitAtenConstantPadNdOp(constantPadNdOp, operands);
     } else if (auto indexTensorOp = dyn_cast<AtenIndexTensorOp>(op)) {
       return visitAtenIndexTensorOp(indexTensorOp, operands);
+    } else if (auto bincountOp = dyn_cast<AtenBincountOp>(op)) {
+      return visitAtenBincountOp(bincountOp, operands);
     }
 
     // Otherwise, this is an unknown operation. Just mark all results as
@@ -671,6 +673,9 @@ private:
   ChangeResult
   visitAtenIndexTensorOp(AtenIndexTensorOp op,
                          ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult
+  visitAtenBincountOp(AtenBincountOp op,
+                      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -1995,6 +2000,21 @@ ChangeResult TypeAnalyzer::visitAtenIndexTensorOp(
   }
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
+
+// aten::bincount op counts the frequency of each value in a 1-d input tensor of
+// non-negative ints. It returns a 1-d tensor of size max(max(input), length) of
+// the type integer.
+ChangeResult TypeAnalyzer::visitAtenBincountOp(
+    AtenBincountOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto input = operands[0]->getValue();
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  knowledge.dtype = IntegerType::get(op.getContext(), 64, IntegerType::Signed);
+  knowledge.hasSizes = true;
+  knowledge.sizes.resize(1, kUnknownSize);
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
 // -----------------------------------------------------------------------------
 // Transforms.
 // -----------------------------------------------------------------------------

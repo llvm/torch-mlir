@@ -46,6 +46,28 @@ ScalarType getScalarTypeForType(Type type) {
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
+Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                              Type dtype) {
+  int intType = (int)getScalarTypeForType(dtype);
+  return rewriter.create<ConstantIntOp>(loc,
+                                        rewriter.getI64IntegerAttr(intType));
+}
+
+// Helper to convert a tensor to a specific scalar type.
+Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
+                           Type dtype) {
+  BaseTensorType origType = input.getType().cast<BaseTensorType>();
+  Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
+  // `convertIntVal` contains the corresponding integer for the dtype which is
+  // used by the aten.to.dtype op.
+  Value convertIntVal = getDtypeIntValueForType(rewriter, loc, dtype);
+  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
+  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value converted = rewriter.create<AtenToDtypeOp>(
+      loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
+  return converted;
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

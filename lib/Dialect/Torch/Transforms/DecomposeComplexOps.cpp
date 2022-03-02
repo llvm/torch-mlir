@@ -119,30 +119,8 @@ static Value createTensorSub(PatternRewriter &rewriter, Location loc,
   return sub;
 }
 
-static Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
-                                     Type dtype) {
-  int intType = (int)getScalarTypeForType(dtype);
-  return rewriter.create<ConstantIntOp>(loc,
-                                        rewriter.getI64IntegerAttr(intType));
-}
-
-// Helper to convert a tensor to a specific scalar type.
-static Value convertTensorToDtype(PatternRewriter &rewriter, Location loc,
-                                  Value input, Type dtype) {
-  BaseTensorType origType = input.getType().cast<BaseTensorType>();
-  Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
-  // `convertIntVal` contains the corresponding integer for the dtype which is
-  // used by the aten.to.dtype op.
-  Value convertIntVal = getDtypeIntValueForType(rewriter, loc, dtype);
-  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  Value converted = rewriter.create<AtenToDtypeOp>(
-      loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
-  return converted;
-}
-
-// Helper to create a tensor filled with the given `scalar`. `scalar` would be
-// converted to the element type of the given `resultType`.
+// Helper to create a tensor filled with the given scalar. Scalar would be
+// converted the to the element type of the given tensor type.
 static Value createInitTensor(PatternRewriter &rewriter, Location loc,
                               Type resultType, Value scalar, Value sizeList) {
   BaseTensorType tensorType = resultType.cast<BaseTensorType>();

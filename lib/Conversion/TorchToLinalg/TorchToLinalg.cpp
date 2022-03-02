@@ -25,7 +25,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
@@ -2254,12 +2253,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
                                                    Operation *op,
                                                    Type elementType) {
-  if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
-      return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
-    else if (elementType.isa<mlir::IntegerType>())
-      return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
-  }
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
+    return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
   if (isa<AtenMaxOp>(op)) {
     if (elementType.isa<mlir::FloatType>())

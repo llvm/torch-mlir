@@ -23,6 +23,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
   TorchMLIRTorchToLinalg
+  TorchMLIRTorchToTMTensor
   TorchMLIRTorchToStd
   TorchMLIRTorchToSCF
   MLIRMemRefTransforms
