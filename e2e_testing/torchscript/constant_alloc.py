@@ -720,3 +720,100 @@ class NewOnesModuleFalsePinMemory(torch.nn.Module):
 @register_test_case(module_factory=lambda: NewOnesModuleFalsePinMemory())
 def NewOnesModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (2, 3)))
+
+# ==============================================================================
+
+class FullModuleDefaultDtype(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([2, 3], 5.0)
+
+@register_test_case(module_factory=lambda: FullModuleDefaultDtype())
+def FullModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class FullModuleInt2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([10, 5], 10.5, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: FullModuleInt2D())
+def FullModuleInt2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class FullModuleInt3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([2, 3, 4], 5)
+
+@register_test_case(module_factory=lambda: FullModuleInt3D())
+def FullModuleInt3D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class FullModuleFloat2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([10, 5], 10, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: FullModuleFloat2D())
+def FullModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class FullModuleFloat3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([2, 3, 4], 5.0)
+
+@register_test_case(module_factory=lambda: FullModuleFloat3D())
+def FullModuleFloat3D_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class FullModuleFalsePinMemory(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.full([2, 3], 5.0, dtype=torch.int64, pin_memory=False)
+
+@register_test_case(module_factory=lambda: FullModuleFalsePinMemory())
+def FullModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward()

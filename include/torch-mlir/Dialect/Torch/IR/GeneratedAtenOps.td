@@ -3164,6 +3164,25 @@ def Torch_AtenTOp : Torch_Op<"aten.t", [
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
 }
 
+def Torch_AtenFullOp : Torch_Op<"aten.full", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    TorchIntListType:$size,
+    AnyTorchScalarType:$fill_value,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$size `,` $fill_value `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($fill_value)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics

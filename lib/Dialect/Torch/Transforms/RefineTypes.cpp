@@ -12,6 +12,7 @@
 #include "mlir/Analysis/DataFlowAnalysis.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -375,12 +376,15 @@ public:
     } else if (auto tensor = dyn_cast<AtenTensorOp>(op)) {
       return visitAtenTensorOp(tensor);
     } else if (auto zeros = dyn_cast<AtenZerosOp>(op)) {
-      return visitConstantTensorAllocOp<AtenZerosOp>(zeros);
+      return visitConstantTensorAllocOp<AtenZerosOp>(zeros, /*dataType=*/{});
     } else if (auto ones = dyn_cast<AtenOnesOp>(op)) {
-      return visitConstantTensorAllocOp<AtenOnesOp>(ones);
+      return visitConstantTensorAllocOp<AtenOnesOp>(ones, /*dataType=*/{});
     } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
       return visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(
-          emptyMemoryFormat);
+          emptyMemoryFormat, /*dataType=*/{});
+    } else if (auto full = dyn_cast<AtenFullOp>(op)) {
+      return visitConstantTensorAllocOp<AtenFullOp>(
+          full, /*dataType=*/full.fill_value().getType());
     } else if (auto zerosLike = dyn_cast<AtenZerosLikeOp>(op)) {
       return visitConstantTensorAllocLikeOp<AtenZerosLikeOp>(zerosLike,
                                                              operands);
@@ -584,7 +588,9 @@ private:
   template <typename OpTy>
   ChangeResult visitScalarToTensorConversionOp(OpTy op);
   ChangeResult visitAtenTensorOp(AtenTensorOp op);
-  template <typename OpTy> ChangeResult visitConstantTensorAllocOp(OpTy op);
+  template <typename OpTy>
+  ChangeResult visitConstantTensorAllocOp(OpTy op,
+                                          llvm::Optional<Type> dataType);
   template <typename OpTy>
   ChangeResult visitConstantTensorAllocLikeOp(
       OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -743,11 +749,14 @@ getPromotedResultTypeAssumingNonZeroRank(MLIRContext *context,
                                          ArrayRef<ValueKnowledge *> tensors) {
   return getPromotedResultType(context, tensors, /*skipRankCheck=*/true);
 }
+
 // Get the MLIR type of the tensor dtype given the dtype integer value and the
 // input dtype. When DType is None the type is inferred from the input dtype.
 static void fillInDTypeGivenDTypeIntAndInputDType(ValueKnowledge &knowledge,
                                                   Value dtype,
                                                   Type inputDType) {
+  assert(isa<BuiltinDialect>(inputDType.getDialect()) &&
+         "`inputDType` must be a builtin type");
   int64_t dtypeInt;
   if (dtype.getType().isa<Torch::NoneType>())
     knowledge.dtype = inputDType;
@@ -1532,12 +1541,15 @@ ChangeResult TypeAnalyzer::visitAtenTensorOp(AtenTensorOp op) {
 }
 
 template <typename OpTy>
-ChangeResult TypeAnalyzer::visitConstantTensorAllocOp(OpTy op) {
+ChangeResult
+TypeAnalyzer::visitConstantTensorAllocOp(OpTy op,
+                                         llvm::Optional<Type> dataType) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   fillInSizesGivenSizesList(knowledge, op.size());
-  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(),
-                                   Torch::FloatType::get(op->getContext()));
+  if (!dataType)
+    dataType = Torch::FloatType::get(op->getContext());
+  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), dataType.getValue());
   return getLatticeElement(op.getResult()).join(knowledge);
 }
 

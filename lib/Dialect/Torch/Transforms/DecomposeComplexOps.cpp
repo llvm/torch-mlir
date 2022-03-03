@@ -1309,6 +1309,25 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
 } // namespace
 
 namespace {
+// Decompose `aten.full` op into `aten.empty` and `aten.fill` ops.
+class DecomposeAtenFullOp : public OpRewritePattern<AtenFullOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFullOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, op.getType(), op.size(), op.dtype(), op.layout(), op.device(),
+        op.pin_memory(), /*memory_format=*/noneVal);
+    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+        op, op.getType(), emptyTensor, op.fill_value());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1403,6 +1422,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenNewOnesOp>();
     patterns.add<DecomposeAtenHardtanhOp>(context);
     target.addIllegalOp<AtenHardtanhOp>();
+    patterns.add<DecomposeAtenFullOp>(context);
+    target.addIllegalOp<AtenFullOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
