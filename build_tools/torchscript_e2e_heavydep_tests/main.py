@@ -13,7 +13,7 @@ from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
 from torch_mlir_e2e_test.torchscript.framework import SerializableTest, generate_golden_trace
 from torch_mlir_e2e_test.torchscript.annotations import extract_serializable_annotations
 
-from . import minilm_sequence_classification
+from . import hf_sequence_classification
 
 
 def _get_argparse():
