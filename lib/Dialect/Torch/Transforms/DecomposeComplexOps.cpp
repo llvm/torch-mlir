@@ -1328,6 +1328,23 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.full_like` op into `aten.empty_like` and `aten.fill` ops.
+class DecomposeAtenFullLikeOp : public OpRewritePattern<AtenFullLikeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFullLikeOp op,
+                                PatternRewriter &rewriter) const override {
+    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
+        op.getLoc(), op.getType(), op.self(), op.dtype(), op.layout(),
+        op.device(), op.pin_memory(), op.memory_format());
+    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+        op, op.getType(), emptyTensor, op.fill_value());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1424,6 +1441,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenHardtanhOp>();
     patterns.add<DecomposeAtenFullOp>(context);
     target.addIllegalOp<AtenFullOp>();
+    patterns.add<DecomposeAtenFullLikeOp>(context);
+    target.addIllegalOp<AtenFullLikeOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

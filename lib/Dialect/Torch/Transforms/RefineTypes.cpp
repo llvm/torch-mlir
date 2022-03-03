@@ -393,6 +393,8 @@ public:
     } else if (auto emptyLike = dyn_cast<AtenEmptyLikeOp>(op)) {
       return visitConstantTensorAllocLikeOp<AtenEmptyLikeOp>(emptyLike,
                                                              operands);
+    } else if (auto fullLike = dyn_cast<AtenFullLikeOp>(op)) {
+      return visitConstantTensorAllocLikeOp<AtenFullLikeOp>(fullLike, operands);
     } else if (auto newZeros = dyn_cast<AtenNewZerosOp>(op)) {
       return visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
     } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {

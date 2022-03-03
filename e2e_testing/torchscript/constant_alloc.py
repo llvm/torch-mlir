@@ -817,3 +817,140 @@ class FullModuleFalsePinMemory(torch.nn.Module):
 @register_test_case(module_factory=lambda: FullModuleFalsePinMemory())
 def FullModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class FullLikeModuleDefaultDtype(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 5)
+
+@register_test_case(module_factory=lambda: FullLikeModuleDefaultDtype())
+def FullLikeModuleDefaultDtype_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3))
+
+
+class FullLikeModuleInt2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 10.5)
+
+@register_test_case(module_factory=lambda: FullLikeModuleInt2D())
+def FullLikeModuleInt2D_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (4, 5)))
+
+
+class FullLikeModuleInt3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 5.0, dtype=torch.int64)
+
+@register_test_case(module_factory=lambda: FullLikeModuleInt3D())
+def FullLikeModuleInt3D_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (10, 4, 5)).to(torch.int32))
+
+
+class FullLikeModuleInt2DStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 10)
+
+@register_test_case(module_factory=lambda: FullLikeModuleInt2DStatic())
+def FullLikeModuleInt2DStatic_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (4, 5)))
+
+
+class FullLikeModuleFloat2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 10)
+
+@register_test_case(module_factory=lambda: FullLikeModuleFloat2D())
+def FullLikeModuleFloat2D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+class FullLikeModuleFloat3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 15, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: FullLikeModuleFloat3D())
+def FullLikeModuleFloat3D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+class FullLikeModuleFloat3DStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5], torch.float64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 15.3, dtype=torch.float32)
+
+@register_test_case(module_factory=lambda: FullLikeModuleFloat3DStatic())
+def FullLikeModuleFloat3DStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+class FullLikeModuleFalsePinMemory(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.full_like(a, 5, dtype=torch.int64, pin_memory=False)
+
+@register_test_case(module_factory=lambda: FullLikeModuleFalsePinMemory())
+def FullLikeModuleFalsePinMemory_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (10, 4)))
