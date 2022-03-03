@@ -272,7 +272,7 @@ public:
       return getLatticeElement(op->getResult(0)).join(knowledge);
     }
     if (auto mm = llvm::dyn_cast<AtenMmOp>(op)) {
-      return visitAtenMmOp(mm, operands);
+      return visitAtenMmLikeOp(mm, operands, /*expectedRank=*/2);
     } else if (auto addmm = llvm::dyn_cast<AtenAddmmOp>(op)) {
       return visitAtenAddmmOp(addmm, operands);
     } else if (auto linear = llvm::dyn_cast<AtenLinearOp>(op)) {
@@ -455,7 +455,7 @@ public:
     } else if (auto embedding = dyn_cast<AtenEmbeddingOp>(op)) {
       return visitAtenEmbeddingOp(embedding, operands);
     } else if (auto bmm = dyn_cast<AtenBmmOp>(op)) {
-      return visitAtenBmmOp(bmm, operands);
+      return visitAtenMmLikeOp(bmm, operands, /*expectedRank=*/3);
     } else if (auto matmul = dyn_cast<AtenMatmulOp>(op)) {
       return visitAtenMatmulOp(matmul, operands);
     } else if (auto mean = dyn_cast<AtenMeanOp>(op)) {
@@ -504,8 +504,9 @@ public:
 
 private:
   ChangeResult
-  visitAtenMmOp(AtenMmOp op,
-                ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  visitAtenMmLikeOp(Operation *op,
+                    ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+                    size_t expectedRank);
   ChangeResult
   visitAtenAddmmOp(AtenAddmmOp op,
                    ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -627,9 +628,6 @@ private:
   visitBinaryScalarOp(Operation *op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 
-  ChangeResult
-  visitAtenBmmOp(AtenBmmOp op,
-                 ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   ChangeResult
   visitAtenMatmulOp(AtenMatmulOp op,
                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -825,31 +823,45 @@ static void fillInSizesForBinaryBroadcastingOp(ValueKnowledge &lhs,
   }
 }
 
-ChangeResult TypeAnalyzer::visitAtenMmOp(
-    AtenMmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto &lhs = operands[0]->getValue();
-  auto &rhs = operands[1]->getValue();
+// Visitor for AtenMmOp and AtenBmmOp
+ChangeResult TypeAnalyzer::visitAtenMmLikeOp(
+    Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands,
+    size_t expectedRank) {
+  assert(expectedRank >= 2 && "expected rank must be >= 2");
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  ValueKnowledge self = operands[0]->getValue();
+  ValueKnowledge mat2 = operands[1]->getValue();
+  bool hasBatchDim = expectedRank > 2;
 
-  auto isRank2 = [](const ValueKnowledge &operand) -> bool {
-    return operand.hasSizes && operand.sizes.size() == 2;
+  auto hasExpectedRank = [&](const ValueKnowledge &operand) {
+    return operand.hasSizes && operand.sizes.size() == expectedRank;
   };
-
-  // `aten.mm` expects both operands to be rank-2 tensors.
-  if (!isRank2(lhs) || !isRank2(rhs))
+  if (!hasExpectedRank(self) || !hasExpectedRank(mat2))
     return getLatticeElement(op->getResult(0)).join(knowledge);
 
-  // If static information is available, check that both tensors are compatible.
-  if (lhs.sizes[1] != kUnknownSize && rhs.sizes[0] != kUnknownSize &&
-      lhs.sizes[1] != rhs.sizes[0])
+  // If static information is available, check that the dimensions that
+  // the two tensors have in common are compatible.
+  auto dimsAreCompatible = [](int64_t dim1, int64_t dim2) {
+    return dim1 == kUnknownSize || dim2 == kUnknownSize || dim1 == dim2;
+  };
+  int64_t selfBatchDimSize = hasBatchDim ? self.sizes[0] : 0;
+  int64_t mat2BatchDimSize = hasBatchDim ? mat2.sizes[0] : 0;
+  if (!dimsAreCompatible(selfBatchDimSize, mat2BatchDimSize) ||
+      !dimsAreCompatible(self.sizes[expectedRank - 1],
+                         mat2.sizes[expectedRank - 2]))
     return getLatticeElement(op->getResult(0)).join(knowledge);
 
   knowledge.hasSizes = true;
-  knowledge.sizes = {lhs.sizes[0], rhs.sizes[1]};
-
-  knowledge.dtype =
-      getPromotedResultTypeAssumingNonZeroRank(op->getContext(), {&lhs, &rhs});
+  if (hasBatchDim) {
+    int64_t batchDimSize =
+        selfBatchDimSize == kUnknownSize ? mat2BatchDimSize : selfBatchDimSize;
+    knowledge.sizes = {batchDimSize};
+  }
+  knowledge.sizes.push_back(self.sizes[expectedRank - 2]);
+  knowledge.sizes.push_back(mat2.sizes[expectedRank - 1]);
+  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(op->getContext(),
+                                                             {&self, &mat2});
   return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
@@ -1814,19 +1826,6 @@ ChangeResult TypeAnalyzer::visitAten_SoftmaxLikeOp(
         halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
   }
   return getLatticeElement(op.getResult()).join(knowledge);
-}
-
-ChangeResult TypeAnalyzer::visitAtenBmmOp(
-    AtenBmmOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
-  auto knowledge =
-      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-  auto self = operands[0]->getValue();
-  auto mat2 = operands[1]->getValue();
-  knowledge.sizes.resize(3, kUnknownSize);
-  knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(op->getContext(),
-                                                             {&self, &mat2});
-  knowledge.hasSizes = true;
-  return getLatticeElement(op->getResult(0)).join(knowledge);
 }
 
 ChangeResult TypeAnalyzer::visitAtenMatmulOp(
