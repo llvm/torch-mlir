@@ -539,3 +539,25 @@ func @torch.aten.silu(%arg0: !torch.vtensor<[?,?],f32> loc(unknown)) -> !torch.v
     %0 = torch.aten.silu %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor
     return %0 : !torch.vtensor
 }
+
+// -----
+// CHECK-LABEL:   func @torch.aten.full
+// CHECK-SAME:                  () -> !torch.vtensor<[2,3],f32> {
+// CHECK:           %[[FLOAT5:.*]] = torch.constant.float 5.000000e+00
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+// CHECK:           %[[MEM_FORMAT:.*]] = torch.constant.none
+// CHECK:           %[[EMPTY:.*]] = torch.aten.empty.memory_format %[[SIZE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[MEM_FORMAT]] : !torch.list<!torch.int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+// CHECK:           %[[RES:.*]] = torch.pseudo.aten.fill.Scalar %[[EMPTY]], %[[FLOAT5]] : !torch.vtensor<[2,3],f32>, !torch.float -> !torch.vtensor<[2,3],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[2,3],f32>
+func @torch.aten.full() -> !torch.vtensor<[2,3],f32> {
+  %float5.000000e00 = torch.constant.float 5.000000e+00
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
+  %1 = torch.aten.full %0, %float5.000000e00, %none, %none, %none, %none : !torch.list<!torch.int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+  return %1 : !torch.vtensor<[2,3],f32>
+}
