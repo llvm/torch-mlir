@@ -3183,6 +3183,26 @@ def Torch_AtenFullOp : Torch_Op<"aten.full", [
   let assemblyFormat = "$size `,` $fill_value `,` $dtype `,` $layout `,` $device `,` $pin_memory attr-dict `:` qualified(type($size)) `,` qualified(type($fill_value)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `->` qualified(type($result))";
 }
 
+def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
+    AllowsTypeRefinement,
+    HasValueSemantics
+  ]> {
+  let summary = "Generated op for `aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$fill_value,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory,
+    TorchOptionalIntType:$memory_format
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $fill_value `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($fill_value)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics
