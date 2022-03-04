@@ -545,6 +545,26 @@ def ElementwiseLogModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseErfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.erf(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseErfModule())
+def ElementwiseErfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+
 class ElementwiseSqrtModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
