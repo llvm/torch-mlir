@@ -293,13 +293,32 @@ class ElementwiseMinimumModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
-        return torch.minimum(x, y)
+        return torch.ops.aten.minimum(x, y)
 
 
 @register_test_case(module_factory=lambda: ElementwiseMinimumModule())
 def ElementwiseMinimumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
-    module.forward(tu.nans(3, 5), tu.rand(3, 5))
+
+# ==============================================================================
+
+class ElementwiseMinimumIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.minimum(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMinimumIntModule())
+def ElementwiseMinimumIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (3, 5)))
 
 # ==============================================================================
 
@@ -314,13 +333,32 @@ class ElementwiseMaximumModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, x, y):
-        return torch.maximum(x, y)
+        return torch.ops.aten.maximum(x, y)
 
 
 @register_test_case(module_factory=lambda: ElementwiseMaximumModule())
 def ElementwiseMaximumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
-    module.forward(tu.nans(3, 5), tu.rand(3, 5))
+
+# ==============================================================================
+
+class ElementwiseMaximumIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.maximum(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaximumIntModule())
+def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (3, 5)))
 
 # ==============================================================================
 
@@ -890,3 +928,4 @@ class ElementwiseCloneContiguousModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseCloneContiguousModule())
 def ElementwiseCloneContiguousModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+

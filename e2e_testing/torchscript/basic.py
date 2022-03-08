@@ -1363,3 +1363,42 @@ class SiluModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: SiluModule())
 def SiluModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(128, 128, low=-10, high=10))
+
+# ==============================================================================
+
+class HardTanhModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardtanh(x, min_val=-2, max_val=2)
+
+
+@register_test_case(module_factory=lambda: HardTanhModule())
+def HardTanhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100, 100, low=-5, high=5))
+
+# ==============================================================================
+
+class HardTanhIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardtanh(x, min_val=-2, max_val=2)
+
+
+@register_test_case(module_factory=lambda: HardTanhIntModule())
+def HardTanhIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-5, 5, (100, 100)))
+

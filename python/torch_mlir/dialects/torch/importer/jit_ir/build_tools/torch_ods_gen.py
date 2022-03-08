@@ -446,6 +446,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # Elementwise tensor compute ops
         for key in [
                 "aten::tanh : (Tensor) -> (Tensor)",
+                "aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)",
                 "aten::relu : (Tensor) -> (Tensor)",
                 "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
                 "aten::log : (Tensor) -> (Tensor)",
@@ -507,8 +508,10 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         # underscore variant doesn't exist.
         emit("aten::fill_.Scalar : (Tensor, Scalar) -> (Tensor)")
         emit("aten::uniform_ : (Tensor, float, float, Generator?) -> (Tensor)")
+        emit("aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
         emit("aten::bernoulli : (Tensor, Generator?) -> (Tensor)")
         emit("aten::bernoulli_.float : (Tensor, float, Generator?) -> (Tensor)")
+        emit("aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)")
 
         emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
         emit_with_mutating_variants("aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
@@ -631,6 +634,8 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
         emit("aten::dropout : (Tensor, float, bool) -> (Tensor)")
         emit("aten::t : (Tensor) -> (Tensor)")
+        emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
+        emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
 
         # Dict ops.
         emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)

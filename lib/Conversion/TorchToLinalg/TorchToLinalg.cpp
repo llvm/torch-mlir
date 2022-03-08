@@ -20,12 +20,15 @@
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -161,6 +164,37 @@ static void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
       loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
   b.create<cf::AssertOp>(loc, contractingDimEqual,
                          b.getStringAttr("mismatching contracting dimension"));
+}
+
+template <arith::CmpFPredicate fpred, arith::CmpIPredicate iupred,
+          arith::CmpIPredicate ispred>
+static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
+                                      Value lhs, Value rhs) {
+  if (type.isa<mlir::FloatType>())
+    return b.create<arith::CmpFOp>(loc, fpred, lhs, rhs);
+  if (IntegerType intType = type.dyn_cast<mlir::IntegerType>()) {
+    if (intType.isUnsigned())
+      return b.create<arith::CmpIOp>(loc, iupred, lhs, rhs);
+    if (intType.isSigned())
+      return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
+  }
+  assert(false && "Unhandled element type for comparison");
+}
+
+static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
+                               Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UGT,
+                                  arith::CmpIPredicate::ugt,
+                                  arith::CmpIPredicate::sgt>(
+      b, loc, elementalType, lhs, rhs);
+}
+
+static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
+                            Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::ULT,
+                                  arith::CmpIPredicate::ult,
+                                  arith::CmpIPredicate::slt>(
+      b, loc, elementalType, lhs, rhs);
 }
 
 static SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
@@ -2072,20 +2106,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Type elementalType =
         gtTensor.self().getType().cast<BaseTensorType>().getDtype();
-
-    if (elementalType.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                     payloadArgs[0], payloadArgs[1]);
-    if (IntegerType intType = elementalType.dyn_cast<mlir::IntegerType>()) {
-      if (intType.isUnsigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ugt,
-                                       payloadArgs[0], payloadArgs[1]);
-      if (intType.isSigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt,
-                                       payloadArgs[0], payloadArgs[1]);
-    }
-    gtTensor.emitError("unimplemented: dtype isn't supported.");
-    return nullptr;
+    return createGreaterThan(b, loc, elementalType, payloadArgs[0],
+                             payloadArgs[1]);
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
     AtenEqTensorOp::Adaptor adaptor(operands);
@@ -2126,20 +2148,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Type elementalType =
         ltTensor.self().getType().cast<BaseTensorType>().getDtype();
-
-    if (elementalType.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                     payloadArgs[0], payloadArgs[1]);
-    if (IntegerType intType = elementalType.dyn_cast<mlir::IntegerType>()) {
-      if (intType.isUnsigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ult,
-                                       payloadArgs[0], payloadArgs[1]);
-      if (intType.isSigned())
-        return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
-                                       payloadArgs[0], payloadArgs[1]);
-    }
-    ltTensor.emitError("unimplemented: dtype isn't supported.");
-    return nullptr;
+    return createLessThan(b, loc, elementalType, payloadArgs[0],
+                          payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -2329,28 +2339,24 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AddFOp>(loc, start, weightedDelta);
   }
   if (auto minimum = dyn_cast<AtenMinimumOp>(op)) {
-    if (!minimum.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      minimum.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
-                                         payloadArgs[0], payloadArgs[1]);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    Type dtype = minimum.getType().cast<BaseTensorType>().getDtype();
+    Type elemTy = converter->convertType(minimum.getType())
+                      .cast<RankedTensorType>()
+                      .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value pred = createLessThan(b, loc, dtype, lhs, rhs);
+    return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto maximum = dyn_cast<AtenMaximumOp>(op)) {
-    if (!maximum.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      maximum.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT,
-                                         payloadArgs[0], payloadArgs[1]);
-    return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], payloadArgs[1]);
+    Type dtype = maximum.getType().cast<BaseTensorType>().getDtype();
+    Type elemTy = converter->convertType(maximum.getType())
+                      .cast<RankedTensorType>()
+                      .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value pred = createGreaterThan(b, loc, dtype, lhs, rhs);
+    return b.create<arith::SelectOp>(loc, pred, lhs, rhs);
   }
   if (auto clamp = dyn_cast<AtenClampOp>(op)) {
     Type dtype = converter->convertType(clamp.getType())
@@ -3118,8 +3124,10 @@ public:
     // is violated.
     SmallVector<int64_t> outputShape(resultRank, kUnknownSize);
     SmallVector<ReassociationIndices> reassociation(collapsedRank);
+    llvm::Optional<int64_t> inferredDimension;
     for (auto en : llvm::enumerate(outputSizeTorchInt)) {
       int64_t inputDim;
+      int64_t size;
       int64_t outputDim = en.index();
       // Match torch.aten.size.int(inputTensor, inputDim) with constant inputDim
       if (matchPattern(en.value(),
@@ -3131,11 +3139,54 @@ public:
           outputShape[outputDim] = inputShape[inputDim];
           continue;
         }
+      } else if (matchPattern(en.value(), m_TorchConstantInt(&size))) {
+        if (size != -1) {
+          outputShape[outputDim] = size;
+          continue;
+        }
+
+        if (inferredDimension.hasValue()) {
+          return rewriter.notifyMatchFailure(
+              op, "at most one element in size list is allowed to be -1");
+        }
+        inferredDimension = outputDim;
+      }
+    }
+
+    // Use static information of input tensor to determine size of inferred
+    // dimension in output shape.
+    //
+    // If there is an inferred dimension and that is the only dimension
+    // in the output shape (i.e. the tensor is getting fully flattened),
+    // then we don't need to analyze the static information of the input
+    // shape since the reassociation of dimensions only requires rank
+    // information.
+    if (inferredDimension.hasValue() && outputShape.size() > 1) {
+      if (llvm::count(outputShape, kUnknownSize) != 1 ||
+          llvm::count(inputShape, kUnknownSize) != 0) {
+        return rewriter.notifyMatchFailure(
+            op,
+            "unimplemented: an inferred dimension is only supported when there "
+            "is enough static shape information to determine its size, or when "
+            "the input tensor is being flattened to a single dimension");
       }
 
-      int64_t size;
-      if (matchPattern(en.value(), m_TorchConstantInt(&size)))
-        outputShape[outputDim] = size;
+      auto productReduceKnownSizes = [](const ArrayRef<int64_t> sizes) {
+        auto knownSizes = llvm::make_filter_range(
+            sizes, [](int64_t val) { return val != kUnknownSize; });
+        return std::accumulate(knownSizes.begin(), knownSizes.end(), /*init=*/1,
+                               std::multiplies<int64_t>());
+      };
+
+      int64_t numOfElements = productReduceKnownSizes(inputShape);
+      int64_t outputKnownNumOfElements = productReduceKnownSizes(outputShape);
+      if (numOfElements % outputKnownNumOfElements != 0) {
+        return rewriter.notifyMatchFailure(
+            op, "number of elements in input tensor must be divisible by "
+                "product of non-inferred dimensions in size list");
+      }
+      outputShape[*inferredDimension] =
+          numOfElements / outputKnownNumOfElements;
     }
 
     SmallVector<int64_t> collapsedShape =
@@ -4639,6 +4690,24 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertTensorStaticInfoCastOp
+    : public OpConversionPattern<TensorStaticInfoCastOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TensorStaticInfoCastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    RankedTensorType resultType = getTypeConverter()
+                                      ->convertType(op->getResult(0).getType())
+                                      .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                adaptor.operand());
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -4771,6 +4840,8 @@ public:
     target.addIllegalOp<AtenIndexTensorOp>();
     patterns.add<ConvertPseudoAtenUniformOp>(typeConverter, context);
     target.addIllegalOp<PseudoAtenUniformOp>();
+    patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
+    target.addIllegalOp<TensorStaticInfoCastOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

@@ -17,6 +17,7 @@ namespace torch {
 namespace TMTensor {
 
 std::unique_ptr<OperationPass<FuncOp>> createTMTensorToLoopsPass();
+std::unique_ptr<OperationPass<FuncOp>> createTMTensorBufferizePass();
 
 void registerPasses();
 
