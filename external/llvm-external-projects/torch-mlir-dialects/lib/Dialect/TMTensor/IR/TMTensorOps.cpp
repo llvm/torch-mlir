@@ -403,10 +403,9 @@ bool ScatterOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
   Value operand = opOperand->get();
   if (operand == updates())
     bbArgNumber = 0; // block arg 0 is `update`.
-  else if (operand == original())
-    bbArgNumber = 1; // block arg 1 is `original`.
   else {
-    assert(operand == indices() &&
+    bool isValidOperand = operand == indices() || operand == original();
+    assert(isValidOperand &&
            "operand must belong to the current tm_tensor.scatter op");
     return true;
   }
