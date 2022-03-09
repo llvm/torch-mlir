@@ -401,6 +401,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)")
         emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
         emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
+        emit("aten::_index_put_impl_ : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)")
         emit("aten::item : (Tensor) -> (Scalar)")
         emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")
         emit("aten::numel : (Tensor) -> (int)")

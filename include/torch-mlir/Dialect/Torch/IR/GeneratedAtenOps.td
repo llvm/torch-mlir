@@ -2921,6 +2921,23 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
   let assemblyFormat = "$self `,` $dim `,` $index attr-dict `:` qualified(type($self)) `,` qualified(type($dim)) `,` qualified(type($index)) `->` qualified(type($result))";
 }
 
+def Torch_Aten_IndexPutImpl_Op : Torch_Op<"aten._index_put_impl_", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::_index_put_impl_ : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchTensorType:$values,
+    Torch_BoolType:$accumulate,
+    Torch_BoolType:$unsafe
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate `,` $unsafe attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `,` qualified(type($unsafe)) `->` qualified(type($result))";
+}
+
 def Torch_AtenItemOp : Torch_Op<"aten.item", [
     AllowsTypeRefinement,
     HasValueSemantics,
