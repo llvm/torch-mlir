@@ -516,7 +516,7 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenResize_Op, AtenTransposeIntOp, AtenTOp, AtenPermuteOp,
           AtenIndexSelectOp, AtenSelectIntOp, AtenSliceTensorOp, AtenGatherOp,
           AtenExpandOp, AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp,
-          AtenIndexTensorOp>(op)) {
+          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = operands[0]->getValue().dtype;

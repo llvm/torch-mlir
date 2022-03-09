@@ -606,6 +606,10 @@ def aten〇bernoulli〇float(self: List[int], p: float = 0.5, generator: Any = N
 def aten〇bernoulli〇Tensor(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
+@not_present_in_registry
+def aten〇index_put_impl(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False, unsafe: bool = False) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:
     return self
 

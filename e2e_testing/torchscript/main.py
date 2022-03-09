@@ -54,6 +54,7 @@ from . import histogram_binning_calibration
 from . import table_batch_embedding
 from . import rng
 from . import cast
+from . import index_put
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']

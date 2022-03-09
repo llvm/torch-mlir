@@ -176,6 +176,132 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertValsemVariantAtenIndexPutImplOp
+    : public OpConversionPattern<ValsemVariantAtenIndexPutImplOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(ValsemVariantAtenIndexPutImplOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = adaptor.self();
+    Value values = adaptor.values();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType valuesType = values.getType().cast<RankedTensorType>();
+    Type resultElemType = typeConverter->convertType(op->getResult(0).getType())
+                              .cast<RankedTensorType>()
+                              .getElementType();
+
+    // TODO: Add support for the input with rank other than one.
+    if (inputType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: input rank other than one is not supported");
+
+    // The unsafe should be either `False` or `none`.
+    if (!op.unsafe().getType().isa<Torch::NoneType>()) {
+      bool unsafe;
+      if (!matchPattern(op.unsafe(), m_TorchConstantBool(&unsafe)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: unsafe must be a constant");
+      else if (unsafe)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: unsafe is expected to be false");
+    }
+
+    // The accumulate should be a torch constant of boolean type.
+    bool accumulate;
+    if (!matchPattern(op.accumulate(), m_TorchConstantBool(&accumulate)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected accumulate to be constant bool.");
+
+    // The element type of the `input` and `values` should be same.
+    if (inputType.getElementType() != valuesType.getElementType())
+      return rewriter.notifyMatchFailure(
+          op, "Input element type should be same as the values element type.");
+
+    SmallVector<Value> indicesList;
+    getListConstructElements(adaptor.indices(), indicesList);
+    // The size of the list of the index tensors should not be greater than the
+    // input rank.
+    if ((int64_t)indicesList.size() > inputType.getRank())
+      return rewriter.notifyMatchFailure(
+          op, "Indices list size should not be greater than the input rank.");
+
+    // TODO: Add support for cases with indices list size smaller than the input
+    // rank.
+    if ((int64_t)indicesList.size() < inputType.getRank())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented, Indices list size smaller than input rank");
+
+    if (indicesList[0].getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(op,
+                                         "Indices tensor must not be none.");
+
+    // TODO: Add support for the index with rank other than one.
+    int64_t indexRank = typeConverter->convertType(indicesList[0].getType())
+                            .cast<RankedTensorType>()
+                            .getRank();
+    if (indexRank != 1)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: index rank other than one is not supported");
+
+    // Creating a tm_tensor.scatter op with the following mapping:
+    // 1.) Index tensor from the `indicesList` maps to the indices in scatter
+    // op. Index tensor is expanded from 1-d to 2-d, and its element type is set
+    // to i32 as required for the scatter op.
+    // 2.) `values` is mapped to `updates` in scatter op.
+    // 3.) `input` is mapped to `original` in scatter op.
+    ValueTensorType indexType =
+        indicesList[0].getType().cast<ValueTensorType>();
+    SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
+    ValueTensorType expandedIndexType = ValueTensorType::get(
+        context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
+        loc, expandedIndexType, indicesList[0], torchCstOne);
+
+    // Converting the index element type to i32.
+    Value indices = convertTensorToDtype(
+        rewriter, loc, expandedIndexTensor,
+        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
+    indices = typeConverter->materializeTargetConversion(
+        rewriter, loc, typeConverter->convertType(indices.getType()), indices);
+
+    auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
+        loc, input.getType(), ValueRange{values, indices}, ValueRange{input},
+        /*unique_indices=*/false);
+
+    Region &scatterOpRegion = scatterOp.region();
+    auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
+    scatterOpBlock.addArguments(TypeRange{resultElemType, resultElemType},
+                                {loc, loc});
+    auto blockArgs = scatterOpBlock.getArguments();
+
+    OpBuilder regionBuilder(scatterOpRegion);
+    Value update = blockArgs[0];
+    Value original = blockArgs[1];
+    Value yieldValue = update;
+    // Create an add instruction inside the scatter op region to increment the
+    // `original` value with the value from `updates` if the accumulate flag is
+    // true.
+    if (accumulate) {
+      if (inputType.getElementType().isa<mlir::IntegerType>())
+        yieldValue = regionBuilder.create<arith::AddIOp>(loc, original, update);
+      else if (inputType.getElementType().isa<mlir::FloatType>())
+        yieldValue = regionBuilder.create<arith::AddFOp>(loc, original, update);
+    }
+    regionBuilder.create<TMTensor::YieldOp>(loc, yieldValue);
+    rewriter.replaceOp(op, scatterOp->getResult(0));
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -207,6 +333,9 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenBincountOp>();
     patterns.add<ConvertAtenBincountOp>(typeConverter, context);
+    target.addIllegalOp<ValsemVariantAtenIndexPutImplOp>();
+    patterns.add<ConvertValsemVariantAtenIndexPutImplOp>(typeConverter,
+                                                         context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

@@ -1018,6 +1018,27 @@ def Torch_ValsemVariantAtenFillScalarOp: Torch_Op<"valsem.aten.fill.Scalar", [
   let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
+// The corresponding without underscore variant for `torch.aten._index_put_impl_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchTensorType:$values,
+    Torch_BoolType:$accumulate,
+    Torch_BoolType:$unsafe
+  );
+let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate `,` $unsafe attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `,` qualified(type($unsafe)) `->` qualified(type($result))";
+}
+
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 
 // But TS compiler introduces control flow for `torch._assert` operation. The 
 // `torch._assert` would introduce control flow like: 
