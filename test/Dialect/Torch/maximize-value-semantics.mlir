@@ -59,6 +59,28 @@ func @mutation_followed_by_view_like_ops(%value_t: !torch.vtensor, %overwriter: 
   return %value_result : !torch.vtensor
 }
 
+// CHECK-LABEL:   func @mutation_of_view_like_op_result(
+// CHECK-SAME:                                             %[[VALUE_T:.*]]: !torch.vtensor, %[[OVERWRITER:.*]]: !torch.vtensor, %[[INT_LIST:.*]]: !torch.list<!torch.int>) -> !torch.vtensor {
+// CHECK:           return %[[OVERWRITER]] : !torch.vtensor
+func @mutation_of_view_like_op_result(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<!torch.int>) -> !torch.vtensor {
+  %t = torch.copy.to_tensor %value_t : !torch.tensor
+  %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
+  torch.overwrite.tensor.contents %overwriter overwrites %view : !torch.vtensor, !torch.tensor
+  %result = torch.copy.to_vtensor %view : !torch.vtensor
+  return %result : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @value_tensor_used_after_copy_was_mutated(
+// CHECK-SAME:                                                       %[[VALUE_T:.*]]: !torch.vtensor,
+// CHECK-SAME:                                                       %[[OVERWRITER:.*]]: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+// CHECK:           return %[[VALUE_T]], %[[OVERWRITER]] : !torch.vtensor, !torch.vtensor
+func @value_tensor_used_after_copy_was_mutated(%value_t: !torch.vtensor, %overwriter: !torch.vtensor) -> (!torch.vtensor, !torch.vtensor) {
+  %t = torch.copy.to_tensor %value_t : !torch.tensor
+  torch.overwrite.tensor.contents %overwriter overwrites %t : !torch.vtensor, !torch.tensor
+  %value_mutated_t = torch.copy.to_vtensor %t : !torch.vtensor
+  return %value_t, %value_mutated_t : !torch.vtensor, !torch.vtensor
+}
+
 // CHECK-LABEL:   func @unmodeled_mutation(
 // CHECK:           torch.overwrite.tensor.contents
 func @unmodeled_mutation(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
@@ -83,6 +105,15 @@ func @unimplemented_control_flow(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %
   }
   %equal_to_arg1 = torch.copy.to_vtensor %tensor : !torch.vtensor
   return %equal_to_arg0, %equal_to_arg1 : !torch.vtensor, !torch.vtensor
+}
+
+// CHECK-LABEL:   func @non_value_tensor_returned(
+// CHECK-SAME:                                    %[[VALUE_T:.*]]: !torch.vtensor) -> !torch.tensor {
+// CHECK:           %[[T:.*]] = torch.copy.to_tensor %[[VALUE_T]] : !torch.tensor
+// CHECK:           return %[[T]] : !torch.tensor
+func @non_value_tensor_returned(%value_t: !torch.vtensor) -> !torch.tensor {
+  %t = torch.copy.to_tensor %value_t : !torch.tensor
+  return %t : !torch.tensor
 }
 
 // CHECK-LABEL:   func @viewlike$basic_unsqueeze(
