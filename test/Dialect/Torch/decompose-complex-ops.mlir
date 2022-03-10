@@ -647,3 +647,18 @@ func @torch.aten.full_like(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[
   %0 = torch.aten.full_like %arg0, %int5, %none, %none, %none, %none, %none : !torch.vtensor<[?,?],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+// CHECK-LABEL:   func @torch.aten.index_put(
+// CHECK-SAME:                              %[[INP:.*]]: !torch.vtensor<[?],f32>, %[[INDEX:.*]]: !torch.vtensor<[?],si64>,
+// CHECK-SAME:                              %[[VALUES:.*]]: !torch.vtensor<[?],f32>,
+// CHECK-SAME:                              %[[ACCUM:.*]]: !torch.bool) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[INDICES:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RES:.*]] = torch.valsem.aten.index_put_impl %[[INP]], %[[INDICES]], %[[VALUES]], %[[ACCUM]], %[[FALSE]] : !torch.vtensor<[?],f32>, !torch.list<vtensor>, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool -> !torch.vtensor<[?],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[?],f32>
+func @torch.aten.index_put(%input: !torch.vtensor<[?],f32>, %index: !torch.vtensor<[?],si64>, %values: !torch.vtensor<[?],f32>, %accumulate : !torch.bool) -> !torch.vtensor<[?],f32> {
+  %indices = torch.prim.ListConstruct %index : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  %0 = torch.aten.index_put %input, %indices, %values, %accumulate : !torch.vtensor<[?],f32>, !torch.list<vtensor>, !torch.vtensor<[?],f32>, !torch.bool -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
