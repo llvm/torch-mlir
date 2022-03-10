@@ -23,11 +23,21 @@ namespace Torch {
 namespace OpTrait {
 
 // If a Torch op has this trait, it means that the op does not exploit the
-// mutability / aliasing properties of torch tensors. This enables a
-// transformation which locally replaces mutable arrays with immutable tensors.
+// mutability / aliasing properties of torch tensors, lists, or dictionaries.
+// This enables transformations to locally reason about immutability for those
+// types.
 template <typename ConcreteType>
 class HasValueSemantics
     : public ::mlir::OpTrait::TraitBase<ConcreteType, HasValueSemantics> {};
+
+// If a Torch op has this trait, it means that the op does not mutate any
+// operands.
+//
+// This is a weaker form of HasValueSemantics, since that trait also requires no
+// aliasing. That is, HasValueSemantics implies this trait.
+template <typename ConcreteType>
+class ReadOnly
+    : public ::mlir::OpTrait::TraitBase<ConcreteType, ReadOnly> {};
 
 // If a Torch op has this trait, it means that the op is a "trailing underscore"
 // op variant that performs an in-place operation on its first argument. These

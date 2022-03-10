@@ -232,4 +232,3 @@ def SelectIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (5,5)))
 
 # ==============================================================================
-

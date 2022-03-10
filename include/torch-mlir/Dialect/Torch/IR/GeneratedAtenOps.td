@@ -18,7 +18,8 @@
 
 def Torch_AtenTanhOp : Torch_Op<"aten.tanh", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tanh : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -46,7 +47,8 @@ def Torch_AtenTanh_Op : Torch_Op<"aten.tanh_", [
 
 def Torch_AtenHardtanhOp : Torch_Op<"aten.hardtanh", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::hardtanh : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -78,7 +80,8 @@ def Torch_AtenHardtanh_Op : Torch_Op<"aten.hardtanh_", [
 
 def Torch_AtenReluOp : Torch_Op<"aten.relu", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::relu : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -106,7 +109,8 @@ def Torch_AtenRelu_Op : Torch_Op<"aten.relu_", [
 
 def Torch_AtenLeakyReluOp : Torch_Op<"aten.leaky_relu", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::leaky_relu : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -136,7 +140,8 @@ def Torch_AtenLeakyRelu_Op : Torch_Op<"aten.leaky_relu_", [
 
 def Torch_AtenLogOp : Torch_Op<"aten.log", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::log : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -164,7 +169,8 @@ def Torch_AtenLog_Op : Torch_Op<"aten.log_", [
 
 def Torch_AtenSigmoidOp : Torch_Op<"aten.sigmoid", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sigmoid : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -192,7 +198,8 @@ def Torch_AtenSigmoid_Op : Torch_Op<"aten.sigmoid_", [
 
 def Torch_AtenHardsigmoidOp : Torch_Op<"aten.hardsigmoid", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::hardsigmoid : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -220,7 +227,8 @@ def Torch_AtenHardsigmoid_Op : Torch_Op<"aten.hardsigmoid_", [
 
 def Torch_AtenHardswishOp : Torch_Op<"aten.hardswish", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::hardswish : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -248,7 +256,8 @@ def Torch_AtenHardswish_Op : Torch_Op<"aten.hardswish_", [
 
 def Torch_AtenErfOp : Torch_Op<"aten.erf", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::erf : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -276,7 +285,8 @@ def Torch_AtenErf_Op : Torch_Op<"aten.erf_", [
 
 def Torch_AtenSiluOp : Torch_Op<"aten.silu", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::silu : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -304,7 +314,8 @@ def Torch_AtenSilu_Op : Torch_Op<"aten.silu_", [
 
 def Torch_AtenSinOp : Torch_Op<"aten.sin", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sin : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -332,7 +343,8 @@ def Torch_AtenSin_Op : Torch_Op<"aten.sin_", [
 
 def Torch_AtenExpOp : Torch_Op<"aten.exp", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::exp : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -360,7 +372,8 @@ def Torch_AtenExp_Op : Torch_Op<"aten.exp_", [
 
 def Torch_AtenCosOp : Torch_Op<"aten.cos", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::cos : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -388,7 +401,8 @@ def Torch_AtenCos_Op : Torch_Op<"aten.cos_", [
 
 def Torch_AtenNegOp : Torch_Op<"aten.neg", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::neg : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -416,7 +430,8 @@ def Torch_AtenNeg_Op : Torch_Op<"aten.neg_", [
 
 def Torch_AtenFloorOp : Torch_Op<"aten.floor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::floor : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -444,7 +459,8 @@ def Torch_AtenFloor_Op : Torch_Op<"aten.floor_", [
 
 def Torch_AtenCeilOp : Torch_Op<"aten.ceil", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ceil : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -472,7 +488,8 @@ def Torch_AtenCeil_Op : Torch_Op<"aten.ceil_", [
 
 def Torch_AtenBitwiseNotOp : Torch_Op<"aten.bitwise_not", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bitwise_not : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -500,7 +517,8 @@ def Torch_AtenBitwiseNot_Op : Torch_Op<"aten.bitwise_not_", [
 
 def Torch_AtenAddTensorOp : Torch_Op<"aten.add.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -532,7 +550,8 @@ def Torch_AtenAdd_TensorOp : Torch_Op<"aten.add_.Tensor", [
 
 def Torch_AtenSubTensorOp : Torch_Op<"aten.sub.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -564,7 +583,8 @@ def Torch_AtenSub_TensorOp : Torch_Op<"aten.sub_.Tensor", [
 
 def Torch_AtenMulTensorOp : Torch_Op<"aten.mul.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -594,7 +614,8 @@ def Torch_AtenMul_TensorOp : Torch_Op<"aten.mul_.Tensor", [
 
 def Torch_AtenDivTensorOp : Torch_Op<"aten.div.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::div.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -624,7 +645,8 @@ def Torch_AtenDiv_TensorOp : Torch_Op<"aten.div_.Tensor", [
 
 def Torch_AtenLerpTensorOp : Torch_Op<"aten.lerp.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -656,7 +678,8 @@ def Torch_AtenLerp_TensorOp : Torch_Op<"aten.lerp_.Tensor", [
 
 def Torch_AtenEqTensorOp : Torch_Op<"aten.eq.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -686,7 +709,8 @@ def Torch_AtenEq_TensorOp : Torch_Op<"aten.eq_.Tensor", [
 
 def Torch_AtenGtTensorOp : Torch_Op<"aten.gt.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -716,7 +740,8 @@ def Torch_AtenGt_TensorOp : Torch_Op<"aten.gt_.Tensor", [
 
 def Torch_AtenLtTensorOp : Torch_Op<"aten.lt.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lt.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -746,7 +771,8 @@ def Torch_AtenLt_TensorOp : Torch_Op<"aten.lt_.Tensor", [
 
 def Torch_AtenNeTensorOp : Torch_Op<"aten.ne.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ne.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -776,7 +802,8 @@ def Torch_AtenNe_TensorOp : Torch_Op<"aten.ne_.Tensor", [
 
 def Torch_AtenAddScalarOp : Torch_Op<"aten.add.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -808,7 +835,8 @@ def Torch_AtenAdd_ScalarOp : Torch_Op<"aten.add_.Scalar", [
 
 def Torch_AtenSubScalarOp : Torch_Op<"aten.sub.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -840,7 +868,8 @@ def Torch_AtenSub_ScalarOp : Torch_Op<"aten.sub_.Scalar", [
 
 def Torch_AtenMulScalarOp : Torch_Op<"aten.mul.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -870,7 +899,8 @@ def Torch_AtenMul_ScalarOp : Torch_Op<"aten.mul_.Scalar", [
 
 def Torch_AtenDivScalarOp : Torch_Op<"aten.div.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::div.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -900,7 +930,8 @@ def Torch_AtenDiv_ScalarOp : Torch_Op<"aten.div_.Scalar", [
 
 def Torch_AtenNeScalarOp : Torch_Op<"aten.ne.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -930,7 +961,8 @@ def Torch_AtenNe_ScalarOp : Torch_Op<"aten.ne_.Scalar", [
 
 def Torch_AtenEqScalarOp : Torch_Op<"aten.eq.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -960,7 +992,8 @@ def Torch_AtenEq_ScalarOp : Torch_Op<"aten.eq_.Scalar", [
 
 def Torch_AtenGtScalarOp : Torch_Op<"aten.gt.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gt.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -990,7 +1023,8 @@ def Torch_AtenGt_ScalarOp : Torch_Op<"aten.gt_.Scalar", [
 
 def Torch_AtenGeScalarOp : Torch_Op<"aten.ge.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ge.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1020,7 +1054,8 @@ def Torch_AtenGe_ScalarOp : Torch_Op<"aten.ge_.Scalar", [
 
 def Torch_AtenLtScalarOp : Torch_Op<"aten.lt.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lt.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1050,7 +1085,8 @@ def Torch_AtenLt_ScalarOp : Torch_Op<"aten.lt_.Scalar", [
 
 def Torch_AtenLeScalarOp : Torch_Op<"aten.le.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::le.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1080,7 +1116,8 @@ def Torch_AtenLe_ScalarOp : Torch_Op<"aten.le_.Scalar", [
 
 def Torch_AtenFmodScalarOp : Torch_Op<"aten.fmod.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1110,7 +1147,8 @@ def Torch_AtenFmod_ScalarOp : Torch_Op<"aten.fmod_.Scalar", [
 
 def Torch_AtenMaskedFillScalarOp : Torch_Op<"aten.masked_fill.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1142,7 +1180,8 @@ def Torch_AtenMaskedFill_ScalarOp : Torch_Op<"aten.masked_fill_.Scalar", [
 
 def Torch_AtenClampOp : Torch_Op<"aten.clamp", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)`";
   let arguments = (ins
@@ -1174,7 +1213,8 @@ def Torch_AtenClamp_Op : Torch_Op<"aten.clamp_", [
 
 def Torch_AtenLog2Op : Torch_Op<"aten.log2", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::log2 : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1202,7 +1242,8 @@ def Torch_AtenLog2_Op : Torch_Op<"aten.log2_", [
 
 def Torch_AtenRsqrtOp : Torch_Op<"aten.rsqrt", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::rsqrt : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1230,7 +1271,8 @@ def Torch_AtenRsqrt_Op : Torch_Op<"aten.rsqrt_", [
 
 def Torch_AtenAbsOp : Torch_Op<"aten.abs", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::abs : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1258,7 +1300,8 @@ def Torch_AtenAbs_Op : Torch_Op<"aten.abs_", [
 
 def Torch_AtenReciprocalOp : Torch_Op<"aten.reciprocal", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::reciprocal : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1286,7 +1329,8 @@ def Torch_AtenReciprocal_Op : Torch_Op<"aten.reciprocal_", [
 
 def Torch_AtenBitwiseAndTensorOp : Torch_Op<"aten.bitwise_and.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1316,7 +1360,8 @@ def Torch_AtenBitwiseAnd_TensorOp : Torch_Op<"aten.bitwise_and_.Tensor", [
 
 def Torch_AtenThresholdOp : Torch_Op<"aten.threshold", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1348,7 +1393,8 @@ def Torch_AtenThreshold_Op : Torch_Op<"aten.threshold_", [
 
 def Torch_AtenSquareOp : Torch_Op<"aten.square", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::square : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1376,7 +1422,8 @@ def Torch_AtenSquare_Op : Torch_Op<"aten.square_", [
 
 def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1393,7 +1440,8 @@ def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
 
 def Torch_AtenAddcdivOp : Torch_Op<"aten.addcdiv", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1410,7 +1458,8 @@ def Torch_AtenAddcdivOp : Torch_Op<"aten.addcdiv", [
 
 def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::maximum : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1425,7 +1474,8 @@ def Torch_AtenMaximumOp : Torch_Op<"aten.maximum", [
 
 def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::minimum : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1440,7 +1490,8 @@ def Torch_AtenMinimumOp : Torch_Op<"aten.minimum", [
 
 def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1456,7 +1507,8 @@ def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
 
 def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gelu : (Tensor, str) -> (Tensor)`";
   let arguments = (ins
@@ -1471,7 +1523,8 @@ def Torch_AtenGeluOp : Torch_Op<"aten.gelu", [
 
 def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1486,7 +1539,8 @@ def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
 
 def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1532,7 +1586,8 @@ def Torch_AtenUniform_Op : Torch_Op<"aten.uniform_", [
 
 def Torch_AtenRandLikeOp : Torch_Op<"aten.rand_like", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::rand_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -1551,7 +1606,8 @@ def Torch_AtenRandLikeOp : Torch_Op<"aten.rand_like", [
 
 def Torch_AtenBernoulliOp : Torch_Op<"aten.bernoulli", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bernoulli : (Tensor, Generator?) -> (Tensor)`";
   let arguments = (ins
@@ -1596,7 +1652,8 @@ def Torch_AtenBernoulli_TensorOp : Torch_Op<"aten.bernoulli_.Tensor", [
 
 def Torch_AtenTriuOp : Torch_Op<"aten.triu", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::triu : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
@@ -1626,7 +1683,8 @@ def Torch_AtenTriu_Op : Torch_Op<"aten.triu_", [
 
 def Torch_AtenIndexPutOp : Torch_Op<"aten.index_put", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)`";
   let arguments = (ins
@@ -1660,7 +1718,8 @@ def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
 
 def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)`";
   let arguments = (ins
@@ -1676,7 +1735,8 @@ def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
 
 def Torch_AtenMmOp : Torch_Op<"aten.mm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mm : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1691,7 +1751,8 @@ def Torch_AtenMmOp : Torch_Op<"aten.mm", [
 
 def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -1709,7 +1770,8 @@ def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
 
 def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::matmul : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1724,7 +1786,8 @@ def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
 
 def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)`";
   let arguments = (ins
@@ -1744,7 +1807,8 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
 
 def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)`";
   let arguments = (ins
@@ -1767,7 +1831,8 @@ def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
 
 def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)`";
   let arguments = (ins
@@ -1789,7 +1854,8 @@ def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
 
 def Torch_AtenLayerNormOp : Torch_Op<"aten.layer_norm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)`";
   let arguments = (ins
@@ -1808,7 +1874,8 @@ def Torch_AtenLayerNormOp : Torch_Op<"aten.layer_norm", [
 
 def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)`";
   let arguments = (ins
@@ -1828,7 +1895,8 @@ def Torch_AtenNativeLayerNormOp : Torch_Op<"aten.native_layer_norm", [
 
 def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)`";
   let arguments = (ins
@@ -1847,7 +1915,8 @@ def Torch_AtenMaxPool2dOp : Torch_Op<"aten.max_pool2d", [
 
 def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::softmax.int : (Tensor, int, int?) -> (Tensor)`";
   let arguments = (ins
@@ -1863,7 +1932,8 @@ def Torch_AtenSoftmaxIntOp : Torch_Op<"aten.softmax.int", [
 
 def Torch_AtenLogSoftmaxIntOp : Torch_Op<"aten.log_softmax.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::log_softmax.int : (Tensor, int, int?) -> (Tensor)`";
   let arguments = (ins
@@ -1879,7 +1949,8 @@ def Torch_AtenLogSoftmaxIntOp : Torch_Op<"aten.log_softmax.int", [
 
 def Torch_Aten_LogSoftmaxOp : Torch_Op<"aten._log_softmax", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_log_softmax : (Tensor, int, bool) -> (Tensor)`";
   let arguments = (ins
@@ -1895,7 +1966,8 @@ def Torch_Aten_LogSoftmaxOp : Torch_Op<"aten._log_softmax", [
 
 def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -1910,7 +1982,8 @@ def Torch_AtenAdaptiveAvgPool2dOp : Torch_Op<"aten.adaptive_avg_pool2d", [
 
 def Torch_AtenTopkOp : Torch_Op<"aten.topk", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)`";
   let arguments = (ins
@@ -1928,7 +2001,8 @@ def Torch_AtenTopkOp : Torch_Op<"aten.topk", [
 }
 
 def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::transpose.int : (Tensor, int, int) -> (Tensor)`";
   let arguments = (ins
@@ -1943,7 +2017,8 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
 }
 
 def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::permute : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -1958,7 +2033,8 @@ def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
 
 def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bmm : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -1973,7 +2049,8 @@ def Torch_AtenBmmOp : Torch_Op<"aten.bmm", [
 
 def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::cumsum : (Tensor, int, int?) -> (Tensor)`";
   let arguments = (ins
@@ -1989,7 +2066,8 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
 
 def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -2004,7 +2082,8 @@ def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
 
 def Torch_AtenLogsumexpOp : Torch_Op<"aten.logsumexp", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::logsumexp : (Tensor, int[], bool) -> (Tensor)`";
   let arguments = (ins
@@ -2020,7 +2099,8 @@ def Torch_AtenLogsumexpOp : Torch_Op<"aten.logsumexp", [
 
 def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mean.dim : (Tensor, int[], bool, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2037,7 +2117,8 @@ def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
 
 def Torch_Aten__And__TensorOp : Torch_Op<"aten.__and__.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2052,7 +2133,8 @@ def Torch_Aten__And__TensorOp : Torch_Op<"aten.__and__.Tensor", [
 
 def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sqrt : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2066,7 +2148,8 @@ def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
 
 def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_softmax : (Tensor, int, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2082,7 +2165,8 @@ def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
 
 def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mean : (Tensor, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2097,7 +2181,8 @@ def Torch_AtenMeanOp : Torch_Op<"aten.mean", [
 
 def Torch_AtenStdOp : Torch_Op<"aten.std", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::std : (Tensor, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2112,7 +2197,8 @@ def Torch_AtenStdOp : Torch_Op<"aten.std", [
 
 def Torch_AtenVarOp : Torch_Op<"aten.var", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::var : (Tensor, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2127,7 +2213,8 @@ def Torch_AtenVarOp : Torch_Op<"aten.var", [
 
 def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)`";
   let arguments = (ins
@@ -2146,7 +2233,8 @@ def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
 
 def Torch_AtenNllLossBackwardOp : Torch_Op<"aten.nll_loss_backward", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2166,7 +2254,8 @@ def Torch_AtenNllLossBackwardOp : Torch_Op<"aten.nll_loss_backward", [
 
 def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bincount : (Tensor, Tensor?, int) -> (Tensor)`";
   let arguments = (ins
@@ -2182,7 +2271,8 @@ def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
 
 def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -2197,7 +2287,8 @@ def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
 }
 
 def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::squeeze.dim : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
@@ -2212,7 +2303,8 @@ def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
 }
 
 def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::unsqueeze : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
@@ -2226,7 +2318,8 @@ def Torch_AtenUnsqueezeOp : Torch_Op<"aten.unsqueeze", [
 }
 
 def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::squeeze : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2240,7 +2333,8 @@ def Torch_AtenSqueezeOp : Torch_Op<"aten.squeeze", [
 }
 
 def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)`";
   let arguments = (ins
@@ -2256,7 +2350,8 @@ def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
 
 def Torch_AtenDimOp : Torch_Op<"aten.dim", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::dim : (Tensor) -> (int)`";
   let arguments = (ins
@@ -2271,7 +2366,8 @@ def Torch_AtenDimOp : Torch_Op<"aten.dim", [
 
 def Torch_AtenSizeOp : Torch_Op<"aten.size", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::size : (Tensor) -> (int[])`";
   let arguments = (ins
@@ -2286,7 +2382,8 @@ def Torch_AtenSizeOp : Torch_Op<"aten.size", [
 
 def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Bool.Tensor : (Tensor) -> (bool)`";
   let arguments = (ins
@@ -2300,7 +2397,8 @@ def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
 
 def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2318,7 +2416,8 @@ def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
 
 def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2337,7 +2436,8 @@ def Torch_AtenNewOnesOp : Torch_Op<"aten.new_ones", [
 
 def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2355,7 +2455,8 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
 
 def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2374,7 +2475,8 @@ def Torch_AtenNewZerosOp : Torch_Op<"aten.new_zeros", [
 
 def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tensor : (t[], int?, Device?, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2391,7 +2493,8 @@ def Torch_AtenTensorOp : Torch_Op<"aten.tensor", [
 
 def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2408,7 +2511,8 @@ def Torch_AtenTensorBoolOp : Torch_Op<"aten.tensor.bool", [
 
 def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2425,7 +2529,8 @@ def Torch_AtenTensorIntOp : Torch_Op<"aten.tensor.int", [
 
 def Torch_Aten_ShapeAsTensorOp : Torch_Op<"aten._shape_as_tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_shape_as_tensor : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2439,7 +2544,8 @@ def Torch_Aten_ShapeAsTensorOp : Torch_Op<"aten._shape_as_tensor", [
 
 def Torch_AtenAllOp : Torch_Op<"aten.all", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::all : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2453,7 +2559,8 @@ def Torch_AtenAllOp : Torch_Op<"aten.all", [
 
 def Torch_AtenAnyOp : Torch_Op<"aten.any", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::any : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2467,7 +2574,8 @@ def Torch_AtenAnyOp : Torch_Op<"aten.any", [
 
 def Torch_AtenAnyDimOp : Torch_Op<"aten.any.dim", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::any.dim : (Tensor, int, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2483,7 +2591,8 @@ def Torch_AtenAnyDimOp : Torch_Op<"aten.any.dim", [
 
 def Torch_AtenArangeOp : Torch_Op<"aten.arange", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2501,7 +2610,8 @@ def Torch_AtenArangeOp : Torch_Op<"aten.arange", [
 
 def Torch_AtenArangeStartOp : Torch_Op<"aten.arange.start", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::arange.start : (Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2520,7 +2630,8 @@ def Torch_AtenArangeStartOp : Torch_Op<"aten.arange.start", [
 
 def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::arange.start_step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -2540,7 +2651,8 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
 
 def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::argmax : (Tensor, int?, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2556,7 +2668,8 @@ def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
 
 def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2573,7 +2686,8 @@ def Torch_AtenBucketizeTensorOp : Torch_Op<"aten.bucketize.Tensor", [
 
 def Torch_AtenCloneOp : Torch_Op<"aten.clone", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::clone : (Tensor, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2587,7 +2701,8 @@ def Torch_AtenCloneOp : Torch_Op<"aten.clone", [
 }
 
 def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::contiguous : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
@@ -2616,7 +2731,8 @@ def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
 }
 
 def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::detach : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2630,7 +2746,8 @@ def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
 
 def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)`";
   let arguments = (ins
@@ -2648,7 +2765,8 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
 
 def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2667,7 +2785,8 @@ def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
 
 def Torch_AtenZerosLikeOp : Torch_Op<"aten.zeros_like", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2686,7 +2805,8 @@ def Torch_AtenZerosLikeOp : Torch_Op<"aten.zeros_like", [
 
 def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ones_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2705,7 +2825,8 @@ def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
 
 def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2723,7 +2844,8 @@ def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
 }
 
 def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::expand : (Tensor, int[], bool) -> (Tensor)`";
   let arguments = (ins
@@ -2738,7 +2860,8 @@ def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
 }
 
 def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::broadcast_to : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -2753,7 +2876,8 @@ def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
 
 def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)`";
   let arguments = (ins
@@ -2768,7 +2892,8 @@ def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
 
 def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::index_select : (Tensor, int, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2784,7 +2909,8 @@ def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
 
 def Torch_AtenItemOp : Torch_Op<"aten.item", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::item : (Tensor) -> (Scalar)`";
   let arguments = (ins
@@ -2798,7 +2924,8 @@ def Torch_AtenItemOp : Torch_Op<"aten.item", [
 
 def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::masked_select : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2813,7 +2940,8 @@ def Torch_AtenMaskedSelectOp : Torch_Op<"aten.masked_select", [
 
 def Torch_AtenNumelOp : Torch_Op<"aten.numel", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::numel : (Tensor) -> (int)`";
   let arguments = (ins
@@ -2827,7 +2955,8 @@ def Torch_AtenNumelOp : Torch_Op<"aten.numel", [
 
 def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::repeat : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -2841,7 +2970,8 @@ def Torch_AtenRepeatOp : Torch_Op<"aten.repeat", [
 }
 
 def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::reshape : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -2870,7 +3000,8 @@ def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
 }
 
 def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::select.int : (Tensor, int, int) -> (Tensor)`";
   let arguments = (ins
@@ -2886,7 +3017,8 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
 
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::size.int : (Tensor, int) -> (int)`";
   let arguments = (ins
@@ -2902,7 +3034,8 @@ def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
 
 def Torch_AtenStackOp : Torch_Op<"aten.stack", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::stack : (Tensor[], int) -> (Tensor)`";
   let arguments = (ins
@@ -2917,7 +3050,8 @@ def Torch_AtenStackOp : Torch_Op<"aten.stack", [
 
 def Torch_AtenSumOp : Torch_Op<"aten.sum", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sum : (Tensor, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2932,7 +3066,8 @@ def Torch_AtenSumOp : Torch_Op<"aten.sum", [
 
 def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2949,7 +3084,8 @@ def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
 
 def Torch_AtenMaxOp : Torch_Op<"aten.max", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::max : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -2963,7 +3099,8 @@ def Torch_AtenMaxOp : Torch_Op<"aten.max", [
 
 def Torch_AtenMaxDimOp : Torch_Op<"aten.max.dim", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)`";
   let arguments = (ins
@@ -2979,7 +3116,8 @@ def Torch_AtenMaxDimOp : Torch_Op<"aten.max.dim", [
 }
 
 def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)`";
   let arguments = (ins
@@ -2997,7 +3135,8 @@ def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
 }
 
 def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)`";
   let arguments = (ins
@@ -3014,7 +3153,8 @@ def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
 }
 
 def Torch_AtenToPrimDeviceOp : Torch_Op<"aten.to.prim_Device", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)`";
   let arguments = (ins
@@ -3032,7 +3172,8 @@ def Torch_AtenToPrimDeviceOp : Torch_Op<"aten.to.prim_Device", [
 
 def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::type_as : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -3046,7 +3187,8 @@ def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
 }
 
 def Torch_AtenViewOp : Torch_Op<"aten.view", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::view : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -3062,7 +3204,8 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
 
 def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_unsafe_view : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -3077,7 +3220,8 @@ def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [
 
 def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -3092,7 +3236,8 @@ def Torch_AtenWhereSelfOp : Torch_Op<"aten.where.self", [
 }
 
 def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)`";
   let arguments = (ins
@@ -3110,7 +3255,8 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::len.Tensor : (Tensor) -> (int)`";
   let arguments = (ins
@@ -3123,7 +3269,8 @@ def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
 }
 
 def Torch_AtenCpuOp : Torch_Op<"aten.cpu", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::cpu : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -3137,7 +3284,8 @@ def Torch_AtenCpuOp : Torch_Op<"aten.cpu", [
 
 def Torch_AtenGatherOp : Torch_Op<"aten.gather", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)`";
   let arguments = (ins
@@ -3154,7 +3302,8 @@ def Torch_AtenGatherOp : Torch_Op<"aten.gather", [
 
 def Torch_AtenIntImplicitOp : Torch_Op<"aten.IntImplicit", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::IntImplicit : (Tensor) -> (int)`";
   let arguments = (ins
@@ -3168,7 +3317,8 @@ def Torch_AtenIntImplicitOp : Torch_Op<"aten.IntImplicit", [
 
 def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)`";
   let arguments = (ins
@@ -3185,7 +3335,8 @@ def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
 
 def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Int.Tensor : (Tensor) -> (int)`";
   let arguments = (ins
@@ -3200,7 +3351,8 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
 
 def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Float.Tensor : (Tensor) -> (float)`";
   let arguments = (ins
@@ -3215,7 +3367,8 @@ def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [
 
 def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::dropout : (Tensor, float, bool) -> (Tensor)`";
   let arguments = (ins
@@ -3230,7 +3383,8 @@ def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
 }
 
 def Torch_AtenTOp : Torch_Op<"aten.t", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::t : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -3244,7 +3398,8 @@ def Torch_AtenTOp : Torch_Op<"aten.t", [
 
 def Torch_AtenFullOp : Torch_Op<"aten.full", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
   let arguments = (ins
@@ -3263,7 +3418,8 @@ def Torch_AtenFullOp : Torch_Op<"aten.full", [
 
 def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -3283,7 +3439,8 @@ def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
 
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__contains__.str : (Dict(str, t), str) -> (bool)`";
   let arguments = (ins
@@ -3298,7 +3455,8 @@ def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
 }
 
 def Torch_Aten__Getitem__DictStrOp : Torch_Op<"aten.__getitem__.Dict_str", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)`";
   let arguments = (ins
@@ -3327,7 +3485,8 @@ def Torch_Aten_SetItemStrOp : Torch_Op<"aten._set_item.str", [
 }
 
 def Torch_AtenKeysStrOp : Torch_Op<"aten.keys.str", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::keys.str : (Dict(str, t)) -> (str[])`";
   let arguments = (ins
@@ -3340,7 +3499,8 @@ def Torch_AtenKeysStrOp : Torch_Op<"aten.keys.str", [
 }
 
 def Torch_AtenGetDefaultStrOp : Torch_Op<"aten.get.default_str", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::get.default_str : (Dict(str, t), str, t) -> (t)`";
   let arguments = (ins
@@ -3369,7 +3529,8 @@ def Torch_AtenDeleteDictStrOp : Torch_Op<"aten.Delete.Dict_str", [
 
 def Torch_AtenCatOp : Torch_Op<"aten.cat", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::cat : (Tensor[], int) -> (Tensor)`";
   let arguments = (ins
@@ -3398,7 +3559,8 @@ def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [
 
 def Torch_AtenAddTOp : Torch_Op<"aten.add.t", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.t : (t[], t[]) -> (t[])`";
   let arguments = (ins
@@ -3413,7 +3575,8 @@ def Torch_AtenAddTOp : Torch_Op<"aten.add.t", [
 
 def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.int_list : (int[], int[]) -> (bool)`";
   let arguments = (ins
@@ -3424,11 +3587,13 @@ def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [
     Torch_BoolType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_AtenListTOp : Torch_Op<"aten.list.t", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::list.t : (t[]) -> (t[])`";
   let arguments = (ins
@@ -3442,7 +3607,8 @@ def Torch_AtenListTOp : Torch_Op<"aten.list.t", [
 
 def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::slice.t : (t[], int?, int?, int) -> (t[])`";
   let arguments = (ins
@@ -3457,9 +3623,40 @@ def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
   let assemblyFormat = "$l `,` $start `,` $end `,` $step attr-dict `:` qualified(type($l)) `,` qualified(type($start)) `,` qualified(type($end)) `,` qualified(type($step)) `->` qualified(type($result))";
 }
 
+def Torch_AtenInsertTOp : Torch_Op<"aten.insert.t", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::insert.t : (t[], int, t) -> ()`";
+  let arguments = (ins
+    AnyTorchListType:$self,
+    Torch_IntType:$idx,
+    AnyTorchType:$el
+  );
+  let results = (outs
+  );
+  let assemblyFormat = "$self `,` $idx `,` $el attr-dict `:` qualified(type($self)) `,` qualified(type($idx)) `,` qualified(type($el))";
+}
+
+def Torch_AtenNeIntListOp : Torch_Op<"aten.ne.int_list", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ne.int_list : (int[], int[]) -> (bool)`";
+  let arguments = (ins
+    TorchIntListType:$a,
+    TorchIntListType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+}
+
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.str : (str, str) -> (str)`";
   let arguments = (ins
@@ -3474,7 +3671,8 @@ def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
 
 def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.str : (str, str) -> (bool)`";
   let arguments = (ins
@@ -3490,7 +3688,8 @@ def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
 
 def Torch_AtenStrOp : Torch_Op<"aten.str", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::str : (t) -> (str)`";
   let arguments = (ins
@@ -3503,7 +3702,8 @@ def Torch_AtenStrOp : Torch_Op<"aten.str", [
 }
 
 def Torch_AtenFormatOp : Torch_Op<"aten.format", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::format : (...) -> (str)`";
   let arguments = (ins
@@ -3517,7 +3717,8 @@ def Torch_AtenFormatOp : Torch_Op<"aten.format", [
 
 def Torch_AtenJoinOp : Torch_Op<"aten.join", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::join : (str, str[]) -> (str)`";
   let arguments = (ins
@@ -3532,7 +3733,8 @@ def Torch_AtenJoinOp : Torch_Op<"aten.join", [
 
 def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Float.Scalar : (Scalar) -> (float)`";
   let arguments = (ins
@@ -3542,11 +3744,13 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
     Torch_FloatType:$result
   );
   let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Float.str : (str) -> (float)`";
   let arguments = (ins
@@ -3560,7 +3764,8 @@ def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
 
 def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::Int.float : (float) -> (int)`";
   let arguments = (ins
@@ -3572,9 +3777,46 @@ def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
   let assemblyFormat = "$a attr-dict `:` qualified(type($a)) `->` qualified(type($result))";
 }
 
+def Torch_Aten__RangeLengthOp : Torch_Op<"aten.__range_length", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__range_length : (int, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_IntType:$lo,
+    Torch_IntType:$hi,
+    Torch_IntType:$step
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$lo `,` $hi `,` $step attr-dict `:` qualified(type($lo)) `,` qualified(type($hi)) `,` qualified(type($step)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
+def Torch_Aten__DeriveIndexOp : Torch_Op<"aten.__derive_index", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__derive_index : (int, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_IntType:$index,
+    Torch_IntType:$start,
+    Torch_IntType:$step
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$index `,` $start `,` $step attr-dict `:` qualified(type($index)) `,` qualified(type($start)) `,` qualified(type($step)) `->` qualified(type($result))";
+  let hasFolder = 1;
+}
+
 def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gt.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3590,7 +3832,8 @@ def Torch_AtenGtIntOp : Torch_Op<"aten.gt.int", [
 
 def Torch_AtenGeIntOp : Torch_Op<"aten.ge.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ge.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3606,7 +3849,8 @@ def Torch_AtenGeIntOp : Torch_Op<"aten.ge.int", [
 
 def Torch_AtenLtIntOp : Torch_Op<"aten.lt.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lt.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3622,7 +3866,8 @@ def Torch_AtenLtIntOp : Torch_Op<"aten.lt.int", [
 
 def Torch_AtenLeIntOp : Torch_Op<"aten.le.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::le.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3638,7 +3883,8 @@ def Torch_AtenLeIntOp : Torch_Op<"aten.le.int", [
 
 def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ne.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3654,7 +3900,8 @@ def Torch_AtenNeIntOp : Torch_Op<"aten.ne.int", [
 
 def Torch_AtenEqIntOp : Torch_Op<"aten.eq.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.int : (int, int) -> (bool)`";
   let arguments = (ins
@@ -3670,7 +3917,8 @@ def Torch_AtenEqIntOp : Torch_Op<"aten.eq.int", [
 
 def Torch_AtenFloordivIntOp : Torch_Op<"aten.floordiv.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::floordiv.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -3686,7 +3934,8 @@ def Torch_AtenFloordivIntOp : Torch_Op<"aten.floordiv.int", [
 
 def Torch_AtenRemainderIntOp : Torch_Op<"aten.remainder.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::remainder.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -3702,7 +3951,8 @@ def Torch_AtenRemainderIntOp : Torch_Op<"aten.remainder.int", [
 
 def Torch_AtenAddIntOp : Torch_Op<"aten.add.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -3718,7 +3968,8 @@ def Torch_AtenAddIntOp : Torch_Op<"aten.add.int", [
 
 def Torch_AtenSubIntOp : Torch_Op<"aten.sub.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::sub.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -3734,7 +3985,8 @@ def Torch_AtenSubIntOp : Torch_Op<"aten.sub.int", [
 
 def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mul.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -3750,7 +4002,8 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
 
 def Torch_AtenNegIntOp : Torch_Op<"aten.neg.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::neg.int : (int) -> (int)`";
   let arguments = (ins
@@ -3765,7 +4018,8 @@ def Torch_AtenNegIntOp : Torch_Op<"aten.neg.int", [
 
 def Torch_AtenLogIntOp : Torch_Op<"aten.log.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::log.int : (int) -> (float)`";
   let arguments = (ins
@@ -3779,7 +4033,8 @@ def Torch_AtenLogIntOp : Torch_Op<"aten.log.int", [
 
 def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::add.float_int : (float, int) -> (float)`";
   let arguments = (ins
@@ -3794,7 +4049,8 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
 
 def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::mul.float : (float, float) -> (float)`";
   let arguments = (ins
@@ -3809,7 +4065,8 @@ def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
 
 def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::neg.float : (float) -> (float)`";
   let arguments = (ins
@@ -3823,7 +4080,8 @@ def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
 
 def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.float : (float, float) -> (bool)`";
   let arguments = (ins
@@ -3839,7 +4097,8 @@ def Torch_AtenEqFloatOp : Torch_Op<"aten.eq.float", [
 
 def Torch_AtenGtFloatOp : Torch_Op<"aten.gt.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gt.float : (float, float) -> (bool)`";
   let arguments = (ins
@@ -3855,7 +4114,8 @@ def Torch_AtenGtFloatOp : Torch_Op<"aten.gt.float", [
 
 def Torch_AtenLtFloatOp : Torch_Op<"aten.lt.float", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lt.float : (float, float) -> (bool)`";
   let arguments = (ins
@@ -3871,7 +4131,8 @@ def Torch_AtenLtFloatOp : Torch_Op<"aten.lt.float", [
 
 def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::lt.float_int : (float, int) -> (bool)`";
   let arguments = (ins
@@ -3886,7 +4147,8 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
 
 def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__and__.bool : (bool, bool) -> (bool)`";
   let arguments = (ins
@@ -3901,7 +4163,8 @@ def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
 
 def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::ne.bool : (bool, bool) -> (bool)`";
   let arguments = (ins
@@ -3917,7 +4180,8 @@ def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
 
 def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__is__ : (t1, t2) -> (bool)`";
   let arguments = (ins
@@ -3933,7 +4197,8 @@ def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
 
 def Torch_Aten__Isnot__Op : Torch_Op<"aten.__isnot__", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__isnot__ : (t1, t2) -> (bool)`";
   let arguments = (ins
@@ -3949,7 +4214,8 @@ def Torch_Aten__Isnot__Op : Torch_Op<"aten.__isnot__", [
 
 def Torch_Aten__Not__Op : Torch_Op<"aten.__not__", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__not__ : (bool) -> (bool)`";
   let arguments = (ins
@@ -3964,7 +4230,8 @@ def Torch_Aten__Not__Op : Torch_Op<"aten.__not__", [
 
 def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::len.t : (t[]) -> (int)`";
   let arguments = (ins
@@ -3979,7 +4246,8 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
 }
 
 def Torch_Aten__Getitem__TOp : Torch_Op<"aten.__getitem__.t", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::__getitem__.t : (t[], int) -> (t)`";
   let arguments = (ins
@@ -4010,7 +4278,8 @@ def Torch_Aten_SetItemTOp : Torch_Op<"aten._set_item.t", [
 
 def Torch_AtenDivOp : Torch_Op<"aten.div", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::div : (Scalar, Scalar) -> (float)`";
   let arguments = (ins
@@ -4025,7 +4294,8 @@ def Torch_AtenDivOp : Torch_Op<"aten.div", [
 
 def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::eq.device : (Device, Device) -> (bool)`";
   let arguments = (ins
@@ -4040,7 +4310,8 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
 
 def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)`";
   let arguments = (ins
@@ -4057,7 +4328,8 @@ def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [
 
 def Torch_AtenTanhBackwardOp : Torch_Op<"aten.tanh_backward", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::tanh_backward : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -4072,7 +4344,8 @@ def Torch_AtenTanhBackwardOp : Torch_Op<"aten.tanh_backward", [
 
 def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::gelu_backward : (Tensor, Tensor, str) -> (Tensor)`";
   let arguments = (ins
@@ -4088,7 +4361,8 @@ def Torch_AtenGeluBackwardOp : Torch_Op<"aten.gelu_backward", [
 
 def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_data", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)`";
   let arguments = (ins

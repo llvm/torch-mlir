@@ -19,7 +19,8 @@
 def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     HasValueSemantics,
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `quantized::linear : (Tensor, __torch__.torch.classes.quantized.LinearPackedParamsBase, float, int) -> (Tensor)`";
   let arguments = (ins

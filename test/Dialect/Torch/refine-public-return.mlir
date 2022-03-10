@@ -2,13 +2,24 @@
 
 // CHECK-LABEL:   func @basic(
 // CHECK-SAME:                %[[ARG:.*]]: !torch.vtensor<[2,3,?],f32>) -> !torch.vtensor<[2,3,?],f32> {
-// CHECK:           %[[COPIED_NONVAL:.*]] = torch.copy.to_tensor %[[ARG]] : !torch.tensor<[2,3,?],f32>
-// CHECK:           %[[COPIED_VALUE:.*]] = torch.copy.to_vtensor %[[COPIED_NONVAL]] : !torch.vtensor<[2,3,?],f32>
-// CHECK:           return %[[COPIED_VALUE]] : !torch.vtensor<[2,3,?],f32>
+// CHECK:           return %[[ARG]] : !torch.vtensor<[2,3,?],f32>
 func @basic(%arg0: !torch.vtensor<[2,3,?],f32>) -> !torch.tensor {
   %1 = torch.copy.to_tensor %arg0 : !torch.tensor<[2,3,?],f32>
   %2 = torch.tensor_static_info_cast %1 : !torch.tensor<[2,3,?],f32> to !torch.tensor
   return %2 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @multiple_use_non_value_tensor(
+// CHECK-SAME:                                        %[[ARG0:.*]]: !torch.vtensor,
+// CHECK-SAME:                                        %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[NON_VALUE_TENSOR:.*]] = torch.copy.to_tensor %[[ARG0]] : !torch.tensor
+// CHECK:           torch.overwrite.tensor.contents %[[ARG1]] overwrites %[[NON_VALUE_TENSOR]] : !torch.vtensor, !torch.tensor
+// CHECK:           %[[RESULT:.*]] = torch.copy.to_vtensor %[[NON_VALUE_TENSOR]] : !torch.vtensor
+// CHECK:           return %[[RESULT]] : !torch.vtensor
+func @multiple_use_non_value_tensor(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.tensor {
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  torch.overwrite.tensor.contents %arg1 overwrites %0 : !torch.vtensor, !torch.tensor
+  return %0 : !torch.tensor
 }
 
 // No conversion on private function.

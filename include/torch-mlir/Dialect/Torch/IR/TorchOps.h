@@ -186,6 +186,16 @@ m_TorchTensorSizeInt(Value tensor, int64_t *dim) {
 /// 2. Performing the copy, which allows us to add/remove value semantics.
 Value copyTensorToType(OpBuilder &builder, Location loc, BaseTensorType newType,
                        Value tensor);
+
+/// Returns true if `list` is potentially mutated.
+bool isListPotentiallyMutated(Value list);
+
+/// Returns true if `op` might mutate any lists that it has as operands.
+///
+/// A return value of true does not guarantee that the operation mutates
+/// the list.
+bool potentiallyMutatesListOperands(Operation *op);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

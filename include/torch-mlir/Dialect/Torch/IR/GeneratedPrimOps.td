@@ -18,7 +18,8 @@
 
 def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::layout : (Tensor) -> (int)`";
   let arguments = (ins
@@ -32,7 +33,8 @@ def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
 
 def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::TupleIndex : (Any, int) -> (Any)`";
   let arguments = (ins
@@ -48,7 +50,8 @@ def Torch_PrimTupleIndexOp : Torch_Op<"prim.TupleIndex", [
 
 def Torch_PrimDeviceOp : Torch_Op<"prim.device", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::device : (Tensor) -> (Device)`";
   let arguments = (ins
@@ -62,7 +65,8 @@ def Torch_PrimDeviceOp : Torch_Op<"prim.device", [
 
 def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::dtype : (Tensor) -> (int)`";
   let arguments = (ins
@@ -76,7 +80,8 @@ def Torch_PrimDtypeOp : Torch_Op<"prim.dtype", [
 }
 
 def Torch_PrimTupleUnpackOp : Torch_Op<"prim.TupleUnpack", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::TupleUnpack : (Any) -> (...)`";
   let arguments = (ins
@@ -91,7 +96,8 @@ def Torch_PrimTupleUnpackOp : Torch_Op<"prim.TupleUnpack", [
 
 def Torch_PrimNumToTensorScalarOp : Torch_Op<"prim.NumToTensor.Scalar", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::NumToTensor.Scalar : (Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -105,7 +111,8 @@ def Torch_PrimNumToTensorScalarOp : Torch_Op<"prim.NumToTensor.Scalar", [
 
 def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::min.self_int : (int[]) -> (int)`";
   let arguments = (ins
@@ -115,11 +122,13 @@ def Torch_PrimMinSelfIntOp : Torch_Op<"prim.min.self_int", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::min.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -134,7 +143,8 @@ def Torch_PrimMinIntOp : Torch_Op<"prim.min.int", [
 
 def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::max.self_int : (int[]) -> (int)`";
   let arguments = (ins
@@ -148,7 +158,8 @@ def Torch_PrimMaxSelfIntOp : Torch_Op<"prim.max.self_int", [
 
 def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::max.int : (int, int) -> (int)`";
   let arguments = (ins
@@ -159,11 +170,13 @@ def Torch_PrimMaxIntOp : Torch_Op<"prim.max.int", [
     Torch_IntType:$result
   );
   let assemblyFormat = "$a `,` $b attr-dict `:` qualified(type($a)) `,` qualified(type($b)) `->` qualified(type($result))";
+  let hasFolder = 1;
 }
 
 def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::RaiseException : (str, str?) -> ()`";
   let arguments = (ins
@@ -178,7 +191,8 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
 def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
     NoSideEffect,
     AllowsTypeRefinement,
-    HasValueSemantics
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::Uninitialized : () -> (Any)`";
   let arguments = (ins
@@ -187,11 +201,13 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
     AnyTorchType:$result
   );
   let assemblyFormat = " attr-dict `:` qualified(type($result))";
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::unchecked_cast : (t) -> (t)`";
   let arguments = (ins
@@ -205,7 +221,8 @@ def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [
 }
 
 def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::Print : (...) -> ()`";
   let arguments = (ins
@@ -217,7 +234,8 @@ def Torch_PrimPrintOp : Torch_Op<"prim.Print", [
 }
 
 def Torch_PrimTolistOp : Torch_Op<"prim.tolist", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `prim::tolist : (...) -> (...)`";
   let arguments = (ins

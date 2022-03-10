@@ -5,214 +5,15 @@
 """Queries the pytorch op registry and generates ODS and CC sources for the ops.
 """
 
-from typing import Any, Dict, List, Optional, TextIO, Sequence, Tuple, Union
+from typing import List, Optional, TextIO
 
 import argparse
-from contextlib import contextmanager
-import importlib
-import io
-import itertools
 import logging
 import os
-import pprint
-import re
 import sys
-import textwrap
-import traceback
 
-# Note that this utility exists only in the c-extension.
-from torch_mlir._mlir_libs._jit_ir_importer import get_registered_ops # pytype: disable=import-error
-
-
-class TextEmitter:
-    """Helper for emitting text files"""
-    _INDENT = "  "
-
-    def __init__(self, out: TextIO):
-        super().__init__()
-        self.out = out
-        self.indent_level = 0
-
-    @contextmanager
-    def indent(self, level: int = 1):
-        self.indent_level += level
-        yield
-        self.indent_level -= level
-        assert self.indent_level >= 0, "Unbalanced indentation"
-
-    def print(self, s: str):
-        current_indent = self._INDENT * self.indent_level
-        for line in s.splitlines():
-            self.out.write(current_indent + line + "\n")
-
-    def quote(self, s: str) -> str:
-        s = s.replace(r'"', r'\\"')
-        return f'"{s}"'
-
-    def quote_multiline_docstring(self, s: str, indent_level: int = 0) -> str:
-        # TODO: Possibly find a python module to markdown the docstring for
-        # better document generation.
-        # Unlikely to contain the delimiter and since just a docstring, be safe.
-        s = s.replace("}]", "")
-        # Strip each line.
-        s = "\n".join([l.rstrip() for l in s.splitlines()])
-        indent = self._INDENT * indent_level
-        s = textwrap.indent(s, indent + self._INDENT)
-        return "[{\n" + s + "\n" + indent + "}]"
-
-
-class JitOperator:
-    """Information about a single registered `torch::jit::Operator`"""
-    def __init__(self, op_info: "OP_INFO_DICT"):
-        """Create a JitOperator from the raw OP_INFO_DICT extracted from
-        the PyTorch JIT operator registry.
-        """
-        namespace, _, unqualified_name = op_info["name"][0].partition("::")
-        self.namespace = namespace
-        self.unqualified_name = unqualified_name
-        self.overload_name = op_info["name"][1]
-        self.is_c10_op = op_info["is_c10_op"]
-        self.is_vararg = op_info["is_vararg"]
-        self.is_varret = op_info["is_varret"]
-        self.is_mutable = op_info["is_mutable"]
-        self.arguments = op_info["arguments"]
-        self.returns = op_info["returns"]
-
-        self.unique_key = self.create_unique_key()
-
-    def create_unique_key(self) -> str:
-        """Create a unique, human-readable key for this JitOperator.
-
-        The key consists of the operator name and its overload name, which
-        together form a unique identifier. We also redundantly
-        append a signature to the end, which gives some robustness to changes
-        in PyTorch and also generally makes things more readable.
-        The format is:
-        ```
-            namespace::unqualified_name[.overload_name] : (type1,type2) -> (type3,type4)
-        ```
-        This is a modified version of the signature strings seen throughout
-        PyTorch. The main difference is the inclusion of return types and the
-        extra spacing and `:`. E.g.the above would be just:
-        ```
-          namespace::kernel_name[.overload_name](type1,type2)
-        ```
-        (PyTorch doesn't canonically include the result types since they don't
-        participate in their dispatch overload resolution, which is of primary
-        concern for them)
-        """
-        overload = "" if not self.overload_name else f".{self.overload_name}"
-        if self.is_vararg:
-            arg_str = "..."
-        else:
-            arg_str = ", ".join(arg["type"] for arg in self.arguments)
-        if self.is_varret:
-            ret_str = "..."
-        else:
-            ret_str = ", ".join(ret["type"] for ret in self.returns)
-        return f"{self.namespace}::{self.unqualified_name}{overload} : ({arg_str}) -> ({ret_str})"
-
-    @property
-    def triple(self):
-        """Returns the unique 3-tuple identifying this operator.
-
-        This is a useful alternative to the "unique name" for programmatic
-        access, such as when needing to convert one op to a related op by
-        a programmatic transformation of the triple.
-        """
-        return self.namespace, self.unqualified_name, self.overload_name
-
-    def get_mlir_names(self):
-        """Gets the MLIR op name (excluding `torch.`) and td def name.
-
-        Not all ops are necessarily registered or in the .td file, but these
-        are useful in the repr for cross referencing, and it's useful to have
-        them in a single point of truth.
-        """
-        def uppercase_first_letter(s):
-            if not s:
-                return s
-            return s[0].upper() + s[1:]
-
-        op_name_atoms = [self.namespace, self.unqualified_name]
-        if self.overload_name:
-            op_name_atoms.append(self.overload_name)
-        op_name = ".".join(op_name_atoms)
-
-        op_class_name_atoms = []
-        for op_name_atom in op_name_atoms:
-            for s in op_name_atom.split("_"):
-                op_class_name_atoms.append(s if s else "_")
-        td_def_name = "Torch_" + "".join(
-            uppercase_first_letter(s) for s in op_class_name_atoms) + "Op"
-        return op_name, td_def_name
-
-    def __repr__(self):
-        f = io.StringIO()
-        emitter = TextEmitter(f)
-        p = lambda *args: emitter.print(*args)
-        p(f"JitOperator '{self.unique_key}':")
-        with emitter.indent():
-
-            # Emit the MLIR names to allow easy reverse lookup if starting
-            # from an unregistered op.
-            op_name, td_def_name = self.get_mlir_names()
-            p(f"MLIR op name = torch.{op_name}")
-            p(f"MLIR td def name = {td_def_name}")
-
-            p(f"namespace = {self.namespace}")
-            p(f"unqualified_name = {self.unqualified_name}")
-            p(f"overload_name = {self.overload_name}")
-            p(f"is_c10_op = {self.is_c10_op}")
-            p(f"is_vararg = {self.is_vararg}")
-            p(f"is_varret = {self.is_varret}")
-            p(f"is_mutable = {self.is_mutable}")
-            if not self.arguments:
-                p("arguments = []")
-            else:
-                p("arguments:")
-                with emitter.indent():
-                    for arg in self.arguments:
-                        p(f"arg: {arg}")
-            if not self.returns:
-                p("returns = []")
-            else:
-                p("returns:")
-                with emitter.indent():
-                    for ret in self.returns:
-                        p(f"ret: {ret}")
-        return f.getvalue()
-
-
-class Registry:
-    """An indexed collection of JitOperators"""
-    def __init__(self, operators: List[JitOperator]):
-        self.by_unique_key = {}
-        self.by_triple = {}
-        for o in operators:
-            self.by_unique_key[o.unique_key] = o
-            self.by_triple[o.triple] = o
-
-    def __getitem__(self, key: str):
-        """Looks up a JitOperator by its "unique key"."""
-        return self.by_unique_key[key]
-
-    def get_by_triple(self, key: Tuple[str, str, str]):
-        """Looks up a JitOperator by its unique "triple"."""
-        return self.by_triple[key]
-
-
-# A List[Dict[str, _]] mapping attribute names to:
-#   - str (e.g. {'name': 'dim'} )
-#   - int (e.g. {'N': 1} )
-#   - Dict[str, List[str]]
-#       (e.g. {'alias_info': {'before': ['alias::a'], 'after': ['alias::a']}} )
-SIGLIST_TYPE = List[Dict[str, Union[str, int, Dict[str, List[str]]]]]
-# A Dict[str, _] describing a registered op. Each field is either
-#   - bool (e.g. {'is_mutable': False} )
-#   - Tuple[str] (e.g. {'name': ('aten::size', 'int')} )
-#   - SIGLIST_TYPE (e.g. {'arguments': [...], 'returns': [...]} )
-OP_INFO_DICT = Dict[str, Union[bool, Tuple[str], SIGLIST_TYPE]]
+from .utils import TextEmitter
+from .registry import Registry, JitOperator
 
 # Mapping from torch types to their corresponding ODS type predicates.
 # Use `get_ods_type` instead of using this directly.
@@ -378,18 +179,10 @@ def emit_op(operator: JitOperator,
 
     # All Torch operators allow type refinement.
     traits += ["AllowsTypeRefinement"]
-    # If no operands have aliasing relations, then the op has value semantics.
-    # Note that this is different from MLIR's NoSideEffect which is much
-    # stronger (for example, it cannot be applied to ops that might emit errors
-    # when operand shapes mismatch).
-    if not operator.is_vararg and not operator.is_varret and all(
-            "alias_info" not in x
-            for x in itertools.chain(operator.arguments, operator.returns)):
-      # It seems the FunctionSchema of "prim::unchecked_cast : (t) -> (t)" has
-      # incorrect alias information. The result can alias with other tensors
-      # but the alias annotation is empty.
-      if operator.unique_key != "prim::unchecked_cast : (t) -> (t)":
-          traits += ["HasValueSemantics"]
+    if operator.has_value_semantics():
+        traits += ["HasValueSemantics"]
+    if operator.is_readonly():
+        traits += ["ReadOnly"]
 
     raw_emit_op(operator,
                 f,
@@ -412,12 +205,13 @@ def emit_prim_ops(torch_ir_dir: str, registry: Registry):
         emit("prim::dtype : (Tensor) -> (int)", has_folder=True)
         emit("prim::TupleUnpack : (Any) -> (...)", has_canonicalizer=True)
         emit("prim::NumToTensor.Scalar : (Scalar) -> (Tensor)")
-        emit("prim::min.self_int : (int[]) -> (int)")
+        emit("prim::min.self_int : (int[]) -> (int)", has_folder=True)
         emit("prim::min.int : (int, int) -> (int)")
         emit("prim::max.self_int : (int[]) -> (int)")
-        emit("prim::max.int : (int, int) -> (int)")
+        emit("prim::max.int : (int, int) -> (int)", has_folder=True)
         emit("prim::RaiseException : (str, str?) -> ()")
-        emit("prim::Uninitialized : () -> (Any)", traits=["NoSideEffect"])
+        emit("prim::Uninitialized : () -> (Any)",
+             has_canonicalizer=True, traits=["NoSideEffect"])
         emit("prim::unchecked_cast : (t) -> (t)", has_folder=True,
              traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
         emit("prim::Print : (...) -> ()")
@@ -651,9 +445,11 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::cat : (Tensor[], int) -> (Tensor)")
         emit("aten::append.t : (t[], t) -> (t[])")
         emit("aten::add.t : (t[], t[]) -> (t[])")
-        emit("aten::eq.int_list : (int[], int[]) -> (bool)")
+        emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
         emit("aten::list.t : (t[]) -> (t[])")
         emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
+        emit("aten::insert.t : (t[], int, t) -> ()")
+        emit("aten::ne.int_list : (int[], int[]) -> (bool)")
 
         # Str ops.
         emit("aten::add.str : (str, str) -> (str)")
@@ -663,11 +459,13 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::join : (str, str[]) -> (str)")
 
         # Type conversion ops.
-        emit("aten::Float.Scalar : (Scalar) -> (float)")
+        emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
         emit("aten::Float.str : (str) -> (float)")
         emit("aten::Int.float : (float) -> (int)")
 
         # Primitive ops
+        emit("aten::__range_length : (int, int, int) -> (int)", has_folder=True)
+        emit("aten::__derive_index : (int, int, int) -> (int)", has_folder=True)
         emit("aten::gt.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::ge.int : (int, int) -> (bool)", has_folder=True)
         emit("aten::lt.int : (int, int) -> (bool)", has_folder=True)
@@ -726,13 +524,8 @@ def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
         outfile.write(repr(v))
 
-
-def load_registry() -> Registry:
-    return Registry([JitOperator(op_info) for op_info in get_registered_ops()])
-
-
 def main(args: argparse.Namespace):
-    registry = load_registry()
+    registry = Registry.load()
     if args.debug_registry_dump:
         with open(args.debug_registry_dump, "w") as debug_registry_dump:
             dump_registered_ops(debug_registry_dump, registry)

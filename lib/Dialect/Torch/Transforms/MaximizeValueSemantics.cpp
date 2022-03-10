@@ -9,6 +9,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -42,6 +43,7 @@ public:
     SmallVector<Operation *> copyLikeOps;
     SmallVector<Operation *> viewLikeOps;
     SmallVector<OverwriteTensorContentsOp> overwriteTensorContentsOps;
+    Optional<mlir::ReturnOp> returnOp;
   };
 
   // Check that graph rewriting is possible by doing an abstract
@@ -60,9 +62,14 @@ public:
     // We track the available aliases at each point as well as split the
     // users into view-like, copy-to-value, and overwrite ops as we walk
     // forward.
+    //
+    // We also need to track all seen aliases to make sure that we only rewrite
+    // those operands of a ReturnOp, if present (a ReturnOp can return tensors
+    // from multiple different slices).
     InterpretedOps result;
     result.copyLikeOps.push_back(copyToNonValueTensor);
     DenseSet<Value> availableAliases{copyToNonValueTensor.result()};
+    DenseSet<Value> seenAliases{copyToNonValueTensor.result()};
     for (Operation *user : nonValueTensorUsers) {
       if (isViewLikeOp(user)) {
         Value operand = user->getOperand(0);
@@ -74,6 +81,7 @@ public:
 
         // View-like ops produce a new alias available to later ops.
         availableAliases.insert(user->getResult(0));
+        seenAliases.insert(user->getResult(0));
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
         if (!availableAliases.contains(copyToValueTensor.operand())) {
@@ -95,6 +103,17 @@ public:
         availableAliases.clear();
         availableAliases.insert(overwritten);
         result.overwriteTensorContentsOps.push_back(overwrite);
+      } else if (auto returnOp = dyn_cast<mlir::ReturnOp>(user)) {
+        for (Value operand : returnOp->getOperands()) {
+          if (!seenAliases.contains(operand))
+            continue;
+          if (!availableAliases.contains(operand)) {
+            return rewriter.notifyMatchFailure(
+                copyToNonValueTensor,
+                "operand of ReturnOp is not a valid tensor alias");
+          }
+        }
+        result.returnOp = returnOp;
       } else {
         return rewriter.notifyMatchFailure(
             copyToNonValueTensor,
@@ -108,6 +127,17 @@ public:
   // value semantics everywhere.
   static void rewriteSlice(const InterpretedOps &ops,
                            PatternRewriter &rewriter) {
+
+    DenseMap<int, Type> originalReturnTypes;
+    if (ops.returnOp.hasValue()) {
+      auto returnOp = ops.returnOp.getValue();
+      for (auto operand : llvm::enumerate(returnOp->getOperands())) {
+        auto type = operand.value().getType();
+        if (!type.isa<NonValueTensorType>())
+          continue;
+        originalReturnTypes[operand.index()] = type;
+      }
+    }
     // The rewriting for the overwrite op involves replacing all uses of its
     // non-value tensor operand with its value tensor operand. Since the
     // rewriting of other ops can potentially change the non-value tensor
@@ -139,6 +169,20 @@ public:
                              "type `NonValueTensorType` before rewriting");
         result.setType(resultType.getWithValueSemantics());
       });
+    }
+    if (ops.returnOp.hasValue()) {
+      auto returnOp = ops.returnOp.getValue();
+      for (int i = 0, e = returnOp->getNumOperands(); i < e; i++) {
+        OpOperand &operand = returnOp->getOpOperand(i);
+        auto it = originalReturnTypes.find(i);
+        if (it == originalReturnTypes.end())
+          continue;
+        auto originalType = it->second.cast<NonValueTensorType>();
+        rewriter.setInsertionPoint(returnOp);
+        Value newReturnValue = copyTensorToType(rewriter, returnOp->getLoc(),
+                                                originalType, operand.get());
+        operand.set(newReturnValue);
+      }
     }
   }
 
@@ -180,6 +224,13 @@ public:
       }
     }
 
+    // Nothing to do if there is just a ReturnOp -- we know that we won't be
+    // rewriting anything, since we must preserve the ReturnOp's original type.
+    if (llvm::hasSingleElement(nonValueTensorUsers) &&
+        isa<mlir::ReturnOp>(nonValueTensorUsers[0])) {
+      return failure();
+    }
+
     FailureOr<InterpretedOps> interpretedOps = abstractlyInterpretSlice(
         copy, std::move(nonValueTensorUsers), rewriter);
     if (failed(LogicalResult(interpretedOps)))
@@ -205,12 +256,13 @@ public:
   LogicalResult matchAndRewrite(CopyToNonValueTensorOp copy,
                                 PatternRewriter &rewriter) const override {
     // Find a subgraph starting with this CopyToNonValueTensorOp, and
-    // terminating at CopyToValueTensorOp's, possibly with intervening view-like
-    // ops.
+    // terminating at CopyToValueTensorOp's or ReturnOp's, possibly with
+    // intervening view-like ops.
     // This also catches the special case of a CopyToNonValueTensorOp that
     // trivially feeds into CopyToValueTensorOp's.
     SmallVector<Operation *> viewLikeOps;
     SmallVector<CopyToValueTensorOp> copyToValueTensorOps;
+    SmallVector<mlir::ReturnOp> returnOps;
     auto workList = llvm::to_vector<6>(copy.getResult().getUsers());
     // We currently only support view-like ops with one tensor input and one
     // tensor output, meaning that the tensor use-def chains form a tree.
@@ -220,6 +272,8 @@ public:
       Operation *op = workList.pop_back_val();
       if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(op)) {
         copyToValueTensorOps.push_back(copyToValueTensor);
+      } else if (auto returnOp = dyn_cast<mlir::ReturnOp>(op)) {
+        returnOps.push_back(returnOp);
       } else if (isViewLikeOp(op)) {
         viewLikeOps.push_back(op);
         llvm::append_range(workList, op->getResult(0).getUsers());
@@ -229,16 +283,40 @@ public:
       }
     }
 
+    if (copyToValueTensorOps.empty() && viewLikeOps.empty())
+      return rewriter.notifyMatchFailure(copy, "no types to change");
+
+    // All uses of `copy` will be updated by the logic below.
     copy.replaceAllUsesWith(copy.getOperand());
+    // All CopyToValueTensorOp operands will be changed to the correct type
+    // by the logic below.
     for (CopyToValueTensorOp op : copyToValueTensorOps)
       rewriter.replaceOp(op, op.getOperand());
+    // Keep track of the original types of any view-like ops, so that we can
+    // correctly copy them back to their mlir::ReturnOp's expected types.
+    DenseMap<Value, Type> originalTypes;
     for (Operation *op : viewLikeOps) {
       rewriter.updateRootInPlace(op, [&]() {
         if (auto nonValueTensorType =
                 op->getResult(0).getType().dyn_cast<NonValueTensorType>()) {
+          originalTypes[op->getResult(0)] = nonValueTensorType;
           op->getResult(0).setType(nonValueTensorType.getWithValueSemantics());
         }
       });
+    }
+    // For ReturnOp's, we need to update the operands to their original types.
+    for (mlir::ReturnOp op : returnOps) {
+      for (int i = 0, e = op->getNumOperands(); i < e; i++) {
+        OpOperand &operand = op->getOpOperand(i);
+        auto it = originalTypes.find(operand.get());
+        if (it == originalTypes.end())
+          continue;
+        auto originalType = it->second.cast<BaseTensorType>();
+        rewriter.setInsertionPoint(op);
+        Value newReturnValue = copyTensorToType(rewriter, op->getLoc(),
+                                                originalType, operand.get());
+        operand.set(newReturnValue);
+      }
     }
     return success();
   }
