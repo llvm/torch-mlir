@@ -204,6 +204,7 @@ class NativeLayerNormModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias):
         list = [2, 2, 3]
+        # TODO: Fix the case of the other return values.
         return torch.ops.aten.native_layer_norm(
             x, list, weight, bias, eps=0.5)[0]
 

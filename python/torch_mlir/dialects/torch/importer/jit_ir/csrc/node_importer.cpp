@@ -116,7 +116,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
   case c10::prim::TupleConstruct:
-  case c10::prim::DictConstruct: {
+  case c10::prim::DictConstruct:
+  case c10::prim::CreateObject: {
     createAndMapTrivialNode(
         node, "torch.prim." + std::string(kind.toUnqualString()), transformer);
     return;

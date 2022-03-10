@@ -789,8 +789,11 @@ public:
                                          "Only aten.var support floating type");
     }
     BaseTensorType rank0FloatTensorTy = op.getType().cast<BaseTensorType>();
-    assert(rank0FloatTensorTy.getSizes().size() == 0 &&
-           "Op should have rank 0 tensor type");
+    if (!rank0FloatTensorTy.hasSizes() ||
+        rank0FloatTensorTy.getSizes().size() != 0) {
+      return rewriter.notifyMatchFailure(
+          op, "expected aten.var to have a rank 0 tensor type");
+    }
 
     bool unbiased;
     if (!matchPattern(op.unbiased(), m_TorchConstantBool(&unbiased))) {

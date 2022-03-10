@@ -116,6 +116,33 @@ func @non_value_tensor_returned(%value_t: !torch.vtensor) -> !torch.tensor {
   return %t : !torch.tensor
 }
 
+// CHECK-LABEL:   func @non_value_tensor_returned$with_overwrite(
+// CHECK-SAME:                                                   %[[ARG0:.*]]: !torch.vtensor,
+// CHECK-SAME:                                                   %{{.*}}: !torch.vtensor) -> !torch.tensor {
+// CHECK:           %[[RESULT:.*]] = torch.copy.to_tensor %[[ARG0]] : !torch.tensor
+// CHECK:           return %[[RESULT]] : !torch.tensor
+func @non_value_tensor_returned$with_overwrite(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.tensor {
+  %2 = torch.copy.to_tensor %arg1 : !torch.tensor
+  torch.overwrite.tensor.contents %arg0 overwrites %2 : !torch.vtensor, !torch.tensor
+  return %2 : !torch.tensor
+}
+
+// CHECK-LABEL:   func @non_value_tensor_returned$return_from_multiple_slices(
+// CHECK-SAME:                                                                %[[ARG0:.*]]: !torch.vtensor,
+// CHECK-SAME:                                                                %[[ARG1:.*]]: !torch.vtensor) -> (!torch.tensor, !torch.vtensor, !torch.tensor) {
+// CHECK:           %[[NON_VALUE_TENSOR0:.*]] = torch.copy.to_tensor %[[ARG0]] : !torch.tensor
+// CHECK:           %[[NON_VALUE_TENSOR1:.*]] = torch.copy.to_tensor %[[ARG1]] : !torch.tensor
+// CHECK:           return %[[NON_VALUE_TENSOR0]], %[[ARG0]], %[[NON_VALUE_TENSOR1]] : !torch.tensor, !torch.vtensor, !torch.tensor
+func @non_value_tensor_returned$return_from_multiple_slices(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> (!torch.tensor, !torch.vtensor, !torch.tensor) {
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  // Make a vtensor copy and return that, just to have a load-bearing use.
+  // This test mainly checks the rewriting of the non-value tensor returns
+  // though.
+  %1 = torch.copy.to_vtensor %0 : !torch.vtensor
+  %2 = torch.copy.to_tensor %arg1 : !torch.tensor
+  return %0, %1, %2 : !torch.tensor, !torch.vtensor, !torch.tensor
+}
+
 // CHECK-LABEL:   func @viewlike$basic_unsqueeze(
 // CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[INT0:.*]] = torch.constant.int 0

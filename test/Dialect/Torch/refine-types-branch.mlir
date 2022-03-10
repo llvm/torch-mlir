@@ -60,6 +60,34 @@ func @prim.if$branch_merge_type_optional(%pred: !torch.bool, %t1: !torch.tensor)
 
 // -----
 
+// CHECK-LABEL:   func @prim.if$refined_type_conflicting(
+// CHECK-SAME:                                                   %[[NONE:.*]]: !torch.none) -> !torch.tensor {
+// CHECK:           %[[OPTIONAL:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<!torch.tensor>
+// CHECK:           %[[NOT_NONE:.*]] = torch.aten.__isnot__ %[[NONE]], %[[NONE]] : !torch.none, !torch.none -> !torch.bool
+// CHECK:           %[[PRED:.*]] = torch.prim.If %[[NOT_NONE]] -> (!torch.tensor) {
+// CHECK:             %[[T:.*]] = torch.prim.unchecked_cast %[[OPTIONAL]] : !torch.optional<!torch.tensor> -> !torch.tensor
+// CHECK:             torch.prim.If.yield %[[T]] : !torch.tensor
+// CHECK:           } else {
+// CHECK:             %[[LITERAL:.*]] = torch.tensor.literal(dense<0.000000e+00> : tensor<3x5xf32>) : !torch.tensor
+// CHECK:             torch.prim.If.yield %[[LITERAL]] : !torch.tensor
+// CHECK:           }
+// CHECK:           return %[[PRED:.*]] : !torch.tensor
+
+func @prim.if$refined_type_conflicting(%none: !torch.none) -> !torch.tensor {
+  %optional = torch.derefine %none: !torch.none to !torch.optional<!torch.tensor>
+  %pred = torch.aten.__isnot__ %optional, %none : !torch.optional<!torch.tensor>, !torch.none -> !torch.bool
+  %res = torch.prim.If %pred -> (!torch.tensor) {
+  %t = torch.prim.unchecked_cast %optional: !torch.optional<!torch.tensor> -> !torch.tensor
+  torch.prim.If.yield %t: !torch.tensor
+  } else {
+  %t_cst = torch.tensor.literal(dense<0.0> : tensor<3x5xf32>) : !torch.tensor
+  torch.prim.If.yield %t_cst: !torch.tensor
+  }
+  return %res: !torch.tensor
+}
+
+// -----
+
 // CHECK-LABEL:   func @prim.loop$region_arg_to_internal(
 // CHECK-SAME:                            %[[ARG_NONE:.*]]: !torch.none) -> !torch.optional<!torch.tensor> {
 // CHECK:           %[[INT10:.*]] = torch.constant.int 10
@@ -88,4 +116,38 @@ func @prim.loop$region_arg_to_internal(%none: !torch.none) -> !torch.optional<!t
     torch.prim.Loop.condition %cond, iter(%arg3: !torch.optional<!torch.tensor>)
   } : (!torch.int, !torch.bool, !torch.optional<!torch.tensor>) -> (!torch.optional<!torch.tensor>)
   return %ret: !torch.optional<!torch.tensor>
+}
+
+// -----
+
+// CHECK-LABEL:   func @f
+// CHECK: %[[ATEN:.*]] = torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
+// CHECK: %[[CAST:.*]] = torch.tensor_static_info_cast %[[ATEN]] : !torch.vtensor<*,f32> to !torch.vtensor
+// CHECK: return %[[CAST]] : !torch.vtensor
+func @f(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
+  %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor
+  cf.br ^bb1(%cast: !torch.vtensor)
+^bb1(%arg1: !torch.vtensor):
+  %1 = torch.aten.tanh %arg1 : !torch.vtensor -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func @f
+// CHECK: func private @callee
+// CHECK-NEXT: torch.aten.tanh %{{.*}} : !torch.vtensor -> !torch.vtensor<*,f32>
+func @f() {
+  builtin.module {
+    func private @callee(%arg0: !torch.vtensor) {
+      %1 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
+      return
+    }
+    func @caller(%arg0: !torch.vtensor<*,f32>) {
+      %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<*,f32> to !torch.vtensor
+      call @callee(%cast) : (!torch.vtensor) -> ()
+      return
+    }
+  }
+  return
 }

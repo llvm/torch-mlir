@@ -301,3 +301,58 @@ Type ValueTensorType::parse(AsmParser &parser) {
 void ValueTensorType::print(AsmPrinter &printer) const {
   printTensorType(printer, getOptionalSizes(), getOptionalDtype());
 }
+
+Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
+  assert(((lhs.isa<ValueTensorType>() && rhs.isa<ValueTensorType>()) ||
+          (lhs.isa<NonValueTensorType>() && rhs.isa<NonValueTensorType>())) &&
+         "expected lhs and rhs to have same sense of value semantics");
+
+  // First, calculate the dtype.
+
+  // If the dtypes are contradictory, return null.
+  if (lhs.hasDtype() && rhs.hasDtype() && lhs.getDtype() != rhs.getDtype())
+    return nullptr;
+  Type dtype;
+  // If we have a dtype, use it. If not, then the dtype Type remains in its
+  // default null state, which the constructor of ValueTensorType treats as
+  // "unknown".
+  if (lhs.hasDtype() || rhs.hasDtype()) {
+    dtype = lhs.hasDtype() ? lhs.getDtype() : rhs.getDtype();
+  }
+
+  // Then, calculate the sizes and return the new Type.
+
+  // If neither has sizes, we have nothing left to do.
+  if (!lhs.hasSizes() && !rhs.hasSizes()) {
+    return ValueTensorType::get(lhs.getContext(), /*optionalSizes=*/None,
+                                dtype);
+  }
+
+  // If the number of sizes is different, the two types are contradictory.
+  if (lhs.hasSizes() && rhs.hasSizes() &&
+      lhs.getSizes().size() != rhs.getSizes().size()) {
+    return nullptr;
+  }
+
+  // Either lhs or rhs has sizes. If either one doesn't have sizes, we can
+  // replace it with the other one's sizes, since the meet logic below is
+  // idempotent.
+  ArrayRef<int64_t> lhsSizes = lhs.hasSizes() ? lhs.getSizes() : rhs.getSizes();
+  ArrayRef<int64_t> rhsSizes = rhs.hasSizes() ? rhs.getSizes() : lhs.getSizes();
+  // Meet the sizes.
+  SmallVector<int64_t> newSizes;
+  for (int i = 0, e = lhsSizes.size(); i < e; i++) {
+    if (lhsSizes[i] == rhsSizes[i]) {
+      newSizes.push_back(lhsSizes[i]);
+    } else if (lhsSizes[i] == kUnknownSize) {
+      newSizes.push_back(rhsSizes[i]);
+    } else if (rhsSizes[i] == kUnknownSize) {
+      newSizes.push_back(lhsSizes[i]);
+    } else {
+      // The two sizes are contradictory.
+      return nullptr;
+    }
+  }
+
+  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
+}
