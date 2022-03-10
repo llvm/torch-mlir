@@ -22,6 +22,18 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+// Helper function to check whether the `dtype` is None or Float type.
+static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
+  if (dtype.getType().isa<Torch::NoneType>())
+    return true;
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return false;
+  Type resDtype =
+      getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+  return resDtype.isa<mlir::FloatType>();
+}
+
 // Helper function to compute the return type of the reduction function.
 // `dim` specifies the dimension to reduce and `keepDim` preserves the rank of
 // the input tensor.
@@ -835,6 +847,54 @@ public:
     Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
     rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputTensorType, sum,
                                                  numTensorElements);
+    return success();
+  }
+};
+} // namespace
+
+// productDimSize = product(size(dim) for dim in dims)
+// aten.mean(x, dims) = aten.sum(x, dims) / productDimSize.
+namespace {
+class DecomposeAtenMeanDimOp : public OpRewritePattern<AtenMeanDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMeanDimOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Value dimList = op.dim();
+    Value keepDim = op.keepdim();
+    Value dtype = op.dtype();
+    Type outputType = op.getType();
+    MLIRContext *context = op.getContext();
+
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>() ||
+        !isNoneOrFloatDtype(context, dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "only floating-point type is supported");
+    }
+
+    auto dimListConstruct = dimList.getDefiningOp<PrimListConstructOp>();
+    if (!dimListConstruct) {
+      return rewriter.notifyMatchFailure(
+          op, "expect dimList to be constructed from list construct");
+    }
+
+    // Compute sum along dimensions specified in `dimList`.
+    Value sumAlongDims = rewriter.create<AtenSumDimIntListOp>(
+        loc, outputType, input, dimList, keepDim, dtype);
+
+    // `productDimSize` is product of sizes of dimensions to be reduced.
+    Value productDimSize = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    for (Value dim : dimListConstruct.elements()) {
+      Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+      productDimSize =
+          rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
+    }
+    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, sumAlongDims,
+                                                 productDimSize);
     return success();
   }
 };
@@ -1776,6 +1836,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenAddmmOp>();
     patterns.add<DecomposeAtenMeanOp>(context);
     target.addIllegalOp<AtenMeanOp>();
+    patterns.add<DecomposeAtenMeanDimOp>(context);
+    target.addIllegalOp<AtenMeanDimOp>();
     patterns.add<DecomposeAtenSelectIntOp>(context);
     target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);

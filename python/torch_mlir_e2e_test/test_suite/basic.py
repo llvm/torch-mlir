@@ -759,6 +759,9 @@ def _LogSoftmaxModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4))
 
 
+# ==============================================================================
+
+
 class _LogSoftmaxModuleStable(torch.nn.Module):
 
     def __init__(self):
@@ -1143,50 +1146,6 @@ def DropoutTrainModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class MeanModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([3, 4], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.mean(x)
-
-
-@register_test_case(module_factory=lambda: MeanModule())
-def MeanModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 4))
-
-
-# ==============================================================================
-
-
-class MeanDynamicSizesModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.mean(x)
-
-
-@register_test_case(module_factory=lambda: MeanDynamicSizesModule())
-def MeanDynamicSizesModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(3, 4))
-
-
-# ==============================================================================
-
-
 class NumelModule(torch.nn.Module):
 
     def __init__(self):
@@ -1502,94 +1461,6 @@ def SquareModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class VarUnbiasedModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.var(x, unbiased=True)
-
-
-@register_test_case(module_factory=lambda: VarUnbiasedModule())
-def VarUnbiasedModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
-class VarBiasedModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.var(x, unbiased=False)
-
-
-@register_test_case(module_factory=lambda: VarBiasedModule())
-def VarBiasedModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
-class StdUnbiasedModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.std(x, unbiased=True)
-
-
-@register_test_case(module_factory=lambda: StdUnbiasedModule())
-def StdUnbiasedModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
-class StdBiasedModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
-    def forward(self, x):
-        return torch.ops.aten.std(x, unbiased=False)
-
-
-@register_test_case(module_factory=lambda: StdBiasedModule())
-def StdBiasedModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 3, 4))
-
-
-# ==============================================================================
-
-
 class HardswishModule(torch.nn.Module):
 
     def __init__(self):
@@ -1607,6 +1478,9 @@ class HardswishModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: HardswishModule())
 def HardswishModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[4.0, -5.0, 3.0], [2.9, -1.5, -3.0]]))
+
+
+# ==============================================================================
 
 
 class HardswishRandomModule(torch.nn.Module):
@@ -1693,6 +1567,7 @@ class HardTanhIntModule(torch.nn.Module):
 def HardTanhIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-5, 5, (100, 100)))
 
+# ==============================================================================
 
 class BincountModule(torch.nn.Module):
 
@@ -1712,6 +1587,7 @@ class BincountModule(torch.nn.Module):
 def BincountModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (1000, )))
 
+# ==============================================================================
 
 class BincountStaticSizeModule(torch.nn.Module):
 
@@ -1731,6 +1607,7 @@ class BincountStaticSizeModule(torch.nn.Module):
 def BincountStaticSizeModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (200, )))
 
+# ==============================================================================
 
 class BincountMinlengthModule(torch.nn.Module):
 
