@@ -605,6 +605,37 @@ ChangeResult TypeAnalyzer::visitOperation(
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarOp>(op)) {
+    Value lhsScalar = op->getOperand(1);
+    Value rhsScalar = op->getOperand(2);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype =
+        getPromotedResultType({lhsScalar.getType(), rhsScalar.getType()});
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarOtherOp>(op)) {
+    auto lhs = operands[1]->getValue();
+    Value scalar = op->getOperand(2);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarSelfOp>(op)) {
+    auto rhs = operands[2]->getValue();
+    Value scalar = op->getOperand(1);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype = getPromotedResultType(&rhs, scalar.getType());
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
   // 2 results take dtype from first operand.
   if (isa<AtenNllLossForwardOp>(op)) {
     auto self = operands[0]->getValue();
