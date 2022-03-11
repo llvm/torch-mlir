@@ -696,6 +696,60 @@ public:
 };
 } // namespace
 
+// Decompose aten.where.Scalar into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarOp : public OpRewritePattern<AtenWhereScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.self());
+    Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.other());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 selfTensor, otherTensor);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.where.ScalarOther into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarOtherOp
+    : public OpRewritePattern<AtenWhereScalarOtherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarOtherOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.other());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 op.self(), otherTensor);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.where.ScalarSelf into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarSelfOp
+    : public OpRewritePattern<AtenWhereScalarSelfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarSelfOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.self());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 selfTensor, op.other());
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -1591,6 +1645,12 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenZerosLikeOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
+    patterns.add<DecomposeAtenWhereScalarOp>(context);
+    target.addIllegalOp<AtenWhereScalarOp>();
+    patterns.add<DecomposeAtenWhereScalarOtherOp>(context);
+    target.addIllegalOp<AtenWhereScalarOtherOp>();
+    patterns.add<DecomposeAtenWhereScalarSelfOp>(context);
+    target.addIllegalOp<AtenWhereScalarSelfOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
     target.addIllegalOp<AtenSizeOp>();
     patterns.add<DecomposeAtenReshapeOp>(context);

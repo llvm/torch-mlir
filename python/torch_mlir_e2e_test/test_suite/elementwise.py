@@ -139,6 +139,65 @@ def ElementwiseWhereSelfModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseWhereScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.where(a > 0.5, 4.0, 8.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereScalarModule())
+def ElementwiseWhereScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ElementwiseWhereScalarOtherModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.where(a > 0.5, b, 8.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereScalarOtherModule())
+def ElementwiseWhereScalarOtherModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).double(), tu.rand(4, 5).double())
+
+# ==============================================================================
+
+class ElementwiseWhereScalarSelfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.where(a > 0.5, 4.0, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseWhereScalarSelfModule())
+def ElementwiseWhereScalarSelfModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).double(), tu.rand(4, 5).double())
+
+# ==============================================================================
+
 # Addition is an interesting special case of a binary op, because under the hood
 # it carries a third scalar "alpha" parameter, which needs special handling.
 class ElementwiseAddModule(torch.nn.Module):

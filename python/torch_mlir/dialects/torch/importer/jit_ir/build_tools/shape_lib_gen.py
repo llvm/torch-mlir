@@ -727,6 +727,15 @@ def aten〇_shape_as_tensor(self: List[int]) -> List[int]:
 def aten〇where〇self(condition: List[int], self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(condition, upstream_shape_helpers.broadcast(self, other))
 
+def aten〇where〇Scalar(condition: List[int], self: float, other: float) -> List[int]:
+    return upstream_shape_helpers.unary(condition)
+
+def aten〇where〇ScalarOther(condition: List[int], self: List[int], other: float) -> List[int]:
+    return upstream_shape_helpers.broadcast(condition, self)
+
+def aten〇where〇ScalarSelf(condition: List[int], self: float, other: List[int]) -> List[int]:
+    return upstream_shape_helpers.broadcast(condition, other)
+
 def aten〇lerp〇Tensor(self: List[int], end: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, upstream_shape_helpers.broadcast(end, weight))
 
