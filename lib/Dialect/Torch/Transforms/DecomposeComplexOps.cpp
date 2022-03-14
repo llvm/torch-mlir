@@ -1430,6 +1430,23 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenExpandAsOp : public OpRewritePattern<AtenExpandAsOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExpandAsOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto sizeListType =
+        Torch::ListType::get(Torch::IntType::get(op.getContext()));
+    Value sizeList =
+        rewriter.create<AtenSizeOp>(op.getLoc(), sizeListType, op.other());
+    rewriter.replaceOpWithNewOp<AtenBroadcastToOp>(op, op.getType(), op.self(),
+                                                   sizeList);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1534,6 +1551,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenFullLikeOp>();
     patterns.add<DecomposeAtenIndexPutOp>(context);
     target.addIllegalOp<AtenIndexPutOp>();
+    patterns.add<DecomposeAtenExpandAsOp>(context);
+    target.addIllegalOp<AtenExpandAsOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
