@@ -1077,6 +1077,10 @@ module {
     }
     return %6 : !torch.list<int>
   }
+  func @"__torch_mlir_shape_fn.aten.expand_as"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func @"__torch_mlir_shape_fn.aten.broadcast_to"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>

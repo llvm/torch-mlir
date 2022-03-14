@@ -1452,3 +1452,42 @@ class BincountMinlengthModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BincountMinlengthModule())
 def BincountMinlengthModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(5, (20,)))
+
+# ==============================================================================
+
+class ExpandAsFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 1, 1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.expand_as(x, y)
+
+
+@register_test_case(module_factory=lambda: ExpandAsFloatModule())
+def ExpandAsFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1), tu.rand(3, 4, 5))
+
+
+class ExpandAsIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.expand_as(x, y)
+
+
+@register_test_case(module_factory=lambda: ExpandAsIntModule())
+def ExpandAsIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (1, 1, 1)), torch.randint(200, (4, 5, 6)))

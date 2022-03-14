@@ -530,6 +530,9 @@ def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -
 def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> List[int]:
     return upstream_shape_helpers.expand(self, size)
 
+def aten〇expand_as(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(other)
+
 def aten〇broadcast_to(self: List[int], size: List[int]) -> List[int]:
     return upstream_shape_helpers.expand(self, size)
 
