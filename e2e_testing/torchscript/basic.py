@@ -1491,3 +1491,80 @@ class ExpandAsIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ExpandAsIntModule())
 def ExpandAsIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (1, 1, 1)), torch.randint(200, (4, 5, 6)))
+
+# ==============================================================================
+
+class CopyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyModule())
+def CopyModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+class CopyWithDifferentSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 4], torch.float32, True),
+        ([-1, -1, 1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentSizesModule())
+def CopyWithDifferentSizesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 1))
+
+
+class CopyWithDifferentDTypesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentDTypesModule())
+def CopyWithDifferentDTypesModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 2, 4)), tu.rand(3, 2, 4))
+
+
+class CopyWithDifferentDTypesAndSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 4], torch.float32, True),
+        ([-1, -1, 1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentDTypesAndSizesModule())
+def CopyWithDifferentDTypesAndSizesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), torch.randint(1000, (3, 2, 1)))

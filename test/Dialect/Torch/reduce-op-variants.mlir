@@ -198,3 +198,20 @@ func @torch.aten._index_put_impl_(%self: !torch.tensor, %index: !torch.tensor, %
   %ret = torch.aten._index_put_impl_ %self, %indicesList, %values, %true, %false : !torch.tensor, !torch.list<optional<tensor>>, !torch.tensor, !torch.bool, !torch.bool -> !torch.tensor
   return %ret : !torch.tensor
 }
+
+// CHECK-LABEL:   func @torch.aten.copy_(
+// CHECK-SAME:                          %[[DST:.*]]: !torch.tensor,
+// CHECK-SAME:                          %[[SRC:.*]]: !torch.tensor) -> !torch.tensor {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[DST_VTENSOR:.*]] = torch.copy.to_vtensor %[[DST]] : !torch.vtensor
+// CHECK:           %[[SRC_VTENSOR:.*]] = torch.copy.to_vtensor %[[SRC]] : !torch.vtensor
+// CHECK:           %[[VRET:.*]] = torch.valsem.aten.copy %[[DST_VTENSOR]], %[[SRC_VTENSOR]], %[[FALSE]] : !torch.vtensor, !torch.vtensor, !torch.bool -> !torch.vtensor
+// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
+// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
+// CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[DST]] : !torch.vtensor, !torch.tensor
+// CHECK:           return %[[DST]] : !torch.tensor
+func @torch.aten.copy_(%dst: !torch.tensor, %src : !torch.tensor) -> !torch.tensor {
+  %false = torch.constant.bool false
+  %ret = torch.aten.copy_ %dst, %src, %false : !torch.tensor, !torch.tensor, !torch.bool -> !torch.tensor
+  return %ret : !torch.tensor
+}

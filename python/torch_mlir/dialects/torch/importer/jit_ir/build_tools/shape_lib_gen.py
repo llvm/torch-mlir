@@ -598,6 +598,10 @@ def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
     return self
 
 @not_present_in_registry
+def aten〇copy(self: List[int], src: List[int], non_blocking: bool = False) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+@not_present_in_registry
 def aten〇uniform(self: List[int], from_: float = 0., to: float = 1., generator: Any = None) -> List[int]:
     return self
 
