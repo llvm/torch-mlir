@@ -30,10 +30,13 @@ func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 
 // CHECK: @tuple.empty() -> !torch.tuple<>
 func private @tuple.empty() -> !torch.tuple<>
-// CHECK: @tuple.one_element() -> !torch.tuple<!torch.tensor>
-func private @tuple.one_element() -> !torch.tuple<!torch.tensor>
-// CHECK: @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
-func private @tuple.two_elements() -> !torch.tuple<!torch.tensor, !torch.tensor>
+// CHECK: @tuple.one_element() -> !torch.tuple<tensor>
+func private @tuple.one_element() -> !torch.tuple<tensor>
+// CHECK: @tuple.two_elements() -> !torch.tuple<tensor, tensor>
+func private @tuple.two_elements() -> !torch.tuple<tensor, tensor>
+
+// CHECK: @dict() -> !torch.dict<str, tensor>
+func private @dict() -> !torch.dict<str, tensor>
 
 // CHECK-LABEL:   func @torch.tensor.literal() {
 func @torch.tensor.literal() {
@@ -51,9 +54,9 @@ func @torch.vtensor.literal() {
   return
 }
 
-func @derefine(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
-  %0 = torch.derefine %arg0 : !torch.tensor to !torch.optional<!torch.tensor>
-  return %0 : !torch.optional<!torch.tensor>
+func @derefine(%arg0: !torch.tensor) -> !torch.optional<tensor> {
+  %0 = torch.derefine %arg0 : !torch.tensor to !torch.optional<tensor>
+  return %0 : !torch.optional<tensor>
 }
 
 func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
@@ -106,7 +109,7 @@ torch.class_type @test {
   torch.attr "f" : !torch.float
   torch.attr "t" : !torch.tensor
   torch.attr "submodule" : !torch.nn.Module<"empty">
-  torch.attr "ob" : !torch.optional<!torch.bool>
+  torch.attr "ob" : !torch.optional<bool>
   torch.attr "s" : !torch.str
   torch.method "method", @f
 }
@@ -126,8 +129,8 @@ func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
     %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
     torch.shape.calculate.yield %0 : !torch.vtensor
   } shapes {
-    %0 = torch.aten.size %arg0 : !torch.vtensor -> !torch.list<!torch.int>
-    torch.shape.calculate.yield.shapes %0 : !torch.list<!torch.int>
+    %0 = torch.aten.size %arg0 : !torch.vtensor -> !torch.list<int>
+    torch.shape.calculate.yield.shapes %0 : !torch.list<int>
   } : !torch.vtensor
   return %0 : !torch.vtensor
 }

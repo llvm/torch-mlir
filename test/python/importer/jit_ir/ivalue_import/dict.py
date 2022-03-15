@@ -20,16 +20,16 @@ class TestModule(torch.nn.Module):
 
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # CHECK:         torch.attr "training" : !torch.bool
-# CHECK:         torch.attr "_is_full_backward_hook" : !torch.optional<!torch.bool>
-# CHECK:         torch.attr "d" : !torch.dict<!torch.str, !torch.tensor>
+# CHECK:         torch.attr "_is_full_backward_hook" : !torch.optional<bool>
+# CHECK:         torch.attr "d" : !torch.dict<str, tensor>
 # CHECK:       }
 # CHECK:       %[[K:.*]] = torch.constant.str "key1"
 # CHECK:       %[[TENSOR:.*]] = torch.tensor.literal(dense<1> : tensor<si64>) : !torch.tensor<[],si64>
 # CHECK:       %[[DICT:.*]] = torch.prim.DictConstruct
 # CHECK-SAME     keys(%[[K]] : !torch.str) values(%[[TENSOR]] : !torch.tensor<[],si64>)
-# CHECK-SAME:    -> !torch.dict<!torch.str, !torch.tensor>
+# CHECK-SAME:    -> !torch.dict<str, tensor>
 # CHECK: torch.nn_module  {
-# CHECK:           torch.slot "d", %[[DICT]] : !torch.dict<!torch.str, !torch.tensor>
+# CHECK:           torch.slot "d", %[[DICT]] : !torch.dict<str, tensor>
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 test_module = TestModule()

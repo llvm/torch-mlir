@@ -22,7 +22,7 @@ class TestModule(torch.nn.Module):
 # CHECK: %[[N2:.*]] = torch.constant.int 2
 # CHECK: %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[N1]], %[[N2]] : !torch.int, !torch.int
 # CHECK: torch.nn_module  {
-# CHECK:   torch.slot "t", %[[TUPLE]] : !torch.tuple<!torch.int, !torch.int>
+# CHECK:   torch.slot "t", %[[TUPLE]] : !torch.tuple<int, int>
 # CHECK: } : !torch.nn.Module<"[[CLASSTYPE]]">
 
 

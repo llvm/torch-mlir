@@ -12,16 +12,16 @@ import typing
 mb = ModuleBuilder()
 
 # CHECK-LABEL:   func @__torch__.optional_return(
-# CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.optional<!torch.int> {
-# CHECK:           %[[RET:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<!torch.int>
-# CHECK:           return %[[RET]] : !torch.optional<!torch.int>
+# CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.optional<int> {
+# CHECK:           %[[RET:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<int>
+# CHECK:           return %[[RET]] : !torch.optional<int>
 @mb.import_function
 @torch.jit.script
 def optional_return(i: int) -> typing.Optional[int]:
     return i
 
 # CHECK-LABEL:   func @__torch__.optional_arg(
-# CHECK-SAME:                                      %[[ARG:.*]]: !torch.optional<!torch.int>) -> !torch.none {
+# CHECK-SAME:                                      %[[ARG:.*]]: !torch.optional<int>) -> !torch.none {
 @mb.import_function
 @torch.jit.script
 def optional_arg(i: typing.Optional[int]) -> None:
@@ -29,9 +29,9 @@ def optional_arg(i: typing.Optional[int]) -> None:
 
 # CHECK-LABEL:   func @__torch__.calls_optional_arg(
 # CHECK-SAME:                                       %[[ARG:.*]]: !torch.int) -> !torch.none {
-# CHECK:           %[[CALLEE:.*]] = constant @__torch__.optional_arg : (!torch.optional<!torch.int>) -> !torch.none
-# CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<!torch.int>
-# CHECK:           %{{.*}} = call_indirect %[[CALLEE]](%[[DEREFINED]]) : (!torch.optional<!torch.int>) -> !torch.none
+# CHECK:           %[[CALLEE:.*]] = constant @__torch__.optional_arg : (!torch.optional<int>) -> !torch.none
+# CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<int>
+# CHECK:           %{{.*}} = call_indirect %[[CALLEE]](%[[DEREFINED]]) : (!torch.optional<int>) -> !torch.none
 @mb.import_function
 @torch.jit.script
 def calls_optional_arg(i: int):

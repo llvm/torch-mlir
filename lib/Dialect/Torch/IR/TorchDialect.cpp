@@ -48,6 +48,58 @@ struct TorchInlinerInterface : public DialectInlinerInterface {
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.cpp.inc"
 
 //===----------------------------------------------------------------------===//
+// Top-level parsing/printing of types for TorchDialect.
+//===----------------------------------------------------------------------===//
+//
+// Unfortunately, TorchDialect::parseType/printType are non-static member
+// functions, even though they don't depend on any instance state of the
+// dialect. This is problematic, for example, when wanting to call these
+// functions directly from type printers/parsers.
+//
+// So define some helpers that are free functions.
+
+/// Parse a type registered to this dialect.
+Type Torch::parseTorchDialectType(AsmParser &parser) {
+  SMLoc typeLoc = parser.getCurrentLocation();
+  StringRef mnemonic;
+  if (parser.parseOptionalKeyword(&mnemonic)) {
+    parser.emitError(parser.getCurrentLocation())
+        .append("expected type mnemonic")
+        .attachNote()
+        .append("for types like `!torch.list<int>`, you must omit the "
+                "`!torch.` prefix for the nested types");
+    return Type();
+  }
+
+  Type genType;
+  auto parseResult = generatedTypeParser(parser, mnemonic, genType);
+  if (parseResult.hasValue())
+    return genType;
+  parser.emitError(typeLoc) << "unknown  type `" << mnemonic << "` in dialect `"
+                            << TorchDialect::getDialectNamespace() << "`";
+  return {};
+}
+
+/// Print a type registered to this dialect.
+void Torch::printTorchDialectType(Type type, AsmPrinter &printer) {
+  if (succeeded(generatedTypePrinter(type, printer)))
+    return;
+}
+
+//===----------------------------------------------------------------------===//
+// Torch dialect parseType/printType methods.
+//===----------------------------------------------------------------------===//
+
+/// Parse a type registered to this dialect.
+Type TorchDialect::parseType(DialectAsmParser &parser) const {
+  return parseTorchDialectType(parser);
+}
+/// Print a type registered to this dialect.
+void TorchDialect::printType(Type type, DialectAsmPrinter &printer) const {
+  printTorchDialectType(type, printer);
+}
+
+//===----------------------------------------------------------------------===//
 // Dialect initialize method.
 //===----------------------------------------------------------------------===//
 

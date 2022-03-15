@@ -1060,7 +1060,7 @@ def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
     (in the region `shapeCalculation`) which calculates the shapes for
     the set of values yielded by the `body` region.
 
-    The `shapeCalculation` region yields a `!torch.list<!torch.int>` for each
+    The `shapeCalculation` region yields a `!torch.list<int>` for each
     value yielded by the `body` region.
 
     Conceptually, the `shapeCalculation` region executes first, then `body`

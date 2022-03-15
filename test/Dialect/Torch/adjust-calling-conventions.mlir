@@ -56,18 +56,18 @@ func @none_call_return() {
 // CHECK:           %[[ARG1_ERASED:.*]] = torch.tensor_static_info_cast %[[ARG1]] : !torch.vtensor<[?],f32> to !torch.vtensor
 // CHECK:           %[[ARG1_NONVAL:.*]] = torch.copy.to_tensor %[[ARG1_ERASED]] : !torch.tensor
 // CHECK:           %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[ARG0_NONVAL]], %[[ARG1_NONVAL]] :
-// CHECK-SAME:          !torch.tensor, !torch.tensor -> !torch.tuple<!torch.tensor, !torch.tensor>
+// CHECK-SAME:          !torch.tensor, !torch.tensor -> !torch.tuple<tensor, tensor>
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           %[[RET0:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[CST0]] :
-// CHECK-SAME:          !torch.tuple<!torch.tensor, !torch.tensor>, !torch.int -> !torch.tensor
+// CHECK-SAME:          !torch.tuple<tensor, tensor>, !torch.int -> !torch.tensor
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           %[[RET1:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[CST1]] :
-// CHECK-SAME:          !torch.tuple<!torch.tensor, !torch.tensor>, !torch.int -> !torch.tensor
+// CHECK-SAME:          !torch.tuple<tensor, tensor>, !torch.int -> !torch.tensor
 // CHECK:           return %[[RET0]], %[[RET1]] : !torch.tensor, !torch.tensor
 func @tuple_return(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>},
-                   %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>}) -> !torch.tuple<!torch.tensor, !torch.tensor> {
-  %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor, !torch.tensor -> !torch.tuple<!torch.tensor, !torch.tensor>
-  return %1 : !torch.tuple<!torch.tensor, !torch.tensor>
+                   %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>}) -> !torch.tuple<tensor, tensor> {
+  %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor, !torch.tensor -> !torch.tuple<tensor, tensor>
+  return %1 : !torch.tuple<tensor, tensor>
 }
 
 // CHECK-LABEL:   func @call_tuple_return(
@@ -84,16 +84,16 @@ func @tuple_return(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f
 // CHECK:           %[[RETS:.*]]:2 = call @tuple_return(%[[ARG0_VAL_SHAPED]], %[[ARG1_VAL_SHAPED]]) :
 // CHECK-SAME:          (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> (!torch.tensor, !torch.tensor)
 // CHECK:           %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[RETS]]#0, %[[RETS]]#1 :
-// CHECK-SAME:          !torch.tensor, !torch.tensor -> !torch.tuple<!torch.tensor, !torch.tensor>
+// CHECK-SAME:          !torch.tensor, !torch.tensor -> !torch.tuple<tensor, tensor>
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           %[[RET0:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[CST0]] :
-// CHECK-SAME:          !torch.tuple<!torch.tensor, !torch.tensor>, !torch.int -> !torch.tensor
+// CHECK-SAME:          !torch.tuple<tensor, tensor>, !torch.int -> !torch.tensor
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
 // CHECK:           %[[RET1:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[CST1]] :
-// CHECK-SAME:          !torch.tuple<!torch.tensor, !torch.tensor>, !torch.int -> !torch.tensor
+// CHECK-SAME:          !torch.tuple<tensor, tensor>, !torch.int -> !torch.tensor
 // CHECK:           return %[[RET0]], %[[RET1]] : !torch.tensor, !torch.tensor
 func @call_tuple_return(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>},
-                        %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>}) -> !torch.tuple<!torch.tensor, !torch.tensor> {
-  %0 = call @tuple_return(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tuple<!torch.tensor, !torch.tensor>
-  return %0 : !torch.tuple<!torch.tensor, !torch.tensor>
+                        %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?],f32>}) -> !torch.tuple<tensor, tensor> {
+  %0 = call @tuple_return(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tuple<tensor, tensor>
+  return %0 : !torch.tuple<tensor, tensor>
 }

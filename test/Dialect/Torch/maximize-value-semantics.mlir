@@ -46,25 +46,25 @@ func @multiple_mutations_in_a_block(%arg0: !torch.vtensor, %arg1: !torch.vtensor
 }
 
 // CHECK-LABEL:   func @mutation_followed_by_view_like_ops(
-// CHECK-SAME:                                             %[[VALUE_T:.*]]: !torch.vtensor, %[[OVERWRITER:.*]]: !torch.vtensor, %[[INT_LIST:.*]]: !torch.list<!torch.int>) -> !torch.vtensor {
-// CHECK:           %[[VIEW:.*]] = torch.aten.view %[[OVERWRITER]], %[[INT_LIST]] : !torch.vtensor, !torch.list<!torch.int> -> !torch.vtensor
-// CHECK:           %[[RESULT:.*]] = torch.aten.permute %[[VIEW]], %[[INT_LIST]] : !torch.vtensor, !torch.list<!torch.int> -> !torch.vtensor
+// CHECK-SAME:                                             %[[VALUE_T:.*]]: !torch.vtensor, %[[OVERWRITER:.*]]: !torch.vtensor, %[[INT_LIST:.*]]: !torch.list<int>) -> !torch.vtensor {
+// CHECK:           %[[VIEW:.*]] = torch.aten.view %[[OVERWRITER]], %[[INT_LIST]] : !torch.vtensor, !torch.list<int> -> !torch.vtensor
+// CHECK:           %[[RESULT:.*]] = torch.aten.permute %[[VIEW]], %[[INT_LIST]] : !torch.vtensor, !torch.list<int> -> !torch.vtensor
 // CHECK:           return %[[RESULT]] : !torch.vtensor
-func @mutation_followed_by_view_like_ops(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<!torch.int>) -> !torch.vtensor {
+func @mutation_followed_by_view_like_ops(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<int>) -> !torch.vtensor {
   %t = torch.copy.to_tensor %value_t : !torch.tensor
   torch.overwrite.tensor.contents %overwriter overwrites %t : !torch.vtensor, !torch.tensor
-  %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
-  %result = torch.aten.permute %view, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
+  %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<int> -> !torch.tensor
+  %result = torch.aten.permute %view, %int_list : !torch.tensor, !torch.list<int> -> !torch.tensor
   %value_result = torch.copy.to_vtensor %result : !torch.vtensor
   return %value_result : !torch.vtensor
 }
 
 // CHECK-LABEL:   func @mutation_of_view_like_op_result(
-// CHECK-SAME:                                             %[[VALUE_T:.*]]: !torch.vtensor, %[[OVERWRITER:.*]]: !torch.vtensor, %[[INT_LIST:.*]]: !torch.list<!torch.int>) -> !torch.vtensor {
+// CHECK-SAME:                                             %[[VALUE_T:.*]]: !torch.vtensor, %[[OVERWRITER:.*]]: !torch.vtensor, %[[INT_LIST:.*]]: !torch.list<int>) -> !torch.vtensor {
 // CHECK:           return %[[OVERWRITER]] : !torch.vtensor
-func @mutation_of_view_like_op_result(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<!torch.int>) -> !torch.vtensor {
+func @mutation_of_view_like_op_result(%value_t: !torch.vtensor, %overwriter: !torch.vtensor, %int_list: !torch.list<int>) -> !torch.vtensor {
   %t = torch.copy.to_tensor %value_t : !torch.tensor
-  %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<!torch.int> -> !torch.tensor
+  %view = torch.aten.view %t, %int_list : !torch.tensor, !torch.list<int> -> !torch.tensor
   torch.overwrite.tensor.contents %overwriter overwrites %view : !torch.vtensor, !torch.tensor
   %result = torch.copy.to_vtensor %view : !torch.vtensor
   return %result : !torch.vtensor

@@ -99,8 +99,8 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
   // For the non-None case, we need to unwrap the optional type and then adjust
   // it recursively (which also takes care of derefining it to ultimate desired
   // type).
-  // A case where this happens is `!torch.optional<!torch.vtensor>` ->
-  // `!torch.optional<!torch.list<!torch.int>>>`.
+  // A case where this happens is `!torch.optional<vtensor>` ->
+  // `!torch.optional<list<int>>>`.
   if (auto operandOptionalType = operandType.dyn_cast<Torch::OptionalType>()) {
     if (desiredType.isa<Torch::OptionalType>()) {
       // if optional is None:
@@ -131,7 +131,7 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
 
   // If the desired type is OptionalType, then recursively adjust the operand to
   // the contained type, then derefine it to `!torch.optional`. For example,
-  // `!torch.vtensor -> !torch.optional<!torch.list<!torch.int>>>`.
+  // `!torch.vtensor -> !torch.optional<list<int>>>`.
   if (auto desiredOptionalType = desiredType.dyn_cast<Torch::OptionalType>()) {
     auto adjusted = adjustShapeFunctionArg(
         operand, desiredOptionalType.getContainedType(), b, loc);
@@ -139,7 +139,7 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
   }
 
   // The shape library functions have tensor operands replaced with
-  // `!torch.list<!torch.int>` types for the shape. Get the sizes.
+  // `!torch.list<int>` types for the shape. Get the sizes.
   if (operand.getType().isa<Torch::BaseTensorType>()) {
     assert(desiredType.isa<Torch::ListType>() &&
            "Don't expect shape functions to have tensor parameters");
@@ -147,7 +147,7 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
   }
 
   // Run this after `operand.getType().isa<Torch::BaseTensorType>()` so that
-  // `!torch.vtensor` -> `!torch.list<!torch.int>` is handled there specially
+  // `!torch.vtensor` -> `!torch.list<int>` is handled there specially
   // first.
   if (auto desiredListType = desiredType.dyn_cast<Torch::ListType>()) {
     return adjustListArg(operand, desiredListType, b, loc);

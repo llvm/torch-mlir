@@ -26,14 +26,21 @@ class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type
   let parameters = (ins "::mlir::Type":$containedType);
 
   let printer = [{
-    $_printer << "<" << getImpl()->containedType << ">";
+    $_printer << "<";
+    // Print the contained type without the `!torch.` prefix.
+    printTorchDialectType(getImpl()->containedType, $_printer);
+    $_printer << ">";
   }];
 
   let parser = [{
     if ($_parser.parseLess())
       return Type();
-    Type containedType;
-    if ($_parser.parseType(containedType))
+
+    // Parse the contained type, but forward directly to our internal parsing
+    // of `torch` dialect types, so that we can parse nested types without
+    // the `!torch.` prefix.
+    Type containedType = parseTorchDialectType($_parser);
+    if (!containedType)
       return Type();
     if ($_parser.parseGreater())
       return Type();
@@ -344,19 +351,23 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
   }];
 
   let printer = [{
-    $_printer << "<" << getImpl()->keyType << ", " << getImpl()->valueType << ">";
+    $_printer << "<";
+    printTorchDialectType(getImpl()->keyType, $_printer);
+    $_printer << ", ";
+    printTorchDialectType(getImpl()->valueType, $_printer);
+    $_printer<< ">";
   }];
 
   let parser = [{
     if ($_parser.parseLess())
       return Type();
-    Type keyType;
-    if ($_parser.parseType(keyType))
+    Type keyType = parseTorchDialectType($_parser);
+    if (!keyType)
       return Type();
     if ($_parser.parseComma())
       return Type();
-    Type valueType;
-    if ($_parser.parseType(valueType))
+    Type valueType = parseTorchDialectType($_parser);
+    if (!valueType)
       return Type();
     if ($_parser.parseGreater())
       return Type();
