@@ -50,16 +50,16 @@ def prim_Loop_whilelike(n: int):
     return f
 
 # CHECK-LABEL:   func @__torch__.prim_Loop_derefine(
-# CHECK-SAME:                             %[[ARG:.*]]: !torch.int) -> !torch.optional<!torch.int> {
+# CHECK-SAME:                             %[[ARG:.*]]: !torch.int) -> !torch.optional<int> {
 # CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 # CHECK:           %[[NONE:.*]] = torch.constant.none
-# CHECK:           %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<!torch.int>
+# CHECK:           %[[NONE_DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<int>
 # CHECK:           %[[RET:.*]] = torch.prim.Loop %[[ARG]], %[[TRUE]], init(%[[NONE_DEREFINED]])  {
-# CHECK:           ^bb0(%[[IV:.*]]: !torch.int, %[[X_ITER:.*]]: !torch.optional<!torch.int>):
-# CHECK:             %[[X_NEXT:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<!torch.int>
-# CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(%[[X_NEXT]] : !torch.optional<!torch.int>)
-# CHECK:           } : (!torch.int, !torch.bool, !torch.optional<!torch.int>) -> !torch.optional<!torch.int>
-# CHECK:           return %[[RET:.*]] : !torch.optional<!torch.int>
+# CHECK:           ^bb0(%[[IV:.*]]: !torch.int, %[[X_ITER:.*]]: !torch.optional<int>):
+# CHECK:             %[[X_NEXT:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<int>
+# CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(%[[X_NEXT]] : !torch.optional<int>)
+# CHECK:           } : (!torch.int, !torch.bool, !torch.optional<int>) -> !torch.optional<int>
+# CHECK:           return %[[RET:.*]] : !torch.optional<int>
 @mb.import_function
 @torch.jit.script
 def prim_Loop_derefine(n: int):

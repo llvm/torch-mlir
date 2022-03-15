@@ -115,18 +115,18 @@ builtin.func @f(%arg0: i32 {torch.type_bound = i32})
 
 // -----
 
-builtin.func @derefine(%arg0: !torch.optional<!torch.tensor>) -> !torch.tensor {
-  // expected-error @+1 {{operand type '!torch.optional<!torch.tensor>' and result type '!torch.tensor' are cast incompatible}}
-  %0 = torch.derefine %arg0 : !torch.optional<!torch.tensor> to !torch.tensor
+builtin.func @derefine(%arg0: !torch.optional<tensor>) -> !torch.tensor {
+  // expected-error @+1 {{operand type '!torch.optional<tensor>' and result type '!torch.tensor' are cast incompatible}}
+  %0 = torch.derefine %arg0 : !torch.optional<tensor> to !torch.tensor
   return %0 : !torch.tensor
 }
 
 // -----
 
-builtin.func @torch.prim.unchecked_cast$invalid_types(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
-  // expected-error @+1 {{operand type '!torch.tensor' and result type '!torch.optional<!torch.tensor>' are cast incompatible}}
-  %0 = torch.prim.unchecked_cast %arg0 : !torch.tensor -> !torch.optional<!torch.tensor>
-  return %0 : !torch.optional<!torch.tensor>
+builtin.func @torch.prim.unchecked_cast$invalid_types(%arg0: !torch.tensor) -> !torch.optional<tensor> {
+  // expected-error @+1 {{operand type '!torch.tensor' and result type '!torch.optional<tensor>' are cast incompatible}}
+  %0 = torch.prim.unchecked_cast %arg0 : !torch.tensor -> !torch.optional<tensor>
+  return %0 : !torch.optional<tensor>
 }
 
 // -----
@@ -166,7 +166,7 @@ builtin.func @torch.tensor() {
 builtin.func @torch.prim.ListConstruct() {
   %int2 = torch.constant.int 2
   // expected-error@+1 {{operand types should have the same type as the list contained type}}
-  torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<!torch.tensor>
+  torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<tensor>
   return
 }
 

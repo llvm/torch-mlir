@@ -16,10 +16,10 @@ NT = NamedTuple('NT', [('f1', Optional[torch.Tensor]),
 # CHECK-LABEL:   func @__torch__.tuple(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
-# CHECK-SAME:            !torch.tuple<!torch.tensor, !torch.tensor> {
+# CHECK-SAME:            !torch.tuple<tensor, tensor> {
 # CHECK:           %[[RET:.*]] = torch.prim.TupleConstruct %[[T0]], %[[T1]] :
-# CHECK-SAME:            !torch.tensor, !torch.tensor -> !torch.tuple<!torch.tensor, !torch.tensor>
-# CHECK:           return %[[RET]] : !torch.tuple<!torch.tensor, !torch.tensor>
+# CHECK-SAME:            !torch.tensor, !torch.tensor -> !torch.tuple<tensor, tensor>
+# CHECK:           return %[[RET]] : !torch.tuple<tensor, tensor>
 
 
 @mb.import_function
@@ -31,13 +31,13 @@ def tuple(t0, t1):
 # CHECK-LABEL:   func @__torch__.tuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
-# CHECK-SAME:            !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>> {
+# CHECK-SAME:            !torch.tuple<optional<tensor>, optional<tensor>> {
 # CHECK:           %[[TNEW:.*]] = torch.prim.TupleConstruct %[[T0]], %[[T1]] :
-# CHECK-SAME:           !torch.tensor, !torch.tensor -> !torch.tuple<!torch.tensor, !torch.tensor>
+# CHECK-SAME:           !torch.tensor, !torch.tensor -> !torch.tuple<tensor, tensor>
 # CHECK:           %[[RET:.*]] = torch.derefine %[[TNEW]] :
-# CHECK-SAME:           !torch.tuple<!torch.tensor, !torch.tensor> to
-# CHECK-SAME:           !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>>
-# CHECK:           return %[[RET]] : !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>>
+# CHECK-SAME:           !torch.tuple<tensor, tensor> to
+# CHECK-SAME:           !torch.tuple<optional<tensor>, optional<tensor>>
+# CHECK:           return %[[RET]] : !torch.tuple<optional<tensor>, optional<tensor>>
 
 
 @mb.import_function
@@ -50,11 +50,11 @@ def tuple_optional(
 # CHECK-LABEL:   func @__torch__.namedtuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
-# CHECK-SAME:            !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>> {
+# CHECK-SAME:            !torch.tuple<optional<tensor>, optional<tensor>> {
 # CHECK:           %[[RET:.*]] = torch.prim.TupleConstruct %[[T0]], %[[T1]] :
 # CHECK-SAME:            !torch.tensor, !torch.tensor ->
-# CHECK-SAME:            !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>>
-# CHECK:           return %[[RET]] : !torch.tuple<!torch.optional<!torch.tensor>, !torch.optional<!torch.tensor>>
+# CHECK-SAME:            !torch.tuple<optional<tensor>, optional<tensor>>
+# CHECK:           return %[[RET]] : !torch.tuple<optional<tensor>, optional<tensor>>
 # CHECK:         }
 #
 @mb.import_function

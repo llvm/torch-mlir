@@ -14,4 +14,18 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h.inc"
 
+namespace mlir {
+namespace torch {
+namespace Torch {
+
+/// Parse a type registered to this dialect.
+Type parseTorchDialectType(AsmParser &parser);
+
+/// Print a type registered to this dialect.
+void printTorchDialectType(Type type, AsmPrinter &printer);
+
+} // namespace Torch
+} // namespace torch
+} // namespace mlir
+
 #endif // TORCHMLIR_DIALECT_TORCH_IR_TORCHDIALECT_H

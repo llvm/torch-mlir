@@ -30,8 +30,8 @@ Type Torch::TupleType::parse(AsmParser &parser) {
 
   SmallVector<Type> containedTypes;
   do {
-    Type containedType;
-    if (parser.parseType(containedType))
+    Type containedType = parseTorchDialectType(parser);
+    if (!containedType)
       return Type();
     containedTypes.push_back(containedType);
   } while (!parser.parseOptionalComma());
@@ -42,7 +42,9 @@ Type Torch::TupleType::parse(AsmParser &parser) {
 
 void Torch::TupleType::print(::mlir::AsmPrinter &printer) const {
   printer << "<";
-  llvm::interleaveComma(getContainedTypes(), printer);
+  llvm::interleaveComma(getContainedTypes(), printer, [&](Type type) {
+    printTorchDialectType(type, printer);
+  });
   printer << ">";
 }
 

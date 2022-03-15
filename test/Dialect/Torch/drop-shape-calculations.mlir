@@ -13,8 +13,8 @@ func @basic(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
     torch.shape.calculate.yield %2 : !torch.vtensor<[2,?],unk>
   } shapes  {
     %2 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[2,?],unk>, !torch.int -> !torch.int
-    %3 = torch.prim.ListConstruct %int2, %2 : (!torch.int, !torch.int) -> !torch.list<!torch.int>
-    torch.shape.calculate.yield.shapes %3 : !torch.list<!torch.int>
+    %3 = torch.prim.ListConstruct %int2, %2 : (!torch.int, !torch.int) -> !torch.list<int>
+    torch.shape.calculate.yield.shapes %3 : !torch.list<int>
   } : !torch.vtensor<[2,?],unk>
   %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<[2,?],unk> to !torch.vtensor
   return %1 : !torch.vtensor
