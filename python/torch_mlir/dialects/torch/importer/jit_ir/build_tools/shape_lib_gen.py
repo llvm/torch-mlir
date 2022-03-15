@@ -263,11 +263,14 @@ def check_shape_function(invocations: List[Invocation]):
 def not_present_in_registry(f):
     """Decorator for shape functions not present in the shape registry.
 
-    This can happen for "pseudo" ops that we have in Torch-MLIR, such as
-    torch.aten.fill.Scalar, which are consistent with PyTorch conventions (e.g.
-    being the value-semantic correspondent of torch.aten.fill_.Scalar), but
-    that for whatever reason are not present in PyTorch. Such ops are useful
+    This can happen for "valsem" ops that we have in Torch-MLIR, such as
+    torch.valsem.aten.fill.Scalar, which are consistent with PyTorch conventions
+    (e.g. being the value-semantic correspondent of torch.aten.fill_.Scalar),
+    but that for whatever reason are not present in PyTorch. Such ops are useful
     to keep certain passes within Torch-MLIR as consistent as possible.
+    For such ops, in the shape library generator, we treat them as if they
+    were registered torch ops (so we don't put "valsem" on them), to keep the
+    generator consistent.
 
     To check if this decorator has been applied, use
     `hasattr(f, "_not_present_in_registry")`.

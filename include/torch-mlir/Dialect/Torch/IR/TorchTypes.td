@@ -250,7 +250,7 @@ def Torch_DeviceType : Torch_Type<"Device", "Device"> {
 }
 
 def Torch_GeneratorType : Torch_Type<"Generator", "Generator"> {
-  let summary = "Torch Generator for producing pseudo-random numbers";
+  let summary = "Torch Generator for producing valsem-random numbers";
 }
 
 def Torch_BoolType : Torch_Type<"Bool", "bool"> {

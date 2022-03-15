@@ -80,12 +80,12 @@ public:
 } // namespace
 
 namespace {
-class ConvertPseudoAtenFillScalarOp
-    : public OpConversionPattern<PseudoAtenFillScalarOp> {
+class ConvertValsemVariantAtenFillScalarOp
+    : public OpConversionPattern<ValsemVariantAtenFillScalarOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(PseudoAtenFillScalarOp op, OpAdaptor adaptor,
+  matchAndRewrite(ValsemVariantAtenFillScalarOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -318,8 +318,8 @@ void mlir::torch::torch_to_linalg::
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenConstantPadNdOp>();
   patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
-  target.addIllegalOp<PseudoAtenFillScalarOp>();
-  patterns.add<ConvertPseudoAtenFillScalarOp>(typeConverter, context);
+  target.addIllegalOp<ValsemVariantAtenFillScalarOp>();
+  patterns.add<ConvertValsemVariantAtenFillScalarOp>(typeConverter, context);
   target.addIllegalOp<AtenZerosOp, AtenOnesOp>();
   patterns.add<ConvertConstantTensorAllocOp<AtenZerosOp, 0>>(typeConverter,
                                                              context);

@@ -127,8 +127,8 @@ static Value createInitTensor(PatternRewriter &rewriter, Location loc,
   Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
       loc, tensorType, sizeList, /*dtype=*/noneVal, /*layout=*/noneVal,
       /*device=*/noneVal, /*pin_memory=*/noneVal, /*memory_format=*/noneVal);
-  return rewriter.create<PseudoAtenFillScalarOp>(loc, resultType, emptyTensor,
-                                                 scalar);
+  return rewriter.create<ValsemVariantAtenFillScalarOp>(loc, resultType,
+                                                        emptyTensor, scalar);
 }
 
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
@@ -951,7 +951,7 @@ public:
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value ub =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-    rewriter.replaceOpWithNewOp<PseudoAtenUniformOp>(
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenUniformOp>(
         op, op.getType(), input, lb, ub, /*generator=*/none);
     return success();
   }
@@ -1028,11 +1028,11 @@ public:
 // aten.bernoulli.float(x, p) = (rand_like(float(x)) < tensor(p)).cast(type(x)).
 // Since the input x can be an integer tensor, it's important to cast it to
 // float type before passing it to the `aten.rand_like` op.
-class DecomposePseudoAtenBernoulliFloatOp
-    : public OpRewritePattern<PseudoAtenBernoulliFloatOp> {
+class DecomposeValsemVariantAtenBernoulliFloatOp
+    : public OpRewritePattern<ValsemVariantAtenBernoulliFloatOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(PseudoAtenBernoulliFloatOp op,
+  LogicalResult matchAndRewrite(ValsemVariantAtenBernoulliFloatOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
@@ -1060,11 +1060,11 @@ public:
 // aten.bernoulli.Tensor(x, p) = (rand_like(float(x)) < p).cast(type(x)).
 // Since the input x can be an integer tensor, it's important to cast it to
 // float type before passing it to the `aten.rand_like` op.
-class DecomposePseudoAtenBernoulliTensorOp
-    : public OpRewritePattern<PseudoAtenBernoulliTensorOp> {
+class DecomposeValsemVariantAtenBernoulliTensorOp
+    : public OpRewritePattern<ValsemVariantAtenBernoulliTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(PseudoAtenBernoulliTensorOp op,
+  LogicalResult matchAndRewrite(ValsemVariantAtenBernoulliTensorOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
@@ -1208,7 +1208,7 @@ class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
     Value constVal = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(fillVal));
     // Initialize the allocated memory block with `fillVal`.
-    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
         op, initTensor.getType(), initTensor, constVal);
     return success();
   }
@@ -1388,7 +1388,7 @@ public:
     Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
         loc, op.getType(), op.size(), op.dtype(), op.layout(), op.device(),
         op.pin_memory(), /*memory_format=*/noneVal);
-    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
         op, op.getType(), emptyTensor, op.fill_value());
     return success();
   }
@@ -1405,7 +1405,7 @@ public:
     Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
         op.getLoc(), op.getType(), op.self(), op.dtype(), op.layout(),
         op.device(), op.pin_memory(), op.memory_format());
-    rewriter.replaceOpWithNewOp<PseudoAtenFillScalarOp>(
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
         op, op.getType(), emptyTensor, op.fill_value());
     return success();
   }
@@ -1491,10 +1491,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_UnsafeViewOp>();
     patterns.add<DecomposeAtenBernoulliOp>(context);
     target.addIllegalOp<AtenBernoulliOp>();
-    patterns.add<DecomposePseudoAtenBernoulliFloatOp>(context);
-    target.addIllegalOp<PseudoAtenBernoulliFloatOp>();
-    patterns.add<DecomposePseudoAtenBernoulliTensorOp>(context);
-    target.addIllegalOp<PseudoAtenBernoulliTensorOp>();
+    patterns.add<DecomposeValsemVariantAtenBernoulliFloatOp>(context);
+    target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
+    patterns.add<DecomposeValsemVariantAtenBernoulliTensorOp>(context);
+    target.addIllegalOp<ValsemVariantAtenBernoulliTensorOp>();
     patterns.add<DecomposeAtenRandLikeOp>(context);
     target.addIllegalOp<AtenRandLikeOp>();
     patterns.add<DecomposeAtenHardsigmoidOp>(context);
