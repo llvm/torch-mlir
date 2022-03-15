@@ -1796,6 +1796,10 @@ module {
   func @"__torch_mlir_shape_fn.aten.fill.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
+  func @"__torch_mlir_shape_fn.aten.copy"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func @"__torch_mlir_shape_fn.aten.uniform"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float, %arg3: !torch.any) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }

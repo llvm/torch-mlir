@@ -1023,7 +1023,7 @@ def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl"
     HasValueSemantics,
     ReadOnly
   ]> {
-let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
+  let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchOptionalTensorListType:$indices,
@@ -1031,10 +1031,29 @@ let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (
     Torch_BoolType:$accumulate,
     Torch_BoolType:$unsafe
   );
-let results = (outs
+  let results = (outs
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate `,` $unsafe attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `,` qualified(type($unsafe)) `->` qualified(type($result))";
+}
+
+// The corresponding without underscore variant for `torch.aten.copy_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenCopyOp : Torch_Op<"valsem.aten.copy", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "copy op : (Tensor, Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$src,
+    Torch_BoolType:$non_blocking
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` qualified(type($self)) `,` qualified(type($src)) `,` qualified(type($non_blocking)) `->` qualified(type($result))";
 }
 
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 

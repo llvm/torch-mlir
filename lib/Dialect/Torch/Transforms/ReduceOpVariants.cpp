@@ -161,6 +161,9 @@ public:
     } else if (isa<Aten_IndexPutImpl_Op>(op)) {
       newOp = rewriter.create<ValsemVariantAtenIndexPutImplOp>(
           loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<AtenCopy_Op>(op)) {
+      newOp = rewriter.create<ValsemVariantAtenCopyOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else {
       return failure();
     }
@@ -241,6 +244,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<AtenBernoulli_TensorOp>();
     target.addIllegalOp<AtenFill_ScalarOp>();
     target.addIllegalOp<Aten_IndexPutImpl_Op>();
+    target.addIllegalOp<AtenCopy_Op>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {
