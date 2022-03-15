@@ -147,17 +147,17 @@ public:
     Location loc = op->getLoc();
     Operation *newOp;
     if (isa<AtenUniform_Op>(op)) {
-      newOp = rewriter.create<PseudoAtenUniformOp>(loc, op->getResultTypes(),
-                                                   op->getOperands());
+      newOp = rewriter.create<ValsemVariantAtenUniformOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenBernoulli_FloatOp>(op)) {
-      newOp = rewriter.create<PseudoAtenBernoulliFloatOp>(
+      newOp = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
           loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenBernoulli_TensorOp>(op)) {
-      newOp = rewriter.create<PseudoAtenBernoulliTensorOp>(
+      newOp = rewriter.create<ValsemVariantAtenBernoulliTensorOp>(
           loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenFill_ScalarOp>(op)) {
-      newOp = rewriter.create<PseudoAtenFillScalarOp>(loc, op->getResultTypes(),
-                                                      op->getOperands());
+      newOp = rewriter.create<ValsemVariantAtenFillScalarOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else {
       return failure();
     }

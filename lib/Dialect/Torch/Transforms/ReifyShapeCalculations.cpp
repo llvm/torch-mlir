@@ -232,11 +232,12 @@ class ReifyShapeCalculationsPass
     module.walk([&](Operation *op) {
       Location loc = op->getLoc();
       auto name = op->getName().stripDialect();
-      // For pseudo-ops (ops that are mechanically consistent with existing
-      // torch conventions, but simply not present, such as a missing in-place
-      // or out-of-place variant), remove the pseudo prefix.
-      if (name.startswith("pseudo."))
-        name = name.drop_front(strlen("pseudo."));
+      // For value-semantic variant ops, i.e. valsem-ops (ops that are
+      // mechanically consistent with existing torch conventions of in-place vs.
+      //  out-of-place (value-semantic) variants), remove the prefix when
+      // looking them up in the shape library.
+      if (name.startswith("valsem."))
+        name = name.drop_front(strlen("valsem."));
       auto shapeFunctionName = ("__torch_mlir_shape_fn." + Twine(name)).str();
       auto shapeFunction =
           shapeLibrary->lookupSymbol<FuncOp>(shapeFunctionName);

@@ -944,7 +944,7 @@ def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
 
 // The corresponding without underscore variant for `torch.aten.uniform_`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
+def Torch_ValsemVariantAtenUniformOp: Torch_Op<"valsem.aten.uniform", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
@@ -964,7 +964,7 @@ def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
 
 // The corresponding without underscore variant for `torch.aten.bernoulli_.float`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenBernoulliFloatOp: Torch_Op<"pseudo.aten.bernoulli.float", [
+def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.float", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
@@ -983,7 +983,7 @@ def Torch_PseudoAtenBernoulliFloatOp: Torch_Op<"pseudo.aten.bernoulli.float", [
 
 // The corresponding without underscore variant for `torch.aten.bernoulli_.Tensor`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenBernoulliTensorOp: Torch_Op<"pseudo.aten.bernoulli.Tensor", [
+def Torch_ValsemVariantAtenBernoulliTensorOp: Torch_Op<"valsem.aten.bernoulli.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
@@ -1002,7 +1002,7 @@ def Torch_PseudoAtenBernoulliTensorOp: Torch_Op<"pseudo.aten.bernoulli.Tensor", 
 
 // The corresponding without underscore variant for `torch.aten.fill_.Scalar`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenFillScalarOp: Torch_Op<"pseudo.aten.fill.Scalar", [
+def Torch_ValsemVariantAtenFillScalarOp: Torch_Op<"valsem.aten.fill.Scalar", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
