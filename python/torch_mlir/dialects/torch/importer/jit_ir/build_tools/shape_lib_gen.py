@@ -773,25 +773,17 @@ def aten〇nll_loss_forward(self: List[int], target: List[int], weight: Optional
 def aten〇nll_loss_backward(grad_output: List[int], self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int, total_weight: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
-# TODO: Fix shape function (see body).
-# @check_shape_function([
-#     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
-# ])
+@check_shape_function([
+    Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
+])
 def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]], bias: Optional[List[int]], eps: float) -> Tuple[List[int], List[int], List[int]]:
     reduction_shape: List[int] = []
-    # TODO: Fix buggy behavior. TorchToLinalg needs to properly handle the
-    # correctly inferred shapes.
-    # With input=[2, 5, 2, 2, 3] and normalized_shape=[2, 2, 3], we should get
-    # [[2, 5, 2, 2, 3], [2, 5, 1, 1, 1], [2, 5, 1, 1, 1]]
-    for i in range(len(normalized_shape), len(input)):
+    num_unreduced_dimensions = len(input) - len(normalized_shape)
+    assert num_unreduced_dimensions >= 0
+    for i in range(num_unreduced_dimensions):
         reduction_shape.append(input[i])
-    # Correct code:
-    # num_unreduced_dimensions = len(input) - len(normalized_shape)
-    # assert num_unreduced_dimensions >= 0
-    # for i in range(num_unreduced_dimensions):
-    #     reduction_shape.append(input[i])
-    # for i in range(num_unreduced_dimensions, len(input)):
-    #     reduction_shape.append(1)
+    for i in range(num_unreduced_dimensions, len(input)):
+        reduction_shape.append(1)
     return input, reduction_shape, reduction_shape
 
 @check_shape_function([

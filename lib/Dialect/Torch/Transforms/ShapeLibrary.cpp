@@ -2513,20 +2513,36 @@ module {
   }
   func @"__torch_mlir_shape_fn.aten.native_layer_norm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.float) -> !torch.tuple<list<int>, list<int>, list<int>> {
     %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %str = torch.constant.str "AssertionError: "
+    %none = torch.constant.none
     %true = torch.constant.bool true
     %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %1 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
-    %2 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %3 = torch.aten.__range_length %1, %2, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+    %1 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %2 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
+    %3 = torch.aten.sub.int %1, %2 : !torch.int, !torch.int -> !torch.int
+    %4 = torch.aten.ge.int %3, %int0 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %4 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
     torch.prim.Loop %3, %true, init() {
     ^bb0(%arg5: !torch.int):
-      %5 = torch.aten.__derive_index %arg5, %1, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
-      %6 = torch.aten.__getitem__.t %arg0, %5 : !torch.list<int>, !torch.int -> !torch.int
-      %7 = torch.aten.append.t %0, %6 : !torch.list<int>, !torch.int -> !torch.list<int>
+      %8 = torch.aten.__getitem__.t %arg0, %arg5 : !torch.list<int>, !torch.int -> !torch.int
+      %9 = torch.aten.append.t %0, %8 : !torch.list<int>, !torch.int -> !torch.list<int>
       torch.prim.Loop.condition %true, iter()
     } : (!torch.int, !torch.bool) -> ()
-    %4 = torch.prim.TupleConstruct %arg0, %0, %0 : !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>>
-    return %4 : !torch.tuple<list<int>, list<int>, list<int>>
+    %5 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %6 = torch.aten.__range_length %3, %5, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+    torch.prim.Loop %6, %true, init() {
+    ^bb0(%arg5: !torch.int):
+      %8 = torch.aten.append.t %0, %int1 : !torch.list<int>, !torch.int -> !torch.list<int>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    %7 = torch.prim.TupleConstruct %arg0, %0, %0 : !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>>
+    return %7 : !torch.tuple<list<int>, list<int>, list<int>>
   }
   func @"__torch_mlir_shape_fn.aten.native_batch_norm"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.optional<list<int>>, %arg5: !torch.bool, %arg6: !torch.float, %arg7: !torch.float) -> !torch.tuple<list<int>, list<int>, list<int>> {
     %int0 = torch.constant.int 0
