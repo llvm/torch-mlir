@@ -9,7 +9,7 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -349,7 +349,7 @@ static LogicalResult analyzeInstances(FuncOp func,
 }
 
 static FailureOr<Monomorphization>
-createMonomorphizationForCall(CallOp op, BlockAndValueMapping &mapping,
+createMonomorphizationForCall(func::CallOp op, BlockAndValueMapping &mapping,
                               SymbolTable &symbolTable) {
   auto func = symbolTable.lookup<FuncOp>(op.getCallee());
   Monomorphization monomorphization;
@@ -413,7 +413,7 @@ private:
     BlockAndValueMapping mapping;
     if (failed(analyzeInstances(func, m.argInstances, mapping)))
       return failure();
-    auto walkResult = func.walk([&](CallOp op) {
+    auto walkResult = func.walk([&](func::CallOp op) {
       FailureOr<Monomorphization> maybeMonomorphization =
           createMonomorphizationForCall(op, mapping, symbolTable);
       if (failed(maybeMonomorphization))
@@ -439,7 +439,7 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
   if (!value.getType().isa<NnModuleType>())
     return success();
   for (Operation *op : value.getUsers()) {
-    if (isa<CallOp, PrimGetAttrOp>(op))
+    if (isa<func::CallOp, PrimGetAttrOp>(op))
       continue;
     // Only allow `value` as the receiver.
     if (isa<PrimSetAttrOp>(op) && cast<PrimSetAttrOp>(op).value() != value)
@@ -539,7 +539,7 @@ rewriteMonomorphizedFuncClone(FuncOp func, BlockAndValueMapping mapping,
     toErase.push_back(op);
     return WalkResult::advance();
   };
-  auto handleCall = [&](CallOp op) {
+  auto handleCall = [&](func::CallOp op) {
     FailureOr<Monomorphization> maybeMonomorphization =
         createMonomorphizationForCall(op, mapping, symbolTable);
     if (failed(maybeMonomorphization))
@@ -550,7 +550,7 @@ rewriteMonomorphizedFuncClone(FuncOp func, BlockAndValueMapping mapping,
           return !v.getType().isa<NnModuleType>();
         }));
     assert(newFuncs.find(monomorphization) != newFuncs.end());
-    auto newOp = OpBuilder(op).create<CallOp>(
+    auto newOp = OpBuilder(op).create<func::CallOp>(
         op.getLoc(), newFuncs[monomorphization], newArguments);
     op.replaceAllUsesWith(newOp);
     toErase.push_back(op);
@@ -561,7 +561,7 @@ rewriteMonomorphizedFuncClone(FuncOp func, BlockAndValueMapping mapping,
       return handlePrimSetAttr(primSetAttr);
     if (auto primGetAttr = dyn_cast<PrimGetAttrOp>(op))
       return handlePrimGetAttr(primGetAttr);
-    if (auto call = dyn_cast<CallOp>(op))
+    if (auto call = dyn_cast<func::CallOp>(op))
       return handleCall(call);
     return WalkResult::advance();
   });

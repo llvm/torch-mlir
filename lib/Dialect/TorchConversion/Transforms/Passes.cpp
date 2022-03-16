@@ -8,18 +8,18 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
+#include "mlir/Conversion/Passes.h"
+#include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
-#include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
-#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;

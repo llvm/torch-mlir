@@ -474,7 +474,6 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
     $maxTripCount `,` $initialCondition `,` `init` `(` $iterArgsInit `)` $region
     attr-dict `:` functional-type(operands, results)
   }];
-  let hasVerifier = 1;
   let extraClassDeclaration = [{
     /// Returns true if this loop is "for-like". Otherwise it is "while-like"
     /// and this function returns false.
@@ -528,7 +527,6 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
   let regions = (region SizedRegion<1>:$thenRegion, SizedRegion<1>:$elseRegion);
   // Indicate that the operation has a custom parser and printer method.
   let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -1047,13 +1045,13 @@ let results = (outs
 //            "torch.prim.If"(%cond) ({
 //              "torch.prim.If.yield"() : () -> ()
 //            }, {
-//              "torch.prim.RaiseException"(%msg) : (!torch.str) -> () 
-//              "torch.prim.If.yield"() : () -> () 
+//              "torch.prim.RaiseException"(%msg) : (!torch.str) -> ()
+//              "torch.prim.If.yield"() : () -> ()
 //            }) : (!torch.bool) -> ()
-// 
+//
 // This new operation `torch.runtime.assert` is added to simplify the IR control
-// flow by avoiding unnecessary branches. It also makes insertion of the runtime 
-// assert in the source code easier. 
+// flow by avoiding unnecessary branches. It also makes insertion of the runtime
+// assert in the source code easier.
 def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -1104,7 +1102,6 @@ def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
   let assemblyFormat = [{
     $body `shapes` $shapeCalculation attr-dict `:` type($results)
   }];
-  let hasVerifier = 1;
 }
 
 def Torch_ShapeCalculateYieldOp : Torch_Op<"shape.calculate.yield", [

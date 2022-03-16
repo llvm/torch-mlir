@@ -11,7 +11,7 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -158,7 +158,7 @@ namespace {
 class ConvertTorchToStd : public ConvertTorchToStdBase<ConvertTorchToStd> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<StandardOpsDialect>();
+    registry.insert<func::FuncDialect>();
     registry.insert<arith::ArithmeticDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<cf::ControlFlowDialect>();
@@ -168,7 +168,7 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<Torch::TorchDialect, StandardOpsDialect,
+    target.addLegalDialect<Torch::TorchDialect, func::FuncDialect,
                            arith::ArithmeticDialect, tensor::TensorDialect,
                            cf::ControlFlowDialect>();
 

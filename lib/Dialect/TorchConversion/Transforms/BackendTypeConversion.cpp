@@ -9,8 +9,8 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -204,8 +204,8 @@ struct FuncBackendTypeConversionPass
              typeConverter.isLegal(&op.getBody());
     });
     populateCallOpTypeConversionPattern(patterns, typeConverter);
-    target.addDynamicallyLegalOp<CallOp>(
-        [&](CallOp op) { return typeConverter.isLegal(op); });
+    target.addDynamicallyLegalOp<func::CallOp>(
+        [&](func::CallOp op) { return typeConverter.isLegal(op); });
 
     populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
     populateReturnOpTypeConversionPattern(patterns, typeConverter);

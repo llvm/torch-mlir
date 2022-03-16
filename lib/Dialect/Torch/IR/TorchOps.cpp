@@ -232,10 +232,6 @@ LogicalResult ClassTypeOp::verify() {
 // PrimLoopOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult PrimLoopOp::verify() {
-  return RegionBranchOpInterface::verifyTypes(*this);
-}
-
 OperandRange PrimLoopOp::getSuccessorEntryOperands(unsigned index) {
   assert(index == 0);
   return iterArgsInit();
@@ -274,10 +270,6 @@ PrimLoopConditionOp::getMutableSuccessorOperands(Optional<unsigned> index) {
 //===----------------------------------------------------------------------===//
 // PrimIfOp
 //===----------------------------------------------------------------------===//
-
-LogicalResult PrimIfOp::verify() {
-  return RegionBranchOpInterface::verifyTypes(*this);
-}
 
 ParseResult PrimIfOp::parse(OpAsmParser &parser, OperationState &result) {
   // Create the regions.
@@ -1541,10 +1533,6 @@ OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 // ShapeCalculateOp
 //===----------------------------------------------------------------------===//
-
-LogicalResult ShapeCalculateOp::verify() {
-  return RegionBranchOpInterface::verifyTypes(*this);
-}
 
 void ShapeCalculateOp::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,

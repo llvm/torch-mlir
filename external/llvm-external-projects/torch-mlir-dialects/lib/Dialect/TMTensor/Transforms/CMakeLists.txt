@@ -16,7 +16,7 @@ add_mlir_library(TorchMLIRTMTensorPasses
   MLIRMemRef
   MLIRPass
   MLIRSCF
-  MLIRStandard
+  MLIRFunc
   MLIRSupport
   MLIRTensor
   MLIRTransforms

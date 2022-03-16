@@ -19,7 +19,7 @@ func private @test_call_method(%arg0: !torch.nn.Module<"c">, %arg1: !torch.float
 // CHECK-LABEL:   func private @test_call_indirect(
 // CHECK-SAME:                                     %[[RECEIVER:.*]]: !torch.nn.Module<"c">,
 // CHECK-SAME:                                     %[[F:.*]]: !torch.float) -> !torch.float {
-// Ensure no std.constant.
+// Ensure no func.constant.
 // CHECK-NEXT:      %[[VAL_2:.*]] = call @test_call_method(%[[RECEIVER]], %[[F]]) : (!torch.nn.Module<"c">, !torch.float) -> !torch.float
 // CHECK-NEXT:      return %[[VAL_2]] : !torch.float
 func private @test_call_indirect(%arg0: !torch.nn.Module<"c">, %arg1: !torch.float) -> !torch.float {

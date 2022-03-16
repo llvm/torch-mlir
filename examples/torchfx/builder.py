@@ -23,7 +23,7 @@ from itertools import chain
 
 from torch_mlir import ir
 import torch_mlir.dialects.torch as torch_d
-from torch_mlir.dialects import builtin, std
+from torch_mlir.dialects import builtin, std, func
 
 import torch.fx
 from torch.fx.experimental.fx_acc import acc_ops
@@ -288,7 +288,7 @@ class _ForwardFunctionBuilder(_Builder):
                 result = self._insert_function_call(node)
                 self.env[node] = result
             elif node.op == 'output':
-                std.ReturnOp([self.env[node_arg] for node_arg in node.args],
+                func.ReturnOp([self.env[node_arg] for node_arg in node.args],
                              loc=self.loc, ip=self.func_ip)
             elif node.op == 'placeholder':
                 continue

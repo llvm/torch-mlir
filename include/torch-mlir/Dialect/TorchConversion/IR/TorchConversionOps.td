@@ -18,7 +18,7 @@ include "torch-mlir/Dialect/Torch/IR/TorchTypes.td"
 include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionBase.td"
 
 class TorchConversion_Op<string mnemonic, list<Trait> traits = []>
-    : Op<TorchConversion_Dialect, mnemonic, traits> {
+    : Op<TorchConversion_Dialect, mnemonic, !listconcat(traits, [NoSideEffect])> {
 }
 
 //===----------------------------------------------------------------------===//
@@ -206,7 +206,11 @@ def TorchConversion_GeneratorToI64Op : TorchConversion_Op<"generator_to_i64", [
   }];
 }
 
-def TorchConversion_GetNextSeedOp: TorchConversion_Op<"get_next_seed", [
+class TorchConversionWithSideEffect_Op<string mnemonic, list<Trait> traits = []>
+    : Op<TorchConversion_Dialect, mnemonic, traits> {
+}
+
+def TorchConversion_GetNextSeedOp: TorchConversionWithSideEffect_Op<"get_next_seed", [
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
   ]> {
   let summary = "Get the next global seed";

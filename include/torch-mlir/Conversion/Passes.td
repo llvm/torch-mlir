@@ -36,7 +36,7 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
     (ATen) and ops where such mismatches are undefined behavior (linalg).
 
     To model the termination of the program for implementing error guards,
-    we use the `std.assert` op.
+    we use the `cf.assert` op.
     This is a design decision that is at variance from other passes in the
     ecosystem, which use the
     `shape` dialect's witness system (`shape.cstr_*` family of ops feeding into

@@ -10,9 +10,10 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -132,8 +133,8 @@ struct TMTensorBufferizePass
     bufferization::BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect,
-                           StandardOpsDialect, tensor::TensorDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect, func::FuncDialect,
+                           memref::MemRefDialect, tensor::TensorDialect>();
 
     // Mark all TMTensor operations illegal as long as they work on tensors.
     auto isLegalOperation = [&](Operation *op) {
