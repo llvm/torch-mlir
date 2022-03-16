@@ -10,21 +10,19 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
-using namespace mlir::torch::torch_upstream;
+using namespace mlir;
+using namespace mlir::torch;
+using namespace mlir::torch::Torch;
 
-namespace mlir {
-namespace torch {
-namespace Torch {
-
-int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
+int64_t Torch::toPositiveDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 ? dim : dim + inputRank;
 }
 
-bool isValidDim(int64_t dim, int64_t inputRank) {
+bool Torch::isValidDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 && dim < inputRank;
 }
 
-bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
+bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
     return false;
@@ -32,30 +30,30 @@ bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   return true;
 }
 
-ScalarType getScalarTypeForType(Type type) {
+torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   if (type.isa<Float32Type>())
-    return ScalarType::Float;
+    return torch_upstream::ScalarType::Float;
   if (type.isa<Float64Type>())
-    return ScalarType::Double;
+    return torch_upstream::ScalarType::Double;
   if (type.isSignedInteger(64))
-    return ScalarType::Long;
+    return torch_upstream::ScalarType::Long;
   if (type.isSignedInteger(32))
-    return ScalarType::Int;
+    return torch_upstream::ScalarType::Int;
   if (type.isUnsignedInteger(1))
-    return ScalarType::Bool;
+    return torch_upstream::ScalarType::Bool;
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
-Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
-                              Type dtype) {
+static Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                                     Type dtype) {
   int intType = (int)getScalarTypeForType(dtype);
   return rewriter.create<ConstantIntOp>(loc,
                                         rewriter.getI64IntegerAttr(intType));
 }
 
 // Helper to convert a tensor to a specific scalar type.
-Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
-                           Type dtype) {
+Value Torch::convertTensorToDtype(PatternRewriter &rewriter, Location loc,
+                                  Value input, Type dtype) {
   BaseTensorType origType = input.getType().cast<BaseTensorType>();
   Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
   // `convertIntVal` contains the corresponding integer for the dtype which is
@@ -67,7 +65,3 @@ Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
       loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
   return converted;
 }
-
-} // namespace Torch
-} // namespace torch
-} // namespace mlir

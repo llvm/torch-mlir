@@ -21,6 +21,10 @@
 // original PyTorch license and the code here should not be mixed with "code
 // that we [Torch-MLIR] write".
 
+// Note: As a coding convention, we should never `using` the `torch_upstream`
+// namespace. This is to ensure that at a glance from the code, it is clear
+// that we are referencing upstream types.
+
 namespace mlir {
 namespace torch {
 namespace torch_upstream {
