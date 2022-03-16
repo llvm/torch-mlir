@@ -18,6 +18,51 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 //===----------------------------------------------------------------------===//
+// isValidSubtype
+//===----------------------------------------------------------------------===//
+
+bool Torch::isValidSubtype(Type subtype, Type type) {
+  if (subtype == type)
+    return true;
+
+  if (auto any = type.dyn_cast<AnyType>())
+    return true;
+
+  if (auto number = type.dyn_cast<NumberType>())
+    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
+
+  if (auto optional = type.dyn_cast<OptionalType>())
+    return isValidSubtype(subtype, optional.getContainedType()) ||
+           subtype.isa<Torch::NoneType>();
+
+  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+    if (!subtype.isa<Torch::TupleType>())
+      return false;
+    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
+    auto types = tuple.getContainedTypes();
+    if (subtypes.size() != types.size())
+      return false;
+    for (auto t : llvm::zip(subtypes, types)) {
+      if (!isValidSubtype(std::get<0>(t), std::get<1>(t)))
+        return false;
+    }
+    return true;
+  }
+
+  // TODO: This is not subtyping according to PEP 483. See description
+  // of NonValueTensorType.
+  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
+      type ==
+          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
+
+  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
+      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
