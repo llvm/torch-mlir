@@ -220,3 +220,27 @@ func @viewlike$unmodeled_op(%arg0: !torch.vtensor) -> !torch.vtensor {
   %2 = torch.copy.to_vtensor %1 : !torch.vtensor
   return %2 : !torch.vtensor
 }
+
+// CHECK-LABEL:   func @viewlike$two_inputs_one_copy(
+// CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[EXPAND_AS:.*]] = torch.aten.expand_as %[[ARG]], %[[ARG]] : !torch.vtensor, !torch.vtensor -> !torch.vtensor
+// CHECK:           return %[[EXPAND_AS]] : !torch.vtensor
+func @viewlike$two_inputs_one_copy(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.aten.expand_as %0, %0 : !torch.tensor, !torch.tensor -> !torch.tensor
+  %2 = torch.copy.to_vtensor %1 : !torch.vtensor
+  return %2 : !torch.vtensor
+}
+
+// CHECK-LABEL:   func @viewlike$two_inputs_two_copies(
+// CHECK-SAME:                                         %[[ARG0:.*]]: !torch.vtensor,
+// CHECK-SAME:                                         %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
+// CHECK:           %[[EXPAND_AS:.*]] = torch.aten.expand_as %[[ARG0]], %[[ARG1]] : !torch.vtensor, !torch.vtensor -> !torch.vtensor
+// CHECK:           return %[[EXPAND_AS]] : !torch.vtensor
+func @viewlike$two_inputs_two_copies(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.copy.to_tensor %arg0 : !torch.tensor
+  %1 = torch.copy.to_tensor %arg1 : !torch.tensor
+  %2 = torch.aten.expand_as %0, %1 : !torch.tensor, !torch.tensor -> !torch.tensor
+  %3 = torch.copy.to_vtensor %2 : !torch.vtensor
+  return %3 : !torch.vtensor
+}

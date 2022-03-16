@@ -2859,6 +2859,20 @@ def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
   let assemblyFormat = "$self `,` $size `,` $implicit attr-dict `:` qualified(type($self)) `,` qualified(type($size)) `,` qualified(type($implicit)) `->` qualified(type($result))";
 }
 
+def Torch_AtenExpandAsOp : Torch_Op<"aten.expand_as", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::expand_as : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $other attr-dict `:` qualified(type($self)) `,` qualified(type($other)) `->` qualified(type($result))";
+}
+
 def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
     AllowsTypeRefinement,
     ReadOnly

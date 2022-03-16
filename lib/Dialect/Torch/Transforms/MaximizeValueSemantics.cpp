@@ -21,12 +21,18 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+static Value assertNonValueTensor(Value tensor) {
+  assert(tensor.getType().isa<NonValueTensorType>() &&
+         "tensor is expected to be a non-value tensor");
+  return tensor;
+}
+
 static bool isViewLikeOp(Operation *op) {
   // AtenContiguousOp might return a view, so this is conservatively
   // correct. We could potentially be more precise and identify the cases
   // that it does not return a view and treat those as having value
   // semantics.
-  return isa<AtenBroadcastToOp, AtenContiguousOp, AtenExpandOp,
+  return isa<AtenBroadcastToOp, AtenContiguousOp, AtenExpandAsOp, AtenExpandOp,
              AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
              AtenSelectIntOp, AtenSliceTensorOp, AtenSqueezeDimOp,
              AtenSqueezeOp, AtenTOp, AtenToDtypeOp, AtenTransposeIntOp,
@@ -39,6 +45,8 @@ class AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock
 public:
   using OpRewritePattern::OpRewritePattern;
 
+  // Used to represent all of the interpreted ops that have at least
+  // one non-value tensor as input or output.
   struct InterpretedOps {
     SmallVector<Operation *> copyLikeOps;
     SmallVector<Operation *> viewLikeOps;
@@ -50,11 +58,13 @@ public:
   // interpretation within a single basic block. If rewriting is
   // possible, the interpreted ops are returned split into their
   // respective categories.
-  static FailureOr<InterpretedOps>
-  abstractlyInterpretSlice(CopyToNonValueTensorOp copyToNonValueTensor,
-                           SmallVector<Operation *> nonValueTensorUsers,
-                           PatternRewriter &rewriter) {
+  static FailureOr<InterpretedOps> abstractlyInterpretSlice(
+      CopyToNonValueTensorOp copyToNonValueTensor,
+      const DenseMap<Operation *, SmallVector<Value>> &nonValueTensorsUsedByOp,
+      PatternRewriter &rewriter) {
     // Sort by order in the block, so we can abstractly interpret the ops.
+    SmallVector<Operation *> nonValueTensorUsers(
+        llvm::make_first_range(nonValueTensorsUsedByOp));
     llvm::sort(nonValueTensorUsers, [](Operation *lhs, Operation *rhs) {
       return lhs->isBeforeInBlock(rhs);
     });
@@ -62,57 +72,38 @@ public:
     // We track the available aliases at each point as well as split the
     // users into view-like, copy-to-value, and overwrite ops as we walk
     // forward.
-    //
-    // We also need to track all seen aliases to make sure that we only rewrite
-    // those operands of a ReturnOp, if present (a ReturnOp can return tensors
-    // from multiple different slices).
     InterpretedOps result;
     result.copyLikeOps.push_back(copyToNonValueTensor);
-    DenseSet<Value> availableAliases{copyToNonValueTensor.result()};
-    DenseSet<Value> seenAliases{copyToNonValueTensor.result()};
+    DenseSet<Value> availableAliases{
+        assertNonValueTensor(copyToNonValueTensor.result())};
     for (Operation *user : nonValueTensorUsers) {
-      if (isViewLikeOp(user)) {
-        Value operand = user->getOperand(0);
+      for (Value operand : nonValueTensorsUsedByOp.lookup(user)) {
         if (!availableAliases.contains(operand)) {
           return rewriter.notifyMatchFailure(
               copyToNonValueTensor,
-              "operand of view-like op is not a valid tensor alias");
+              "operand of op is not a valid tensor alias");
         }
-
+      }
+      if (isViewLikeOp(user)) {
+        Value userResult = user->getResult(0);
         // View-like ops produce a new alias available to later ops.
-        availableAliases.insert(user->getResult(0));
-        seenAliases.insert(user->getResult(0));
+        // However, if the view-like op has been partially converted
+        // to use value semantics (which happens for example with ops
+        // that take two aliases as input), then it is possible that the
+        // op no longer generates an alias.
+        if (userResult.getType().isa<NonValueTensorType>())
+          availableAliases.insert(userResult);
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
-        if (!availableAliases.contains(copyToValueTensor.operand())) {
-          return rewriter.notifyMatchFailure(
-              copyToNonValueTensor,
-              "operand of copyToValueTensorOp is not a valid tensor alias");
-        }
         result.copyLikeOps.push_back(copyToValueTensor);
       } else if (auto overwrite = dyn_cast<OverwriteTensorContentsOp>(user)) {
-        Value overwritten = overwrite.overwritten();
-        if (!availableAliases.contains(overwritten)) {
-          return rewriter.notifyMatchFailure(
-              copyToNonValueTensor, "overwritten tensor is not a valid alias");
-        }
-
         // To simplify the analysis, we only support the case where the
         // only aliases used after an overwrite are the aliases generated
         // after plus the alias being overwritten.
         availableAliases.clear();
-        availableAliases.insert(overwritten);
+        availableAliases.insert(assertNonValueTensor(overwrite.overwritten()));
         result.overwriteTensorContentsOps.push_back(overwrite);
       } else if (auto returnOp = dyn_cast<mlir::ReturnOp>(user)) {
-        for (Value operand : returnOp->getOperands()) {
-          if (!seenAliases.contains(operand))
-            continue;
-          if (!availableAliases.contains(operand)) {
-            return rewriter.notifyMatchFailure(
-                copyToNonValueTensor,
-                "operand of ReturnOp is not a valid tensor alias");
-          }
-        }
         result.returnOp = returnOp;
       } else {
         return rewriter.notifyMatchFailure(
@@ -146,10 +137,7 @@ public:
     // overwritten tensor.
     for (OverwriteTensorContentsOp overwrite :
          llvm::reverse(ops.overwriteTensorContentsOps)) {
-      Value overwritten = overwrite.overwritten();
-      assert(overwritten.getType().dyn_cast<NonValueTensorType>() &&
-             "the analysis assumes that overwritten remains a nonValueTensor "
-             "throughout the rewriting");
+      Value overwritten = assertNonValueTensor(overwrite.overwritten());
       overwritten.replaceUsesWithIf(
           overwrite.value(), [&](const OpOperand &operand) {
             return !operand.getOwner()->isBeforeInBlock(overwrite);
@@ -165,9 +153,8 @@ public:
       rewriter.updateRootInPlace(viewLikeOp, [&] {
         Value result = viewLikeOp->getResult(0);
         auto resultType = result.getType().dyn_cast<NonValueTensorType>();
-        assert(resultType && "all view-like ops considered must have result of "
-                             "type `NonValueTensorType` before rewriting");
-        result.setType(resultType.getWithValueSemantics());
+        if (resultType)
+          result.setType(resultType.getWithValueSemantics());
       });
     }
     if (ops.returnOp.hasValue()) {
@@ -192,47 +179,76 @@ public:
     // terminating at CopyToValueTensorOp's, possibly with intervening view-like
     // ops and overwrites. This also catches the special case of a
     // CopyToNonValueTensorOp that trivially feeds into CopyToValueTensorOp's.
-    SmallVector<Operation *> nonValueTensorUsers;
-    auto workList = llvm::to_vector(copy.result().getUsers());
+    DenseMap<Operation *, SmallVector<Value>> nonValueTensorsUsedByOp;
+
+    // Some view-like ops take more than one non-value tensor as input (such as
+    // `aten.view_as`). For these ops, we assume that the tensor view that gets
+    // returned by the op is a view of the first operand of the op.
+
+    // View-like ops that return a non-value tensor and have a view of the
+    // operand of `copy.to_tensor` as the first operand.
+    DenseSet<Operation *> validViewLikeOps;
+    // View-like ops that return a non-value tensor and have a view of the
+    // operand of `copy.to_tensor` as an operand other than the first operand.
+    DenseSet<Operation *> viewLikeOpsToCheck;
+
+    using OpOperandRefs = SmallVector<std::reference_wrapper<OpOperand>>;
+    OpOperandRefs workList(copy.result().getUses());
     while (!workList.empty()) {
-      Operation *op = workList.pop_back_val();
+      OpOperand &operand = workList.pop_back_val();
+      Operation *op = operand.getOwner();
       if (op->getBlock() != copy->getBlock()) {
         return rewriter.notifyMatchFailure(
             copy, "can only analyze within a single basic block");
       }
-      nonValueTensorUsers.push_back(op);
 
       if (isViewLikeOp(op)) {
-        auto isTensor = [](const Value operand) {
-          return operand.getType().isa<BaseTensorType>();
-        };
-
-        // We currently only support view-like ops with one tensor input and one
-        // tensor output, meaning that the tensor use-def chains form a tree.
-        // This will not be the case for an op like `torch.aten.view_as`, so
-        // we will need to add a set to prune duplicate visitation.
-        if (llvm::count_if(op->getOperands(), isTensor) != 1 ||
-            llvm::count_if(op->getResults(), isTensor) != 1 ||
-            !isTensor(op->getOperand(0)) || !isTensor(op->getResult(0))) {
+        // We currently only support view-like ops with one tensor output.
+        if (op->getNumResults() != 1 ||
+            !op->getResult(0).getType().isa<BaseTensorType>()) {
           return rewriter.notifyMatchFailure(
-              copy, "unsupported: view-like ops must have one tensor input and "
-                    "one tensor output, and the tensor input/output must be "
-                    "the first operand/result");
+              copy, "unsupported: view-like ops must have one tensor output, "
+                    "and the tensor output must be the first result");
         }
 
-        llvm::append_range(workList, op->getResult(0).getUsers());
+        Value opResult = op->getResult(0);
+        // There are cases where a view-like op will be partially converted to
+        // value semantics, resulting in at least one of the inputs being a
+        // non-value tensor and the output being a value tensor. If this is the
+        // case then there is no need to look at the users of the result of the
+        // op.
+        if (opResult.getType().isa<NonValueTensorType>()) {
+          if (operand.getOperandNumber() == 0) {
+            validViewLikeOps.insert(op);
+            llvm::append_range(workList, opResult.getUses());
+          } else {
+            viewLikeOpsToCheck.insert(op);
+          }
+        }
       }
+
+      nonValueTensorsUsedByOp[op].push_back(
+          assertNonValueTensor(operand.get()));
     }
 
     // Nothing to do if there is just a ReturnOp -- we know that we won't be
     // rewriting anything, since we must preserve the ReturnOp's original type.
-    if (llvm::hasSingleElement(nonValueTensorUsers) &&
-        isa<mlir::ReturnOp>(nonValueTensorUsers[0])) {
+    if (llvm::hasSingleElement(nonValueTensorsUsedByOp) &&
+        isa<mlir::ReturnOp>(nonValueTensorsUsedByOp.begin()->first)) {
       return failure();
     }
 
-    FailureOr<InterpretedOps> interpretedOps = abstractlyInterpretSlice(
-        copy, std::move(nonValueTensorUsers), rewriter);
+    if (llvm::any_of(viewLikeOpsToCheck, [&](Operation *op) {
+          return !validViewLikeOps.contains(op);
+        })) {
+      return rewriter.notifyMatchFailure(
+          copy, "if a view-like op returns a non-value tensor, the first "
+                "operand must be a view of the operand of the `copy.to_tensor` "
+                "op");
+    }
+
+    FailureOr<InterpretedOps> interpretedOps =
+        abstractlyInterpretSlice(copy, nonValueTensorsUsedByOp, rewriter);
     if (failed(LogicalResult(interpretedOps)))
       return failure();
     rewriteSlice(*interpretedOps, rewriter);
