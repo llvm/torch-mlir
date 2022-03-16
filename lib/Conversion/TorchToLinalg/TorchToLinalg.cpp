@@ -13,9 +13,9 @@
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -41,7 +41,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
     registry.insert<math::MathDialect>();
-    registry.insert<StandardOpsDialect>();
+    registry.insert<func::FuncDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithmeticDialect>();
     registry.insert<cf::ControlFlowDialect>();
@@ -51,7 +51,7 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<linalg::LinalgDialect, StandardOpsDialect,
+    target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
                            cf::ControlFlowDialect, math::MathDialect,
                            tensor::TensorDialect, arith::ArithmeticDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();

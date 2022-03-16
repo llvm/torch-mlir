@@ -9,10 +9,10 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/Parser.h"
+#include "mlir/Parser/Parser.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -192,7 +192,8 @@ populateShapeCalculationRegion(ShapeCalculateOp op, ValueRange originalOperands,
   }
 
   // Create the call to the shape function!
-  auto call = b.create<mlir::CallOp>(loc, shapeFunction, shapeFunctionArgs);
+  auto call =
+      b.create<mlir::func::CallOp>(loc, shapeFunction, shapeFunctionArgs);
 
   // Python models multiple results with a tuple, so we need to unpack it
   // if the op has multiple results.
@@ -223,7 +224,7 @@ class ReifyShapeCalculationsPass
     // TODO: Find a way to not have to parse this every time.
     // The shape library is O(#ops we know about), and this pass should be
     // O(#ops in the program) ideally.
-    auto shapeLibrary = parseSourceString(getShapeLibrary(), context);
+    auto shapeLibrary = parseSourceString<ModuleOp>(getShapeLibrary(), context);
 
     // Walk all the operations, and if we have a shape function, wrap the op
     // in a `torch.shape.calculate` op.
@@ -286,7 +287,8 @@ class ReifyShapeCalculationsPass
       func.setVisibility(SymbolTable::Visibility::Private);
       // Continue the DFS.
       importedFunctions.insert(symName);
-      func.walk([&](CallOp op) { worklist.push_back(op.getCallee().str()); });
+      func.walk(
+          [&](func::CallOp op) { worklist.push_back(op.getCallee().str()); });
     }
   }
 };

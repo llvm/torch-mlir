@@ -18,7 +18,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRStandardOpsTransforms
+  MLIRFuncTransforms
   TorchMLIRTorchConversionDialect
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses

@@ -9,7 +9,7 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -42,8 +42,8 @@ class RefinePublicReturnPass
 
   void rewriteSignature(FuncOp func) {
     // Find the unique return op.
-    ReturnOp returnOp;
-    WalkResult walkResult = func.walk([&](ReturnOp op) {
+    func::ReturnOp returnOp;
+    WalkResult walkResult = func.walk([&](func::ReturnOp op) {
       if (returnOp)
         return WalkResult::interrupt();
       returnOp = op;

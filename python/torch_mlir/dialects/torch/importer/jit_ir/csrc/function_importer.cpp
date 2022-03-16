@@ -60,7 +60,7 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
   auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
                               MlirBlock appendToBlock) {
     createMlirOperationAtEnd(
-        appendToBlock, "std.return", loc,
+        appendToBlock, "func.return", loc,
         derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
   };
   MlirBlock block = importBlock(

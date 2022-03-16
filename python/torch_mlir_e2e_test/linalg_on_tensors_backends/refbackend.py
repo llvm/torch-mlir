@@ -164,11 +164,11 @@ class RefBackendInvoker:
 
 
 LOWERING_PIPELINE = ",".join([
+    "builtin.func(refback-generalize-tensor-pad)",
     # Bufferize.
     "builtin.func(scf-bufferize)",
     "builtin.func(tm-tensor-bufferize)",
     "builtin.func(linalg-bufferize)",
-    "builtin.func(refback-munge-memref-copy)",
     "func-bufferize",
     "arith-bufferize",
     "builtin.func(tensor-bufferize)",
@@ -185,6 +185,7 @@ LOWERING_PIPELINE = ",".join([
     "refback-insert-rng-globals",
     # Lower to LLVM
     "builtin.func(tm-tensor-to-loops)",
+    "builtin.func(refback-munge-memref-copy)",
     "builtin.func(convert-linalg-to-loops)",
     "builtin.func(lower-affine)",
     "convert-scf-to-cf",
@@ -194,7 +195,7 @@ LOWERING_PIPELINE = ",".join([
     "convert-linalg-to-llvm",
     "convert-memref-to-llvm",
     "builtin.func(convert-arith-to-llvm)",
-    "convert-std-to-llvm",
+    "convert-func-to-llvm",
     "convert-cf-to-llvm",
     "reconcile-unrealized-casts",
 ])

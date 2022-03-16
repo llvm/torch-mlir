@@ -9,7 +9,7 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -93,14 +93,15 @@ public:
 } // namespace
 
 namespace {
-class AdjustCallingConventionForCall : public OpConversionPattern<CallOp> {
+class AdjustCallingConventionForCall
+    : public OpConversionPattern<func::CallOp> {
 public:
   AdjustCallingConventionForCall(TypeConverter &converter, MLIRContext *context,
                                  TypeBoundMap &typeBoundMap)
-      : OpConversionPattern<CallOp>(converter, context),
+      : OpConversionPattern<func::CallOp>(converter, context),
         typeBoundMap(typeBoundMap) {}
   LogicalResult
-  matchAndRewrite(CallOp call, OpAdaptor adaptor,
+  matchAndRewrite(func::CallOp call, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     SmallVector<Type> convertedResults;
     if (failed(typeConverter->convertTypes(call.getResultTypes(),
@@ -126,8 +127,8 @@ public:
       newOperands.push_back(operand.value());
     }
 
-    CallOp newCall = rewriter.create<CallOp>(call.getLoc(), call.getCallee(),
-                                             convertedResults, newOperands);
+    func::CallOp newCall = rewriter.create<func::CallOp>(
+        call.getLoc(), call.getCallee(), convertedResults, newOperands);
     int newOpResultIdx = 0;
     SmallVector<Value> newResults;
     for (auto type : call.getResultTypes()) {
@@ -153,11 +154,12 @@ private:
 } // namespace
 
 namespace {
-class AdjustCallingConventionForReturn : public OpConversionPattern<ReturnOp> {
+class AdjustCallingConventionForReturn
+    : public OpConversionPattern<func::ReturnOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ReturnOp op, OpAdaptor adaptor,
+  matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     SmallVector<Value> newOperands;
@@ -178,7 +180,7 @@ public:
       }
       newOperands.push_back(operand);
     }
-    rewriter.replaceOpWithNewOp<ReturnOp>(op, newOperands);
+    rewriter.replaceOpWithNewOp<func::ReturnOp>(op, newOperands);
     return success();
   }
 };
@@ -233,13 +235,15 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   //
   // Bug for doing this better https://bugs.llvm.org/show_bug.cgi?id=49812
   DenseSet<Operation *> opsInOriginalProgram;
-  func.walk([&](CallOp op) { opsInOriginalProgram.insert(op.getOperation()); });
   func.walk(
-      [&](ReturnOp op) { opsInOriginalProgram.insert(op.getOperation()); });
-  target.addDynamicallyLegalOp<CallOp>([&](CallOp op) {
+      [&](func::CallOp op) { opsInOriginalProgram.insert(op.getOperation()); });
+  func.walk([&](func::ReturnOp op) {
+    opsInOriginalProgram.insert(op.getOperation());
+  });
+  target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) {
     return !opsInOriginalProgram.contains(op.getOperation());
   });
-  target.addDynamicallyLegalOp<ReturnOp>([&](ReturnOp op) {
+  target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) {
     return !opsInOriginalProgram.contains(op.getOperation());
   });
   target.addLegalOp<CopyToNonValueTensorOp, CopyToValueTensorOp>();
@@ -249,7 +253,7 @@ static LogicalResult adjustCallingConventions(FuncOp func,
   target.addLegalOp<PrimTupleIndexOp>();
   target.addLegalOp<PrimTupleConstructOp>();
   // We don't know how to rewrite it, so mark it as illegal.
-  target.addIllegalOp<CallIndirectOp>();
+  target.addIllegalOp<func::CallIndirectOp>();
   if (failed(applyPartialConversion(func.getOperation(), target,
                                     std::move(patterns))))
     return failure();

@@ -7,11 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
@@ -93,7 +93,7 @@ struct ScalarLoopOpInterfaceLowerToLoopsPattern : public RewritePattern {
 namespace {
 struct TMTensorToLoopsPass : public TMTensorToLoopsBase<TMTensorToLoopsPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, StandardOpsDialect,
+    registry.insert<linalg::LinalgDialect, func::FuncDialect,
                     mlir::arith::ArithmeticDialect, math::MathDialect,
                     memref::MemRefDialect, scf::SCFDialect>();
   }

@@ -9,7 +9,7 @@
 
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
-#include "mlir/Support/MlirOptMain.h"
+#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "torch-mlir/InitAll.h"
 
 using namespace mlir;
