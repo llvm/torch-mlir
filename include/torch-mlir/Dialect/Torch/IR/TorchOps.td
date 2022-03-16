@@ -62,7 +62,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
   let arguments = (ins);
   let results = (outs Torch_NnModuleType:$result);
   let regions = (region SizedRegion<1>:$region);
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = "$region attr-dict `:` qualified(type($result))";
 
@@ -146,7 +146,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
   let arguments = (ins SymbolNameAttr:$sym_name);
   let results = (outs);
   let regions = (region SizedRegion<1>:$region);
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = "$sym_name $region attr-dict";
 }
@@ -360,7 +360,7 @@ def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
     AnyTorchListType:$result
   );
 
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $elements attr-dict `:` functional-type(operands, results)
@@ -382,7 +382,7 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
     Torch_DictType:$result
   );
 
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     `keys` `(` ($keys^ `:` qualified(type($keys)))? `)` `values` `(` ($values^ `:` qualified(type($values)))? `)` attr-dict `->` qualified(type($result))
@@ -474,7 +474,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
     $maxTripCount `,` $initialCondition `,` `init` `(` $iterArgsInit `)` $region
     attr-dict `:` functional-type(operands, results)
   }];
-  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+  let hasVerifier = 1;
   let extraClassDeclaration = [{
     /// Returns true if this loop is "for-like". Otherwise it is "while-like"
     /// and this function returns false.
@@ -528,7 +528,7 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
   let regions = (region SizedRegion<1>:$thenRegion, SizedRegion<1>:$elseRegion);
   // Indicate that the operation has a custom parser and printer method.
   let hasCustomAssemblyFormat = 1;
-  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+  let hasVerifier = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -877,7 +877,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($result))
   }];
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 }
 
 def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
@@ -907,7 +907,7 @@ def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($result))
   }];
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 }
 
 def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
@@ -1083,7 +1083,7 @@ def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
   let assemblyFormat = [{
     $body `shapes` $shapeCalculation attr-dict `:` type($results)
   }];
-  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+  let hasVerifier = 1;
 }
 
 def Torch_ShapeCalculateYieldOp : Torch_Op<"shape.calculate.yield", [
@@ -1126,7 +1126,7 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
     attr-dict ($results^ `:` type($results))?
   }];
 
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_OPS

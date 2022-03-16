@@ -16,6 +16,16 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
+/// PyTorch has a well-developed notion of subtyping.
+///
+/// This is a restricted subset of it that only handles a few special cases
+/// that we need to model.
+///
+/// TODO: Flesh this out.
+/// TODO: Decide / properly model the distinction between PEP 483 / Python
+/// subtyping vs "more static information".
+bool isValidSubtype(Type subtype, Type type);
+
 class NonValueTensorType;
 class ValueTensorType;
 

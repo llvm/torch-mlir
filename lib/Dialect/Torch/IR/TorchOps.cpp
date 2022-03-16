@@ -125,59 +125,11 @@ LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 // NnModuleOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(NnModuleOp op) {
-  for (Operation &child : *op.getBody())
+LogicalResult NnModuleOp::verify() {
+  for (Operation &child : *getBody())
     if (!isa<SlotOp, NnModuleTerminatorOp>(&child))
       return child.emitOpError() << "is not allowed inside 'torch.nn_module'";
   return success();
-}
-
-// PyTorch has a well-developed notion of subtyping.
-//
-// This is a restricted subset of it.
-//
-// TODO: Flesh this out.
-// TODO: Decide / properly model the distinction between PEP 483 / Python
-// subtyping vs "more static information".
-bool isValidSubtype(Type subtype, Type type) {
-  if (subtype == type)
-    return true;
-
-  if (auto any = type.dyn_cast<AnyType>())
-    return true;
-
-  if (auto number = type.dyn_cast<NumberType>())
-    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
-
-  if (auto optional = type.dyn_cast<OptionalType>())
-    return isValidSubtype(subtype, optional.getContainedType()) ||
-           subtype.isa<Torch::NoneType>();
-
-  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
-    if (!subtype.isa<Torch::TupleType>())
-      return false;
-    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
-    auto types = tuple.getContainedTypes();
-    if (subtypes.size() != types.size())
-      return false;
-    for (auto t : llvm::zip(subtypes, types)) {
-      if (!isValidSubtype(std::get<0>(t), std::get<1>(t)))
-        return false;
-    }
-    return true;
-  }
-
-  // TODO: This is not subtyping according to PEP 483. See description
-  // of NonValueTensorType.
-  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
-      type ==
-          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
-    return true;
-
-  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
-      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
-    return true;
-  return false;
 }
 
 LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
@@ -213,15 +165,15 @@ LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 // PrimListConstructOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(PrimListConstructOp op) {
-  auto resultType = op.getResult().getType();
+LogicalResult PrimListConstructOp::verify() {
+  auto resultType = getResult().getType();
   auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
   auto matchResultElementType = [&](Type type) {
     return isValidSubtype(type, resultElementType);
   };
-  if (!llvm::all_of(op->getOperandTypes(), matchResultElementType)) {
-    return op.emitError() << "operand types should have the same type as the "
-                             "list contained type";
+  if (!llvm::all_of(getOperandTypes(), matchResultElementType)) {
+    return emitError() << "operand types should have the same type as the "
+                          "list contained type";
   }
 
   return success();
@@ -231,18 +183,16 @@ static LogicalResult verify(PrimListConstructOp op) {
 // PrimDictConstructOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(PrimDictConstructOp op) {
+LogicalResult PrimDictConstructOp::verify() {
   auto isValidSubTypeOf = [](Type expectedType) {
     return [=](Type type) { return isValidSubtype(type, expectedType); };
   };
 
-  Type keyType = op.getKeyType();
-  if (!llvm::all_of(op.keys().getTypes(), isValidSubTypeOf(keyType)))
-    return op.emitError() << "keys should be of Dict key type";
+  if (!llvm::all_of(keys().getTypes(), isValidSubTypeOf(getKeyType())))
+    return emitError() << "keys should be of Dict key type";
 
-  Type valueType = op.getValueType();
-  if (!llvm::all_of(op.values().getTypes(), isValidSubTypeOf(valueType)))
-    return op.emitError() << "values  should be of Dict value type";
+  if (!llvm::all_of(values().getTypes(), isValidSubTypeOf(getValueType())))
+    return emitError() << "values  should be of Dict value type";
 
   return success();
 }
@@ -251,9 +201,9 @@ static LogicalResult verify(PrimDictConstructOp op) {
 // ClassTypeOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(ClassTypeOp op) {
+LogicalResult ClassTypeOp::verify() {
   llvm::StringMap<Operation *> namesToOps;
-  for (Operation &child : op.getBody()->without_terminator()) {
+  for (Operation &child : getBody()->without_terminator()) {
     if (!isa<AttrOp, MethodOp>(&child))
       return child.emitOpError() << "is not allowed inside `torch.class_type`";
     StringRef name;
@@ -265,8 +215,8 @@ static LogicalResult verify(ClassTypeOp op) {
     auto it = itAndWasInserted.first;
     bool wasInserted = itAndWasInserted.second;
     if (!wasInserted) {
-      auto diag = op.emitOpError().append(
-          "has duplicate attr/method with name '", name, "'");
+      auto diag = emitOpError().append("has duplicate attr/method with name '",
+                                       name, "'");
       diag.attachNote(it->second->getLoc())
           .append("see first conflicting attr/method here");
       diag.attachNote(child.getLoc())
@@ -281,6 +231,10 @@ static LogicalResult verify(ClassTypeOp op) {
 //===----------------------------------------------------------------------===//
 // PrimLoopOp
 //===----------------------------------------------------------------------===//
+
+LogicalResult PrimLoopOp::verify() {
+  return RegionBranchOpInterface::verifyTypes(*this);
+}
 
 OperandRange PrimLoopOp::getSuccessorEntryOperands(unsigned index) {
   assert(index == 0);
@@ -320,6 +274,10 @@ PrimLoopConditionOp::getMutableSuccessorOperands(Optional<unsigned> index) {
 //===----------------------------------------------------------------------===//
 // PrimIfOp
 //===----------------------------------------------------------------------===//
+
+LogicalResult PrimIfOp::verify() {
+  return RegionBranchOpInterface::verifyTypes(*this);
+}
 
 ParseResult PrimIfOp::parse(OpAsmParser &parser, OperationState &result) {
   // Create the regions.
@@ -1073,13 +1031,11 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
 // CopyToNonValueTensorOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CopyToNonValueTensorOp op) {
-  auto resultType = op.getResult().getType().cast<BaseTensorType>();
-  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
-  if (!resultType.hasSameSizesAndDtype(operandType)) {
-    return op.emitError()
-           << "operand and result must have same sizes and dtype";
-  }
+LogicalResult CopyToNonValueTensorOp::verify() {
+  auto resultType = getResult().getType().cast<BaseTensorType>();
+  auto operandType = getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType))
+    return emitError() << "operand and result must have same sizes and dtype";
   return success();
 }
 
@@ -1102,13 +1058,11 @@ void CopyToNonValueTensorOp::getEffects(
 // CopyToValueTensorOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CopyToValueTensorOp op) {
-  auto resultType = op.getResult().getType().cast<BaseTensorType>();
-  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
-  if (!resultType.hasSameSizesAndDtype(operandType)) {
-    return op.emitError()
-           << "operand and result must have same sizes and dtype";
-  }
+LogicalResult CopyToValueTensorOp::verify() {
+  auto resultType = getResult().getType().cast<BaseTensorType>();
+  auto operandType = getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType))
+    return emitError() << "operand and result must have same sizes and dtype";
   return success();
 }
 
@@ -1588,6 +1542,10 @@ OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
 // ShapeCalculateOp
 //===----------------------------------------------------------------------===//
 
+LogicalResult ShapeCalculateOp::verify() {
+  return RegionBranchOpInterface::verifyTypes(*this);
+}
+
 void ShapeCalculateOp::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
@@ -1620,13 +1578,9 @@ MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
   return MutableOperandRange(*this, /*start=*/0, /*length=*/0);
 }
 
-static LogicalResult verify(ShapeCalculateYieldShapesOp op) {
-  auto parent = op->getParentOfType<ShapeCalculateOp>();
-  if (parent.getNumResults() != op.getNumOperands())
-    return op.emitOpError(
-        "expected number of shapes to match number of results");
+LogicalResult ShapeCalculateYieldShapesOp::verify() {
+  auto parent = cast<ShapeCalculateOp>(getOperation()->getParentOp());
+  if (parent.getNumResults() != getNumOperands())
+    return emitOpError("expected number of shapes to match number of results");
   return success();
 }
-
-#define GET_OP_CLASSES
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
