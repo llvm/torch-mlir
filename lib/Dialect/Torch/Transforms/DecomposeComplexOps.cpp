@@ -20,7 +20,6 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-using namespace mlir::torch::torch_upstream; // For ScalarType and type
 
 // Helper funtion to get rank of `Base tensor type`.
 // -1 is returned if the tensorRank can't be determined.
