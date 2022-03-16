@@ -204,13 +204,33 @@ class NativeLayerNormModule(torch.nn.Module):
     ])
     def forward(self, x, weight, bias):
         list = [2, 2, 3]
-        # TODO: Fix the case of the other return values.
         return torch.ops.aten.native_layer_norm(
-            x, list, weight, bias, eps=0.5)[0]
+            x, list, weight, bias, eps=0.5)
 
 
 @register_test_case(module_factory=lambda: NativeLayerNormModule())
 def NativeLayerNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
+
+class NativeLayerNormDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        list = [2, 2, 3]
+        return torch.ops.aten.native_layer_norm(
+            x, list, weight, bias, eps=0.5)
+
+
+@register_test_case(module_factory=lambda: NativeLayerNormDynamicModule())
+def NativeLayerNormDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(2, 2, 3), tu.rand(2, 2, 3))
 
 # ==============================================================================

@@ -1009,20 +1009,35 @@ public:
 };
 } // namespace
 
-// Normalization formula:
-//   ((input - mean) / sqrt(var + eps)) * weight + bias
-static Value createLinalgPayloadCalculationForNormOps(
-    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
-    Value eps, Value weight, Value bias) {
-  Value inputSubMean = b.create<arith::SubFOp>(loc, input, mean);
+/// Inverted STD: rSTD = 1 / sqrt(var + eps).
+static Value calculateRSTD(OpBuilder &b, Location loc, Type elemTy, Value eps,
+                           Value var) {
   // The eps is always f64.
   Value truncatedEps = b.create<arith::TruncFOp>(loc, elemTy, eps);
   Value varPlusEps = b.create<arith::AddFOp>(loc, var, truncatedEps);
   Value rSTD = b.create<math::RsqrtOp>(loc, varPlusEps);
+  return rSTD;
+}
+
+// Normalization formula:
+//   ((input - mean) * rSTD * weight + bias
+static Value createLinalgPayloadCalculationForNormOpsWithRSTD(
+    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean,
+    Value rSTD, Value eps, Value weight, Value bias) {
+  Value inputSubMean = b.create<arith::SubFOp>(loc, input, mean);
   Value temp = b.create<arith::MulFOp>(loc, inputSubMean, rSTD);
   Value timesWeight = b.create<arith::MulFOp>(loc, temp, weight);
   Value plusBias = b.create<arith::AddFOp>(loc, timesWeight, bias);
   return plusBias;
+}
+
+static Value createLinalgPayloadCalculationForNormOpsWithVar(
+    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
+    Value eps, Value weight, Value bias) {
+  Value rSTD = calculateRSTD(b, loc, elemTy, eps, var);
+  Value result = createLinalgPayloadCalculationForNormOpsWithRSTD(
+      b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
+  return result;
 }
 
 namespace {
@@ -1117,9 +1132,10 @@ public:
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value input = args[0], weight = args[1], bias = args[2],
                         mean = args[3], var = args[4];
-                  Value result = createLinalgPayloadCalculationForNormOps(
-                      b, loc, var.getType(), input, mean, var, eps, weight,
-                      bias);
+                  Value result =
+                      createLinalgPayloadCalculationForNormOpsWithVar(
+                          b, loc, var.getType(), input, mean, var, eps, weight,
+                          bias);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
@@ -1139,13 +1155,12 @@ public:
 // |  meanAndVarShape  |   normalizedShape  |
 // +-------------------+---------------------
 // <------------+ inputShape +-------------->
-
 // There are the following steps:
 // Step 1. Check if all the arguments meet the requirements.
 // Step 2. Common parts to be used for getting mean and var.
 //         This includes elements count, affineMap and iteratorTypes.
 // Step 3. Get mean.
-// Step 4. Get var.
+// Step 4. Get rSTD.
 // Step 5. Get layernorm.
 namespace {
 class ConvertAtenNativeLayerNormOp
@@ -1283,7 +1298,7 @@ public:
                     .getResult(0);
     Value mean = genMeanOrVarCalculation(sum);
 
-    // Step 4. Get var.
+    // Step 4. Get rSTD.
 
     // Calculate squareSum for the layer.
     SmallVector<AffineMap> squareSumIndexingMaps{
@@ -1310,6 +1325,21 @@ public:
                 })
             .getResult(0);
     Value var = genMeanOrVarCalculation(squareSum);
+    Value rSTDTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, meanAndVarShapeSizes, elemTy);
+    SmallVector<AffineMap> rSTDIndexingMap(
+        2, rewriter.getMultiDimIdentityMap(meanAndVarShapeRank));
+
+    Value rSTD = rewriter
+                     .create<linalg::GenericOp>(
+                         loc, rSTDTensor.getType(), var, rSTDTensor,
+                         rSTDIndexingMap, meanAndVarIterationTypes,
+                         [&](OpBuilder &b, Location loc, ValueRange args) {
+                           Value result =
+                               calculateRSTD(b, loc, elemTy, eps, args[0]);
+                           b.create<linalg::YieldOp>(loc, result);
+                         })
+                     .getResult(0);
 
     // Step 5. Get layernorm.
 
@@ -1320,7 +1350,6 @@ public:
     auto normalizedShapeAffineMap = AffineMap::get(
         /*dimCount=*/inputRank,
         /*symbolCount=*/0, normalizedShapeExprs, context);
-
     auto inputSizes = getTensorSizes(rewriter, loc, input);
     Value initLayerNormTensor =
         rewriter.create<linalg::InitTensorOp>(loc, inputSizes, elemTy);
@@ -1334,24 +1363,48 @@ public:
         rewriter
             .create<linalg::GenericOp>(
                 loc, initLayerNormTensor.getType(),
-                ValueRange{input, mean, var, weight, bias}, initLayerNormTensor,
+                ValueRange{input, mean, rSTD, weight, bias},
+                initLayerNormTensor,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/layerNormIterationTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value input = args[0], mean = args[1], var = args[2],
+                  Value input = args[0], mean = args[1], rSTD = args[2],
                         weight = args[3], bias = args[4];
-                  Value result = createLinalgPayloadCalculationForNormOps(
-                      b, loc, elemTy, input, mean, var, eps, weight, bias);
+                  Value result =
+                      createLinalgPayloadCalculationForNormOpsWithRSTD(
+                          b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
+    SmallVector<int64_t> expandShape(inputRank, 1);
+    for (int i = 0; i < meanAndVarShapeRank; i++) {
+      // `mean` and `rstd` are not yet casted, so they will be having dynamic
+      // shape. Hence to match them, for each dimension corresponding to `mean`
+      // or `rstd` assign -1.
+      expandShape[i] = -1;
+    }
+    auto expandShapeType = RankedTensorType::get(expandShape, elemTy);
+    SmallVector<ReassociationIndices> reassociation(meanAndVarShapeRank);
+    for (auto i : llvm::seq<int64_t>(0, meanAndVarShapeRank)) {
+      reassociation[i].push_back(i);
+      if (i == meanAndVarShapeRank - 1) {
+        for (auto j : llvm::seq<int64_t>(0, normalizedShapeRank))
+          reassociation[i].push_back(i + j + 1);
+      }
+    }
+    Value meanResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, mean, reassociation);
+    Value rSTDResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, rSTD, reassociation);
     Type layerNormResultType = getTypeConverter()->convertType(op.getType(0));
     Type meanResultType = getTypeConverter()->convertType(op.getType(1));
-    Type varResultType = getTypeConverter()->convertType(op.getType(2));
+    Type rSTDResultType = getTypeConverter()->convertType(op.getType(2));
     Value layerNorm_ =
         rewriter.create<tensor::CastOp>(loc, layerNormResultType, layerNorm);
-    Value mean_ = rewriter.create<tensor::CastOp>(loc, meanResultType, mean);
-    Value var_ = rewriter.create<tensor::CastOp>(loc, varResultType, var);
+    Value mean_ =
+        rewriter.create<tensor::CastOp>(loc, meanResultType, meanResult);
+    Value var_ =
+        rewriter.create<tensor::CastOp>(loc, rSTDResultType, rSTDResult);
     rewriter.replaceOp(op, {layerNorm_, mean_, var_});
     return success();
   }
