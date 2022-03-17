@@ -1447,6 +1447,23 @@ class DecomposeAtenExpandAsOp : public OpRewritePattern<AtenExpandAsOp> {
 } // namespace
 
 namespace {
+// Decompose `aten._to_copy` op into `valsem.aten.copy` op.
+class DecomposeAten_ToCopyOp : public OpRewritePattern<Aten_ToCopyOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_ToCopyOp op,
+                                PatternRewriter &rewriter) const override {
+    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
+        op.getLoc(), op.getType(), op.self(), op.dtype(), op.layout(),
+        op.device(), op.pin_memory(), op.memory_format());
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenCopyOp>(
+        op, op.getType(), emptyTensor, op.self(), op.non_blocking());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1553,6 +1570,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenIndexPutOp>();
     patterns.add<DecomposeAtenExpandAsOp>(context);
     target.addIllegalOp<AtenExpandAsOp>();
+    patterns.add<DecomposeAten_ToCopyOp>(context);
+    target.addIllegalOp<Aten_ToCopyOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

@@ -390,6 +390,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::clone : (Tensor, int?) -> (Tensor)")
         emit("aten::contiguous : (Tensor, int) -> (Tensor)")
         emit("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)")
+        emit("aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)")
         emit("aten::detach : (Tensor) -> (Tensor)")
         emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
         emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")

@@ -2730,6 +2730,27 @@ def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
   let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` qualified(type($self)) `,` qualified(type($src)) `,` qualified(type($non_blocking)) `->` qualified(type($result))";
 }
 
+def Torch_Aten_ToCopyOp : Torch_Op<"aten._to_copy", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory,
+    Torch_BoolType:$non_blocking,
+    TorchOptionalIntType:$memory_format
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $dtype `,` $layout `,` $device `,` $pin_memory `,` $non_blocking `,` $memory_format attr-dict `:` qualified(type($self)) `,` qualified(type($dtype)) `,` qualified(type($layout)) `,` qualified(type($device)) `,` qualified(type($pin_memory)) `,` qualified(type($non_blocking)) `,` qualified(type($memory_format)) `->` qualified(type($result))";
+}
+
 def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
     AllowsTypeRefinement,
     ReadOnly
@@ -2860,7 +2881,8 @@ def Torch_AtenExpandOp : Torch_Op<"aten.expand", [
 }
 
 def Torch_AtenExpandAsOp : Torch_Op<"aten.expand_as", [
-    AllowsTypeRefinement
+    AllowsTypeRefinement,
+    ReadOnly
   ]> {
   let summary = "Generated op for `aten::expand_as : (Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins

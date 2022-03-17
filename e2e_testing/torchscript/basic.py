@@ -1568,3 +1568,58 @@ class CopyWithDifferentDTypesAndSizesModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CopyWithDifferentDTypesAndSizesModule())
 def CopyWithDifferentDTypesAndSizesModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), torch.randint(1000, (3, 2, 1)))
+
+# ==============================================================================
+
+class ToCopyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x)
+
+
+@register_test_case(module_factory=lambda: ToCopyModule())
+def ToCopyModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
+class ToCopyWithDTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: ToCopyWithDTypeModule())
+def ToCopyWithDTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
+class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x, dtype=torch.int64, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: ToCopyWithDTypeFalsePinMemoryModule())
+def ToCopyWithDTypeFalsePinMemoryModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
