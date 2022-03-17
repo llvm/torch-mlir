@@ -748,6 +748,8 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     return visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
+  } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {
+    return visitConstantTensorAllocLikeOp<Aten_ToCopyOp>(toCopy, operands);
   }
 
   if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
