@@ -1,0 +1,71 @@
+    1  ls
+    2  git clone The C compiler
+    3  git clone https://github.com/lorenzbc/torch-mlir
+    4  cd torch-mlir
+    5  git submodule update --init
+    6  cd ../lorenzo/
+    7  ll
+    8  cd torch-mlir/
+    9  ll
+   10  cd build
+   11  ll
+   12  cd ../..
+   13  history
+   14  exit
+   15  byobu
+   16  exit
+   17  ls
+   18  cd torch-mlir/
+   19  ls
+   20  which python
+   21  python
+   22  pip install virtualenv
+   23  pip
+   24  pip3
+   25  pip2
+   26  pip3
+   27  python3
+   28  pip3 install
+   29  which python3
+   30  python3 -m venv mlir_venv
+   31  source mlir_venv/bin/activate
+   32  which python
+   33  python
+   34  pip
+   35  pip install --upgrade pip
+   36  pip install -r requirements.txt
+   37  cmake -GNinja -Bbuild   -DCMAKE_C_COMPILER=clang   -DCMAKE_CXX_COMPILER=clang++   -DPython3_FIND_VIRTUALENV=ONLY   -DLLVM_ENABLE_PROJECTS=mlir   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects"   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd`   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects   -DMLIR_ENABLE_BINDINGS_PYTHON=ON   -DLLVM_TARGETS_TO_BUILD=host   external/llvm-project/llvm
+   38  clang
+   39  sudo apt-install clang
+   40  sudo apt-get install clang
+   41  cmake -GNinja -Bbuild   -DCMAKE_C_COMPILER=clang   -DCMAKE_CXX_COMPILER=clang++   -DPython3_FIND_VIRTUALENV=ONLY   -DLLVM_ENABLE_PROJECTS=mlir   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects"   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd`   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects   -DMLIR_ENABLE_BINDINGS_PYTHON=ON   -DLLVM_TARGETS_TO_BUILD=host   external/llvm-project/llvm
+   42  cmake --build build
+   43  cmake --build build --target tools/torch-mlir/all
+   44  export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
+   45  python -m e2e_testing.torchscript.main --filter Conv2d --verbose
+   46  apt-get install ninja-build
+   47  sudo apt-get install ninja-build
+   48  python -m e2e_testing.torchscript.main --filter Conv2d --verbose
+   49  cmake --build build
+   50  ls
+   51  build
+   52  cd build
+   53  ls
+   54  cd ..
+   55  ls
+   56  cmake
+   57  cmake --build build
+   58  cmake -GNinja -Bbuild   -DCMAKE_C_COMPILER=clang   -DCMAKE_CXX_COMPILER=clang++   -DPython3_FIND_VIRTUALENV=ONLY   -DLLVM_ENABLE_PROJECTS=mlir   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects"   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd`   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects   -DMLIR_ENABLE_BINDINGS_PYTHON=ON   -DLLVM_TARGETS_TO_BUILD=host   -CMAKE_BUILD_WITH_INSTALL_RPATH=true external/llvm-project/llvm
+   59  cmake --build build
+   60  cmake -GNinja -Bbuild   -DCMAKE_C_COMPILER=clang   -DCMAKE_CXX_COMPILER=clang++   -DPython3_FIND_VIRTUALENV=ONLY   -DLLVM_ENABLE_PROJECTS=mlir   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects"   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd`   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects   -DMLIR_ENABLE_BINDINGS_PYTHON=ON   -DLLVM_TARGETS_TO_BUILD=host   -CMAKE_BUILD_WITH_INSTALL_RPATH=ON external/llvm-project/llvm
+   61  vim build/CMakeFiles/CMakeOutput.log 
+   62  vim build/CMakeFiles/CMakeError.log 
+   63  cmake -GNinja -Bbuild   -DCMAKE_C_COMPILER=clang   -DCMAKE_CXX_COMPILER=clang++   -DPython3_FIND_VIRTUALENV=ONLY   -DLLVM_ENABLE_PROJECTS=mlir   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects"   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd`   -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects   -DMLIR_ENABLE_BINDINGS_PYTHON=ON   -DLLVM_TARGETS_TO_BUILD=host external/llvm-project/llvm
+   64  ls
+   65  torch-mlir/
+   66  ls
+   67  cd torch-mlir/
+   68  ls
+   69  source mlir_venv/bin/activate
+   70  history
+   71  history > bash-history.txt
