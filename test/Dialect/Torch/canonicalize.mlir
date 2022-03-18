@@ -977,6 +977,20 @@ func @torch.tensor_static_info_cast$no_refine(%arg0: !torch.vtensor) -> !torch.v
   return %1 : !torch.vtensor
 }
 
+// CHECK-LABEL:   func @torch.tensor_static_info_cast$refine_allowed_ops(
+// CHECK-SAME:                                                           %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.tuple<vtensor, vtensor> {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<[],f32> to !torch.vtensor
+// CHECK:           %[[RELU:.*]] = torch.aten.relu %[[ARG]] : !torch.vtensor<[],f32> -> !torch.vtensor
+// CHECK:           %[[RESULT:.*]] = torch.prim.TupleConstruct %[[CAST]], %[[RELU]] : !torch.vtensor, !torch.vtensor -> !torch.tuple<vtensor, vtensor>
+// CHECK:           return %[[RESULT]] : !torch.tuple<vtensor, vtensor>
+func @torch.tensor_static_info_cast$refine_allowed_ops(%arg0: !torch.vtensor<[], f32>) -> !torch.tuple<vtensor, vtensor> {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor
+  %1 = torch.aten.relu %0 : !torch.vtensor -> !torch.vtensor
+  // prim.TupleConstruct does not allow type refinements
+  %2 = torch.prim.TupleConstruct %0, %1 : !torch.vtensor, !torch.vtensor -> !torch.tuple<vtensor, vtensor>
+  return %2 : !torch.tuple<vtensor, vtensor>
+}
+
 // CHECK-LABEL:   func @torch.prim.TupleIndex(
 // CHECK-SAME:            %[[T0:.*]]: !torch.tensor, %[[T1:.*]]: !torch.tensor, %[[T2:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           return %[[T1]] : !torch.tensor
