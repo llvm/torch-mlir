@@ -1,4 +1,4 @@
-//===----------------------------------------------------------------------===//
+//===------------------------------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,17 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file is meant to include the `TorchOps.cpp.inc` file and compile it
-// separately from the main TorchOps.cpp file. The .inc file takes a very long
-// time to compile, and slows down the iteration time on folders,
-// canonicalizations, parser/printers, etc. in the actual TorchOps.cpp file, so
-// it makes sense to isolate it and let the build system cache it.
+// This file contains utilities referenced by GeneratedTorchOps.cpp.
+//
+// The utilities defined here are only meant for use by GeneratedTorchOps.cpp.
+// If something is of wider use, then it should be moved elsewhere.
 //
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
-#include "UtilsForODSGenerated.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -28,9 +26,18 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
 
-using namespace mlir;
-using namespace mlir::torch;
-using namespace mlir::torch::Torch;
+namespace mlir {
+namespace torch {
+namespace Torch {
 
-#define GET_OP_CLASSES
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
+// Parse a generated Torch op in the default format.
+ParseResult parseDefaultTorchOp(OpAsmParser &parser, OperationState &result,
+                                int numOperands, int numResults);
+
+// Print a generated Torch op in the default format.
+void printDefaultTorchOp(OpAsmPrinter &p, Operation *op, int numOperands,
+                         int numResults);
+
+} // namespace Torch
+} // namespace torch
+} // namespace mlir
