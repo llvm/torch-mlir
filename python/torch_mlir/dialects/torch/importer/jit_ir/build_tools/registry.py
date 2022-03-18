@@ -136,9 +136,9 @@ class JitOperator:
         for op_name_atom in op_name_atoms:
             for s in op_name_atom.split("_"):
                 op_class_name_atoms.append(s if s else "_")
-        td_def_name = "Torch_" + "".join(
+        cpp_class_name = "".join(
             uppercase_first_letter(s) for s in op_class_name_atoms) + "Op"
-        return op_name, td_def_name
+        return op_name, cpp_class_name
 
     def get_shape_function_signature(self):
         """Gets the Python function signature for this op's shape function.
@@ -197,9 +197,9 @@ class JitOperator:
 
             # Emit the MLIR names to allow easy reverse lookup if starting
             # from an unregistered op.
-            op_name, td_def_name = self.get_mlir_names()
+            op_name, cpp_class_name = self.get_mlir_names()
             p(f"MLIR op name = torch.{op_name}")
-            p(f"MLIR td def name = {td_def_name}")
+            p(f"MLIR cpp class name = {cpp_class_name}")
 
             p(f"namespace = {self.namespace}")
             p(f"unqualified_name = {self.unqualified_name}")
