@@ -5,8 +5,12 @@
 // CHECK-SAME:            %[[IN_TENSOR:.*]]: tensor<128xi32>, %[[OUT_TENSOR:.*]]: tensor<128xi32>,
 // CHECK-SAME:            %[[ACC_TENSOR:.*]]: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
 // CHECK:           %[[IN_MEMREF:.*]] = bufferization.to_memref %[[IN_TENSOR]] : memref<128xi32>
+// CHECK:           %[[OUT_MEMREF:.*]] = bufferization.to_memref %[[OUT_TENSOR]] : memref<128xi32>
+// CHECK:           %[[ACC_MEMREF:.*]] = bufferization.to_memref %[[ACC_TENSOR]] : memref<i32>
 // CHECK:           %[[OUT_MEMREF_NEW:.*]] = memref.alloc() : memref<128xi32>
+// CHECK:           memref.copy %[[OUT_MEMREF]], %[[OUT_MEMREF_NEW]] : memref<128xi32> to memref<128xi32>
 // CHECK:           %[[ACC_MEMREF_NEW:.*]] = memref.alloc() : memref<i32>
+// CHECK:           memref.copy %[[ACC_MEMREF]], %[[ACC_MEMREF_NEW]] : memref<i32> to memref<i32>
 // CHECK:           tm_tensor.scan dimension(0) inclusive(true) ins(%[[IN_MEMREF]] : memref<128xi32>)
 // CHECK-SAME:            outs(%[[OUT_MEMREF_NEW]], %[[ACC_MEMREF_NEW]] : memref<128xi32>, memref<i32>) {
 // CHECK:           ^bb0(%[[OUT_PREV_ELEMENT:.*]]: i32, %[[IN_ELEMENT:.*]]: i32):
@@ -31,8 +35,10 @@ func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tenso
 // CHECK-SAME:            %[[IN_TENSOR:.*]]: tensor<128xi32>, %[[OUT_TENSOR:.*]]: tensor<128xi32>,
 // CHECK-SAME:            %[[ACC_TENSOR:.*]]: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
 // CHECK:           %[[IN_MEMREF:.*]] = bufferization.to_memref %[[IN_TENSOR]] : memref<128xi32>
+// CHECK:           %[[OUT_MEMREF:.*]] = bufferization.to_memref %[[OUT_TENSOR]] : memref<128xi32>
 // CHECK:           %[[ACC_MEMREF:.*]] = bufferization.to_memref %[[ACC_TENSOR]] : memref<i32>
 // CHECK:           %[[OUT_MEMREF_NEW:.*]] = memref.alloc() : memref<128xi32>
+// CHECK:           memref.copy %[[OUT_MEMREF]], %[[OUT_MEMREF_NEW]] : memref<128xi32> to memref<128xi32>
 // CHECK:           %[[ACC_MEMREF_NEW:.*]] = memref.alloc() : memref<i32>
 // CHECK:           memref.copy %[[ACC_MEMREF]], %[[ACC_MEMREF_NEW]] : memref<i32> to memref<i32>
 // CHECK:           tm_tensor.scan dimension(0) inclusive(false) ins(%[[IN_MEMREF]] : memref<128xi32>)

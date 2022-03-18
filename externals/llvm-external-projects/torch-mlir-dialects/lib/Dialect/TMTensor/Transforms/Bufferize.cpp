@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
+
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
@@ -54,25 +55,10 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
           << "tensor to buffer conversion expects ranked tensor results";
       return failure();
     }
-    auto tensorShape = tensorType.getShape();
-    auto memrefType = MemRefType::get(tensorShape, tensorType.getElementType());
     Value resultTensor = outputs[resultIndex];
 
-    // Clone output buffers whose value is actually used.
-    OpOperand *tiedOpOperand = tmtensorOp.getOutputOperand(resultIndex);
-    if (tmtensorOp.payloadUsesValueFromOperand(tiedOpOperand)) {
-      resultBuffers.push_back(cloneMemref(loc, resultTensor, b));
-      continue;
-    }
-
-    // Allocate buffers for statically-shaped results.
-    if (memrefType.hasStaticShape()) {
-      resultBuffers.push_back(b.create<memref::AllocOp>(loc, memrefType));
-      continue;
-    }
-
-    resultBuffers.push_back(b.create<memref::AllocOp>(
-        loc, memrefType, linalg::getDynOperands(loc, resultTensor, b)));
+    // Always clone output buffers conservatively.
+    resultBuffers.push_back(cloneMemref(loc, resultTensor, b));
   }
   return success();
 }

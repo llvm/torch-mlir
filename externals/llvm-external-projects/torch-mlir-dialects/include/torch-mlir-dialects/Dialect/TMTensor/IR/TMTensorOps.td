@@ -31,9 +31,8 @@ class TMTensor_Op<string mnemonic, list<Trait> traits = []> :
          TMTensorInterface,
          SingleBlockImplicitTerminator<"::mlir::torch::TMTensor::YieldOp">
   ])> {
-  let verifier = [{ return verify$cppClass(*this); }];
-  let printer = [{ return print$cppClass(p, *this); }];
-  let parser = [{ return parse$cppClass(parser, result); }];
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
   code extraTMTensorOpClassDeclaration = [{
     SmallVector<Value> getDestinationOperands(OpBuilder &b) {
       SmallVector<Value> dest(outputs().begin(), outputs().end());
@@ -47,9 +46,7 @@ class TMTensor_Op<string mnemonic, list<Trait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 def TMTensor_ScanOp : TMTensor_Op<"scan",
-    [DeclareOpInterfaceMethods<TMTensorInterface,
-        ["payloadUsesValueFromOperand"]>,
-    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+    [DeclareOpInterfaceMethods<ScalarLoopOpInterface,
         ["generateScalarImplementation"]>]> {
   let summary = "Scan operator";
   let description = [{
@@ -99,9 +96,7 @@ def TMTensor_ScanOp : TMTensor_Op<"scan",
 }
 
 def TMTensor_ScatterOp : TMTensor_Op<"scatter",
-    [DeclareOpInterfaceMethods<TMTensorInterface,
-        ["payloadUsesValueFromOperand"]>,
-    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+    [DeclareOpInterfaceMethods<ScalarLoopOpInterface,
         ["generateScalarImplementation"]>]> {
   let summary = "Scatter operator";
   let description = [{

@@ -83,13 +83,13 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the input operands.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getInputOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         int64_t numInputs = getNumInputs();
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(numInputs);
         llvm::transform(
           this->getOperation()->getOpOperands().take_front(numInputs),
@@ -115,12 +115,12 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the subset of input operands that are of buffer type.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getInputBufferOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(getNumInputs());
         llvm::copy_if(getInputOperands(),
           std::back_inserter(result),
@@ -134,12 +134,12 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the subset of input operands that are of tensor type.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getInputTensorOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(getNumInputs());
         llvm::copy_if(getInputOperands(),
           std::back_inserter(result),
@@ -156,13 +156,13 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the output operands.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getOutputOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         int64_t numOutputs = getNumOutputs();
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(numOutputs);
         llvm::transform(
           this->getOperation()->getOpOperands()
@@ -190,12 +190,12 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the subset of output operands that are of buffer type.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getOutputBufferOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(getNumOutputs());
         llvm::copy_if(getOutputOperands(),
           std::back_inserter(result),
@@ -209,12 +209,12 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the subset of output operands that are of tensor type.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getOutputTensorOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(getNumOutputs());
         llvm::copy_if(getOutputOperands(),
           std::back_inserter(result),
@@ -269,13 +269,13 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*desc=*/[{
         Return the range over input and output operands.
       }],
-      /*retTy=*/"OpOperandVector",
+      /*retTy=*/"mlir::linalg::OpOperandVector",
       /*methodName=*/"getInputAndOutputOperands",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         int64_t numInputsAndOutputs = getNumInputsAndOutputs();
-        OpOperandVector result;
+        mlir::linalg::OpOperandVector result;
         result.reserve(numInputsAndOutputs);
         llvm::transform(
           this->getOperation()->getOpOperands()
@@ -283,30 +283,6 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
           std::back_inserter(result),
           [](OpOperand &opOperand) { return &opOperand; });
         return result;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return true if the loop body uses the value loaded from `opOperand`.
-        This is useful to avoid loading from "write-only" memory that may be
-        uninitialized, as well as properly cloning "read-write" operands.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"payloadUsesValueFromOperand",
-      /*args=*/(ins "OpOperand *":$opOperand),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        unsigned bbArgNumber = opOperand->getOperandNumber();
-        // Safeguard against the named linalg ops that are manually defined and
-        // that only support buffer semantics: we should not be there.
-        // Such ops have an empty regionBuilder and are not constructed with a
-        // region for now. In the future they are slated to disappear.
-        assert(this->getOperation()->getNumRegions() == 1 && "unexpected "
-               "missing region (calling `payloadUsesValueFromOperand` on "
-               "manually defined named Linalg op?)");
-        Block &block = this->getOperation()->getRegion(0).front();
-        // Init tensors have uses.
-        return !block.getArgument(bbArgNumber).use_empty();
       }]
     >,
     InterfaceMethod<
@@ -339,21 +315,6 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         if (opOperand->getOperandNumber() >= $_op.getNumInputs())
           return true;
         return false;
-      }]
-    >,
-    InterfaceMethod<
-      /*desc=*/[{
-        Return true if `opOperand` is an init tensor. This is true when it is
-        an output tensor operand whose value is used in the payload region.
-      }],
-      /*retTy=*/"bool",
-      /*methodName=*/"isInitTensor",
-      /*args=*/(ins "OpOperand *":$opOperand),
-      /*methodBody=*/"",
-      /*defaultImplementation=*/[{
-        if (!$_op.isOutputTensor(opOperand))
-          return false;
-        return payloadUsesValueFromOperand(opOperand);
       }]
     >,
     InterfaceMethod<
@@ -463,7 +424,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
           $_op->getAttrs());
         for (Region &r : $_op->getRegions())
           r.cloneInto(state.addRegion(), bvm);
-        return b.createOperation(state);
+        return b.create(state);
       }]
     >
   ];

@@ -29,7 +29,7 @@ import torch
 from torch.jit import ScriptFunction
 
 from torch_mlir import ir
-from torch_mlir.dialects.builtin import FuncOp
+from torch_mlir.dialects.func import FuncOp
 from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 

@@ -21,22 +21,6 @@ def ScalarLoopOpInterface : OpInterface<"ScalarLoopOpInterface"> {
   let methods = [
       InterfaceMethod<
         /*desc=*/[{
-          Returns the destination operands. For op with `memref`
-          operands, this is the result buffers. For op with `tensor`
-          operands, this is the operands that contain the initial
-          value for the result. These are "tied" to the result
-          buffers. For example, for a `LinalgOp`/`TMTensor` ops, it
-          is the `outs` parameters. For `tensor.insert_slice`, it is
-          the `dest` parameter.
-        }],
-        /*retType=*/"SmallVector<Value>",
-        /*methodName=*/"getDestinationOperands",
-        /*args=*/(ins "OpBuilder &":$b),
-        /*methodBody=*/"",
-        /*defaultImplementation=*/"return ValueRange{};"
-      >,
-      InterfaceMethod<
-        /*desc=*/[{
           Returns a list of `StringRef`s that describe the number of
           loops and the iterator types of the operation. The list is
           expected to use

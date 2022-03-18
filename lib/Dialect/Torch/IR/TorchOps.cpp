@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -99,7 +100,7 @@ static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
 
 LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   auto func =
-      symbolTable.lookupNearestSymbolFrom<FuncOp>(*this, functionAttr());
+      symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, functionAttr());
   if (!func)
     return emitError() << "'@" << function()
                        << "' does not reference a valid function";
@@ -112,8 +113,8 @@ LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
                           "merely declared)";
   auto expectedReceiverArgType = NnModuleType::get(
       getContext(), getOperation()->getParentOfType<ClassTypeOp>().getName());
-  if (func.getType().getNumInputs() == 0 ||
-      func.getType().getInput(0) != expectedReceiverArgType) {
+  if (func.getFunctionType().getNumInputs() == 0 ||
+      func.getFunctionType().getInput(0) != expectedReceiverArgType) {
     return emitError() << "the referenced function '" << function()
                        << "' must have a first argument of type "
                        << expectedReceiverArgType;
@@ -278,7 +279,7 @@ ParseResult PrimIfOp::parse(OpAsmParser &parser, OperationState &result) {
   Region *elseRegion = result.addRegion();
 
   auto &builder = parser.getBuilder();
-  OpAsmParser::OperandType cond;
+  OpAsmParser::UnresolvedOperand cond;
   Type boolType = builder.getType<Torch::BoolType>();
   if (parser.parseOperand(cond) ||
       parser.resolveOperand(cond, boolType, result.operands))

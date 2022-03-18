@@ -11,19 +11,14 @@ add_mlir_library(TorchMLIRTMTensorDialect
   TorchMLIRTMTensorOpsIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
   MLIRDialectUtils
   MLIRIR
   MLIRLinalg
-  MLIRMath
   MLIRMemRef
-  MLIRPass
   MLIRSideEffectInterfaces
   MLIRSupport
   MLIRSCF
-  MLIRFunc
   MLIRTensor
-  MLIRViewLikeInterface
 )
 
 torch_mlir_dialects_target_includes(TorchMLIRTMTensorDialect)

@@ -25,27 +25,8 @@ class Torch_Type<string name, string typeMnemonic,
 class Torch_TypeWithContainedType<string name, string typeMnemonic> : Torch_Type<name, typeMnemonic> {
   let parameters = (ins "::mlir::Type":$containedType);
 
-  let printer = [{
-    $_printer << "<";
-    // Print the contained type without the `!torch.` prefix.
-    printTorchDialectType(getImpl()->containedType, $_printer);
-    $_printer << ">";
-  }];
+  let hasCustomAssemblyFormat = 1;
 
-  let parser = [{
-    if ($_parser.parseLess())
-      return Type();
-
-    // Parse the contained type, but forward directly to our internal parsing
-    // of `torch` dialect types, so that we can parse nested types without
-    // the `!torch.` prefix.
-    Type containedType = parseTorchDialectType($_parser);
-    if (!containedType)
-      return Type();
-    if ($_parser.parseGreater())
-      return Type();
-    return get($_ctxt, containedType);
-  }];
   let builders = [
     TypeBuilderWithInferredContext<(ins "::mlir::Type":$containedType), [{
       return Base::get(containedType.getContext(), containedType);
@@ -60,22 +41,7 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
   }];
   let parameters = (ins StringRefParameter<"class name">:$className);
 
-  let printer = [{
-    $_printer << "<\"";
-    llvm::printEscapedString(getImpl()->className, $_printer.getStream());
-    $_printer << "\">";
-  }];
-
-  let parser = [{
-    if ($_parser.parseLess())
-      return Type();
-   std::string className;
-    if ($_parser.parseOptionalString(&className))
-      return Type();
-    if ($_parser.parseGreater())
-      return Type();
-    return get($_ctxt, className);
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 // For standard ArrayRefs, which require allocation.
@@ -191,6 +157,7 @@ class AnyTorchTensorType<string name, string typeMnemonic>
 }
 
 def Torch_NonValueTensorType : AnyTorchTensorType<"NonValueTensor", "tensor"> {
+  let hasCustomAssemblyFormat = 1;
   let extraClassDeclaration = extraBaseClassDeclaration # [{
     // Get this type, with value semantics added.
     ValueTensorType getWithValueSemantics() const;
@@ -200,6 +167,7 @@ def Torch_NonValueTensorType : AnyTorchTensorType<"NonValueTensor", "tensor"> {
 }
 
 def Torch_ValueTensorType : AnyTorchTensorType<"ValueTensor", "vtensor"> {
+  let hasCustomAssemblyFormat = 1;
   let extraClassDeclaration = extraBaseClassDeclaration # [{
     // Get this type, with value semantics removed.
     NonValueTensorType getWithoutValueSemantics() const;
@@ -243,6 +211,7 @@ def Torch_TupleType : Torch_Type<"Tuple", "tuple"> {
   let parameters = (ins
     ArrayRefParameter<"::mlir::Type", "contained types">:$containedTypes
   );
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Torch_DeviceType : Torch_Type<"Device", "Device"> {
@@ -350,29 +319,8 @@ def Torch_DictType : Torch_Type<"Dict", "dict"> {
     Torch Dict type with key and value type.
   }];
 
-  let printer = [{
-    $_printer << "<";
-    printTorchDialectType(getImpl()->keyType, $_printer);
-    $_printer << ", ";
-    printTorchDialectType(getImpl()->valueType, $_printer);
-    $_printer<< ">";
-  }];
+  let hasCustomAssemblyFormat = 1;
 
-  let parser = [{
-    if ($_parser.parseLess())
-      return Type();
-    Type keyType = parseTorchDialectType($_parser);
-    if (!keyType)
-      return Type();
-    if ($_parser.parseComma())
-      return Type();
-    Type valueType = parseTorchDialectType($_parser);
-    if (!valueType)
-      return Type();
-    if ($_parser.parseGreater())
-      return Type();
-    return get($_ctxt, keyType, valueType);
-  }];
   let builders = [
     TypeBuilderWithInferredContext<(ins "::mlir::Type":$keyType,
                                         "::mlir::Type":$valueType), [{

@@ -10,6 +10,7 @@
 #ifndef TORCHMLIR_DIALECT_TORCHCONVERSION_TRANSFORMS_PASSES_H
 #define TORCHMLIR_DIALECT_TORCHCONVERSION_TRANSFORMS_PASSES_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -36,7 +37,7 @@ createVerifyInvariantsBeforeBackendLoweringPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 createFinalizingBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>

@@ -43,7 +43,7 @@ def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "Modu
 }
 
 def FinalizingBackendTypeConversion
-    : Pass<"torch-finalizing-backend-type-conversion", "FuncOp"> {
+    : Pass<"torch-finalizing-backend-type-conversion", "func::FuncOp"> {
   let summary = "Finalizes a partial conversion to builtin tensors";
   let constructor =
     "mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass()";

@@ -10,6 +10,7 @@
 #ifndef TORCH_BASE
 #define TORCH_BASE
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 
 def Torch_Dialect : Dialect {

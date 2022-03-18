@@ -1,2 +1,4 @@
 add_subdirectory(IR)
-add_subdirectory(Transforms)
+if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Transforms")
+  add_subdirectory(Transforms)
+endif()

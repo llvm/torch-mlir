@@ -20,10 +20,4 @@
 /// Include the ODS generated interface header files.
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h.inc"
 
-namespace mlir {
-namespace torch {
-namespace TMTensor {} // namespace TMTensor
-} // namespace torch
-} // namespace mlir
-
 #endif // TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_IR_SCALARLOOPOPINTERFACE_H_

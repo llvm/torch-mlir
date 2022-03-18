@@ -45,18 +45,18 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
         # that depend on TOSA as well as TOSA-to-Standard.  
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-standard)",
+            "func.func(tosa-to-standard)",
             "Lowering TOSA to Standard")
 
         # Named ops must be legalized prior to general tosa-to-linalg
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-linalg-named)",
+            "func.func(tosa-to-linalg-named)",
             "Lowering TOSA to Linalg-on-Tensors for Named Ops")
 
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-linalg)",
+            "func.func(tosa-to-linalg)",
             "Lowering TOSA to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 

@@ -12,6 +12,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -63,6 +64,68 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
 }
 
 //===----------------------------------------------------------------------===//
+// NnModuleType
+//===----------------------------------------------------------------------===//
+void Torch::NnModuleType::print(AsmPrinter &printer) const {
+  printer << "<\"";
+  llvm::printEscapedString(getClassName(), printer.getStream());
+  printer << "\">";
+}
+
+Type Torch::NnModuleType::parse(AsmParser &parser) {
+  MLIRContext *ctxt = parser.getContext();
+  if (parser.parseLess())
+    return Type();
+  std::string className;
+  if (parser.parseOptionalString(&className))
+    return Type();
+  if (parser.parseGreater())
+    return Type();
+  return get(ctxt, className);
+}
+
+//===----------------------------------------------------------------------===//
+// NnModuleType
+//===----------------------------------------------------------------------===//
+template <typename TorchTy>
+static void printTorchTypeWithContainedType(TorchTy type,
+                                            ::mlir::AsmPrinter &printer) {
+  printer << "<";
+  printTorchDialectType(type.getContainedType(), printer);
+  printer << ">";
+}
+
+template <typename TorchTy>
+static Type parseTorchTypeWithContainedType(AsmParser &parser) {
+  MLIRContext *ctxt = parser.getContext();
+  if (parser.parseLess())
+    return Type();
+
+  // Parse the contained type, but forward directly to our internal parsing
+  // of `torch` dialect types, so that we can parse nested types without
+  // the `!torch.` prefix.
+  Type containedType = parseTorchDialectType(parser);
+  if (!containedType)
+    return Type();
+  if (parser.parseGreater())
+    return Type();
+  return TorchTy::get(ctxt, containedType);
+}
+
+#define DEFINE_OP_PRINTER_AND_PARSER(TorchTy)                                  \
+  void Torch::TorchTy::print(AsmPrinter &printer) const {                      \
+    printTorchTypeWithContainedType<Torch::TorchTy>(*this, printer);           \
+  }                                                                            \
+                                                                               \
+  Type Torch::TorchTy::parse(AsmParser &parser) {                              \
+    return parseTorchTypeWithContainedType<Torch::TorchTy>(parser);            \
+  }
+
+DEFINE_OP_PRINTER_AND_PARSER(ListType)
+DEFINE_OP_PRINTER_AND_PARSER(OptionalType)
+#undef DEFINE_OP_PRINTER_AND_PARSER
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
@@ -90,6 +153,35 @@ void Torch::TupleType::print(::mlir::AsmPrinter &printer) const {
   llvm::interleaveComma(getContainedTypes(), printer, [&](Type type) {
     printTorchDialectType(type, printer);
   });
+  printer << ">";
+}
+
+//===----------------------------------------------------------------------===//
+// DictType
+//===----------------------------------------------------------------------===//
+
+Type Torch::DictType::parse(AsmParser &parser) {
+  MLIRContext *ctxt = parser.getContext();
+  if (parser.parseLess())
+    return Type();
+  Type keyType = parseTorchDialectType(parser);
+  if (!keyType)
+    return Type();
+  if (parser.parseComma())
+    return Type();
+  Type valueType = parseTorchDialectType(parser);
+  if (!valueType)
+    return Type();
+  if (parser.parseGreater())
+    return Type();
+  return get(ctxt, keyType, valueType);
+}
+
+void Torch::DictType::print(::mlir::AsmPrinter &printer) const {
+  printer << "<";
+  printTorchDialectType(getKeyType(), printer);
+  printer << ", ";
+  printTorchDialectType(getValueType(), printer);
   printer << ">";
 }
 

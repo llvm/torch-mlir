@@ -207,7 +207,7 @@ public:
     assert(op->getNumRegions() == 0 && op->getNumSuccessors() == 0 &&
            "Torch JIT operators shouldn't have regions or successors");
 
-    Operation *newOp = rewriter.createOperation(state);
+    Operation *newOp = rewriter.create(state);
     auto tensor =
         rewriter.create<CopyToValueTensorOp>(op->getLoc(), newOp->getResult(0));
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,

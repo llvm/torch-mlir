@@ -10,6 +10,7 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSES_H
 #define TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSES_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
@@ -48,7 +49,7 @@ void createTorchShapeRefinementPipeline(
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createRefineTypesPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createRefineTypesPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createInlineGlobalSlotsPass();
 

@@ -10,6 +10,7 @@
 #ifndef REFBACKEND_PASSDETAIL_H
 #define REFBACKEND_PASSDETAIL_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
 

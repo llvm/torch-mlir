@@ -16,17 +16,17 @@ include "mlir/Pass/PassBase.td"
 // Torch conversions
 //===----------------------------------------------------------------------===//
 
-def ConvertTorchToStd : Pass<"convert-torch-to-std", "FuncOp"> {
+def ConvertTorchToStd : Pass<"convert-torch-to-std", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to Std ops";
   let constructor = "mlir::torch::createConvertTorchToStdPass()";
 }
 
-def ConvertTorchToSCF: Pass<"convert-torch-to-scf", "FuncOp"> {
+def ConvertTorchToSCF: Pass<"convert-torch-to-scf", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to SCF ops";
   let constructor = "mlir::torch::createConvertTorchToSCFPass()";
 }
 
-def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
+def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to Linalg ops";
   let description = [{
     Convert ATen ops to linalg ops.
@@ -105,7 +105,7 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToLinalgPass()";
 }
 
-def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "FuncOp"> {
+def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let summary = "Convert Torch ops to TOSA ops";
   let description = [{
     This pass assumes that TOSA ops are responsible for emitting error
@@ -114,7 +114,7 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
 }
 
-def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "FuncOp"> {
+def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to TMTensor/Linalg ops";
   let description = [{
     Convert ATen ops to tmtensor/linalg ops.

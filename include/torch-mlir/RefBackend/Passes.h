@@ -10,6 +10,7 @@
 #ifndef TORCHMLIR_REFBACKEND_PASSES_H
 #define TORCHMLIR_REFBACKEND_PASSES_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 
@@ -22,13 +23,13 @@ void registerRefBackendPasses();
 
 std::unique_ptr<OperationPass<ModuleOp>> createMungeCallingConventionsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createExpandOpsForLLVMPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createExpandOpsForLLVMPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createInsertRngGlobalsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createMungeMemrefCopyPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createMungeMemrefCopyPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createGeneralizeTensorPadPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createGeneralizeTensorPadPass();
 } // namespace RefBackend
 } // namespace torch
 } // namespace mlir

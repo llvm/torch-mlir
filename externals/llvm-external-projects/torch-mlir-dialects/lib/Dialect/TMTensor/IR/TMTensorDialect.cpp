@@ -8,12 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
-#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SourceMgr.h"
 

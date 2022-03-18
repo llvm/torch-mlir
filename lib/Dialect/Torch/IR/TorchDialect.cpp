@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -124,7 +125,7 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
                                                      unsigned argIndex,
                                                      NamedAttribute namedAttr) {
   if (namedAttr.getName().getValue() == "torch.type_bound") {
-    auto func = dyn_cast<FuncOp>(op);
+    auto func = dyn_cast<func::FuncOp>(op);
     if (!func)
       return op->emitError() << "'torch.type_bound' must be attached to a func";
     TypeAttr attr = namedAttr.getValue().dyn_cast<TypeAttr>();
@@ -134,7 +135,7 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
     if (!type)
       return op->emitError() << "'torch.type_bound' must be of "
                                 "!torch.tensor/!torch.vtensor type";
-    if (!func.getType().getInput(argIndex).isa<BaseTensorType>())
+    if (!func.getFunctionType().getInput(argIndex).isa<BaseTensorType>())
       return op->emitError() << "'torch.type_bound' must be attached to an "
                                 "argument of !torch.tensor/!torch.vtensor type";
     return success();

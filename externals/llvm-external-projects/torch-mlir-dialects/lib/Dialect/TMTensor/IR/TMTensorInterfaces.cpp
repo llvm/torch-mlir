@@ -13,14 +13,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TMTensor;
 
-OpOperandVector::operator SmallVector<Value>() {
-  SmallVector<Value> result;
-  result.reserve(this->size());
-  llvm::transform(*this, std::back_inserter(result),
-                  [](OpOperand *opOperand) { return opOperand->get(); });
-  return result;
-}
-
 LogicalResult
 mlir::torch::TMTensor::detail::verifyTMTensorOpInterface(Operation *op) {
   TMTensorOp mtTensorOp = cast<TMTensorOp>(op);

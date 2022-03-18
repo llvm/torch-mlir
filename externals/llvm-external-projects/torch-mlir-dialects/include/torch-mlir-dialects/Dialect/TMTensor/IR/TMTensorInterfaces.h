@@ -10,6 +10,7 @@
 #ifndef TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_IR_TMTENSORINTERFACES_H_
 #define TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_IR_TMTENSORINTERFACES_H_
 
+#include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -20,11 +21,6 @@ namespace mlir {
 namespace torch {
 namespace TMTensor {
 class TMTensorOp;
-
-/// OpOperand vector that implicitly converts to a Value vector.
-struct OpOperandVector : public SmallVector<OpOperand *> {
-  operator SmallVector<Value>();
-};
 
 namespace detail {
 LogicalResult verifyTMTensorOpInterface(Operation *op);
