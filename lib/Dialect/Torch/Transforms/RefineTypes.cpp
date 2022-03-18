@@ -516,7 +516,8 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenResize_Op, AtenTransposeIntOp, AtenTOp, AtenPermuteOp,
           AtenIndexSelectOp, AtenSelectIntOp, AtenSliceTensorOp, AtenGatherOp,
           AtenExpandOp, AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp,
-          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp>(
+          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp, 
+          AtenMaxPool2dWithIndicesBackwardOp>(
           op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());

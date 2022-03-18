@@ -216,6 +216,10 @@ def max_pool2d_with_indices(input: List[int], kernel_size: List[int], stride: Li
   out = max_pool2d(input, kernel_size, stride, padding, dilation, ceil_mode)
   return (out, out)
 
+def max_pool2d_with_indices_backward(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool):
+  out = max_pool2d(input, kernel_size, stride, padding, dilation, ceil_mode)
+  return out
+
 def upsample_nearest2d(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]):
   out: List[int] = []
   out.append(input[0])
