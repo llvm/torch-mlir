@@ -361,27 +361,12 @@ public:
     Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, selfEType), self, reassociation);
     // Fill with 0
     Value zeroed = rewriter.create<linalg::FillOp>(loc, zero, flattened).getResult(0);
-    // Put 1 at each index in indices
-    SmallVector<ReassociationIndices> association{{1}};
-    //Value filled = rewriter.create<tensor::InsertOp>(loc);
+
+
+    // TODO USE TMTensor Scatter
+
     // Expand back
     // Return
-
-    //Value outputFilled = rewriter.create<linalg::GenericOp>(loc, selfType, self, output,
-    //  indexingMaps, iteratorTypes,
-    //  [&](OpBuilder &b, Location loc, ValueRange args) {
-    //    // Copy the stuff here
-    //    Value cmp;
-    //    if(selfEType.isa<mlir::FloatType>()) {
-    //      cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, args[0], zero);
-    //    } else {
-    //      cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, args[0], zero);
-    //    }
-    //    b.create<linalg::YieldOp>(loc, b.create<SelectOp>(loc, cmp, zero, args[1]).getResult());
-    //  }).getResult(0);
-
-    // Replace op
-    //rewriter.replaceOpWithNewOp<tensor::CastOp>(op, selfType, outputFilled);
 
     return success();
   }
