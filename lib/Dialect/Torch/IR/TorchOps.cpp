@@ -1015,12 +1015,21 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
     return success();
   });
   patterns.add(+[](TensorStaticInfoCastOp op, PatternRewriter &rewriter) {
-    if (isValidSubtype(op.getOperand().getType(), op.getType()) &&
-        llvm::all_of(op->getUsers(), [](Operation *op) {
-          return op
-              ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
-        })) {
-      rewriter.replaceOp(op, op.getOperand());
+    if (isValidSubtype(op.getOperand().getType(), op.getType())) {
+      SmallVector<std::reference_wrapper<OpOperand>> usesToChange(
+          llvm::make_filter_range(op->getUses(), [](OpOperand &operand) {
+            return operand.getOwner()
+                ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
+          }));
+
+      if (usesToChange.empty())
+        return failure();
+
+      for (OpOperand &use : usesToChange) {
+        Operation *user = use.getOwner();
+        user->setOperand(use.getOperandNumber(), op.operand());
+      }
+
       return success();
     }
     return failure();
