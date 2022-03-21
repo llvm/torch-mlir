@@ -1,3 +1,5 @@
+# lit needs to find the tools, and the location differs for in-tree and out-of-tree builds.
+get_target_property(TORCH_MLIR_DIALECTS_TOOLS_DIR torch-mlir-dialects-opt RUNTIME_OUTPUT_DIRECTORY)
 configure_lit_site_cfg(
         ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
         ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
