@@ -53,6 +53,11 @@ func @torch.aten.eq.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.bool {
   return %0 : !torch.bool
 }
 
+func @torch.aten.eq.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.bool {
+  %0 = torch.aten.eq.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.bool 
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func @torch.aten.gt.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {

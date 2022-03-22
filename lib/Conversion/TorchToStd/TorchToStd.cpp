@@ -92,6 +92,24 @@ public:
 };
 } // namespace
 
+namespace {
+// Lowers aten float comparison ops.
+template <typename AtenOp, arith::CmpFPredicate Pred>
+class ConvertAtenFloatComparisonOp : public OpConversionPattern<AtenOp> {
+public:
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<arith::CmpFOp>(op, Pred, adaptor.a(),
+                                               adaptor.b());
+    return success();
+  }
+};
+} // namespace
+
+
 // Tensors with integer types need to be converted to signless integer
 // element type. All tensors with element types other than integer can reuse
 // existing elements attribute.
@@ -191,6 +209,18 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
         typeConverter, context);
+
+    target.addIllegalOp<AtenNeFloatOp, AtenEqFloatOp, AtenGtFloatOp>();
+    patterns
+        .add<ConvertAtenFloatComparisonOp<AtenNeFloatOp, arith::CmpFPredicate::UNE>>(
+            typeConverter, context);
+    patterns
+        .add<ConvertAtenFloatComparisonOp<AtenEqFloatOp, arith::CmpFPredicate::UEQ>>(
+            typeConverter, context);
+    patterns.add<
+        ConvertAtenFloatComparisonOp<AtenGtFloatOp, arith::CmpFPredicate::OGT>>(
+        typeConverter, context);
+
     target.addIllegalOp<ValueTensorLiteralOp>();
     patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);
 

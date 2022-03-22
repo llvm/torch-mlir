@@ -484,6 +484,7 @@ def emit_aten_ops(torch_ir_dir: str, registry: Registry):
         emit("aten::add.float_int : (float, int) -> (float)")
         emit("aten::mul.float : (float, float) -> (float)")
         emit("aten::neg.float : (float) -> (float)")
+        emit("aten::ne.float : (float, float) -> (bool)")
         emit("aten::eq.float : (float, float) -> (bool)", has_folder=True)
         emit("aten::gt.float : (float, float) -> (bool)", has_folder=True)
         emit("aten::lt.float : (float, float) -> (bool)", has_folder=True)

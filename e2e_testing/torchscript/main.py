@@ -42,6 +42,7 @@ from . import matmul
 from . import reshape_like
 from . import scalar
 from . import scalar_comparison
+from . import float_comparison
 from . import elementwise_comparison
 from . import squeeze
 from . import slice_like
