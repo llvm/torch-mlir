@@ -25,9 +25,11 @@ add_library(torch_mlir_ltc_backend SHARED
   backend/backend_impl.cpp
   backend/LazyNativeFunctions.cpp
   backend/LazyShapeInference.cpp
+  backend/GenLazyShapeInference.cpp
   backend/mlir_lowering_context.cpp
   backend/mlir_node.cpp
   backend/RegisterLazy.cpp
+  tensor_aten_ops.cpp
 )
 
 target_link_libraries(torch_mlir_ltc_backend
@@ -40,10 +42,10 @@ target_link_libraries(torch_mlir_ltc_backend
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
 set_target_properties(torch_mlir_ltc_backend PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/"
-  OUTPUT_NAME _MLIR_LTC
-  PREFIX "${PYTHON_MODULE_PREFIX}"
-  SUFFIX "${PYTHON_MODULE_EXTENSION}"
+  OUTPUT_NAME lib_mlir_ltc
+  PREFIX ""
+  SUFFIX ".so"
   CXX_VISIBILITY_PRESET "hidden"
   COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
+  LINK_FLAGS "-rdynamic"
 )
-
