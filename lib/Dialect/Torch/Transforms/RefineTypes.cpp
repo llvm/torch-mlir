@@ -496,32 +496,44 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Take dtype from first operand.
-  if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenTanhOp,
-          AtenBatchNormOp, AtenReluOp, AtenGeluOp, AtenCeilOp,
-          AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp, AtenCosOp,
-          AtenSigmoidOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
-          AtenFill_ScalarOp, AtenDetachOp, AtenReciprocalOp,
-          AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp,
-          AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
-          AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
-          AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-          AtenAbsOp, AtenThresholdOp, AtenSquareOp, ValsemVariantAtenUniformOp,
+  if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenBatchNormOp,
+          AtenReluOp, AtenGeluOp, AtenCeilOp, AtenGeluBackwardOp,
+          AtenBitwiseNotOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
+          AtenFill_ScalarOp, AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op,
+          AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenNegOp, AtenFloorOp,
+          Aten_SoftmaxBackwardDataOp, AtenDropoutOp, AtenTanhBackwardOp,
+          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
+          AtenThresholdOp, AtenSquareOp, ValsemVariantAtenUniformOp,
           AtenBernoulliOp, AtenBernoulli_FloatOp, AtenBernoulli_TensorOp,
           ValsemVariantAtenBernoulliFloatOp, ValsemVariantAtenBernoulliTensorOp,
           ValsemVariantAtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
-          AtenHardswishOp, AtenErfOp, AtenSiluOp, AtenHardtanhOp,
-          AtenMaskedSelectOp, AtenMaxPool2dOp, AtenAdaptiveAvgPool2dOp,
-          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
-          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
-          AtenResize_Op, AtenTransposeIntOp, AtenTOp, AtenPermuteOp,
-          AtenIndexSelectOp, AtenSelectIntOp, AtenSliceTensorOp, AtenGatherOp,
-          AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
-          AtenConstantPadNdOp, AtenIndexTensorOp,
-          ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
+          AtenHardswishOp, AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
+          AtenMaxPool2dOp, AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp,
+          AtenSqueezeOp, AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp,
+          Aten_UnsafeViewOp, AtenReshapeOp, AtenResize_Op, AtenTransposeIntOp,
+          AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
+          AtenSliceTensorOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
+          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp,
+          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
           ValsemVariantAtenCopyOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = operands[0]->getValue().dtype;
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
+  // Dtype is always float32, except for float64 and nullptr.
+  if (isa<AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
+          AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenRsqrtOp,
+          AtenErfOp>(op)) {
+    ValueKnowledge knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    Type dtype = operands[0]->getValue().dtype;
+    if (dtype) {
+      knowledge.dtype = Float32Type::get(op->getContext());
+      if (dtype.isa<Float64Type>())
+        knowledge.dtype = dtype;
+    }
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 

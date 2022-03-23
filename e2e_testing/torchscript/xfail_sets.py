@@ -34,6 +34,7 @@ TOSA_PASS_SET = {
     "ElementwiseUnaryModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseSigmoidModule_basic",
+    "ElementwiseExpModule_basic",
     "ElementwiseReluModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",

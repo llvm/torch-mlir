@@ -189,25 +189,60 @@ static Value buildUnitNormalCdf(OpBuilder &b, Location &loc, Value x) {
   return buildNormalCdf(b, loc, x, zero, one);
 }
 
+template <typename MathOpTy>
+static Value createCalculationForMathOpWithDtypeConversion(
+    OpBuilder &b, TypeConverter *converter, Value payloadArg, Operation *op) {
+  Type dtype = converter->convertType(op->getResult(0).getType())
+                   .template cast<RankedTensorType>()
+                   .getElementType();
+  Location loc = op->getLoc();
+  Value arg = convertScalarToDtype(b, loc, payloadArg, dtype);
+  return b.create<MathOpTy>(loc, arg);
+}
+
 static Value createLinalgPayloadCalculationForElementwiseOp(
     OpBuilder &b, Location loc, TypeConverter *converter,
     ValueRange payloadArgs, Operation *op, ArrayRef<Value> operands) {
-  if (isa<AtenTanhOp>(op))
-    return b.create<math::TanhOp>(loc, payloadArgs[0]);
-  if (isa<AtenExpOp>(op))
-    return b.create<math::ExpOp>(loc, payloadArgs[0]);
   if (isa<AtenFloorOp>(op))
     return b.create<math::FloorOp>(loc, payloadArgs[0]);
   if (isa<AtenCeilOp>(op))
     return b.create<math::CeilOp>(loc, payloadArgs[0]);
-  if (isa<AtenLogOp>(op))
-    return b.create<math::LogOp>(loc, payloadArgs[0]);
-  if (isa<AtenErfOp>(op))
-    return b.create<math::ErfOp>(loc, payloadArgs[0]);
-  if (isa<AtenSqrtOp>(op))
-    return b.create<math::SqrtOp>(loc, payloadArgs[0]);
-  if (isa<AtenRsqrtOp>(op))
-    return b.create<math::RsqrtOp>(loc, payloadArgs[0]);
+  if (isa<AtenTanhOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::TanhOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenExpOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::ExpOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenLogOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::LogOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenLog2Op>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::Log2Op>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenErfOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::ErfOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenSqrtOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::SqrtOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenRsqrtOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::RsqrtOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenSinOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::SinOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenCosOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<math::CosOp>(
+        b, converter, payloadArgs[0], op);
+  }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
     int64_t memoryFormat;
     if (!clone.memory_format().getType().isa<Torch::NoneType>() &&
@@ -235,14 +270,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::AndIOp>(loc, lhs, rhs);
   }
-  if (isa<AtenLog2Op>(op))
-    return b.create<math::Log2Op>(loc, payloadArgs[0]);
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsOp>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
-    Type elementType = payloadArgs[0].getType();
-    auto one = b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1));
-    auto negate = b.create<arith::NegFOp>(loc, payloadArgs[0]);
+    auto negate = createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
+        b, converter, payloadArgs[0], op);
+    auto one =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(negate.getType(), 1));
     auto exp = b.create<math::ExpOp>(loc, negate);
     auto added = b.create<arith::AddFOp>(loc, exp, one);
     return b.create<arith::DivFOp>(loc, one, added);
@@ -763,26 +797,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
-    if (!reciprocal.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
-      reciprocal.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-
-    Type elementType = payloadArgs[0].getType();
+    Type dtype = converter->convertType(reciprocal.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value arg = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Type elementType = arg.getType();
     // assert(element != 0)
     auto zero =
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0.0));
-    auto pred = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE,
-                                        payloadArgs[0], zero);
+    auto pred =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, arg, zero);
     b.create<cf::AssertOp>(
         loc, pred, b.getStringAttr("unimplemented: tensor with zero element"));
 
     auto one =
         b.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 1.0));
-    return b.create<arith::DivFOp>(loc, one, payloadArgs[0]);
+    return b.create<arith::DivFOp>(loc, one, arg);
   }
   if (auto thresholdOp = dyn_cast<AtenThresholdOp>(op)) {
     // The approach used here is as follows:
@@ -871,7 +901,7 @@ public:
              AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
              AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenCloneOp>(op))
+             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1545,7 +1575,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
       AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
       AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
-      AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp>();
+      AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
+      AtenSinOp, AtenCosOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);

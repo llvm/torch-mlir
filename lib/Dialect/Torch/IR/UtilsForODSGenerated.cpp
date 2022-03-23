@@ -62,19 +62,16 @@ ParseResult Torch::parseDefaultTorchOp(OpAsmParser &parser,
 
 void Torch::printDefaultTorchOp(OpAsmPrinter &p, Operation *op, int numOperands,
                                 int numResults) {
-  p << ' ';
-  llvm::interleaveComma(op->getOperands(), p);
-  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
-  p << " : ";
   if (numOperands > 0) {
     p << ' ';
+    llvm::interleaveComma(op->getOperands(), p);
+  }
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{});
+  p << " : ";
+  if (numOperands > 0)
     llvm::interleaveComma(op->getOperandTypes(), p);
-  }
-  if (numOperands > 0 && numResults > 0) {
+  if (numOperands > 0 && numResults > 0)
     p << " -> ";
-  }
-  if (numResults > 0) {
-    p << ' ';
+  if (numResults > 0)
     llvm::interleaveComma(op->getResultTypes(), p);
-  }
 }
