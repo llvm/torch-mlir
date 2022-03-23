@@ -58,6 +58,24 @@ Trace = List[TraceItem]
 # this type.
 CompiledArtifact = TypeVar('CompiledArtifact')
 
+# Clone all the tensor values.
+def clone_torch_script_value(v: TorchScriptValue):
+    if isinstance(v, torch.Tensor):
+        return v.clone()
+    if isinstance(v, tuple):
+        return tuple(clone_torch_script_value(field) for field in v)
+    if isinstance(v, list):
+        return [clone_torch_script_value(item) for item in v]
+    if isinstance(v, dict):
+        return {
+            clone_torch_script_value(key): clone_torch_script_value(val)
+            for key, val in v.items()
+        }
+    if isinstance(v, float) or isinstance(v, int) or isinstance(v, str):
+        return v
+    assert False, "unhandled cloning of TorchScriptValue value type"
+
+
 
 class TestConfig(abc.ABC):
     """The interface implemented by backends to run tests.
@@ -208,16 +226,20 @@ class _Tracer:
     The inputs and outputs of each call are recorded in a Trace. Recursive
     property accesses are also traced.
     """
+
     def __init__(self, wrapped, property_base_path: List[str], trace: Trace):
         self.__wrapped__ = wrapped
         self.__trace__ = trace
         self.__property_base_path__ = property_base_path
 
     def __call__(self, *args, **kwargs):
+        # Clone the inputs to capture the original tensors values. This is
+        # needed because inplace mutation might happen to the input tensors.
+        inputs = [clone_torch_script_value(arg) for arg in args]
         output = self.__wrapped__(*args, **kwargs)
         self.__trace__.append(
             TraceItem(symbol=".".join(self.__property_base_path__),
-                      inputs=args,
+                      inputs=inputs,
                       output=output))
         return output
 
