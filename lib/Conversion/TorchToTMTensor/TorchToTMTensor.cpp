@@ -433,7 +433,9 @@ public:
     target.addIllegalOp<ValsemVariantAtenIndexPutImplOp>();
     patterns.add<ConvertValsemVariantAtenIndexPutImplOp>(typeConverter,
                                                          context);
-
+    target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
+    patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
+                                                         context);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       return signalPassFailure();
