@@ -333,6 +333,24 @@ func @torch.aten._unsafe_view$static(%arg0: !torch.vtensor<[1,512,32],f32>) -> !
 }
 
 // -----
+// CHECK-LABEL:   func @torch.aten._reshape_alias$static
+// CHECK-SAME:      (%[[ARG0:.*]]: !torch.vtensor<[1],f32>)
+// CHECK:           %[[LIST1:.*]] = torch.prim.ListConstruct
+// CHECK:           %[[LIST2:.*]] = torch.prim.ListConstruct
+// CHECK-NOT:       torch.aten._reshape_alias
+// CHECK-NEXT:      %[[RES:.*]] = torch.aten.view %[[ARG0]], %[[LIST1]]
+// CHECK-NEXT:      return
+func @torch.aten._reshape_alias$static(%arg0: !torch.vtensor<[1],f32>) -> !torch.vtensor<[12,32],f32> {
+  %int1 = torch.constant.int 1
+  %int32 = torch.constant.int 32
+  %int12 = torch.constant.int 12
+  %0 = torch.prim.ListConstruct %int12, %int32 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int32, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten._reshape_alias %arg0, %0, %1 :  !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int> ->  !torch.vtensor<[12,32],f32>
+  return %2 : !torch.vtensor<[12,32],f32>
+}
+
+// -----
 // CHECK-LABEL:   func @torch.aten._unsafe_view$dynamic
 // CHECK-SAME:      (%[[ARG0:.*]]: !torch.vtensor<[?,?,?],f32>)
 // CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct

@@ -388,3 +388,44 @@ class ViewNoChangeStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ViewNoChangeStaticModule())
 def ViewNoChangeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6))
+
+# ==============================================================================
+
+class ReshapeAliasExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.reshape_alias = torch.ops.aten._reshape_alias
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._reshape_alias(a, size=(12, 32), stride=(32, 1))
+
+@register_test_case(module_factory=lambda: ReshapeAliasExpandModule())
+def ReshapeAliasExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(384))
+
+# ==============================================================================
+
+class ReshapeAliasCollapseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.ops.aten._reshape_alias(a, (8,), (1,))
+
+@register_test_case(module_factory=lambda: ReshapeAliasCollapseModule())
+def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4))
+

@@ -551,6 +551,9 @@ def aten〇view(self: List[int], size: List[int]) -> List[int]:
 def aten〇reshape(self: List[int], shape: List[int]) -> List[int]:
     return upstream_shape_helpers.view(self, shape)
 
+def aten〇_reshape_alias(self: List[int], size: List[int], stride: List[int]) -> List[int]:
+    return upstream_shape_helpers.view(self, size)
+
 def aten〇_unsafe_view(self: List[int], size: List[int]) -> List[int]:
     return size
 
