@@ -72,6 +72,18 @@ module {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func @"__torch_mlir_shape_fn.aten.exp"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func @"__torch_mlir_shape_fn.aten.sin"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func @"__torch_mlir_shape_fn.aten.cos"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func @"__torch_mlir_shape_fn.aten.hardtanh"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
@@ -1859,7 +1871,7 @@ module {
       }
       torch.prim.If.yield
     }
-    %2 = torch.operator "aten.sub.float"(%arg1, %arg0) : (!torch.float, !torch.float) -> !torch.float
+    %2 = torch.aten.sub.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.float
     %3 = torch.operator "aten.div.float"(%2, %arg2) : (!torch.float, !torch.float) -> !torch.float
     %4 = torch.operator "aten.ceil.float"(%3) : (!torch.float) -> !torch.int
     %5 = torch.prim.ListConstruct %4 : (!torch.int) -> !torch.list<int>
@@ -1891,7 +1903,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %2 = torch.operator "aten.sub.float"(%arg1, %arg0) : (!torch.float, !torch.float) -> !torch.float
+    %2 = torch.aten.sub.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.float
     %3 = torch.operator "aten.ceil.float"(%2) : (!torch.float) -> !torch.int
     %4 = torch.prim.ListConstruct %3 : (!torch.int) -> !torch.list<int>
     return %4 : !torch.list<int>

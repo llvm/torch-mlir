@@ -303,6 +303,15 @@ def aten〇hardswish(self: List[int]) -> List[int]:
 def aten〇silu(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇exp(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇sin(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇cos(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇hardtanh(self: List[int], min_val: float = -1, max_val: float = 1) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
