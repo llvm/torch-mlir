@@ -302,6 +302,103 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenMaxPool2dWithIndicesBackwardOp : public OpConversionPattern<AtenMaxPool2dWithIndicesBackwardOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenMaxPool2dWithIndicesBackwardOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Verify types
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    // For debugging
+    op->getParentOfType<ModuleOp>().dump();
+
+    Value grad_output = adaptor.grad_output();
+    Value input = adaptor.self();
+    MLIRContext *context = op->getContext();
+    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType gradType = grad_output.getType().cast<RankedTensorType>();
+    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+    Type inputEType = inputType.getElementType();
+
+    // Get values
+    SmallVector<Value> kernelSize;
+    if (!getListConstructElements(op.kernel_size(), kernelSize))
+      return rewriter.notifyMatchFailure(op, "kernel size not constructed from ListConstruct");
+    SmallVector<Value> stride;
+    if (!getListConstructElements(op.stride(), stride))
+      return rewriter.notifyMatchFailure(op, "stride not constructed from ListConstruct");
+    SmallVector<Value> padding;
+    if (!getListConstructElements(op.padding(), padding))
+      return rewriter.notifyMatchFailure(op, "padding not constructed from ListConstruct");
+    SmallVector<Value> dilation;
+    if (!getListConstructElements(op.dilation(), dilation))
+      return rewriter.notifyMatchFailure(op, "dilation not constructed from ListConstruct");
+
+    // The element type of the `self` and `values` should be same.
+    if (inputType.getElementType() != gradType.getElementType())
+      return rewriter.notifyMatchFailure(
+          op, "Input element type should be same as the grad_output element type.");
+
+    // Add asserts/compile-time checks for values
+    // TODO
+
+    // Create empty output tensor
+    // Value output = rewriter.create<linalg::InitTensorOp>(loc, selfShape, selfEType);
+
+    // Add in indices
+    Attribute attrs[2];
+    if (inputEType.isa<mlir::FloatType>()) {
+      attrs[0] = rewriter.getFloatAttr(inputEType, 0);
+      attrs[1] = rewriter.getFloatAttr(inputEType, 1);
+    } else if (inputEType.isa<mlir::IntegerType>()) {
+      attrs[0] = rewriter.getIntegerAttr(inputEType, 0);
+      attrs[1] = rewriter.getIntegerAttr(inputEType, 1);
+    } else {
+      return rewriter.notifyMatchFailure(op, "unsupported dtype");
+    }
+
+    Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
+    //Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
+    //rewriter.create<AtenZerosOp>(loc, inputType, numTensorElements, inputEType);
+
+    SmallVector<Value> indicesList;
+    getListConstructElements(adaptor.indices(), indicesList);
+
+    ValueTensorType indexType =
+        indicesList[0].getType().cast<ValueTensorType>();
+    SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
+    ValueTensorType expandedIndexType = ValueTensorType::get(
+        context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
+        loc, expandedIndexType, indicesList[0], torchCstOne);
+
+    // Converting the index element type to i32.
+    Value indices = convertTensorToDtype(
+        rewriter, loc, expandedIndexTensor,
+        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
+    indices = typeConverter->materializeTargetConversion(
+        rewriter, loc, typeConverter->convertType(indices.getType()), indices);
+
+    // Scatter
+    auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
+        loc, input.getType(), ValueRange{grad_output, indices}, ValueRange{output},
+        /*unique_indices=*/false);
+
+    // For debugging
+    op->getParentOfType<ModuleOp>().dump();
+
+    rewriter.replaceOp(op, scatterOp->getResult(0));
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------

@@ -551,6 +551,9 @@ def aten〇resize_(self: List[int], size: List[int], memory_format: Optional[int
 def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
+def aten〇max_pool2d_with_indices_backward(grad_output: List[int], self: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices: List[int]) -> List[int]:
+    return upstream_shape_helpers.max_pool2d_with_indices_backward(self, kernel_size, stride, padding, dilation, ceil_mode)
+
 def aten〇adaptive_avg_pool2d(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_helpers.adaptive_avg_pool2d(self, output_size)
 

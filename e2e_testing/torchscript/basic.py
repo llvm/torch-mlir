@@ -1664,3 +1664,24 @@ class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ToCopyWithDTypeFalsePinMemoryModule())
 def ToCopyWithDTypeFalsePinMemoryModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
+class MaxPool2dWithIndicesBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int, True),
+    ])
+    def forward(self, output, input, indices):
+      return torch.ops.aten.max_pool2d_with_indices_backward(output, input, [2, 2], [1, 1], [0, 0], [1, 1], False, indices)
+      #return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size=[2, 2], stride=[1, 1], padding=[0, 0],dilation=[1, 1], ceil_mode=False, indices)
+
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardModule())
+def MaxPool2dWithIndicesBackwardsModule_basic(module, tu: TestUtils):
+    indices = torch.tensor([[[ 1,  3],
+                             [13, 15]]])
+    module.forward(tu.rand(1, 2, 2), tu.rand(1, 4, 4), indices.type(torch.LongTensor))
