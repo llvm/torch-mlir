@@ -194,6 +194,9 @@ def get_func_op_with_name(module: ir.Module, name: str) -> Optional[FuncOp]:
         name_attr = ir.StringAttr.get(name)
     for op in module.body.operations:
         if isinstance(op, FuncOp) and op.name == name_attr:
+            # Add name of torch op as debug_module_name so that
+            # run_pipeline_with_repro_report can use it.
+            module.operation.attributes["torch.debug_module_name"] = name_attr
             return op
 
     return None
