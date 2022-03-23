@@ -1538,7 +1538,7 @@ public:
                 })
             .getResult(0);
 
-    rewriter.replaceOp(op, finalRes);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
     return success();
   }
 };
