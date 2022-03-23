@@ -12,9 +12,9 @@ from typing import Tuple, Optional, List, NamedTuple, Dict
 mb = ModuleBuilder()
 
 
-# CHECK-LABEL:   func @__torch__.dict_literal_empty() -> !torch.dict<!torch.str, !torch.tensor> {
-# CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct keys() values() -> !torch.dict<!torch.str, !torch.tensor>
-# CHECK:           return %[[DICT]] : !torch.dict<!torch.str, !torch.tensor>
+# CHECK-LABEL:   func @__torch__.dict_literal_empty() -> !torch.dict<str, tensor> {
+# CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct keys() values() -> !torch.dict<str, tensor>
+# CHECK:           return %[[DICT]] : !torch.dict<str, tensor>
 @mb.import_function
 @torch.jit.script
 def dict_literal_empty() -> Dict[str, torch.Tensor]:
@@ -24,12 +24,12 @@ def dict_literal_empty() -> Dict[str, torch.Tensor]:
 # CHECK-LABEL:   func @__torch__.dict_literal(
 # CHECK-SAME:        %[[K0:.*]]: !torch.str, %[[V0:.*]]: !torch.tensor,
 # CHECK-SAME:        %[[K1:.*]]: !torch.str, %[[V1:.*]]: !torch.tensor)
-# CHECK-SAME:        -> !torch.dict<!torch.str, !torch.optional<!torch.tensor>> {
+# CHECK-SAME:        -> !torch.dict<str, optional<tensor>> {
 # CHECK:           %[[DICT:.*]] = torch.prim.DictConstruct
 # CHECK-SAME:        keys(%[[K0]], %[[K1]] : !torch.str, !torch.str)
 # CHECK-SAME:        values(%[[V0]], %[[V1]] : !torch.tensor, !torch.tensor) ->
-# CHECK-SAME:        !torch.dict<!torch.str, !torch.optional<!torch.tensor>>
-# CHECK:           return %[[DICT]] : !torch.dict<!torch.str, !torch.optional<!torch.tensor>>
+# CHECK-SAME:        !torch.dict<str, optional<tensor>>
+# CHECK:           return %[[DICT]] : !torch.dict<str, optional<tensor>>
 # CHECK:         }
 @mb.import_function
 @torch.jit.script

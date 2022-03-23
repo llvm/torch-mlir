@@ -21,6 +21,13 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
 }
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
+EAGER_MODE_XFAIL_SET = REFBACKEND_XFAIL_SET.union({
+    # These fail because an upstream pytorch bug; more information at the following issue
+    # https://github.com/pytorch/pytorch/issues/74400
+    "ElementwiseMulScalarModule_basic",
+    "ElementwiseSubScalarIntModule_basic",
+})
+
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
@@ -31,6 +38,10 @@ TOSA_PASS_SET = {
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
+    "ElementwiseMinimumModule_basic",
+    "ElementwiseMinimumIntModule_basic",
+    "ElementwiseMaximumModule_basic",
+    "ElementwiseMaximumIntModule_basic",
     "TanhBackward_basic",
     "ElementwiseAddModule_basic",
     "ReturnThreeTensorFloat32_basic",
@@ -117,4 +128,19 @@ TOSA_PASS_SET = {
     "OnesModuleInt_basic",
     "OnesModuleFloat_basic",
     "OnesModuleFalsePinMemory_basic",
+    "NewZerosModuleDefaultDtype_basic",
+    "NewZerosModuleInt2D_basic",
+    "NewZerosModuleInt3D_basic",
+    "NewZerosModuleFloat2D_basic",
+    "NewZerosModuleFloat3D_basic",
+    "NewZerosModuleFalsePinMemory_basic",
+    "NewOnesModuleDefaultDtype_basic",
+    "NewOnesModuleInt2D_basic",
+    "NewOnesModuleInt3D_basic",
+    "NewOnesModuleFloat2D_basic",
+    "NewOnesModuleFloat3D_basic",
+    "NewOnesModuleFalsePinMemory_basic",
+    "SiluModule_basic",
+    "DropoutEvalIntModule_basic",
+    "DropoutEvalFloatModule_basic",
 }

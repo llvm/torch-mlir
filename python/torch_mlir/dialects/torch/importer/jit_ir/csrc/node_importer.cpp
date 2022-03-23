@@ -116,7 +116,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
   case c10::prim::TupleConstruct:
-  case c10::prim::DictConstruct: {
+  case c10::prim::DictConstruct:
+  case c10::prim::CreateObject: {
     createAndMapTrivialNode(
         node, "torch.prim." + std::string(kind.toUnqualString()), transformer);
     return;
@@ -177,7 +178,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
       torch::jit::Function *function = functionType->function();
       const std::string &symName = function->qualname().qualifiedName();
       op = createMlirOperation(
-          "std.constant", loc,
+          "func.constant", loc,
           getFunctionTypeFromSchema(context, function->getSchema()),
           toMlirNamedAttribute(
               "value",
@@ -279,7 +280,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
       return getMlirTypeFromTorchType(loc, v->type());
     });
     MlirOperation operation = createMlirOperationAtEnd(
-        appendToBlock, "std.call_indirect", loc,
+        appendToBlock, "func.call_indirect", loc,
         getMlirTypesFromValues(loc, node->outputs()),
         lookupMappedValue(node->input(0)),
         derefineValues(lookupMappedValues(node->inputs().slice(1)),

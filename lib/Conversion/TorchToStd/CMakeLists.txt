@@ -13,7 +13,7 @@ add_mlir_conversion_library(TorchMLIRTorchToStd
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRStandard
+  MLIRFunc
   TorchMLIRTorchDialect
 )
 

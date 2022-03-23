@@ -15,6 +15,7 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
 
@@ -63,6 +64,31 @@ Value mlir::torch::Torch::copyTensorToType(OpBuilder &builder, Location loc,
   return tensor;
 }
 
+bool mlir::torch::Torch::isListPotentiallyMutated(Value list) {
+  assert(list.getType().isa<Torch::ListType>());
+  return llvm::any_of(list.getUsers(), potentiallyMutatesListOperands);
+}
+
+bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
+  // TODO: Find a better place to put this assertion.
+  assert((!op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
+          op->hasTrait<OpTrait::ReadOnly>()) &&
+         "HasValueSemantics should imply ReadOnly!");
+  // ReadOnly ops trivially do not mutate any list operands.
+  if (op->hasTrait<Torch::OpTrait::ReadOnly>())
+    return false;
+
+  // Ops with no MemoryEffectOpInterface effects also do not mutate any list
+  // operands.
+  if (auto effects = dyn_cast<MemoryEffectOpInterface>(op)) {
+    if (effects.hasNoEffect())
+      return false;
+  }
+
+  // Conservatively assume that an op might mutate any list operands.
+  return true;
+}
+
 static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
   return IntegerAttr::get(IntegerType::get(context, 64), value);
 }
@@ -99,59 +125,11 @@ LogicalResult MethodOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 // NnModuleOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(NnModuleOp op) {
-  for (Operation &child : *op.getBody())
+LogicalResult NnModuleOp::verify() {
+  for (Operation &child : *getBody())
     if (!isa<SlotOp, NnModuleTerminatorOp>(&child))
       return child.emitOpError() << "is not allowed inside 'torch.nn_module'";
   return success();
-}
-
-// PyTorch has a well-developed notion of subtyping.
-//
-// This is a restricted subset of it.
-//
-// TODO: Flesh this out.
-// TODO: Decide / properly model the distinction between PEP 483 / Python
-// subtyping vs "more static information".
-bool isValidSubtype(Type subtype, Type type) {
-  if (subtype == type)
-    return true;
-
-  if (auto any = type.dyn_cast<AnyType>())
-    return true;
-
-  if (auto number = type.dyn_cast<NumberType>())
-    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
-
-  if (auto optional = type.dyn_cast<OptionalType>())
-    return isValidSubtype(subtype, optional.getContainedType()) ||
-           subtype.isa<Torch::NoneType>();
-
-  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
-    if (!subtype.isa<Torch::TupleType>())
-      return false;
-    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
-    auto types = tuple.getContainedTypes();
-    if (subtypes.size() != types.size())
-      return false;
-    for (auto t : llvm::zip(subtypes, types)) {
-      if (!isValidSubtype(std::get<0>(t), std::get<1>(t)))
-        return false;
-    }
-    return true;
-  }
-
-  // TODO: This is not subtyping according to PEP 483. See description
-  // of NonValueTensorType.
-  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
-      type ==
-          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
-    return true;
-
-  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
-      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
-    return true;
-  return false;
 }
 
 LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
@@ -187,15 +165,15 @@ LogicalResult NnModuleOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 // PrimListConstructOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(PrimListConstructOp op) {
-  auto resultType = op.getResult().getType();
+LogicalResult PrimListConstructOp::verify() {
+  auto resultType = getResult().getType();
   auto resultElementType = resultType.dyn_cast<ListType>().getContainedType();
   auto matchResultElementType = [&](Type type) {
     return isValidSubtype(type, resultElementType);
   };
-  if (!llvm::all_of(op->getOperandTypes(), matchResultElementType)) {
-    return op.emitError() << "operand types should have the same type as the "
-                             "list contained type";
+  if (!llvm::all_of(getOperandTypes(), matchResultElementType)) {
+    return emitError() << "operand types should have the same type as the "
+                          "list contained type";
   }
 
   return success();
@@ -205,18 +183,16 @@ static LogicalResult verify(PrimListConstructOp op) {
 // PrimDictConstructOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(PrimDictConstructOp op) {
+LogicalResult PrimDictConstructOp::verify() {
   auto isValidSubTypeOf = [](Type expectedType) {
     return [=](Type type) { return isValidSubtype(type, expectedType); };
   };
 
-  Type keyType = op.getKeyType();
-  if (!llvm::all_of(op.keys().getTypes(), isValidSubTypeOf(keyType)))
-    return op.emitError() << "keys should be of Dict key type";
+  if (!llvm::all_of(keys().getTypes(), isValidSubTypeOf(getKeyType())))
+    return emitError() << "keys should be of Dict key type";
 
-  Type valueType = op.getValueType();
-  if (!llvm::all_of(op.values().getTypes(), isValidSubTypeOf(valueType)))
-    return op.emitError() << "values  should be of Dict value type";
+  if (!llvm::all_of(values().getTypes(), isValidSubTypeOf(getValueType())))
+    return emitError() << "values  should be of Dict value type";
 
   return success();
 }
@@ -225,9 +201,9 @@ static LogicalResult verify(PrimDictConstructOp op) {
 // ClassTypeOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(ClassTypeOp op) {
+LogicalResult ClassTypeOp::verify() {
   llvm::StringMap<Operation *> namesToOps;
-  for (Operation &child : op.getBody()->without_terminator()) {
+  for (Operation &child : getBody()->without_terminator()) {
     if (!isa<AttrOp, MethodOp>(&child))
       return child.emitOpError() << "is not allowed inside `torch.class_type`";
     StringRef name;
@@ -239,8 +215,8 @@ static LogicalResult verify(ClassTypeOp op) {
     auto it = itAndWasInserted.first;
     bool wasInserted = itAndWasInserted.second;
     if (!wasInserted) {
-      auto diag = op.emitOpError().append(
-          "has duplicate attr/method with name '", name, "'");
+      auto diag = emitOpError().append("has duplicate attr/method with name '",
+                                       name, "'");
       diag.attachNote(it->second->getLoc())
           .append("see first conflicting attr/method here");
       diag.attachNote(child.getLoc())
@@ -273,6 +249,11 @@ void PrimLoopOp::getSuccessorRegions(
   assert(*index == 0);
   regions.emplace_back(&region(), region().getArguments().slice(1));
   regions.emplace_back(getResults());
+}
+
+bool PrimLoopOp::isForLike() {
+  bool b;
+  return matchPattern(initialCondition(), m_TorchConstantBool(&b)) && b;
 }
 
 //===----------------------------------------------------------------------===//
@@ -377,6 +358,80 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         rewriter, op, constantBool.value() ? op.thenRegion() : op.elseRegion());
     return success();
   });
+  // If the thenRegion and elseRegion yield the same Value's, then use those
+  // directly.
+  patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
+    auto trueTerminator = op.thenRegion().front().getTerminator();
+    auto falseTerminator = op.elseRegion().front().getTerminator();
+    bool madeChange = false;
+    SmallVector<int> resultsToErase;
+    for (auto t : llvm::zip(trueTerminator->getOperands(),
+                            falseTerminator->getOperands(), op->getResults())) {
+      auto trueVal = std::get<0>(t);
+      auto falseVal = std::get<1>(t);
+      auto resultToBeReplaced = std::get<2>(t);
+      if (trueVal == falseVal) {
+        madeChange |= !resultToBeReplaced.use_empty();
+        resultToBeReplaced.replaceAllUsesWith(trueVal);
+      }
+    }
+    // We leave it up to a separate pattern (not yet implemented) to erase the
+    // results that are now dead. That transformation is independently useful,
+    // and also pretty tricky to implement because it changes the number of
+    // results.
+    return success(madeChange);
+  });
+  // Erase any dead results.
+  patterns.add(+[](PrimIfOp op, PatternRewriter &rewriter) {
+    llvm::BitVector resultsToErase(op.getNumResults());
+    for (auto result : llvm::enumerate(op->getResults())) {
+      if (result.value().use_empty())
+        resultsToErase.set(result.index());
+    }
+
+    // If no results have uses and there are no side effects, just erase the op.
+    // Approximate the body having no side effects by checking if it is just a
+    // terminator.
+    // Note: We don't want to make this logic too fancy, because in general,
+    // checking for recursive side effects can result in a quadratic amount of
+    // work (N nested If's each resulting in O(N) work). It should probably be
+    // split into its own pattern if we want to make it fancier.
+    if (resultsToErase.all() &&
+        llvm::hasSingleElement(op.thenRegion().front()) &&
+        llvm::hasSingleElement(op.elseRegion().front())) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    // If there are no results to erase, we're done.
+    if (!resultsToErase.any())
+      return failure();
+
+    SmallVector<Type> newResultTypes;
+    for (int i = 0, e = op->getNumResults(); i < e; ++i) {
+      if (resultsToErase[i])
+        continue;
+      newResultTypes.push_back(op->getResult(i).getType());
+    }
+    auto newIf =
+        rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes, op.condition());
+    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
+                                newIf.thenRegion().end());
+    rewriter.inlineRegionBefore(op.elseRegion(), newIf.elseRegion(),
+                                newIf.elseRegion().end());
+    newIf.thenRegion().front().getTerminator()->eraseOperands(resultsToErase);
+    newIf.elseRegion().front().getTerminator()->eraseOperands(resultsToErase);
+    SmallVector<Value> replacementValues;
+    for (int i = 0, e = op->getNumResults(), nextNewValue = 0; i < e; ++i) {
+      if (resultsToErase[i])
+        replacementValues.push_back(nullptr);
+      else
+        replacementValues.push_back(newIf->getResult(nextNewValue++));
+    }
+    rewriter.replaceOp(op, replacementValues);
+
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -388,32 +443,90 @@ bool DerefineOp::areCastCompatible(mlir::TypeRange inputs,
   return isValidSubtype(inputs[0], outputs[0]);
 }
 
-template <typename OpTy>
-static OpFoldResult atenIsOrIsNotFoldHelper(OpTy op, bool equalIsTrue) {
-  Value lhs = op.self();
-  Value rhs = op.obj();
+OpFoldResult DerefineOp::fold(ArrayRef<Attribute> operands) {
+  auto uncheckedCast = getOperand().getDefiningOp<PrimUncheckedCastOp>();
+  if (!uncheckedCast)
+    return nullptr;
+  if (uncheckedCast.getOperand().getType() == getType())
+    return uncheckedCast.getOperand();
+  return nullptr;
+}
 
-  // If either value is typed NoneType, make it be the lhs.
-  if (rhs.getType().template isa<Torch::NoneType>())
-    std::swap(lhs, rhs);
-
-  if (rhs.getType().template isa<Torch::OptionalType>())
-    if (auto derefine = rhs.getDefiningOp<Torch::DerefineOp>())
-      rhs = derefine.operand();
-
+static OpFoldResult atenIsOrIsNotFoldHelper(Operation *op, bool equalIsTrue) {
+  Value lhs = op->getOperand(0);
+  Value rhs = op->getOperand(1);
+  // Look through DerefineOp's to get more refined static information.
+  if (auto derefine = lhs.getDefiningOp<DerefineOp>())
+    lhs = derefine.getOperand();
+  if (auto derefine = rhs.getDefiningOp<DerefineOp>())
+    rhs = derefine.getOperand();
   Type lhsType = lhs.getType();
   Type rhsType = rhs.getType();
-  // TODO: Implement and use subtype infra for this.
-  // If neither type is a subtype of the other, then the result is false.
-  if (lhsType.template isa<Torch::NoneType>() &&
-      rhsType.template isa<Torch::NoneType>())
-    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), equalIsTrue);
 
-  if (lhsType.template isa<Torch::NoneType>() &&
-      !rhsType.template isa<Torch::OptionalType>())
-    return IntegerAttr::get(IntegerType::get(op.getContext(), 1), !equalIsTrue);
+  // If either type is a NoneType, make it be the lhsType.
+  if (rhsType.isa<Torch::NoneType>()) {
+    std::swap(lhsType, rhsType);
+    std::swap(lhs, rhs);
+  }
+
+  // For now, check a few specific cases.
+
+  // If both types are the singleton `!torch.none` type, then we don't even need
+  // to look at the values.
+  if (lhsType.isa<Torch::NoneType>() && rhsType.isa<Torch::NoneType>())
+    return IntegerAttr::get(IntegerType::get(op->getContext(), 1), equalIsTrue);
+
+  // If neither type is a subtype of the other, then the result is false.
+  // TODO: Implement and use subtype infra for this.
+  // For now, check a specific case.
+  // If the rhs is not OptionalType, then we know it cannot be None.
+  if (lhsType.isa<Torch::NoneType>() && !rhsType.isa<Torch::OptionalType>()) {
+    return IntegerAttr::get(IntegerType::get(op->getContext(), 1),
+                            !equalIsTrue);
+  }
 
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__RangeLengthOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__RangeLengthOp::fold(ArrayRef<Attribute> operands) {
+  auto lo = operands[0];
+  auto hi = operands[1];
+  auto step = operands[2];
+  if (!lo || !hi || !step)
+    return nullptr;
+  auto loInt = lo.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto hiInt = hi.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto stepInt = step.dyn_cast_or_null<IntegerAttr>().getValue();
+  // TODO: Implement folding for negative steps.
+  if (stepInt.isNegative())
+    return nullptr;
+  // From Python language spec:
+  // r[i] = lo + step*i such that i >= 0 and r[i] < hi
+  // So maximize `i` such that lo + step * i < hi
+  // ==> i == ceildiv(hi - lo, step)
+  return IntegerAttr::get(lo.getType(),
+                          llvm::APIntOps::RoundingSDiv(hiInt - loInt, stepInt,
+                                                       APInt::Rounding::UP));
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__DeriveIndexOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__DeriveIndexOp::fold(ArrayRef<Attribute> operands) {
+  auto index = operands[0];
+  auto start = operands[1];
+  auto step = operands[2];
+  if (!index || !start || !step)
+    return nullptr;
+  auto indexInt = index.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto startInt = start.dyn_cast_or_null<IntegerAttr>().getValue();
+  auto stepInt = step.dyn_cast_or_null<IntegerAttr>().getValue();
+  return IntegerAttr::get(index.getType(), startInt + stepInt * indexInt);
 }
 
 //===----------------------------------------------------------------------===//
@@ -500,11 +613,15 @@ OpFoldResult AtenToDtypeOp::fold(ArrayRef<Attribute> operands) {
   if (!memory_format().getType().isa<Torch::NoneType>())
     return nullptr;
 
-  auto inputType = getOperand(0).getType().dyn_cast<BaseTensorType>();
-  if (!inputType || !inputType.hasSizes())
+  auto inputType = self().getType().cast<BaseTensorType>();
+  auto resType = getType().cast<BaseTensorType>();
+  // If the types aren't equal, then we can't fold.
+  if (inputType != resType)
     return nullptr;
-  auto resType = getType().dyn_cast<BaseTensorType>();
-  if (!resType || !resType.hasSizes() || inputType != resType)
+  // If the type does not have a statically known dtype, then we cannot fold.
+  // For example, folding `tensor<*,unk>` to `tensor<*,unk>` would be wrong,
+  // since the `unk` could be dynamically different for the operand and result.
+  if (!inputType.hasDtype())
     return nullptr;
   // Fold when both the input tensor and result are of the same type.
   return getOperand(0);
@@ -543,11 +660,13 @@ OpFoldResult AtenDimOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenLenTOp::fold(ArrayRef<Attribute> operands) {
-  // `len([1,1,1])` -> `3`
+  // `len([1,1,1])` -> `3`, if it is not mutated.
   if (auto listConstruct =
           getOperand().getDefiningOp<Torch::PrimListConstructOp>()) {
-    return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                            listConstruct.getNumOperands());
+    if (!isListPotentiallyMutated(listConstruct)) {
+      return IntegerAttr::get(IntegerType::get(getContext(), 64),
+                              listConstruct.getNumOperands());
+    }
   }
   return nullptr;
 }
@@ -675,15 +794,46 @@ using ConstantIntComparator = std::function<bool(int64_t, int64_t)>;
 template <typename OpTy>
 static OpFoldResult intComparatorFoldHelper(OpTy op,
                                             ConstantIntComparator comparator) {
-  if (op.getOperand(0) == op.getOperand(1))
+
+  Value lhsValue = op->getOperand(0);
+  Value rhsValue = op->getOperand(1);
+  if (lhsValue == rhsValue)
     return getI1IntegerAttr(op.getContext(), comparator(0, 0));
 
   int64_t lhs, rhs;
-  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
-      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
-    return nullptr;
+  bool lhsIsConstant = matchPattern(lhsValue, m_TorchConstantInt(&lhs));
+  bool rhsIsConstant = matchPattern(rhsValue, m_TorchConstantInt(&rhs));
+  if (lhsIsConstant && rhsIsConstant)
+    return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
 
-  return getI1IntegerAttr(op.getContext(), comparator(lhs, rhs));
+  // Ensure that if there is a constant, it is on the right.
+  if (lhsIsConstant && !rhsIsConstant) {
+    std::swap(lhs, rhs);
+    std::swap(lhsValue, rhsValue);
+    std::swap(lhsIsConstant, rhsIsConstant);
+    auto newComparator = [comparator](int64_t lhs, int64_t rhs) {
+      return comparator(rhs, lhs);
+    };
+    comparator = newComparator;
+  }
+  // Fold comparisons of negative values with the result of AtenSizeIntOp, which
+  // is known to always be non-negative.
+  if (rhsIsConstant && rhs < 0) {
+    // We can return `comparator(0, -1)` here because of the property:
+    // If x >= 0 && y < 0, then:
+    // - cmp(x, y) == cmp(x + 1, y)
+    // - cmp(x, y) == cmp(x, y - 1)
+    // By induction all cases here are covered.
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
+      return getI1IntegerAttr(op->getContext(), comparator(0, -1));
+  }
+  // A special case of importance: size.int >= 0 ==> True.
+  if (rhsIsConstant && rhs == 0 && isa<AtenGeIntOp>(op)) {
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
+      return getI1IntegerAttr(op->getContext(), true);
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -754,6 +904,23 @@ OpFoldResult AtenGtIntOp::fold(ArrayRef<Attribute> operands) {
 OpFoldResult AtenGeIntOp::fold(ArrayRef<Attribute> operands) {
   return intComparatorFoldHelper(*this,
                                  [](int64_t a, int64_t b) { return a >= b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenFloatScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFloatScalarOp::fold(ArrayRef<Attribute> operands) {
+  // Constant fold int -> float conversion.
+  if (auto integerAttr = operands[0].dyn_cast_or_null<IntegerAttr>()) {
+    return FloatAttr::get(
+        mlir::Float64Type::get(getContext()),
+        static_cast<double>(integerAttr.getValue().getSExtValue()));
+  }
+  // If the input is float type already, the op is an identity.
+  if (getType() == getOperand().getType())
+    return getOperand();
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -839,19 +1006,37 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
     rewriter.replaceOp(op, reverseCast.operand());
     return success();
   });
+  patterns.add(+[](TensorStaticInfoCastOp op, PatternRewriter &rewriter) {
+    if (isValidSubtype(op.getOperand().getType(), op.getType())) {
+      SmallVector<std::reference_wrapper<OpOperand>> usesToChange(
+          llvm::make_filter_range(op->getUses(), [](OpOperand &operand) {
+            return operand.getOwner()
+                ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
+          }));
+
+      if (usesToChange.empty())
+        return failure();
+
+      for (OpOperand &use : usesToChange) {
+        Operation *user = use.getOwner();
+        user->setOperand(use.getOperandNumber(), op.operand());
+      }
+
+      return success();
+    }
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
 // CopyToNonValueTensorOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CopyToNonValueTensorOp op) {
-  auto resultType = op.getResult().getType().cast<BaseTensorType>();
-  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
-  if (!resultType.hasSameSizesAndDtype(operandType)) {
-    return op.emitError()
-           << "operand and result must have same sizes and dtype";
-  }
+LogicalResult CopyToNonValueTensorOp::verify() {
+  auto resultType = getResult().getType().cast<BaseTensorType>();
+  auto operandType = getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType))
+    return emitError() << "operand and result must have same sizes and dtype";
   return success();
 }
 
@@ -874,13 +1059,11 @@ void CopyToNonValueTensorOp::getEffects(
 // CopyToValueTensorOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verify(CopyToValueTensorOp op) {
-  auto resultType = op.getResult().getType().cast<BaseTensorType>();
-  auto operandType = op.getOperand().getType().cast<BaseTensorType>();
-  if (!resultType.hasSameSizesAndDtype(operandType)) {
-    return op.emitError()
-           << "operand and result must have same sizes and dtype";
-  }
+LogicalResult CopyToValueTensorOp::verify() {
+  auto resultType = getResult().getType().cast<BaseTensorType>();
+  auto operandType = getOperand().getType().cast<BaseTensorType>();
+  if (!resultType.hasSameSizesAndDtype(operandType))
+    return emitError() << "operand and result must have same sizes and dtype";
   return success();
 }
 
@@ -1036,24 +1219,70 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
     auto torchList = op.getOperand(0);
-    // TODO: Use a proper effects interface when more operands taking a list
-    // are implemented.
-    if (!llvm::all_of(torchList.getUsers(), [](Operation *op) {
-          return isa<Aten__Getitem__TOp, AtenLenTOp>(op);
-        }))
+    if (isListPotentiallyMutated(torchList))
       return failure();
 
     auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();
     if (!listConstruct)
       return failure();
 
+    // Get the index, but be careful because it might be statically invalid.
     int64_t index;
     if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&index)))
       return failure();
+    int64_t positiveDim = toPositiveDim(index, listConstruct.getNumOperands());
+    if (!isValidDim(positiveDim, listConstruct.getNumOperands()))
+      return rewriter.notifyMatchFailure(op, "statically invalid index");
 
-    rewriter.replaceOp(op, {listConstruct.getOperand(index)});
+    rewriter.replaceOp(op, {listConstruct.getOperand(positiveDim)});
     return success();
   });
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto sizeOp = op.list().getDefiningOp<AtenSizeOp>();
+    if (!sizeOp)
+      return failure();
+    // This assumes tht the size doesn't change between the
+    // AtenSizeOp and the Aten__Getitem__TOp.
+    // `t_` is the only op I can find that changes the shape in-place. It seems
+    // like otherwise we can treat the size of a tensor as having value
+    // semantics. The other view-like ops don't have in-place variants --
+    // they always return a new SSA value that is aliased to the input.
+    // Can we have a pass to normalize the `t_` case and then elsewhere in the
+    // compiler treat the size as having value semantics?
+    // There's a small number of such ops, and they are marked as `inplace_view`
+    // in PyTorch's `native_functions.yaml` file.
+    rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.self(), op.idx());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenEqIntListOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqIntListOp::fold(ArrayRef<Attribute> operands) {
+  auto lhsLiteral = a().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!lhsLiteral)
+    return nullptr;
+  auto rhsLiteral = b().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!rhsLiteral)
+    return nullptr;
+
+  // If the sizes don't match, then we know the lists aren't equal.
+  if (lhsLiteral.getNumOperands() != rhsLiteral.getNumOperands())
+    return getI1IntegerAttr(getContext(), false);
+
+  // If the sizes match and all corresponding list elements are the same Value,
+  // then we know the lists are equal.
+  // Note that we can't prove that the lists are not-equal with this method,
+  // since two different Value's might dynamically be equal.
+  if (llvm::all_of(
+          llvm::zip(lhsLiteral.getOperands(), rhsLiteral.getOperands()),
+          [](const auto &pair) {
+            return std::get<0>(pair) == std::get<1>(pair);
+          }))
+    return getI1IntegerAttr(getContext(), true);
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1075,6 +1304,20 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return failure();
 
     rewriter.replaceOp(op, tupleConstruct.elements()[i]);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// PrimUninitializedOp
+//===----------------------------------------------------------------------===//
+
+void PrimUninitializedOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](PrimUninitializedOp op, PatternRewriter &rewriter) {
+    if (!op.use_empty())
+      return failure();
+    rewriter.eraseOp(op);
     return success();
   });
 }
@@ -1254,5 +1497,87 @@ OpFoldResult AtenFloatTensorOp::fold(ArrayRef<Attribute> operands) {
 
 //===----------------------------------------------------------------------===//
 
-#define GET_OP_CLASSES
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
+//===----------------------------------------------------------------------===//
+// PrimMaxIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimMaxIntOp::fold(ArrayRef<Attribute> operands) {
+  // If both operands are the same, then the operation is an identity.
+  if (a() == b())
+    return a();
+
+  auto lhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto rhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (!lhs || !rhs)
+    return nullptr;
+  // Torch semantics are that !torch.int is 64-bit signed.
+  return IntegerAttr::get(
+      lhs.getType(),
+      std::max(lhs.getValue().getSExtValue(), rhs.getValue().getSExtValue()));
+}
+
+//===----------------------------------------------------------------------===//
+// PrimMinSelfIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
+  auto list = getOperand().getDefiningOp<PrimListConstructOp>();
+  if (!list)
+    return nullptr;
+  // TODO: What does it return for an empty list?
+  if (list->getNumOperands() == 0)
+    return nullptr;
+
+  SmallVector<int64_t> values;
+  for (auto operand : list->getOperands()) {
+    int64_t value;
+    if (!matchPattern(operand, m_TorchConstantInt(&value)))
+      return nullptr;
+    values.push_back(value);
+  }
+  return getI64IntegerAttr(getContext(),
+                           *std::min_element(values.begin(), values.end()));
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeCalculateOp
+//===----------------------------------------------------------------------===//
+
+void ShapeCalculateOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  (void)operands;
+
+  if (!index.hasValue()) {
+    // First thing the op does is branch into the shape calculation.
+    regions.emplace_back(&shapeCalculation());
+    return;
+  }
+  if (*index == 0) {
+    // Body returns control to the outer op, passing through results.
+    regions.emplace_back(getResults());
+    return;
+  }
+  assert(*index == 1);
+  // Shape calculation branches to the body.
+  regions.emplace_back(&body());
+}
+
+//===----------------------------------------------------------------------===//
+// ShapeCalculateYieldShapesOp
+//===----------------------------------------------------------------------===//
+
+MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
+    Optional<unsigned> index) {
+  // The shape operands don't get forwarded to the body.
+  // MutableOperandRange always has an owning operation, even if empty, so
+  // create a 0-length range.
+  return MutableOperandRange(*this, /*start=*/0, /*length=*/0);
+}
+
+LogicalResult ShapeCalculateYieldShapesOp::verify() {
+  auto parent = cast<ShapeCalculateOp>(getOperation()->getParentOp());
+  if (parent.getNumResults() != getNumOperands())
+    return emitOpError("expected number of shapes to match number of results");
+  return success();
+}

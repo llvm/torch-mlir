@@ -80,6 +80,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
+  add_subdirectory(external/llvm-external-projects/torch-mlir-dialects)
 else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
   # FIXME: This should really be inherited from the LLVM tree.  In particular,

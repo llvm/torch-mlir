@@ -147,14 +147,23 @@ public:
     Location loc = op->getLoc();
     Operation *newOp;
     if (isa<AtenUniform_Op>(op)) {
-      newOp = rewriter.create<PseudoAtenUniformOp>(loc, op->getResultTypes(),
-                                                   op->getOperands());
+      newOp = rewriter.create<ValsemVariantAtenUniformOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenBernoulli_FloatOp>(op)) {
-      newOp = rewriter.create<PseudoAtenBernoulliFloatOp>(
+      newOp = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
+          loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<AtenBernoulli_TensorOp>(op)) {
+      newOp = rewriter.create<ValsemVariantAtenBernoulliTensorOp>(
           loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenFill_ScalarOp>(op)) {
-      newOp = rewriter.create<PseudoAtenFillScalarOp>(loc, op->getResultTypes(),
-                                                      op->getOperands());
+      newOp = rewriter.create<ValsemVariantAtenFillScalarOp>(
+          loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<Aten_IndexPutImpl_Op>(op)) {
+      newOp = rewriter.create<ValsemVariantAtenIndexPutImplOp>(
+          loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<AtenCopy_Op>(op)) {
+      newOp = rewriter.create<ValsemVariantAtenCopyOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else {
       return failure();
     }
@@ -232,7 +241,10 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenUniform_Op>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
+    target.addIllegalOp<AtenBernoulli_TensorOp>();
     target.addIllegalOp<AtenFill_ScalarOp>();
+    target.addIllegalOp<Aten_IndexPutImpl_Op>();
+    target.addIllegalOp<AtenCopy_Op>();
     target.markUnknownOpDynamicallyLegal([](Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>()) {
         auto hasValueSemantics = [](Type t) {

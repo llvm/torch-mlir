@@ -939,7 +939,27 @@ def TensorFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class DropoutModule(torch.nn.Module):
+class DropoutEvalIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+
+    def forward(self, x):
+        return torch.dropout(x, 0.2, train=False)
+
+
+@register_test_case(module_factory=lambda: DropoutEvalIntModule())
+def DropoutEvalIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(5, 10, (3, 4)))
+
+# ==============================================================================
+
+class DropoutEvalFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -950,12 +970,33 @@ class DropoutModule(torch.nn.Module):
     ])
 
     def forward(self, x):
-        return torch.dropout(x, 0.0, False)
+        return torch.dropout(x, 0.1, train=False)
 
 
-@register_test_case(module_factory=lambda: DropoutModule())
-def DropoutModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: DropoutEvalFloatModule())
+def DropoutEvalFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+class DropoutTrainModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, x):
+        res = torch.dropout(x, 0.3, train=True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: DropoutTrainModule())
+def DropoutTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256, 256))
 
 # ==============================================================================
 
@@ -1345,3 +1386,281 @@ class HardswishRandomModule(torch.nn.Module):
 def HardswishRandomModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(128, 128, low=-10, high=10))
 
+# ==============================================================================
+
+class SiluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.silu(x)
+
+
+@register_test_case(module_factory=lambda: SiluModule())
+def SiluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(128, 128, low=-10, high=10))
+
+# ==============================================================================
+
+class HardTanhModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardtanh(x, min_val=-2, max_val=2)
+
+
+@register_test_case(module_factory=lambda: HardTanhModule())
+def HardTanhModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100, 100, low=-5, high=5))
+
+# ==============================================================================
+
+class HardTanhIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.hardtanh(x, min_val=-2, max_val=2)
+
+
+@register_test_case(module_factory=lambda: HardTanhIntModule())
+def HardTanhIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-5, 5, (100, 100)))
+
+
+class BincountModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x)
+
+@register_test_case(module_factory=lambda: BincountModule())
+def BincountModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (1000,)))
+
+
+class BincountStaticSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([200], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x)
+
+@register_test_case(module_factory=lambda: BincountStaticSizeModule())
+def BincountStaticSizeModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (200,)))
+
+
+class BincountMinlengthModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.bincount(x, minlength=600)
+
+@register_test_case(module_factory=lambda: BincountMinlengthModule())
+def BincountMinlengthModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(5, (20,)))
+
+# ==============================================================================
+
+class ExpandAsFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 1, 1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.expand_as(x, y)
+
+
+@register_test_case(module_factory=lambda: ExpandAsFloatModule())
+def ExpandAsFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1), tu.rand(3, 4, 5))
+
+
+class ExpandAsIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 1], torch.int64, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.expand_as(x, y)
+
+
+@register_test_case(module_factory=lambda: ExpandAsIntModule())
+def ExpandAsIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (1, 1, 1)), torch.randint(200, (4, 5, 6)))
+
+# ==============================================================================
+
+class CopyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyModule())
+def CopyModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+class CopyWithDifferentSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 4], torch.float32, True),
+        ([-1, -1, 1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentSizesModule())
+def CopyWithDifferentSizesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 1))
+
+
+class CopyWithDifferentDTypesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentDTypesModule())
+def CopyWithDifferentDTypesModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 2, 4)), tu.rand(3, 2, 4))
+
+
+class CopyWithDifferentDTypesAndSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 4], torch.float32, True),
+        ([-1, -1, 1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.copy_(x, y)
+
+
+@register_test_case(module_factory=lambda: CopyWithDifferentDTypesAndSizesModule())
+def CopyWithDifferentDTypesAndSizesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), torch.randint(1000, (3, 2, 1)))
+
+# ==============================================================================
+
+class ToCopyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x)
+
+
+@register_test_case(module_factory=lambda: ToCopyModule())
+def ToCopyModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
+class ToCopyWithDTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x, dtype=torch.int64)
+
+
+@register_test_case(module_factory=lambda: ToCopyWithDTypeModule())
+def ToCopyWithDTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
+class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten._to_copy(x, dtype=torch.int64, pin_memory=False)
+
+
+@register_test_case(module_factory=lambda: ToCopyWithDTypeFalsePinMemoryModule())
+def ToCopyWithDTypeFalsePinMemoryModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))

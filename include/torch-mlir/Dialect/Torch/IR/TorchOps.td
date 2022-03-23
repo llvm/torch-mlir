@@ -22,9 +22,7 @@ class Torch_Op<string mnemonic, list<Trait> traits = []>
     : Op<Torch_Dialect, mnemonic, traits> {
 }
 
-include "torch-mlir/Dialect/Torch/IR/GeneratedAtenOps.td"
-include "torch-mlir/Dialect/Torch/IR/GeneratedPrimOps.td"
-include "torch-mlir/Dialect/Torch/IR/GeneratedQuantizedOps.td"
+include "torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td"
 
 //===----------------------------------------------------------------------===//
 // TorchScript `torch.nn.Module` object instantiation ops.
@@ -62,7 +60,7 @@ def Torch_NnModuleOp : Torch_Op<"nn_module", [
   let arguments = (ins);
   let results = (outs Torch_NnModuleType:$result);
   let regions = (region SizedRegion<1>:$region);
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = "$region attr-dict `:` qualified(type($result))";
 
@@ -146,7 +144,7 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
   let arguments = (ins SymbolNameAttr:$sym_name);
   let results = (outs);
   let regions = (region SizedRegion<1>:$region);
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = "$sym_name $region attr-dict";
 }
@@ -360,7 +358,7 @@ def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
     AnyTorchListType:$result
   );
 
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $elements attr-dict `:` functional-type(operands, results)
@@ -382,7 +380,7 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
     Torch_DictType:$result
   );
 
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 
   let assemblyFormat = [{
     `keys` `(` ($keys^ `:` qualified(type($keys)))? `)` `values` `(` ($values^ `:` qualified(type($values)))? `)` attr-dict `->` qualified(type($result))
@@ -391,6 +389,23 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
   let extraClassDeclaration = [{
     Type getKeyType() { return getType().cast<DictType>().getKeyType(); }
     Type getValueType() { return getType().cast<DictType>().getValueType(); }
+  }];
+}
+
+def Torch_PrimCreateObjectOp: Torch_Op<"prim.CreateObject", [
+    NoSideEffect,
+    AllowsTypeRefinement,
+    ]> {
+  let summary = "TorchScript prim::CreateObject op";
+
+  let arguments = (ins
+  );
+  let results = (outs
+    Torch_NnModuleType:$result
+  );
+
+  let assemblyFormat = [{
+    attr-dict qualified(type($result))
   }];
 }
 
@@ -457,7 +472,12 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
     $maxTripCount `,` $initialCondition `,` `init` `(` $iterArgsInit `)` $region
     attr-dict `:` functional-type(operands, results)
   }];
-  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
+  let extraClassDeclaration = [{
+    /// Returns true if this loop is "for-like". Otherwise it is "while-like"
+    /// and this function returns false.
+    /// See https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
+    bool isForLike();
+  }];
 }
 
 def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
@@ -505,13 +525,13 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
   let regions = (region SizedRegion<1>:$thenRegion, SizedRegion<1>:$elseRegion);
   // Indicate that the operation has a custom parser and printer method.
   let hasCustomAssemblyFormat = 1;
-  let verifier = [{ return RegionBranchOpInterface::verifyTypes(*this); }];
   let hasCanonicalizer = 1;
 }
 
 def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
     Terminator,
     ReturnLike,
+    NoSideEffect,
     HasParent<"::mlir::torch::Torch::PrimIfOp">]> {
   let summary = "yield-like terminator for torch.prim.If";
   let description = [{
@@ -664,6 +684,8 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($operand)) `to` qualified(type($result))
   }];
+
+  let hasFolder = 1;
 }
 
 def Torch_OperatorOp : Torch_Op<"operator", [
@@ -851,7 +873,7 @@ def Torch_CopyToNonValueTensorOp : Torch_Op<"copy.to_tensor", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($result))
   }];
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 }
 
 def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
@@ -881,7 +903,7 @@ def Torch_CopyToValueTensorOp : Torch_Op<"copy.to_vtensor", [
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($result))
   }];
-  let verifier = "return ::verify(*this);";
+  let hasVerifier = 1;
 }
 
 def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
@@ -918,9 +940,10 @@ def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
 
 // The corresponding without underscore variant for `torch.aten.uniform_`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
+def Torch_ValsemVariantAtenUniformOp: Torch_Op<"valsem.aten.uniform", [
     AllowsTypeRefinement,
     HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "`uniform op : (Tensor, float, float, Generator?) -> (Tensor)`";
   let arguments = (ins
@@ -937,9 +960,10 @@ def Torch_PseudoAtenUniformOp: Torch_Op<"pseudo.aten.uniform", [
 
 // The corresponding without underscore variant for `torch.aten.bernoulli_.float`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenBernoulliFloatOp: Torch_Op<"pseudo.aten.bernoulli.float", [
+def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.float", [
     AllowsTypeRefinement,
     HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "`bernoulli.float op : (Tensor, float, Generator?) -> (Tensor)`";
   let arguments = (ins
@@ -953,11 +977,31 @@ def Torch_PseudoAtenBernoulliFloatOp: Torch_Op<"pseudo.aten.bernoulli.float", [
   let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` type($self) `,` type($p) `,` type($generator) `->` type($result)";
 }
 
-// The corresponding without underscore variant for `torch.aten.fill_.Scalar`
+// The corresponding without underscore variant for `torch.aten.bernoulli_.Tensor`
 // doesn't exist in the pytorch ops registry. Add it here.
-def Torch_PseudoAtenFillScalarOp: Torch_Op<"pseudo.aten.fill.Scalar", [
+def Torch_ValsemVariantAtenBernoulliTensorOp: Torch_Op<"valsem.aten.bernoulli.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$p,
+    TorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($p)) `,` qualified(type($generator)) `->` qualified(type($result))";
+}
+
+// The corresponding without underscore variant for `torch.aten.fill_.Scalar`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenFillScalarOp: Torch_Op<"valsem.aten.fill.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "`fill.Scalar op : (Tensor, Scalar) -> (Tensor)`";
   let arguments = (ins
@@ -970,6 +1014,46 @@ def Torch_PseudoAtenFillScalarOp: Torch_Op<"pseudo.aten.fill.Scalar", [
   let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
 }
 
+// The corresponding without underscore variant for `torch.aten._index_put_impl_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchTensorType:$values,
+    Torch_BoolType:$accumulate,
+    Torch_BoolType:$unsafe
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate `,` $unsafe attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `,` qualified(type($unsafe)) `->` qualified(type($result))";
+}
+
+// The corresponding without underscore variant for `torch.aten.copy_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenCopyOp : Torch_Op<"valsem.aten.copy", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "copy op : (Tensor, Tensor, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$src,
+    Torch_BoolType:$non_blocking
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` qualified(type($self)) `,` qualified(type($src)) `,` qualified(type($non_blocking)) `->` qualified(type($result))";
+}
+
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 
 // But TS compiler introduces control flow for `torch._assert` operation. The 
 // `torch._assert` would introduce control flow like: 
@@ -978,16 +1062,17 @@ def Torch_PseudoAtenFillScalarOp: Torch_Op<"pseudo.aten.fill.Scalar", [
 //            "torch.prim.If"(%cond) ({
 //              "torch.prim.If.yield"() : () -> ()
 //            }, {
-//              "torch.prim.RaiseException"(%msg) : (!torch.str) -> () 
-//              "torch.prim.If.yield"() : () -> () 
+//              "torch.prim.RaiseException"(%msg) : (!torch.str) -> ()
+//              "torch.prim.If.yield"() : () -> ()
 //            }) : (!torch.bool) -> ()
-// 
+//
 // This new operation `torch.runtime.assert` is added to simplify the IR control
-// flow by avoiding unnecessary branches. It also makes insertion of the runtime 
-// assert in the source code easier. 
+// flow by avoiding unnecessary branches. It also makes insertion of the runtime
+// assert in the source code easier.
 def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
     AllowsTypeRefinement,
     HasValueSemantics,
+    ReadOnly
   ]> {
   let summary = "Runtime Assertion";
   let arguments = (ins
@@ -997,6 +1082,86 @@ def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
   let results = (outs
   );
   let assemblyFormat = "$condition `,` $message attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// Shape modeling ops.
+//===----------------------------------------------------------------------===//
+
+def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
+  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  let summary = "Shape calculation encapsulation op";
+  let description = [{
+    The `torch.shape.calculate` op captures a shape calculation
+    (in the region `shapeCalculation`) which calculates the shapes for
+    the set of values yielded by the `body` region.
+
+    The `shapeCalculation` region yields a `!torch.list<int>` for each
+    value yielded by the `body` region.
+
+    Conceptually, the `shapeCalculation` region executes first, then `body`
+    region. So the `shapeCalculation` region can also contain arbitrary
+    assertions or side-effecting code which guard the validity of the execution
+    of the body (typically by terminating the program with a
+    torch.prim.RaiseException op).
+
+    The program has undefined behavior if the values yielded by the `body`
+    region do not have the shapes yielded by the `shapeCalculation` region.
+  }];
+
+  let arguments = (ins);
+  let results = (outs Variadic<AnyTorchType>:$results);
+  let regions = (region
+    SizedRegion<1>:$body,
+    SizedRegion<1>:$shapeCalculation
+  );
+
+  let assemblyFormat = [{
+    $body `shapes` $shapeCalculation attr-dict `:` type($results)
+  }];
+}
+
+def Torch_ShapeCalculateYieldOp : Torch_Op<"shape.calculate.yield", [
+    Terminator,
+    ReturnLike,
+    HasParent<"::mlir::torch::Torch::ShapeCalculateOp">]> {
+  let summary = "yield-like terminator for torch.shape.calculate";
+  let description = [{
+    This op terminates the `body` region of a `torch.shape.calculate` op.
+  }];
+
+  let arguments = (ins
+    Variadic<AnyTorchType>:$results
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    attr-dict ($results^ `:` type($results))?
+  }];
+}
+
+def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes", [
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
+    Terminator,
+    HasValueSemantics,
+    ReadOnly,
+    HasParent<"::mlir::torch::Torch::ShapeCalculateOp">]> {
+  let summary = "yield-like terminator for torch.shape.calculate shape region";
+  let description = [{
+    This op terminates the `shapeCalculation` region of a
+    `torch.shape.calculate` op.
+  }];
+
+  let arguments = (ins
+    Variadic<TorchIntListType>:$results
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    attr-dict ($results^ `:` type($results))?
+  }];
+
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_OPS

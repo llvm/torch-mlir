@@ -36,7 +36,7 @@ module {
 // expected-error@+1 {{Module does not conform to the TOSA backend contract.}}
 module {
   func @disallowed(%arg0: !torch.tensor) -> !torch.tensor {
-    // expected-error@+1 {{failed to legalize operation 'std.return'}}
+    // expected-error@+1 {{failed to legalize operation 'func.return'}}
     return %arg0 : !torch.tensor
   }
 }

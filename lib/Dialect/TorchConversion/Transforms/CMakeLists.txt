@@ -1,5 +1,6 @@
 add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
+  BackendTypeConversionPasses.cpp  
   Passes.cpp
   VerifyInvariantsBeforeBackendLowering.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
@@ -18,11 +19,12 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRStandardOpsTransforms
+  MLIRFuncTransforms
   TorchMLIRTorchConversionDialect
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
   TorchMLIRTorchToLinalg
+  TorchMLIRTorchToTMTensor
   TorchMLIRTorchToStd
   TorchMLIRTorchToSCF
   MLIRMemRefTransforms

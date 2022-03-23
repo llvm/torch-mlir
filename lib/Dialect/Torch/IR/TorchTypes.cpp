@@ -18,6 +18,51 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 //===----------------------------------------------------------------------===//
+// isValidSubtype
+//===----------------------------------------------------------------------===//
+
+bool Torch::isValidSubtype(Type subtype, Type type) {
+  if (subtype == type)
+    return true;
+
+  if (auto any = type.dyn_cast<AnyType>())
+    return true;
+
+  if (auto number = type.dyn_cast<NumberType>())
+    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
+
+  if (auto optional = type.dyn_cast<OptionalType>())
+    return isValidSubtype(subtype, optional.getContainedType()) ||
+           subtype.isa<Torch::NoneType>();
+
+  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+    if (!subtype.isa<Torch::TupleType>())
+      return false;
+    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
+    auto types = tuple.getContainedTypes();
+    if (subtypes.size() != types.size())
+      return false;
+    for (auto t : llvm::zip(subtypes, types)) {
+      if (!isValidSubtype(std::get<0>(t), std::get<1>(t)))
+        return false;
+    }
+    return true;
+  }
+
+  // TODO: This is not subtyping according to PEP 483. See description
+  // of NonValueTensorType.
+  if (subtype.isa<NonValueTensorType>() && type.isa<NonValueTensorType>() &&
+      type ==
+          NonValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
+
+  if (subtype.isa<ValueTensorType>() && type.isa<ValueTensorType>() &&
+      type == ValueTensorType::getWithLeastStaticInformation(type.getContext()))
+    return true;
+  return false;
+}
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
@@ -30,8 +75,8 @@ Type Torch::TupleType::parse(AsmParser &parser) {
 
   SmallVector<Type> containedTypes;
   do {
-    Type containedType;
-    if (parser.parseType(containedType))
+    Type containedType = parseTorchDialectType(parser);
+    if (!containedType)
       return Type();
     containedTypes.push_back(containedType);
   } while (!parser.parseOptionalComma());
@@ -42,7 +87,9 @@ Type Torch::TupleType::parse(AsmParser &parser) {
 
 void Torch::TupleType::print(::mlir::AsmPrinter &printer) const {
   printer << "<";
-  llvm::interleaveComma(getContainedTypes(), printer);
+  llvm::interleaveComma(getContainedTypes(), printer, [&](Type type) {
+    printTorchDialectType(type, printer);
+  });
   printer << ">";
 }
 
@@ -300,4 +347,59 @@ Type ValueTensorType::parse(AsmParser &parser) {
 
 void ValueTensorType::print(AsmPrinter &printer) const {
   printTensorType(printer, getOptionalSizes(), getOptionalDtype());
+}
+
+Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
+  assert(((lhs.isa<ValueTensorType>() && rhs.isa<ValueTensorType>()) ||
+          (lhs.isa<NonValueTensorType>() && rhs.isa<NonValueTensorType>())) &&
+         "expected lhs and rhs to have same sense of value semantics");
+
+  // First, calculate the dtype.
+
+  // If the dtypes are contradictory, return null.
+  if (lhs.hasDtype() && rhs.hasDtype() && lhs.getDtype() != rhs.getDtype())
+    return nullptr;
+  Type dtype;
+  // If we have a dtype, use it. If not, then the dtype Type remains in its
+  // default null state, which the constructor of ValueTensorType treats as
+  // "unknown".
+  if (lhs.hasDtype() || rhs.hasDtype()) {
+    dtype = lhs.hasDtype() ? lhs.getDtype() : rhs.getDtype();
+  }
+
+  // Then, calculate the sizes and return the new Type.
+
+  // If neither has sizes, we have nothing left to do.
+  if (!lhs.hasSizes() && !rhs.hasSizes()) {
+    return ValueTensorType::get(lhs.getContext(), /*optionalSizes=*/None,
+                                dtype);
+  }
+
+  // If the number of sizes is different, the two types are contradictory.
+  if (lhs.hasSizes() && rhs.hasSizes() &&
+      lhs.getSizes().size() != rhs.getSizes().size()) {
+    return nullptr;
+  }
+
+  // Either lhs or rhs has sizes. If either one doesn't have sizes, we can
+  // replace it with the other one's sizes, since the meet logic below is
+  // idempotent.
+  ArrayRef<int64_t> lhsSizes = lhs.hasSizes() ? lhs.getSizes() : rhs.getSizes();
+  ArrayRef<int64_t> rhsSizes = rhs.hasSizes() ? rhs.getSizes() : lhs.getSizes();
+  // Meet the sizes.
+  SmallVector<int64_t> newSizes;
+  for (int i = 0, e = lhsSizes.size(); i < e; i++) {
+    if (lhsSizes[i] == rhsSizes[i]) {
+      newSizes.push_back(lhsSizes[i]);
+    } else if (lhsSizes[i] == kUnknownSize) {
+      newSizes.push_back(rhsSizes[i]);
+    } else if (rhsSizes[i] == kUnknownSize) {
+      newSizes.push_back(lhsSizes[i]);
+    } else {
+      // The two sizes are contradictory.
+      return nullptr;
+    }
+  }
+
+  return lhs.getWithSizesAndDtype(makeArrayRef(newSizes), dtype);
 }

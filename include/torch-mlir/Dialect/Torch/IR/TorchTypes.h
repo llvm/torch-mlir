@@ -16,6 +16,16 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
+/// PyTorch has a well-developed notion of subtyping.
+///
+/// This is a restricted subset of it that only handles a few special cases
+/// that we need to model.
+///
+/// TODO: Flesh this out.
+/// TODO: Decide / properly model the distinction between PEP 483 / Python
+/// subtyping vs "more static information".
+bool isValidSubtype(Type subtype, Type type);
+
 class NonValueTensorType;
 class ValueTensorType;
 
@@ -87,6 +97,21 @@ public:
   /// value semantics.
   ValueTensorType getWithValueSemantics() const;
 };
+
+/// Return the tensor type which assumes the static information from both types.
+///
+/// For example, if `lhs = !torch.vtensor<[100],unk>` and
+/// `rhs = !torch.vtensor<*,f32>` then this function would return
+/// `!torch.vtensor<[100],f32>`.
+///
+/// Returns null if the types have conflicting static information.
+///
+/// This function requires both `lhs` and `rhs` to either both be
+/// ValueTensorType or both be NonValueTensorType, since the sense of
+/// "meet" between value tensors and non-value tensors is useful in different
+/// ways in different situations.
+Type meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

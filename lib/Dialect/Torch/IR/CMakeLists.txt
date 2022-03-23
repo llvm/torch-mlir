@@ -1,7 +1,9 @@
 add_mlir_library(TorchMLIRTorchDialect
   TorchDialect.cpp
   TorchOps.cpp
+  TorchOpsODSGenerated.cpp
   TorchTypes.cpp
+  UtilsForODSGenerated.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/Torch

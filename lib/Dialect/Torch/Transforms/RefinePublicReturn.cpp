@@ -9,7 +9,7 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -42,8 +42,8 @@ class RefinePublicReturnPass
 
   void rewriteSignature(FuncOp func) {
     // Find the unique return op.
-    ReturnOp returnOp;
-    WalkResult walkResult = func.walk([&](ReturnOp op) {
+    func::ReturnOp returnOp;
+    WalkResult walkResult = func.walk([&](func::ReturnOp op) {
       if (returnOp)
         return WalkResult::interrupt();
       returnOp = op;
@@ -55,18 +55,30 @@ class RefinePublicReturnPass
       return signalPassFailure();
     }
 
-    // Get the new operands. Either the original operand, or if there is a
-    // TensorStaticInfoCastOp then the pre-casted operand, which is presumed to
-    // have a more precise type.
+    // Get the new operands. Either the original operand, or for tensors,
+    // looking through TensorStaticInfoCastOp/CopyToNonValueTensorOp which are
+    // presumed to have a more precise type.
     SmallVector<Value> newOperands;
     OpBuilder builder(returnOp);
     for (auto operand : returnOp.getOperands()) {
-      Value newOperand;
-      if (auto cast = operand.getDefiningOp<TensorStaticInfoCastOp>()) {
-        newOperand = cast.getOperand();
-      } else {
-        newOperand = operand;
+      Value newOperand = operand;
+      // Look through TensorStaticInfoCastOp's and CopyToNonValueTensorOp's.
+      for (;;) {
+        if (auto cast = newOperand.getDefiningOp<TensorStaticInfoCastOp>()) {
+          newOperand = cast.getOperand();
+        } else if (auto copy =
+                       newOperand.getDefiningOp<CopyToNonValueTensorOp>()) {
+          // If the return (or transitively other ops) are not the only users,
+          // then we can't be sure that the tensor hasn't been mutated, so stop
+          // here.
+          if (!llvm::hasSingleElement(copy->getUsers()))
+            break;
+          newOperand = copy.getOperand();
+        } else {
+          break;
+        }
       }
+
       if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
         newOperands.push_back(
             copyTensorToType(builder, returnOp->getLoc(),

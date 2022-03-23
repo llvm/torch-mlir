@@ -15,13 +15,13 @@ from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
-    LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig
+    LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig, EagerModeTestConfig
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, COMMON_TORCH_MLIR_LOWERING_XFAILS
+from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, COMMON_TORCH_MLIR_LOWERING_XFAILS, EAGER_MODE_XFAIL_SET
 
 # Import tests to register them in the global registry.
 # Make sure to use `tools/torchscript_e2e_test.sh` wrapper for invoking
@@ -54,9 +54,10 @@ from . import histogram_binning_calibration
 from . import table_batch_embedding
 from . import rng
 from . import cast
+from . import index_put
 
 def _get_argparse():
-    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external']
+    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external', 'eager_mode']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -120,6 +121,9 @@ def main():
     elif args.config == 'torchscript':
         config = TorchScriptTestConfig()
         xfail_set = {}
+    elif args.config == 'eager_mode':
+        config = EagerModeTestConfig()
+        xfail_set = EAGER_MODE_XFAIL_SET
     elif args.config == 'external':
         with open(args.external_config, 'r') as f:
             code = compile(f.read(), args.external_config, 'exec')

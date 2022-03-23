@@ -13,6 +13,7 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration

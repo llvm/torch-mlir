@@ -25,7 +25,7 @@ torch.class_type @c {
 }
 %c0 = torch.constant.int 0
 %0 = torch.nn_module {
-  // expected-error @+1 {{'torch.slot' op is expected to match type and name of 'torch.attr "g" : !torch.int'}}
+  // expected-error @+1 {{'torch.slot' op is expected to match type and name of '"torch.attr"() {name = "g", type = !torch.int} : () -> ()}}
   torch.slot "f", %c0 : !torch.int
 } : !torch.nn.Module<"c">
 
@@ -115,18 +115,18 @@ builtin.func @f(%arg0: i32 {torch.type_bound = i32})
 
 // -----
 
-builtin.func @derefine(%arg0: !torch.optional<!torch.tensor>) -> !torch.tensor {
-  // expected-error @+1 {{operand type '!torch.optional<!torch.tensor>' and result type '!torch.tensor' are cast incompatible}}
-  %0 = torch.derefine %arg0 : !torch.optional<!torch.tensor> to !torch.tensor
+builtin.func @derefine(%arg0: !torch.optional<tensor>) -> !torch.tensor {
+  // expected-error @+1 {{operand type '!torch.optional<tensor>' and result type '!torch.tensor' are cast incompatible}}
+  %0 = torch.derefine %arg0 : !torch.optional<tensor> to !torch.tensor
   return %0 : !torch.tensor
 }
 
 // -----
 
-builtin.func @torch.prim.unchecked_cast$invalid_types(%arg0: !torch.tensor) -> !torch.optional<!torch.tensor> {
-  // expected-error @+1 {{operand type '!torch.tensor' and result type '!torch.optional<!torch.tensor>' are cast incompatible}}
-  %0 = torch.prim.unchecked_cast %arg0 : !torch.tensor -> !torch.optional<!torch.tensor>
-  return %0 : !torch.optional<!torch.tensor>
+builtin.func @torch.prim.unchecked_cast$invalid_types(%arg0: !torch.tensor) -> !torch.optional<tensor> {
+  // expected-error @+1 {{operand type '!torch.tensor' and result type '!torch.optional<tensor>' are cast incompatible}}
+  %0 = torch.prim.unchecked_cast %arg0 : !torch.tensor -> !torch.optional<tensor>
+  return %0 : !torch.optional<tensor>
 }
 
 // -----
@@ -138,7 +138,7 @@ builtin.func private @tensor.invalid_dtype() -> !torch.tensor<*,tuple<>>
 
 builtin.func @torch.tensor() {
   // Incompatible shape.
-  // expected-error@+1 {{incompatible}}
+  // expected-error@+1 {{must be Multi-dimensional array modeling Torch's Tensor type, but got}}
   %0 = torch.tensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.vtensor<[],f32>
   return
 }
@@ -147,7 +147,7 @@ builtin.func @torch.tensor() {
 
 builtin.func @torch.tensor() {
   // Incompatible dtype.
-  // expected-error@+1 {{incompatible}}
+  // expected-error@+1 {{must be Multi-dimensional array modeling Torch's Tensor type, but got}}
   %0 = torch.tensor.literal(dense<42.0> : tensor<f32>) : !torch.vtensor<[],f64>
   return
 }
@@ -156,7 +156,7 @@ builtin.func @torch.tensor() {
 
 builtin.func @torch.tensor() {
   // Incompatible type.
-  // expected-error@+1 {{incompatible}}
+  // expected-error@+1 {{must be Multi-dimensional array modeling Torch's Tensor type, but got}}
   %0 = torch.tensor.literal(dense<42.0> : tensor<f32>) : i1
   return
 }
@@ -166,7 +166,7 @@ builtin.func @torch.tensor() {
 builtin.func @torch.prim.ListConstruct() {
   %int2 = torch.constant.int 2
   // expected-error@+1 {{operand types should have the same type as the list contained type}}
-  torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<!torch.tensor>
+  torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<tensor>
   return
 }
 

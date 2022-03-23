@@ -287,8 +287,8 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Return true if the payload uses the value loaded from `opOperand`. This
-        is useful to avoid loading from "write-only" memory that may be
+        Return true if the loop body uses the value loaded from `opOperand`.
+        This is useful to avoid loading from "write-only" memory that may be
         uninitialized, as well as properly cloning "read-write" operands.
       }],
       /*retTy=*/"bool",

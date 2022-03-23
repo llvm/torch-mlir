@@ -16,11 +16,12 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Approximation.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
@@ -104,12 +105,12 @@ static std::string getConsumeReturnFunctionNameForReturnTypes(TypeRange types) {
 
 // Replace the original returnOp with a call to consumeFuncReturnFunc and add
 // the op to the `toErase` vector.
-static void replaceReturnWithCall(OpBuilder b, ReturnOp op, StringRef funcName,
-                                  TypeRange retTypes,
+static void replaceReturnWithCall(OpBuilder b, func::ReturnOp op,
+                                  StringRef funcName, TypeRange retTypes,
                                   SmallVectorImpl<Value> &vals,
                                   SmallVectorImpl<Operation *> &toErase) {
-  b.create<mlir::CallOp>(op.getLoc(), funcName, TypeRange({}), vals);
-  b.create<mlir::ReturnOp>(op.getLoc());
+  b.create<mlir::func::CallOp>(op.getLoc(), funcName, TypeRange({}), vals);
+  b.create<mlir::func::ReturnOp>(op.getLoc());
   toErase.push_back(op);
 }
 
@@ -147,7 +148,7 @@ static LogicalResult mungeFunction(
 
   SmallVector<Operation *> toErase;
   bool isSupported = true;
-  func.walk([&](ReturnOp op) {
+  func.walk([&](func::ReturnOp op) {
     auto types = op.getOperandTypes();
     b.setInsertionPoint(op);
     // Memref Types.
@@ -341,7 +342,7 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     populateExpandTanhPattern(patterns);
     patterns.add<math::ErfPolynomialApproximation>(patterns.getContext());
     ConversionTarget target(*context);
-    target.addLegalDialect<StandardOpsDialect>();
+    target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<math::MathDialect>();
     target.addLegalDialect<arith::ArithmeticDialect>();
     target.addIllegalOp<math::TanhOp>();
@@ -398,10 +399,6 @@ class MemrefCopyOpToLinalg : public OpRewritePattern<memref::CopyOp> {
 };
 
 class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
-  void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect>();
-  }
-
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(&getContext());
@@ -417,4 +414,28 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::torch::RefBackend::createMungeMemrefCopyPass() {
   return std::make_unique<MungeMemrefCopy>();
+}
+
+namespace {
+class GeneralizeTensorPad
+    : public GeneralizeTensorPadBase<GeneralizeTensorPad> {
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<linalg::LinalgDialect>();
+  }
+
+  void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    RewritePatternSet patterns(&getContext());
+    patterns.insert<linalg::GeneralizePadOpPattern>(context);
+    if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                            std::move(patterns)))) {
+      return signalPassFailure();
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::torch::RefBackend::createGeneralizeTensorPadPass() {
+  return std::make_unique<GeneralizeTensorPad>();
 }

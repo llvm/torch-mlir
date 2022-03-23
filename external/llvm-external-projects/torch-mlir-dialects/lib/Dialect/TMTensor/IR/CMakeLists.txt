@@ -21,7 +21,7 @@ add_mlir_library(TorchMLIRTMTensorDialect
   MLIRSideEffectInterfaces
   MLIRSupport
   MLIRSCF
-  MLIRStandard
+  MLIRFunc
   MLIRTensor
   MLIRViewLikeInterface
 )

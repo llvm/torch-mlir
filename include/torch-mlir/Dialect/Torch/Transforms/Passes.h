@@ -42,6 +42,10 @@ void createTorchScriptModuleToTorchBackendPipeline(
 void createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
+/// Creates a pipeline that refines shapes of tensor operations in the program.
+void createTorchShapeRefinementPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options);
+
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createRefineTypesPass();
@@ -55,6 +59,16 @@ std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createDecomposeComplexOpsPass();
+
+std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
+
+std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();
+
+std::unique_ptr<OperationPass<FuncOp>> createSimplifyShapeCalculationsPass();
+
+std::unique_ptr<OperationPass<FuncOp>> createDropShapeCalculationsPass();
+
+StringRef getShapeLibrary();
 
 } // namespace Torch
 

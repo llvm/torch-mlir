@@ -21,6 +21,10 @@
 // original PyTorch license and the code here should not be mixed with "code
 // that we [Torch-MLIR] write".
 
+// Note: As a coding convention, we should never `using` the `torch_upstream`
+// namespace. This is to ensure that at a glance from the code, it is clear
+// that we are referencing upstream types.
+
 namespace mlir {
 namespace torch {
 namespace torch_upstream {
@@ -80,6 +84,18 @@ ScalarType promote_skip_undefined(ScalarType a, ScalarType b);
 // https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/core/Reduction.h
 //===----------------------------------------------------------------------===//
 enum Reduction { None, Mean, Sum, END };
+
+//===----------------------------------------------------------------------===//
+// Possible values for `memory_format` argument in PyTorch ops that support it.
+// Source:
+// https://github.com/pytorch/pytorch/blob/master/c10/core/MemoryFormat.h
+//===----------------------------------------------------------------------===//
+enum MemoryFormat {
+  Contiguous,
+  Preserve,
+  ChannelsLast,
+  ChannelsLast3d
+};
 
 } // namespace torch_upstream
 } // namespace torch

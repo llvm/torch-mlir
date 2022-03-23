@@ -231,4 +231,26 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "FuncOp"> {
   }];
 }
 
+def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
+  let summary = "Decompose complicated torch operations";
+  let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";
+  let description = [{
+  }];
+}
+
+def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "FuncOp"> {
+  let summary = "Simplify reified shape calculations.";
+  let constructor = "mlir::torch::Torch::createSimplifyShapeCalculationsPass()";
+  let description = [{
+    Mainly for getting rank specialization.
+  }];
+}
+
+def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "FuncOp"> {
+  let summary = "Drop reified shape calculations.";
+  let constructor = "mlir::torch::Torch::createDropShapeCalculationsPass()";
+  let description = [{
+  }];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES
