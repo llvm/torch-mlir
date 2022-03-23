@@ -1006,7 +1006,9 @@ public:
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
-    rewriter.replaceOp(op, adaptor.self());
+
+    Type resultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.self());
     return success();
   }
 };
@@ -1074,7 +1076,8 @@ public:
                            })
                        ->getResult(0);
 
-    rewriter.replaceOp(op, result);
+    Type resultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
 };
