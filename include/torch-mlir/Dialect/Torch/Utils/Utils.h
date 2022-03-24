@@ -27,6 +27,11 @@ bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
 llvm::Optional<int64_t> matchLegalConstantIndexIntoListOfSize(Value v,
                                                               int64_t length);
 torch_upstream::ScalarType getScalarTypeForType(Type type);
+Type getTypeForScalarType(
+    MLIRContext *context, torch_upstream::ScalarType dtypeInt,
+    mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
+Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                              Type dtype);
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
                            Type dtype);

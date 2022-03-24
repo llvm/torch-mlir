@@ -78,24 +78,6 @@ using namespace mlir::torch::Torch;
 // Analysis.
 // -----------------------------------------------------------------------------
 
-static Type getTypeForScalarType(MLIRContext *context,
-                                 torch_upstream::ScalarType dtypeInt) {
-  switch (dtypeInt) {
-  case torch_upstream::ScalarType::Float:
-    return Float32Type::get(context);
-  case torch_upstream::ScalarType::Double:
-    return Float64Type::get(context);
-  case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, IntegerType::Signed);
-  case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, IntegerType::Signed);
-  case torch_upstream::ScalarType::Bool:
-    return IntegerType::get(context, 1);
-  default:
-    return Type();
-  }
-}
-
 static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
   return getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
 }
@@ -759,6 +741,8 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
   } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {
     return visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
+  } else if (auto newEmpty = dyn_cast<AtenNewEmptyOp>(op)) {
+    return visitConstantTensorNewLikeOp<AtenNewEmptyOp>(newEmpty, operands);
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     return visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
   } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {
