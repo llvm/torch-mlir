@@ -107,19 +107,6 @@ public:
     auto resultType =
         typeConverter->convertType(op.getType()).cast<RankedTensorType>();
     int64_t resultRank = resultType.getRank();
-    // Currently, we only handle the expanding OR collapsing cases, we do not
-    // handle expanding And collapsing happening at the same time or cases where
-    // it's neither collapsing nor expanding like view of [2,3] for 3x2 tensor.
-    // TODO: For the expanding And collapsing case, we will need to identify
-    // which dimensions are collapsing and which are expanding and do it in two
-    // steps.
-    // TODO: For neither collapsing nor expanding, we could find a intermediate
-    // shape to collapse and then expanded to the target shape. Like [2,3] =>
-    // [6] => [3, 2].
-    if (inputRank == resultRank)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: the view op is neither expanding nor collapsing");
-
     if (resultRank == 0)
       return rewriter.notifyMatchFailure(op,
                                          "result shape of rank 0 is invalid");
@@ -147,11 +134,30 @@ public:
       return rewriter.notifyMatchFailure(
           op, "desired size list length mismatches with the result type rank");
     }
-    SmallVector<Value> inputSizeTorchInt = getTensorSizes(rewriter, loc, input);
-    ArrayRef<Value> expandedShapeTorchInt =
-        llvm::makeArrayRef(isCollapse ? inputSizeTorchInt : outputSizeInt);
-    ArrayRef<Value> collapsedShapeTorchInt =
-        llvm::makeArrayRef(isCollapse ? outputSizeInt : inputSizeTorchInt);
+
+    SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
+    ArrayRef<Value> expandedShapeInt =
+        llvm::makeArrayRef(isCollapse ? inputSize : outputSizeInt);
+    ArrayRef<Value> collapsedShapeInt =
+        llvm::makeArrayRef(isCollapse ? outputSizeInt : inputSize);
+
+    // Currently, we only handle the expanding or collapsing cases or the
+    // identity cases where the rank and shape of the input and result are
+    // equal, and the input itself is the result. We do not handle expanding And
+    // collapsing happening at the same time or cases where it's neither
+    // collapsing nor expanding like view of [2,3] for 3x2 tensor.
+    // TODO: For the expanding And collapsing case, we will need to identify
+    // which dimensions are collapsing and which are expanding and do it in two
+    // steps.
+    // TODO: For neither collapsing nor expanding, we could find a intermediate
+    // shape to collapse and then expanded to the target shape. Like [2,3] =>
+    // [6] => [3, 2].
+    if (inputRank == resultRank) {
+      for (unsigned i = 0; i < inputRank; i++)
+        checkDimEqualHelper(rewriter, loc, inputSize[i], outputSizeInt[i]);
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+      return success();
+    }
 
     // Iterate through the view op size list to do the following:
     //
@@ -307,9 +313,8 @@ public:
                 op,
                 "desired size is not compatible with the input tensor size");
           }
-          checkDimEqualHelper(rewriter, loc,
-                              collapsedShapeTorchInt[collapsedDim],
-                              expandedShapeTorchInt[expandedDim]);
+          checkDimEqualHelper(rewriter, loc, collapsedShapeInt[collapsedDim],
+                              expandedShapeInt[expandedDim]);
           // To meet the second requirement from tensor.expand_shape
           // verification code.
           expandedShape[expandedDim] = kUnknownSize;
