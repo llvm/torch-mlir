@@ -1,0 +1,52 @@
+blacklist:
+# List of unsupported ops in LTC autogen because of some error
+- arange  # Error: Code below assumes there is at least one tensor arg
+- contiguous  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- full  # Error: Code below assumes there is at least one tensor arg
+- index.Tensor  # Error: TODO not sure if there are other valid types to handle here
+- index_put  # Error: TODO not sure if there are other valid types to handle here
+- index_put_  # Error: TODO not sure if there are other valid types to handle here
+- _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
+- ones  # Error: Code below assumes there is at least one tensor arg
+- ones_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- resize_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- stack  # Error: TODO not sure if there are other valid types to handle here
+- to.dtype  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- to.other  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- uniform_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- zeros  # Error: Code below assumes there is at least one tensor arg
+- zeros_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+
+# Additional ops which autogen is supported for but don't compile yet
+- item
+- size
+- where
+- copy_
+- _to_copy
+- log_softmax  # Not inherently differentiable. Needs to be decomposed.
+- linear  # Not inherently differentiable. Needs to be decomposed.
+
+# List of supported ops that we don't want to do the full codegen for
+# primarily view ops
+supported:
+# - bernoulli
+# - bernoulli_
+- cat
+- clone
+- empty
+- expand
+- fill_
+# - native_batch_norm_backward
+- native_batch_norm
+- permute
+- repeat
+- squeeze
+- t
+- unsqueeze
+- view
+
+additional_ops:
+# Additional ops to support that are not supported by Torch-MLIR explicitly
+- _copy_from
+- _copy_from_and_resize
