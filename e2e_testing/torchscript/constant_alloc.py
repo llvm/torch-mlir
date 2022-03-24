@@ -954,3 +954,55 @@ class FullLikeModuleFalsePinMemory(torch.nn.Module):
 @register_test_case(module_factory=lambda: FullLikeModuleFalsePinMemory())
 def FullLikeModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (10, 4)))
+
+# ==============================================================================
+
+class ZeroFloat32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.zero_(tensor)
+
+@register_test_case(module_factory=lambda: ZeroFloat32Module())
+def ZeroFloat32Module_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 2))
+
+
+class ZeroInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.zero_(tensor)
+
+@register_test_case(module_factory=lambda: ZeroInt32Module())
+def ZeroInt32Module_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (10, 4), dtype=torch.int32))
+
+
+class ZeroInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.zero_(tensor)
+
+@register_test_case(module_factory=lambda: ZeroInt64Module())
+def ZeroInt64Module_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (10, 4)))

@@ -155,6 +155,9 @@ public:
     } else if (isa<AtenBernoulli_TensorOp>(op)) {
       newOp = rewriter.create<ValsemVariantAtenBernoulliTensorOp>(
           loc, op->getResultTypes(), op->getOperands());
+    } else if (isa<AtenZero_Op>(op)) {
+      newOp = rewriter.create<ValsemVariantAtenZeroOp>(
+          loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenFill_ScalarOp>(op)) {
       newOp = rewriter.create<ValsemVariantAtenFillScalarOp>(
           loc, op->getResultTypes(), op->getOperands());
@@ -242,6 +245,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
     target.addIllegalOp<AtenUniform_Op>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.addIllegalOp<AtenBernoulli_TensorOp>();
+    target.addIllegalOp<AtenZero_Op>();
     target.addIllegalOp<AtenFill_ScalarOp>();
     target.addIllegalOp<Aten_IndexPutImpl_Op>();
     target.addIllegalOp<AtenCopy_Op>();
