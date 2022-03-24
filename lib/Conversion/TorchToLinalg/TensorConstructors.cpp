@@ -148,13 +148,24 @@ public:
 
     auto resultType = typeConverter->convertType(op.getType())
                           .template cast<RankedTensorType>();
-    Type outElemType = resultType.getElementType();
+    Type resultElementType;
+    if (op.dtype().getType().template isa<Torch::NoneType>()) {
+      resultElementType = resultType.getElementType();
+    } else {
+      int64_t dtypeInt;
+      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: dtype must be a constant integer or none");
+      resultElementType = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
+          IntegerType::Signless);
+    }
 
     // Create an uninitialized tensor of `resultSize` shape and fill it with
     // value `fillVal`.
-    Value constVal = getConstant(rewriter, loc, fillVal, outElemType);
+    Value constVal = getConstant(rewriter, loc, fillVal, resultElementType);
     Value outputTensor =
-        createInitTensor(rewriter, loc, resultSizeIndex, outElemType, constVal);
+        createInitTensor(rewriter, loc, resultSizeIndex, resultElementType, constVal);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, outputTensor);
     return success();
   }
@@ -207,11 +218,24 @@ public:
     for (auto size : resultSize)
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
-    auto resultType = typeConverter->convertType(op.getType())
-                          .template cast<RankedTensorType>();
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    Type resultElementType;
+    if (op.dtype().getType().isa<Torch::NoneType>()) {
+      resultElementType = resultType.getElementType();
+    } else {
+      int64_t dtypeInt;
+      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: dtype must be a constant integer or none");
+      resultElementType = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
+          IntegerType::Signless);
+    }
+
     // Create an uninitialized tensor of `resultSize` shape.
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, resultSizeIndex, resultType.getElementType());
+        loc, resultSizeIndex, resultElementType);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
     return success();
   }

@@ -44,8 +44,27 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
-static Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
-                                     Type dtype) {
+Type Torch::getTypeForScalarType(
+    MLIRContext *context, torch_upstream::ScalarType dtypeInt,
+    mlir::IntegerType::SignednessSemantics signedness) {
+  switch (dtypeInt) {
+  case torch_upstream::ScalarType::Float:
+    return Float32Type::get(context);
+  case torch_upstream::ScalarType::Double:
+    return Float64Type::get(context);
+  case torch_upstream::ScalarType::Long:
+    return IntegerType::get(context, 64, signedness);
+  case torch_upstream::ScalarType::Int:
+    return IntegerType::get(context, 32, signedness);
+  case torch_upstream::ScalarType::Bool:
+    return IntegerType::get(context, 1);
+  default:
+    return Type();
+  }
+}
+
+Value Torch::getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                              Type dtype) {
   int intType = (int)getScalarTypeForType(dtype);
   return rewriter.create<ConstantIntOp>(loc,
                                         rewriter.getI64IntegerAttr(intType));

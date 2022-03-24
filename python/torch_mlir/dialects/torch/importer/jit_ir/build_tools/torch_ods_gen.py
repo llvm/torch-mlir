@@ -383,6 +383,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::detach : (Tensor) -> (Tensor)")
     emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
     emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::new_empty : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::ones_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")

@@ -22,6 +22,11 @@ int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
 bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
 torch_upstream::ScalarType getScalarTypeForType(Type type);
+Type getTypeForScalarType(
+    MLIRContext *context, torch_upstream::ScalarType dtypeInt,
+    mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
+Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
+                              Type dtype);
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
                            Type dtype);

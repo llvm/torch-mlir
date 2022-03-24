@@ -564,7 +564,8 @@ func @torch.aten.hardtanh(%arg0: !torch.vtensor<[?],f32>, %min: !torch.float, %m
 // CHECK:             %[[INT2:.*]] = torch.constant.int 2
 // CHECK:             %[[INT3:.*]] = torch.constant.int 3
 // CHECK:             %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:             %[[RES:.*]] = torch.aten.zeros %[[SIZE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+// CHECK:             %[[INT6:.*]] = torch.constant.int 6
+// CHECK:             %[[RES:.*]] = torch.aten.zeros %[[SIZE]], %[[INT6]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
 // CHECK:             return %[[RES]] : !torch.vtensor<[2,3],f32>
 // CHECK:           }
 func @torch.aten.new_zeros(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[2,3],f32> {
@@ -583,7 +584,8 @@ func @torch.aten.new_zeros(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[
 // CHECK:             %[[INT3:.*]] = torch.constant.int 3
 // CHECK:             %[[INT4:.*]] = torch.constant.int 4
 // CHECK:             %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT3]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:             %[[RES:.*]] = torch.aten.ones %[[SIZE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],si64>
+// CHECK:             %[[INT4_0:.*]] = torch.constant.int 4
+// CHECK:             %[[RES:.*]] = torch.aten.ones %[[SIZE]], %[[INT4_0]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],si64>
 // CHECK:             return %[[RES]] : !torch.vtensor<[3,4],si64>
 // CHECK:           }
 func @torch.aten.new_ones(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[3,4],si64> {
@@ -761,3 +763,22 @@ func @torch.valsem.aten.zero(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor
   return %0 : !torch.vtensor<[?,?],f32>
 }
 
+// -----
+// CHECK-LABEL:   func @torch.aten.new_empty
+// CHECK-SAME:                    %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[2,3],f32> {
+// CHECK:             %[[NONE:.*]] = torch.constant.none
+// CHECK:             %[[INT2:.*]] = torch.constant.int 2
+// CHECK:             %[[INT3:.*]] = torch.constant.int 3
+// CHECK:             %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             %[[NONE_0:.*]] = torch.constant.none
+// CHECK:             %[[INT6:.*]] = torch.constant.int 6
+// CHECK:             %[[RES:.*]] = torch.aten.empty.memory_format %[[SIZE]], %[[INT6]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE_0]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+// CHECK:             return %[[RES]] : !torch.vtensor<[2,3],f32>
+func @torch.aten.new_empty(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[2,3],f32> {
+  %none = torch.constant.none
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.new_empty %arg0, %0, %none, %none, %none, %none : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+  return %1 : !torch.vtensor<[2,3],f32>
+}
