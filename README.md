@@ -64,10 +64,10 @@ cmake -GNinja -Bbuild \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects \
+  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
-  external/llvm-project/llvm
+  externals/llvm-project/llvm
 
 # Additional quality of life CMake flags:
 # Enable ccache:
