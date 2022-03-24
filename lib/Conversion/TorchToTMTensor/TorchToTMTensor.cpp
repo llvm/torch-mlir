@@ -344,12 +344,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Input element type should be same as the grad_output element type.");
 
-    // Add asserts/compile-time checks for values
-    // TODO
-
-    // Create empty output tensor
-    // Value output = rewriter.create<linalg::InitTensorOp>(loc, selfShape, selfEType);
-
     // Add in indices
     Attribute attrs[2];
     if (inputEType.isa<mlir::FloatType>()) {
@@ -361,14 +355,13 @@ public:
     } else {
       return rewriter.notifyMatchFailure(op, "unsupported dtype");
     }
-
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
+    
+    //Expand indices
     ValueTensorType indexType = adaptor.indices().getType().cast<ValueTensorType>();
-
     SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
     ValueTensorType expandedIndexType = ValueTensorType::get(
       context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
-
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
       loc, rewriter.getI64IntegerAttr(1));
     Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
