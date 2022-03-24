@@ -1442,8 +1442,15 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
   LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(),
-                                         op.dtype(), op.layout(), op.device(),
+    Value dtype = op.dtype();
+    if (dtype.getType().isa<Torch::NoneType>()) {
+      BaseTensorType tensorType =
+          op.self().getType().template cast<BaseTensorType>();
+      dtype =
+          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(), dtype,
+                                         op.layout(), op.device(),
                                          op.pin_memory());
     return success();
   }
@@ -1531,6 +1538,27 @@ public:
         op.device(), op.pin_memory(), op.memory_format());
     rewriter.replaceOpWithNewOp<ValsemVariantAtenCopyOp>(
         op, op.getType(), emptyTensor, op.self(), op.non_blocking());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.new_empty` op into `aten.empty.memory_format` op.
+class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNewEmptyOp op,
+                                PatternRewriter &rewriter) const override {
+    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value dtype = op.dtype();
+    if (dtype.getType().isa<Torch::NoneType>()) {
+      BaseTensorType tensorType = op.self().getType().cast<BaseTensorType>();
+      dtype =
+          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
+        op, op.getType(), op.size(), dtype, op.layout(), op.device(),
+        op.pin_memory(), /*memory_format=*/noneVal);
     return success();
   }
 };
@@ -1651,6 +1679,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_ToCopyOp>();
     patterns.add<DecomposeAtenDropoutOp>(context);
     target.addIllegalOp<AtenDropoutOp>();
+    target.addIllegalOp<AtenNewEmptyOp>();
+    patterns.add<DecomposeAtenNewEmptyOp>(context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
