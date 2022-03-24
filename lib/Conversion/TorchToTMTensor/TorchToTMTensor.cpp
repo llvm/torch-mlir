@@ -315,7 +315,7 @@ public:
     Location loc = op.getLoc();
     // For debugging
 
-    op->getParentOfType<ModuleOp>().dump();
+    //op->getParentOfType<ModuleOp>().dump();
 
     Value grad_output = adaptor.grad_output();
     Value input = adaptor.self();
@@ -363,40 +363,30 @@ public:
     }
 
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
-    //Value numTensorElements = rewriter.create<AtenNumelOp>(loc, input);
-    //rewriter.create<AtenZerosOp>(loc, inputType, numTensorElements, inputEType);
+    ValueTensorType indexType = adaptor.indices().getType().cast<ValueTensorType>();
 
-    //Value indicesList;
-    //if (!getListConstructElements(adaptor.indices(), indicesList))
-     // return rewriter.notifyMatchFailure(op, "indices not constructed from ListConstruct");
-    
-
-    ValueTensorType indexType =
-        adaptor.indices().getType().cast<ValueTensorType>();
-
-    Value expandedIndexSizes{indexType.getSizes(), 1};
+    SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
     ValueTensorType expandedIndexType = ValueTensorType::get(
-        context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
-        loc, expandedIndexType, adaptor.indices(), torchCstOne);
+      context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
 
-    // Converting the index element type to i32.
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(1));
+    Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
+      loc, expandedIndexType, adaptor.indices(), torchCstOne);
+
+     //Converting the index element type to i32.
     Value indices = convertTensorToDtype(
-        rewriter, loc, expandedIndexTensor,
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
+      rewriter, loc, expandedIndexTensor,mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
     indices = typeConverter->materializeTargetConversion(
-        rewriter, loc, typeConverter->convertType(indices.getType()), indices);
+      rewriter, loc, typeConverter->convertType(indices.getType()), indices);
 
     // Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
         loc, input.getType(), ValueRange{grad_output, indices}, ValueRange{output},
         /*unique_indices=*/false);
-    indices.dump();
 
     // For debugging
-    op->getParentOfType<ModuleOp>().dump();
+    //op->getParentOfType<ModuleOp>().dump();
 
     rewriter.replaceOp(op, scatterOp->getResult(0));
     return success();

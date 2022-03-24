@@ -561,7 +561,7 @@ def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int]
     return upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
 def aten〇max_pool2d_with_indices_backward(grad_output: List[int], self: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices: List[int]) -> List[int]:
-    return upstream_shape_helpers.max_pool2d_with_indices_backward(self, kernel_size, stride, padding, dilation, ceil_mode)
+    return max_pool2d_with_indices_backward(self, kernel_size, stride, padding, dilation, ceil_mode)
 
 def aten〇adaptive_avg_pool2d(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_helpers.adaptive_avg_pool2d(self, output_size)
@@ -901,6 +901,10 @@ def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlen
 # ==============================================================================
 # Shape library generator main().
 # ==============================================================================
+
+def max_pool2d_with_indices_backward(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool):
+  out = upstream_shape_helpers.max_pool2d(input, kernel_size, stride, padding, dilation, ceil_mode)
+  return out
 
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)
