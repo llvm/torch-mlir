@@ -23,129 +23,132 @@
 namespace torch {
 namespace lazy {
 
-class MlirBackendData : public torch::lazy::BackendData {
-  public:
-    struct Info;
-
-    MlirBackendData(torch::lazy::BackendDevice device, torch::lazy::Shape shape);
-    MlirBackendData(const at::Scalar& scalar, torch::lazy::BackendDevice device);
-    MlirBackendData(const at::Tensor& tensor, torch::lazy::BackendDevice device, torch::lazy::Shape shape);
-
-    virtual torch::lazy::BackendData::Handle GetHandle() override;
-    
-    virtual void Assign(const torch::lazy::BackendData& data) override;
-    
-    virtual bool HasValue() const override;
-};
-
-class MlirBackendImpl : public torch::lazy::BackendImplInterface {
+class TORCH_API MlirBackendData : public BackendData {
 public:
-    /**
-     * Initialization/Teardown
-     * */
-    virtual void PrepareToExit() const override;
+  struct Info : public BackendData::Info {
+    at::Tensor tensor;
+    c10::optional<at::Scalar> scalar;
+    bool requires_grad;
 
-    /**
-     * Configuration
-     * */
-    // virtual void SetRngSeed(size_t seed) const = 0;
+    Info() {}
+    Info(const Info& other)
+        : tensor{other.tensor}, scalar{other.scalar},
+          requires_grad{other.requires_grad} {}
+    Info(const at::Tensor& tensor)
+        : tensor{tensor}, requires_grad{tensor.requires_grad()} {}
+    Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
+  };
 
-    /**
-     * Data Transfer
-     * */
+  MlirBackendData(BackendDevice device, Shape shape);
+  MlirBackendData(const at::Scalar& scalar, BackendDevice device);
+  MlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
 
-    virtual torch::lazy::BackendDataPtr MakeComputationDataFromTensor(
-        const at::Tensor& tensor,
-        const torch::lazy::Shape& shape,
-        const torch::lazy::BackendDevice& device
-    ) const override;
+  virtual BackendData::Handle GetHandle() override;
 
-    virtual torch::lazy::BackendDataPtr MakeComputationDataFromScalar(
-        const at::Scalar& scalar,
-        const torch::lazy::BackendDevice& device
-    ) const override;
+  virtual void Assign(const BackendData& data) override;
 
-    virtual torch::lazy::BackendDataPtr CreateDataPlaceholder(
-        const torch::lazy::BackendDevice& device, const torch::lazy::Shape& shape
-    ) const override;
-
-    virtual at::Tensor MakeTensorFromComputationData(
-        const torch::lazy::BackendDataPtr data,
-        c10::optional<at::ScalarType> logical_scalar_type
-    ) const override;
-
-    /**
-     * Lowering, Compilation, Execution
-     * */
-
-    virtual std::unique_ptr<torch::lazy::LoweringContext> CreateLoweringContext(
-        const std::string& name,
-        torch::lazy::BackendDevice device,
-        c10::ArrayRef<torch::lazy::Node*> post_order,
-        torch::lazy::Util::EmissionMap emit_status
-    ) const override;
-
-    virtual std::unique_ptr<torch::lazy::LoweringContext> CreateLoweringContext(
-        const std::string& name, torch::lazy::BackendDevice device
-    ) const override;
-
-    // TODO(whc) need to keep this?
-    // virtual std::vector<std::string> GetCompilationDevices(
-    //     const std::string& device, c10::ArrayRef<std::string> devices
-    // ) const = 0;
-
-    // virtual std::vector<torch::lazy::ComputationPtr> Compile(
-    //     std::vector<torch::lazy::ComputationPtr> instances
-    // ) const = 0;
-
-    // virtual std::vector<torch::lazy::BackendDataPtr> ExecuteComputation(
-    //     torch::lazy::Computation& computation,
-    //     c10::ArrayRef<torch::lazy::BackendDataPtr> arguments,
-    //     const torch::lazy::BackendDevice& device
-    // ) const = 0;
-
-    /**
-     * Device Configuration
-     * */
-
-    // Set or get the default device type.
-    // For backends used with virtual c10:: Devices, this configures what real
-    // device type the backend should use, and matters if the backend supports
-    // more than one type of real device.
-
-    // virtual std::shared_ptr<torch::lazy::BackendDeviceType> GetDefaultDeviceType() const = 0;
-    // virtual void SetDefaultDeviceType(std::string device_type) = 0;
-
-    // Specify which aten device should be used for eager fallback
-    // may change depending on current 'Default' DeviceType
-    virtual at::DeviceType EagerFallbackDeviceType() const override;
-
-
-    // Query all available backend devices
-    virtual std::vector<torch::lazy::BackendDevice> GetBackendDevices() const override;
-
-    // Map a particular c10:: device to a concrete backend device
-    // Note:: c10:: devices may be virtual or concrete.  xla:: and lazy:: are
-    // virtual devices, meaning they may map to a gpu, tpu, etc. behind the
-    // scenes. In the future, non-virtual c10:: devices may also use lazy tensors
-    // through a mode, in which case these APIs should still work, but should be
-    // identity mappings.
-    virtual torch::lazy::BackendDevice GetBackendDevice(c10::Device device) const override;
-
-
-    /**
-     * Debug/Metrics
-     * */
-
-    // virtual std::map<std::string, Metric> GetMetrics() const = 0;
-
-    // virtual MemoryInfo GetMemoryInfo(const std::string& device) = 0;
-
-    // virtual std::string GetComputationBackendText(
-    //     const torch::lazy::ComputationPtr computation
-    // ) const = 0;
-
+  virtual bool HasValue() const override;
 };
 
-}  // lazy
-}  // torch
+class TORCH_API MlirBackendImpl : public BackendImplInterface {
+public:
+  virtual ~MlirBackendImpl() = default;
+
+  /**
+   * Initialization/Teardown
+   * */
+  virtual void PrepareToExit() const override;
+
+  /**
+   * Configuration
+   * */
+  // virtual void SetRngSeed(size_t seed) const = 0;
+
+  /**
+   * Data Transfer
+   * */
+
+  virtual BackendDataPtr MakeComputationDataFromTensor(
+      const at::Tensor& tensor, const Shape& shape,
+      const BackendDevice& device) const override;
+
+  virtual BackendDataPtr MakeComputationDataFromScalar(
+      const at::Scalar& scalar, const BackendDevice& device) const override;
+
+  virtual BackendDataPtr CreateDataPlaceholder(
+      const BackendDevice& device, const Shape& shape) const override;
+
+  virtual at::Tensor MakeTensorFromComputationData(
+      const BackendDataPtr data,
+      c10::optional<at::ScalarType> logical_scalar_type) const override;
+
+  /**
+   * Lowering, Compilation, Execution
+   * */
+
+  virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
+      const std::string& name, BackendDevice device,
+      c10::ArrayRef<Node*> post_order,
+      Util::EmissionMap emit_status) const override;
+
+  virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
+      const std::string& name, BackendDevice device) const override;
+
+  // TODO(whc) need to keep this?
+  // virtual std::vector<std::string> GetCompilationDevices(
+  //     const std::string& device, c10::ArrayRef<std::string> devices
+  // ) const = 0;
+
+  // virtual std::vector<ComputationPtr> Compile(
+  //     std::vector<ComputationPtr> instances
+  // ) const = 0;
+
+  // virtual std::vector<BackendDataPtr> ExecuteComputation(
+  //     Computation& computation,
+  //     c10::ArrayRef<BackendDataPtr> arguments,
+  //     const BackendDevice& device
+  // ) const = 0;
+
+  /**
+   * Device Configuration
+   * */
+
+  // Set or get the default device type.
+  // For backends used with virtual c10:: Devices, this configures what real
+  // device type the backend should use, and matters if the backend supports
+  // more than one type of real device.
+
+  // virtual std::shared_ptr<BackendDeviceType> GetDefaultDeviceType() const =
+  // 0;
+  // virtual void SetDefaultDeviceType(std::string device_type) = 0;
+
+  // Specify which aten device should be used for eager fallback
+  // may change depending on current 'Default' DeviceType
+  virtual at::DeviceType EagerFallbackDeviceType() const override;
+
+  // Query all available backend devices
+  virtual std::vector<BackendDevice> GetBackendDevices() const override;
+
+  // Map a particular c10:: device to a concrete backend device
+  // Note:: c10:: devices may be virtual or concrete.  xla:: and lazy:: are
+  // virtual devices, meaning they may map to a gpu, tpu, etc. behind the
+  // scenes. In the future, non-virtual c10:: devices may also use lazy tensors
+  // through a mode, in which case these APIs should still work, but should be
+  // identity mappings.
+  virtual BackendDevice GetBackendDevice(c10::Device device) const override;
+
+  /**
+   * Debug/Metrics
+   * */
+
+  // virtual std::map<std::string, Metric> GetMetrics() const = 0;
+
+  // virtual MemoryInfo GetMemoryInfo(const std::string& device) = 0;
+
+  // virtual std::string GetComputationBackendText(
+  //     const ComputationPtr computation
+  // ) const = 0;
+};
+
+} // namespace lazy
+} // namespace torch
