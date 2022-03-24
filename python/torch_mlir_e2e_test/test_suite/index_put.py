@@ -294,3 +294,269 @@ class IndexPut1DIntAccumulateModule(torch.nn.Module):
 def IndexPut1DIntAccumulateModule_basic(module, tu: TestUtils):
   module.forward(torch.randint(100, (10,)), torch.randint(10, (10,)),
                  torch.randint(1000, (10,)))
+
+# ==============================================================================
+# IndexPutHackedTwin tests are using the aten.index_put.hacked_twin operator.
+
+class IndexPutHackedTwin1DFloatNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin1DFloatNonAccumulateModule())
+def IndexPutHackedTwin1DFloatNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(100), torch.randint(100, (250,)),
+                 tu.rand(250))
+
+
+class IndexPutHackedTwin2DFloatNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1, -1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin2DFloatNonAccumulateModule())
+def IndexPutHackedTwin2DFloatNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(10, 8), torch.randint(4, (5,)),
+                 tu.rand(5, 8))
+
+
+class IndexPutHackedTwin3DFloatNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1, -1, -1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin3DFloatNonAccumulateModule())
+def IndexPutHackedTwin3DFloatNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(10, 8, 6), torch.randint(4, (5,)),
+                 tu.rand(5, 8, 6))
+
+
+class IndexPutHackedTwin1DIntNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin1DIntNonAccumulateModule())
+def IndexPutHackedTwin1DIntNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(1000, (200,)), torch.randint(100, (300,)),
+                 torch.randint(10000, (300,)))
+
+
+class IndexPutHackedTwin2DIntNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1, -1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin2DIntNonAccumulateModule())
+def IndexPutHackedTwin2DIntNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(1000, (10, 8)), torch.randint(4, (5,)),
+                 torch.randint(1000, (5, 8)))
+
+
+class IndexPutHackedTwin3DIntNonAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1, -1, -1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin3DIntNonAccumulateModule())
+def IndexPutHackedTwin3DIntNonAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(1000, (10, 8, 6)), torch.randint(4, (5,)),
+                 torch.randint(1000, (5, 8, 6)))
+
+
+class IndexPutHackedTwin1DFloatAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin1DFloatAccumulateModule())
+def IndexPutHackedTwin1DFloatAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(1000), torch.randint(10, (500,)),
+                 tu.rand(500))
+
+
+class IndexPutHackedTwin2DFloatAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1, -1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin2DFloatAccumulateModule())
+def IndexPutHackedTwin2DFloatAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(10, 8), torch.randint(4, (5,)),
+                 tu.rand(5, 8))
+
+
+class IndexPutHackedTwin3DFloatAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1], torch.float32, True),
+      ([-1], torch.int64, True),
+      ([-1, -1, -1], torch.float32, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin3DFloatAccumulateModule())
+def IndexPutHackedTwin3DFloatAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(tu.rand(10, 8, 6), torch.randint(4, (5,)),
+                 tu.rand(5, 8, 6))
+
+
+class IndexPutHackedTwin1DIntAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin1DIntAccumulateModule())
+def IndexPutHackedTwin1DIntAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(100, (10,)), torch.randint(10, (10,)),
+                 torch.randint(1000, (10,)))
+
+
+class IndexPutHackedTwin2DIntAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1, -1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin2DIntAccumulateModule())
+def IndexPutHackedTwin2DIntAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(1000, (10, 8)), torch.randint(4, (5,)),
+                 torch.randint(1000, (5, 8)))
+
+
+class IndexPutHackedTwin3DIntAccumulateModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1, -1, -1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1, -1, -1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_put(input, [index], value, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutHackedTwin3DIntAccumulateModule())
+def IndexPutHackedTwin3DIntAccumulateModule_basic(module, tu: TestUtils):
+  module.forward(torch.randint(1000, (10, 8, 6)), torch.randint(4, (5,)),
+                 torch.randint(1000, (5, 8, 6)))

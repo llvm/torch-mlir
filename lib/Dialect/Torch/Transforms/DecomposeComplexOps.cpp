@@ -1647,6 +1647,24 @@ class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.index_put.hacked_twin` op into `valsem.aten.index_put_impl`
+// op.
+class DecomposeAtenIndexPutHackedTwinOp
+    : public OpRewritePattern<AtenIndexPutHackedTwinOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexPutHackedTwinOp op,
+                                PatternRewriter &rewriter) const override {
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
+        op, op.getType(), op.self(), op.indices(), op.values(), op.accumulate(),
+        /*unsafe=*/cstFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1773,6 +1791,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenDropoutOp>();
     target.addIllegalOp<AtenNewEmptyOp>();
     patterns.add<DecomposeAtenNewEmptyOp>(context);
+    patterns.add<DecomposeAtenIndexPutHackedTwinOp>(context);
+    target.addIllegalOp<AtenIndexPutHackedTwinOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
