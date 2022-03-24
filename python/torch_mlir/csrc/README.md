@@ -1,4 +1,4 @@
-# Torch-MLIR Lazy Tensor Core Backend
+#Torch - MLIR Lazy Tensor Core Backend
 
 Contained within this directory are the components that implements the
 Torch-MLIR LTC backend.
