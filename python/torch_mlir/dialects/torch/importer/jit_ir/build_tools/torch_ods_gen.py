@@ -349,6 +349,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
     emit("aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)")
     emit("aten::bincount : (Tensor, Tensor?, int) -> (Tensor)")
+    emit("aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)")    
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")

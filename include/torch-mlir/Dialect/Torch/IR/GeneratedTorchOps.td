@@ -3400,6 +3400,36 @@ def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
   }];
 }
 
+def Torch_AtenMaxPool2dWithIndicesBackwardOp : Torch_Op<"aten.max_pool2d_with_indices_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    TorchIntListType:$kernel_size,
+    TorchIntListType:$stride,
+    TorchIntListType:$padding,
+    TorchIntListType:$dilation,
+    Torch_BoolType:$ceil_mode,
+    AnyTorchTensorType:$indices
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMaxPool2dWithIndicesBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void AtenMaxPool2dWithIndicesBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+}
+
 def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -515,7 +515,7 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenSliceTensorOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
           AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp,
           AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp>(op)) {
+          ValsemVariantAtenCopyOp,AtenMaxPool2dWithIndicesBackwardOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = operands[0]->getValue().dtype;
