@@ -358,7 +358,7 @@ public:
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
     
     //Expand indices
-    ValueTensorType indexType = adaptor.indices().getType().cast<ValueTensorType>();
+    ValueTensorType indexType = op.indices().getType().cast<ValueTensorType>();
     SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
     ValueTensorType expandedIndexType = ValueTensorType::get(
       context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
