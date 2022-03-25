@@ -609,6 +609,10 @@ def aten〇_to_copy(self: List[int], dtype: Optional[int] = None, layout: Option
     return upstream_shape_helpers.unary(self)
 
 @not_present_in_registry
+def aten〇zero(self: List[int]) -> List[int]:
+    return self
+
+@not_present_in_registry
 def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
     return self
 

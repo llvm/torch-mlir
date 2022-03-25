@@ -359,13 +359,14 @@ public:
     
     //Expand indices
     ValueTensorType indexType = op.indices().getType().cast<ValueTensorType>();
+
     SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
     ValueTensorType expandedIndexType = ValueTensorType::get(
       context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
       loc, rewriter.getI64IntegerAttr(1));
     Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
-      loc, expandedIndexType, adaptor.indices(), torchCstOne);
+      loc, expandedIndexType, op.indices(), torchCstOne);
 
      //Converting the index element type to i32.
     Value indices = convertTensorToDtype(
