@@ -12,6 +12,7 @@ import sys
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, run_tests
 from torch_mlir_e2e_test.torchscript.reporting import report_results
 from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
+from torch_mlir_e2e_test.torchscript.serialization import deserialize_all_tests_from
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
@@ -72,13 +73,10 @@ for more information on building these artifacts.
 def main():
     args = _get_argparse().parse_args()
 
-    all_tests = list(GLOBAL_TEST_REGISTRY)
     if args.serialized_test_dir:
-        for root, dirs, files in os.walk(args.serialized_test_dir):
-            for filename in files:
-                with open(os.path.join(root, filename), 'rb') as f:
-                    all_tests.append(pickle.load(f).as_test())
-    all_test_unique_names = set(test.unique_name for test in all_tests)
+        deserialize_all_tests_from(args.serialized_test_dir)
+    all_test_unique_names = set(
+        test.unique_name for test in GLOBAL_TEST_REGISTRY)
 
     # Find the selected config.
     if args.config == 'refbackend':
@@ -117,7 +115,7 @@ def main():
 
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
-        test for test in all_tests
+        test for test in GLOBAL_TEST_REGISTRY
         if re.match(args.filter, test.unique_name)
     ]
     if len(tests) == 0:
@@ -125,7 +123,7 @@ def main():
             f'ERROR: the provided filter {args.filter!r} does not match any tests'
         )
         print('The available tests are:')
-        for test in all_tests:
+        for test in GLOBAL_TEST_REGISTRY:
             print(test.unique_name)
         sys.exit(1)
 
