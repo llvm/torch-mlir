@@ -23,13 +23,9 @@ compiling or TorchScript'ing).
 import abc
 from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Dict
 
-import io
-import pickle
 import traceback
 
 import torch
-
-from .annotations import apply_serializable_annotations
 
 
 TorchScriptValue = Union[int, float, List['TorchScriptValue'],
@@ -177,57 +173,6 @@ class Test(NamedTuple):
     # module, actually).
     # The secon parameter is a `TestUtils` instance for convenience.
     program_invoker: Callable[[Any, TestUtils], None]
-
-
-class SerializableTest(NamedTuple):
-    """A self-contained representation of a test that can be pickled.
-
-    We use serialized TorchScript programs here for two reasons:
-    1. The PyTorch pickling story isn't great, so in order to reliably pickle
-       this class, we rely on having the serialized bytes for the TorchScript
-       module already given to us.
-    2. The choice of a TorchScript module vs `torch.nn.Module` boils down to
-       the fact that `torch.nn.Module` cannot be deserialized without pulling
-       in the same set of Python dependencies that were used to serialize it
-       in the first place. This would defeat one of the
-       main use cases of this class, which is to transport a test from an
-       environment with a set of heavy dependencies to a dependency-light one.
-       Since TorchScript modules are self-contained, they fit the bill
-       perfectly.
-    """
-    # See unique_name on `Test`.
-    unique_name: str
-    # Serialized TorchScript program.
-    program: bytes
-    # Trace for execution testing.
-    trace: Trace
-
-    def as_test(self) -> Test:
-        """Create a `Test` from this class."""
-        # Conform the serialized program to the interface expected by Test.
-        # This is a bit of a hack, but it's the only way to keep the layering
-        # straight.
-        def factory():
-            _extra_files = {"annotations.pkl": ""}
-            module = torch.jit.load(io.BytesIO(self.program),
-                                    _extra_files=_extra_files)
-            # Load the pickled annotations.
-            annotations = pickle.loads(_extra_files["annotations.pkl"])
-            apply_serializable_annotations(module, annotations)
-            return module
-
-        def invoker(module, tu):
-            for item in self.trace:
-                attr = module
-                for part in item.symbol.split("."):
-                    attr = getattr(attr, part)
-                attr(*item.inputs)
-
-        return Test(
-            unique_name=self.unique_name,
-            program_factory=factory,
-            program_invoker=invoker,
-        )
 
 
 class TestResult(NamedTuple):
