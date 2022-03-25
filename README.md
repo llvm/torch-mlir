@@ -1,4 +1,4 @@
-# torch-mlir
+# The Torch-MLIR Project
 
 The Torch-MLIR project aims to provide first class compiler support from the [PyTorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
 
@@ -14,7 +14,7 @@ An open source machine learning framework that accelerates the path from researc
 The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
 
 [Torch-MLIR](https://github.com/llvm/torch-mlir)
-Multiple Vendors use MLIR as the middle layer mapping from platform frameworks like PyTorch, JAX, TensorFlow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem would provide much needed relief to hardware vendors to focus on their unique value rather than implementing another PyTorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
+Multiple Vendors use MLIR as the middle layer, mapping from platform frameworks like PyTorch, JAX, and TensorFlow into MLIR and then progressively lowering down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem would provide much needed relief to hardware vendors to focus on their unique value rather than implementing yet another PyTorch frontend for MLIR. The goal is to be similar to current hardware vendors adding LLVM target support instead of each one also implementing Clang / a C++ frontend.
 
 ## All the roads from PyTorch to Torch MLIR Dialect
 
@@ -22,13 +22,10 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ![Torch Lowering Architectures](Torch-MLIR.png)
 
- - Torchscript
-    This is the most tested path down to Torch MLIR Dialect.
- - TorchFX
-	This provides a path to lower from TorchFX down to MLIR. This a functional prototype that we expect to mature as TorchFX matures
- - Lazy Tensor Core (Based on lazy-tensor-core [staging branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
-	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
- - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
+ - TorchScript
+    This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
+ - LazyTensorCore (Based on the PyTorch [`lazy_tensor_staging` branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
+	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing `torch/xla` derivatives.
 
 ## Project Communication
 
@@ -129,39 +126,10 @@ python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPA
 jupyter notebook
 ```
 
-### TorchFX
+### LazyTensorCore
 
-The `examples` folder includes the Python package `torchfx`, which is a functional prototype of a TorchFX to MLIR pipeline. The main entry point into the `torchfx` package is the `torchfx.builder` module, which includes a function for converting the output of a TorchFX trace into MLIR. Currently, the number of PyTorch operations supported is very limited, but will be expanded in the future.
-
-#### Example usage of `torchfx`
-
-The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions.
-
-Then, run
-
-```shell
-python torchfx_example_name.py
-```
-
-replacing `torchfx_example_name.py` with the actual `torchfx` example you want to run.
-
-
-### Lazy Tensor Core
-
-The `examples` folder includes the Python package `lazytensor`, which implements a Lazy Tensor Core (LTC) to MLIR pipeline. The main entry point into the `lazytensor` package is the `lazytensor.builder`, which includes the function `build_module` that takes a computation captured and converted to TorchScript IR by LTC, and converts it to MLIR.
-
-#### Example usage of `lazytensor`
-
-The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md).
-
-In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
-
-```shell
-export PYTHONPATH=$PYTHONPATH:`/replace/with/path/to/pytorch/lazy_tensor_core`
-python lazytensor_example_name.py
-```
-
-replacing `lazytensor_example_name.py` with the actual `lazytensor` example you want to run.
+The LazyTensorCore integration is still in progress, and is being built on the
+[`torch_mlir_ltc_backend` branch](https://github.com/llvm/torch-mlir/tree/torch_mlir_ltc_backend).
 
 ## Repository Layout
 
