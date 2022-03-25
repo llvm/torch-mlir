@@ -144,4 +144,12 @@ TOSA_PASS_SET = {
     "SiluModule_basic",
     "DropoutEvalIntModule_basic",
     "DropoutEvalFloatModule_basic",
+    "ContiguousModule_basic",
+    "DropoutModule_basic",
+    "ViewExpandModule_basic",
+    "ViewCollapseInferredDimModule_basic",
+    "ViewExpandInferredDimModule_basic",
+    "ViewNoChangeStaticModule_basic",
+    "UnsafeViewExpandModule_basic",
+    "ReshapeCollapseModule_basic",
 }
