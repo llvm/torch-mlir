@@ -2329,6 +2329,116 @@ LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
+    AtenUnsqueezeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("Only tensor types are currently supported");
+  }
+
+  auto selfRank = selfType.getRank();
+  auto selfElemTy = selfType.getElementType();
+  if (!selfElemTy.isIntOrFloat()) {
+    return op.emitError(
+        "Only floating-point or integer datatype legalization supported");
+  }
+
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return op->emitError("dim must be a Scalar constant");
+
+  dim = toPositiveDim(dim, selfRank);
+  if (!isValidDim(dim, selfRank))
+    return op.emitError("dim is statically invalid");
+
+  SmallVector<int64_t> outShape;
+  for (auto en : llvm::enumerate(selfType.getShape())) {
+    if (static_cast<int64_t>(en.index()) == dim)
+      outShape.push_back(1);
+
+    outShape.push_back(en.value());
+  }
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
+      rewriter.getI64ArrayAttr(outShape));
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
+    AtenContiguousOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+
+  // FIXME: memory_format is not handled.
+
+  rewriter.replaceOp(op, adaptor.self());
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenDropoutOp>::matchAndRewrite(
+    AtenDropoutOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.input().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+
+  // FIXME: train and p are not handled.
+
+  bool train;
+  if (!matchPattern(op.train(), m_TorchConstantBool(&train)))
+    op.emitError("train must be a Scalar constant");
+
+  if (train)
+    op.emitError("train must be false");
+
+  rewriter.replaceOpWithNewOp<tosa::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.input());
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
+    AtenViewOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+
+  auto selfElemTy = selfType.getElementType();
+  if (!selfElemTy.isIntOrFloat()) {
+    return op.emitError(
+        "Only floating-point or integer datatype legalization supported");
+  }
+
+  SmallVector<int64_t> outShape;
+  if (!matchPattern(op.size(), m_TorchConstantIntList(outShape)))
+    return op.emitError("size must consist of Scalar constants");
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
+      rewriter.getI64ArrayAttr(outShape));
+
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -2879,6 +2989,10 @@ public:
     INSERT_ATENOP_PATTERN(AtenPermuteOp);
     INSERT_ATENOP_PATTERN(AtenLog2Op);
     INSERT_ATENOP_PATTERN(AtenThresholdOp);
+    INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
+    INSERT_ATENOP_PATTERN(AtenContiguousOp);
+    INSERT_ATENOP_PATTERN(AtenDropoutOp);
+    INSERT_ATENOP_PATTERN(AtenViewOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
