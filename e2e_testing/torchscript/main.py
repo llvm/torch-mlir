@@ -24,37 +24,8 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsT
 from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, COMMON_TORCH_MLIR_LOWERING_XFAILS, EAGER_MODE_XFAIL_SET
 
 # Import tests to register them in the global registry.
-# Make sure to use `tools/torchscript_e2e_test.sh` wrapper for invoking
-# this script.
-from . import basic
-from . import vision_models
-from . import mlp
-from . import conv
-from . import norm_like
-from . import quantized_models
-from . import elementwise
-from . import type_promotion
-from . import type_conversion
-from . import backprop
-from . import reduction
-from . import argmax
-from . import matmul
-from . import reshape_like
-from . import scalar
-from . import scalar_comparison
-from . import elementwise_comparison
-from . import squeeze
-from . import slice_like
-from . import nll_loss
-from . import index_select
-from . import arange
-from . import constant_alloc
-from . import threshold
-from . import histogram_binning_calibration
-from . import table_batch_embedding
-from . import rng
-from . import cast
-from . import index_put
+from torch_mlir_e2e_test.test_suite import register_all_tests
+register_all_tests()
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external', 'eager_mode']
@@ -69,6 +40,7 @@ Meaning of options:
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "external": use an external backend, specified by the `--external-backend` option.
+"eager_mode": run through torch-mlir's eager mode frontend, using RefBackend for execution.
 ''')
     parser.add_argument('--external-config',
         help=f'''
