@@ -356,21 +356,21 @@ public:
       return rewriter.notifyMatchFailure(op, "unsupported dtype");
     }
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
-    
+
     //Expand indices
     ValueTensorType indexType = op.indices().getType().cast<ValueTensorType>();
-
     SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
     ValueTensorType expandedIndexType = ValueTensorType::get(
       context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
       loc, rewriter.getI64IntegerAttr(1));
+
     Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
       loc, expandedIndexType, op.indices(), torchCstOne);
 
      //Converting the index element type to i32.
     Value indices = convertTensorToDtype(
-      rewriter, loc, expandedIndexTensor,mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
+      rewriter, loc, expandedIndexTensor, mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
     indices = typeConverter->materializeTargetConversion(
       rewriter, loc, typeConverter->convertType(indices.getType()), indices);
 
@@ -379,10 +379,15 @@ public:
         loc, input.getType(), ValueRange{grad_output, indices}, ValueRange{output},
         /*unique_indices=*/false);
 
-    // For debugging
-    //op->getParentOfType<ModuleOp>().dump();
+    Region &scatterOpRegion = scatterOp.region();
+    auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
+    scatterOpBlock.addArguments(TypeRange{inputEType, inputEType}, {loc, loc});
+    auto blockArgs = scatterOpBlock.getArguments();
+    OpBuilder regionBuilder(scatterOpRegion);
 
+    regionBuilder.create<TMTensor::YieldOp>(loc, blockArgs[0]);
     rewriter.replaceOp(op, scatterOp->getResult(0));
+
     return success();
   }
 };
