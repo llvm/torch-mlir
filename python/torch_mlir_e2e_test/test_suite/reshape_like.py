@@ -315,3 +315,76 @@ class ReshapeCollapseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReshapeCollapseModule())
 def ReshapeCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
+
+# ==============================================================================
+
+class ViewNoChange1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(6)
+
+@register_test_case(module_factory=lambda: ViewNoChange1dModule())
+def ViewNoChange1dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6))
+
+
+class ViewNoChange2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(5, 6)
+
+@register_test_case(module_factory=lambda: ViewNoChange2dModule())
+def ViewNoChange2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 6))
+
+
+class ViewNoChange3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(4, 5, 6)
+
+@register_test_case(module_factory=lambda: ViewNoChange3dModule())
+def ViewNoChange3dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
+
+
+class ViewNoChangeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(4, 5, 6)
+
+@register_test_case(module_factory=lambda: ViewNoChangeStaticModule())
+def ViewNoChangeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
