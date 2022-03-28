@@ -36,7 +36,7 @@ static Value createElementwiseLinalgGeneric(
   // what happens for a single result dimension. This loop not structured that
   // way because it is hard to create the affine maps for each operand unless
   // we structure the loop to iterate over tensor operands as the outer loop
-  // instead of inner loop. This valsemcode gives better intuition:
+  // instead of inner loop. This pseudocode gives better intuition:
   // ```
   // for each result dimension:
   //   for each tensor operand:
