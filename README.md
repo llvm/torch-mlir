@@ -107,7 +107,7 @@ Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the 
 # The example uses PIL and requests to get the image.
 pip install requests pillow
 # Run ResNet18 as a standalone script.
-python examples/torchscript_resnet18_e2e.py
+python examples/torchscript_resnet18.py
 
 load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
 Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth

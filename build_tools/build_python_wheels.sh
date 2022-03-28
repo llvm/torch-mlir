@@ -31,4 +31,4 @@ echo "---- INSTALLING torch-mlir ----"
 $VENV_PYTHON -m pip install -f "$wheelhouse" --force-reinstall torch_mlir
 
 echo "---- RUNNING SMOKE TEST ----"
-$VENV_PYTHON "$repo_root/examples/torchscript_resnet18_e2e.py"
+$VENV_PYTHON "$repo_root/examples/torchscript_resnet18.py"
