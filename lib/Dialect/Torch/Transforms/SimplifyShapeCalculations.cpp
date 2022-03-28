@@ -199,7 +199,8 @@ public:
       return failure();
 
     // Rewrite all users to use the appropriate list literals.
-    Value latestLiteral = op;
+    Value latestLiteral = rewriter.create<PrimListConstructOp>(
+        op->getLoc(), op.getType(), op->getOperands());
     int nextLiteral = 0;
     for (Operation *user : usersToInterpret) {
       if (auto append = dyn_cast<AtenAppendTOp>(user)) {
