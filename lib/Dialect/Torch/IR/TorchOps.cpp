@@ -725,18 +725,14 @@ OpFoldResult AtenSizeIntOp::fold(ArrayRef<Attribute> operands) {
   if (!type || !type.hasSizes())
     return nullptr;
 
-  int64_t inputRank = type.getSizes().size();
-  int64_t dim;
-  if (!matchPattern(this->dim(), m_TorchConstantInt(&dim)))
+  llvm::Optional<int64_t> dimOpt = matchLegalConstantIndexIntoListOfSize(
+      this->dim(), type.getSizes().size());
+  if (!dimOpt)
     return nullptr;
-  dim = toPositiveDim(dim, inputRank);
-  if (!isValidDim(dim, inputRank))
-    return nullptr;
-
-  if (type.getSizes()[dim] == kUnknownSize)
+  if (type.getSizes()[*dimOpt] == kUnknownSize)
     return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                          type.getSizes()[dim]);
+                          type.getSizes()[*dimOpt]);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1227,14 +1223,12 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
       return failure();
 
     // Get the index, but be careful because it might be statically invalid.
-    int64_t index;
-    if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&index)))
-      return failure();
-    int64_t positiveDim = toPositiveDim(index, listConstruct.getNumOperands());
-    if (!isValidDim(positiveDim, listConstruct.getNumOperands()))
+    llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+        op.getOperand(1), listConstruct.getNumOperands());
+    if (!indexOpt)
       return rewriter.notifyMatchFailure(op, "statically invalid index");
 
-    rewriter.replaceOp(op, {listConstruct.getOperand(positiveDim)});
+    rewriter.replaceOp(op, {listConstruct.getOperand(*indexOpt)});
     return success();
   });
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
