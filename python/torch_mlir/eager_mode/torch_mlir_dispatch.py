@@ -105,6 +105,13 @@ def build_script_function(
                 inp.setDebugName(arg.name)
         # If arg is a constant, inline (at the top of the graph).
         else:
+            if val == []:
+                # Some ops have empty list default values for args
+                # (such as aten::max_pool2d_with_indices with int[2] stride=[]
+                # but graph.insertConstant doesnt' recognize [] as an empty list IValue.
+                # This might be an upstream bug but there doesn't seem to be a way to
+                # build a prim::ListConstruct list that's empty.
+                val = None
             inp = graph.insertConstant(val)
             inp.node().moveBefore(node)
 
@@ -219,7 +226,7 @@ def try_torch_mlir_eager(op, args, kwargs, backend):
     else:
         raise RuntimeError(f"op {op} has no name")
 
-    if op_name == "detach":
+    if "detach" in op_name:
         # We don't handle detach as it only pertains to autograd graph construction, which is handled by pytorch.
         raise UnsupportedByTorchMlirEagerMode("detaching")
 
