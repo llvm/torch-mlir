@@ -4549,6 +4549,30 @@ def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
   }];
 }
 
+def Torch_Aten_ReshapeAliasOp : Torch_Op<"aten._reshape_alias", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_reshape_alias : (Tensor, int[], int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    TorchIntListType:$size,
+    TorchIntListType:$stride
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ReshapeAliasOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void Aten_ReshapeAliasOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenResize_Op : Torch_Op<"aten.resize_", [
     AllowsTypeRefinement
   ]> {
