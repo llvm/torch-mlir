@@ -24,7 +24,7 @@ python -m venv "$package_test_venv"
 VENV_PYTHON="$package_test_venv/bin/python"
 
 echo "---- INSTALLING torch ----"
-$VENV_PYTHON -m pip install --pre torch torchvision pybind11 -f "https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html"
+$VENV_PYTHON -m pip install -r "${repo_root}/requirements.txt"
 echo "---- INSTALLING other deps for smoke test ----"
 $VENV_PYTHON -m pip install requests pillow
 echo "---- INSTALLING torch-mlir ----"

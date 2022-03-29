@@ -51,11 +51,12 @@ class CMakeBuild(build_py):
         target_dir = self.build_lib
         cmake_build_dir = os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR")
         if not cmake_build_dir:
-            cmake_build_dir = os.path.join(target_dir, "..", "cmake_build")
+            cmake_build_dir = os.path.abspath(
+                os.path.join(target_dir, "..", "cmake_build"))
         if not os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT"):
             src_dir = os.path.abspath(os.path.dirname(__file__))
             llvm_dir = os.path.join(
-                src_dir, "external", "llvm-project", "llvm")
+                src_dir, "externals", "llvm-project", "llvm")
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython3_EXECUTABLE={sys.executable}",
@@ -64,7 +65,7 @@ class CMakeBuild(build_py):
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
-                f"-DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR={src_dir}/external/llvm-external-projects/torch-mlir-dialects",
+                f"-DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR={src_dir}/externals/llvm-external-projects/torch-mlir-dialects",
                 # Optimization options for building wheels.
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
