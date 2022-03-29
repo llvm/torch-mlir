@@ -2,9 +2,8 @@
 --pre
 
 numpy
-# TODO: Fix for latest PyTorch.
-torch==1.12.0.dev20220328+cpu
-torchvision==0.13.0.dev20220328+cpu
+torch
+torchvision
 
 # Build requirements.
 pybind11

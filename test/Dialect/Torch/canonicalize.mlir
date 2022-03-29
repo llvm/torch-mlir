@@ -938,6 +938,22 @@ func @torch.derefine$of_unchecked_cast(%arg0: !torch.optional<int>) -> !torch.op
   return %1 : !torch.optional<int>
 }
 
+// CHECK-LABEL:   func @torch.derefine$use_allows_type_refinement(
+// CHECK-SAME:                                              %{{.*}}: !torch.int) -> (!torch.vtensor, !torch.optional<int>) {
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<int>
+//                  For the use that allows type refinement, we replace it with the refined value.
+// CHECK:           %[[ARANGE:.*]] = torch.aten.arange.start %{{.*}}, %{{.*}}, %[[NONE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
+//                  For the use that does not allow type refinement, don't replace.
+// CHECK:           return %[[ARANGE]], %[[DEREFINED]] : !torch.vtensor, !torch.optional<int>
+func @torch.derefine$use_allows_type_refinement(%arg0: !torch.int) -> (!torch.vtensor, !torch.optional<int>) {
+  %none = torch.constant.none
+  %optional = torch.derefine %none : !torch.none to !torch.optional<int>
+  %ret = torch.aten.arange.start %arg0, %arg0, %optional, %none, %none, %none: !torch.int, !torch.int, !torch.optional<int>, !torch.none, !torch.none, !torch.none -> !torch.vtensor
+  return %ret, %optional : !torch.vtensor, !torch.optional<int>
+}
+
+
 // CHECK-LABEL:   func @torch.tensor_static_info_cast$downcast_first(
 // CHECK-SAME:            %[[T:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           return %[[T]] : !torch.tensor

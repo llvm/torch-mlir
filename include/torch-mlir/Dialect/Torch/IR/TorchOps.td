@@ -686,6 +686,7 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_OperatorOp : Torch_Op<"operator", [
