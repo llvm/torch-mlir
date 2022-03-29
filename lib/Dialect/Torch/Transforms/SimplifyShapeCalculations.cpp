@@ -176,14 +176,14 @@ public:
       if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
         if (!setItem.use_empty())
           return failure();
-        int64_t index;
-        if (!matchPattern(setItem.idx(), m_TorchConstantInt(&index)))
-          return failure();
+        llvm::Optional<int64_t> indexOpt =
+            matchLegalConstantIndexIntoListOfSize(setItem.idx(),
+                                                  runningList.size());
         // The index might be statically out of bounds.
-        if (index < 0 || index >= static_cast<int64_t>(runningList.size()))
+        if (!indexOpt)
           return failure();
         if (setItem.l() == op) {
-          runningList[index] = setItem.el();
+          runningList[*indexOpt] = setItem.el();
           generatedNewLiteral = true;
         }
         listLiterals.push_back(runningList);
@@ -293,15 +293,14 @@ static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
     // change the size of the list. It might clobber some elements, which then
     // become dimensions with unknown size.
     if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
-      int64_t index;
       // If the index is statically known, we can clobber only a single index.
       // Otherwise, we conservatively clobber all of them.
-      if (matchPattern(setItem.idx(), m_TorchConstantInt(&index)) &&
-          isValidDim(index, listConstruct->getNumOperands())) {
-        clobberedElements.set(index);
-      } else {
+      llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+          setItem.idx(), listConstruct->getNumOperands());
+      if (indexOpt)
+        clobberedElements.set(*indexOpt);
+      else
         clobberedElements.set();
-      }
       continue;
     }
     // An unhandled op! We can't make any assumptions about the shape.
