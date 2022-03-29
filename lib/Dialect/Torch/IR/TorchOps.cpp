@@ -452,6 +452,20 @@ OpFoldResult DerefineOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+void DerefineOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](DerefineOp op, PatternRewriter &rewriter) {
+    bool madeChange = false;
+    for (OpOperand &use : llvm::make_early_inc_range(op->getUses())) {
+      if (use.getOwner()->hasTrait<OpTrait::AllowsTypeRefinement>()) {
+        use.set(op.getOperand());
+        madeChange = true;
+      }
+    }
+    return success(madeChange);
+  });
+}
+
 static OpFoldResult atenIsOrIsNotFoldHelper(Operation *op, bool equalIsTrue) {
   Value lhs = op->getOperand(0);
   Value rhs = op->getOperand(1);
