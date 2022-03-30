@@ -318,7 +318,9 @@ def slice(self: List[int], dim: int, start: Optional[int], end: Optional[int], s
     end_val += self[dim]
   if start_val < 0:
     start_val = 0
-  elif start_val >= self[dim]:
+  # TODO: Remove this comment after https://github.com/pytorch/pytorch/pull/74980
+  # is merged to incorporate our local edit here.
+  elif start_val > self[dim]:
     start_val = self[dim]
   if end_val < start_val:
     end_val = start_val

@@ -826,8 +826,9 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
     };
     comparator = newComparator;
   }
-  // Fold comparisons of negative values with the result of AtenSizeIntOp, which
-  // is known to always be non-negative.
+
+  // Fold comparisons of AtenSizeIntOp against negative values.
+  // AtenSizeIntOp is known to always be non-negative.
   if (rhsIsConstant && rhs < 0) {
     // We can return `comparator(0, -1)` here because of the property:
     // If x >= 0 && y < 0, then:
@@ -837,10 +838,20 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
     if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
       return getI1IntegerAttr(op->getContext(), comparator(0, -1));
   }
-  // A special case of importance: size.int >= 0 ==> True.
-  if (rhsIsConstant && rhs == 0 && isa<AtenGeIntOp>(op)) {
-    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
-      return getI1IntegerAttr(op->getContext(), true);
+
+  // Fold comparisons of AtenSizeIntOp against 0:
+  // - torch.aten.size.int >= 0 ==> True.
+  // - torch.aten.size.int < 0 ==> False.
+  // (and the operand-swapped versions of the above)
+  if (rhsIsConstant && rhs == 0) {
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>()) {
+      // >= 0 comparison.
+      if (comparator(0, 0) && comparator(1, 0))
+        return getI1IntegerAttr(op->getContext(), true);
+      // < 0 comparison.
+      if (!comparator(0, 0) && comparator(-1, 0) && !comparator(1, 0))
+        return getI1IntegerAttr(op->getContext(), false);
+    }
   }
 
   return nullptr;
