@@ -21,19 +21,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
-// Helper funtion to get rank of `Base tensor type`.
-// -1 is returned if the tensorRank can't be determined.
-static int getTensorRank(Value tensor) {
-  int tensorRank = -1;
-  BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
-
-  if (tensorType.hasSizes()) {
-    ArrayRef<int64_t> tensorShape = tensorType.getSizes();
-    tensorRank = tensorShape.size();
-  }
-  return tensorRank;
-}
-
 // Helper function to compute the return type of the reduction function.
 // `dim` specifies the dimension to reduce and `keepDim` preserves the rank of
 // the input tensor.
