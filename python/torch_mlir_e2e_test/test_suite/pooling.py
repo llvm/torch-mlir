@@ -465,3 +465,106 @@ class MaxPool2dWithIndicesBackwardDynamic3DModule(torch.nn.Module):
 def MaxPool2dWithIndicesBackwardDynamic3DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 6), tu.rand(2, 6, 5),
                    torch.randint(16, (2, 7, 6)))
+
+
+# ==============================================================================
+
+
+class AvgPool2dFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       ceil_mode=False,
+                                       count_include_pad=True,
+                                       divisor_override=None)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dFloatModule())
+def AvgPool2dFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20) - 0.5)
+
+
+class AvgPool2dIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       ceil_mode=False,
+                                       count_include_pad=True,
+                                       divisor_override=None)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dIntModule())
+def AvgPool2dIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (2, 4, 20, 20)))
+
+
+class AvgPool2dStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       ceil_mode=False,
+                                       count_include_pad=True,
+                                       divisor_override=None)
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 2, 10, 20], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dStaticModule())
+def AvgPool2dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 10, 20) - 0.5)
+
+
+class AvgPool2dDivisorOverrideModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[4, 8],
+                                       stride=[2, 3],
+                                       padding=[2, 4],
+                                       ceil_mode=False,
+                                       count_include_pad=True,
+                                       divisor_override=22)
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 4, 20, 20], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dDivisorOverrideModule())
+def AvgPool2dDivisorOverrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4, 20, 20) - 0.5)

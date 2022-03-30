@@ -213,6 +213,45 @@ def max_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     return [nbatch, nInputPlane, outputHeight, outputWidth]
 
+def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool, divisor_override: Optional[int]):
+  assert len(kernel_size) == 1 or len(kernel_size) == 2, "avg_pool2d: kernel_size must either be a single int, or a tuple of two ints"
+  kH = kernel_size[0]
+  kW = kH if len(kernel_size) == 1 else kernel_size[1]
+
+  assert len(stride) == 0 or len(stride) == 1 or len(stride) == 2, "avg_pool2d: stride must either be omitted, a single int, or a tuple of two ints"
+  dH = kH if len(stride) == 0 else stride[0]
+  if len(stride) == 0:
+    dW = kW
+  elif len(stride) == 1:
+    dW = dH
+  else:
+    dW = stride[1]
+
+  assert len(padding) == 1 or len(padding) == 2, "avg_pool2d: padding must be either be a single int, or a tuple of two ints"
+  padH = padding[0]
+  padW = padH if len(padding) == 1 else padding[1]
+
+  dilationH = 1
+  dilationW = 1
+
+  assert len(input) == 3 or len(input) == 4
+
+  nbatch = input[-4] if len(input) == 4 else 1
+  nInputPlane = input[-3]
+  inputHeight = input[-2]
+  inputWidth = input[-1]
+
+  outputHeight = pooling_output_shape(inputHeight, kH, padH, dH, dilationH, ceil_mode)
+  outputWidth = pooling_output_shape(inputWidth, kW, padW, dW, dilationW, ceil_mode)
+
+  pool2d_shape_check(input, kH, kW, dH, dW, padH, padW, dilationH, dilationW, nInputPlane,
+                     inputHeight, inputWidth, outputHeight, outputWidth)
+
+  if len(input) == 3:
+    return [nInputPlane, outputHeight, outputWidth]
+  else:
+    return [nbatch, nInputPlane, outputHeight, outputWidth]
+
 def max_pool2d_with_indices(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool):
   out = max_pool2d(input, kernel_size, stride, padding, dilation, ceil_mode)
   return (out, out)
