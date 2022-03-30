@@ -71,15 +71,6 @@ class ResNet18Module(torch.nn.Module):
         return self.resnet.forward(img)
 
 
-class TestModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.s = ResNet18Module()
-
-    def forward(self, x):
-        return self.s.forward(x)
-
-
 image_url = (
     "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
 )
@@ -89,7 +80,7 @@ print("load image from " + image_url, file=sys.stderr)
 img = load_and_preprocess_image(image_url)
 labels = load_labels()
 
-test_module = TestModule()
+test_module = ResNet18Module()
 class_annotator = ClassAnnotator()
 recursivescriptmodule = torch.jit.script(test_module)
 torch.jit.save(recursivescriptmodule, "/tmp/foo.pt")
