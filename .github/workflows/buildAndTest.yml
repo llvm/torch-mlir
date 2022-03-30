@@ -10,6 +10,9 @@ on:
       release_id:
         description: 'Release id to upload artifacts to'
         default: ''
+      python_package_version:
+        description: 'Version to use for creating the Python package'
+        default: ''
 
 jobs:
   build:
@@ -79,6 +82,7 @@ jobs:
         python -m pip install wheel
         TORCH_MLIR_CMAKE_BUILD_DIR="$GITHUB_WORKSPACE/build" \
           TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT=1 \
+          TORCH_MLIR_PYTHON_PACKAGE_VERSION="${{ github.event.inputs.python_package_version }}" \
           ./build_tools/build_python_wheels.sh
 
     # If we were given a release_id, then upload the package we just built
