@@ -48,7 +48,7 @@ jobs:
           body: |
             Automatic snapshot release of torch-mlir.
           draft: true
-          prerelease: true
+          prerelease: false
 
       - name: "Invoke workflow :: Build and Test"
         uses: benc-uk/workflow-dispatch@v1

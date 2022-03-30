@@ -21,6 +21,11 @@ namespace Torch {
 int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
 bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
+/// Returns the index indicated by `v` for a list of given `length`.
+/// If the index is negative, it is adjusted to `length` + `v`.
+/// `None` is returned the index is not an integer in the range [0,`length).
+llvm::Optional<int64_t> matchLegalConstantIndexIntoListOfSize(Value v,
+                                                              int64_t length);
 torch_upstream::ScalarType getScalarTypeForType(Type type);
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,

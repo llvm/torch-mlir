@@ -181,6 +181,15 @@ MlirType torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     return torchMlirTorchTupleTypeGet(context, containedTypes.size(),
                                       containedTypes.data());
   }
+  case TypeKind::UnionType: {
+    std::vector<MlirType> containedTypes;
+    for (const c10::TypePtr &type :
+         torchType->cast<c10::UnionType>()->containedTypes()) {
+      containedTypes.push_back(getMlirTypeFromTorchType(loc, type));
+    }
+    return torchMlirTorchUnionTypeGet(context, containedTypes.size(),
+                                      containedTypes.data());
+  }
   case TypeKind::ListType: {
     return torchMlirTorchListTypeGet(getMlirTypeFromTorchType(
         loc, torchType->cast<c10::ListType>()->getElementType()));

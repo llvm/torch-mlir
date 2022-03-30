@@ -1418,6 +1418,23 @@ class DecomposeAten_UnsafeViewOp : public OpRewritePattern<Aten_UnsafeViewOp> {
 };
 } // namespace
 
+// In PyTorch, _reshape_alias just uses an already computed stride.
+// See
+// https://github.com/pytorch/pytorch/blob/d8c31a819d4a65e732b5901e3b994e1869851f1a/aten/src/ATen/native/TensorShape.cpp#L1153
+// Note that this is the same decomposition as in AOTAutograd
+// https://github.com/pytorch/functorch/blob/a3042d94e616d4143813668b1372d9d4545be14e/functorch/_src/aot_autograd.py#L104
+namespace {
+class DecomposeAten_ReshapeAliasOp : public OpRewritePattern<Aten_ReshapeAliasOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_ReshapeAliasOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.self(),
+                                            op.size());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Decompose constant tensor like ops.
 template <typename OpTy, typename NewOpTy>
@@ -1596,6 +1613,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenStdOp>();
     patterns.add<DecomposeAten_UnsafeViewOp>(context);
     target.addIllegalOp<Aten_UnsafeViewOp>();
+    patterns.add<DecomposeAten_ReshapeAliasOp>(context);
+    target.addIllegalOp<Aten_ReshapeAliasOp>();
     patterns.add<DecomposeAtenBernoulliOp>(context);
     target.addIllegalOp<AtenBernoulliOp>();
     patterns.add<DecomposeValsemVariantAtenBernoulliFloatOp>(context);
