@@ -29,7 +29,6 @@ add_library(torch_mlir_ltc_backend SHARED
   backend/mlir_lowering_context.cpp
   backend/mlir_node.cpp
   backend/RegisterLazy.cpp
-  tensor_aten_ops.cpp
 )
 
 target_link_libraries(torch_mlir_ltc_backend

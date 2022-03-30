@@ -98,7 +98,7 @@ def generate_native_functions(
         yaml.dump(
             {
                 "backend": "Lazy",
-                "cpp_namespace": "torch_lazy_tensors",
+                "cpp_namespace": "torch::lazy",
                 "full_codegen": opnames,
                 "supported": sorted(supported_ops),
             },
@@ -151,8 +151,9 @@ def generate_backend(
 
     codegen.dest.lazy_ir.gen_fallback_code = gen_fallback_code
 
-    codegen.gen_lazy_tensor.run(
+    codegen.gen_lazy_tensor.run_gen_lazy_tensor(
         backend_name="TorchMlir",
+        aten_path=str(TORCH_DIR.joinpath("aten", "src", "ATen")),
         source_yaml=str(source_yaml),
         output_dir=str(backend_path),
         dry_run=False,

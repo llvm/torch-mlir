@@ -23,7 +23,7 @@
 namespace torch {
 namespace lazy {
 
-class TORCH_API MlirBackendData : public BackendData {
+class TORCH_API TorchMlirBackendData : public BackendData {
 public:
   struct Info : public BackendData::Info {
     at::Tensor tensor;
@@ -39,9 +39,9 @@ public:
     Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
   };
 
-  MlirBackendData(BackendDevice device, Shape shape);
-  MlirBackendData(const at::Scalar& scalar, BackendDevice device);
-  MlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
+  TorchMlirBackendData(BackendDevice device, Shape shape);
+  TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
+  TorchMlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
 
   virtual BackendData::Handle GetHandle() override;
 
@@ -50,9 +50,9 @@ public:
   virtual bool HasValue() const override;
 };
 
-class TORCH_API MlirBackendImpl : public BackendImplInterface {
+class TORCH_API TorchMlirBackendImpl : public BackendImplInterface {
 public:
-  virtual ~MlirBackendImpl() = default;
+  virtual ~TorchMlirBackendImpl() = default;
 
   /**
    * Initialization/Teardown

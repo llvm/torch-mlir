@@ -9,19 +9,24 @@
 // Facilitates eager fallback behaviour
 //
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/aten_eager_fallback.h
+// https://github.com/pytorch/pytorch/blob/torch/csrc/csrc/ts_backend/ts_eager_fallback.h
 //===----------------------------------------------------------------------===//
 
 #pragma once
 
 #include <ATen/native/CPUFallback.h>
 
-namespace torch_lazy_tensors {
+namespace torch {
+namespace lazy {
 
 bool force_eager_fallback(c10::Symbol op);
 void ltc_eager_fallback(
     const c10::OperatorHandle& op, torch::jit::Stack* stack);
 
-extern TORCH_API std::function<void(void)> register_mlir_ltc_eager_fallback;
+// The MLIR LTC backend does not register itself with pytorch dispatcher
+// until it is explicitly initialized.  This function should only be called
+// by the main MLIR LTC backend init function.
+TORCH_API void register_mlir_ltc_eager_fallback();
 
-} // namespace torch_lazy_tensors
+} // namespace lazy
+} // namespace torch

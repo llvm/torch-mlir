@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/aten_eager_fallback.cpp
+// https://github.com/pytorch/pytorch/blob/torch/csrc/csrc/ts_backend/ts_eager_fallback.cpp
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
@@ -19,7 +19,8 @@
 #include "../utils/exception.h"
 #include "aten_eager_fallback.h"
 
-namespace torch_lazy_tensors {
+namespace torch {
+namespace lazy {
 
 static std::unordered_map<std::string, ::torch::lazy::Counter*>
     _eager_fallback_counters;
@@ -46,13 +47,10 @@ void ltc_eager_fallback(
       "MLIR ltc_eager_fallback is not supported for op: " << name);
 }
 
-std::function<void(void)> register_mlir_ltc_eager_fallback;
-
-TORCH_LIBRARY_IMPL(_, Lazy, m) {
-  register_mlir_ltc_eager_fallback = [&]() {
-    m.fallback(
-        torch::CppFunction::makeFromBoxedFunction<&ltc_eager_fallback>());
-  };
+static auto m = MAKE_TORCH_LIBRARY_IMPL(_, Lazy);
+void register_mlir_ltc_eager_fallback() {
+  m.fallback(torch::CppFunction::makeFromBoxedFunction<&ltc_eager_fallback>());
 }
 
-} // namespace torch_lazy_tensors
+} // namespace lazy
+} // namespace torch
