@@ -355,11 +355,30 @@ public:
     } else {
       return rewriter.notifyMatchFailure(op, "unsupported dtype");
     }
+
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
+    Value zero = rewriter.create<arith::ConstantOp>(loc, attrs[0]);
+
+    RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
+    Type indicesEType = indicesType.getElementType();
+    
+    // Collapse input to 1d
+    SmallVector<ReassociationIndices> reassociation(1);
+    for(auto i = 0; i < indicesType.getRank(); i++)
+      reassociation[0].push_back(i);
+
+    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociation);
+ 
+    llvm::errs()<<"flattened -> "<<flattened<<"\n";
+    llvm::errs()<<"reassociation -> "<<reassociation.size()<<"\n";
 
     //Expand indices
-    ValueTensorType indexType = op.indices().getType().cast<ValueTensorType>();
+    ValueTensorType indexType = flattened.getType().cast<ValueTensorType>();
+    llvm::errs()<<"indexType -> "<<indexType<<"\n";
+    
     SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
+    llvm::errs()<<"expandedIndexSizes[0] -> "<<expandedIndexSizes[0]<<"\n";
+
     ValueTensorType expandedIndexType = ValueTensorType::get(
       context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
