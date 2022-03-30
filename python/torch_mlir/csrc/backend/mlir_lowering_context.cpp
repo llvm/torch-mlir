@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/torch/csrc/lazy/ts_backend/ts_lowering_context.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_lowering_context.cpp
 //===----------------------------------------------------------------------===//
 
 #include <iostream>

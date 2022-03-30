@@ -18,6 +18,7 @@
 #include <torch/csrc/lazy/core/ir.h>
 #include <torch/csrc/lazy/core/shape.h>
 
+#include "../utils/debug.h"
 #include "../utils/exception.h"
 #include "aten_eager_fallback.h"
 #include "mlir_lowering_context.h"

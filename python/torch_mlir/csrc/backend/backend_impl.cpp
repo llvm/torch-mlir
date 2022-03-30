@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/torch/csrc/lazy/ts_backend/backend_impl.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
 //===----------------------------------------------------------------------===//
 
 #include <torch/csrc/lazy/backend/backend_data.h>
@@ -24,23 +24,21 @@ namespace torch {
 namespace lazy {
 
 TorchMlirBackendData::TorchMlirBackendData(BackendDevice device, Shape shape)
-    : BackendData(device, shape) {
+    : BackendData(device, shape),
+      info_(std::make_unique<TorchMlirBackendData::Info>()) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<TorchMlirBackendData::Info>();
-  SetInfo(info);
 }
-TorchMlirBackendData::TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device)
-    : BackendData(device, Shape(scalar.type(), {})) {
+TorchMlirBackendData::TorchMlirBackendData(
+    const at::Scalar& scalar, BackendDevice device)
+    : BackendData(device, Shape(scalar.type(), {})),
+      info_(std::make_unique<TorchMlirBackendData::Info>(scalar)) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<TorchMlirBackendData::Info>(scalar);
-  SetInfo(info);
 }
 TorchMlirBackendData::TorchMlirBackendData(
     const at::Tensor& tensor, BackendDevice device, Shape shape)
-    : BackendData(device, shape) {
+    : BackendData(device, shape),
+      info_(std::make_unique<TorchMlirBackendData::Info>(tensor)) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<TorchMlirBackendData::Info>(tensor);
-  SetInfo(info);
 }
 
 BackendData::Handle TorchMlirBackendData::GetHandle() {
@@ -51,12 +49,16 @@ void TorchMlirBackendData::Assign(const BackendData& data) {
   TorchMlirBackendData::Info* info =
       dynamic_cast<TorchMlirBackendData::Info*>(data.info());
   TORCH_CHECK(
-      info, "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
-  auto new_info = std::make_shared<TorchMlirBackendData::Info>(*info);
-  SetInfo(new_info);
+      info,
+      "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
+  info_ = std::make_unique<TorchMlirBackendData::Info>(*info);
 }
 
-bool TorchMlirBackendData::HasValue() const { return bool(info()); }
+bool TorchMlirBackendData::HasValue() const { return bool(info_); }
+
+TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
+  return info_.get();
+}
 
 /**
  * Initialization/Teardown

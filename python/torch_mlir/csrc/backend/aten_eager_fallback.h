@@ -9,7 +9,7 @@
 // Facilitates eager fallback behaviour
 //
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/torch/csrc/csrc/ts_backend/ts_eager_fallback.h
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/csrc/ts_backend/ts_eager_fallback.h
 //===----------------------------------------------------------------------===//
 
 #pragma once

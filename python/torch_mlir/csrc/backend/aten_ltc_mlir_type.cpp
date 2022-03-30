@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/aten_ltc_ts_type.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_native_functions.cpp
 //===----------------------------------------------------------------------===//
 
 #include <ATen/Operators.h>
@@ -338,13 +338,6 @@ LazyNativeFunctions::permute(const at::Tensor& self, at::IntArrayRef dims) {
   return torch::lazy::CreateAtenFromLtcTensor(
       torch::lazy::permute(self_tensor, torch::lazy::ToI64Vector(dims)));
 }
-
-// at::Tensor
-// LazyNativeFunctions::repeat(const at::Tensor& self, at::IntArrayRef repeats) {
-//   TORCH_LAZY_FN_COUNTER("lazy::");
-//   return torch::lazy::CreateAtenFromLtcTensor(torch::lazy::repeat(
-//       torch::lazy::TryGetLtcTensor(self), torch::lazy::ToI64Vector(repeats)));
-// }
 
 at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self) {
   TORCH_LAZY_FN_COUNTER("lazy::");

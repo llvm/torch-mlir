@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/torch/csrc/csrc/ts_backend/ts_eager_fallback.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/csrc/ts_backend/ts_eager_fallback.cpp
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
