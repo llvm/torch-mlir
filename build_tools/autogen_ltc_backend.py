@@ -300,7 +300,7 @@ def main(args):
         "generated_native_functions.yaml"
     )
     backend_path = TORCH_MLIR_DIR.joinpath(
-        "python", "torch_mlir", "csrc", "backend"
+        "python", "torch_mlir", "csrc", "base_lazy_backend"
     )
     assert backend_path.is_dir()
 
