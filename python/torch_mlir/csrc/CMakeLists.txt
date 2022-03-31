@@ -27,11 +27,16 @@ add_library(torch_mlir_ltc_backend SHARED
   backend/mlir_lowering_context.cpp
   backend/mlir_native_functions.cpp
   backend/mlir_node.cpp
+  backend/mlir_node_lowering.cpp
   backend/RegisterLazy.cpp
 )
 
+add_dependencies(torch_mlir_ltc_backend
+  TorchMLIRJITIRImporter
+)
 target_link_libraries(torch_mlir_ltc_backend
   TorchMLIRAggregateCAPI
+  TorchMLIRJITIRImporter
   ${TORCH_LIBRARIES}
   ${Python3_LIBRARIES}
   torch_python
