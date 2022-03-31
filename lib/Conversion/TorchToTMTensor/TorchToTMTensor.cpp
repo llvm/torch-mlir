@@ -319,7 +319,6 @@ public:
 
     Value grad_output = adaptor.grad_output();
     Value input = adaptor.self();
-    MLIRContext *context = op->getContext();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType gradType = grad_output.getType().cast<RankedTensorType>();
     SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
@@ -357,45 +356,32 @@ public:
     }
 
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
-    Value zero = rewriter.create<arith::ConstantOp>(loc, attrs[0]);
-
+    
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
     
-    // Collapse input to 1d
-    SmallVector<ReassociationIndices> reassociation(1);
+    // 1) Collapse 3D input to 1D
+    SmallVector<ReassociationIndices> reassociationCollapse(1);
     for(auto i = 0; i < indicesType.getRank(); i++)
-      reassociation[0].push_back(i);
+      reassociationCollapse[0].push_back(i);
 
-    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociation);
- 
-    llvm::errs()<<"flattened -> "<<flattened<<"\n";
-    llvm::errs()<<"reassociation -> "<<reassociation.size()<<"\n";
+    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), op.indices(), reassociationCollapse);
+    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
 
-    //Expand indices
-    ValueTensorType indexType = flattened.getType().cast<ValueTensorType>();
-    llvm::errs()<<"indexType -> "<<indexType<<"\n";
-    
-    SmallVector<int64_t> expandedIndexSizes{indexType.getSizes()[0], 1};
-    llvm::errs()<<"expandedIndexSizes[0] -> "<<expandedIndexSizes[0]<<"\n";
+    SmallVector<int64_t> expandShape(inputRank, 1);
+    auto expandShapeType = RankedTensorType::get(expandShape, indicesEType);
+    SmallVector<ReassociationIndices> reassociationExpand(1);
 
-    ValueTensorType expandedIndexType = ValueTensorType::get(
-      context, llvm::makeArrayRef(expandedIndexSizes), indexType.getDtype());
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(1));
+    // 2) Expand from 1D to 2D 
+    reassociationExpand[0].push_back(0);
+    reassociationExpand[0].push_back(1);
 
-    Value expandedIndexTensor = rewriter.create<AtenUnsqueezeOp>(
-      loc, expandedIndexType, op.indices(), torchCstOne);
+    Value expandedIndexTensor = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, flattened, reassociationExpand);
 
-     //Converting the index element type to i32.
-    Value indices = convertTensorToDtype(
-      rewriter, loc, expandedIndexTensor, mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
-    indices = typeConverter->materializeTargetConversion(
-      rewriter, loc, typeConverter->convertType(indices.getType()), indices);
-
-    // Scatter
+    // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
-        loc, input.getType(), ValueRange{grad_output, indices}, ValueRange{output},
+        loc, input.getType(), ValueRange{grad_output, expandedIndexTensor}, ValueRange{output},
         /*unique_indices=*/false);
 
     Region &scatterOpRegion = scatterOp.region();
