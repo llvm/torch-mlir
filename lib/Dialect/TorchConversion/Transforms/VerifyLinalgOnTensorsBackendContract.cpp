@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -79,6 +80,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     target.addDynamicallyLegalDialect<AffineDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<TMTensorDialect>(opHasLegalTypes);
+    target.addDynamicallyLegalDialect<scf::SCFDialect>(opHasLegalTypes);
 
     // ConstantOp is used for tensors and for scalars.
     target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);

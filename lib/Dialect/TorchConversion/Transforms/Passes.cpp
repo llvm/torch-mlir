@@ -61,8 +61,8 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // and those constants get somewhat obscured by TorchToStd.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
-  pm.addNestedPass<func::FuncOp>(createConvertTorchToStdPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToStdPass());
   pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
   if (options.optimize) {
