@@ -35,6 +35,9 @@ Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
                            Type dtype);
+// Helper funtion to get rank of `Base tensor type`.
+// -1 is returned if the tensorRank can't be determined.
+int getTensorRank(Value tensor);
 
 } // namespace Torch
 } // namespace torch

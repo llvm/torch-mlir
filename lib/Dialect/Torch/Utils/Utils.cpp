@@ -95,3 +95,14 @@ Value Torch::convertTensorToDtype(PatternRewriter &rewriter, Location loc,
       loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
   return converted;
 }
+
+int Torch::getTensorRank(Value tensor) {
+  int tensorRank = -1;
+  BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
+
+  if (tensorType.hasSizes()) {
+    ArrayRef<int64_t> tensorShape = tensorType.getSizes();
+    tensorRank = tensorShape.size();
+  }
+  return tensorRank;
+}
