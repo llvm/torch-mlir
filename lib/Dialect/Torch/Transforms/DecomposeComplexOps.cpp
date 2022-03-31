@@ -696,6 +696,60 @@ public:
 };
 } // namespace
 
+// Decompose aten.where.Scalar into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarOp : public OpRewritePattern<AtenWhereScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.self());
+    Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.other());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 selfTensor, otherTensor);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.where.ScalarOther into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarOtherOp
+    : public OpRewritePattern<AtenWhereScalarOtherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarOtherOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value otherTensor = createRank0Tensor(rewriter, loc, resType, op.other());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 op.self(), otherTensor);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.where.ScalarSelf into aten.where.self op.
+namespace {
+class DecomposeAtenWhereScalarSelfOp
+    : public OpRewritePattern<AtenWhereScalarSelfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereScalarSelfOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = op.getType().cast<BaseTensorType>();
+    Value selfTensor = createRank0Tensor(rewriter, loc, resType, op.self());
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.condition(),
+                                                 selfTensor, op.other());
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -1442,8 +1496,15 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
   LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(),
-                                         op.dtype(), op.layout(), op.device(),
+    Value dtype = op.dtype();
+    if (dtype.getType().isa<Torch::NoneType>()) {
+      BaseTensorType tensorType =
+          op.self().getType().template cast<BaseTensorType>();
+      dtype =
+          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<NewOpTy>(op, op.getType(), op.size(), dtype,
+                                         op.layout(), op.device(),
                                          op.pin_memory());
     return success();
   }
@@ -1537,6 +1598,27 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.new_empty` op into `aten.empty.memory_format` op.
+class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNewEmptyOp op,
+                                PatternRewriter &rewriter) const override {
+    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
+    Value dtype = op.dtype();
+    if (dtype.getType().isa<Torch::NoneType>()) {
+      BaseTensorType tensorType = op.self().getType().cast<BaseTensorType>();
+      dtype =
+          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
+        op, op.getType(), op.size(), dtype, op.layout(), op.device(),
+        op.pin_memory(), /*memory_format=*/noneVal);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1563,6 +1645,12 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenZerosLikeOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
+    patterns.add<DecomposeAtenWhereScalarOp>(context);
+    target.addIllegalOp<AtenWhereScalarOp>();
+    patterns.add<DecomposeAtenWhereScalarOtherOp>(context);
+    target.addIllegalOp<AtenWhereScalarOtherOp>();
+    patterns.add<DecomposeAtenWhereScalarSelfOp>(context);
+    target.addIllegalOp<AtenWhereScalarSelfOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
     target.addIllegalOp<AtenSizeOp>();
     patterns.add<DecomposeAtenReshapeOp>(context);
@@ -1651,6 +1739,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_ToCopyOp>();
     patterns.add<DecomposeAtenDropoutOp>(context);
     target.addIllegalOp<AtenDropoutOp>();
+    target.addIllegalOp<AtenNewEmptyOp>();
+    patterns.add<DecomposeAtenNewEmptyOp>(context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

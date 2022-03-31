@@ -20,6 +20,10 @@
 # prevent this script from attempting to build the directory, and will simply
 # use the (presumed already built) directory as-is.
 #
+# The package version can be set with the TORCH_MLIR_PYTHON_PACKAGE_VERSION
+# environment variable. For example, this can be "20220330.357" for a snapshot
+# release on 2022-03-30 with build number 357.
+#
 # Implementation notes:
 # The contents of the wheel is just the contents of the `python_packages`
 # directory that our CMake build produces. We go through quite a bit of effort
@@ -35,6 +39,7 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
+PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):
@@ -108,7 +113,7 @@ class NoopBuildExtension(build_ext):
 
 setup(
     name="torch-mlir",
-    version="0.0.1",
+    version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
     description="First-class interop between PyTorch and MLIR",

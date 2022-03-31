@@ -56,4 +56,4 @@ jobs:
           workflow: Build and Test
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           ref: "${{ env.tag_name }}"
-          inputs: '{"release_id": "${{ steps.create_release.outputs.id }}"}'
+          inputs: '{"release_id": "${{ steps.create_release.outputs.id }}", "python_package_version": "${{ env.package_version }}"}'

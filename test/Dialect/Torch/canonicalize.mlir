@@ -375,16 +375,38 @@ func @torch.aten.gt.float$evaluate_to_false() -> !torch.bool {
 }
 
 
-// CHECK-LABEL:   func @torch.aten.ge.int$of_size.int(
-// CHECK-SAME:                                        %[[ARG:.*]]: !torch.tensor) -> !torch.bool {
-// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
-// CHECK:           return %[[TRUE]] : !torch.bool
-func @torch.aten.ge.int$of_size.int(%arg0: !torch.tensor) -> !torch.bool {
+// CHECK-LABEL:   func @comparison_with_torch.aten.size.int(
+// CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor<[?,2],unk>) -> (!torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool) {
+// CHECK:           %[[SIZE:.*]] = torch.aten.size.int %[[ARG0]], %int0 : !torch.vtensor<[?,2],unk>, !torch.int -> !torch.int
+// CHECK:           %[[GE_0_LHS:.*]] = torch.aten.ge.int %int0, %[[SIZE]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[LT_0_LHS:.*]] = torch.aten.lt.int %int0, %[[SIZE]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[EQ_0_LHS:.*]] = torch.aten.eq.int %int0, %[[SIZE]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[NE_0_LHS:.*]] = torch.aten.ne.int %int0, %[[SIZE]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[GT_0_RHS:.*]] = torch.aten.gt.int %[[SIZE]], %int0 : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[LE_0_RHS:.*]] = torch.aten.le.int %[[SIZE]], %int0 : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[EQ_0_RHS:.*]] = torch.aten.eq.int %[[SIZE]], %int0 : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[NE_0_RHS:.*]] = torch.aten.ne.int %[[SIZE]], %int0 : !torch.int, !torch.int -> !torch.bool
+// CHECK:           return %true, %true, %false, %false, %[[GE_0_LHS]], %[[LT_0_LHS]], %[[EQ_0_LHS]], %[[NE_0_LHS]], %[[GT_0_RHS]], %[[LE_0_RHS]], %[[EQ_0_RHS]], %[[NE_0_RHS]] : !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool
+func @comparison_with_torch.aten.size.int(%arg0: !torch.vtensor<[?,2],unk>) -> (!torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool) {
   %int0 = torch.constant.int 0
-  %0 = torch.aten.size.int %arg0, %int0 : !torch.tensor, !torch.int -> !torch.int
-  %1 = torch.aten.ge.int %0, %int0  : !torch.int, !torch.int -> !torch.bool
-  return %1 : !torch.bool
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,2],unk>, !torch.int -> !torch.int
+  // Cases we can fold.
+  %1 = torch.aten.le.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  %2 = torch.aten.ge.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  %3 = torch.aten.lt.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  %4 = torch.aten.gt.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  // Cases we cannot fold.
+  %5 = torch.aten.ge.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  %6 = torch.aten.lt.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  %7 = torch.aten.eq.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  %8 = torch.aten.ne.int %int0, %0 : !torch.int, !torch.int -> !torch.bool
+  %9 = torch.aten.gt.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  %10 = torch.aten.le.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  %11 = torch.aten.eq.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  %12 = torch.aten.ne.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+  return %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12 : !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool, !torch.bool
 }
+
 
 // CHECK-LABEL:   func @torch.aten.eq.float$different_value() -> !torch.bool {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
