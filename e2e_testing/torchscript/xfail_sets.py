@@ -152,4 +152,6 @@ TOSA_PASS_SET = {
     "ViewNoChangeStaticModule_basic",
     "UnsafeViewExpandModule_basic",
     "ReshapeCollapseModule_basic",
+    "ElementwiseGeluModule_basic",
+    "GeluBackwardModule_basic",
 }
