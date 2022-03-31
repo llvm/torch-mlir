@@ -313,10 +313,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    // For debugging
-
-    //op->getParentOfType<ModuleOp>().dump();
-
+    
     Value grad_output = adaptor.grad_output();
     Value input = adaptor.self();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
@@ -356,7 +353,7 @@ public:
     }
 
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
-    
+
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
     
@@ -366,13 +363,12 @@ public:
       reassociationCollapse[0].push_back(i);
 
     Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), op.indices(), reassociationCollapse);
-    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
 
+    // 2) Expand from 1D to 2D 
+    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
     SmallVector<int64_t> expandShape(inputRank, 1);
     auto expandShapeType = RankedTensorType::get(expandShape, indicesEType);
     SmallVector<ReassociationIndices> reassociationExpand(1);
-
-    // 2) Expand from 1D to 2D 
     reassociationExpand[0].push_back(0);
     reassociationExpand[0].push_back(1);
 
