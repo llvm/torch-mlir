@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/IR/MLIRContext.h"
@@ -351,7 +352,6 @@ public:
     } else {
       return rewriter.notifyMatchFailure(op, "unsupported dtype");
     }
-
     Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
 
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
@@ -364,11 +364,8 @@ public:
 
     Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociationCollapse);
 
-    // 2) Expand from 1D to 2D 
-    unsigned indexRank = flattened.getType().cast<RankedTensorType>().getRank();
-    SmallVector<int64_t> expandShape(indexRank, 1);
-
-    auto expandShapeType = RankedTensorType::get(expandShape, indicesEType);
+    // 2) Expand from 1D to 2D
+    auto expandShapeType = RankedTensorType::get({-1,1}, indicesEType);
     SmallVector<ReassociationIndices> reassociationExpand(1);
     reassociationExpand[0].push_back(0);
     reassociationExpand[0].push_back(1);
@@ -379,7 +376,7 @@ public:
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
         loc, input.getType(), ValueRange{grad_output, expandedIndexTensor}, ValueRange{output},
-        /*unique_indices=*/false);
+        /*unique_indices=*/true);
 
     Region &scatterOpRegion = scatterOp.region();
     auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
@@ -387,7 +384,11 @@ public:
     auto blockArgs = scatterOpBlock.getArguments();
     OpBuilder regionBuilder(scatterOpRegion);
 
-    regionBuilder.create<TMTensor::YieldOp>(loc, blockArgs[0]);
+    Value add = regionBuilder.create<arith::AddFOp>(loc,
+                                                    /*bincount=*/blockArgs[1],
+                                                    blockArgs[0]);
+
+    regionBuilder.create<TMTensor::YieldOp>(loc, add);
     rewriter.replaceOp(op, scatterOp->getResult(0));
 
     return success();
