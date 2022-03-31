@@ -357,16 +357,17 @@ public:
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
     
-    // 1) Collapse 3D input to 1D
+    // 1) Collapse 3D to 1D
     SmallVector<ReassociationIndices> reassociationCollapse(1);
     for(auto i = 0; i < indicesType.getRank(); i++)
       reassociationCollapse[0].push_back(i);
 
-    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), op.indices(), reassociationCollapse);
+    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociationCollapse);
 
     // 2) Expand from 1D to 2D 
-    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
-    SmallVector<int64_t> expandShape(inputRank, 1);
+    unsigned indexRank = flattened.getType().cast<RankedTensorType>().getRank();
+    SmallVector<int64_t> expandShape(indexRank, 1);
+
     auto expandShapeType = RankedTensorType::get(expandShape, indicesEType);
     SmallVector<ReassociationIndices> reassociationExpand(1);
     reassociationExpand[0].push_back(0);
