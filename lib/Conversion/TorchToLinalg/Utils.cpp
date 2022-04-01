@@ -55,9 +55,9 @@ Value torch_to_linalg::getPaddedTensor(
 // Helper function to get the padding tensor given the padding int values.
 // It's assumed that the padding on the low end and high end are the same,
 // and that zero padding is required.
-Value torch_to_linalg::getPaddedTensor(Operation *op, OpBuilder &b,
-                                       Value &input,
-                                       SmallVectorImpl<int64_t> &paddingInts) {
+Value torch_to_linalg::getZeroPaddedTensor(
+    Operation *op, OpBuilder &b, Value &input,
+    SmallVectorImpl<int64_t> &paddingInts) {
   assert(input.getType().isa<RankedTensorType>() &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();

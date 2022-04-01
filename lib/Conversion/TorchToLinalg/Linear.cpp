@@ -513,8 +513,8 @@ public:
     SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
     paddingIncludingNC.insert(paddingIncludingNC.end(), paddingInts.begin(),
                               paddingInts.end());
-    Value paddedInput = torch_to_linalg::getPaddedTensor(op, rewriter, input,
-                                                         paddingIncludingNC);
+    Value paddedInput = torch_to_linalg::getZeroPaddedTensor(
+        op, rewriter, input, paddingIncludingNC);
 
     SmallVector<Value> paddingIntValues =
         getAsConstantIntValues(rewriter, loc, paddingInts);

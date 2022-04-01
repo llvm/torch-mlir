@@ -121,6 +121,15 @@ Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   return b.create<linalg::FillOp>(loc, initElem, initTensor).getResult(0);
 }
 
+Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                           Type elemTy) {
+  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
+  Value c0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
+  return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+}
+
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   assert(v.getType().isa<IntegerType>() && "must be called with integer type");
   return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
@@ -158,15 +167,6 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
   for (Value size : sizes)
     productResult = b.create<arith::MulIOp>(loc, productResult, size);
   return castIndexToInt(b, loc, productResult);
-}
-
-Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
-                           Type elemTy) {
-  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
-  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
-  Value c0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
-  return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
 // Creates a constant of type `elemType` with value `val`.

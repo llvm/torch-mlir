@@ -21,8 +21,8 @@ Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 // Helper function to get the padding tensor given the padding int values.
 // It's assumed that the padding on the low end and high end are the same,
 // and that zero padding is required.
-Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
-                      SmallVectorImpl<int64_t> &paddingInts);
+Value getZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
+                          SmallVectorImpl<int64_t> &paddingInts);
 
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
