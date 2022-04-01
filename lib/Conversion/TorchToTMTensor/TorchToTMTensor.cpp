@@ -321,9 +321,11 @@ public:
     Value grad_output = adaptor.grad_output();
     Value input = adaptor.self();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+
     RankedTensorType gradType = grad_output.getType().cast<RankedTensorType>();
     SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
     Type inputEType = inputType.getElementType();
+    //Type inputEType = inputType.getElementType();
 
     // Get values
     SmallVector<Value> kernelSize;
@@ -376,6 +378,8 @@ public:
     Value expandedIndexTensor = rewriter.create<tensor::ExpandShapeOp>(
         loc, expandShapeType, flattened, reassociationExpand);
 
+    Value cstOne = rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(inputEType, 1.0));
+
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
         loc, input.getType(), ValueRange{grad_output, expandedIndexTensor}, ValueRange{output},
@@ -389,9 +393,10 @@ public:
 
     Value add = regionBuilder.create<arith::AddFOp>(loc,
                                                     blockArgs[1],
-                                                    blockArgs[0]);
+                                                    cstOne);
 
     regionBuilder.create<TMTensor::YieldOp>(loc, add);
+    op->getParentOfType<ModuleOp>().dump();
     rewriter.replaceOp(op, scatterOp->getResult(0));
 
     return success();
