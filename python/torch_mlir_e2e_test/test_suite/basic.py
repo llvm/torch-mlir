@@ -1683,8 +1683,77 @@ class MaxPool2dWithIndicesBackwardModule(torch.nn.Module):
        padding=[0, 0]
        dilation=[1, 1]
        ceil_mode=False
-       return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size, stride, padding,dilation, ceil_mode, indices)
+       return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size, stride, padding, dilation, ceil_mode, indices)
 
 @register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardModule())
 def MaxPool2dWithIndicesBackwardsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 2), tu.rand(1, 4, 4), tu.rand(1, 2, 2).long())
+
+class MaxPool2dWithIndicesBackwardModule1(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int, True),
+    ])
+    def forward(self, output, input, indices):
+       kernel_size=[2, 2]
+       stride=[1, 1] 
+       padding=[0, 0]
+       dilation=[1, 1]
+       ceil_mode=False
+       return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size, stride, padding, dilation, ceil_mode, indices)
+
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardModule1())
+def MaxPool2dWithIndicesBackwardModule1_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 2), tu.rand(5, 5, 3), tu.rand(5, 4, 2).long())    
+
+class MaxPool2dWithIndicesBackwardModul2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int, True),
+    ])
+    def forward(self, output, input, indices):
+       kernel_size=[2, 2]
+       stride=[1, 1] 
+       padding=[1, 1]
+       dilation=[1, 1]
+       ceil_mode=False
+       return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size, stride, padding, dilation, ceil_mode, indices)
+
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardModul2())
+def MaxPool2dWithIndicesBackwardModul2_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 6, 4), tu.rand(5, 5, 3), tu.rand(5, 6, 4).long())        
+
+class MaxPool2dWithIndicesBackwardModul3(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int, True),
+    ])
+    def forward(self, output, input, indices):
+       kernel_size=[2, 2]
+       stride=[1, 1] 
+       padding=[1, 1]
+       dilation=[1, 1]
+       ceil_mode=True
+       return torch.ops.aten.max_pool2d_with_indices_backward(output, input, kernel_size, stride, padding, dilation, ceil_mode, indices)
+
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesBackwardModul3())
+def MaxPool2dWithIndicesBackwardModul3_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 6, 4), tu.rand(5, 5, 3), tu.rand(5, 6, 4).long())         

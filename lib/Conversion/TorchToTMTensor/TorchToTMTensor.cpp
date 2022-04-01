@@ -360,7 +360,7 @@ public:
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
     
-    // 1) Collapse 3D to 1D
+    // 1) Collapse from 3D to 1D
     SmallVector<ReassociationIndices> reassociationCollapse(1);
     for(auto i = 0; i < indicesType.getRank(); i++)
       reassociationCollapse[0].push_back(i);
@@ -388,7 +388,7 @@ public:
     OpBuilder regionBuilder(scatterOpRegion);
 
     Value add = regionBuilder.create<arith::AddFOp>(loc,
-                                                    /*bincount=*/blockArgs[1],
+                                                    blockArgs[1],
                                                     blockArgs[0]);
 
     regionBuilder.create<TMTensor::YieldOp>(loc, add);
