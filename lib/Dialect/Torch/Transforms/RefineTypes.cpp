@@ -669,6 +669,21 @@ ChangeResult TypeAnalyzer::visitOperation(
     return changed;
   }
 
+  if (isa<AtenMaxPool2dWithIndicesOp>(op)) {
+    auto self = operands[0]->getValue();
+    auto result0Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result0Knowledge.dtype = self.dtype;
+    auto result1Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result1Knowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    ;
+    auto changed = incorporateKnowledge(op->getResult(0), result0Knowledge);
+    changed |= incorporateKnowledge(op->getResult(1), result1Knowledge);
+    return changed;
+  }
+
   if (auto arange = dyn_cast<AtenArangeOp>(op)) {
     return visitAtenArangeOp(arange);
   }

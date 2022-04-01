@@ -20,6 +20,8 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "MobilenetV3Module_basic",
     "ConvolutionModule3D_basic",
     "ConvolutionModule1D_basic",
+    "MaxPool2dWith3dInputModule_basic",
+    "MaxPool2dWithIndicesWith3dInputModule_basic",
 }
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
