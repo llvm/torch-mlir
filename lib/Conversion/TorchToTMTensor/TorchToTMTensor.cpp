@@ -379,7 +379,7 @@ public:
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
         loc, input.getType(), ValueRange{grad_output, expandedIndexTensor}, ValueRange{output},
-        /*unique_indices=*/true);
+        /*unique_indices=*/false);
 
     Region &scatterOpRegion = scatterOp.region();
     auto &scatterOpBlock = scatterOpRegion.emplaceBlock();
