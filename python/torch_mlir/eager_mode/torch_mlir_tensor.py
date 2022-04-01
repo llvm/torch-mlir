@@ -21,7 +21,9 @@ class TorchMLIRTensor(torch.Tensor):
     in order to dispatch through torch-mlir instead of aten. Here we basically only unwrap and wrap
     torch.Tensors. Most of the heavy lifting is done in the adjacent torch_mlir_dispatch module.
 
-    More documentation on how this pattern works can be found in this RFC
+    More documentation on how this pattern works can be found in this forum post
+    https://dev-discuss.pytorch.org/t/what-and-why-is-torch-dispatch/557
+    and this RFC
     https://github.com/pytorch/rfcs/blob/master/RFC-0001-torch-function-for-methods.md#process-followed-during-a-functionmethod-call
     and this repo with many examples
     https://github.com/albanD/subclass_zoo
