@@ -318,11 +318,11 @@ public:
       return failure();
     Location loc = op.getLoc();
     
-    Value grad_output = adaptor.grad_output();
+    Value gradOutput = adaptor.grad_output();
     Value input = adaptor.self();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
 
-    RankedTensorType gradType = grad_output.getType().cast<RankedTensorType>();
+    RankedTensorType gradOutputType = gradOutput.getType().cast<RankedTensorType>();
     SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
     Type inputEType = inputType.getElementType();
     //Type inputEType = inputType.getElementType();
@@ -342,7 +342,7 @@ public:
       return rewriter.notifyMatchFailure(op, "dilation not constructed from ListConstruct");
 
     // The element type of the `self` and `values` should be same.
-    if (inputType.getElementType() != gradType.getElementType())
+    if (inputType.getElementType() != gradOutputType.getElementType())
       return rewriter.notifyMatchFailure(
           op, "Input element type should be same as the grad_output element type.");
 
@@ -378,11 +378,11 @@ public:
     Value expandedIndexTensor = rewriter.create<tensor::ExpandShapeOp>(
         loc, expandShapeType, flattened, reassociationExpand);
 
-    Value cstOne = rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(inputEType, 1.0));
+    //Value cstOne = rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(inputEType, 1.0));
 
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
-        loc, input.getType(), ValueRange{grad_output, expandedIndexTensor}, ValueRange{output},
+        loc, input.getType(), ValueRange{gradOutput, expandedIndexTensor}, ValueRange{output},
         /*unique_indices=*/false);
 
     Region &scatterOpRegion = scatterOp.region();
@@ -393,7 +393,7 @@ public:
 
     Value add = regionBuilder.create<arith::AddFOp>(loc,
                                                     blockArgs[1],
-                                                    cstOne);
+                                                    blockArgs[0]);
 
     regionBuilder.create<TMTensor::YieldOp>(loc, add);
     op->getParentOfType<ModuleOp>().dump();
