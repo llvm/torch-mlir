@@ -91,20 +91,43 @@ func @unmodeled_mutation(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch
   return %result : !torch.vtensor
 }
 
-// We don't yet handle nontrivial cases involving control flow.
-// CHECK-LABEL:   func @unimplemented_control_flow(
-// CHECK:           torch.copy.to_vtensor
-func @unimplemented_control_flow(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %cond: !torch.bool) -> (!torch.vtensor, !torch.vtensor) {
-  %tensor = torch.copy.to_tensor %arg0 : !torch.tensor
-  %equal_to_arg0 = torch.copy.to_vtensor %tensor : !torch.vtensor
-  torch.prim.If %cond -> () {
-    torch.overwrite.tensor.contents %arg1 overwrites %tensor : !torch.vtensor, !torch.tensor
-    torch.prim.If.yield
+// A very basic if-control-flow test case
+// CHECK-LABEL:   func @if_control_flow(
+// CHECK:           torch.copy.to_tensor
+func @if_control_flow(%arg0: !torch.vtensor<[2,2],f32>, %arg1: !torch.vtensor<[2,2],f32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.tensor {
+  %int1 = torch.constant.int 1
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,2],f32> to !torch.vtensor
+  %1 = torch.copy.to_tensor %0 : !torch.tensor
+  %2 = torch.tensor_static_info_cast %arg1 : !torch.vtensor<[2,2],f32> to !torch.vtensor
+  %3 = torch.copy.to_tensor %2 : !torch.tensor
+  %4 = torch.tensor_static_info_cast %arg2 : !torch.vtensor<[],si32> to !torch.vtensor
+  %5 = torch.copy.to_tensor %4 : !torch.tensor
+  %6 = torch.tensor_static_info_cast %arg3 : !torch.vtensor<[],si32> to !torch.vtensor
+  %7 = torch.copy.to_tensor %6 : !torch.tensor
+  %8 = torch.copy.to_vtensor %5 : !torch.vtensor
+  %9 = torch.copy.to_vtensor %7 : !torch.vtensor
+  %10 = torch.aten.eq.Tensor %8, %9 : !torch.vtensor, !torch.vtensor -> !torch.vtensor
+  %11 = torch.copy.to_tensor %10 : !torch.tensor
+  %12 = torch.copy.to_vtensor %11 : !torch.vtensor
+  %13 = torch.aten.Bool.Tensor %12 : !torch.vtensor -> !torch.bool
+  %14 = torch.prim.If %13 -> (!torch.tensor) {
+    %19 = torch.copy.to_vtensor %1 : !torch.vtensor
+    %20 = torch.copy.to_vtensor %3 : !torch.vtensor
+    %21 = torch.aten.sub.Tensor %19, %20, %int1 : !torch.vtensor, !torch.vtensor, !torch.int -> !torch.vtensor
+    %22 = torch.copy.to_tensor %21 : !torch.tensor
+    torch.prim.If.yield %22 : !torch.tensor
   } else {
-    torch.prim.If.yield
+    %19 = torch.copy.to_vtensor %1 : !torch.vtensor
+    %20 = torch.copy.to_vtensor %3 : !torch.vtensor
+    %21 = torch.aten.add.Tensor %19, %20, %int1 : !torch.vtensor, !torch.vtensor, !torch.int -> !torch.vtensor
+    %22 = torch.copy.to_tensor %21 : !torch.tensor
+    torch.prim.If.yield %22 : !torch.tensor
   }
-  %equal_to_arg1 = torch.copy.to_vtensor %tensor : !torch.vtensor
-  return %equal_to_arg0, %equal_to_arg1 : !torch.vtensor, !torch.vtensor
+  %15 = torch.copy.to_vtensor %14 : !torch.vtensor
+  %16 = torch.copy.to_vtensor %3 : !torch.vtensor
+  %17 = torch.aten.add.Tensor %15, %16, %int1 : !torch.vtensor, !torch.vtensor, !torch.int -> !torch.vtensor
+  %18 = torch.copy.to_tensor %17 : !torch.tensor
+  return %18 : !torch.tensor
 }
 
 // CHECK-LABEL:   func @non_value_tensor_returned(
