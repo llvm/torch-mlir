@@ -16,7 +16,7 @@ on:
 
 jobs:
   build:
-    name: Build and Test (Release Asserts)
+    name: Build and Test and maybe Publish (Release Asserts)
     runs-on: ubuntu-20.04
     steps:
     - name: Get torch-mlir
@@ -86,3 +86,53 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+
+  build-out-of-tree:
+    name: Build and Test out-of-tree (Release Asserts)
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Get torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/setup-build
+    - name: Build LLVM (standalone)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cmake -Bllvm-build -GNinja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DPython3_EXECUTABLE=$(which python) \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DLLVM_ENABLE_PROJECTS=mlir \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          externals/llvm-project/llvm
+        ninja -Cllvm-build
+
+    - name: Build and test torch-mlir (out-of-tree)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cmake -GNinja -Bbuild \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
+          -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DPython3_EXECUTABLE=$(which python) \
+          .
+        ninja -Cbuild check-torch-mlir-all
+
+    - name: RefBackend - TorchScript end-to-end tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=refbackend -v
+    - name: TOSA backend - TorchScript end-to-end tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=tosa -v
