@@ -317,7 +317,7 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    
+
     Value gradOutput = adaptor.grad_output();
     Value input = adaptor.self();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
@@ -362,27 +362,30 @@ public:
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
     
+    Type gradOutputEType = gradOutputType.getElementType();
+
     // 1) Collapse from 3D to 1D
     SmallVector<ReassociationIndices> reassociationCollapse(1);
     for(auto i = 0; i < indicesType.getRank(); i++)
       reassociationCollapse[0].push_back(i);
 
-    Value flattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociationCollapse);
+    Value indicesFlattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociationCollapse);
+    Value gradOutputFlattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, gradOutputEType), adaptor.grad_output(), reassociationCollapse);
 
     // 2) Expand from 1D to 2D
-    auto expandShapeType = RankedTensorType::get({-1,1}, indicesEType);
+    auto expandShapeIndexType = RankedTensorType::get({-1,1}, indicesEType);
+
     SmallVector<ReassociationIndices> reassociationExpand(1);
     reassociationExpand[0].push_back(0);
     reassociationExpand[0].push_back(1);
 
     Value expandedIndexTensor = rewriter.create<tensor::ExpandShapeOp>(
-        loc, expandShapeType, flattened, reassociationExpand);
+        loc, expandShapeIndexType, indicesFlattened, reassociationExpand);
 
-    //Value cstOne = rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(inputEType, 1.0));
 
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
-        loc, input.getType(), ValueRange{gradOutput, expandedIndexTensor}, ValueRange{output},
+        loc, input.getType(), ValueRange{gradOutputFlattened, expandedIndexTensor}, ValueRange{output},
         /*unique_indices=*/false);
 
     Region &scatterOpRegion = scatterOp.region();
