@@ -2367,7 +2367,7 @@ module {
       torch.prim.If.yield %int0 : !torch.int
     } else {
       %25 = torch.aten.__getitem__.t %arg0, %2 : !torch.list<int>, !torch.int -> !torch.int
-      %26 = torch.aten.ge.int %12, %25 : !torch.int, !torch.int -> !torch.bool
+      %26 = torch.aten.gt.int %12, %25 : !torch.int, !torch.int -> !torch.bool
       %27 = torch.prim.If %26 -> (!torch.int) {
         %28 = torch.aten.__getitem__.t %arg0, %2 : !torch.list<int>, !torch.int -> !torch.int
         torch.prim.If.yield %28 : !torch.int
