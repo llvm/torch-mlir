@@ -1,0 +1,36 @@
+name: Bazel Build and Test
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build and Test (Release Asserts)
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+    - name: Get torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - name: Build with bazel
+      run: |
+        cd $GITHUB_WORKSPACE/utils/bazel
+        bazel build @torch-mlir//...
+    - name: Send mail
+      if: failure()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: ${{ secrets.SMTP_SERVER }}
+        server_port: ${{ secrets.SMTP_PORT }}
+        username: ${{ secrets.SMTP_USERNAME }}
+        password: ${{ secrets.SMTP_PASSWORD }}
+        subject: GitHub Action Bazel Build and Test failed!
+        body: Bazel Build job failed! See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }} for more information.
+        to: ${{ secrets.MAIL_RECEIVER }}
+        from: Torch-MLIR Bazel Build GitHub Actions
