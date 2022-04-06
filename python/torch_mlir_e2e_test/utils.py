@@ -19,11 +19,18 @@ def get_module_name_for_debug_dump(module):
         return "UnnammedModule"
     return StringAttr(module.operation.attributes["torch.debug_module_name"]).value
 
+mlircount = 0
 def run_pipeline_with_repro_report(module,
                                    pipeline: str,
                                    description: str):
     """Runs `pipeline` on `module`, with a nice repro report if it fails."""
+    global mlircount
     module_name = get_module_name_for_debug_dump(module)
+    filename = os.path.join(os.getcwd(), module_name + "_" + str(mlircount) + ".mlir")
+    mlircount += 1
+    print(pipeline)
+    with open(filename, 'w') as f:
+        f.write(str(module))
     try:
         original_stderr = sys.stderr 
         sys.stderr = StringIO()

@@ -24,6 +24,11 @@ Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                       SmallVectorImpl<int64_t> &paddingInts);
 
+Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
+                      SmallVectorImpl<int64_t> &lowPaddingInts,
+                      SmallVectorImpl<int64_t> &highPaddingInts,
+                      Value pad, Type outType);
+
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
 // dim_out =

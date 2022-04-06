@@ -433,6 +433,7 @@ def AnyTorchTensorListType:
 def AnyTorchOptionalTensorListType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
+def TorchOptionalIntListType : OptionalOf<TorchIntListType, "Optional torch int list type (int[]?)">;
 
 // Note: TorchScript does not consider !torch.bool to be a Scalar.
 def AnyTorchScalarType :

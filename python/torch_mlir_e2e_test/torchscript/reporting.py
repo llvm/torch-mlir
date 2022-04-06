@@ -158,6 +158,11 @@ class ValueReport:
                     f'dtype ({value.dtype}) is not equal to golden dtype ({golden.dtype})'
                 )
             if not torch.allclose(value, golden, rtol=1e-03, atol=1e-07, equal_nan=True):
+                torch.set_printoptions(sci_mode=False)
+                print("==Value==")
+                print(value)
+                print("==Golden==")
+                print(golden)
                 return self._record_failure(
                     f'value ({TensorSummary(value)}) is not close to golden value ({TensorSummary(golden)})'
                 )

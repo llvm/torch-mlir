@@ -56,6 +56,66 @@ def TanhBackward_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+#class ConvolutionBackwardModule1D(torch.nn.Module):
+#    def __init__(self):
+#        super().__init__()
+#
+#    @export
+#    @annotate_args([
+#        None,
+#        ([-1, -1, -1], torch.float32, True),
+#        ([-1, -1, -1], torch.float32, True),
+#        ([-1, -1, -1], torch.float32, True),
+#    ])
+#    def forward(self, grad_out, input_vec, weight):
+#        return torch.ops.aten.convolution_backward(grad_out, input_vec, weight, bias_sizes=None, stride=[1], padding=[0], dilation=[1], transposed=False, output_padding=[0], groups=1, output_mask=[True, True, True])
+
+#@register_test_case(module_factory=lambda: ConvolutionBackwardModule1D())
+#def ConvolutionBackwardModule1D_basic(module, tu: TestUtils):
+#    with torch.backends.mkldnn.flags(enabled=False):
+#        module.forward(torch.randn(3, 3, 3), torch.randn(3, 3, 3), torch.randn(3, 3, 1))
+
+class ConvolutionBackwardModule2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(grad_out, input_vec, weight, bias_sizes=None, stride=[1, 1], padding=[0, 0], dilation=[1, 1], transposed=False, output_padding=[0], groups=1, output_mask=[True, True, True])
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule2D())
+def ConvolutionBackwardModule2D_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        grad = torch.stack([torch.tensor([float(x)]*2*2).reshape(2, 2) for x in list(range(3*3))]).reshape(2, 2, 3, 3)
+        module.forward(grad, torch.ones(2, 2, 4, 4), torch.ones(2, 2, 2, 2))
+
+#class ConvolutionBackwardModule3D(torch.nn.Module):
+#    def __init__(self):
+#        super().__init__()
+
+#    @export
+#    @annotate_args([
+#        None,
+#        ([-1, -1, -1, -1, -1], torch.float32, True),
+#        ([-1, -1, -1, -1, -1], torch.float32, True),
+#        ([-1, -1, -1, -1, -1], torch.float32, True),
+#    ])
+#    def forward(self, grad_out, input_vec, weight):
+#        return torch.ops.aten.convolution_backward(grad_out, input_vec, weight, bias_sizes=None, stride=[1, 1, 1], padding=[0], dilation=[1, 1, 1], transposed=False, output_padding=[0], groups=1, output_mask=[True, True, True])
+
+#@register_test_case(module_factory=lambda: ConvolutionBackwardModule3D())
+#def ConvolutionBackwardModule3D_basic(module, tu: TestUtils):
+#    with torch.backends.mkldnn.flags(enabled=False):
+#        module.forward(torch.randn(3, 3, 3, 3, 3), torch.randn(3, 3, 3, 3, 3), torch.randn(3, 3, 1, 1, 1))
+
+# ==============================================================================
+
 class GeluBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

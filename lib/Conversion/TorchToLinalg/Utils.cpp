@@ -67,6 +67,22 @@ Value torch_to_linalg::getPaddedTensor(Operation *op, OpBuilder &b,
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
 
+Value torch_to_linalg::getPaddedTensor(
+    Operation *op, OpBuilder &b, Value &input,
+    SmallVectorImpl<int64_t> &lowPaddingInts,
+    SmallVectorImpl<int64_t> &highPaddingInts,
+    Value pad, Type outType) {
+  Location loc = op->getLoc();
+  SmallVector<OpFoldResult> lowPaddings =
+      getIndexIntsAsOpFoldResult(b, lowPaddingInts);
+  SmallVector<OpFoldResult> highPaddings =
+      getIndexIntsAsOpFoldResult(b, highPaddingInts);
+  Value paddedInput = tensor::createPadScalarOp(
+      outType, input, pad, /*low=*/lowPaddings, /*high=*/highPaddings,
+      /*packing=*/false, loc, b);
+  return paddedInput;
+}
+
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
                                               Value in, Value paddingInt,
                                               Value dilationInt,
