@@ -57,8 +57,10 @@ def normalize_args_kwargs(target: Callable, args: Tuple[Any], kwargs: Dict[str, 
 
     arg_types = map_aggregate(args, type)
     assert isinstance(arg_types, tuple)
-    arg_types = tuple([create_type_hint(i) for i in arg_types])
-    kwarg_types = {k: type(v) for k, v in kwargs.items()}
+    arg_types = map_aggregate(map_aggregate(args, type), create_type_hint)
+    kwarg_types = {
+        k: create_type_hint(map_aggregate(v, type)) for k, v in kwargs.items()
+    }
 
     new_args_and_kwargs = normalize_function(
         target, args, kwargs, arg_types, kwarg_types, normalize_to_only_use_kwargs=False
