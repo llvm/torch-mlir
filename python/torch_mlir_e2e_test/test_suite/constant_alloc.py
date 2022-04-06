@@ -1143,3 +1143,19 @@ class NewEmptyModuleNonDefaultIntDtype(torch.nn.Module):
 @register_test_case(module_factory=lambda: NewEmptyModuleNonDefaultIntDtype())
 def NewEmptyModuleNonDefaultIntDtype_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (2, 3)).to(torch.int32))
+
+class NewEmptyModuleLayoutIntDtype(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.ops.aten.new_empty(a, [3, 4], layout = 0).fill_(0)
+
+@register_test_case(module_factory=lambda: NewEmptyModuleLayoutIntDtype())
+def NewEmptyModuleLayoutIntDtype_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (2, 3)).to(torch.int32))

@@ -97,6 +97,13 @@ enum MemoryFormat {
   ChannelsLast3d
 };
 
+//===----------------------------------------------------------------------===//
+// Possible values for `layout` argument in PyTorch ops that support it.
+// Source:
+// https://github.com/pytorch/pytorch/blob/master/c10/core/Layout.h
+//===----------------------------------------------------------------------===//
+enum Layout { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
+
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir
