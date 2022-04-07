@@ -4,7 +4,7 @@
 
 func @unknown_rank(%arg0: !torch.vtensor<[],f32>) {
   // expected-error@+2 {{unsupported by backend lowering: tensor with unknown rank or dtype}}
-  // expected-note@+1 {{this is likely due to a missing case in RefineTypes}}
+  // expected-note@+1 {{this is likely due to a missing shape transfer function in shape_lib_gen.py}}
   %0 = torch.aten.mul.Tensor %arg0, %arg0 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<*,f32>
   return
 }
@@ -13,7 +13,7 @@ func @unknown_rank(%arg0: !torch.vtensor<[],f32>) {
 
 func @unknown_dtype(%arg0: !torch.vtensor<[],f32>) {
   // expected-error@+2 {{unsupported by backend lowering: tensor with unknown rank or dtype}}
-  // expected-note@+1 {{this is likely due to a missing case in RefineTypes}}
+  // expected-note@+1 {{this is likely due to a missing shape transfer function in shape_lib_gen.py}}
   %0 = torch.aten.mul.Tensor %arg0, %arg0 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[],unk>
   return
 }
