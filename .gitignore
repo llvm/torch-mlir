@@ -17,3 +17,6 @@ __pycache__
 *.egg-info
 *.whl
 /wheelhouse
+
+# Bazel
+bazel-*

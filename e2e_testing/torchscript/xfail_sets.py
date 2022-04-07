@@ -154,4 +154,6 @@ TOSA_PASS_SET = {
     "ReshapeCollapseModule_basic",
     "ElementwiseGeluModule_basic",
     "GeluBackwardModule_basic",
+    "ElementwiseNeIntScalarModule_basic",
+    "ElementwiseNeFloatTensorModule_basic",
 }

@@ -457,3 +457,41 @@ class ElementwiseEqIntTensorModule(torch.nn.Module):
 def ElementwiseEqIntTensorModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(2, 4, (8, 5)), torch.randint(2, 4, (5, )))
 
+# ==============================================================================
+
+class ElementwiseNeFloatScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ne(x, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNeFloatScalarModule())
+def ElementwiseNeFloatTensorModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[1.0, 2.2, 2.0], [6.0, 2.0, 3.1]]).to(torch.float32))
+
+# ==============================================================================
+
+class ElementwiseNeIntScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.ne(x, 3)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNeIntScalarModule())
+def ElementwiseNeIntScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(2, 4, (8, 5)))

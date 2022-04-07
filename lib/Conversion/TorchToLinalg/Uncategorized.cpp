@@ -173,6 +173,22 @@ static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
       b, loc, elementalType, lhs, rhs);
 }
 
+static Value createEqual(OpBuilder &b, Location loc, Type elementalType,
+                         Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UEQ,
+                                  arith::CmpIPredicate::eq,
+                                  arith::CmpIPredicate::eq>(
+      b, loc, elementalType, lhs, rhs);
+}
+
+static Value createNotEqual(OpBuilder &b, Location loc, Type elementalType,
+                            Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UNE,
+                                  arith::CmpIPredicate::ne,
+                                  arith::CmpIPredicate::ne>(
+      b, loc, elementalType, lhs, rhs);
+}
+
 static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
                             Value sigma) {
   Type elementType = x.getType();
@@ -607,9 +623,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
-                                     payloadArgs[0], otherPromoted);
     if (dtype.isa<mlir::IntegerType>()) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
@@ -617,11 +630,24 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
             "unimplemented: type promotion from tensor to scalar");
         return nullptr;
       }
-      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                     payloadArgs[0], otherPromoted);
     }
-    eqScalar.emitError("unimplemented: dtype isn't supported");
-    return nullptr;
+    return createEqual(b, loc, dtype, payloadArgs[0], otherPromoted);
+  }
+
+  if (auto neScalar = dyn_cast<AtenNeScalarOp>(op)) {
+    Type dtype = neScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Value otherPromoted =
+        convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
+
+    if (dtype.isa<mlir::IntegerType>()) {
+      if (!operands[1].getType().isa<mlir::IntegerType>()) {
+        // TODO: Promote tensor operand from integer to float.
+        neScalar.emitError(
+            "unimplemented: type promotion from tensor to scalar");
+        return nullptr;
+      }
+    }
+    return createNotEqual(b, loc, dtype, payloadArgs[0], otherPromoted);
   }
 
   if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
@@ -629,8 +655,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share a
-    // lot of code that can be refactored.
+    // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share
+    // a lot of code that can be refactored.
     if (dtype.isa<mlir::FloatType>())
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                      payloadArgs[0], otherPromoted);
@@ -657,8 +683,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    // TODO: The `AtenLeScalarOp` and `AtenLtScalarOp` share a lot of code that
-    // can be refactored.
+    // TODO: The `AtenLeScalarOp` and `AtenLtScalarOp` share a lot of code
+    // that can be refactored.
     if (dtype.isa<mlir::FloatType>())
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE,
                                      payloadArgs[0], otherPromoted);
@@ -908,7 +934,8 @@ public:
              AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
              AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp>(op))
+             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
+             AtenNeScalarOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1626,7 +1653,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
       AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
       AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
-      AtenSinOp, AtenCosOp>();
+      AtenSinOp, AtenCosOp, AtenNeScalarOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);

@@ -1,0 +1,13 @@
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+build --action_env=CC=clang
+build --action_env=CXX=clang++
+build --cxxopt=-std=c++14 
+build --host_cxxopt=-std=c++14 
+build --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0
+build --cxxopt=-U__GXX_ABI_VERSION
+build --cxxopt=-D__GXX_ABI_VERSION=1011
+build --cxxopt=-DPYBIND11_COMPILER_TYPE=\"_gcc\"
+build --cxxopt=-DMLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.
