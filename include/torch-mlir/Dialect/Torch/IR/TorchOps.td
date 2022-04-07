@@ -1042,7 +1042,7 @@ def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl"
   let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
-    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchListOfOptionalTensorType:$indices,
     AnyTorchTensorType:$values,
     Torch_BoolType:$accumulate,
     Torch_BoolType:$unsafe
@@ -1171,7 +1171,7 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
   }];
 
   let arguments = (ins
-    Variadic<TorchIntListType>:$results
+    Variadic<ListOfTorchIntType>:$results
   );
   let results = (outs);
 
