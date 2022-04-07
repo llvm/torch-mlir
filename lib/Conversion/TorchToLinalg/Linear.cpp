@@ -492,6 +492,9 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 
+    for(size_t i = 0; i < paddingInts.size(); i++)
+      paddingInts[i] += 1;
+
     SmallVector<Value> paddingIntValues =
         getAsConstantIntValues(rewriter, loc, paddingInts);
     SmallVector<Value> dilationIntValues =
@@ -506,6 +509,8 @@ public:
         rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(intType, 1));
     Value c0 =
         rewriter.create<arith::ConstantOp>(loc, FloatAttr::get(elementType, 0));
+    Value ci0 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
     Value groupEqual1 = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::eq, groups, c1);
     rewriter.create<cf::AssertOp>(
@@ -526,7 +531,7 @@ public:
     auto getConvOutputDim = [&](Value lhDim, Value rhDim, Value padding, Value stride, Value dilation, bool valid) -> Value {
       if(valid) {
         return torch_to_linalg::getOutputDimForConvOps(
-                rewriter, loc, lhDim, padding, dilation,
+                rewriter, loc, lhDim, ci0, dilation,
                 castIndexToInt(rhDim), stride);
       }
       // TODO: dilation, stride

@@ -92,8 +92,7 @@ class ConvolutionBackwardModule2D(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConvolutionBackwardModule2D())
 def ConvolutionBackwardModule2D_basic(module, tu: TestUtils):
     with torch.backends.mkldnn.flags(enabled=False):
-        grad = torch.stack([torch.tensor([float(x)]*2*2).reshape(2, 2) for x in list(range(3*3))]).reshape(2, 2, 3, 3)
-        module.forward(grad, torch.ones(2, 2, 4, 4), torch.ones(2, 2, 2, 2))
+        module.forward(torch.ones(2, 2, 3, 3), torch.ones(2, 2, 4, 4), torch.ones(2, 2, 2, 2))
 
 #class ConvolutionBackwardModule3D(torch.nn.Module):
 #    def __init__(self):
