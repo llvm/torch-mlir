@@ -322,7 +322,6 @@ public:
     Value input = adaptor.self();
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
 
-    RankedTensorType gradOutputType = gradOutput.getType().cast<RankedTensorType>();
     SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
     Type inputEType = inputType.getElementType();
     //Type inputEType = inputType.getElementType();
@@ -341,11 +340,6 @@ public:
     if (!getListConstructElements(op.dilation(), dilation))
       return rewriter.notifyMatchFailure(op, "dilation not constructed from ListConstruct");
 
-    // The element type of the `self` and `values` should be same.
-    if (inputType.getElementType() != gradOutputType.getElementType())
-      return rewriter.notifyMatchFailure(
-          op, "Input element type should be same as the grad_output element type.");
-
     // Add in indices
     Attribute attrs[2];
     if (inputEType.isa<mlir::FloatType>()) {
@@ -357,12 +351,21 @@ public:
     } else {
       return rewriter.notifyMatchFailure(op, "unsupported dtype");
     }
-    Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
-
+    
     RankedTensorType indicesType = adaptor.indices().getType().cast<RankedTensorType>();
     Type indicesEType = indicesType.getElementType();
-    
+
+    RankedTensorType gradOutputType = gradOutput.getType().cast<RankedTensorType>();
     Type gradOutputEType = gradOutputType.getElementType();
+
+    // The element type of the `input` and `values` should be same.
+    if (inputType.getElementType() != gradOutputType.getElementType())
+      return rewriter.notifyMatchFailure(
+          op, "Input element type should be same as the grad_output element type.");
+
+    Value output = createZeroInitTensor(rewriter, loc, inputShape, inputEType);
+    RankedTensorType outputType = output.getType().cast<RankedTensorType>();
+    Type outputEType = outputType.getElementType();
 
     // 1) Collapse from 3D to 1D
     SmallVector<ReassociationIndices> reassociationCollapse(1);
@@ -371,9 +374,12 @@ public:
 
     Value indicesFlattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, indicesEType), adaptor.indices(), reassociationCollapse);
     Value gradOutputFlattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, gradOutputEType), adaptor.grad_output(), reassociationCollapse);
+    Value outputFlattened = rewriter.create<tensor::CollapseShapeOp>(loc, RankedTensorType::get({-1}, outputEType), output, reassociationCollapse);
 
     // 2) Expand from 1D to 2D
     auto expandShapeIndexType = RankedTensorType::get({-1,1}, indicesEType);
+    auto expandShapeGradOutputType = RankedTensorType::get({-1,1}, gradOutputEType);
+    auto expandShapeOutputType = RankedTensorType::get({-1,1}, outputEType);
 
     SmallVector<ReassociationIndices> reassociationExpand(1);
     reassociationExpand[0].push_back(0);
@@ -381,11 +387,14 @@ public:
 
     Value expandedIndexTensor = rewriter.create<tensor::ExpandShapeOp>(
         loc, expandShapeIndexType, indicesFlattened, reassociationExpand);
-
+    Value expandedGradOutputTensor = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeGradOutputType, gradOutputFlattened, reassociationExpand);
+    Value expandedOutputTensor = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeOutputType, outputFlattened, reassociationExpand);        
 
     // 3) Scatter
     auto scatterOp = rewriter.create<TMTensor::ScatterOp>(
-        loc, input.getType(), ValueRange{gradOutputFlattened, expandedIndexTensor}, ValueRange{output},
+        loc, input.getType(), ValueRange{expandedGradOutputTensor, expandedIndexTensor}, ValueRange{expandedOutputTensor},
         /*unique_indices=*/false);
 
     Region &scatterOpRegion = scatterOp.region();
