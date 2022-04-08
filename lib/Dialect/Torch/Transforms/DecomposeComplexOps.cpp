@@ -153,6 +153,21 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
   return sub;
 }
 
+static double_t getScalarValueAsfloat(Value value,
+                                   PatternRewriter &rewriter) {
+  double_t valueFloat;
+  if (value.getType().isa<Torch::FloatType>()) {
+    matchPattern(value, m_TorchConstantFloat(&valueFloat));
+  }
+  if (value.getType().isa<Torch::IntType>()) {
+      int64_t  valueInt;
+      matchPattern(value, m_TorchConstantInt(&valueInt));
+      valueFloat = (float_t) valueInt;
+  }
+
+return valueFloat;
+}
+
 namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
@@ -1302,51 +1317,20 @@ class DecomposeAtenRangeStepOp : public OpRewritePattern<AtenRangeStepOp> {
     double_t end;
     double_t start;
     double_t step;
-    if (op.end().getType().isa<Torch::FloatType>()) {
-      if (!matchPattern(op.end(), m_TorchConstantFloat(&end)))
-        return rewriter.notifyMatchFailure(
-            op, "end should be torch constant of float type.");
-    }
-    if (op.end().getType().isa<Torch::IntType>()) {
-      int64_t  endInt;
-      if (!matchPattern(op.end(), m_TorchConstantInt(&endInt)))
-        return rewriter.notifyMatchFailure(
-            op, "end should be torch constant of int type.");
-      end = (float_t) endInt;
-    }
-    if (op.start().getType().isa<Torch::FloatType>()) {
-      if(!matchPattern(op.start(), m_TorchConstantFloat(&start)))
-        return rewriter.notifyMatchFailure(
-            op, "start should be torch constant of float type.");
-    }
-    if (op.start().getType().isa<Torch::IntType>()) {
-      int64_t  startInt;
-        if(!matchPattern(op.start(), m_TorchConstantInt(&startInt)))
-          return rewriter.notifyMatchFailure(
-              op, "start should be torch constant of integer type.");
-        start = (float_t) startInt;
-    }
-    if (op.step().getType().isa<Torch::FloatType>()) {
-        if(!matchPattern(op.step(), m_TorchConstantFloat(&step)))
-          return rewriter.notifyMatchFailure(
-              op, "step should be torch constant of float type.");
-    }
-    if (op.step().getType().isa<Torch::IntType>()) {
-        int64_t stepInt;
-        if(!matchPattern(op.step(), m_TorchConstantInt(&stepInt)))
-          return rewriter.notifyMatchFailure(
-              op, "step should be torch constant of integer type.");
-        step = (float_t) stepInt;
-    }
+
+     start = getScalarValueAsfloat(op.start(), rewriter);
+     end   = getScalarValueAsfloat(op.end(), rewriter);
+     step  = getScalarValueAsfloat(op.step(), rewriter);
+
     if((start >= 0 && end >= 0) || (start <= 0 && end <= 0)) {
       float_t diff = std::abs(end) - std::abs(start);
-      float_t iter = floor(std::abs(diff)/std::abs(step));
+      float_t iter = floor(std::abs(diff) / std::abs(step));
       if((iter * (float_t)std::abs(step)) >= (std::abs(diff))){
           end = end + step;
       }
     } else {
       float_t diff = end - start;
-      float_t iter = floor(std::abs(diff)/std::abs(step));
+      float_t iter = floor(std::abs(diff) / std::abs(step));
       if((iter * (float_t)std::abs(step)) >= (std::abs(diff))){
           end = end + step;
       }
