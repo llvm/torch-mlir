@@ -651,6 +651,9 @@ def aten〇arange〇start(start: float, end: float, dtype: Optional[int] = None,
 def aten〇arange(end: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_helpers.arange_end(end, dtype, layout, device, pin_memory)
 
+def aten〇range〇step(start: float, end: float, step: float = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return range_step(start, end, step, dtype, layout, device, pin_memory)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3)), # Basic case.
     Invocation(TensorOfShape(2, 3), TensorOfShape(3)), # Rank broadcasting.
@@ -917,6 +920,14 @@ def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlen
 # ==============================================================================
 # Shape library generator main().
 # ==============================================================================
+
+def range_step(start: float, end: float, step: float, inp0: Any, inp1: Any, inp2: Any, inp3: Any):
+  assert step != 0
+  if step < 0:
+    assert start >= end
+  else:
+    assert end >= start
+  return [int(torch.ceil((end - start) / step))]
 
 def _verify_signature_matches_registry(f, registry: Registry):
     source = inspect.getsource(f)

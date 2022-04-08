@@ -3977,6 +3977,35 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
   }];
 }
 
+def Torch_AtenRangeStepOp : Torch_Op<"aten.range.step", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::range.step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchScalarType:$start,
+    AnyTorchScalarType:$end,
+    AnyTorchScalarType:$step,
+    TorchOptionalIntType:$dtype,
+    TorchOptionalIntType:$layout,
+    TorchOptionalDeviceType:$device,
+    TorchOptionalBoolType:$pin_memory
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRangeStepOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void AtenRangeStepOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
+    }
+  }];
+}
+
 def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
     AllowsTypeRefinement,
     HasValueSemantics,

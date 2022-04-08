@@ -268,6 +268,12 @@ private:
                                            Value end,
                                            llvm::Optional<Value> step,
                                            Value dtype);
+  ChangeResult visitAtenRangeLikeOpHelper(Operation *op,
+                                           Value start,
+                                           Value end,
+                                           llvm::Optional<Value> step,
+                                           Value dtype);
+  ChangeResult visitAtenRangeStepOp(AtenRangeStepOp op);
   ChangeResult visitReductionAlongAllDimsOp(
       Operation *op, Type dtype,
       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
@@ -677,6 +683,9 @@ ChangeResult TypeAnalyzer::visitOperation(
   if (auto arangeStartStep = dyn_cast<AtenArangeStartStepOp>(op)) {
     return visitAtenArangeStartStepOp(arangeStartStep);
   }
+  if (auto rangeStep = dyn_cast<AtenRangeStepOp>(op)){
+      return visitAtenRangeStepOp(rangeStep);
+  }
 
   if (auto sum = dyn_cast<AtenSumOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
@@ -910,6 +919,25 @@ ChangeResult TypeAnalyzer::visitAtenArangeStartOp(AtenArangeStartOp op) {
 
 ChangeResult TypeAnalyzer::visitAtenArangeOp(AtenArangeOp op) {
   return visitAtenArangeLikeOpHelper(op, {}, op.end(), {}, op.dtype());
+}
+
+// Range like ops returns a 1-D tensor of size ceil(end - start) + 1.
+ChangeResult TypeAnalyzer::visitAtenRangeLikeOpHelper(
+    Operation *op, Value start, Value end,
+    llvm::Optional<Value> step, Value dtype) {
+  auto knowledge =
+      ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+  int64_t dtypeInt;
+  if (matchPattern(dtype, m_TorchConstantInt(&dtypeInt))) {
+    knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
+  } else if (dtype.getType().isa<Torch::NoneType>()) {
+    knowledge.dtype = Float32Type::get(op->getContext());
+  }
+  return getLatticeElement(op->getResult(0)).join(knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenRangeStepOp(AtenRangeStepOp op) {
+  return visitAtenRangeLikeOpHelper(op, op.start(), op.end(), op.step(), op.dtype());
 }
 
 ChangeResult TypeAnalyzer::visitReductionAlongAllDimsOp(
