@@ -125,8 +125,7 @@ def build_script_function(
     else:
         graph.registerOutput(node.output())
 
-    fn_name = str(node).strip()
-    fn = torch._C._create_function_from_graph(fn_name, graph)
+    fn = torch._C._create_function_from_graph("f", graph)
     return fn
 
 
