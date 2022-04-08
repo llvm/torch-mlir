@@ -153,18 +153,16 @@ static Value createSoftmaxBackwardCommonKernel(PatternRewriter &rewriter,
   return sub;
 }
 
-static double_t getScalarValueAsfloat(Value value,
-                                   PatternRewriter &rewriter) {
+static double_t getScalarValueAsDouble(Value value,
+                                      PatternRewriter &rewriter) {
   double_t valueFloat;
-  if (value.getType().isa<Torch::FloatType>()) {
+  if (value.getType().isa<Torch::FloatType>()) 
     matchPattern(value, m_TorchConstantFloat(&valueFloat));
-  }
   if (value.getType().isa<Torch::IntType>()) {
       int64_t  valueInt;
       matchPattern(value, m_TorchConstantInt(&valueInt));
       valueFloat = (float_t) valueInt;
   }
-
 return valueFloat;
 }
 
@@ -1358,29 +1356,25 @@ class DecomposeAtenRangeStepOp : public OpRewritePattern<AtenRangeStepOp> {
     double_t end;
     double_t start;
     double_t step;
-
-     start = getScalarValueAsfloat(op.start(), rewriter);
-     end   = getScalarValueAsfloat(op.end(), rewriter);
-     step  = getScalarValueAsfloat(op.step(), rewriter);
-
+    start = getScalarValueAsDouble(op.start(), rewriter);
+    end = getScalarValueAsDouble(op.end(), rewriter);
+    step = getScalarValueAsDouble(op.step(), rewriter);
     if((start >= 0 && end >= 0) || (start <= 0 && end <= 0)) {
       float_t diff = std::abs(end) - std::abs(start);
       float_t iter = floor(std::abs(diff) / std::abs(step));
-      if((iter * (float_t)std::abs(step)) >= (std::abs(diff))){
-          end = end + step;
-      }
+      if((iter * (float_t)std::abs(step)) >= (std::abs(diff)))
+        end = end + step;
     } else {
       float_t diff = end - start;
       float_t iter = floor(std::abs(diff) / std::abs(step));
-      if((iter * (float_t)std::abs(step)) >= (std::abs(diff))){
-          end = end + step;
-      }
+      if((iter * (float_t)std::abs(step)) >= (std::abs(diff)))
+        end = end + step;
     }
     cstEnd = rewriter.create<Torch::ConstantFloatOp>(
       loc, rewriter.getF64FloatAttr(end));
     rewriter.replaceOpWithNewOp<AtenArangeStartStepOp>(
-    op, op.getType(), op.start(), cstEnd, op.step(), op.dtype(),
-    op.layout(), op.device(), op.pin_memory());
+      op, op.getType(), op.start(), cstEnd, op.step(), op.dtype(),
+      op.layout(), op.device(), op.pin_memory());
     return success();
   }
 };
