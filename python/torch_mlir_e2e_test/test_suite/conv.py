@@ -133,3 +133,130 @@ class Conv2dWithPaddingDilationStrideStaticModule(torch.nn.Module):
 def Conv2dWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
     t = tu.rand(5, 2, 10, 20)
     module.forward(t)
+
+# ==============================================================================
+
+class ConvolutionModule1D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                           weight,
+                                           bias=None,
+                                           stride=[1],
+                                           padding=[0],
+                                           dilation=[1],
+                                           transposed=False,
+                                           output_padding=[0],
+                                           groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule1D())
+def ConvolutionModule1D_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10), torch.randn(3, 3, 2))
+
+class ConvolutionModule2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[1, 1],
+                                          padding=[0, 0],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule2D())
+def ConvolutionModule2D_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class ConvolutionModule3D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                           weight,
+                                           bias=None,
+                                           stride=[1, 1, 1],
+                                           padding=[0, 0, 0],
+                                           dilation=[1, 1, 1],
+                                           transposed=False,
+                                           output_padding=[0, 0, 0],
+                                           groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule3D())
+def ConvolutionModule3D_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10, 10), torch.randn(3, 3, 2, 2, 2))
+
+class ConvolutionModule2DStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 3, 10, 10], torch.float32, True),
+        ([3, 3, 2, 2], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[1, 1],
+                                          padding=[0, 0],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule2DStatic())
+def ConvolutionModule2DStatic_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class ConvolutionModule2DStrided(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1)
+
+@register_test_case(module_factory=lambda: ConvolutionModule2DStrided())
+def ConvolutionModule2DStrided_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))

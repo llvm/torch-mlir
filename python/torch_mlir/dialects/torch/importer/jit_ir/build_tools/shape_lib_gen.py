@@ -762,6 +762,9 @@ def aten〇topk(self: List[int], k: int, dim: int = -1, largest: bool = True, so
 def aten〇conv2d(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_helpers.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
+def aten〇convolution(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
+    return upstream_shape_helpers.conv_output_size(input, weight, bias, stride, padding, dilation, groups)
+
 def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     # Torch's symbolic shape analysis is a bit looser about optional
     # arguments than we are, so their batch_norm helper function works
