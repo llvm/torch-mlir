@@ -752,6 +752,47 @@ public:
 };
 } // namespace
 
+// Decompose aten.convolution_overrideable to aten.convolution
+namespace {
+class DecomposeAtenConvolutionOverrideableOp
+    : public OpRewritePattern<AtenConvolutionOverrideableOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvolutionOverrideableOp op,
+                                PatternRewriter &rewriter) const override {
+
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.input(), op.weight(), op.bias(),
+        op.stride(), op.padding(), op.dilation(), op.transposed(),
+        op.output_padding(), op.groups());
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.conv2d to aten.convolution
+namespace {
+class DecomposeAtenConv2dOp : public OpRewritePattern<AtenConv2dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConv2dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.input(), op.weight(), op.bias(),
+        op.stride(), op.padding(), op.dilation(), cstFalse, emptyList,
+        op.groups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -1728,6 +1769,10 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenLayerNormOp>(context);
     target.addIllegalOp<AtenNativeBatchNormOp>();
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
+    target.addIllegalOp<AtenConvolutionOverrideableOp>();
+    patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
+    target.addIllegalOp<AtenConv2dOp>();
+    patterns.add<DecomposeAtenConv2dOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);

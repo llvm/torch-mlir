@@ -2728,6 +2728,68 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
   }];
 }
 
+def Torch_AtenConvolutionOp : Torch_Op<"aten.convolution", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::convolution : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    ListOfTorchIntType:$stride,
+    ListOfTorchIntType:$padding,
+    ListOfTorchIntType:$dilation,
+    Torch_BoolType:$transposed,
+    ListOfTorchIntType:$output_padding,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenConvolutionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 1);
+    }
+    void AtenConvolutionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 1);
+    }
+  }];
+}
+
+def Torch_AtenConvolutionOverrideableOp : Torch_Op<"aten.convolution_overrideable", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::convolution_overrideable : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    ListOfTorchIntType:$stride,
+    ListOfTorchIntType:$padding,
+    ListOfTorchIntType:$dilation,
+    Torch_BoolType:$transposed,
+    ListOfTorchIntType:$output_padding,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenConvolutionOverrideableOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 1);
+    }
+    void AtenConvolutionOverrideableOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 1);
+    }
+  }];
+}
+
 def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
     AllowsTypeRefinement,
     HasValueSemantics,

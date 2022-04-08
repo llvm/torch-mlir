@@ -1677,8 +1677,8 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenConv2dOp>::matchAndRewrite(
-    AtenConv2dOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
+    AtenConvolutionOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
   auto input = adaptor.input();
@@ -1692,12 +1692,18 @@ LogicalResult ConvertAtenOp<AtenConv2dOp>::matchAndRewrite(
 
   if (!inputTy || !weightTy || !outputTy)
     return op.emitError(
-        "Input, weight and output to Conv2d must be ranked tensors");
+        "Input, weight and output to Convolution must be ranked tensors");
 
   auto inputElemTy = inputTy.getElementType();
   auto weightElemTy = weightTy.getElementType();
   auto inputShape = inputTy.getShape();
   auto weightShape = weightTy.getShape();
+
+  if (inputTy.getRank() != 4)
+    return op.emitError("Unimplemented: only 2D convolutions supported");
+
+  if (!weightTy.hasStaticShape())
+    return op.emitError("Unimplemented: TOSA only supports static weight");
 
   // Bias is optional. TOSA mandates a zero tensor here, so construct one if
   // required.
@@ -3140,7 +3146,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
     INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
-    INSERT_ATENOP_PATTERN(AtenConv2dOp);
+    INSERT_ATENOP_PATTERN(AtenConvolutionOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
     INSERT_ATENOP_PATTERN(AtenReshapeOp);
     INSERT_ATENOP_PATTERN(AtenBatchNormOp);

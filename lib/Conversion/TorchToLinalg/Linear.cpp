@@ -449,58 +449,65 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenConv2dOp : public OpConversionPattern<AtenConv2dOp> {
+class ConvertAtenConvolutionOp : public OpConversionPattern<AtenConvolutionOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenConv2dOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenConvolutionOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
     Value input = adaptor.input();   /* in form of N*C*H*W */
     Value weight = adaptor.weight(); /* in form of F*C*H*W */
-    Value groups = adaptor.groups();
 
     Type elementType =
         input.getType().cast<RankedTensorType>().getElementType();
     if (!elementType.isa<mlir::FloatType>())
       return op.emitError("unimplemented: non-floating point type");
+    size_t inRank = input.getType().cast<RankedTensorType>().getRank();
+    if (inRank != 4)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 2D convolution currently supported");
 
     Type intType = IntegerType::get(context, 64);
     auto castIndexToInt = [&](Value v) {
       return rewriter.create<arith::IndexCastOp>(loc, intType, v);
     };
 
-    Value N = getDimOp(rewriter, loc, input, 0);
-    Value Hin = getDimOp(rewriter, loc, input, 2);
-    Value Win = getDimOp(rewriter, loc, input, 3);
-    Value F = getDimOp(rewriter, loc, weight, 0);
-    Value weightH = getDimOp(rewriter, loc, weight, 2);
-    Value weightW = getDimOp(rewriter, loc, weight, 3);
-
-    // Pattern match against the op's original operands, because otherwise we
-    // will get the lowered version of the operands which is harder to pattern
-    // match.
     SmallVector<int64_t> paddingInts;
     if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts))) {
       return rewriter.notifyMatchFailure(
           op, "only support constant padding values");
     }
-
-    SmallVector<int64_t, 2> strideInts;
+    SmallVector<int64_t> strideInts;
     if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int strides");
-    SmallVector<int64_t, 2> dilationInts;
+    SmallVector<int64_t> dilationInts;
     if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
-    Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(intType, 1));
-    Value groupEqual1 = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, groups, c1);
-    rewriter.create<cf::AssertOp>(
-        loc, groupEqual1, rewriter.getStringAttr("expect groups to be 1"));
+
+    Value N = getDimOp(rewriter, loc, input, 0);
+    SmallVector<Value> inDims;
+    for (size_t i = 2; i < inRank; i++)
+      inDims.push_back(getDimOp(rewriter, loc, input, i));
+    Value F = getDimOp(rewriter, loc, weight, 0);
+    SmallVector<Value> weightDims;
+    for (size_t i = 2; i < inRank; i++)
+      weightDims.push_back(getDimOp(rewriter, loc, weight, i));
+
+    // Guard unused values (transposed, groups)
+    int64_t group_size;
+    if (!matchPattern(op.groups(), m_TorchConstantInt(&group_size)) ||
+        group_size != 1)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only group size of 1 supported");
+    bool transposed = true;
+    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed)) ||
+        transposed)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only non-transposed convolution supported");
 
     // Pad the input tensor according to padding.
     SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
@@ -516,15 +523,14 @@ public:
     SmallVector<Value> strideIntValues =
         getAsConstantIntValues(rewriter, loc, strideInts);
 
-    Value Hout = torch_to_linalg::getOutputDimForConvOps(
-        rewriter, loc, Hin, paddingIntValues[0], dilationIntValues[0],
-        castIndexToInt(weightH), strideIntValues[0]);
-    Value Wout = torch_to_linalg::getOutputDimForConvOps(
-        rewriter, loc, Win, paddingIntValues[1], dilationIntValues[1],
-        castIndexToInt(weightW), strideIntValues[1]);
+    SmallVector<Value> outDims{N, F};
+    for (size_t i = 0; i < inRank - 2; i++)
+      outDims.push_back(torch_to_linalg::getOutputDimForConvOps(
+          rewriter, loc, inDims[i], paddingIntValues[i], dilationIntValues[i],
+          castIndexToInt(weightDims[i]), strideIntValues[i]));
 
-    Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, ValueRange{N, F, Hout, Wout}, elementType);
+    Value initTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, outDims, elementType);
 
     Value bias = adaptor.bias();
     Value biasInitTensor;
@@ -559,14 +565,17 @@ public:
 
     auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
     auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
-    Value conv2d =
+
+    // TODO: add 1D and 3D case
+    Value conv =
         rewriter
             .create<linalg::Conv2DNchwFchwOp>(
                 loc, biasInitTensor.getType(), ValueRange{paddedInput, weight},
                 biasInitTensor, stridesAttr, dilationAttr)
             .getResult(0);
+
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv2d);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
   }
 };
@@ -584,6 +593,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenLinearOp>();
   patterns.add<ConvertAtenLinearOp>(typeConverter, context);
-  target.addIllegalOp<AtenConv2dOp>();
-  patterns.add<ConvertAtenConv2dOp>(typeConverter, context);
+  target.addIllegalOp<AtenConvolutionOp>();
+  patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
 }
