@@ -425,14 +425,15 @@ class ListOf<list<Type> allowedTypes, string descr> :
             "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
-def TorchBoolListType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
-def TorchIntListType : ListOf<[Torch_IntType], "Int list type (int[])">;
-def TorchStringListType : ListOf<[Torch_StringType], "Str list type (str[])">;
-def AnyTorchTensorListType:
+def ListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
+def ListOfTorchIntType : ListOf<[Torch_IntType], "Int list type (int[])">;
+def ListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
+def AnyTorchListOfTensorType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
-def AnyTorchOptionalTensorListType :
+def AnyTorchListOfOptionalTensorType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
+def OptionalListOfTorchIntType : OptionalOf<ListOfTorchIntType, "Optional torch int list type (int[]?)">;
 
 // Note: TorchScript does not consider !torch.bool to be a Scalar.
 def AnyTorchScalarType :
