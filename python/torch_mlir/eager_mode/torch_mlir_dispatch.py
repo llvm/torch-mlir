@@ -168,8 +168,7 @@ def annotate_args_kwargs(
             if isinstance(arg, np.ndarray):
                 tensor_kwargs[arg_idxs[kw]] = (arg, normalized_kwargs[kw].dtype)
 
-        for i in range(len(tensor_kwargs)):
-            arg, arg_dtype = tensor_kwargs[i]
+        for _i, (arg, arg_dtype) in sorted(tensor_kwargs.items()):
             annotations.append(TorchTensorType(shape=tuple(arg.shape), dtype=arg_dtype))
             tensor_kwargs_flat.append(arg)
 
