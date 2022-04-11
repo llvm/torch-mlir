@@ -54,7 +54,11 @@ python -m pip install -r requirements.txt
 
 ## Build
 
-The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build.
+Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
+
+### Building torch-mlir in-tree
+
+The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -80,6 +84,8 @@ The following additional quality of life flags can be used to reduce build time:
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
 ```
 
+### Building against a pre-built LLVM
+
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
 cmake -GNinja -Bbuild \
@@ -93,6 +99,11 @@ cmake -GNinja -Bbuild \
   .
 ```
 The same QoL CMake flags can be used to enable ccache and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+
+Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+
+
+### Build commands
 
 After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
 ```shell
