@@ -8,19 +8,12 @@
 
 import torch
 
+from framework import run_test
 from torch_mlir.eager_mode.torch_mlir_dispatch import normalize_args_kwargs
 
 
-def run_test(test, XFAIL=False, XPASS=False):
-    try:
-        test()
-        print(("X" if XPASS else "") + f"PASS - {test.__name__}")
-    except Exception as e:
-        print(("X" if XFAIL else "") + f"FAIL - {test.__name__}")
-        print(e)
-
-
 # CHECK: PASS - should_normalize
+@run_test
 def should_normalize():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -44,6 +37,7 @@ def should_normalize():
 
 # CHECK: FAIL - shouldnt_normalize1
 # CHECK: Couldn't normalize args and kwargs
+@run_test
 def shouldnt_normalize1():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -58,6 +52,7 @@ def shouldnt_normalize1():
 # TODO(max): change these to FAIL when the upstream bug is fixed.
 
 # CHECK: XPASS - shouldnt_normalize2
+@run_test(XPASS=True)
 def shouldnt_normalize2():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -66,19 +61,9 @@ def shouldnt_normalize2():
 
 
 # CHECK: XPASS - shouldnt_normalize3
+@run_test(XPASS=True)
 def shouldnt_normalize3():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
     kwargs = {"kernel_size": [3, 3], "padding": None}
     normalize_args_kwargs(target, args, kwargs)
-
-
-def main():
-    run_test(should_normalize)
-    run_test(shouldnt_normalize1)
-    run_test(shouldnt_normalize2, XPASS=True)
-    run_test(shouldnt_normalize3, XPASS=True)
-
-
-if __name__ == "__main__":
-    main()
