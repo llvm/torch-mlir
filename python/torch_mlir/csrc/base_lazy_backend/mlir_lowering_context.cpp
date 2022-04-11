@@ -148,7 +148,10 @@ ComputationPtr TorchMlirLoweringContext::Build() {
 
   // Generate MLIR.
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
-      mlir_context_, generate_jit_fn().get());
+      /*context=*/mlir_context_,
+      /*function=*/generate_jit_fn().get(),
+      /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
+      /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
   return std::make_shared<TorchMlirComputation>(func_op, mlir_context_, graph_);
 }
