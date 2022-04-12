@@ -198,3 +198,29 @@ class IndexPutOneDimIntAccumulateModule(torch.nn.Module):
 def IndexPutOneDimIntAccumulateModule_basic(module, tu: TestUtils):
   module.forward(torch.randint(100, (10,)), torch.randint(10, (10,)),
                  torch.randint(1000, (10,)))
+
+
+class IndexAddAsPutModule(torch.nn.Module):
+
+  def __init__(self):
+    super().__init__()
+
+  @export
+  @annotate_args([
+      None,
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+      ([-1], torch.int64, True),
+  ])
+  def forward(self, input, index, value):
+    return torch.ops.aten.index_add(input, index, value)
+
+
+@register_test_case(module_factory=lambda: IndexAddAsPutModule())
+def IndexAddAsPutModule_basic(module, tu: TestUtils):
+  module.forward(torch.rand((3, 5, 2)), 
+          torch.tensor([0, 1]),
+          torch.rand((2, )))
+
+
+

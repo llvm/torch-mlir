@@ -1429,6 +1429,52 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.index_add` op into `valsem.aten.index_put_impl` op. with accumulate set to True
+class DecomposeAtenIndexAddOp : public OpRewritePattern<AtenIndexAddOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexAdd op,
+                                PatternRewriter &rewriter) const override {
+        
+    Value input = op.self();	   
+    Value updates = op.values();
+    int rank = getTensorRank(op.self());
+
+    if (rank < 0){
+      return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
+    } 
+    
+    if (getTensorRank(updates) != getTensorRank(input) {
+      	return rewriter.notifyMatchFailure(op, "Ranks of input and updates do not match");
+    }
+    
+    
+    SmallVector<int64_t> expandedInputSizes{input.getShape()[0], 1};
+
+    ValueTensorType expandInputType = ValueTensorType::get(
+	op.context(), llvm::makeArrayRef(expandedInputSizes),
+      	updates.getType().cast<ValueTensorType>().getDtype());
+
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+	op.getLoc(), rewriter.getI64IntegerAttr(1));
+
+    Value expandedUpdates = rewriter.create<AtenUnsqueezeOp>(
+	op.getLoc(), expandInputType, updates, torchCstOne);
+
+    Value indicesAsTensorList = rewriter.create<PrimListConstructOp>(
+	op.getLoc(), Torch::ListType::get(updates.getType()), 
+	SmallVector<Value>());
+
+    indicesAsTensorList[0] = op.indices() 
+
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
+        op, op.getType(), op.self(), indicesAsTensorList, expandedUpdates, true);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1533,6 +1579,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenFullLikeOp>();
     patterns.add<DecomposeAtenIndexPutOp>(context);
     target.addIllegalOp<AtenIndexPutOp>();
+    patterns.add<DecomposeAtenIndexAddOp>(context);
+    patterns.addIllegalOp<AtenIndexAddOp>;
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

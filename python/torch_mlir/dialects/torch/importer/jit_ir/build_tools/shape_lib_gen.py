@@ -745,6 +745,9 @@ def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int
 def aten〇index_put(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇index_add(self: List[int], index: List[int], values: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
