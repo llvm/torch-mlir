@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/aten_ltc_ts_type.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_native_functions.cpp
 //===----------------------------------------------------------------------===//
 
 #include <ATen/Operators.h>
@@ -17,6 +17,7 @@
 #include <ATen/ops/result_type.h>
 #include <torch/csrc/lazy/core/helpers.h>
 #include <torch/csrc/lazy/core/metrics.h>
+#include <torch/csrc/lazy/core/tensor_aten_ops.h>
 #include <torch/csrc/lazy/core/tensor_util.h>
 #include <torch/csrc/lazy/core/view_ops/as_strided.h>
 #include <torch/library.h>
@@ -24,13 +25,13 @@
 #include "ATen/MetaFunctions.h"
 #include <torch/csrc/lazy/core/tensor_impl.h>
 
-#include "../tensor_aten_ops.h"
 #include "../utils/exception.h"
 #include "../utils/sys_utils.h"
 #include "LazyNativeFunctions.h"
 #include "LazyShapeInference.h"
 
-namespace torch_lazy_tensors {
+namespace torch {
+namespace lazy {
 
 namespace {
 
@@ -121,7 +122,7 @@ GetLtcDevice(const c10::optional<c10::Device>& device) {
 
 //   UNIMPLEMENTED_FUNCTION_ERROR();
 //   // return torch::lazy::CreateAtenFromLtcTensor(
-//   //     lazy_tensor_aten_ops::bernoulli(self_tensor));
+//   //     torch::lazy::bernoulli(self_tensor));
 // }
 
 // at::Tensor& LazyNativeFunctions::bernoulli_(
@@ -133,7 +134,7 @@ GetLtcDevice(const c10::optional<c10::Device>& device) {
 //   auto self_tensor = torch::lazy::TryGetLtcTensor(self);
 
 //   UNIMPLEMENTED_FUNCTION_ERROR();
-//   // lazy_tensor_aten_ops::bernoulli_(self_tensor, p);
+//   // torch::lazy::bernoulli_(self_tensor, p);
 //   // return self;
 // }
 
@@ -208,7 +209,7 @@ at::Tensor LazyNativeFunctions::_copy_from(
         dst_tensor_data->copy_(self_tensor->ToTensor(/*detached=*/false));
       }
     } else {
-      lazy_tensor_aten_ops::copy_(dst_tensor, self_tensor);
+      torch::lazy::copy_(dst_tensor, self_tensor);
       auto* impl =
           dynamic_cast<torch::lazy::LTCTensorImpl*>(dst.unsafeGetTensorImpl());
       impl->set_tensor(dst_tensor);
@@ -260,15 +261,15 @@ at::Tensor LazyNativeFunctions::expand(
     const at::Tensor& self, at::IntArrayRef size, bool implicit) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(lazy_tensor_aten_ops::expand(
-  //     torch::lazy::TryGetLtcTensor(self), size.vec()));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::expand(torch::lazy::TryGetLtcTensor(self), size.vec()));
 }
 
 at::Tensor&
 LazyNativeFunctions::fill_(at::Tensor& self, const at::Scalar& value) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   auto self_tensor = torch::lazy::TryGetLtcTensor(self);
-  lazy_tensor_aten_ops::fill_(self_tensor, value);
+  torch::lazy::fill_(self_tensor, value);
   return self;
 }
 
@@ -280,110 +281,86 @@ LazyNativeFunctions::native_batch_norm(
     const c10::optional<at::Tensor>& running_var, bool training,
     double momentum, double eps) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  torch::lazy::LazyTensorPtr input_tensor = torch::lazy::TryGetLtcTensor(input);
+  auto input_tensor = torch::lazy::TryGetLtcTensor(input);
   const torch::lazy::BackendDevice& device = input_tensor->GetDevice();
-  torch::lazy::LazyTensorPtr running_mean_tensor =
-      GetOrCreateLtcTensor(running_mean, device);
-  torch::lazy::LazyTensorPtr running_var_tensor =
-      GetOrCreateLtcTensor(running_var, device);
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // auto outputs = lazy_tensor_aten_ops::ts_native_batch_norm(
-  //     torch::lazy::TryGetLtcTensor(input), GetOrCreateLtcTensor(weight,
-  // device),
-  //     GetOrCreateLtcTensor(bias, device), running_mean_tensor,
-  //     running_var_tensor, training, momentum, eps);
-  // return
-  // std::make_tuple(torch::lazy::CreateAtenFromLtcTensor(std::get<0>(outputs)),
-  //                        torch::lazy::CreateAtenFromLtcTensor(std::get<1>(outputs)),
-  //                        torch::lazy::CreateAtenFromLtcTensor(std::get<2>(outputs)));
+  auto running_mean_tensor = GetOrCreateLtcTensor(running_mean, device);
+  auto running_var_tensor = GetOrCreateLtcTensor(running_var, device);
+  auto outputs = torch::lazy::native_batch_norm(
+      torch::lazy::TryGetLtcTensor(input), GetOrCreateLtcTensor(weight, device),
+      GetOrCreateLtcTensor(bias, device), running_mean_tensor,
+      running_var_tensor, training, momentum, eps);
+  return std::make_tuple(
+      torch::lazy::CreateAtenFromLtcTensor(std::get<0>(outputs)),
+      torch::lazy::CreateAtenFromLtcTensor(std::get<1>(outputs)),
+      torch::lazy::CreateAtenFromLtcTensor(std::get<2>(outputs)));
 }
 
-// std::tuple<at::Tensor, at::Tensor, at::Tensor>
-// LazyNativeFunctions::native_batch_norm_backward(
-//     const at::Tensor& grad_out, const at::Tensor& input,
-//     const c10::optional<at::Tensor>& weight,
-//     const c10::optional<at::Tensor>& running_mean,
-//     const c10::optional<at::Tensor>& running_var,
-//     const c10::optional<at::Tensor>& save_mean,
-//     const c10::optional<at::Tensor>& save_invstd, bool train, double eps,
-//     std::array<bool, 3> output_mask) {
-//   TORCH_LAZY_FN_COUNTER("lazy::");
-//   torch::lazy::LazyTensor grad_out_tensor =
-// torch::lazy::TryGetLtcTensor(grad_out);
-//   const torch::lazy::BackendDevice& device = grad_out_tensor.GetDevice();
-//   torch::lazy::LazyTensor null_tensor;
-//   bool running_stats = running_mean && running_mean->defined();
-//   CHECK_EQ(running_var && running_var->defined(), running_stats);
-//   UNIMPLEMENTED_FUNCTION_ERROR();
-//   // auto gradients = lazy_tensor_aten_ops::ts_native_batch_norm_backward(
-//   //     torch::lazy::TryGetLtcTensor(grad_out),
-// torch::lazy::TryGetLtcTensor(input),
-//   //     GetOrCreateLtcTensor(weight, device),
-//   //     running_stats ? GetOrCreateLtcTensor(running_mean, device)
-//   //                   : null_tensor,
-//   //     running_stats ? GetOrCreateLtcTensor(running_var, device)
-//   //                   : null_tensor,
-//   //     GetOrCreateLtcTensor(save_mean, device),
-//   //     GetOrCreateLtcTensor(save_invstd, device), train, eps,
-//   //     output_mask);
-//   // at::Tensor undefined;
-//   // return std::make_tuple(
-//   //     output_mask[0] ?
-// torch::lazy::CreateAtenFromLtcTensor(std::get<0>(gradients))
-//   //                    : undefined,
-//   //     output_mask[1] ?
-// torch::lazy::CreateAtenFromLtcTensor(std::get<1>(gradients))
-//   //                    : undefined,
-//   //     output_mask[2] ?
-// torch::lazy::CreateAtenFromLtcTensor(std::get<2>(gradients))
-//   //                    : undefined);
-// }
+std::tuple<at::Tensor, at::Tensor, at::Tensor>
+LazyNativeFunctions::native_batch_norm_backward(
+    const at::Tensor& grad_out, const at::Tensor& input,
+    const c10::optional<at::Tensor>& weight,
+    const c10::optional<at::Tensor>& running_mean,
+    const c10::optional<at::Tensor>& running_var,
+    const c10::optional<at::Tensor>& save_mean,
+    const c10::optional<at::Tensor>& save_invstd, bool train, double eps,
+    std::array<bool, 3> output_mask) {
+  TORCH_LAZY_FN_COUNTER("lazy::");
+  auto grad_out_tensor = torch::lazy::TryGetLtcTensor(grad_out);
+  const torch::lazy::BackendDevice& device = grad_out_tensor->GetDevice();
+  torch::lazy::LazyTensorPtr null_tensor;
+  bool running_stats = running_mean && running_mean->defined();
+  CHECK_EQ(running_var && running_var->defined(), running_stats);
+  auto gradients = torch::lazy::native_batch_norm_backward(
+      torch::lazy::TryGetLtcTensor(grad_out),
+      torch::lazy::TryGetLtcTensor(input), GetOrCreateLtcTensor(weight, device),
+      running_stats ? GetOrCreateLtcTensor(running_mean, device) : null_tensor,
+      running_stats ? GetOrCreateLtcTensor(running_var, device) : null_tensor,
+      GetOrCreateLtcTensor(save_mean, device),
+      GetOrCreateLtcTensor(save_invstd, device), train, eps, output_mask);
+  at::Tensor undefined;
+  return std::make_tuple(
+      output_mask[0]
+          ? torch::lazy::CreateAtenFromLtcTensor(std::get<0>(gradients))
+          : undefined,
+      output_mask[1]
+          ? torch::lazy::CreateAtenFromLtcTensor(std::get<1>(gradients))
+          : undefined,
+      output_mask[2]
+          ? torch::lazy::CreateAtenFromLtcTensor(std::get<2>(gradients))
+          : undefined);
+}
 
 at::Tensor
 LazyNativeFunctions::permute(const at::Tensor& self, at::IntArrayRef dims) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   torch::lazy::LazyTensorPtr self_tensor = torch::lazy::TryGetLtcTensor(self);
   UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(lazy_tensor_aten_ops::permute(
-  //     self_tensor, torch::lazy::ToI64Vector(dims)));
-}
-
-at::Tensor
-LazyNativeFunctions::repeat(const at::Tensor& self, at::IntArrayRef repeats) {
-  TORCH_LAZY_FN_COUNTER("lazy::");
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(lazy_tensor_aten_ops::repeat(
-  //     torch::lazy::TryGetLtcTensor(self),
-  // torch::lazy::ToI64Vector(repeats)));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::permute(self_tensor, torch::lazy::ToI64Vector(dims)));
 }
 
 at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(
-  //     lazy_tensor_aten_ops::squeeze(torch::lazy::TryGetLtcTensor(self)));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::squeeze(torch::lazy::TryGetLtcTensor(self)));
 }
 
 at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self, int64_t dim) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(
-  //     lazy_tensor_aten_ops::squeeze(torch::lazy::TryGetLtcTensor(self),
-  // dim));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::squeeze(torch::lazy::TryGetLtcTensor(self), dim));
 }
 
 at::Tensor LazyNativeFunctions::t(const at::Tensor& self) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  return torch::lazy::CreateAtenFromLtcTensor(lazy_tensor_aten_ops::transpose(
-      torch::lazy::TryGetLtcTensor(self), 0, 1));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::transpose(torch::lazy::TryGetLtcTensor(self), 0, 1));
 }
 
 at::Tensor LazyNativeFunctions::unsqueeze(const at::Tensor& self, int64_t dim) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // return torch::lazy::CreateAtenFromLtcTensor(
-  //     lazy_tensor_aten_ops::unsqueeze(torch::lazy::TryGetLtcTensor(self),
-  // dim));
+  return torch::lazy::CreateAtenFromLtcTensor(
+      torch::lazy::unsqueeze(torch::lazy::TryGetLtcTensor(self), dim));
 }
 
 at::Tensor
@@ -391,9 +368,10 @@ LazyNativeFunctions::view(const at::Tensor& self, at::IntArrayRef size) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   torch::lazy::LazyTensorPtr self_tensor = torch::lazy::TryGetLtcTensor(self);
   return torch::lazy::CreateAtenFromLtcTensor(
-      lazy_tensor_aten_ops::view(self_tensor, torch::lazy::ToI64Vector(size)));
+      torch::lazy::view(self_tensor, torch::lazy::ToI64Vector(size)));
 }
 
 void InitializeAtenBindings() {}
 
-} // namespace torch_lazy_tensors
+} // namespace lazy
+} // namespace torch
