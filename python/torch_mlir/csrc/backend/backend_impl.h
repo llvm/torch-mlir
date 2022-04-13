@@ -10,7 +10,7 @@
 // using the Torch-MLIR ATen dialect
 //
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/backend_impl.h
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.h
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -23,7 +23,7 @@
 namespace torch {
 namespace lazy {
 
-class TORCH_API MlirBackendData : public BackendData {
+class TORCH_API TorchMlirBackendData : public BackendData {
 public:
   struct Info : public BackendData::Info {
     at::Tensor tensor;
@@ -39,20 +39,25 @@ public:
     Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
   };
 
-  MlirBackendData(BackendDevice device, Shape shape);
-  MlirBackendData(const at::Scalar& scalar, BackendDevice device);
-  MlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
+  TorchMlirBackendData(BackendDevice device, Shape shape);
+  TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
+  TorchMlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
 
   virtual BackendData::Handle GetHandle() override;
 
   virtual void Assign(const BackendData& data) override;
 
   virtual bool HasValue() const override;
+
+  TorchMlirBackendData::Info* mlir_info() const;
+
+private:
+  std::unique_ptr<TorchMlirBackendData::Info> info_;
 };
 
-class TORCH_API MlirBackendImpl : public BackendImplInterface {
+class TORCH_API TorchMlirBackendImpl : public BackendImplInterface {
 public:
-  virtual ~MlirBackendImpl() = default;
+  virtual ~TorchMlirBackendImpl() = default;
 
   /**
    * Initialization/Teardown

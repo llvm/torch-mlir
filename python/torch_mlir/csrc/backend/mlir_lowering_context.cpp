@@ -7,22 +7,23 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/ts_lowering_context.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_lowering_context.cpp
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
 
+#include "../utils/debug.h"
 #include "../utils/exception.h"
 #include "mlir_lowering_context.h"
 
 namespace torch {
 namespace lazy {
 
-MlirLoweringContext::MlirLoweringContext(
+TorchMlirLoweringContext::TorchMlirLoweringContext(
     const std::string& name, BackendDevice device)
     : LoweringContext(name, std::forward<BackendDevice>(device)) {}
 
-MlirLoweringContext::MlirLoweringContext(
+TorchMlirLoweringContext::TorchMlirLoweringContext(
     const std::string& name, BackendDevice device,
     c10::ArrayRef<torch::lazy::Node*> post_order, Util::EmissionMap emit_status)
     : LoweringContext(
@@ -30,29 +31,34 @@ MlirLoweringContext::MlirLoweringContext(
           std::forward<c10::ArrayRef<torch::lazy::Node*>>(post_order),
           std::forward<Util::EmissionMap>(emit_status)) {}
 
-int MlirComputation::parameters_size() const { UNIMPLEMENTED_FUNCTION_ERROR(); }
+int TorchMlirComputation::parameters_size() const { UNIMPLEMENTED_FUNCTION_ERROR(); }
 
 const std::vector<torch::lazy::Shape>&
-MlirComputation::parameter_shapes() const {
+TorchMlirComputation::parameter_shapes() const {
   UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
-const std::vector<std::string>& MlirComputation::parameter_names() const {
+const std::vector<std::string>& TorchMlirComputation::parameter_names() const {
   UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
-const torch::lazy::Shape& MlirComputation::result_shape() const {
+const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
+  UNIMPLEMENTED_FUNCTION_ERROR();
+}
+
+std::string TorchMlirComputation::to_string() const {
   UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
 // Get the shape of the result tuple component, given by index.
-torch::lazy::Shape MlirLoweringContext::GetResultShape(size_t index) const {
+torch::lazy::Shape TorchMlirLoweringContext::GetResultShape(size_t index) const {
   UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
 // Adds the given output as a component of the result tuple and returns its
 // assigned position within the tuple.
-size_t MlirLoweringContext::AddResult(const torch::lazy::Output& output) {
+size_t TorchMlirLoweringContext::AddResult(const torch::lazy::Output& output) {
+  PRINT_FUNCTION();
   const torch::lazy::Node* node;
   auto it = emitted_outputs_.find(output);
   if (it == emitted_outputs_.end()) {
@@ -75,7 +81,7 @@ size_t MlirLoweringContext::AddResult(const torch::lazy::Output& output) {
 // Associates the given output with the input parameter of the given index and
 // shape. Only used for the operator-by-operator execution, mostly for
 // debugging purposes.
-void MlirLoweringContext::AddParameter(
+void TorchMlirLoweringContext::AddParameter(
     const torch::lazy::Output& output, size_t index,
     const torch::lazy::Shape& shape, const std::string& name) {
   UNIMPLEMENTED_FUNCTION_ERROR();
@@ -83,10 +89,18 @@ void MlirLoweringContext::AddParameter(
 
 // Build the computation capturing all the operations created with the
 // embedded builder (returned by the builder() API).
-ComputationPtr MlirLoweringContext::Build() {
+ComputationPtr TorchMlirLoweringContext::Build() {
+  PRINT_FUNCTION()
   for (const torch::lazy::Node* output : result_tuple_) {
   }
-  return std::make_shared<MlirComputation>();
+  return std::make_shared<TorchMlirComputation>();
+}
+
+// Retrieves the lowered operation for an output. If the requested output is
+// not available yet, the graph behind the output's Node is lowered, and the
+// corresponding MLIR operation returned.
+torch::jit::Value* GetOutputOp(const Output& output) {
+  UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
 } // namespace lazy
