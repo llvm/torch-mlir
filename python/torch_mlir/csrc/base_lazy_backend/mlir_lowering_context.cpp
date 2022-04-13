@@ -80,8 +80,7 @@ std::string TorchMlirComputation::to_string() const {
   std::stringstream ss;
 
   // JIT Graph
-  ss << "JIT Graph: \n"
-     << graph_->toString() << "\n\n";
+  ss << "JIT Graph: \n" << graph_->toString() << "\n\n";
 
   // MLIR
   ss << "MLIR: \n";
@@ -90,11 +89,8 @@ std::string TorchMlirComputation::to_string() const {
   // Input/Output Mapping
   ss << "Input/Output Alias Mapping: \n";
   for (InputOutputAlias input_output_alias : input_output_aliases_) {
-    ss << "Output: "
-       << input_output_alias.output_index
-       << " -> Input: "
-       << input_output_alias.param_number
-       << std::endl;
+    ss << "Output: " << input_output_alias.output_index
+       << " -> Input: " << input_output_alias.param_number << std::endl;
   }
 
   return ss.str();
@@ -134,17 +130,25 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
 // Get the shape of the result tuple component, given by index.
 torch::lazy::Shape
 TorchMlirLoweringContext::GetResultShape(size_t index) const {
-  TORCH_CHECK(index < root_tuple_.size(),
-              "Tried getting result shape at index ", index,
-              " which is out of bounds!");
+  TORCH_CHECK(
+      index < root_tuple_.size(), "Tried getting result shape at index ", index,
+      " which is out of bounds!");
 
   torch::jit::Value* output = root_tuple_[index];
 
-  // TODO(henrytu): Get output shape
-  //UNIMPLEMENTED_FUNCTION_ERROR();
+  if (c10::TensorTypePtr tensor_type =
+          output->type()->cast<c10::TensorType>()) {
+    auto scalar_type = tensor_type->scalarType();
+    auto sizes = tensor_type->sizes().concrete_sizes();
 
+    // Not guaranteed to have concrete size, so we need to check it exists.
+    if (scalar_type && sizes) {
+      return Shape(scalar_type.value(), c10::ArrayRef<int64_t>(sizes.value()));
+    }
+  }
+
+  // No shape information.
   return Shape{};
-
 }
 
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
