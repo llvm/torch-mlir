@@ -58,6 +58,11 @@ public:
   // embedded builder (returned by the builder() API).
   virtual torch::lazy::ComputationPtr Build() override;
 
+  // Retrieves the lowered operation for an output. If the requested output is
+  // not available yet, the graph behind the output's Node is lowered, and the
+  // corresponding MLIR operation returned.
+  torch::jit::Value* GetOutputOp(const Output& output);
+
 private:
   std::vector<const torch::lazy::Node*> result_tuple_;
   torch::lazy::OutputMap<const torch::lazy::Node*> emitted_outputs_;

@@ -20,7 +20,6 @@
 
 #include "../utils/debug.h"
 #include "../utils/exception.h"
-#include "aten_eager_fallback.h"
 #include "mlir_lowering_context.h"
 
 namespace torch {

@@ -46,6 +46,10 @@ const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
   UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
+std::string TorchMlirComputation::to_string() const {
+  UNIMPLEMENTED_FUNCTION_ERROR();
+}
+
 // Get the shape of the result tuple component, given by index.
 torch::lazy::Shape TorchMlirLoweringContext::GetResultShape(size_t index) const {
   UNIMPLEMENTED_FUNCTION_ERROR();
@@ -90,6 +94,13 @@ ComputationPtr TorchMlirLoweringContext::Build() {
   for (const torch::lazy::Node* output : result_tuple_) {
   }
   return std::make_shared<TorchMlirComputation>();
+}
+
+// Retrieves the lowered operation for an output. If the requested output is
+// not available yet, the graph behind the output's Node is lowered, and the
+// corresponding MLIR operation returned.
+torch::jit::Value* GetOutputOp(const Output& output) {
+  UNIMPLEMENTED_FUNCTION_ERROR();
 }
 
 } // namespace lazy
