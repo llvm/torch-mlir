@@ -33,9 +33,11 @@ namespace lazy {
 
 TorchMlirComputation::TorchMlirComputation(
     MlirOperation func_op, MlirContext mlir_context,
-    const std::shared_ptr<torch::jit::Graph>& graph)
+    const std::shared_ptr<torch::jit::Graph>& graph,
+    InputOutputAliases input_output_aliases)
     : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
-      graph_(graph), num_results_(graph_->outputs().size()) {
+      graph_(graph), input_output_aliases_(input_output_aliases),
+      num_results_(graph_->outputs().size()) {
   for (torch::jit::Value* input : graph_->inputs()) {
     parameter_names_.push_back(input->debugName());
   }
@@ -76,10 +78,24 @@ std::string TorchMlirComputation::to_string() const {
   };
 
   std::stringstream ss;
+
+  // JIT Graph
   ss << "JIT Graph: \n"
-     << graph_->toString() << "\n\n"
-     << "MLIR: \n";
+     << graph_->toString() << "\n\n";
+
+  // MLIR
+  ss << "MLIR: \n";
   mlirOperationPrint(func_op_, print_callback, &ss);
+
+  // Input/Output Mapping
+  ss << "Input/Output Alias Mapping: \n";
+  for (InputOutputAlias input_output_alias : input_output_aliases_) {
+    ss << "Output: "
+       << input_output_alias.output_index
+       << " -> Input: "
+       << input_output_alias.param_number
+       << std::endl;
+  }
 
   return ss.str();
 }
@@ -118,7 +134,17 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
 // Get the shape of the result tuple component, given by index.
 torch::lazy::Shape
 TorchMlirLoweringContext::GetResultShape(size_t index) const {
-  UNIMPLEMENTED_FUNCTION_ERROR();
+  TORCH_CHECK(index < root_tuple_.size(),
+              "Tried getting result shape at index ", index,
+              " which is out of bounds!");
+
+  torch::jit::Value* output = root_tuple_[index];
+
+  // TODO(henrytu): Get output shape
+  //UNIMPLEMENTED_FUNCTION_ERROR();
+
+  return Shape{};
+
 }
 
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
@@ -153,7 +179,8 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
-  return std::make_shared<TorchMlirComputation>(func_op, mlir_context_, graph_);
+  return std::make_shared<TorchMlirComputation>(
+      func_op, mlir_context_, graph_, input_output_aliases_);
 }
 
 torch::jit::Value* TorchMlirLoweringContext::GetOutputOp(const Output& output) {

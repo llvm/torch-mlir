@@ -41,9 +41,13 @@ public:
 
 class TORCH_API TorchMlirComputation : public torch::lazy::Computation {
 public:
+  using InputOutputAliases = LoweringContext::InputOutputAliases;
+  using InputOutputAlias = LoweringContext::InputOutputAlias;
+
   TorchMlirComputation(
       MlirOperation func_op, MlirContext mlir_context,
-      const std::shared_ptr<torch::jit::Graph>& graph);
+      const std::shared_ptr<torch::jit::Graph>& graph,
+      InputOutputAliases input_output_aliases);
 
   int parameters_size() const override;
 
@@ -67,6 +71,7 @@ private:
   MlirOperation func_op_;
   MlirContext mlir_context_;
   std::shared_ptr<torch::jit::Graph> graph_;
+  InputOutputAliases input_output_aliases_;
   unsigned num_results_;
 };
 
