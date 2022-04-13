@@ -128,7 +128,7 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
 }
 
 // Get the shape of the result tuple component, given by index.
-torch::lazy::Shape
+c10::optional<torch::lazy::Shape>
 TorchMlirLoweringContext::GetResultShape(size_t index) const {
   TORCH_CHECK(
       index < root_tuple_.size(), "Tried getting result shape at index ", index,
@@ -148,7 +148,7 @@ TorchMlirLoweringContext::GetResultShape(size_t index) const {
   }
 
   // No shape information.
-  return Shape{};
+  return c10::nullopt;
 }
 
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {

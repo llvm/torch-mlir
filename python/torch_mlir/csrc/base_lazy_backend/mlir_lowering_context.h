@@ -85,7 +85,7 @@ public:
       torch::lazy::Util::EmissionMap emit_status);
 
   // Get the shape of the result tuple component, given by index.
-  torch::lazy::Shape GetResultShape(size_t index) const override;
+  c10::optional<torch::lazy::Shape> GetResultShape(size_t index) const override;
 
   // Adds the given output as a component of the result tuple and returns its
   // assigned position within the tuple.
