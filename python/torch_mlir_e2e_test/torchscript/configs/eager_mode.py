@@ -15,7 +15,27 @@ def wrap(e):
 
 
 def unwrap(e):
-    return e.elem.clone() if isinstance(e, TorchMLIRTensor) else e
+    return TorchMLIRTensor.unwrap(e) if isinstance(e, TorchMLIRTensor) else e
+
+
+def to_tmt(m: torch.nn.Module):
+    for buf_name, buf in m.named_buffers(recurse=True):
+        if isinstance(buf, TorchMLIRTensor):
+            continue
+        m.register_buffer(buf_name, TorchMLIRTensor(buf))
+    for param_name, param in m.named_parameters(recurse=True):
+        if isinstance(param, TorchMLIRTensor):
+            continue
+        m.register_parameter(
+            param_name,
+            torch.nn.Parameter(
+                TorchMLIRTensor(param), requires_grad=param.requires_grad
+            ),
+        )
+    for attr in dir(m):
+        field = getattr(m, attr)
+        if isinstance(field, torch.Tensor) and not isinstance(field, TorchMLIRTensor):
+            setattr(m, attr, TorchMLIRTensor(field))
 
 
 class EagerModeTestConfig(TestConfig):
@@ -25,13 +45,14 @@ class EagerModeTestConfig(TestConfig):
         super().__init__()
 
     def compile(self, program: torch.nn.Module) -> torch.nn.Module:
+        program.apply(to_tmt)
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
         result: Trace = []
         for item in trace:
             attr = artifact
-            for part in item.symbol.split('.'):
+            for part in item.symbol.split("."):
                 attr = getattr(attr, part)
 
             inps = tree_map(wrap, item.inputs)
@@ -39,7 +60,6 @@ class EagerModeTestConfig(TestConfig):
             output = tree_map(unwrap, outps)
 
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

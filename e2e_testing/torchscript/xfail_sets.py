@@ -14,12 +14,11 @@ from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-EAGER_MODE_XFAIL_SET = REFBACKEND_XFAIL_SET.union({
-    # These fail because an upstream pytorch bug; more information at the following issue
-    # https://github.com/pytorch/pytorch/issues/74400
-    "ElementwiseMulScalarModule_basic",
-    "ElementwiseSubScalarIntModule_basic",
-})
+EAGER_MODE_XFAIL_SET = {
+    # RefBackend fails
+    "TableBatchEmbeddingModule_basic",
+    "QuantizedMLP_basic"
+}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.

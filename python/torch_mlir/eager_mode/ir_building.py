@@ -22,11 +22,15 @@ to convert the TorchScript function into MLIR using the `torch` dialect.
 """
 
 import abc
-from typing import Any, Optional, Iterable
+import re
+from typing import Any, Optional, Iterable, Dict
 from typing import Union
 
+import numpy as np
 import torch
-from torch.jit import ScriptFunction
+import torch._C
+import torch.jit
+from torch._ops import OpOverload
 
 from torch_mlir import ir
 from torch_mlir.dialects.func import FuncOp
@@ -202,26 +206,148 @@ def get_func_op_with_name(module: ir.Module, name: str) -> Optional[FuncOp]:
     return None
 
 
-def build_module(jit_function: ScriptFunction, annotations) -> ir.Module:
+def is_tensor_type(typ: torch._C.Type):
+    return typ.isSubtypeOf(torch.TensorType.get()) or (
+        isinstance(typ, torch.OptionalType)
+        and typ.getElementType().isSubtypeOf(torch._C.TensorType.get())
+    )
+
+
+def is_list_of_tensors_type(typ: torch._C.Type):
+    return isinstance(typ, torch.ListType) and is_tensor_type(typ.getElementType())
+
+
+name_mangle_regex = re.compile("[^a-zA-Z0-9]")
+
+
+def build_ts_script_function(
+    schema: torch._C.FunctionSchema, kwargs: Dict[str, Any]
+) -> torch.jit.ScriptFunction:
+    """Build a torch.jit.ScriptFunction that corresponds to the schema.
+
+    Constants are inlined for the purposes of invalidating the compile cache when they change.
+
+    Parameters
+    ----------
+    schema: torch._C.FunctionSchema
+        PyTorch's representation for ops, contains type information needed for inlining constants into the TS graph.
+    kwargs: Dict
+        A dictionary with all arguments passed in through __torch_dispatch__ (including int/float/bool params).
+
+    Returns
+    -------
+    torch.jit.ScriptFunction
+        Fully specialized (all constants) TS graph whose only arguments are tensors.
+    """
+
+    # Creates empty TS graph.
+    graph = torch._C.Graph()
+    # Creates and inserts node with identifier `schema.name`; NB node has no inputs or outputs at this point.
+    node = graph.insertNode(graph.create(schema.name, len(schema.returns)))
+    # Associate graph inputs/outputs with node inputs/outputs.
+    graph_inputs = []
+    for arg in schema.arguments:
+        arg_name = arg.name if arg.name != "self" else "input"
+
+        # If arg is a flattened list of tensors, such as in the case of torch.cat
+        # then add each element of the list to the graph corresponding to arg
+        # and insert a ListConstruct to function as input to the op.
+        if is_list_of_tensors_type(arg.type):
+            inps = []
+            for kwarg in [
+                kwarg for kwarg in kwargs if f"{arg_name}_flattened" in kwarg
+            ]:
+                inp = graph.addInput()
+                el_typ = arg.type.getElementType()
+                if isinstance(el_typ, torch.OptionalType):
+                    el_typ = el_typ.getElementType()
+                inp.setType(el_typ)
+                inp.setDebugName(kwarg)
+                inps.append(inp)
+                graph_inputs.append(kwarg)
+            list_cons = graph.insertNode(graph.create("prim::ListConstruct", inps))
+            list_cons.moveBefore(node)
+            inp = list_cons.output()
+            inp.setType(torch.ListType.ofTensors())
+        # If arg is a tensor, then add input to the graph corresponding to arg.
+        elif is_tensor_type(arg.type) and kwargs[arg_name] is not None:
+            inp = graph.addInput()
+            if isinstance(arg.type, torch.OptionalType):
+                el_typ = arg.type.getElementType()
+            else:
+                el_typ = arg.type
+            inp.setType(el_typ)
+            inp.setDebugName(arg_name)
+            graph_inputs.append(arg_name)
+        # If arg is a constant, inline (at the top of the graph).
+        else:
+            val = kwargs[arg_name]
+            if val == []:
+                # Some ops have empty list default values for args
+                # (such as aten::max_pool2d_with_indices with int[2] stride=[]
+                # but graph.insertConstant doesnt' recognize [] as an empty list IValue.
+                # This might be an upstream bug but there doesn't seem to be a way to
+                # build a prim::ListConstruct list that's empty.
+                val = None
+            inp = graph.insertConstant(val)
+            inp.node().moveBefore(node)
+
+        node.addInput(inp)
+
+    # Reorder graph inputs to match kwargs.
+    permutes = [
+        {inp: i for i, inp in enumerate(graph_inputs)}[kwarg]
+        for kwarg in [kwarg for kwarg in kwargs if kwarg in graph_inputs]
+    ]
+    graph.permuteInputs(permutes)
+
+    if node.hasMultipleOutputs():
+        for outp in node.outputs():
+            graph.registerOutput(outp)
+    else:
+        graph.registerOutput(node.output())
+
+    fn = torch._C._create_function_from_graph(
+        f"{name_mangle_regex.sub('', str(graph))}", graph
+    )
+    return fn
+
+
+def build_mlir_module(op: OpOverload, kwargs: Dict[str, Any]) -> ir.Module:
     """Translate input function into an MLIR module in the `torch` dialect.
 
     Parameters
     ----------
-    jit_function: ScriptFunction
-        Function in TorchScript IR to turn into MLIR.
-    annotation: Annotation
-        Annotation object representing the types of
-        the operands of `jit_function`.
+    op: OpOverload
+        Callable from the torch.ops.aten module/namespace that has a _schema field.
+    kwargs: Dict
+        A dictionary with all arguments passed in through __torch_dispatch__ (including int/float,bool params).
 
     Returns
     -------
     ir.Module
-        Translation of the input module into an MLIR module
+        Translation of the input module into an MLIR module.
     """
-    mb = ModuleBuilder()
-    mb.import_function(jit_function)
 
-    func_op = get_func_op_with_name(mb.module, jit_function.name)
+    # The assert here is to catch tensor shapes that have size 0 dimensions, such as those produced in
+    # the course of evaluating SliceEndSleStartModule_basic and SliceOutOfLowerBoundEndIndexModule_basic.
+    # Such 0 size dimensions fail the assert at mlir/lib/IR/BuiltinTypes.cpp, line 887
+    annotations = []
+    for arg_name, arg in kwargs.items():
+        if isinstance(arg, torch.Tensor):
+            assert np.prod(arg.shape) != 0, f"{arg_name} has invalid shape {arg.shape}"
+            annotations.append(TorchTensorType(shape=tuple(arg.shape), dtype=arg.dtype))
+    annotations = tuple(annotations)
+
+    script_fun = build_ts_script_function(op._schema, kwargs)
+    assert len(annotations) == len(
+        list(script_fun.graph.inputs())
+    ), "Number of annotations and number of graph inputs differs."
+
+    mb = ModuleBuilder()
+    mb.import_function(script_fun)
+
+    func_op = get_func_op_with_name(mb.module, script_fun.name)
     assert (
         func_op is not None
     ), "Unable to find FuncOp in new module. Make sure function was imported correctly into ModuleBuilder"

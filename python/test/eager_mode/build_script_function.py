@@ -9,7 +9,7 @@
 import torch
 
 from framework import run_test
-from torch_mlir.eager_mode.torch_mlir_dispatch import build_script_function
+from torch_mlir.eager_mode.ir_building import build_ts_script_function
 
 
 # CHECK: graph(%[[A1:.*]] : Tensor,
@@ -24,13 +24,15 @@ from torch_mlir.eager_mode.torch_mlir_dispatch import build_script_function
 @run_test
 def simple():
     target = torch.ops.aten.addmm.default
-    A = torch.randn(1, 3, 32, 32)
-    B = torch.randn(1, 3, 32, 32)
-    C = torch.randn(1, 3, 32, 32)
-    args = (A, B, C)
-    kwargs = dict(beta=1, alpha=1)
+    kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        mat1=torch.randn(1, 3, 32, 32),
+        mat2=torch.randn(1, 3, 32, 32),
+        beta=1,
+        alpha=1,
+    )
 
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -50,11 +52,10 @@ def simple():
 @run_test
 def handle_optional_tensor_input():
     target = torch.ops.aten.convolution.default
-    input = torch.randn(1, 3, 32, 32)
-    weight = torch.randn(3, 3, 3, 3)
-    bias = torch.randn(3)
-    args = (input, weight, bias)
     kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        weight=torch.randn(3, 3, 3, 3),
+        bias=torch.randn(3),
         stride=[1, 1],
         padding=[0, 0],
         dilation=[1, 1],
@@ -62,20 +63,19 @@ def handle_optional_tensor_input():
         output_padding=[0, 0],
         groups=1,
     )
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
 # CHECK: FAIL - fail_not_enough_args
-# CHECK: Errors:  tuple index out of range
+# CHECK: Errors:  'groups'
 @run_test
 def fail_not_enough_args():
     target = torch.ops.aten.convolution.default
-    input = torch.randn(1, 3, 32, 32)
-    weight = torch.randn(3, 3, 3, 3)
-    bias = torch.randn(3)
-    args = (input, weight, bias)
     kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        weight=torch.randn(3, 3, 3, 3),
+        bias=torch.randn(3),
         stride=[1, 1],
         padding=[0, 0],
         dilation=[1, 1],
@@ -83,41 +83,41 @@ def fail_not_enough_args():
         output_padding=[0, 0],
         # Missing groups=1,
     )
-    build_script_function(target._schema, args, kwargs)
+    build_ts_script_function(target._schema, kwargs)
 
 
-# CHECK: PASS - simple_args_or_kwargs
+# CHECK: graph(%input : Tensor,
+# CHECK:  %weight : Tensor,
+# CHECK:  %bias : Tensor):
+# CHECK:  %4 : int[] = prim::Constant[value=[1, 1]]()
+# CHECK:  %5 : int[] = prim::Constant[value=[0, 0]]()
+# CHECK:  %6 : int[] = prim::Constant[value=[1, 1]]()
+# CHECK:  %7 : bool = prim::Constant[value=0]()
+# CHECK:  %8 : int[] = prim::Constant[value=[0, 0]]()
+# CHECK:  %9 : int = prim::Constant[value=1]()
+# CHECK:  %0 : Tensor = aten::convolution(%input, %weight, %bias, %4, %5, %6, %7, %8, %9)
+# CHECK:  return (%0)
+# -----
+# CHECK: PASS - simple_kwargs
 @run_test
-def simple_args_or_kwargs():
+def simple_kwargs():
     target = torch.ops.aten.convolution.default
-    input = torch.randn(1, 3, 32, 32)
-    weight = torch.randn(3, 3, 3, 3)
-    bias = torch.randn(3)
-    stride = [1, 1]
-    padding = [0, 0]
-    dilation = [1, 1]
-    transposed = False
-    output_padding = [0, 0]
-    groups = 1
-    script_fun1 = build_script_function(
+    script_fun1 = build_ts_script_function(
         target._schema,
-        (input, weight, bias),
         dict(
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            transposed=transposed,
-            output_padding=output_padding,
-            groups=groups,
+            input=torch.randn(1, 3, 32, 32),
+            weight=torch.randn(3, 3, 3, 3),
+            bias=torch.randn(3),
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            transposed=False,
+            output_padding=[0, 0],
+            groups=1,
         ),
     )
 
-    script_fun2 = build_script_function(
-        target._schema,
-        (input, weight, bias, stride, padding, dilation),
-        dict(transposed=transposed, output_padding=output_padding, groups=groups),
-    )
-    assert str(script_fun1.graph) == str(script_fun2.graph)
+    print(script_fun1.graph)
 
 
 # CHECK: graph(%[[C2:.*]] : Tensor):
@@ -134,15 +134,16 @@ def simple_args_or_kwargs():
 def handle_empty_lists():
     target = torch.ops.aten.max_pool2d_with_indices.default
     # print(target._schema)
-    args = (torch.randn((1, 3, 32, 32)),)
-    kwargs = {
-        "kernel_size": [3, 3],
-        "stride": [],
-        "padding": [0, 0],
-        "dilation": [1, 1],
-        "ceil_mode": False,
-    }
-    script_fun = build_script_function(target._schema, args, kwargs)
+    input = torch.randn((1, 3, 32, 32))
+    kwargs = dict(
+        input=input,
+        kernel_size=[3, 3],
+        stride=[],
+        padding=[0, 0],
+        dilation=[1, 1],
+        ceil_mode=False,
+    )
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -160,15 +161,15 @@ def handle_empty_lists():
 def handle_nones():
     target = torch.ops.aten.max_pool2d_with_indices.default
     # print(target._schema)
-    args = (torch.randn((1, 3, 32, 32)),)
-    kwargs = {
-        "kernel_size": [3, 3],
-        "stride": None,
-        "padding": [0, 0],
-        "dilation": [1, 1],
-        "ceil_mode": False,
-    }
-    script_fun = build_script_function(target._schema, args, kwargs)
+    kwargs = dict(
+        input=torch.randn((1, 3, 32, 32)),
+        kernel_size=[3, 3],
+        stride=None,
+        padding=[0, 0],
+        dilation=[1, 1],
+        ceil_mode=False,
+    )
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -188,11 +189,10 @@ def handle_nones():
 @run_test
 def handle_optional_tensors():
     target = torch.ops.aten.convolution.default
-    input = torch.randn(1, 3, 32, 32)
-    weight = torch.randn(3, 3, 3, 3)
-    bias = torch.randn(3)
-    args = (input, weight, bias)
     kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        weight=torch.randn(3, 3, 3, 3),
+        bias=torch.randn(3),
         stride=[1, 1],
         padding=[0, 0],
         dilation=[1, 1],
@@ -200,7 +200,7 @@ def handle_optional_tensors():
         output_padding=[0, 0],
         groups=1,
     )
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -217,12 +217,15 @@ def handle_optional_tensors():
 @run_test
 def handle_ones_like():
     target = torch.ops.aten.ones_like.default
-    input = torch.randn(1, 3, 32, 32)
-    args = (input,)
     kwargs = dict(
-        dtype=None, layout=None, device=None, pin_memory=None, memory_format=None
+        input=torch.randn(1, 3, 32, 32),
+        dtype=None,
+        layout=None,
+        device=None,
+        pin_memory=None,
+        memory_format=None,
     )
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -241,13 +244,18 @@ def handle_ones_like():
 @run_test
 def handle_multiple_outputs():
     target = torch.ops.aten.native_batch_norm.default
-    A = torch.randn(1, 3, 32, 32)
-    B = torch.randn(1, 3, 32, 32)
-    C = torch.randn(1, 3, 32, 32)
-    args = (A, B, C, None, None, False, 1.0, 1.0)
-    kwargs = dict()
+    kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        weight=torch.randn(1, 3, 32, 32),
+        bias=torch.randn(1, 3, 32, 32),
+        running_mean=None,
+        running_var=None,
+        training=False,
+        momentum=1.0,
+        eps=1.0
+    )
 
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
 
 
@@ -256,13 +264,18 @@ def handle_multiple_outputs():
 @run_test
 def check_legal_name():
     target = torch.ops.aten.native_batch_norm.default
-    A = torch.randn(1, 3, 32, 32)
-    B = torch.randn(1, 3, 32, 32)
-    C = torch.randn(1, 3, 32, 32)
-    args = (A, B, C, None, None, False, 1.0, 1.0)
-    kwargs = dict()
+    kwargs = dict(
+        input=torch.randn(1, 3, 32, 32),
+        weight=torch.randn(1, 3, 32, 32),
+        bias=torch.randn(1, 3, 32, 32),
+        running_mean=None,
+        running_var=None,
+        training=False,
+        momentum=1.0,
+        eps=1.0
+    )
 
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.name)
 
 
@@ -286,24 +299,22 @@ def correctly_order_kwargs():
     target = torch.ops.aten.native_batch_norm.out
 
     input = torch.randn(2, 5, 2, 3)
-    weight = torch.randn(5)
-    bias = torch.randn(5)
     running_mean = torch.randn(5)
     running_var = torch.randn(5)
-    args = (input, weight, bias, running_mean, running_var)
-
-    out = torch.empty_like(input)
-    save_mean = torch.empty_like(running_mean)
-    save_invstd = torch.empty_like(running_var)
 
     kwargs = dict(
+        input=torch.randn(2, 5, 2, 3),
+        weight=torch.randn(5),
+        bias=torch.randn(5),
+        running_mean=running_mean,
+        running_var=running_var,
         training=False,
         momentum=0.1,
         eps=0.0001,
-        out=out,
-        save_mean=save_mean,
-        save_invstd=save_invstd,
+        out=torch.empty_like(input),
+        save_mean=torch.empty_like(running_mean),
+        save_invstd=torch.empty_like(running_var),
     )
 
-    script_fun = build_script_function(target._schema, args, kwargs)
+    script_fun = build_ts_script_function(target._schema, kwargs)
     print(script_fun.graph)
