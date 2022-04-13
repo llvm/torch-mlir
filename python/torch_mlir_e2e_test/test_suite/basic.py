@@ -1131,6 +1131,28 @@ def BoolTensorReturnMixedModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BoolTensorHandleSignless(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.bool, True),
+        ([-1, -1], torch.bool, True),
+    ])
+    def forward(self, a, b):
+        return a * b
+
+
+@register_test_case(module_factory=lambda: BoolTensorHandleSignless())
+def BoolTensorHandleSignless_basic(module, tu: TestUtils):
+    a = torch.tensor([[1, 1], [1, 1]], dtype=torch.bool)
+    b = torch.tensor([[0, 0], [0, 0]], dtype=torch.bool)
+    module.forward(a, b)
+
+# ==============================================================================
+
 class TModuleRank2(torch.nn.Module):
     def __init__(self):
         super().__init__()
