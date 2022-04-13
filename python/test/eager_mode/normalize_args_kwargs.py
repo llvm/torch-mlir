@@ -16,7 +16,7 @@ from torch_mlir.eager_mode.torch_mlir_dispatch import normalize_args_kwargs
 @run_test
 def should_normalize():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
-    args = (torch.randn((1, 3, 32, 32)),)
+    input = torch.randn((1, 3, 32, 32))
     kwargs = {"kernel_size": [3, 3]}
     golden = {
         "kernel_size": [3, 3],
@@ -28,10 +28,10 @@ def should_normalize():
         "ceil_mode": False,
     }
 
-    new_args, new_kwargs = normalize_args_kwargs(target, args, kwargs)
-    for arg, new_arg in zip(args, new_args):
-        assert torch.allclose(arg, new_arg)
+    new_kwargs = normalize_args_kwargs(target, (input,), kwargs)
+    assert torch.allclose(new_kwargs["input"], input)
     for k, v in new_kwargs.items():
+        if k == "input": continue
         assert v == golden[k]
 
 

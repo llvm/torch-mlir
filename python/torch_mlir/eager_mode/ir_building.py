@@ -22,11 +22,13 @@ to convert the TorchScript function into MLIR using the `torch` dialect.
 """
 
 import abc
-from typing import Any, Optional, Iterable
+from typing import Any, Optional, Iterable, Dict
 from typing import Union
 
 import torch
-from torch.jit import ScriptFunction
+import torch._C
+import torch.jit
+from torch._ops import OpOverload
 
 from torch_mlir import ir
 from torch_mlir.dialects.func import FuncOp
@@ -202,26 +204,104 @@ def get_func_op_with_name(module: ir.Module, name: str) -> Optional[FuncOp]:
     return None
 
 
-def build_module(jit_function: ScriptFunction, annotations) -> ir.Module:
+def is_tensor_type(typ: torch._C.Type):
+    return typ.isSubtypeOf(torch.TensorType.get()) or (
+        isinstance(typ, torch.OptionalType)
+        and typ.getElementType().isSubtypeOf(torch._C.TensorType.get())
+    )
+
+
+def build_ts_script_function(
+    schema: torch._C.FunctionSchema, kwargs: Dict[str, Any]
+) -> torch.jit.ScriptFunction:
+    """Build a torch.jit.ScriptFunction that corresponds to the schema.
+
+    Constants are inlined for the purposes of invalidating the compile cache when they change.
+
+    Parameters
+    ----------
+    schema: torch._C.FunctionSchema
+        PyTorch's representation for ops, contains type information needed for inlining constants into the TS graph.
+    kwargs: Dict
+        A dictionary with all arguments passed in through __torch_dispatch__ (including int/float/bool params).
+
+    Returns
+    -------
+    torch.jit.ScriptFunction
+        Fully specialized (all constants) TS graph whose only arguments are tensors.
+    """
+
+    # Creates empty TS graph.
+    graph = torch._C.Graph()
+    # Creates and inserts node with identifier `schema.name`; NB node has no inputs or outputs at this point.
+    node = graph.insertNode(graph.create(schema.name, len(schema.returns)))
+    # Associate graph inputs/outputs with node inputs/outputs.
+    for i, arg in enumerate(schema.arguments):
+        # Find value corresponding to schema arg, either in positional or kw args.
+        arg_name = arg.name if arg.name != "self" else "input"
+        val = kwargs[arg_name]
+
+        # If arg is a tensor, then add input to the graph corresponding to arg.
+        if is_tensor_type(arg.type) and val is not None:
+            inp = graph.addInput()
+            if isinstance(arg.type, torch.OptionalType):
+                inp.setType(arg.type.getElementType())
+            else:
+                inp.setType(arg.type)
+
+            inp.setDebugName(arg_name)
+        # If arg is a constant, inline (at the top of the graph).
+        else:
+            if val == []:
+                # Some ops have empty list default values for args
+                # (such as aten::max_pool2d_with_indices with int[2] stride=[]
+                # but graph.insertConstant doesnt' recognize [] as an empty list IValue.
+                # This might be an upstream bug but there doesn't seem to be a way to
+                # build a prim::ListConstruct list that's empty.
+                val = None
+            inp = graph.insertConstant(val)
+            inp.node().moveBefore(node)
+
+        node.addInput(inp)
+
+    if node.hasMultipleOutputs():
+        for outp in node.outputs():
+            graph.registerOutput(outp)
+    else:
+        graph.registerOutput(node.output())
+
+    fn = torch._C._create_function_from_graph("f", graph)
+    return fn
+
+
+def build_mlir_module(op: OpOverload, kwargs: Dict[str, Any]) -> ir.Module:
     """Translate input function into an MLIR module in the `torch` dialect.
 
     Parameters
     ----------
-    jit_function: ScriptFunction
-        Function in TorchScript IR to turn into MLIR.
-    annotation: Annotation
-        Annotation object representing the types of
-        the operands of `jit_function`.
+    op: OpOverload
+        Callable from the torch.ops.aten module/namespace that has a _schema field.
+    kwargs: Dict
+        A dictionary with all arguments passed in through __torch_dispatch__ (including int/float,bool params).
 
     Returns
     -------
     ir.Module
-        Translation of the input module into an MLIR module
+        Translation of the input module into an MLIR module.
     """
-    mb = ModuleBuilder()
-    mb.import_function(jit_function)
 
-    func_op = get_func_op_with_name(mb.module, jit_function.name)
+    annotations = tuple(
+        TorchTensorType(shape=tuple(arg.shape), dtype=arg.dtype)
+        for arg_name, arg in sorted(kwargs.items())
+        if isinstance(arg, torch.Tensor)
+    )
+
+    script_fun = build_ts_script_function(op._schema, kwargs)
+
+    mb = ModuleBuilder()
+    mb.import_function(script_fun)
+
+    func_op = get_func_op_with_name(mb.module, script_fun.name)
     assert (
         func_op is not None
     ), "Unable to find FuncOp in new module. Make sure function was imported correctly into ModuleBuilder"

@@ -15,7 +15,7 @@ def wrap(e):
 
 
 def unwrap(e):
-    return e.elem.clone() if isinstance(e, TorchMLIRTensor) else e
+    return TorchMLIRTensor.unwrap(e) if isinstance(e, TorchMLIRTensor) else e
 
 
 class EagerModeTestConfig(TestConfig):
