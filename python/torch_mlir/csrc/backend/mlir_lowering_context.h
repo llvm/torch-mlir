@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/torch/csrc/lazy/ts_backend/ts_lowering_context.h
+// https://github.com/pytorch/pytorch/blob/torch/csrc/lazy/ts_backend/ts_lowering_context.h
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -19,7 +19,7 @@
 namespace torch {
 namespace lazy {
 
-class TORCH_API MlirComputation : public torch::lazy::Computation {
+class TORCH_API TorchMlirComputation : public torch::lazy::Computation {
 public:
   int parameters_size() const override;
 
@@ -31,11 +31,11 @@ public:
   virtual const torch::lazy::Shape& result_shape() const override;
 };
 
-class TORCH_API MlirLoweringContext : public torch::lazy::LoweringContext {
+class TORCH_API TorchMlirLoweringContext : public torch::lazy::LoweringContext {
 public:
-  MlirLoweringContext(
+  TorchMlirLoweringContext(
       const std::string& name, torch::lazy::BackendDevice device);
-  MlirLoweringContext(
+  TorchMlirLoweringContext(
       const std::string& name, torch::lazy::BackendDevice device,
       c10::ArrayRef<torch::lazy::Node*> post_order,
       torch::lazy::Util::EmissionMap emit_status);
@@ -57,6 +57,11 @@ public:
   // Build the computation capturing all the operations created with the
   // embedded builder (returned by the builder() API).
   virtual torch::lazy::ComputationPtr Build() override;
+
+  // Retrieves the lowered operation for an output. If the requested output is
+  // not available yet, the graph behind the output's Node is lowered, and the
+  // corresponding MLIR operation returned.
+  torch::jit::Value* GetOutputOp(const Output& output);
 
 private:
   std::vector<const torch::lazy::Node*> result_tuple_;

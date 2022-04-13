@@ -20,16 +20,14 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 
 add_library(torch_mlir_ltc_backend SHARED
-  backend/aten_eager_fallback.cpp
-  backend/aten_ltc_mlir_type.cpp
   backend/backend_impl.cpp
   backend/LazyNativeFunctions.cpp
   backend/LazyShapeInference.cpp
   backend/GenLazyShapeInference.cpp
   backend/mlir_lowering_context.cpp
+  backend/mlir_native_functions.cpp
   backend/mlir_node.cpp
   backend/RegisterLazy.cpp
-  tensor_aten_ops.cpp
 )
 
 target_link_libraries(torch_mlir_ltc_backend

@@ -37,10 +37,9 @@ supported:
 - empty
 - expand
 - fill_
-# - native_batch_norm_backward
 - native_batch_norm
+# - native_batch_norm_backward
 - permute
-- repeat
 - squeeze
 - t
 - unsqueeze
@@ -50,3 +49,4 @@ additional_ops:
 # Additional ops to support that are not supported by Torch-MLIR explicitly
 - _copy_from
 - _copy_from_and_resize
+- native_batch_norm_backward
