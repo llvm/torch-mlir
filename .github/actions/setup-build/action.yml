@@ -2,7 +2,7 @@ name: "Setup build environment"
 description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
 
 inputs:
-  cache-key:
+  cache-suffix:
     description: |
       Additional string that is used to compute the ccache hash.
       Different jobs running the action need distinct values for this key,
@@ -33,4 +33,4 @@ runs:
   - name: Ccache for C++ compilation
     uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
     with:
-      key: ${{ runner.os }}-clangreleaseasserts-${{ steps.get-submodule-hash.outputs.hash }}-${{ inputs.cache-key }}
+      key: ${{ runner.os }}-clangreleaseasserts-${{ steps.get-submodule-hash.outputs.hash }}${{ inputs.cache-suffix }}
