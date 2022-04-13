@@ -54,6 +54,7 @@ TOSA_PASS_SET = {
     "BoolTensorReturnFalseModule_basic",
     "BoolTensorReturnTrueModule_basic",
     "BoolTensorReturnMixedModule_basic",
+    "BoolTensorHandleSignless_basic",
     "ElementwiseRsqrtModule_basic",
     "SqueezeModule_static",
     "SqueezeModule_noUnitDim",
