@@ -24,6 +24,8 @@ jobs:
       with:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
+      with:
+        cache-key: 'in-tree'
     - name: Build and Test torch-mlir (Assert)
       run: |
         cd $GITHUB_WORKSPACE
@@ -97,6 +99,8 @@ jobs:
       with:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
+      with:
+        cache-key: 'out-of-tree'
     - name: Build LLVM (standalone)
       run: |
         cd $GITHUB_WORKSPACE
