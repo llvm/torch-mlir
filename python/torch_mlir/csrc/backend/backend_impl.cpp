@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 // This file is adapted from pytorch/pytorch
-// https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/lazy_tensor_core/csrc/ts_backend/backend_impl.cpp
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
 //===----------------------------------------------------------------------===//
 
 #include <torch/csrc/lazy/backend/backend_data.h>
@@ -23,77 +23,79 @@
 namespace torch {
 namespace lazy {
 
-MlirBackendData::MlirBackendData(BackendDevice device, Shape shape)
-    : BackendData(device, shape) {
+TorchMlirBackendData::TorchMlirBackendData(BackendDevice device, Shape shape)
+    : BackendData(device, shape),
+      info_(std::make_unique<TorchMlirBackendData::Info>()) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<MlirBackendData::Info>();
-  SetInfo(info);
 }
-MlirBackendData::MlirBackendData(const at::Scalar& scalar, BackendDevice device)
-    : BackendData(device, Shape(scalar.type(), {})) {
+TorchMlirBackendData::TorchMlirBackendData(
+    const at::Scalar& scalar, BackendDevice device)
+    : BackendData(device, Shape(scalar.type(), {})),
+      info_(std::make_unique<TorchMlirBackendData::Info>(scalar)) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<MlirBackendData::Info>(scalar);
-  SetInfo(info);
 }
-MlirBackendData::MlirBackendData(
+TorchMlirBackendData::TorchMlirBackendData(
     const at::Tensor& tensor, BackendDevice device, Shape shape)
-    : BackendData(device, shape) {
+    : BackendData(device, shape),
+      info_(std::make_unique<TorchMlirBackendData::Info>(tensor)) {
   PRINT_FUNCTION();
-  auto info = std::make_shared<MlirBackendData::Info>(tensor);
-  SetInfo(info);
 }
 
-BackendData::Handle MlirBackendData::GetHandle() {
+BackendData::Handle TorchMlirBackendData::GetHandle() {
   return reinterpret_cast<int64_t>(this);
 }
 
-void MlirBackendData::Assign(const BackendData& data) {
-  MlirBackendData::Info* info =
-      dynamic_cast<MlirBackendData::Info*>(data.info());
+void TorchMlirBackendData::Assign(const BackendData& data) {
+  TorchMlirBackendData::Info* info =
+      dynamic_cast<TorchMlirBackendData::Info*>(data.info());
   TORCH_CHECK(
-      info, "Invalid Backend Data Pointer. Expected MlirBackendData::Info.");
-  auto new_info = std::make_shared<MlirBackendData::Info>(*info);
-  SetInfo(new_info);
+      info,
+      "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
+  info_ = std::make_unique<TorchMlirBackendData::Info>(*info);
 }
 
-bool MlirBackendData::HasValue() const { return bool(info()); }
+bool TorchMlirBackendData::HasValue() const { return bool(info_); }
+
+TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
+  return info_.get();
+}
 
 /**
  * Initialization/Teardown
  * */
-void MlirBackendImpl::PrepareToExit() const {}
+void TorchMlirBackendImpl::PrepareToExit() const {}
 
 /**
  * Data Transfer
  * */
 
-BackendDataPtr MlirBackendImpl::MakeComputationDataFromTensor(
+BackendDataPtr TorchMlirBackendImpl::MakeComputationDataFromTensor(
     const at::Tensor& tensor, const Shape& shape,
     const BackendDevice& device) const {
   PRINT_FUNCTION();
-  return std::make_shared<MlirBackendData>(tensor, device, shape);
+  return std::make_shared<TorchMlirBackendData>(tensor, device, shape);
 }
 
-BackendDataPtr MlirBackendImpl::MakeComputationDataFromScalar(
+BackendDataPtr TorchMlirBackendImpl::MakeComputationDataFromScalar(
     const at::Scalar& scalar, const BackendDevice& device) const {
   PRINT_FUNCTION();
-  return std::make_shared<MlirBackendData>(scalar, device);
+  return std::make_shared<TorchMlirBackendData>(scalar, device);
 }
 
-BackendDataPtr MlirBackendImpl::CreateDataPlaceholder(
+BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
     const BackendDevice& device, const Shape& shape) const {
   PRINT_FUNCTION();
-  return std::make_shared<MlirBackendData>(device, shape);
+  return std::make_shared<TorchMlirBackendData>(device, shape);
 }
 
-at::Tensor MlirBackendImpl::MakeTensorFromComputationData(
+at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
     const BackendDataPtr data,
     c10::optional<at::ScalarType> logical_scalar_type) const {
   PRINT_FUNCTION();
-  MlirBackendData::Info* info =
-      dynamic_cast<MlirBackendData::Info*>(data->info());
+  TorchMlirBackendData::Info* info =
+      dynamic_cast<TorchMlirBackendData::Info*>(data->info());
   TORCH_CHECK(
-      info, "Invalid Backend Data Pointer. Expected MlirBackendData::Info.");
+      info, "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
   return info->tensor;
 }
 
@@ -101,20 +103,20 @@ at::Tensor MlirBackendImpl::MakeTensorFromComputationData(
  * Lowering, Compilation, Execution
  * */
 
-std::unique_ptr<LoweringContext> MlirBackendImpl::CreateLoweringContext(
+std::unique_ptr<LoweringContext> TorchMlirBackendImpl::CreateLoweringContext(
     const std::string& name, BackendDevice device,
     c10::ArrayRef<Node*> post_order, Util::EmissionMap emit_status) const {
   PRINT_FUNCTION();
-  return std::make_unique<MlirLoweringContext>(
+  return std::make_unique<TorchMlirLoweringContext>(
       name, std::forward<BackendDevice>(device),
       std::forward<c10::ArrayRef<Node*>>(post_order),
       std::forward<Util::EmissionMap>(emit_status));
 }
 
-std::unique_ptr<LoweringContext> MlirBackendImpl::CreateLoweringContext(
+std::unique_ptr<LoweringContext> TorchMlirBackendImpl::CreateLoweringContext(
     const std::string& name, BackendDevice device) const {
   PRINT_FUNCTION();
-  return std::make_unique<MlirLoweringContext>(
+  return std::make_unique<TorchMlirLoweringContext>(
       name, std::forward<BackendDevice>(device));
 }
 
@@ -129,13 +131,13 @@ std::unique_ptr<LoweringContext> MlirBackendImpl::CreateLoweringContext(
 
 // Specify which aten device should be used for eager fallback
 // may change depending on current 'Default' DeviceType
-at::DeviceType MlirBackendImpl::EagerFallbackDeviceType() const {
+at::DeviceType TorchMlirBackendImpl::EagerFallbackDeviceType() const {
   PRINT_FUNCTION();
   return at::DeviceType::CPU;
 }
 
 // Query all available backend devices
-std::vector<BackendDevice> MlirBackendImpl::GetBackendDevices() const {
+std::vector<BackendDevice> TorchMlirBackendImpl::GetBackendDevices() const {
   PRINT_FUNCTION();
   return {
       GetBackendDevice(c10::Device(c10::kLazy, 0)),
@@ -148,7 +150,7 @@ std::vector<BackendDevice> MlirBackendImpl::GetBackendDevices() const {
 // scenes. In the future, non-virtual c10:: devices may also use lazy tensors
 // through a mode, in which case these APIs should still work, but should be
 // identity mappings.
-BackendDevice MlirBackendImpl::GetBackendDevice(c10::Device device) const {
+BackendDevice TorchMlirBackendImpl::GetBackendDevice(c10::Device device) const {
   PRINT_FUNCTION();
   return BackendDevice(GetDefaultDeviceType(), device.index());
 }
