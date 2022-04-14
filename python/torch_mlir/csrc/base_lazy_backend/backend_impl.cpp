@@ -46,11 +46,18 @@ BackendData::Handle TorchMlirBackendData::GetHandle() {
 }
 
 void TorchMlirBackendData::Assign(const BackendData& data) {
+  const TorchMlirBackendData* torch_mlir_data =
+      dynamic_cast<const TorchMlirBackendData*>(&data);
+  TORCH_CHECK(
+      torch_mlir_data,
+      "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
+
   TorchMlirBackendData::Info* info =
-      dynamic_cast<TorchMlirBackendData::Info*>(data.info());
+      dynamic_cast<TorchMlirBackendData::Info*>(torch_mlir_data->mlir_info());
   TORCH_CHECK(
       info,
       "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
+
   info_ = std::make_unique<TorchMlirBackendData::Info>(*info);
 }
 
@@ -92,11 +99,19 @@ at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
     const BackendDataPtr data,
     c10::optional<at::ScalarType> logical_scalar_type) const {
   PRINT_FUNCTION();
+
+  TorchMlirBackendData* torch_mlir_data =
+      dynamic_cast<TorchMlirBackendData*>(data.get());
+  TORCH_CHECK(
+      torch_mlir_data,
+      "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
+
   TorchMlirBackendData::Info* info =
-      dynamic_cast<TorchMlirBackendData::Info*>(data->info());
+      dynamic_cast<TorchMlirBackendData::Info*>(torch_mlir_data->mlir_info());
   TORCH_CHECK(
       info,
       "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
+
   return info->tensor;
 }
 
