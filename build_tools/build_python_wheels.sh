@@ -14,7 +14,7 @@ mkdir -p $wheelhouse
 cd $wheelhouse
 
 echo "---- BUILDING torch-mlir ----"
-CMAKE_GENERATOR=Ninja CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+CMAKE_GENERATOR=Ninja \
 $PYTHON "${repo_root}/setup.py" bdist_wheel --dist-dir "$wheelhouse" -v
 
 # Smoke test: create a venv, install the package, and run an example.
