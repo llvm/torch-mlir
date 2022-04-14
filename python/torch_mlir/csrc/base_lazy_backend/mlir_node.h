@@ -25,9 +25,6 @@
 namespace torch {
 namespace lazy {
 
-typedef std::vector<torch::jit::Value*> TorchMlirOpVector;
-typedef std::shared_ptr<torch::jit::GraphFunction> TorchMlirFunction;
-
 class TORCH_API TorchMlirNode : public torch::lazy::Node {
 public:
   using torch::lazy::Node::Node;

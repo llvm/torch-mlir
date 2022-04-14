@@ -41,7 +41,8 @@ public:
 
   TorchMlirBackendData(BackendDevice device, Shape shape);
   TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
-  TorchMlirBackendData(const at::Tensor& tensor, BackendDevice device, Shape shape);
+  TorchMlirBackendData(
+      const at::Tensor& tensor, BackendDevice device, Shape shape);
 
   virtual BackendData::Handle GetHandle() override;
 
