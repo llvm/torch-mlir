@@ -521,7 +521,7 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Take dtype from second operand.
-  if (isa<AtenNllLossBackwardOp>(op)) {
+  if (isa<AtenNllLossBackwardOp, AtenMaxPool2dWithIndicesBackwardOp>(op)) {
     auto self = operands[1]->getValue();
     auto knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
