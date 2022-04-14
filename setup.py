@@ -75,9 +75,11 @@ class CMakeBuild(build_py):
                 f"-DLLVM_TARGETS_TO_BUILD=host",
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
-                f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects",
+                f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects;mlir_hlo",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR={src_dir}/externals/llvm-external-projects/torch-mlir-dialects",
+                f"-DLLVM_EXTERNAL_MLIR_HLO_SOURCE_DIR={src_dir}/externals/mlir-hlo",
+                f"-DMLIR_PDLL_TABLEGEN_EXE=mlir-pdll", # FIXME: set MLIR_PDLL_TABLEGEN_EXE since mlir-hlo doesn't
                 # Optimization options for building wheels.
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",

@@ -2104,6 +2104,8 @@ class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
+private:
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);

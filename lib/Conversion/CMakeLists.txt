@@ -2,6 +2,7 @@ add_subdirectory(TorchToLinalg)
 add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToStd)
 add_subdirectory(TorchToTosa)
+add_subdirectory(TorchToMhlo)
 add_subdirectory(TorchToTMTensor)
 add_subdirectory(Utils)
 
@@ -22,6 +23,7 @@ add_mlir_library(TorchMLIRConversionPasses
   TorchMLIRTorchToSCF
   TorchMLIRTorchToStd
   TorchMLIRTorchToTosa
+  TorchMLIRTorchToMhlo
   TorchMLIRTorchToTMTensor
   TorchMLIRConversionUtils
   #${torch_mlir_conversion_libs}

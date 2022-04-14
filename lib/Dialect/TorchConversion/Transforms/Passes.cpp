@@ -20,6 +20,7 @@
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
@@ -42,11 +43,18 @@ void mlir::torch::registerTorchConversionPasses() {
       "Pipeline lowering torch backend contract to linalg-on-tensors backend "
       "contract.",
       TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
+
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torch-backend-to-tosa-backend-pipeline",
       "Pipeline lowering torch backend contract to TOSA backend "
       "contract.",
       TorchConversion::createTorchBackendToTosaBackendPipeline);
+
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torch-backend-to-mhlo-backend-pipeline",
+      "Pipeline lowering torch backend contract to MHLO backend "
+      "contract.",
+      TorchConversion::createTorchBackendToMhloBackendPipeline);
 }
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
@@ -117,4 +125,25 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
   pm.addPass(TorchConversion::createVerifyTosaBackendContractPass());
+}
+
+void TorchConversion::createTorchBackendToMhloBackendPipeline(
+    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+  // Check some invariants to catch errors in a clear way.
+  pm.addPass(
+      TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
+
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass());
+
+  if (options.optimize) {
+    // Clean up any non-canonical code introduced above..
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    // The resolution of `dim` ops tends to create identical ops. CSE them.
+    pm.addNestedPass<func::FuncOp>(createCSEPass());
+  }
+  // Finish the type conversion from `torch` types to the types of the
+  // MHLO backend contract.
+  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(
+      TorchConversion::createFinalizingBackendTypeConversionPass());
 }

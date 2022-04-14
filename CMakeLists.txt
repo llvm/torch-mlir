@@ -41,7 +41,13 @@ torch_mlir_add_llvm_external_project(
   TORCH_MLIR_DIALECTS
   ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
 
+torch_mlir_add_llvm_external_project(
+  mlir-hlo
+  MLIR_HLO
+  ${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  message(STATUS "Torch-MLIR out-of-tree build.")
   # Out-of-tree build
 
   #-------------------------------------------------------------------------------
@@ -81,7 +87,16 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
   add_subdirectory(externals/llvm-external-projects/torch-mlir-dialects)
+
+  set(MHLO_BUILD_EMBEDDED ON)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo
+                   ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
+                   EXCLUDE_FROM_ALL)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo/include)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR})
 else()
+  message(STATUS "Torch-MLIR in-tree build.")
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
   # FIXME: This should really be inherited from the LLVM tree.  In particular,
   # it's going to change when cross-compiling.
@@ -95,6 +110,9 @@ else()
   set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include)
   set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
+  # since mhlo didn't set INTERFACE_DIRECTORIES for their target, we need include mhlo directories globally
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
+  include_directories(${LLVM_BINARY_DIR}/tools/mlir_hlo/include)
 endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -34,6 +34,10 @@ void createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 
+void createTorchBackendToMhloBackendPipeline(
+    OpPassManager &pm,
+    const torch::Torch::TorchLoweringPipelineOptions &options);
+
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyInvariantsBeforeBackendLoweringPass();
 

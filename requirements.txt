@@ -4,6 +4,7 @@ torch
 
 numpy
 torchvision
+transformers
 
 # Build requirements.
 pybind11
