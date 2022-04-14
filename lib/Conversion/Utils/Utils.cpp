@@ -272,6 +272,18 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
   llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
+// Return the number of elements of a tensor if the shape is static; otherwise,
+// return -1.
+int64_t getNumberOfElements(RankedTensorType inputType) {
+  if (!inputType.hasStaticShape())
+    return -1;
+  ArrayRef<int64_t> inputShape = inputType.getShape();
+  int64_t numel = 1;
+  for (int64_t i = 0; i < inputType.getRank(); i++)
+    numel *= inputShape[i];
+  return numel;
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
