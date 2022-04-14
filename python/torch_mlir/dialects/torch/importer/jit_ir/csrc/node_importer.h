@@ -10,6 +10,8 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_NODE_IMPORTER_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_NODE_IMPORTER_H
 
+#include "import_options.h"
+
 #include <memory>
 
 #include "pybind.h"
@@ -25,7 +27,8 @@ using CreateTerminatorFn =
     std::function<void(c10::ArrayRef<MlirValue>, MlirBlock)>;
 
 MlirBlock importBlock(MlirContext context, torch::jit::Block *jitBlock,
-                      CreateTerminatorFn createTerminator);
+                      CreateTerminatorFn createTerminator,
+                      const ImportOptions &importOptions = {});
 
 } // namespace torch_mlir
 

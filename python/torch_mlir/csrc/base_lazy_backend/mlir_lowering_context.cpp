@@ -36,9 +36,6 @@ TorchMlirComputation::TorchMlirComputation(
     const std::shared_ptr<torch::jit::Graph>& graph)
     : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
       graph_(graph), num_results_(graph_->outputs().size()) {
-
-  // TODO(henrytu): Save parameter shape information.
-
   for (torch::jit::Value* input : graph_->inputs()) {
     parameter_names_.push_back(input->debugName());
   }
@@ -144,22 +141,18 @@ void TorchMlirLoweringContext::AddParameter(
 ComputationPtr TorchMlirLoweringContext::Build() {
   PRINT_FUNCTION();
 
+  // Insert return values into graph.
   for (torch::jit::Value* output : root_tuple_) {
     graph_->block()->registerOutput(output);
   }
 
-  // Create jit::Function from jit::Graph.
-  c10::QualifiedName name("graph");
-  auto cu = std::make_shared<torch::jit::CompilationUnit>();
-  // IMPORTANT: We pass in a COPY of the graph into create_function, since it
-  //            may get mutated in the process.
-  auto jit_fn = cu->create_function(std::move(name), std::move(graph_->copy()));
-
   // Generate MLIR.
-  MlirOperation func_op =
-      torch_mlir::importJitFunctionAsFuncOp(mlir_context_, jit_fn);
+  MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
+      /*context=*/mlir_context_,
+      /*function=*/generate_jit_fn().get(),
+      /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
+      /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
-  // TODO(henrytu): Inject tensor shapes into func_op
   return std::make_shared<TorchMlirComputation>(func_op, mlir_context_, graph_);
 }
 
@@ -224,6 +217,14 @@ torch::jit::Value* TorchMlirLoweringContext::GetParameter(BackendDataPtr data) {
         TORCH_CHECK(
             false, "Unhandled scalar type: ", c10::toString(scalar.type()));
       }
+    } else {
+      // Save parameter shape information.
+      param->setType(torch::jit::TensorType::create(
+          /*scalar_type=*/data->shape().scalar_type(),
+          /*device=*/c10::nullopt,
+          /*sizes=*/c10::VaryingShape<int64_t>(data->shape().sizes()),
+          /*strides=*/c10::VaryingShape<int64_t>(),
+          /*requires_grad=*/c10::nullopt));
     }
 
     it = parameters_map_.emplace(handle, Parameter{param, parameters_.size()})
@@ -243,6 +244,46 @@ size_t TorchMlirLoweringContext::AddResult(torch::jit::Value* op) {
   PRINT_FUNCTION();
   root_tuple_.push_back(std::move(op));
   return root_tuple_.size() - 1;
+}
+
+// Sync vector of c10::Argument with type specified from parallel list of
+// jit::Value. There must be a 1:1 map between elements of args and values.
+std::vector<c10::Argument> sync_argument_types(
+    const std::vector<c10::Argument>& args,
+    c10::ArrayRef<torch::jit::Value*> values) {
+  TORCH_CHECK(
+      args.size() == values.size(),
+      "Expected 1:1 mapping between list of c10::Argument and jit::Value! Got ",
+      args.size(), ":", values.size(), " instead!");
+
+  std::vector<c10::Argument> updated_args;
+  for (unsigned i = 0; i < args.size(); i++) {
+    updated_args.push_back(args[i].cloneWithType(values[i]->type()));
+  }
+
+  return updated_args;
+}
+
+std::unique_ptr<torch::jit::Function>
+TorchMlirLoweringContext::generate_jit_fn() const {
+  // IMPORTANT: We pass in a COPY of the graph into create_function, since it
+  //            may get mutated in the process.
+  auto fn = std::make_unique<torch::jit::GraphFunction>(
+      c10::QualifiedName("graph"), graph_->copy(), nullptr);
+
+  c10::FunctionSchema schema = fn->getSchema();
+
+  // When constructing the default schema of a jit::GraphFunction, input and
+  // output shapes are stripped (via call to unshapedType(...)); however,
+  // since we want to have shape information in our MLIR, we'll add it back.
+  std::vector<c10::Argument> arguments =
+      sync_argument_types(schema.arguments(), graph_->inputs());
+  std::vector<c10::Argument> returns =
+      sync_argument_types(schema.returns(), graph_->outputs());
+
+  fn->setSchema(schema.cloneWithArguments(arguments).cloneWithReturns(returns));
+
+  return fn;
 }
 
 void TorchMlirLoweringContext::RegisterMlirDialects() {
