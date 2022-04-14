@@ -1941,6 +1941,51 @@ module {
     %2 = torch.prim.ListConstruct %1 : (!torch.int) -> !torch.list<int>
     return %2 : !torch.list<int>
   }
+  func @"__torch_mlir_shape_fn.aten.range.step"(%arg0: !torch.float, %arg1: !torch.float, %arg2: !torch.float, %arg3: !torch.optional<int>, %arg4: !torch.optional<int>, %arg5: !torch.optional<Device>, %arg6: !torch.optional<bool>) -> !torch.list<int> {
+    %0 = torch.derefine %arg3 : !torch.optional<int> to !torch.any
+    %1 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
+    %2 = torch.derefine %arg5 : !torch.optional<Device> to !torch.any
+    %3 = torch.derefine %arg6 : !torch.optional<bool> to !torch.any
+    %4 = call @__torch__.range_step(%arg0, %arg1, %arg2, %0, %1, %2, %3) : (!torch.float, !torch.float, !torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
+    return %4 : !torch.list<int>
+  }
+  func @__torch__.range_step(%arg0: !torch.float, %arg1: !torch.float, %arg2: !torch.float, %arg3: !torch.any, %arg4: !torch.any, %arg5: !torch.any, %arg6: !torch.any) -> !torch.list<int> {
+    %int0 = torch.constant.int 0
+    %str = torch.constant.str "AssertionError: "
+    %none = torch.constant.none
+    %0 = torch.operator "aten.ne.float_int"(%arg2, %int0) : (!torch.float, !torch.int) -> !torch.bool
+    torch.prim.If %0 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %1 = torch.aten.lt.float_int %arg2, %int0 : !torch.float, !torch.int -> !torch.bool
+    torch.prim.If %1 -> () {
+      %6 = torch.operator "aten.ge.float"(%arg0, %arg1) : (!torch.float, !torch.float) -> !torch.bool
+      torch.prim.If %6 -> () {
+        torch.prim.If.yield
+      } else {
+        torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+        torch.prim.If.yield
+      }
+      torch.prim.If.yield
+    } else {
+      %6 = torch.operator "aten.ge.float"(%arg1, %arg0) : (!torch.float, !torch.float) -> !torch.bool
+      torch.prim.If %6 -> () {
+        torch.prim.If.yield
+      } else {
+        torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+        torch.prim.If.yield
+      }
+      torch.prim.If.yield
+    }
+    %2 = torch.aten.sub.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.float
+    %3 = torch.operator "aten.div.float"(%2, %arg2) : (!torch.float, !torch.float) -> !torch.float
+    %4 = torch.operator "aten.ceil.float"(%3) : (!torch.float) -> !torch.int
+    %5 = torch.prim.ListConstruct %4 : (!torch.int) -> !torch.list<int>
+    return %5 : !torch.list<int>
+  }
   func @"__torch_mlir_shape_fn.aten.add.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
