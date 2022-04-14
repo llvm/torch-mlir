@@ -95,7 +95,8 @@ at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
   TorchMlirBackendData::Info* info =
       dynamic_cast<TorchMlirBackendData::Info*>(data->info());
   TORCH_CHECK(
-      info, "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
+      info,
+      "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
   return info->tensor;
 }
 
