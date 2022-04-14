@@ -18,8 +18,8 @@
 namespace torch {
 namespace lazy {
 
-TorchMlirOpVector
-TorchMlirNode::Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
+TorchMlirOpVector TorchMlirNode::Lower(
+    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
   return {};
 }
 
