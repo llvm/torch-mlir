@@ -20,18 +20,23 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 
 add_library(torch_mlir_ltc_backend SHARED
-  backend/backend_impl.cpp
-  backend/LazyNativeFunctions.cpp
-  backend/LazyShapeInference.cpp
-  backend/GenLazyShapeInference.cpp
-  backend/mlir_lowering_context.cpp
-  backend/mlir_native_functions.cpp
-  backend/mlir_node.cpp
-  backend/RegisterLazy.cpp
+  base_lazy_backend/backend_impl.cpp
+  base_lazy_backend/LazyNativeFunctions.cpp
+  base_lazy_backend/LazyShapeInference.cpp
+  base_lazy_backend/GenLazyShapeInference.cpp
+  base_lazy_backend/mlir_lowering_context.cpp
+  base_lazy_backend/mlir_native_functions.cpp
+  base_lazy_backend/mlir_node.cpp
+  base_lazy_backend/mlir_node_lowering.cpp
+  base_lazy_backend/RegisterLazy.cpp
 )
 
+add_dependencies(torch_mlir_ltc_backend
+  TorchMLIRJITIRImporter
+)
 target_link_libraries(torch_mlir_ltc_backend
   TorchMLIRAggregateCAPI
+  TorchMLIRJITIRImporter
   ${TORCH_LIBRARIES}
   ${Python3_LIBRARIES}
   torch_python
