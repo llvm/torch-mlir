@@ -1282,3 +1282,23 @@ class ElementwiseCosIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseCosIntModule())
 def ElementwiseCosIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+
+# ==============================================================================
+
+class ElementwiseNegModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return torch.neg(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNegModule())
+def ElementwiseNegModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
