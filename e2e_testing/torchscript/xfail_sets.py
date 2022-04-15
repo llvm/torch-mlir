@@ -160,4 +160,5 @@ TOSA_PASS_SET = {
     "ElementwiseNeIntScalarModule_basic",
     "ElementwiseNeFloatTensorModule_basic",
     "ConvolutionModule2DStatic_basic",
+    "ElementwiseNegModule_basic",
 }
