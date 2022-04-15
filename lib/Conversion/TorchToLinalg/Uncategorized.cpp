@@ -258,6 +258,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createCalculationForMathOpWithDtypeConversion<math::RsqrtOp>(
         b, converter, payloadArgs[0], op);
   }
+  if (isa<AtenNegOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
+        b, converter, payloadArgs[0], op);
+  }
   if (isa<AtenSinOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::SinOp>(
         b, converter, payloadArgs[0], op);
@@ -935,7 +939,7 @@ public:
              AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
              AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
-             AtenNeScalarOp>(op))
+             AtenNeScalarOp, AtenNegOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
