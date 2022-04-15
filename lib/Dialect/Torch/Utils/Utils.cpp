@@ -52,6 +52,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Int;
   if (type.isSignlessInteger(1))
     return torch_upstream::ScalarType::Bool;
+  if (type.isBF16())
+    return torch_upstream::ScalarType::BFloat16;
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
@@ -69,6 +71,8 @@ Type Torch::getTypeForScalarType(
     return IntegerType::get(context, 32, signedness);
   case torch_upstream::ScalarType::Bool:
     return IntegerType::get(context, 1);
+  case torch_upstream::ScalarType::BFloat16:
+    return mlir::FloatType::getBF16(context);
   default:
     return Type();
   }
