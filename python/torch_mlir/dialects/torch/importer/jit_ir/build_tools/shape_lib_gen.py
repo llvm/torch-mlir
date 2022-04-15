@@ -318,6 +318,9 @@ def aten〇hardtanh(self: List[int], min_val: float = -1, max_val: float = 1) ->
 def aten〇sqrt(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇neg(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇floor(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
