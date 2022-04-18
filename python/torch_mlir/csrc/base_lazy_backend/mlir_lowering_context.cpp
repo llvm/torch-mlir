@@ -85,6 +85,7 @@ std::string TorchMlirComputation::to_string() const {
   // MLIR
   ss << "MLIR: \n";
   mlirOperationPrint(func_op_, print_callback, &ss);
+  ss << "\n";
 
   // Input/Output Mapping
   ss << "Input/Output Alias Mapping: \n";
