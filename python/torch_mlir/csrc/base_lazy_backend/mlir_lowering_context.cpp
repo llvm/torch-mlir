@@ -91,7 +91,7 @@ std::string TorchMlirComputation::to_string() const {
   ss << "Input/Output Alias Mapping: \n";
   for (InputOutputAlias input_output_alias : input_output_aliases_) {
     ss << "Output: " << input_output_alias.output_index
-       << " -> Input: " << input_output_alias.param_number << std::endl;
+       << " -> Input param: " << input_output_alias.param_number << std::endl;
   }
 
   return ss.str();
