@@ -115,7 +115,7 @@ static void replaceReturnWithCall(OpBuilder b, func::ReturnOp op,
 }
 
 static LogicalResult mungeFunction(
-    FuncOp func, std::set<std::string> &supportedConsumeFuncReturnFuncs,
+    FuncOp func,
     std::map<std::string, std::vector<Type>> &invokedConsumeFuncReturnFuncs) {
   // Only need to call mungeFunction for functions callable from outside of the
   // module.
@@ -147,7 +147,6 @@ static LogicalResult mungeFunction(
   }
 
   SmallVector<Operation *> toErase;
-  bool isSupported = true;
   func.walk([&](func::ReturnOp op) {
     auto types = op.getOperandTypes();
     b.setInsertionPoint(op);
@@ -169,59 +168,17 @@ static LogicalResult mungeFunction(
       retVals.push_back(retVal);
     }
 
-    auto supportedFuncsEnd = supportedConsumeFuncReturnFuncs.end();
     std::string funcName = getConsumeReturnFunctionNameForReturnTypes(retTypes);
-    if (supportedConsumeFuncReturnFuncs.find(funcName) == supportedFuncsEnd) {
-      op.emitError("Supported return types:"
-                   "mri1, mri32, mri64, mrf32, mrf64, i1, i64, f32, f64,"
-                   "(mrf32, mri64), (mrf32, mrf32), (mrf64, mrf64),"
-                   "(mrf32, mrf32, mrf32)");
-      isSupported = false;
-    }
 
     auto invokedFuncsEnd = invokedConsumeFuncReturnFuncs.end();
     if (invokedConsumeFuncReturnFuncs.find(funcName) == invokedFuncsEnd)
       invokedConsumeFuncReturnFuncs.insert({funcName, retTypes});
     replaceReturnWithCall(b, op, funcName, retTypes, retVals, toErase);
   });
-  if (!isSupported)
-    return failure();
   func.setType(FunctionType::get(func.getContext(), newArgTypes, {}));
   for (Operation *op : toErase)
     op->erase();
   return success();
-}
-
-static std::set<std::string> getSupportedConsumeFuncReturnFuncs(OpBuilder &b) {
-  std::set<std::string> funcNames;
-  Type mri1 = UnrankedMemRefType::get(b.getI1Type(), 0);
-  Type mri32 = UnrankedMemRefType::get(b.getI32Type(), 0);
-  Type mri64 = UnrankedMemRefType::get(b.getI64Type(), 0);
-  Type mrf32 = UnrankedMemRefType::get(b.getF32Type(), 0);
-  Type mrf64 = UnrankedMemRefType::get(b.getF64Type(), 0);
-  Type i1 = b.getI1Type();
-  Type i64 = b.getI64Type();
-  Type f32 = b.getF32Type();
-  Type f64 = b.getF64Type();
-
-  SmallVector<TypeRange> supportedReturnTypes = {mri1,
-                                                 mri32,
-                                                 mri64,
-                                                 mrf32,
-                                                 mrf64,
-                                                 i1,
-                                                 i64,
-                                                 f32,
-                                                 f64,
-                                                 {mrf32, mri64},
-                                                 {mrf32, mrf32},
-                                                 {mrf64, mrf64},
-                                                 {mrf32, mrf32, mrf32}};
-
-  llvm::for_each(supportedReturnTypes, [&](TypeRange &types) {
-    funcNames.insert(getConsumeReturnFunctionNameForReturnTypes(types));
-  });
-  return funcNames;
 }
 
 namespace {
@@ -230,11 +187,9 @@ class MungeCallingConventions
   void runOnOperation() override {
     auto module = getOperation();
     OpBuilder b(module.getBodyRegion());
-    static std::set<std::string> supported =
-        getSupportedConsumeFuncReturnFuncs(b);
     std::map<std::string, std::vector<Type>> invokedConsumeFuncReturnFuncs;
     for (auto func : module.getOps<FuncOp>()) {
-      if (failed(mungeFunction(func, supported, invokedConsumeFuncReturnFuncs)))
+      if (failed(mungeFunction(func, invokedConsumeFuncReturnFuncs)))
         return signalPassFailure();
     }
 
