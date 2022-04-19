@@ -10,19 +10,8 @@
 # (this includes down into lower parts of the stack, where a side table
 # might be used to keep more elaborate sets of testing configurations).
 
-# Lists of tests that fail to even reach the backends.
-# These represent further work needed in torch-mlir to lower them properly
-# to the backend contract.
-COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    "QuantizedMLP_basic",
-    "TableBatchEmbeddingModule_basic",
-    "MobilenetV2Module_basic",
-    "MobilenetV3Module_basic",
-    "ConvolutionModule3D_basic",
-    "ConvolutionModule1D_basic",
-    "MaxPool2dWith3dInputModule_basic",
-    "MaxPool2dWithIndicesWith3dInputModule_basic",
-}
+from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
+
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 EAGER_MODE_XFAIL_SET = REFBACKEND_XFAIL_SET.union({

@@ -4,15 +4,14 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import argparse
-import os
-import pickle
 import re
 import sys
 
-from torch_mlir_e2e_test.torchscript.framework import TestConfig, run_tests
+from torch_mlir_e2e_test.torchscript.framework import run_tests
 from torch_mlir_e2e_test.torchscript.reporting import report_results
 from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
 from torch_mlir_e2e_test.torchscript.serialization import deserialize_all_tests_from
+
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
@@ -22,14 +21,14 @@ from torch_mlir_e2e_test.torchscript.configs import (
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, COMMON_TORCH_MLIR_LOWERING_XFAILS, EAGER_MODE_XFAIL_SET
+from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET
 
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'external', 'eager_mode']
+    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'eager_mode']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -40,18 +39,7 @@ Meaning of options:
 "tosa": run through torch-mlir's default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
-"external": use an external backend, specified by the `--external-backend` option.
 "eager_mode": run through torch-mlir's eager mode frontend, using RefBackend for execution.
-''')
-    parser.add_argument('--external-config',
-        help=f'''
-Specifies a path to a Python file, which will be `exec`'ed.
-The file has the following contract:
-- The global variable `config` should be set to an instance of `TestConfig`.
-- `xfail_set` should be set to a set of test unique identifiers that are
-  expected to fail. The global `COMMON_TORCH_MLIR_LOWERING_XFAILS` provides
-  a common set of xfails that won't work on backends because torch-mlir
-  itself does not handle them.
 ''')
     parser.add_argument('-f', '--filter', default='.*', help='''
 Regular expression specifying which tests to include in this run.
@@ -94,24 +82,6 @@ def main():
     elif args.config == 'eager_mode':
         config = EagerModeTestConfig()
         xfail_set = EAGER_MODE_XFAIL_SET
-    elif args.config == 'external':
-        with open(args.external_config, 'r') as f:
-            code = compile(f.read(), args.external_config, 'exec')
-        exec_globals = {
-            'COMMON_TORCH_MLIR_LOWERING_XFAILS': COMMON_TORCH_MLIR_LOWERING_XFAILS}
-        exec(code, exec_globals)
-        config = exec_globals.get('config')
-        xfail_set = exec_globals.get('xfail_set')
-        if config is None or not isinstance(config, TestConfig):
-            print(
-                f'ERROR: the script {args.external_config} did not set a global variable `config`'
-            )
-            sys.exit(1)
-        if xfail_set is None:
-            print(
-                f'ERROR: the script {args.external_config} did not set a global variable `xfail_set`'
-            )
-            sys.exit(1)
 
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
