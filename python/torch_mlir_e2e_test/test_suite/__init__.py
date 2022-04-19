@@ -3,6 +3,20 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+# Lists of tests that fail to even reach the backends.
+# These represent further work needed in torch-mlir to lower them properly
+# to the backend contract.
+COMMON_TORCH_MLIR_LOWERING_XFAILS = {
+    "QuantizedMLP_basic",
+    "TableBatchEmbeddingModule_basic",
+    "MobilenetV2Module_basic",
+    "MobilenetV3Module_basic",
+    "ConvolutionModule3D_basic",
+    "ConvolutionModule1D_basic",
+    "MaxPool2dWith3dInputModule_basic",
+    "MaxPool2dWithIndicesWith3dInputModule_basic",
+}
+
 def register_all_tests():
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
     # Side-effecting import statements.
