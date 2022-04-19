@@ -16,7 +16,8 @@ on:
 
 jobs:
   build:
-    name: Build and Test and maybe Publish (Release Asserts)
+    name: Build and Test (Release Asserts)
+    # Changes to the name of this job needs to be synced with releaseSnapshotPackage.yml.
     runs-on: ubuntu-20.04
     steps:
     - name: Get torch-mlir
@@ -91,7 +92,7 @@ jobs:
         release_id: ${{ github.event.inputs.release_id }}
 
   build-out-of-tree:
-    name: Build and Test out-of-tree (Release Asserts)
+    name: Build out-of-tree (Release Asserts)
     runs-on: ubuntu-20.04
     steps:
     - name: Get torch-mlir
@@ -102,6 +103,8 @@ jobs:
       with:
         cache-suffix: '-out-of-tree'
     - name: Build LLVM (standalone)
+      # This build takes a while but is expected to almost always be cached.
+      # A cache invalidation occurs when the committed LLVM version is changed.
       run: |
         cd $GITHUB_WORKSPACE
         cmake -Bllvm-build -GNinja \
@@ -131,13 +134,5 @@ jobs:
           .
         ninja -Cbuild check-torch-mlir-all
 
-    - name: RefBackend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-    - name: TOSA backend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
+    # Don't run python tests, as check-torch-mlir-all already checks
+    # what we want.
