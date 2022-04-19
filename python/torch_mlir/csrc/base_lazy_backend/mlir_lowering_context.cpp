@@ -28,76 +28,6 @@ namespace torch {
 namespace lazy {
 
 ///////////////////////////////////////////////////////////////////////////////
-// TorchMlir Computation
-///////////////////////////////////////////////////////////////////////////////
-
-TorchMlirComputation::TorchMlirComputation(
-    MlirOperation func_op, MlirContext mlir_context,
-    const std::shared_ptr<torch::jit::Graph>& graph,
-    InputOutputAliases input_output_aliases)
-    : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
-      graph_(graph), input_output_aliases_(input_output_aliases),
-      num_results_(graph_->outputs().size()) {
-  for (torch::jit::Value* input : graph_->inputs()) {
-    parameter_names_.push_back(input->debugName());
-  }
-}
-
-int TorchMlirComputation::parameters_size() const {
-  return parameter_names_.size();
-}
-
-const std::vector<torch::lazy::Shape>&
-TorchMlirComputation::parameter_shapes() const {
-  throw std::runtime_error(
-      "todo(whc) implement ts computation shapes or change interface");
-  return parameter_shapes_;
-}
-
-const std::vector<std::string>& TorchMlirComputation::parameter_names() const {
-  return parameter_names_;
-}
-
-const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
-  throw std::runtime_error(
-      "todo(whc) implement ts computation shapes or change interface");
-  return result_shape_;
-}
-
-unsigned TorchMlirComputation::num_results() const { return num_results_; }
-
-MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
-
-std::string TorchMlirComputation::to_string() const {
-  // Since we use the C-MLIR API, we need to use a callback to print.
-  MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
-    // user_data is a void ptr to some data structure of our choice -- in this
-    // case, the string stream where we'll be accumulating the strings.
-    std::stringstream* ss_ptr = static_cast<std::stringstream*>(user_data);
-    *ss_ptr << std::string(part.data, part.length);
-  };
-
-  std::stringstream ss;
-
-  // JIT Graph
-  ss << "JIT Graph: \n" << graph_->toString() << "\n\n";
-
-  // MLIR
-  ss << "MLIR: \n";
-  mlirOperationPrint(func_op_, print_callback, &ss);
-  ss << "\n";
-
-  // Input/Output Mapping
-  ss << "Input/Output Alias Mapping: \n";
-  for (InputOutputAlias input_output_alias : input_output_aliases_) {
-    ss << "Output: " << input_output_alias.output_index
-       << " -> Input param: " << input_output_alias.param_number << std::endl;
-  }
-
-  return ss.str();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // TorchMlir Lowering Context
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -126,6 +56,13 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
   }
 
   RegisterMlirDialects();
+}
+
+void TorchMlirLoweringContext::SetUpAlias(
+    const std::vector<int64_t>& output_index, int64_t param_number,
+    const std::vector<int64_t>& param_index, bool must_alias) {
+  input_output_aliases_.push_back(
+      {output_index, param_number, param_index, must_alias});
 }
 
 // Get the shape of the result tuple component, given by index.
@@ -322,6 +259,76 @@ void TorchMlirLoweringContext::RegisterMlirDialects() {
   // https://reviews.llvm.org/D88162
   mlirRegisterAllDialects(mlir_context_);
   torchMlirRegisterAllDialects(mlir_context_);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TorchMlir Computation
+///////////////////////////////////////////////////////////////////////////////
+
+TorchMlirComputation::TorchMlirComputation(
+    MlirOperation func_op, MlirContext mlir_context,
+    const std::shared_ptr<torch::jit::Graph>& graph,
+    InputOutputAliases input_output_aliases)
+    : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
+      graph_(graph), input_output_aliases_(input_output_aliases),
+      num_results_(graph_->outputs().size()) {
+  for (torch::jit::Value* input : graph_->inputs()) {
+    parameter_names_.push_back(input->debugName());
+  }
+}
+
+int TorchMlirComputation::parameters_size() const {
+  return parameter_names_.size();
+}
+
+const std::vector<torch::lazy::Shape>&
+TorchMlirComputation::parameter_shapes() const {
+  throw std::runtime_error(
+      "todo(whc) implement ts computation shapes or change interface");
+  return parameter_shapes_;
+}
+
+const std::vector<std::string>& TorchMlirComputation::parameter_names() const {
+  return parameter_names_;
+}
+
+const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
+  throw std::runtime_error(
+      "todo(whc) implement ts computation shapes or change interface");
+  return result_shape_;
+}
+
+unsigned TorchMlirComputation::num_results() const { return num_results_; }
+
+MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
+
+std::string TorchMlirComputation::to_string() const {
+  // Since we use the C-MLIR API, we need to use a callback to print.
+  MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
+    // user_data is a void ptr to some data structure of our choice -- in this
+    // case, the string stream where we'll be accumulating the strings.
+    std::stringstream* ss_ptr = static_cast<std::stringstream*>(user_data);
+    *ss_ptr << std::string(part.data, part.length);
+  };
+
+  std::stringstream ss;
+
+  // JIT Graph
+  ss << "JIT Graph: \n" << graph_->toString() << "\n\n";
+
+  // MLIR
+  ss << "MLIR: \n";
+  mlirOperationPrint(func_op_, print_callback, &ss);
+  ss << "\n";
+
+  // Input/Output Mapping
+  ss << "Input/Output Alias Mapping: \n";
+  for (InputOutputAlias input_output_alias : input_output_aliases_) {
+    ss << "Output: " << input_output_alias.output_index
+       << " -> Input param: " << input_output_alias.param_number << std::endl;
+  }
+
+  return ss.str();
 }
 
 } // namespace lazy
