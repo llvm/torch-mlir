@@ -50,3 +50,4 @@ def register_all_tests():
     from . import cast
     from . import index_put
     from . import pooling
+    from . import return_types
