@@ -33,8 +33,10 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 
 from distutils.command.build import build as _build
+from distutils.sysconfig import get_python_inc
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
@@ -50,7 +52,6 @@ class CustomBuild(_build):
         self.run_command("build_py")
         self.run_command("build_ext")
         self.run_command("build_scripts")
-
 
 class CMakeBuild(build_py):
 
