@@ -23,12 +23,13 @@ echo "---- CREATING VENV ----"
 python -m venv "$package_test_venv"
 VENV_PYTHON="$package_test_venv/bin/python"
 
-echo "---- INSTALLING torch ----"
-$VENV_PYTHON -m pip install -r "${repo_root}/requirements.txt"
+# Install the Torch-MLIR package.
+# Note that we also need to pass in the `-r requirements.txt` here to pick up
+# the right --find-links flag for the nightly PyTorch wheel registry.
+echo "---- INSTALLING torch-mlir and dependencies ----"
+$VENV_PYTHON -m pip install -f "$wheelhouse" --force-reinstall torch_mlir -r "${repo_root}/requirements.txt"
 echo "---- INSTALLING other deps for smoke test ----"
 $VENV_PYTHON -m pip install requests pillow
-echo "---- INSTALLING torch-mlir ----"
-$VENV_PYTHON -m pip install -f "$wheelhouse" --force-reinstall torch_mlir
 
 echo "---- RUNNING SMOKE TEST ----"
 $VENV_PYTHON "$repo_root/examples/torchscript_resnet18.py"
