@@ -13,8 +13,7 @@ from torch_mlir.runtime import *
 # Imported for side effects.
 import torch_mlir.all_passes_registration
 import torch_mlir.dialects.torch
-
-from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 from .abc import LinalgOnTensorsBackend
 

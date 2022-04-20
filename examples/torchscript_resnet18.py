@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+import sys
+
 from PIL import Image
 import requests
+
 import torch
 import torchvision.models as models
 from torchvision import transforms
 
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
-
-from torch_mlir.passmanager import PassManager
+import torch_mlir
 from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
-
-mb = ModuleBuilder()
 
 def load_and_preprocess_image(url: str):
     headers = {
@@ -60,59 +59,17 @@ def predictions(torch_func, jit_func, img, labels):
     print("torch-mlir prediction")
     print(prediction)
 
-
-class ResNet18Module(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.resnet = models.resnet18(pretrained=True)
-        self.train(False)
-
-    def forward(self, img):
-        return self.resnet.forward(img)
-
-
-class TestModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.s = ResNet18Module()
-
-    def forward(self, x):
-        return self.s.forward(x)
-
-
-image_url = (
-    "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
-)
-import sys
+image_url = "https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg"
 
 print("load image from " + image_url, file=sys.stderr)
 img = load_and_preprocess_image(image_url)
 labels = load_labels()
 
-test_module = TestModule()
-class_annotator = ClassAnnotator()
-recursivescriptmodule = torch.jit.script(test_module)
-torch.jit.save(recursivescriptmodule, "/tmp/foo.pt")
-
-class_annotator.exportNone(recursivescriptmodule._c._type())
-class_annotator.exportPath(recursivescriptmodule._c._type(), ["forward"])
-class_annotator.annotateArgs(
-    recursivescriptmodule._c._type(),
-    ["forward"],
-    [
-        None,
-        ([-1, -1, -1, -1], torch.float32, True),
-    ],
-)
-# TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
-mb.import_module(recursivescriptmodule._c, class_annotator)
-
+resnet18 = models.resnet18(pretrained=True)
+resnet18.train(False)
+module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type=torch_mlir.OutputType.LINALG_ON_TENSORS)
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
-with mb.module.context:
-    pm = PassManager.parse('torchscript-module-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline')
-    pm.run(mb.module)
-
-compiled = backend.compile(mb.module)
+compiled = backend.compile(module)
 jit_module = backend.load(compiled)
 
-predictions(test_module.forward, jit_module.forward, img, labels)
+predictions(resnet18.forward, jit_module.forward, img, labels)

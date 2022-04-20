@@ -14,7 +14,7 @@ import torch
 
 from torch_mlir_e2e_test.tosa_backends.abc import TosaBackend
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
-from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 from .utils import (
     recursively_convert_to_numpy,
     recursively_convert_from_numpy,

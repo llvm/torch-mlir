@@ -20,6 +20,14 @@ add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
 declare_mlir_python_sources(TorchMLIRPythonSources)
 declare_mlir_python_sources(TorchMLIRPythonExtensions)
 
+declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
+  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+  ADD_TO_PARENT TorchMLIRPythonSources
+  SOURCES
+    __init__.py
+    compiler_utils.py
+)
+
 declare_mlir_python_sources(TorchMLIRPythonSources.Dialects
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
   ADD_TO_PARENT TorchMLIRPythonSources
