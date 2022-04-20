@@ -39,6 +39,8 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
+import torch
+
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
@@ -126,6 +128,11 @@ setup(
     },
     ext_modules=[
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
+    ],
+    install_requires=[
+        # To avoid issues with drift for each nightly build, we pin to the
+        # exact version we built against.
+        f"torch=={torch.__version__}",
     ],
     zip_safe=False,
 )
