@@ -191,6 +191,44 @@ func @abstractly_interpret_list_ops$mutation_ops(%arg0: !torch.vtensor, %arg1: !
   return %0 : !torch.vtensor
 }
 
+// Test negative indexes with set_item op.
+// CHECK-LABEL:   func @abstractly_interpret_list_ops$neg_index_set_item(
+// CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %arg1, %arg2 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
+func @abstractly_interpret_list_ops$neg_index_set_item(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor {
+  %int1 = torch.constant.int 1
+  %int-1 = torch.constant.int -1
+  %int-2 = torch.constant.int -2
+  %0 = torch.shape.calculate {
+    torch.shape.calculate.yield %arg0 : !torch.vtensor
+  } shapes {
+    %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %2 = torch.aten._set_item.t %1, %int-1, %arg2 : !torch.list<int>, !torch.int, !torch.int -> !torch.list<int>
+    %3 = torch.aten._set_item.t %1, %int-2, %arg1 : !torch.list<int>, !torch.int, !torch.int -> !torch.list<int>
+    torch.shape.calculate.yield.shapes %1 : !torch.list<int>
+  } : !torch.vtensor
+  return %0 : !torch.vtensor
+}
+
+// Test interspersed mutation and evaluation ops.
+// CHECK-LABEL:   func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(
+// CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
+func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(%arg0: !torch.vtensor) -> !torch.vtensor {
+  %0 = torch.shape.calculate {
+    torch.shape.calculate.yield %arg0 : !torch.vtensor
+  } shapes {
+    %1 = torch.prim.ListConstruct : () -> !torch.list<int>
+    %2 = torch.aten.len.t %1 : !torch.list<int> -> !torch.int
+    %3 = torch.aten.append.t %1, %2 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %4 = torch.aten.len.t %1 : !torch.list<int> -> !torch.int
+    %5 = torch.aten.append.t %1, %4 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %6 = torch.aten.len.t %1 : !torch.list<int> -> !torch.int
+    %7 = torch.aten.append.t %1, %6 : !torch.list<int>, !torch.int -> !torch.list<int>
+    torch.shape.calculate.yield.shapes %1 : !torch.list<int>
+  } : !torch.vtensor
+  return %0 : !torch.vtensor
+}
 
 // CHECK-LABEL:   func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(
 // CHECK:           torch.aten.append.t

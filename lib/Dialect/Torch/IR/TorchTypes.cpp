@@ -25,6 +25,16 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
   if (subtype == type)
     return true;
 
+  // For a UnionType to be a subtype, all of its contained types must be
+  // subtypes.
+  if (auto unionType = subtype.dyn_cast<UnionType>()) {
+    for (auto containedType : unionType.getContainedTypes()) {
+      if (!isValidSubtype(containedType, type))
+        return false;
+    }
+    return true;
+  }
+
   if (auto any = type.dyn_cast<AnyType>())
     return true;
 
@@ -34,6 +44,14 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
   if (auto optional = type.dyn_cast<OptionalType>())
     return isValidSubtype(subtype, optional.getContainedType()) ||
            subtype.isa<Torch::NoneType>();
+
+  if (auto unionType = type.dyn_cast<UnionType>()) {
+    for (auto containedType : unionType.getContainedTypes()) {
+      if (isValidSubtype(subtype, containedType))
+        return true;
+    }
+    return false;
+  }
 
   if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
     if (!subtype.isa<Torch::TupleType>())
@@ -63,34 +81,64 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
 }
 
 //===----------------------------------------------------------------------===//
+// Helpers for TupleType and UnionType
+//===----------------------------------------------------------------------===//
+
+// Parse the `<T1, T2, T3>` of a type such as `!torch.tuple<T1, T2, T3>`.
+static Optional<SmallVector<Type>>
+parseMultipleContainedTypes(AsmParser &parser) {
+  if (parser.parseLess())
+    return None;
+
+  SmallVector<Type> containedTypes;
+  if (!parser.parseOptionalGreater())
+    return containedTypes;
+  do {
+    Type containedType = parseTorchDialectType(parser);
+    if (!containedType)
+      return None;
+    containedTypes.push_back(containedType);
+  } while (!parser.parseOptionalComma());
+  if (parser.parseGreater())
+    return None;
+  return containedTypes;
+}
+
+static void printMultipleContainedTypes(AsmPrinter &printer,
+                                        ArrayRef<Type> containedTypes) {
+  printer << "<";
+  llvm::interleaveComma(containedTypes, printer, [&](Type type) {
+    printTorchDialectType(type, printer);
+  });
+  printer << ">";
+}
+
+//===----------------------------------------------------------------------===//
 // TupleType
 //===----------------------------------------------------------------------===//
 
 Type Torch::TupleType::parse(AsmParser &parser) {
-  MLIRContext *context = parser.getContext();
-  if (parser.parseLess())
-    return Type();
-  if (!parser.parseOptionalGreater())
-    return Torch::TupleType::get(context, {});
-
-  SmallVector<Type> containedTypes;
-  do {
-    Type containedType = parseTorchDialectType(parser);
-    if (!containedType)
-      return Type();
-    containedTypes.push_back(containedType);
-  } while (!parser.parseOptionalComma());
-  if (parser.parseGreater())
-    return Type();
-  return Torch::TupleType::get(context, containedTypes);
+  if (auto containedTypes = parseMultipleContainedTypes(parser))
+    return TupleType::get(parser.getContext(), *containedTypes);
+  return Type();
 }
 
-void Torch::TupleType::print(::mlir::AsmPrinter &printer) const {
-  printer << "<";
-  llvm::interleaveComma(getContainedTypes(), printer, [&](Type type) {
-    printTorchDialectType(type, printer);
-  });
-  printer << ">";
+void Torch::TupleType::print(AsmPrinter &printer) const {
+  printMultipleContainedTypes(printer, getContainedTypes());
+}
+
+//===----------------------------------------------------------------------===//
+// UnionType
+//===----------------------------------------------------------------------===//
+
+Type Torch::UnionType::parse(AsmParser &parser) {
+  if (auto containedTypes = parseMultipleContainedTypes(parser))
+    return UnionType::get(parser.getContext(), *containedTypes);
+  return Type();
+}
+
+void Torch::UnionType::print(AsmPrinter &printer) const {
+  printMultipleContainedTypes(printer, getContainedTypes());
 }
 
 //===----------------------------------------------------------------------===//

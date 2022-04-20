@@ -121,9 +121,8 @@ public:
 
     // TODO: Add support for layout, pin_memory features.
     // Only `none` layout is supported.
-    if (!op.layout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
@@ -148,13 +147,24 @@ public:
 
     auto resultType = typeConverter->convertType(op.getType())
                           .template cast<RankedTensorType>();
-    Type outElemType = resultType.getElementType();
+    Type resultElementType;
+    if (op.dtype().getType().template isa<Torch::NoneType>()) {
+      resultElementType = resultType.getElementType();
+    } else {
+      int64_t dtypeInt;
+      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: dtype must be a constant integer or none");
+      resultElementType = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
+          IntegerType::Signless);
+    }
 
     // Create an uninitialized tensor of `resultSize` shape and fill it with
     // value `fillVal`.
-    Value constVal = getConstant(rewriter, loc, fillVal, outElemType);
+    Value constVal = getConstant(rewriter, loc, fillVal, resultElementType);
     Value outputTensor =
-        createInitTensor(rewriter, loc, resultSizeIndex, outElemType, constVal);
+        createInitTensor(rewriter, loc, resultSizeIndex, resultElementType, constVal);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, outputTensor);
     return success();
   }
@@ -170,14 +180,13 @@ public:
   LogicalResult
   matchAndRewrite(AtenEmptyMemoryFormatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // TODO: Add support for layout, pin_memory and memory_format features.
-    // Only `none` layout is supported.
-    if (!op.layout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // TODO: Add support pin_memory and memory_format features.
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
@@ -207,11 +216,24 @@ public:
     for (auto size : resultSize)
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
-    auto resultType = typeConverter->convertType(op.getType())
-                          .template cast<RankedTensorType>();
+    auto resultType =
+        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+    Type resultElementType;
+    if (op.dtype().getType().isa<Torch::NoneType>()) {
+      resultElementType = resultType.getElementType();
+    } else {
+      int64_t dtypeInt;
+      if (!matchPattern(op.dtype(), m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: dtype must be a constant integer or none");
+      resultElementType = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt,
+          IntegerType::Signless);
+    }
+
     // Create an uninitialized tensor of `resultSize` shape.
     Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, resultSizeIndex, resultType.getElementType());
+        loc, resultSizeIndex, resultElementType);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
     return success();
   }
@@ -234,11 +256,9 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // TODO: Add support for layout, pin_memory features.
-    // Only `none` layout is supported.
-    if (!op.layout().getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // TODO: Add support for pin_memory features.
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;

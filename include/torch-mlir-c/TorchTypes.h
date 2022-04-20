@@ -53,6 +53,18 @@ torchMlirTorchTupleTypeGet(MlirContext context, intptr_t numContainedTypes,
                            MlirType const *containedTypes);
 
 //===----------------------------------------------------------------------===//
+// torch.union<T1, T2, T3> type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.union type
+MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchUnion(MlirType t);
+
+/// Gets the !torch.union type with contained types `containedTypes`.
+MLIR_CAPI_EXPORTED MlirType
+torchMlirTorchUnionTypeGet(MlirContext context, intptr_t numContainedTypes,
+                           MlirType const *containedTypes);
+
+//===----------------------------------------------------------------------===//
 // torch.list<T> type.
 //===----------------------------------------------------------------------===//
 

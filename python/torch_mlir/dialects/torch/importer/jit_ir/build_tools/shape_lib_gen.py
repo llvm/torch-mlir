@@ -303,10 +303,22 @@ def aten〇hardswish(self: List[int]) -> List[int]:
 def aten〇silu(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇exp(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇sin(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇cos(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇hardtanh(self: List[int], min_val: float = -1, max_val: float = 1) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
 def aten〇sqrt(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇neg(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
 def aten〇floor(self: List[int]) -> List[int]:
@@ -542,6 +554,9 @@ def aten〇view(self: List[int], size: List[int]) -> List[int]:
 def aten〇reshape(self: List[int], shape: List[int]) -> List[int]:
     return upstream_shape_helpers.view(self, shape)
 
+def aten〇_reshape_alias(self: List[int], size: List[int], stride: List[int]) -> List[int]:
+    return upstream_shape_helpers.view(self, size)
+
 def aten〇_unsafe_view(self: List[int], size: List[int]) -> List[int]:
     return size
 
@@ -550,6 +565,13 @@ def aten〇resize_(self: List[int], size: List[int], memory_format: Optional[int
 
 def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
+
+def aten〇max_pool2d_with_indices(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> Tuple[List[int], List[int]]:
+    maxpool2d = indices = upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
+    return maxpool2d, indices
+
+def aten〇max_pool2d_with_indices_backward(grad_output: List[int], self: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices: List[int]) -> List[int]:
+    return self
 
 def aten〇adaptive_avg_pool2d(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_helpers.adaptive_avg_pool2d(self, output_size)
@@ -593,8 +615,15 @@ def aten〇new_zeros(self: List[int], size: List[int], dtype: Optional[int] = No
 def aten〇new_ones(self: List[int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return size
 
+def aten〇new_empty(self: List[int], size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return size
+
 def aten〇_to_copy(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_helpers.unary(self)
+
+@not_present_in_registry
+def aten〇zero(self: List[int]) -> List[int]:
+    return self
 
 @not_present_in_registry
 def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
@@ -708,6 +737,15 @@ def aten〇_shape_as_tensor(self: List[int]) -> List[int]:
 def aten〇where〇self(condition: List[int], self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(condition, upstream_shape_helpers.broadcast(self, other))
 
+def aten〇where〇Scalar(condition: List[int], self: float, other: float) -> List[int]:
+    return upstream_shape_helpers.unary(condition)
+
+def aten〇where〇ScalarOther(condition: List[int], self: List[int], other: float) -> List[int]:
+    return upstream_shape_helpers.broadcast(condition, self)
+
+def aten〇where〇ScalarSelf(condition: List[int], self: float, other: List[int]) -> List[int]:
+    return upstream_shape_helpers.broadcast(condition, other)
+
 def aten〇lerp〇Tensor(self: List[int], end: List[int], weight: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, upstream_shape_helpers.broadcast(end, weight))
 
@@ -733,6 +771,9 @@ def aten〇topk(self: List[int], k: int, dim: int = -1, largest: bool = True, so
 
 def aten〇conv2d(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_helpers.conv2d(input, weight, bias, stride, padding, dilation, groups)
+
+def aten〇convolution(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
+    return upstream_shape_helpers.conv_output_size(input, weight, bias, stride, padding, dilation, groups)
 
 def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     # Torch's symbolic shape analysis is a bit looser about optional

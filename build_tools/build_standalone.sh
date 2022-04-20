@@ -12,7 +12,7 @@
 set -eu -o errtrace
 
 project_dir="$(cd $(dirname $0)/.. && pwd)"
-llvm_project_dir="$project_dir/external/llvm-project"
+llvm_project_dir="$project_dir/externals/llvm-project"
 build_dir="$project_dir/build"
 
 cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
@@ -21,7 +21,7 @@ cmake -GNinja -B"$build_dir" "$llvm_project_dir/llvm" \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$project_dir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=${project_dir}/external/llvm-external-projects/torch-mlir-dialects \
+  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=${project_dir}/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_TARGETS_TO_BUILD=host

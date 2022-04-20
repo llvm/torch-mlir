@@ -78,24 +78,6 @@ using namespace mlir::torch::Torch;
 // Analysis.
 // -----------------------------------------------------------------------------
 
-static Type getTypeForScalarType(MLIRContext *context,
-                                 torch_upstream::ScalarType dtypeInt) {
-  switch (dtypeInt) {
-  case torch_upstream::ScalarType::Float:
-    return Float32Type::get(context);
-  case torch_upstream::ScalarType::Double:
-    return Float64Type::get(context);
-  case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, IntegerType::Signed);
-  case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, IntegerType::Signed);
-  case torch_upstream::ScalarType::Bool:
-    return IntegerType::get(context, 1);
-  default:
-    return Type();
-  }
-}
-
 static Type getTypeForDTypeInteger(MLIRContext *context, int64_t dtypeInt) {
   return getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
 }
@@ -496,37 +478,50 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Take dtype from first operand.
-  if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenTanhOp,
-          AtenBatchNormOp, AtenReluOp, AtenGeluOp, AtenCeilOp,
-          AtenGeluBackwardOp, AtenBitwiseNotOp, AtenExpOp, AtenSinOp, AtenCosOp,
-          AtenSigmoidOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
-          AtenFill_ScalarOp, AtenDetachOp, AtenReciprocalOp,
-          AtenMaskedFill_ScalarOp, AtenCopy_Op, AtenCumsumOp, AtenLayerNormOp,
-          AtenClampOp, AtenLogOp, AtenNegOp, AtenSqrtOp, AtenFloorOp,
-          AtenLog2Op, Aten_SoftmaxBackwardDataOp, AtenRsqrtOp, AtenDropoutOp,
-          AtenTanhBackwardOp, Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp,
-          AtenAbsOp, AtenThresholdOp, AtenSquareOp, ValsemVariantAtenUniformOp,
+  if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenBatchNormOp,
+          AtenReluOp, AtenGeluOp, AtenCeilOp, AtenGeluBackwardOp,
+          AtenBitwiseNotOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
+          AtenFill_ScalarOp, AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op,
+          AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenNegOp, AtenFloorOp,
+          Aten_SoftmaxBackwardDataOp, AtenDropoutOp, AtenTanhBackwardOp,
+          Aten_LogSoftmaxBackwardDataOp, AtenAddIntOp, AtenAbsOp,
+          AtenThresholdOp, AtenSquareOp, ValsemVariantAtenUniformOp,
           AtenBernoulliOp, AtenBernoulli_FloatOp, AtenBernoulli_TensorOp,
           ValsemVariantAtenBernoulliFloatOp, ValsemVariantAtenBernoulliTensorOp,
           ValsemVariantAtenFillScalarOp, AtenHardsigmoidOp, AtenCloneOp,
-          AtenHardswishOp, AtenErfOp, AtenSiluOp, AtenHardtanhOp,
-          AtenMaskedSelectOp, AtenMaxPool2dOp, AtenAdaptiveAvgPool2dOp,
-          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
-          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
+          AtenHardswishOp,  AtenSiluOp, AtenHardtanhOp, AtenMaskedSelectOp,
+          AtenMaxPool2dOp, AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp,
+          AtenSqueezeOp, AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp,
+          Aten_UnsafeViewOp, AtenReshapeOp, Aten_ReshapeAliasOp,
           AtenResize_Op, AtenTransposeIntOp, AtenTOp, AtenPermuteOp,
           AtenIndexSelectOp, AtenSelectIntOp, AtenSliceTensorOp, AtenGatherOp,
           AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp, AtenRepeatOp,
-          AtenConstantPadNdOp, AtenIndexTensorOp,
-          ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp>(op)) {
+          AtenConstantPadNdOp, AtenZero_Op,
+          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
+          ValsemVariantAtenCopyOp, ValsemVariantAtenZeroOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = operands[0]->getValue().dtype;
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
+  // Dtype is always float32, except for float64 and nullptr.
+  if (isa<AtenTanhOp, AtenExpOp, AtenSinOp, AtenCosOp, AtenSigmoidOp,
+          AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op, AtenRsqrtOp,
+          AtenErfOp>(op)) {
+    ValueKnowledge knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    Type dtype = operands[0]->getValue().dtype;
+    if (dtype) {
+      knowledge.dtype = Float32Type::get(op->getContext());
+      if (dtype.isa<Float64Type>())
+        knowledge.dtype = dtype;
+    }
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
   // Take dtype from second operand.
-  if (isa<AtenNllLossBackwardOp>(op)) {
+  if (isa<AtenNllLossBackwardOp, AtenMaxPool2dWithIndicesBackwardOp>(op)) {
     auto self = operands[1]->getValue();
     auto knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
@@ -554,7 +549,8 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Promote the two dtypes assuming non-zero rank.
-  if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp>(op)) {
+  if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
+          AtenConvolutionOverrideableOp>(op)) {
     auto knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -610,6 +606,37 @@ ChangeResult TypeAnalyzer::visitOperation(
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarOp>(op)) {
+    Value lhsScalar = op->getOperand(1);
+    Value rhsScalar = op->getOperand(2);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype =
+        getPromotedResultType({lhsScalar.getType(), rhsScalar.getType()});
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarOtherOp>(op)) {
+    auto lhs = operands[1]->getValue();
+    Value scalar = op->getOperand(2);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
+  // Promote 2nd and 3rd operands.
+  if (isa<AtenWhereScalarSelfOp>(op)) {
+    auto rhs = operands[2]->getValue();
+    Value scalar = op->getOperand(1);
+    auto knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(getContext());
+    knowledge.dtype = getPromotedResultType(&rhs, scalar.getType());
+    return incorporateKnowledge(op->getResult(0), knowledge);
+  }
+
   // 2 results take dtype from first operand.
   if (isa<AtenNllLossForwardOp>(op)) {
     auto self = operands[0]->getValue();
@@ -639,6 +666,21 @@ ChangeResult TypeAnalyzer::visitOperation(
     auto changed = incorporateKnowledge(op->getResult(0), result0Knowledge);
     changed |= incorporateKnowledge(op->getResult(1), result1Knowledge);
     changed |= incorporateKnowledge(op->getResult(2), result1Knowledge);
+    return changed;
+  }
+
+  if (isa<AtenMaxPool2dWithIndicesOp>(op)) {
+    auto self = operands[0]->getValue();
+    auto result0Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result0Knowledge.dtype = self.dtype;
+    auto result1Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result1Knowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    ;
+    auto changed = incorporateKnowledge(op->getResult(0), result0Knowledge);
+    changed |= incorporateKnowledge(op->getResult(1), result1Knowledge);
     return changed;
   }
 
@@ -746,6 +788,8 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitConstantTensorNewLikeOp<AtenNewZerosOp>(newZeros, operands);
   } else if (auto newOnes = dyn_cast<AtenNewOnesOp>(op)) {
     return visitConstantTensorNewLikeOp<AtenNewOnesOp>(newOnes, operands);
+  } else if (auto newEmpty = dyn_cast<AtenNewEmptyOp>(op)) {
+    return visitConstantTensorNewLikeOp<AtenNewEmptyOp>(newEmpty, operands);
   } else if (auto randLike = dyn_cast<AtenRandLikeOp>(op)) {
     return visitConstantTensorAllocLikeOp<AtenRandLikeOp>(randLike, operands);
   } else if (auto toCopy = dyn_cast<Aten_ToCopyOp>(op)) {

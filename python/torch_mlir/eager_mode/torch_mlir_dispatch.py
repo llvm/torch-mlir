@@ -57,8 +57,10 @@ def normalize_args_kwargs(target: Callable, args: Tuple[Any], kwargs: Dict[str, 
 
     arg_types = map_aggregate(args, type)
     assert isinstance(arg_types, tuple)
-    arg_types = tuple([create_type_hint(i) for i in arg_types])
-    kwarg_types = {k: type(v) for k, v in kwargs.items()}
+    arg_types = map_aggregate(map_aggregate(args, type), create_type_hint)
+    kwarg_types = {
+        k: create_type_hint(map_aggregate(v, type)) for k, v in kwargs.items()
+    }
 
     new_args_and_kwargs = normalize_function(
         target, args, kwargs, arg_types, kwarg_types, normalize_to_only_use_kwargs=False
@@ -105,6 +107,13 @@ def build_script_function(
                 inp.setDebugName(arg.name)
         # If arg is a constant, inline (at the top of the graph).
         else:
+            if val == []:
+                # Some ops have empty list default values for args
+                # (such as aten::max_pool2d_with_indices with int[2] stride=[]
+                # but graph.insertConstant doesnt' recognize [] as an empty list IValue.
+                # This might be an upstream bug but there doesn't seem to be a way to
+                # build a prim::ListConstruct list that's empty.
+                val = None
             inp = graph.insertConstant(val)
             inp.node().moveBefore(node)
 
@@ -116,8 +125,7 @@ def build_script_function(
     else:
         graph.registerOutput(node.output())
 
-    fn_name = str(node).strip()
-    fn = torch._C._create_function_from_graph(fn_name, graph)
+    fn = torch._C._create_function_from_graph("f", graph)
     return fn
 
 
@@ -160,8 +168,7 @@ def annotate_args_kwargs(
             if isinstance(arg, np.ndarray):
                 tensor_kwargs[arg_idxs[kw]] = (arg, normalized_kwargs[kw].dtype)
 
-        for i in range(len(tensor_kwargs)):
-            arg, arg_dtype = tensor_kwargs[i]
+        for _i, (arg, arg_dtype) in sorted(tensor_kwargs.items()):
             annotations.append(TorchTensorType(shape=tuple(arg.shape), dtype=arg_dtype))
             tensor_kwargs_flat.append(arg)
 
@@ -219,7 +226,7 @@ def try_torch_mlir_eager(op, args, kwargs, backend):
     else:
         raise RuntimeError(f"op {op} has no name")
 
-    if op_name == "detach":
+    if "detach" in op_name:
         # We don't handle detach as it only pertains to autograd graph construction, which is handled by pytorch.
         raise UnsupportedByTorchMlirEagerMode("detaching")
 

@@ -245,6 +245,24 @@ def Torch_TupleType : Torch_Type<"Tuple", "tuple"> {
   );
 }
 
+def Torch_UnionType : Torch_Type<"Union", "union"> {
+  let summary = "!torch.union<T1, T2, T3>";
+  let description = [{
+    Union type with 0-N alternative types.
+
+    NOTE: We use the terminology "contained types" for consistency with
+    PyTorch. Strictly speaking, the types aren't "contained" though.
+
+    TODO: Canonicalize unions based on subtype relations, to allow
+    using pointer equality to compare two unions for being the same.
+    For now, `!torch.union<T1, T2>` is different from `!torch.union<T2, T1>`,
+    and same for `!torch.union<T1, SubtypeOfT1>` vs `!torch.union<T1>`.
+  }];
+  let parameters = (ins
+    ArrayRefParameter<"::mlir::Type", "contained types">:$containedTypes
+  );
+}
+
 def Torch_DeviceType : Torch_Type<"Device", "Device"> {
   let summary = "Torch device";
 }
@@ -407,21 +425,20 @@ class ListOf<list<Type> allowedTypes, string descr> :
             "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
-def TorchBoolListType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
-def TorchIntListType : ListOf<[Torch_IntType], "Int list type (int[])">;
-def TorchStringListType : ListOf<[Torch_StringType], "Str list type (str[])">;
-def AnyTorchTensorListType:
+def ListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
+def ListOfTorchIntType : ListOf<[Torch_IntType], "Int list type (int[])">;
+def ListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
+def AnyTorchListOfTensorType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
-def AnyTorchOptionalTensorListType :
+def AnyTorchListOfOptionalTensorType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
+def OptionalListOfTorchIntType : OptionalOf<ListOfTorchIntType, "Optional torch int list type (int[]?)">;
 
 // Note: TorchScript does not consider !torch.bool to be a Scalar.
-def AnyTorchScalarType : AnyTypeOf<[
-  Torch_IntType,
-  Torch_FloatType,
-  Torch_NumberType,
-], "Any Python numeric type compatible with being the scalar type of a tensor (`Scalar`)">;
+def AnyTorchScalarType :
+    Type<CPred<"isValidSubtype($_self, ::mlir::torch::Torch::NumberType::get($_self.getContext()))">,
+         "Any Python numeric type compatible with being the scalar type of a tensor">;
 def AnyTorchOptionalScalarType:
       OptionalOf<AnyTorchScalarType, "Optional torch scalar type">;
 
@@ -454,6 +471,7 @@ def AnyTorchType : AnyTypeOf<[
   Torch_OptionalType,
   Torch_StringType,
   Torch_TupleType,
+  Torch_UnionType,
 ], "Any type that is legal to pass to a Torch kernel">;
 
 def AnyTorchListType : ListOf<[AnyType], "Any Torch list Type">;

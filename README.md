@@ -1,4 +1,4 @@
-# torch-mlir
+# The Torch-MLIR Project
 
 The Torch-MLIR project aims to provide first class compiler support from the [PyTorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
 
@@ -14,7 +14,7 @@ An open source machine learning framework that accelerates the path from researc
 The MLIR project is a novel approach to building reusable and extensible compiler infrastructure. MLIR aims to address software fragmentation, improve compilation for heterogeneous hardware, significantly reduce the cost of building domain specific compilers, and aid in connecting existing compilers together.
 
 [Torch-MLIR](https://github.com/llvm/torch-mlir)
-Multiple Vendors use MLIR as the middle layer mapping from platform frameworks like PyTorch, JAX, TensorFlow onto MLIR and then progressively lower down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem would provide much needed relief to hardware vendors to focus on their unique value rather than implementing another PyTorch frontend for MLIR. It would be similar to current hardware vendors adding LLVM target support instead of each one also implementing the Clang/C++ frontend.
+Multiple Vendors use MLIR as the middle layer, mapping from platform frameworks like PyTorch, JAX, and TensorFlow into MLIR and then progressively lowering down to their target hardware. We have seen half a dozen custom lowerings from PyTorch to MLIR. Having canonical lowerings from the PyTorch ecosystem to the MLIR ecosystem would provide much needed relief to hardware vendors to focus on their unique value rather than implementing yet another PyTorch frontend for MLIR. The goal is to be similar to current hardware vendors adding LLVM target support instead of each one also implementing Clang / a C++ frontend.
 
 ## All the roads from PyTorch to Torch MLIR Dialect
 
@@ -22,13 +22,10 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ![Torch Lowering Architectures](Torch-MLIR.png)
 
- - Torchscript
-    This is the most tested path down to Torch MLIR Dialect.
- - TorchFX
-	This provides a path to lower from TorchFX down to MLIR. This a functional prototype that we expect to mature as TorchFX matures
- - Lazy Tensor Core (Based on lazy-tensor-core [staging branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
-	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing torch_xla derivatives.
- - “ACAP”  - Deprecated torch_xla based capture Mentioned here for completeness.
+ - TorchScript
+    This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
+ - LazyTensorCore (Based on the PyTorch [`lazy_tensor_staging` branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
+	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing `torch/xla` derivatives.
 
 ## Project Communication
 
@@ -56,6 +53,13 @@ python -m pip install -r requirements.txt
 ```
 
 ## Build
+
+Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
+
+### Building torch-mlir in-tree
+
+The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
+
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_C_COMPILER=clang \
@@ -64,27 +68,55 @@ cmake -GNinja -Bbuild \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/external/llvm-external-projects/torch-mlir-dialects \
+  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
-  external/llvm-project/llvm
-
-# Additional quality of life CMake flags:
-# Enable ccache:
-#  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-# Enable LLD (links in seconds compared to minutes)
-# -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
+  externals/llvm-project/llvm
+```
+The following additional quality of life flags can be used to reduce build time:
+* Enabling ccache:
+```shell
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+```
+* Enabling LLD (links in seconds compared to minutes)
+```shell
+  -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
+```
 
+### Building against a pre-built LLVM
+
+If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
+```shell
+cmake -GNinja -Bbuild \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
+  -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host \
+  .
+```
+The same QoL CMake flags can be used to enable ccache and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+
+Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+
+
+### Build commands
+
+After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
+```shell
 # Build just torch-mlir (not all of LLVM)
 cmake --build build --target tools/torch-mlir/all
 
 # Run unit tests.
 cmake --build build --target check-torch-mlir
 
-# Build everything (including LLVM)
+# Build everything (including LLVM if in-tree)
 cmake --build build
 ```
+
 ## Demos
 
 ## Setup Python Environment
@@ -110,7 +142,7 @@ Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the 
 # The example uses PIL and requests to get the image.
 pip install requests pillow
 # Run ResNet18 as a standalone script.
-python examples/torchscript_resnet18_e2e.py
+python examples/torchscript_resnet18.py
 
 load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
 Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
@@ -129,39 +161,18 @@ python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPA
 jupyter notebook
 ```
 
-### TorchFX
+### LazyTensorCore
 
-The `examples` folder includes the Python package `torchfx`, which is a functional prototype of a TorchFX to MLIR pipeline. The main entry point into the `torchfx` package is the `torchfx.builder` module, which includes a function for converting the output of a TorchFX trace into MLIR. Currently, the number of PyTorch operations supported is very limited, but will be expanded in the future.
+The LazyTensorCore integration is still in progress, and is being built on the
+[`torch_mlir_ltc_backend` branch](https://github.com/llvm/torch-mlir/tree/torch_mlir_ltc_backend).
 
-#### Example usage of `torchfx`
+### Eager Mode
 
-The `examples` folder includes scripts `torchfx_*.py` showing how to use the TorchFX to MLIR pipeline. In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions.
-
-Then, run
-
-```shell
-python torchfx_example_name.py
-```
-
-replacing `torchfx_example_name.py` with the actual `torchfx` example you want to run.
-
-
-### Lazy Tensor Core
-
-The `examples` folder includes the Python package `lazytensor`, which implements a Lazy Tensor Core (LTC) to MLIR pipeline. The main entry point into the `lazytensor` package is the `lazytensor.builder`, which includes the function `build_module` that takes a computation captured and converted to TorchScript IR by LTC, and converts it to MLIR.
-
-#### Example usage of `lazytensor`
-
-The `examples` folder includes scripts `lazytensor_*.py` showing how to use the Lazy Tensor to MLIR pipeline. The examples depend on the Lazy Tensor Core (LTC) of PyTorch. For information on how to obtain LTC, see [here](https://github.com/pytorch/pytorch/blob/lazy_tensor_staging/lazy_tensor_core/QUICKSTART.md).
-
-In order to run the examples, make sure you've setup your `PYTHONPATH` by following the [Setup Python Environment](#setup-python-environment) instructions, and also add `/path/to/pytorch/lazy_tensor_core` to your `PYTHONPATH` as shown below:
-
-```shell
-export PYTHONPATH=$PYTHONPATH:`/replace/with/path/to/pytorch/lazy_tensor_core`
-python lazytensor_example_name.py
-```
-
-replacing `lazytensor_example_name.py` with the actual `lazytensor` example you want to run.
+Eager mode with TorchMLIR is a very experimental eager mode backend for PyTorch through the torch-mlir framework. 
+Effectively, this mode works by compiling operator by operator as the NN is eagerly executed by PyTorch. 
+This mode includes a fallback to conventional PyTorch if anything in the torch-mlir compilation process fails (e.g., unsupported operator).
+A simple example can be found at [eager_mode.py](examples/eager_mode.py).
+A ResNet18 example can be found at [eager_mode_resnet18.py](examples/eager_mode_resnet18.py).
 
 ## Repository Layout
 

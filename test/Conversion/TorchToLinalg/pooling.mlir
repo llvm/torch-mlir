@@ -11,8 +11,8 @@ builtin.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?
   %int7 = torch.constant.int 7
   %int8 = torch.constant.int 8
   %false = torch.constant.bool false
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant -3.40282347E+38 : f32
   // CHECK: %[[PADDED:.*]] = tensor.pad %{{.*}} low[0, 0, 5, 6] high[0, 0, 5, 6]
-  // CHECK:  %[[NEUTRAL:.*]] = arith.constant -1.401300e-45 : f32
   // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
   // CHECK: %[[C1:.*]] = arith.constant 1 : index
   // CHECK: %[[C2:.*]] = arith.constant 2 : index

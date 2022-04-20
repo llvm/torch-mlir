@@ -61,6 +61,24 @@ MlirType torchMlirTorchTupleTypeGet(MlirContext context,
 }
 
 //===----------------------------------------------------------------------===//
+// torch.union<T1, T2, T3> type.
+//===----------------------------------------------------------------------===//
+
+bool torchMlirTypeIsATorchUnion(MlirType t) {
+  return unwrap(t).isa<Torch::UnionType>();
+}
+
+MlirType torchMlirTorchUnionTypeGet(MlirContext context,
+                                    intptr_t numContainedTypes,
+                                    MlirType const *containedTypes) {
+  return wrap(Torch::UnionType::get(
+      unwrap(context),
+      llvm::to_vector<6>(
+          llvm::map_range(llvm::makeArrayRef(containedTypes, numContainedTypes),
+                          [](MlirType t) { return unwrap(t); }))));
+}
+
+//===----------------------------------------------------------------------===//
 // torch.list<T> type.
 //===----------------------------------------------------------------------===//
 

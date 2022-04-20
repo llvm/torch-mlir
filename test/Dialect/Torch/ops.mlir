@@ -35,6 +35,13 @@ func private @tuple.one_element() -> !torch.tuple<tensor>
 // CHECK: @tuple.two_elements() -> !torch.tuple<tensor, tensor>
 func private @tuple.two_elements() -> !torch.tuple<tensor, tensor>
 
+// CHECK: @union.empty() -> !torch.union<>
+func private @union.empty() -> !torch.union<>
+// CHECK: @union.one_element() -> !torch.union<tensor>
+func private @union.one_element() -> !torch.union<tensor>
+// CHECK: @union.two_elements() -> !torch.union<tensor, tensor>
+func private @union.two_elements() -> !torch.union<tensor, tensor>
+
 // CHECK: @dict() -> !torch.dict<str, tensor>
 func private @dict() -> !torch.dict<str, tensor>
 
@@ -133,4 +140,9 @@ func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
     torch.shape.calculate.yield.shapes %0 : !torch.list<int>
   } : !torch.vtensor
   return %0 : !torch.vtensor
+}
+
+func @number_type_subtypes(%arg0: !torch.tensor, %arg1: !torch.list<int>, %arg2: !torch.union<float, int>) {
+  %0 = torch.aten.constant_pad_nd %arg0, %arg1, %arg2 : !torch.tensor, !torch.list<int>, !torch.union<float, int> -> !torch.tensor
+  return
 }

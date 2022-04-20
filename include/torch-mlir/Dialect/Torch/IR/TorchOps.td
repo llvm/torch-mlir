@@ -686,6 +686,7 @@ def Torch_DerefineOp : Torch_Op<"derefine", [
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_OperatorOp : Torch_Op<"operator", [
@@ -996,6 +997,23 @@ def Torch_ValsemVariantAtenBernoulliTensorOp: Torch_Op<"valsem.aten.bernoulli.Te
   let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($p)) `,` qualified(type($generator)) `->` qualified(type($result))";
 }
 
+// The corresponding without underscore variant for `torch.aten.zero_`
+// doesn't exist in the pytorch ops registry. Add it here.
+def Torch_ValsemVariantAtenZeroOp: Torch_Op<"valsem.aten.zero", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`zero op : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$self attr-dict `:` qualified(type($self)) `->` qualified(type($result))";
+}
+
 // The corresponding without underscore variant for `torch.aten.fill_.Scalar`
 // doesn't exist in the pytorch ops registry. Add it here.
 def Torch_ValsemVariantAtenFillScalarOp: Torch_Op<"valsem.aten.fill.Scalar", [
@@ -1024,7 +1042,7 @@ def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl"
   let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
-    AnyTorchOptionalTensorListType:$indices,
+    AnyTorchListOfOptionalTensorType:$indices,
     AnyTorchTensorType:$values,
     Torch_BoolType:$accumulate,
     Torch_BoolType:$unsafe
@@ -1153,7 +1171,7 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
   }];
 
   let arguments = (ins
-    Variadic<TorchIntListType>:$results
+    Variadic<ListOfTorchIntType>:$results
   );
   let results = (outs);
 

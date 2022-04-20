@@ -452,6 +452,20 @@ OpFoldResult DerefineOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+void DerefineOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](DerefineOp op, PatternRewriter &rewriter) {
+    bool madeChange = false;
+    for (OpOperand &use : llvm::make_early_inc_range(op->getUses())) {
+      if (use.getOwner()->hasTrait<OpTrait::AllowsTypeRefinement>()) {
+        use.set(op.getOperand());
+        madeChange = true;
+      }
+    }
+    return success(madeChange);
+  });
+}
+
 static OpFoldResult atenIsOrIsNotFoldHelper(Operation *op, bool equalIsTrue) {
   Value lhs = op->getOperand(0);
   Value rhs = op->getOperand(1);
@@ -725,18 +739,14 @@ OpFoldResult AtenSizeIntOp::fold(ArrayRef<Attribute> operands) {
   if (!type || !type.hasSizes())
     return nullptr;
 
-  int64_t inputRank = type.getSizes().size();
-  int64_t dim;
-  if (!matchPattern(this->dim(), m_TorchConstantInt(&dim)))
+  llvm::Optional<int64_t> dimOpt = matchLegalConstantIndexIntoListOfSize(
+      this->dim(), type.getSizes().size());
+  if (!dimOpt)
     return nullptr;
-  dim = toPositiveDim(dim, inputRank);
-  if (!isValidDim(dim, inputRank))
-    return nullptr;
-
-  if (type.getSizes()[dim] == kUnknownSize)
+  if (type.getSizes()[*dimOpt] == kUnknownSize)
     return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                          type.getSizes()[dim]);
+                          type.getSizes()[*dimOpt]);
 }
 
 //===----------------------------------------------------------------------===//
@@ -816,8 +826,9 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
     };
     comparator = newComparator;
   }
-  // Fold comparisons of negative values with the result of AtenSizeIntOp, which
-  // is known to always be non-negative.
+
+  // Fold comparisons of AtenSizeIntOp against negative values.
+  // AtenSizeIntOp is known to always be non-negative.
   if (rhsIsConstant && rhs < 0) {
     // We can return `comparator(0, -1)` here because of the property:
     // If x >= 0 && y < 0, then:
@@ -827,10 +838,20 @@ static OpFoldResult intComparatorFoldHelper(OpTy op,
     if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
       return getI1IntegerAttr(op->getContext(), comparator(0, -1));
   }
-  // A special case of importance: size.int >= 0 ==> True.
-  if (rhsIsConstant && rhs == 0 && isa<AtenGeIntOp>(op)) {
-    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>())
-      return getI1IntegerAttr(op->getContext(), true);
+
+  // Fold comparisons of AtenSizeIntOp against 0:
+  // - torch.aten.size.int >= 0 ==> True.
+  // - torch.aten.size.int < 0 ==> False.
+  // (and the operand-swapped versions of the above)
+  if (rhsIsConstant && rhs == 0) {
+    if (auto size = lhsValue.getDefiningOp<AtenSizeIntOp>()) {
+      // >= 0 comparison.
+      if (comparator(0, 0) && comparator(1, 0))
+        return getI1IntegerAttr(op->getContext(), true);
+      // < 0 comparison.
+      if (!comparator(0, 0) && comparator(-1, 0) && !comparator(1, 0))
+        return getI1IntegerAttr(op->getContext(), false);
+    }
   }
 
   return nullptr;
@@ -1227,14 +1248,12 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
       return failure();
 
     // Get the index, but be careful because it might be statically invalid.
-    int64_t index;
-    if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&index)))
-      return failure();
-    int64_t positiveDim = toPositiveDim(index, listConstruct.getNumOperands());
-    if (!isValidDim(positiveDim, listConstruct.getNumOperands()))
+    llvm::Optional<int64_t> indexOpt = matchLegalConstantIndexIntoListOfSize(
+        op.getOperand(1), listConstruct.getNumOperands());
+    if (!indexOpt)
       return rewriter.notifyMatchFailure(op, "statically invalid index");
 
-    rewriter.replaceOp(op, {listConstruct.getOperand(positiveDim)});
+    rewriter.replaceOp(op, {listConstruct.getOperand(*indexOpt)});
     return success();
   });
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {

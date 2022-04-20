@@ -39,7 +39,7 @@ endmacro()
 torch_mlir_add_llvm_external_project(
   torch-mlir-dialects
   TORCH_MLIR_DIALECTS
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/llvm-external-projects/torch-mlir-dialects)
+  ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   # Out-of-tree build
@@ -80,7 +80,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(TORCH-MLIR_BUILT_STANDALONE 1)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
-  add_subdirectory(external/llvm-external-projects/torch-mlir-dialects)
+  add_subdirectory(externals/llvm-external-projects/torch-mlir-dialects)
 else()
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
   # FIXME: This should really be inherited from the LLVM tree.  In particular,
@@ -108,8 +108,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 function(torch_mlir_target_includes target)
   set(_dirs
-    $<BUILD_INTERFACE:${MLIR_INCLUDE_DIR}>
-    $<BUILD_INTERFACE:${MLIR_GENERATED_INCLUDE_DIR}>
+    $<BUILD_INTERFACE:${MLIR_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${TORCH_MLIR_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${TORCH_MLIR_BINARY_DIR}/include>
   )

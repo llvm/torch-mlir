@@ -12,42 +12,29 @@ on:
       release_id:
         description: 'Release id to upload artifacts to'
         default: ''
+      python_package_version:
+        description: 'Version to use for creating the Python package'
+        default: ''
 
 jobs:
   build:
     name: Build and Test (Release Asserts)
+    # Changes to the name of this job needs to be synced with releaseSnapshotPackage.yml.
     runs-on: ubuntu-20.04
     steps:
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
     - name: Get torch-mlir
       uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Install MLIR Python depends
-      run: |
-        python -m pip install -r $GITHUB_WORKSPACE/external/llvm-project/mlir/python/requirements.txt
-    - name: Install PyTorch nightly depends
-      run: |
-        python -m pip install --pre torch torchvision -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
-    - name: Install Ninja
-      uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
-    - name: Get Submodule Hash
-      id: get-submodule-hash
-      run: echo "::set-output name=hash::$(md5sum $(git submodule status))"
-      shell: bash
-    - name: Ccache for C++ compilation
-      uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
+    - uses: ./.github/actions/setup-build
       with:
-        key: ${{ runner.os }}-clangreleaseasserts-${{ steps.get-submodule-hash.outputs.hash }}
+        cache-suffix: ''
     - name: Build and Test torch-mlir (Assert)
       run: |
         cd $GITHUB_WORKSPACE
         mkdir build
         cd build
-        cmake $GITHUB_WORKSPACE/external/llvm-project/llvm -GNinja \
+        cmake $GITHUB_WORKSPACE/externals/llvm-project/llvm -GNinja \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_LINKER=lld \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -81,6 +68,7 @@ jobs:
         python -m pip install wheel
         TORCH_MLIR_CMAKE_BUILD_DIR="$GITHUB_WORKSPACE/build" \
           TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT=1 \
+          TORCH_MLIR_PYTHON_PACKAGE_VERSION="${{ github.event.inputs.python_package_version }}" \
           ./build_tools/build_python_wheels.sh
 
     # If we were given a release_id, then upload the package we just built
@@ -104,3 +92,49 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+
+  build-out-of-tree:
+    name: Build out-of-tree (Release Asserts)
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Get torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/setup-build
+      with:
+        cache-suffix: '-out-of-tree'
+    - name: Build LLVM (standalone)
+      # This build takes a while but is expected to almost always be cached.
+      # A cache invalidation occurs when the committed LLVM version is changed.
+      run: |
+        cd $GITHUB_WORKSPACE
+        cmake -Bllvm-build -GNinja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DPython3_EXECUTABLE=$(which python) \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DLLVM_ENABLE_PROJECTS=mlir \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          externals/llvm-project/llvm
+        ninja -Cllvm-build
+
+    - name: Build and test torch-mlir (out-of-tree)
+      run: |
+        cd $GITHUB_WORKSPACE
+        cmake -GNinja -Bbuild \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
+          -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DPython3_EXECUTABLE=$(which python) \
+          .
+        ninja -Cbuild check-torch-mlir-all
+
+    # Don't run python tests, as check-torch-mlir-all already checks
+    # what we want.

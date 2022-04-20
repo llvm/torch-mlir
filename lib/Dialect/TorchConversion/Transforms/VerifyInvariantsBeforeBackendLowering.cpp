@@ -30,8 +30,8 @@ static LogicalResult checkValueInvariants(Operation *errorReportOp, Value v) {
           .append("unsupported by backend lowering: tensor with unknown rank "
                   "or dtype")
           .attachNote()
-          .append("this is likely due to a missing case in RefineTypes or a "
-                  "missing shape transfer function in shape_lib_gen.py");
+          .append("this is likely due to a missing shape transfer function in "
+                  "shape_lib_gen.py");
   }
   return success();
 }

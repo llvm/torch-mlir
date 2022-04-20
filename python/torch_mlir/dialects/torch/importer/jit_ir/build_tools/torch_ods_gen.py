@@ -20,15 +20,16 @@ from .registry import Registry, JitOperator
 TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor": "AnyTorchTensorType",
     "Tensor?": "AnyTorchOptionalTensorType",
-    "Tensor?[]": "AnyTorchOptionalTensorListType",
-    "Tensor[]": "AnyTorchTensorListType",
+    "Tensor?[]": "AnyTorchListOfOptionalTensorType",
+    "Tensor[]": "AnyTorchListOfTensorType",
     "Scalar": "AnyTorchScalarType",
     "Scalar?": "AnyTorchOptionalScalarType",
     "int": "Torch_IntType",
-    "int[]": "TorchIntListType",
+    "int[]": "ListOfTorchIntType",
     "int?": "TorchOptionalIntType",
+    "int[]?": "OptionalListOfTorchIntType",
     "bool": "Torch_BoolType",
-    "bool[]": "TorchBoolListType",
+    "bool[]": "ListOfTorchBoolType",
     "bool?": "TorchOptionalBoolType",
     "float": "Torch_FloatType",
     "t[]": "AnyTorchListType",
@@ -42,7 +43,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Generator?": "TorchOptionalGeneratorType",
     "str": "Torch_StringType",
     "str?": "TorchOptionalStringType",
-    "str[]": "TorchStringListType",
+    "str[]": "ListOfTorchStringType",
     "Dict": "Torch_DictType",
     "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
 }
@@ -307,6 +308,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
+    emit("aten::convolution : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)")
+    emit("aten::convolution_overrideable : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)")
     emit(
         "aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
     )
@@ -321,6 +324,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit(
         "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
+    )
+    emit(
+        "aten::max_pool2d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+    )
+    emit(
+        "aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
     )
     emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"
@@ -362,6 +371,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::zero_ : (Tensor) -> (Tensor)")
     emit("aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
@@ -382,6 +392,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::detach : (Tensor) -> (Tensor)")
     emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
     emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::new_empty : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::ones_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)")
@@ -396,6 +407,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::numel : (Tensor) -> (int)")
     emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
     emit("aten::reshape : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_reshape_alias : (Tensor, int[], int[]) -> (Tensor)")
     emit("aten::resize_ : (Tensor, int[], int?) -> (Tensor)")
     emit("aten::select.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
@@ -411,6 +423,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
     emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)")
+    emit("aten::where.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
+    emit("aten::where.ScalarOther : (Tensor, Tensor, Scalar) -> (Tensor)")
+    emit("aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)")
     emit("aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
