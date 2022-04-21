@@ -33,8 +33,10 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 
 from distutils.command.build import build as _build
+from distutils.sysconfig import get_python_inc
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
@@ -51,7 +53,6 @@ class CustomBuild(_build):
         self.run_command("build_ext")
         self.run_command("build_scripts")
 
-
 class CMakeBuild(build_py):
 
     def run(self):
@@ -60,6 +61,10 @@ class CMakeBuild(build_py):
         if not cmake_build_dir:
             cmake_build_dir = os.path.abspath(
                 os.path.join(target_dir, "..", "cmake_build"))
+        python_package_dir = os.path.join(cmake_build_dir,
+                                          "tools", "torch-mlir", "python_packages",
+                                          "torch_mlir")
+
         if not os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT"):
             src_dir = os.path.abspath(os.path.dirname(__file__))
             llvm_dir = os.path.join(
@@ -82,15 +87,26 @@ class CMakeBuild(build_py):
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
             if os.path.exists(cmake_cache_file):
                 os.remove(cmake_cache_file)
+            # NOTE: With repeated builds for different Python versions, the
+            # prior version binaries will continue to accumulate. IREE uses
+            # a separate install step and cleans the install directory to
+            # keep this from happening. That is the most robust. Here we just
+            # delete the directory where we build native extensions to keep
+            # this from happening but still take advantage of most of the
+            # build cache.
+            mlir_libs_dir = os.path.join(python_package_dir, "torch_mlir", "_mlir_libs")
+            if os.path.exists(mlir_libs_dir):
+                print(f"Removing _mlir_mlibs dir to force rebuild: {mlir_libs_dir}")
+                shutil.rmtree(mlir_libs_dir)
+            else:
+                print(f"Not removing _mlir_libs dir (does not exist): {mlir_libs_dir}")
+
             subprocess.check_call(["cmake", llvm_dir] +
                                   cmake_args, cwd=cmake_build_dir)
             subprocess.check_call(["cmake",
                                    "--build",  ".",
                                    "--target", "TorchMLIRPythonModules"],
                                   cwd=cmake_build_dir)
-        python_package_dir = os.path.join(cmake_build_dir,
-                                          "tools", "torch-mlir", "python_packages",
-                                          "torch_mlir")
 
         if os.path.exists(target_dir):
             shutil.rmtree(target_dir, ignore_errors=False, onerror=None)
@@ -130,8 +146,11 @@ setup(
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
     ],
     install_requires=[
+        "numpy",
         # To avoid issues with drift for each nightly build, we pin to the
         # exact version we built against.
+        # TODO: This includes the +cpu specifier which is overly
+        # restrictive and a bit unfortunate.
         f"torch=={torch.__version__}",
     ],
     zip_safe=False,
