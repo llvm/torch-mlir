@@ -20,15 +20,16 @@ from .registry import Registry, JitOperator
 TORCH_TYPE_TO_ODS_TYPE = {
     "Tensor": "AnyTorchTensorType",
     "Tensor?": "AnyTorchOptionalTensorType",
-    "Tensor?[]": "AnyTorchOptionalTensorListType",
-    "Tensor[]": "AnyTorchTensorListType",
+    "Tensor?[]": "AnyTorchListOfOptionalTensorType",
+    "Tensor[]": "AnyTorchListOfTensorType",
     "Scalar": "AnyTorchScalarType",
     "Scalar?": "AnyTorchOptionalScalarType",
     "int": "Torch_IntType",
-    "int[]": "TorchIntListType",
+    "int[]": "ListOfTorchIntType",
     "int?": "TorchOptionalIntType",
+    "int[]?": "OptionalListOfTorchIntType",
     "bool": "Torch_BoolType",
-    "bool[]": "TorchBoolListType",
+    "bool[]": "ListOfTorchBoolType",
     "bool?": "TorchOptionalBoolType",
     "float": "Torch_FloatType",
     "t[]": "AnyTorchListType",
@@ -42,7 +43,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "Generator?": "TorchOptionalGeneratorType",
     "str": "Torch_StringType",
     "str?": "TorchOptionalStringType",
-    "str[]": "TorchStringListType",
+    "str[]": "ListOfTorchStringType",
     "Dict": "Torch_DictType",
     "__torch__.torch.classes.quantized.LinearPackedParamsBase": "Torch_LinearParamsType",
 }
@@ -307,6 +308,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
+    emit("aten::convolution : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)")
+    emit("aten::convolution_overrideable : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)")
     emit(
         "aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
     )
@@ -321,6 +324,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit(
         "aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)"
+    )
+    emit(
+        "aten::max_pool2d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+    )
+    emit(
+        "aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
     )
     emit(
         "aten::softmax.int : (Tensor, int, int?) -> (Tensor)"

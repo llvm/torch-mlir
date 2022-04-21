@@ -7,8 +7,8 @@ from torch_mlir.ir import *
 from torch_mlir.passmanager import *
 # Imported for side effects.
 import torch_mlir.all_passes_registration
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
-from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 
 from .abc import TosaBackend

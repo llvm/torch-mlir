@@ -50,7 +50,7 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Long;
   if (type.isSignedInteger(32))
     return torch_upstream::ScalarType::Int;
-  if (type.isUnsignedInteger(1))
+  if (type.isSignlessInteger(1))
     return torch_upstream::ScalarType::Bool;
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }

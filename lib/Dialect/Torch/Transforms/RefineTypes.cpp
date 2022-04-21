@@ -521,7 +521,7 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Take dtype from second operand.
-  if (isa<AtenNllLossBackwardOp>(op)) {
+  if (isa<AtenNllLossBackwardOp, AtenMaxPool2dWithIndicesBackwardOp>(op)) {
     auto self = operands[1]->getValue();
     auto knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
@@ -549,7 +549,8 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Promote the two dtypes assuming non-zero rank.
-  if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp>(op)) {
+  if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
+          AtenConvolutionOverrideableOp>(op)) {
     auto knowledge =
         ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
@@ -665,6 +666,21 @@ ChangeResult TypeAnalyzer::visitOperation(
     auto changed = incorporateKnowledge(op->getResult(0), result0Knowledge);
     changed |= incorporateKnowledge(op->getResult(1), result1Knowledge);
     changed |= incorporateKnowledge(op->getResult(2), result1Knowledge);
+    return changed;
+  }
+
+  if (isa<AtenMaxPool2dWithIndicesOp>(op)) {
+    auto self = operands[0]->getValue();
+    auto result0Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result0Knowledge.dtype = self.dtype;
+    auto result1Knowledge =
+        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
+    result1Knowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    ;
+    auto changed = incorporateKnowledge(op->getResult(0), result0Knowledge);
+    changed |= incorporateKnowledge(op->getResult(1), result1Knowledge);
     return changed;
   }
 

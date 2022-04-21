@@ -318,6 +318,9 @@ def aten〇hardtanh(self: List[int], min_val: float = -1, max_val: float = 1) ->
 def aten〇sqrt(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇neg(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇floor(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
@@ -563,6 +566,13 @@ def aten〇resize_(self: List[int], size: List[int], memory_format: Optional[int
 def aten〇max_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
+def aten〇max_pool2d_with_indices(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), ceil_mode: bool = False) -> Tuple[List[int], List[int]]:
+    maxpool2d = indices = upstream_shape_helpers.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
+    return maxpool2d, indices
+
+def aten〇max_pool2d_with_indices_backward(grad_output: List[int], self: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices: List[int]) -> List[int]:
+    return self
+
 def aten〇adaptive_avg_pool2d(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_helpers.adaptive_avg_pool2d(self, output_size)
 
@@ -761,6 +771,9 @@ def aten〇topk(self: List[int], k: int, dim: int = -1, largest: bool = True, so
 
 def aten〇conv2d(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1), padding: List[int] = (0, 0), dilation: List[int] = (1, 1), groups: int = 1) -> List[int]:
     return upstream_shape_helpers.conv2d(input, weight, bias, stride, padding, dilation, groups)
+
+def aten〇convolution(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
+    return upstream_shape_helpers.conv_output_size(input, weight, bias, stride, padding, dilation, groups)
 
 def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     # Torch's symbolic shape analysis is a bit looser about optional

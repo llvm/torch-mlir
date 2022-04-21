@@ -38,6 +38,9 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
 Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                        Type elemTy, Value initElem);
 
+Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                           Type elemTy);
+
 Value castIntToIndex(OpBuilder &b, Location loc, Value v);
 
 Value castIndexToInt(OpBuilder &b, Location loc, Value idx);
@@ -50,9 +53,6 @@ SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
 SmallVector<Value> getTensorSizes(OpBuilder &b, Location loc, Value tensor);
 
 Value getTensorSize(OpBuilder &b, Location loc, Value tensor);
-
-Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
-                           Type elemTy);
 
 // Creates a constant of type `elemType` with value `val`.
 Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType);
@@ -76,6 +76,10 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 // should be converted builtin types.
 Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
                            Type dtype);
+
+// Return the number of elements of a tensor if the shape is static; otherwise,
+// return -1.
+int64_t getNumberOfElements(RankedTensorType inputType);
 
 } // namespace Torch
 } // namespace torch

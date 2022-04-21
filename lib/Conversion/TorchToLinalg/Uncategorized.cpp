@@ -28,6 +28,13 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+// Check if a ranked-tensor has the specified element type.
+template <typename elementType> static bool hasElementType(Value tensor) {
+  auto tensorType = tensor.getType().cast<RankedTensorType>();
+  Type tensorElementType = tensorType.getElementType();
+  return tensorElementType.isa<elementType>();
+}
+
 static Value createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
@@ -166,6 +173,22 @@ static Value createLessThan(OpBuilder &b, Location loc, Type elementalType,
       b, loc, elementalType, lhs, rhs);
 }
 
+static Value createEqual(OpBuilder &b, Location loc, Type elementalType,
+                         Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UEQ,
+                                  arith::CmpIPredicate::eq,
+                                  arith::CmpIPredicate::eq>(
+      b, loc, elementalType, lhs, rhs);
+}
+
+static Value createNotEqual(OpBuilder &b, Location loc, Type elementalType,
+                            Value lhs, Value rhs) {
+  return createComparisonTemplate<arith::CmpFPredicate::UNE,
+                                  arith::CmpIPredicate::ne,
+                                  arith::CmpIPredicate::ne>(
+      b, loc, elementalType, lhs, rhs);
+}
+
 static Value buildNormalCdf(OpBuilder &b, Location &loc, Value x, Value mean,
                             Value sigma) {
   Type elementType = x.getType();
@@ -233,6 +256,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenRsqrtOp>(op)) {
     return createCalculationForMathOpWithDtypeConversion<math::RsqrtOp>(
+        b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenNegOp>(op)) {
+    return createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
         b, converter, payloadArgs[0], op);
   }
   if (isa<AtenSinOp>(op)) {
@@ -600,9 +627,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    if (dtype.isa<mlir::FloatType>())
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
-                                     payloadArgs[0], otherPromoted);
     if (dtype.isa<mlir::IntegerType>()) {
       if (!operands[1].getType().isa<mlir::IntegerType>()) {
         // TODO: Promote tensor operand from integer to float.
@@ -610,11 +634,24 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
             "unimplemented: type promotion from tensor to scalar");
         return nullptr;
       }
-      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                     payloadArgs[0], otherPromoted);
     }
-    eqScalar.emitError("unimplemented: dtype isn't supported");
-    return nullptr;
+    return createEqual(b, loc, dtype, payloadArgs[0], otherPromoted);
+  }
+
+  if (auto neScalar = dyn_cast<AtenNeScalarOp>(op)) {
+    Type dtype = neScalar.self().getType().cast<BaseTensorType>().getDtype();
+    Value otherPromoted =
+        convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
+
+    if (dtype.isa<mlir::IntegerType>()) {
+      if (!operands[1].getType().isa<mlir::IntegerType>()) {
+        // TODO: Promote tensor operand from integer to float.
+        neScalar.emitError(
+            "unimplemented: type promotion from tensor to scalar");
+        return nullptr;
+      }
+    }
+    return createNotEqual(b, loc, dtype, payloadArgs[0], otherPromoted);
   }
 
   if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
@@ -622,8 +659,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share a
-    // lot of code that can be refactored.
+    // TODO:  Both tensor and scalar variants of `aten.gt` and `aten.lt` share
+    // a lot of code that can be refactored.
     if (dtype.isa<mlir::FloatType>())
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT,
                                      payloadArgs[0], otherPromoted);
@@ -650,8 +687,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value otherPromoted =
         convertScalarToDtype(b, loc, operands[1], payloadArgs[0].getType());
 
-    // TODO: The `AtenLeScalarOp` and `AtenLtScalarOp` share a lot of code that
-    // can be refactored.
+    // TODO: The `AtenLeScalarOp` and `AtenLtScalarOp` share a lot of code
+    // that can be refactored.
     if (dtype.isa<mlir::FloatType>())
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE,
                                      payloadArgs[0], otherPromoted);
@@ -901,7 +938,8 @@ public:
              AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
              AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp>(op))
+             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
+             AtenNeScalarOp, AtenNegOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1441,11 +1479,6 @@ public:
 };
 } // namespace
 
-// Given `grad_output`, `input`, `target`, `nll_loss_backward` is given by:
-//   for i in range(0, len(input[0])):
-//      for j in range(0, len(input[1])):
-//          nll_loss_backward[i][j] = (j == target[i]) ? -grad_output[i] : 0
-// TODO: `weight` and `reduction` operands are still to be taken care of.
 namespace {
 class ConvertAtenNllLossBackwardOp
     : public OpConversionPattern<AtenNllLossBackwardOp> {
@@ -1456,89 +1489,137 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
+
     Location loc = op->getLoc();
+    Value gradOutput = adaptor.grad_output();
     Value input = adaptor.self();
     Value target = adaptor.target();
     Value weight = adaptor.weight();
-    Value gradOutput = adaptor.grad_output();
+    bool weightIsNone = op.weight().getType().isa<Torch::NoneType>();
+    Value ignoreIndex = castIntToIndex(rewriter, loc, adaptor.ignore_index());
+    Value totalWeight = adaptor.total_weight();
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    int inputRank = inputType.getRank();
+    auto gradOutputType = gradOutput.getType().cast<RankedTensorType>();
+    Type resultElementType = gradOutputType.getElementType();
 
     int64_t reduction;
     if (!matchPattern(op.reduction(), m_TorchConstantInt(&reduction)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
 
-    // TODO: Handle reduction.
-    if (reduction != torch_upstream::Reduction::None)
+    if (!hasElementType<mlir::FloatType>(gradOutput) ||
+        !hasElementType<mlir::FloatType>(gradOutput) ||
+        (!weightIsNone && !hasElementType<mlir::FloatType>(weight))) {
       return rewriter.notifyMatchFailure(
-          op, "reduction along dimensions is not supported.");
-
-    // TODO: Incorporate the weight argument.
-    if (!weight.getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented, the weight operand is not incorporated.");
-
-    Value ignoreIndex = adaptor.ignore_index();
-    Value ignoreIndexVal = castIntToIndex(rewriter, loc, ignoreIndex);
-
-    unsigned inputRank = input.getType().cast<RankedTensorType>().getRank();
-    unsigned targetRank = target.getType().cast<RankedTensorType>().getRank();
-
-    // TODO: Cases with targetRank != 1 where `Mean` or `Sum` reduction is
-    // required.
-    if (inputRank != 2 || targetRank != 1) {
-      return rewriter.notifyMatchFailure(
-          op, "expected  input and target to be rank 2 and 1 respectively");
+          op, "`gradOutput`, 'weight', and `totalWeight` must be tensors of "
+              "type float");
     }
+
+    if (!hasElementType<mlir::IntegerType>(target)) {
+      return rewriter.notifyMatchFailure(
+          op, "`target` must be a tensor of integer type");
+    }
+
+    auto outputSize = getTensorSizes(rewriter, loc, input);
+    Value gradInputTensor =
+        createZeroInitTensor(rewriter, loc, outputSize, resultElementType);
+
+    auto getAffineMapForSingleElementTensor = [&](Value tensor) {
+      auto tensorType = tensor.getType().cast<RankedTensorType>();
+      SmallVector<AffineExpr> affineExprs(tensorType.getRank(),
+                                          rewriter.getAffineConstantExpr(0));
+      return AffineMap::get(inputRank, /*symbolCount=*/0, affineExprs,
+                            op->getContext());
+    };
+
+    AffineMap gradOutMap = AffineMap::get(inputRank, /*symbolCount=*/0,
+                                          rewriter.getAffineDimExpr(0));
+    if (reduction != torch_upstream::Reduction::None || inputRank == 1)
+      gradOutMap = getAffineMapForSingleElementTensor(gradOutput);
+    AffineMap targetMap = AffineMap::get(inputRank, /*symbolCount=*/0,
+                                         rewriter.getAffineDimExpr(0));
+    if (inputRank == 1)
+      targetMap = getAffineMapForSingleElementTensor(target);
+    AffineMap totalWeightMap = getAffineMapForSingleElementTensor(totalWeight);
+    AffineMap resultMap = rewriter.getMultiDimIdentityMap(inputRank);
+
+    SmallVector<AffineMap> indexingMaps{gradOutMap, targetMap, totalWeightMap,
+                                        resultMap};
+    SmallVector<StringRef> iteratorTypes(inputRank,
+                                         getParallelIteratorTypeName());
+
+    // The code generation is equivalent to the following pseudo-code:
+    //
+    // for batch_index in len(input.size(0)):
+    //     for class_index in len(input.size(1)):
+    //         target_elem = target[batch_index]
+    //
+    //         if reduction == None:
+    //             grad_out_elem = grad_output[batchIndex]
+    //         else:
+    //             grad_out_elem = grad_output[0]
+    //
+    //         if reduction == Mean:
+    //             total_weight_elem = total_weight[0]
+    //             grad_out_elem /= total_weight_elem
+    //
+    //         weight_elem = weight[target_elem] if weight != None else 1
+    //
+    //         if target_elem != class_index or target_elem == ignore_index:
+    //             grad_input_elem = -weight_elem * grad_out_elem
+    //         else:
+    //             grad_input_elem = 0
+    //         grad_input[batch_index, target_elem] = grad_input_elem
+    //
+    // NOTE: In the case of not batch dimension, `batch_index` essentially
+    // becomes zero.
+    Value gradInput =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, gradInputTensor.getType(),
+                ValueRange{gradOutput, target, totalWeight}, gradInputTensor,
+                indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value gradOutElem = args[0];
+                  Value targetElem = castIntToIndex(b, loc, args[1]);
+                  Value totalWeightElem = args[2];
+                  Value classIndex =
+                      b.create<linalg::IndexOp>(loc, inputRank - 1);
+
+                  if (reduction == torch_upstream::Reduction::Mean) {
+                    gradOutElem = b.create<arith::DivFOp>(loc, gradOutElem,
+                                                          totalWeightElem);
+                  }
+
+                  Value negGradOutElem =
+                      b.create<arith::NegFOp>(loc, gradOutElem);
+                  Value weightElem = getConstant(b, loc, 1, resultElementType);
+                  if (!weightIsNone) {
+                    weightElem =
+                        b.create<tensor::ExtractOp>(loc, weight, targetElem);
+                  }
+                  Value weightedNegGradOutElem =
+                      b.create<arith::MulFOp>(loc, weightElem, negGradOutElem);
+
+                  Value targetNeqClassIndex = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::ne, targetElem, classIndex);
+                  Value targetEqIgnoreIndex = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, targetElem, ignoreIndex);
+                  Value gradInputIsZero = b.create<arith::OrIOp>(
+                      loc, targetNeqClassIndex, targetEqIgnoreIndex);
+
+                  Value zero = getConstant(b, loc, 0, resultElementType);
+                  Value gradInElem = b.create<arith::SelectOp>(
+                      loc, gradInputIsZero, zero, weightedNegGradOutElem);
+                  b.create<linalg::YieldOp>(loc, gradInElem);
+                })
+            ->getResult(0);
+
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
                                       .cast<RankedTensorType>();
-
-    Type elementType = resultType.getElementType();
-
-    // Given there is no reduction `grad_input` size is equal to `input` size.
-    auto outputSize = getTensorSizes(rewriter, loc, input);
-    Value initTensor0 =
-        createZeroInitTensor(rewriter, loc, outputSize, elementType);
-    Value zeroVal = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(elementType));
-
-    SmallVector<AffineExpr> targetExpr{rewriter.getAffineDimExpr(0)};
-    SmallVector<AffineExpr> resultExpr{rewriter.getAffineDimExpr(0),
-                                       rewriter.getAffineDimExpr(1)};
-    SmallVector<StringRef> iteratorTypes{getParallelIteratorTypeName(),
-                                         getParallelIteratorTypeName()};
-    auto indexingMaps =
-        AffineMap::inferFromExprList({targetExpr, targetExpr, resultExpr});
-    Value finalRes =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, initTensor0.getType(), ValueRange{target, gradOutput},
-                initTensor0,
-                /*indexingMaps=*/indexingMaps,
-                /*iteratorTypes=*/iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value indTarget = rewriter.create<arith::IndexCastOp>(
-                      loc, rewriter.getIndexType(), args[0]);
-                  Value indJ = rewriter.create<linalg::IndexOp>(loc, 1);
-
-                  // The final result is given by:
-                  // grad_input[i][j] = (j == target[i]) ? -grad_output[i] : 0
-                  Value cmpEq = rewriter.create<arith::CmpIOp>(
-                      loc, arith::CmpIPredicate::eq, indJ, indTarget);
-
-                  // The target index shouldn't be equal to `ignoreIndex`.
-                  Value cmpNe = rewriter.create<arith::CmpIOp>(
-                      loc, arith::CmpIPredicate::ne, ignoreIndexVal, indTarget);
-                  Value finalPredicate =
-                      rewriter.create<arith::AndIOp>(loc, cmpEq, cmpNe);
-                  Value negate =
-                      rewriter.create<arith::NegFOp>(loc, elementType, args[1]);
-                  Value selectFinal = rewriter.create<arith::SelectOp>(
-                      loc, finalPredicate, negate, zeroVal);
-                  b.create<linalg::YieldOp>(loc, selectFinal);
-                })
-            .getResult(0);
-
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, gradInput);
     return success();
   }
 };
@@ -1576,7 +1657,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
       AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
       AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
-      AtenSinOp, AtenCosOp>();
+      AtenSinOp, AtenCosOp, AtenNeScalarOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);

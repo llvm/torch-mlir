@@ -12,7 +12,8 @@ import torch
 
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
 from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
-from torch_mlir_e2e_test.utils import run_pipeline_with_repro_report
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
+
 
 def recursively_convert_to_numpy(o: Any):
     if isinstance(o, torch.Tensor):

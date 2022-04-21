@@ -194,3 +194,16 @@ func @torch.tensor_static_info_cast$basic(%t: !torch.vtensor<[?],f32>) -> !torch
   %t_cast = torch.tensor_static_info_cast %t : !torch.vtensor<[?],f32> to !torch.vtensor<[4],f32>
   return %t_cast : !torch.vtensor<[4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:     func @torch.aten.neg
+// CHECK: linalg.generic {{.*}} {
+// CHECK-NEXT:    ^bb0(%[[LHS:.*]]: f32, %{{.*}}: f32):
+// CHECK-NEXT:      %[[NEG:.*]] = arith.negf %[[LHS]] : f32
+// CHECK-NEXT:      linalg.yield %[[NEG]] : f32
+// CHECK-NEXT:    } -> tensor<?x?xf32>
+func @torch.aten.neg(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.neg %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}

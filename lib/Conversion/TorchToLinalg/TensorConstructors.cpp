@@ -121,9 +121,8 @@ public:
 
     // TODO: Add support for layout, pin_memory features.
     // Only `none` layout is supported.
-    if (!op.layout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
@@ -181,14 +180,13 @@ public:
   LogicalResult
   matchAndRewrite(AtenEmptyMemoryFormatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // TODO: Add support for layout, pin_memory and memory_format features.
-    // Only `none` layout is supported.
-    if (!op.layout().getType().template isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // TODO: Add support pin_memory and memory_format features.
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
@@ -258,11 +256,9 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // TODO: Add support for layout, pin_memory features.
-    // Only `none` layout is supported.
-    if (!op.layout().getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
+    // TODO: Add support for pin_memory features.
+    // At this point all tensors should have value semantics, and hence the
+    // `layout` check can be ignored.
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;

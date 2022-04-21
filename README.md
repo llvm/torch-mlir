@@ -53,6 +53,13 @@ python -m pip install -r requirements.txt
 ```
 
 ## Build
+
+Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
+
+### Building torch-mlir in-tree
+
+The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
+
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_C_COMPILER=clang \
@@ -65,23 +72,51 @@ cmake -GNinja -Bbuild \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
-
-# Additional quality of life CMake flags:
-# Enable ccache:
-#  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-# Enable LLD (links in seconds compared to minutes)
-# -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
+```
+The following additional quality of life flags can be used to reduce build time:
+* Enabling ccache:
+```shell
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+```
+* Enabling LLD (links in seconds compared to minutes)
+```shell
+  -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
+```
 
+### Building against a pre-built LLVM
+
+If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
+```shell
+cmake -GNinja -Bbuild \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
+  -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host \
+  .
+```
+The same QoL CMake flags can be used to enable ccache and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+
+Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+
+
+### Build commands
+
+After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
+```shell
 # Build just torch-mlir (not all of LLVM)
 cmake --build build --target tools/torch-mlir/all
 
 # Run unit tests.
 cmake --build build --target check-torch-mlir
 
-# Build everything (including LLVM)
+# Build everything (including LLVM if in-tree)
 cmake --build build
 ```
+
 ## Demos
 
 ## Setup Python Environment
