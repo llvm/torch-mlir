@@ -46,8 +46,8 @@ static void createLinalgPayloadCalculationForGatherOps(
 
   // Assert index < input.sizes[dim]
   Value indexLTInputDim = b.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::slt, index,
-      castIndexToInt(b, loc, getDimOp(b, loc, input, dim)));
+      loc, arith::CmpIPredicate::slt, castIntToIndex(b, loc, index),
+      getDimOp(b, loc, input, dim));
   b.create<cf::AssertOp>(
       loc, indexLTInputDim,
       b.getStringAttr("index must be smaller than dim size"));

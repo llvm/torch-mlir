@@ -43,7 +43,7 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v);
 
-Value castIndexToInt(OpBuilder &b, Location loc, Value idx);
+Value castIndexToInt64(OpBuilder &b, Location loc, Value idx);
 
 Value getDimOp(OpBuilder &b, Location loc, Value v, int dim);
 

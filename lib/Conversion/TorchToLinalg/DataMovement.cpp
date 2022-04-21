@@ -745,7 +745,7 @@ public:
                                 Value startOrEndBuiltin, Value valueForNone) {
       if (startOrEndTorchType.getType().isa<Torch::NoneType>())
         return valueForNone;
-      auto dimSizeAsInt = castIndexToInt(rewriter, loc, dimSize);
+      auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
       Value startOrEndToPositive =
           toPositiveDimDynamic(rewriter, loc, startOrEndBuiltin, dimSizeAsInt);
       // startOrEnd < 0 ? 0 : startOrEnd
@@ -937,7 +937,7 @@ static LogicalResult broadcastToGivenShape(Operation *op,
     Value isNegative = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::slt, shapeValue, zero);
     Value isEqual = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, castIndexToInt(rewriter, loc, dim),
+        loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
         shapeValue);
     Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
     rewriter.create<cf::AssertOp>(
@@ -1051,7 +1051,7 @@ public:
     // of the self tensor.
     SmallVector<Value> selfSizes = getTensorSizes(rewriter, loc, self);
     for (unsigned i = 0; i < selfSizes.size(); i++)
-      selfSizes[i] = castIndexToInt(rewriter, loc, selfSizes[i]);
+      selfSizes[i] = castIndexToInt64(rewriter, loc, selfSizes[i]);
     Value broadcastedSrc;
     if (failed(broadcastToGivenShape(op, rewriter, src, selfSizes,
                                      broadcastedSrc))) {

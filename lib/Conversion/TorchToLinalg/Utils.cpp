@@ -78,7 +78,7 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
   // in + 2 * padding
   Value inAddDoublePadding =
-      b.create<arith::AddIOp>(loc, castIndexToInt(b, loc, in), doublePadding);
+      b.create<arith::AddIOp>(loc, castIndexToInt64(b, loc, in), doublePadding);
 
   // dilation * (kernelSize - 1)
   Value kernelSizeSub1 = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);

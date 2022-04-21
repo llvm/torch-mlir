@@ -105,8 +105,10 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   };
   checkIntOrIndex(lhsType);
   checkIntOrIndex(rhsType);
-  Value lhsDimInt = lhsType.isIndex() ? castIndexToInt(b, loc, lhsDim) : lhsDim;
-  Value rhsDimInt = rhsType.isIndex() ? castIndexToInt(b, loc, rhsDim) : rhsDim;
+  Value lhsDimInt =
+      lhsType.isIndex() ? castIndexToInt64(b, loc, lhsDim) : lhsDim;
+  Value rhsDimInt =
+      rhsType.isIndex() ? castIndexToInt64(b, loc, rhsDim) : rhsDim;
   Value contractingDimEqual = b.create<arith::CmpIOp>(
       loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
   b.create<cf::AssertOp>(loc, contractingDimEqual,
@@ -135,7 +137,7 @@ Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
 }
 
-Value castIndexToInt(OpBuilder &b, Location loc, Value idx) {
+Value castIndexToInt64(OpBuilder &b, Location loc, Value idx) {
   assert(idx.getType().isa<IndexType>() && "must be called with integer type");
   return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
@@ -166,7 +168,7 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
   Value productResult = b.create<arith::ConstantOp>(loc, b.getIndexAttr(1));
   for (Value size : sizes)
     productResult = b.create<arith::MulIOp>(loc, productResult, size);
-  return castIndexToInt(b, loc, productResult);
+  return castIndexToInt64(b, loc, productResult);
 }
 
 // Creates a constant of type `elemType` with value `val`.

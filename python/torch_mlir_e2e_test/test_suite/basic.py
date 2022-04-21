@@ -547,7 +547,7 @@ def AddSizeIntNegDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class EmbeddingModule(torch.nn.Module):
+class EmbeddingModuleI64(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -565,9 +565,34 @@ class EmbeddingModule(torch.nn.Module):
         return self.embed.forward(indices)
 
 
-@register_test_case(module_factory=lambda: EmbeddingModule())
-def EmbeddingModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: EmbeddingModuleI64())
+def EmbeddingModuleI64_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (3, 3)))
+
+
+# ==============================================================================
+
+class EmbeddingModuleI32(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.embed = torch.nn.Embedding(num_embeddings=100,
+                                        embedding_dim=50,
+                                        padding_idx=4)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, indices):
+        return self.embed.forward(indices)
+
+
+@register_test_case(module_factory=lambda: EmbeddingModuleI32())
+def EmbeddingModuleI32_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 3)).to(torch.int32))
 
 
 # ==============================================================================
