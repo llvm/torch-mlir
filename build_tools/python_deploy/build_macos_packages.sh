@@ -60,18 +60,18 @@ function run() {
 }
 
 function build_torch_mlir() {
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt
+  python -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
   MACOSX_DEPLOYMENT_TARGET=11.0 \
   CMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/
+  python -m pip wheel -v -w $output_dir $repo_root --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 }
 
 function clean_wheels() {
   local wheel_basename="$1"
   local python_version="$2"
   echo ":::: Clean wheels $wheel_basename $python_version"
-  rm -f /wheelhouse/${wheel_basename}-*-${python_version}-*.whl
+  rm -f $output_dir/${wheel_basename}-*-${python_version}-*.whl
 }
 
 run
