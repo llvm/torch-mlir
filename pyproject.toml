@@ -16,6 +16,6 @@ requires = [
     # artifacts.
     # TODO: Come up with a better way to pin the version.
     "numpy",
-    "torch==1.12.0.dev20220420",
+    "torch>=1.12.0.dev20220420",
 ]
 build-backend = "setuptools.build_meta"
