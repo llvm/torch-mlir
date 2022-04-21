@@ -81,9 +81,9 @@ function run_in_docker() {
       echo ":::: Python version $(python --version)"
       case "$package" in
         torch-mlir)
-          clean_wheels torch-mlir $python_version
+          clean_wheels torch_mlir $python_version
           build_torch_mlir
-          run_audit_wheel torch-mlir $python_version
+          #run_audit_wheel torch_mlir $python_version
           ;;
         *)
           echo "Unrecognized package '$package'"
@@ -95,10 +95,9 @@ function run_in_docker() {
 }
 
 function build_torch_mlir() {
-  python -m pip install --pre torch torchvision --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt
   CMAKE_GENERATOR=Ninja \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 }
 
 function run_audit_wheel() {
