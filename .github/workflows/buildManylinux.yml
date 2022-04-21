@@ -32,6 +32,24 @@ jobs:
         python -m pip install wheel
         ./build_tools/python_deploy/build_linux_packages.sh
 
+    name: MacOS Build
+    runs-on: macos-latest
+    steps:
+    - name: Get torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/setup-build
+      with:
+        cache-suffix: ''
+    - name: Build Python wheels and smoke test.
+      run: |
+        cd $GITHUB_WORKSPACE
+        python -m pip install wheel
+        ./build_tools/python_deploy/install_macos_deps.sh
+        python_versions="3.9 3.10" ./build_tools/python_deploy/build_macos_packages.sh
+
+
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
     - name: Upload Release Assets (if requested)
