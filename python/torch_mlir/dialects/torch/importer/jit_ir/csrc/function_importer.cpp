@@ -24,11 +24,50 @@ using namespace torch_mlir;
 MlirOperation torch_mlir::importJitFunctionAsFuncOp(
     MlirContext context, torch::jit::Function *function,
     std::function<MlirAttribute(int)> getArgAttribute) {
-  // Useful for debugging:
-  // graph->dump();
   MlirLocation loc = mlirLocationUnknownGet(context);
+
+  // Extract the schema return types. These are the types that we need to
+  // derefine the block's return values to.
+  auto mapType = [&](const c10::Argument &arg) {
+    const c10::TypePtr &torchType = arg.type();
+    MlirType type = getMlirTypeFromTorchType(loc, torchType);
+    if (mlirTypeIsNull(type)) {
+      std::stringstream msg;
+      msg << "unsupported type in function schema: '"
+          << c10::toString(torchType) << "'";
+      throw std::invalid_argument(msg.str());
+    }
+    return type;
+  };
+  std::vector<MlirType> resultTypes =
+      c10::fmap(function->getSchema().returns(), mapType);
+  auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
+                              MlirBlock appendToBlock) {
+    createMlirOperationAtEnd(
+        appendToBlock, "func.return", loc,
+        derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
+  };
+
+  // Import the operations in the function.
+  MlirBlock block = importBlock(
+      context, torch::jit::toGraphFunction(*function).graph()->block(),
+      createTerminator);
+
+  // Now, create the func op itself.
+
+  // Extract the function input types directly from the block.
+  //
+  // `torch.jit.trace` will create functions where the schema has type-erased
+  // tensors, but the block will have precise tensor types (and everywhere in
+  // the code where the function is called the types will be precise).
+  std::vector<MlirType> inputTypes;
+  for (int i = 0, e = mlirBlockGetNumArguments(block); i < e; ++i) {
+    inputTypes.push_back(mlirValueGetType(mlirBlockGetArgument(block, i)));
+  }
   MlirType functionType =
-      getFunctionTypeFromSchema(context, function->getSchema());
+      mlirFunctionTypeGet(context, inputTypes.size(), inputTypes.data(),
+                          resultTypes.size(), resultTypes.data());
+
   // Use the function's qualified name from the compilation unit.
   // This is a stable linkage name that matches Python module lookup
   // conventions (see compilation unit import in IValueImporter for more details
@@ -52,20 +91,6 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
       func, toMlirStringRef("arg_attrs"),
       mlirArrayAttrGet(context, argAttrDicts.size(), argAttrDicts.data()));
   MlirRegion bodyRegion = mlirOperationGetRegion(func, 0);
-  std::vector<MlirType> resultTypes;
-  for (int i = 0, e = mlirFunctionTypeGetNumResults(functionType); i != e;
-       i++) {
-    resultTypes.push_back(mlirFunctionTypeGetResult(functionType, i));
-  }
-  auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
-                              MlirBlock appendToBlock) {
-    createMlirOperationAtEnd(
-        appendToBlock, "func.return", loc,
-        derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
-  };
-  MlirBlock block = importBlock(
-      context, torch::jit::toGraphFunction(*function).graph()->block(),
-      createTerminator);
   mlirRegionAppendOwnedBlock(bodyRegion, block);
   return func;
 }
