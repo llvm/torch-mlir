@@ -1,15 +1,12 @@
-name: Release snapshot package
+name: Release oneshot snapshot package
 
 on:
-  schedule:
-    - cron: '0 10,22 * * *'
-
   workflow_dispatch:
 
 jobs:
   release_snapshot_package:
     name: "Tag snapshot release"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
     steps:
@@ -56,6 +53,7 @@ jobs:
           workflow: Build and Test
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           ref: "${{ env.tag_name }}"
+          inputs: '{"release_id": "", "python_package_version": "${{ env.package_version }}"}'
 
       - name: "Invoke workflow :: Release Build"
         uses: benc-uk/workflow-dispatch@v1

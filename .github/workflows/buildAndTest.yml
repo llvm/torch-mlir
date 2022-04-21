@@ -6,13 +6,6 @@ on:
       - main
   pull_request:
   workflow_dispatch:
-    inputs:
-      release_id:
-        description: 'Release id to upload artifacts to'
-        default: ''
-      python_package_version:
-        description: 'Version to use for creating the Python package'
-        default: ''
 
 jobs:
   build:
@@ -56,40 +49,6 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
-
-    # TODO: Only build packages in full Release mode.
-    # On the other hand, having assertions on isn't too bad of an idea at this
-    # early stage.
-    - name: Build Python wheels and smoke test.
-      run: |
-        cd $GITHUB_WORKSPACE
-        python -m pip install wheel
-        TORCH_MLIR_CMAKE_BUILD_DIR="$GITHUB_WORKSPACE/build" \
-          TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT=1 \
-          TORCH_MLIR_PYTHON_PACKAGE_VERSION="${{ github.event.inputs.python_package_version }}" \
-          ./build_tools/build_python_wheels.sh
-
-    # If we were given a release_id, then upload the package we just built
-    # to the github releases page.
-    - name: Upload Release Assets (if requested)
-      if: github.event.inputs.release_id != ''
-      id: upload-release-assets
-      uses: dwenegar/upload-release-assets@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-      with:
-        release_id: ${{ github.event.inputs.release_id }}
-        assets_path: ./wheelhouse/*.whl
-    # Publishing is necessary to make the release visible to `pip`
-    # on the github releases page.
-    - name: Publish Release (if requested)
-      if: github.event.inputs.release_id != ''
-      id: publish_release
-      uses: eregon/publish-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-      with:
-        release_id: ${{ github.event.inputs.release_id }}
 
   build-out-of-tree:
     name: Build out-of-tree (Release Asserts)
