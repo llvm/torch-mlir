@@ -25,11 +25,16 @@ class OutputType(Enum):
     # This output type consists of `tosa` dialect ops. It can be thought of
     # as taking the `TORCH` output type and lowering it to TOSA.
     TOSA = 1
-    # The output type contains a mix of `linalg`-on-tensors ops, `scf`, and
+    # This output type contains a mix of `linalg`-on-tensors ops, `scf`, and
     # `arith` ops (and also `math` and `tm_tensor`). It can be thought of
     # as taking the `TORCH` output type and lowering it so that tensor
     # computations are done with `linalg`-on-tensors ops.
     LINALG_ON_TENSORS = 2
+    # This output type contains the raw imported `torch` dialect ops that are
+    # obtained from the direct import of the JIT IR.
+    # Since this bypasses the entire lowering pipeline, this is expected to
+    # not be useful for most users, but can be useful for debugging.
+    RAW = 3
 
 
 def compile(model: torch.nn.Module,
@@ -74,13 +79,16 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     mb.import_module(scripted._c, class_annotator)
 
-    run_pipeline_with_repro_report(mb.module,
-                                   "torchscript-module-to-torch-backend-pipeline",
-                                   "Lowering TorchScript IR -> Torch Backend IR")
+    if output_type == OutputType.RAW:
+        return mb.module
 
+    run_pipeline_with_repro_report(mb.module,
+                                    "torchscript-module-to-torch-backend-pipeline",
+                                    "Lowering TorchScript IR -> Torch Backend IR")
     if output_type == OutputType.TORCH:
-        pass
-    elif output_type == OutputType.TOSA:
+        return mb.module
+
+    if output_type == OutputType.TOSA:
         run_pipeline_with_repro_report(
             mb.module,
             "torch-backend-to-tosa-backend-pipeline",
