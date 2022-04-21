@@ -95,6 +95,7 @@ function run_in_docker() {
 }
 
 function build_torch_mlir() {
+  python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
   python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
     --extra-index-url https://download.pytorch.org/whl/nightly/cpu
