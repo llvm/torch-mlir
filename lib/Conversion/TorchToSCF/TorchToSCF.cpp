@@ -62,6 +62,56 @@ public:
 } // namespace
 
 namespace {
+class ConvertTorchPrimLoopOp : public OpConversionPattern<PrimLoopOp> {
+public:
+  using OpConversionPattern<PrimLoopOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(PrimLoopOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "in ConvertTorchPrimLoopOp\n";
+    SmallVector<Type, 1> newResultTypes;
+    if (failed(getTypeConverter()->convertTypes(op.getResultTypes(),
+                                                newResultTypes)))
+      return rewriter.notifyMatchFailure(
+          op, "could not convert PrimLoopOp outputs");
+    llvm::errs() << "upper bound: \t" << op.maxTripCount() << "\n";
+    auto lowerBound = rewriter.create<arith::ConstantIndexOp>(op->getLoc(), 0);
+    auto step = rewriter.create<arith::ConstantIndexOp>(op->getLoc(), 1);
+	  scf::ForOp scfFor = rewriter.create<scf::ForOp>(
+        op->getLoc(), lowerBound, op.maxTripCount(), step, op.iterArgsInit());
+    llvm::errs() << "loop header:\n";
+    scfFor.dump();
+    auto inlineForCase = [&](Region &srcRegion, Region &dstRegion) {
+      rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
+      rewriter.eraseBlock(&dstRegion.back());
+    };
+    inlineForCase(op.region(), scfFor.getRegion());
+    rewriter.replaceOp(op, scfFor.getResults());
+    llvm::errs() << "final loop op:\n";
+    op->dump();
+    scfFor.getResult(0).dump();
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertTorchPrimLoopConditionOp
+    : public OpConversionPattern<PrimLoopConditionOp> {
+public:
+  using OpConversionPattern<PrimLoopConditionOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(PrimLoopConditionOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "in ConvertTorchPrimLoopConditionOp\n";
+    rewriter.replaceOpWithNewOp<scf::ConditionOp>(op, adaptor.shouldContinue(),
+                                                  adaptor.iterArgs());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertTorchToSCF : public ConvertTorchToSCFBase<ConvertTorchToSCF> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -83,6 +133,10 @@ public:
     patterns.add<ConvertTorchPrimIfOp>(typeConverter, context);
     target.addIllegalOp<PrimIfYieldOp>();
     patterns.add<ConvertTorchPrimIfYieldOp>(typeConverter, context);
+    target.addIllegalOp<PrimLoopOp>();
+    patterns.add<ConvertTorchPrimLoopOp>(typeConverter, context);
+    target.addIllegalOp<PrimLoopConditionOp>();
+    patterns.add<ConvertTorchPrimLoopConditionOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

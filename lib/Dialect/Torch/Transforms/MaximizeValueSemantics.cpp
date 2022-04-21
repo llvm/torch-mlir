@@ -340,6 +340,237 @@ public:
 } // namespace
 
 namespace {
+// rewrite If op and If.yield op
+class RewriteIfOp : public OpRewritePattern<PrimIfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimIfOp ifOp,
+                                PatternRewriter &rewriter) const override {
+    // rewrite the PrimIfOp
+    CopyToValueTensorOp rankedVtensor;
+    auto ifOpUsers = llvm::to_vector<6>(ifOp.results().getUsers());
+    SmallVector<Operation *> workList;
+    SmallVector<Operation *> workPath;
+    workList.push_back(ifOpUsers.pop_back_val());
+    // todo: we only concern the first user in this path currently
+    while (!rankedVtensor && !workList.empty()) {
+      Operation *user = workList.pop_back_val();
+      if (!user)
+        return failure();
+      if (isa<mlir::func::ReturnOp, PrimIfYieldOp>(user))
+        return failure();
+
+      workPath.push_back(user);
+
+      // todo: it might be a dfs within a tree
+      auto nextUser = user->getResult(0).getUsers();
+      llvm::append_range(workList, nextUser);
+
+      rankedVtensor = dyn_cast<CopyToValueTensorOp>(user);
+    }
+
+    // get ranked vtensor type
+    auto type = rankedVtensor.getType();
+
+    // rewrite ifOp's type with ranked vtensor
+    ifOp.getResult(0).setType(type);
+
+    // replace the CopyToValueTensorOp with PrimIfOp
+    rewriter.replaceOp(rankedVtensor, ifOp.getResults());
+
+    // rewrite the PrimIfYieldOp in the then region
+    Operation &thenYieldOp = ifOp.thenRegion().front().back();
+    if (failed(RewriteControlRegion(thenYieldOp, rewriter)))
+      return failure();
+
+    // in the else region
+    Operation &elseYieldOp = ifOp.elseRegion().front().back();
+    if (failed(RewriteControlRegion(elseYieldOp, rewriter)))
+      return failure();
+
+    return success();
+  }
+
+  LogicalResult RewriteControlRegion(Operation &yieldOp,
+                                     PatternRewriter &rewriter) const {
+    // todo: we assume there's only one operand in the yieldOp
+    Operation *defOp = yieldOp.getOperand(0).getDefiningOp();
+
+    SmallVector<Operation *> workList;
+    SmallVector<Operation *> workPath;
+    workList.push_back(defOp);
+    CopyToNonValueTensorOp rankedTensor;
+    while (!rankedTensor && !workList.empty()) {
+      Operation *definer = workList.pop_back_val();
+      if (!definer)
+        return failure();
+
+      workPath.push_back(definer);
+
+      // todo: it will segment fault if the definer's operand comes from
+      // function's operand
+      auto previousDefiner = definer->getOperand(0).getDefiningOp();
+      workList.push_back(previousDefiner);
+
+      rankedTensor = dyn_cast<CopyToNonValueTensorOp>(definer);
+    }
+
+    // get the currently held value op
+    Operation *HeldValueOp = rankedTensor.getOperand().getDefiningOp();
+    // todo: check if it's the same type with PrimIfOp
+
+    // replace the CopyTOTensorOp with IfYieldOp
+    rewriter.replaceOp(workPath.front(), HeldValueOp->getResult(0));
+    workPath.erase(workPath.begin());
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// rewrite Loop op and Loop.condition op
+class RewriteLoopOp : public OpRewritePattern<PrimLoopOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(PrimLoopOp loopOp,
+                                PatternRewriter &rewriter) const override {
+    Block *currentBlock = rewriter.getBlock();
+
+    // rewrite the PrimLoopOp
+    CopyToValueTensorOp rankedVtensor;
+    auto loopOpUsers = llvm::to_vector<6>(loopOp.results().getUsers());
+    SmallVector<Operation *> workList;
+    SmallVector<Operation *> workPath;
+    workList.push_back(loopOpUsers.pop_back_val());
+    // todo: we only concern the first user in this path currently
+    while (!rankedVtensor && !workList.empty()) {
+      Operation *user = workList.pop_back_val();
+      if (!user)
+        return failure();
+      if (isa<mlir::func::ReturnOp, PrimLoopConditionOp>(user))
+        return failure();
+
+      workPath.push_back(user);
+
+      // todo: it might be a dfs within a tree
+      auto nextUser = user->getResult(0).getUsers();
+      llvm::append_range(workList, nextUser);
+
+      rankedVtensor = dyn_cast<CopyToValueTensorOp>(user);
+    }
+
+    // get ranked vtensor type
+    auto type = rankedVtensor.getType();
+
+    // rewrite loopOp's type with ranked vtensor
+    loopOp.getResult(0).setType(type);
+
+    // replace the CopyToValueTensorOp with PrimIfOp
+    rewriter.replaceOp(rankedVtensor, loopOp.getResults());
+
+    workPath.pop_back();
+    // erase other ops in this path
+    for (auto op : workPath) {
+      rewriter.eraseOp(op);
+    }
+
+    // rewrite the PrimLoopConditionOp
+    Operation &loopConditionOp = loopOp.region().front().back();
+
+    // todo: we assume there's only one iter operand in the loopConditionOp
+    Operation *defOp = loopConditionOp.getOperand(1).getDefiningOp();
+
+    workList.clear();
+    workPath.clear();
+    workList.push_back(defOp);
+    CopyToNonValueTensorOp rankedTensor;
+    while (!rankedTensor && !workList.empty()) {
+      Operation *definer = workList.pop_back_val();
+      if (!definer)
+        return failure();
+
+      workPath.push_back(definer);
+
+      // todo: it will segment fault if the definer's operand comes from
+      // function's operand
+      auto previousDefiner = definer->getOperand(0).getDefiningOp();
+      workList.push_back(previousDefiner);
+
+      rankedTensor = dyn_cast<CopyToNonValueTensorOp>(definer);
+    }
+
+    // get the currently held value op
+    Operation *HeldValueOp = rankedTensor.getOperand().getDefiningOp();
+    // todo: check if it's the same type with PrimIfOp
+
+    // replace the CopyToTensorOp with loopConditionOp
+    rewriter.replaceOp(workPath.front(), HeldValueOp->getResult(0));
+
+    // replace the primLoopOp
+    Value loopArg = loopOp.getOperand(2);
+    defOp = loopArg.getDefiningOp();
+    workList.clear();
+    workList.push_back(defOp);
+    CopyToNonValueTensorOp rankedTensorArg;
+    while (!rankedTensorArg && !workList.empty()) {
+      Operation *definer = workList.pop_back_val();
+      if (!definer)
+        return failure();
+
+      // todo: it will segment fault if the definer's operand comes from
+      // function's operand
+      auto previousDefiner = definer->getOperand(0).getDefiningOp();
+      workList.push_back(previousDefiner);
+
+      rankedTensorArg = dyn_cast<CopyToNonValueTensorOp>(definer);
+    }
+
+    // get the currently held value op
+    HeldValueOp = rankedTensorArg.getOperand().getDefiningOp();
+
+    // replace the CopyToTensorOp with loopConditionOp
+    rewriter.replaceOp(defOp, HeldValueOp->getResult(0));
+
+    currentBlock = rewriter.getBlock();
+
+    // replace bb0's arg
+    workList.clear();
+    BlockArgument bb0Arg = loopOp.getRegion().front().getArgument(1);
+    auto bb0ArgUser = bb0Arg.getUsers();
+    llvm::append_range(workList, bb0ArgUser);
+    CopyToValueTensorOp rankedTensorArgUser;
+    while (!rankedTensorArgUser && !workList.empty()) {
+      Operation *user = workList.pop_back_val();
+      if (!user)
+        return failure();
+      if (isa<mlir::func::ReturnOp, PrimLoopConditionOp>(user))
+        return failure();
+
+      // todo: it might be a dfs within a tree
+      auto nextUser = user->getResult(0).getUsers();
+      llvm::append_range(workList, nextUser);
+
+      rankedTensorArgUser = dyn_cast<CopyToValueTensorOp>(user);
+    }
+
+    // get ranked vtensor type
+    type = rankedTensorArgUser.getType();
+
+    // rewrite bb0Arg's type with ranked vtensor
+    bb0Arg.setType(type);
+
+    // replace the CopyToValueTensorOp with bb0Arg
+    rewriter.replaceOp(rankedTensorArgUser, bb0Arg);
+    currentBlock = rewriter.getBlock();
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class MaximizeValueSemanticsPass
     : public MaximizeValueSemanticsBase<MaximizeValueSemanticsPass> {
   void runOnOperation() override {
@@ -347,7 +578,8 @@ class MaximizeValueSemanticsPass
     auto func = getOperation();
 
     RewritePatternSet patterns(context);
-    patterns.insert<AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock,
+    patterns.insert<RewriteIfOp, RewriteLoopOp,
+            AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock,
                     RewriteViewLikeSubgraph>(context);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
