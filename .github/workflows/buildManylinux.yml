@@ -15,7 +15,7 @@ on:
         default: ''
 
 jobs:
-  build:
+  build_linux:
     name: Manylinux Build
     runs-on: ubuntu-latest
     steps:
@@ -32,6 +32,7 @@ jobs:
         python -m pip install wheel
         ./build_tools/python_deploy/build_linux_packages.sh
 
+  build_macos:
     name: MacOS Build
     runs-on: macos-latest
     steps:
