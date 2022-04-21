@@ -45,7 +45,7 @@ public:
     assertIsValidDim(rewriter, loc, dimPositive, inputRank);
     Value size = rewriter.create<tensor::DimOp>(
         loc, adaptor.self(), castIntToIndex(rewriter, loc, dimPositive));
-    rewriter.replaceOp(op, castIndexToInt(rewriter, loc, size));
+    rewriter.replaceOp(op, castIndexToInt64(rewriter, loc, size));
     return success();
   }
 };

@@ -312,7 +312,7 @@ public:
                 /*iteratorTypes=*/iteratorType,
                 [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
                   Value index = b.create<linalg::IndexOp>(loc, 0);
-                  index = castIndexToInt(b, loc, index);
+                  index = castIndexToInt64(b, loc, index);
                   index = convertScalarToDtype(b, loc, index, dtype);
                   Value mulOut, result;
                   if (dtype.isa<mlir::FloatType>()) {

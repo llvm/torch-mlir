@@ -315,7 +315,7 @@ public:
                   outIndex = b.create<arith::AddIOp>(loc, outIndex,
                                                      indexWMinusPadding);
                   Value result = b.create<arith::SelectOp>(
-                      loc, pred, castIndexToInt(b, loc, outIndex), res);
+                      loc, pred, castIndexToInt64(b, loc, outIndex), res);
 
                   Value predInvalidIndex = b.create<arith::CmpIOp>(
                       loc, arith::CmpIPredicate::eq, res, cstMinusOne);
