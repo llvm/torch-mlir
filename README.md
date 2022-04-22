@@ -33,6 +33,49 @@ We have few paths to lower down to the Torch MLIR Dialect.
 - Github issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
 
+## Use pre-built snapshots of torch-mlir
+
+This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS
+
+```shell
+python -m venv mlir_venv
+source mlir_venv/bin/activate
+# Some older pip installs may not be able to handle the recent PyTorch deps
+python -m pip install --upgrade pip
+pip install torch-mlir -f https://github.com/llvm/torch-mlir/releases
+```
+
+## Demos
+
+### TorchScript RESNET18 
+
+Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
+
+```shell
+# The example uses PIL and requests to get the image.
+pip install requests pillow
+# Run ResNet18 as a standalone script.
+python examples/torchscript_resnet18.py
+
+load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
+Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
+100.0%
+PyTorch prediction
+[('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
+torch-mlir prediction
+[('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
+```
+
+Jupyter notebook:
+```shell
+python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
+# Open in jupyter, and then navigate to
+# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
+jupyter notebook
+```
+
+# Checkout and build from source
+
 ## Check out the code
 
 ```shell
@@ -120,16 +163,12 @@ cmake --build build --target check-torch-mlir-python
 cmake --build build
 ```
 
-## Demos
-
-## Setup Python Environment
+## Setup Python Environment to export the built Python packages
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
 ```
 
-### TorchScript
-
-Running execution (end-to-end) tests:
+## Running execution (end-to-end) tests:
 
 ```shell
 # Run E2E TorchScript tests. These compile and run the TorchScript program
@@ -139,30 +178,6 @@ python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 
 [Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
 
-Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
-
-```shell
-# The example uses PIL and requests to get the image.
-pip install requests pillow
-# Run ResNet18 as a standalone script.
-python examples/torchscript_resnet18.py
-
-load image from https://upload.wikimedia.org/wikipedia/commons/2/26/YellowLabradorLooking_new.jpg
-Downloading: "https://download.pytorch.org/models/resnet18-f37072fd.pth" to /home/mlir/.cache/torch/hub/checkpoints/resnet18-f37072fd.pth
-100.0%
-PyTorch prediction
-[('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
-torch-mlir prediction
-[('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
-```
-
-Jupyter notebook:
-```shell
-python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
-# Open in jupyter, and then navigate to
-# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
-jupyter notebook
-```
 
 ### LazyTensorCore
 
