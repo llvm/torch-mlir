@@ -27,6 +27,28 @@ jobs:
         cd $GITHUB_WORKSPACE
         python -m pip install wheel
         ./build_tools/python_deploy/build_linux_packages.sh
+              
+    # If we were given a release_id, then upload the package we just built
+    # to the github releases page.
+    - name: Upload Release Assets (if requested)
+      if: github.event.inputs.release_id != ''
+      id: upload-release-assets
+      uses: dwenegar/upload-release-assets@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
+        assets_path: ./build_tools/python_deploy/wheelhouse/*.whl
+    # Publishing is necessary to make the release visible to `pip`
+    # on the github releases page.
+    - name: Publish Release (if requested)
+      if: github.event.inputs.release_id != ''
+      id: publish_release
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
 
   build_macos:
     name: MacOS Build
@@ -46,7 +68,6 @@ jobs:
         sudo ./build_tools/python_deploy/install_macos_deps.sh
         python_versions="3.9 3.10" ./build_tools/python_deploy/build_macos_packages.sh
 
-
     # If we were given a release_id, then upload the package we just built
     # to the github releases page.
     - name: Upload Release Assets (if requested)
@@ -57,7 +78,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-        assets_path: ./wheelhouse/*.whl
+        assets_path: ./build_tools/python_deploy/wheelhouse/*.whl
     # Publishing is necessary to make the release visible to `pip`
     # on the github releases page.
     - name: Publish Release (if requested)
