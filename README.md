@@ -42,7 +42,9 @@ python -m venv mlir_venv
 source mlir_venv/bin/activate
 # Some older pip installs may not be able to handle the recent PyTorch deps
 python -m pip install --upgrade pip
-pip install torch-mlir -f https://github.com/llvm/torch-mlir/releases
+pip install --pre torch-mlir torchvision --extra-index-url https://github.com/llvm/torch-mlir/releases/tag/snapshot-20220422.5 --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+# Replace the Snapshot with the latest (TODO: resolve the need to use the snapshot URL).
+# This will install the corresponding torch and torchvision nightlies
 ```
 
 ## Demos
@@ -52,8 +54,9 @@ pip install torch-mlir -f https://github.com/llvm/torch-mlir/releases
 Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
 ```shell
-# The example uses PIL and requests to get the image.
-pip install requests pillow
+# Get the latest example if you haven't checked out the code
+wget https://raw.githubusercontent.com/llvm/torch-mlir/main/examples/torchscript_resnet18.py
+
 # Run ResNet18 as a standalone script.
 python examples/torchscript_resnet18.py
 
@@ -64,14 +67,6 @@ PyTorch prediction
 [('Labrador retriever', 70.66319274902344), ('golden retriever', 4.956596374511719), ('Chesapeake Bay retriever', 4.195662975311279)]
 torch-mlir prediction
 [('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
-```
-
-Jupyter notebook:
-```shell
-python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
-# Open in jupyter, and then navigate to
-# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
-jupyter notebook
 ```
 
 # Checkout and build from source
@@ -178,6 +173,14 @@ python -m e2e_testing.torchscript.main --filter Conv2d --verbose
 
 [Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
 
+
+Jupyter notebook:
+```shell
+python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
+# Open in jupyter, and then navigate to
+# `examples/resnet_inference.ipynb` and use the `torch-mlir` kernel to run.
+jupyter notebook
+```
 
 ### LazyTensorCore
 
