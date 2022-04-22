@@ -2,7 +2,7 @@ name: Release snapshot package
 
 on:
   schedule:
-    - cron: '0 10,22 * * *'
+    - cron: '0 11,22 * * *'
 
   workflow_dispatch:
 
