@@ -113,6 +113,9 @@ cmake --build build --target tools/torch-mlir/all
 # Run unit tests.
 cmake --build build --target check-torch-mlir
 
+# Run Python regression tests.
+cmake --build build --target check-torch-mlir-python
+
 # Build everything (including LLVM if in-tree)
 cmake --build build
 ```
