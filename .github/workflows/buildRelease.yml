@@ -38,7 +38,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-        assets_path: ./build_tools/python_deploy/wheelhouse/*.whl
+        assets_path: ./build_tools/python_deploy/wheelhouse/torch*.whl
     # Publishing is necessary to make the release visible to `pip`
     # on the github releases page.
     - name: Publish Release (if requested)
@@ -78,7 +78,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
-        assets_path: ./build_tools/python_deploy/wheelhouse/*.whl
+        assets_path: ./build_tools/python_deploy/wheelhouse/torch*.whl
     # Publishing is necessary to make the release visible to `pip`
     # on the github releases page.
     - name: Publish Release (if requested)
