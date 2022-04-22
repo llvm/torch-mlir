@@ -10,9 +10,11 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSDETAIL_H
 #define TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSDETAIL_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class ModuleOp;
 namespace torch {
 namespace Torch {
 

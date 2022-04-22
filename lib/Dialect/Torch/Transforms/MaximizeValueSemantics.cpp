@@ -355,7 +355,7 @@ class MaximizeValueSemanticsPass
 
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createMaximizeValueSemanticsPass() {
   return std::make_unique<MaximizeValueSemanticsPass>();
 }

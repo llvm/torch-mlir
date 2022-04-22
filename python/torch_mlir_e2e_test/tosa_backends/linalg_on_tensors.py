@@ -38,25 +38,25 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
         """
 
         # TOSA legalization may emit tosa.const() ops. These are legalized
-        # by tosa-to-standard to arith.constants. This mechanical transformation 
+        # by tosa-to-arith to arith.constants. This mechanical transformation 
         # must be done prior to TOSA-to-LinAlg so that the latter does not fail. 
         # This is an artifact of legalizations spread across a collection of simple
         # ones in TOSA-to-Standard and the main conversions TOSA-to-LinAlg, 
         # that depend on TOSA as well as TOSA-to-Standard.  
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-standard)",
-            "Lowering TOSA to Standard")
+            "func.func(tosa-to-arith)",
+            "Lowering TOSA to Arith")
 
         # Named ops must be legalized prior to general tosa-to-linalg
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-linalg-named)",
+            "func.func(tosa-to-linalg-named)",
             "Lowering TOSA to Linalg-on-Tensors for Named Ops")
 
         run_pipeline_with_repro_report(
             imported_module,
-            "builtin.func(tosa-to-linalg)",
+            "func.func(tosa-to-linalg)",
             "Lowering TOSA to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 

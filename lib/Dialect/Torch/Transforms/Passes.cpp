@@ -94,7 +94,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   if (options.optimize) {
     // Eliminate the PrimTupleIndexOp generated from the
     // adjustCallingConventions
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
     // Inline global slots, which for most inference scenarios deletes them.
     // This also exposes more information to intraprocedural transformations
     // below like MaximizeValueSemantics and RefineTypes.
@@ -105,14 +105,14 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   }
 
   // Reduce variants of ops to a smaller set of primitives.
-  pm.addNestedPass<FuncOp>(createReduceOpVariantsPass());
+  pm.addNestedPass<func::FuncOp>(createReduceOpVariantsPass());
 
   if (options.optimize) {
     // OPT-ONLY: Right now we rely on this to eliminate certain branches that
     // guard unreachable code that backends can't handle yet, such as lists,
     // RaiseException, unimplemented tensor ops, and only-used-in-training
     // operations on `torch.global_slot`'s.
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
     // OPT-ONLY: We may have deleted some `torch.global_slot.get` /
     // `torch.global_slot.get` ops, which may have left more
     // `torch.global_slot`'s unused.
@@ -124,7 +124,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   //===--------------------------------------------------------------------===//
 
   // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
-  pm.addNestedPass<FuncOp>(Torch::createMaximizeValueSemanticsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
   // Do shape refinement.
   // This must be run before RefineTypes (which primarily does dtype inference),
@@ -132,7 +132,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // operand.
   createTorchShapeRefinementPipeline(pm, options);
   // Refine types in the program, which mainly means inferring dtypes of ops.
-  pm.addNestedPass<FuncOp>(Torch::createRefineTypesPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createRefineTypesPass());
 
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
@@ -142,7 +142,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // This can fold away some branches given the information got from
     // RefineTypes before doing maximize value sematics which only works with
     // basic blocks.
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
 
   if (options.optimize) {
@@ -152,9 +152,9 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // branches that guard unreachable code that backends can't handle yet, such
     // as lists, RaiseException, unimplemented aten ops, and
     // only-used-in-training operations on `torch.global_slot`'s.
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
-  pm.addNestedPass<FuncOp>(Torch::createDecomposeComplexOpsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createDecomposeComplexOpsPass());
 
   // TODO: VerifyTorchBackendContractPass.
 }
@@ -172,11 +172,11 @@ void mlir::torch::Torch::createTorchShapeRefinementPipeline(
   // as hard as possible" kind of thing, so it's inherently somewhat brittle.
   // The idea is to keep strengthening what we do here to support the shape
   // library. We don't need to support arbitrary programs, thankfully.
-  pm.addNestedPass<FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createSimplifyShapeCalculationsPass());
   // Run CSE, then see if we can simplify further.
-  pm.addNestedPass<FuncOp>(createCSEPass());
-  pm.addNestedPass<FuncOp>(Torch::createSimplifyShapeCalculationsPass());
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createSimplifyShapeCalculationsPass());
 
   // Drop shape calculations, leaving behind the shape-refined program.
-  pm.addNestedPass<FuncOp>(Torch::createDropShapeCalculationsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createDropShapeCalculationsPass());
 }

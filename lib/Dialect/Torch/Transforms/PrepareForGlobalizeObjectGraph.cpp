@@ -33,10 +33,10 @@ public:
     auto classType = symbolTable.lookup<ClassTypeOp>(
         op.receiver().getType().cast<NnModuleType>().getClassName());
     assert(classType && "malformed module -- missing ClassTypeOp");
-    FuncOp func;
+    func::FuncOp func;
     for (auto method : classType.getOps<MethodOp>()) {
       if (method.name() == op.name()) {
-        func = symbolTable.lookup<FuncOp>(method.function());
+        func = symbolTable.lookup<func::FuncOp>(method.function());
         break;
       }
     }

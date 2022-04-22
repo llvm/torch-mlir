@@ -415,7 +415,7 @@ class SimplifyShapeCalculationsPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createSimplifyShapeCalculationsPass() {
   return std::make_unique<SimplifyShapeCalculationsPass>();
 }

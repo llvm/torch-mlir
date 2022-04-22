@@ -24,18 +24,18 @@ def InsertRngGlobals: Pass<"refback-insert-rng-globals", "ModuleOp"> {
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
-def ExpandOpsForLLVM : Pass<"refback-expand-ops-for-llvm", "FuncOp"> {
+def ExpandOpsForLLVM : Pass<"refback-expand-ops-for-llvm", "func::FuncOp"> {
   let summary = "Expand ops into more primitive ops before LLVM lowering.";
   let constructor = "mlir::torch::RefBackend::createExpandOpsForLLVMPass();";
 }
 
-def MungeMemrefCopy : Pass<"refback-munge-memref-copy", "FuncOp"> {
+def MungeMemrefCopy : Pass<"refback-munge-memref-copy", "func::FuncOp"> {
   let summary = "Munge memref.copy to linalg.copy";
   let constructor = "mlir::torch::RefBackend::createMungeMemrefCopyPass();";
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
-def GeneralizeTensorPad : Pass<"refback-generalize-tensor-pad", "FuncOp"> {
+def GeneralizeTensorPad : Pass<"refback-generalize-tensor-pad", "func::FuncOp"> {
   let summary = "Convert tensor.pad to linalg ops";
   let constructor = "mlir::torch::RefBackend::createGeneralizeTensorPadPass()";
 }

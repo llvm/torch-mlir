@@ -1191,7 +1191,7 @@ static bool isSafeToRefineOperandInPlace(OpOperand *use, Type newOperandType) {
   return operationIsValidWithRefinedType(use, newOperandType);
 }
 
-void optimize(FuncOp func, TypeAnalyzer &analyzer) {
+void optimize(func::FuncOp func, TypeAnalyzer &analyzer) {
   func.walk([&](Operation *op) {
     auto convertValuesToMostRefinedType = [&](ValueRange values, OpBuilder &b) {
       for (Value v : values) {
@@ -1336,7 +1336,7 @@ class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createRefineTypesPass() {
   return std::make_unique<RefineTypesPass>();
 }

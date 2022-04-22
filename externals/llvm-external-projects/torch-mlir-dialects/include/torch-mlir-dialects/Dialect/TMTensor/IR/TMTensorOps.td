@@ -31,9 +31,7 @@ class TMTensor_Op<string mnemonic, list<Trait> traits = []> :
          TMTensorInterface,
          SingleBlockImplicitTerminator<"::mlir::torch::TMTensor::YieldOp">
   ])> {
-  let verifier = [{ return verify$cppClass(*this); }];
-  let printer = [{ return print$cppClass(p, *this); }];
-  let parser = [{ return parse$cppClass(parser, result); }];
+  let hasVerifier = 1;
   code extraTMTensorOpClassDeclaration = [{
     SmallVector<Value> getDestinationOperands(OpBuilder &b) {
       SmallVector<Value> dest(outputs().begin(), outputs().end());

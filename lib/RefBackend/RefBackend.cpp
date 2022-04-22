@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -68,7 +68,7 @@ static bool isArgMemRefTypeValid(Type type) {
   return false;
 }
 
-static void addEmitCInterfaceAttr(FuncOp func) {
+static void addEmitCInterfaceAttr(func::FuncOp func) {
   func->setAttr("llvm.emit_c_interface", UnitAttr::get(func.getContext()));
 }
 
@@ -115,7 +115,7 @@ static void replaceReturnWithCall(OpBuilder b, func::ReturnOp op,
 }
 
 static LogicalResult mungeFunction(
-    FuncOp func,
+    func::FuncOp func,
     std::map<std::string, std::vector<Type>> &invokedConsumeFuncReturnFuncs) {
   // Only need to call mungeFunction for functions callable from outside of the
   // module.
@@ -188,17 +188,17 @@ class MungeCallingConventions
     auto module = getOperation();
     OpBuilder b(module.getBodyRegion());
     std::map<std::string, std::vector<Type>> invokedConsumeFuncReturnFuncs;
-    for (auto func : module.getOps<FuncOp>()) {
+    for (auto func : module.getOps<func::FuncOp>()) {
       if (failed(mungeFunction(func, invokedConsumeFuncReturnFuncs)))
         return signalPassFailure();
     }
 
     // Create FuncOp for consumeFuncReturnFuncs that are used.
     for (auto &p : invokedConsumeFuncReturnFuncs) {
-      auto consumeFuncReturnFunc =
-          b.create<FuncOp>(module.getLoc(), p.first,
-                           FunctionType::get(module.getContext(), p.second, {}),
-                           b.getStringAttr("private"));
+      auto consumeFuncReturnFunc = b.create<func::FuncOp>(
+          module.getLoc(), p.first,
+          FunctionType::get(module.getContext(), p.second, {}),
+          b.getStringAttr("private"));
       addEmitCInterfaceAttr(consumeFuncReturnFunc);
     }
   }
@@ -309,7 +309,7 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::RefBackend::createExpandOpsForLLVMPass() {
   return std::make_unique<ExpandOpsForLLVM>();
 }
@@ -366,7 +366,7 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::RefBackend::createMungeMemrefCopyPass() {
   return std::make_unique<MungeMemrefCopy>();
 }
@@ -390,7 +390,7 @@ class GeneralizeTensorPad
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::RefBackend::createGeneralizeTensorPadPass() {
   return std::make_unique<GeneralizeTensorPad>();
 }

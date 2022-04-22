@@ -1,7 +1,7 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
 
 // CHECK-LABEL: func @forward
-builtin.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
+func.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
   %int1 = torch.constant.int 1
   %int2 = torch.constant.int 2
   %int3 = torch.constant.int 3

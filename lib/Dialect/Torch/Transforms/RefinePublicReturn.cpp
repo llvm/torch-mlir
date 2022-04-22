@@ -25,7 +25,7 @@ class RefinePublicReturnPass
     : public RefinePublicReturnBase<RefinePublicReturnPass> {
   void runOnOperation() override {
     auto module = getOperation();
-    module.walk([&](FuncOp func) {
+    module.walk([&](func::FuncOp func) {
       if (func.getVisibility() != SymbolTable::Visibility::Public)
         return;
       if (func.isExternal())
@@ -40,7 +40,7 @@ class RefinePublicReturnPass
     });
   }
 
-  void rewriteSignature(FuncOp func) {
+  void rewriteSignature(func::FuncOp func) {
     // Find the unique return op.
     func::ReturnOp returnOp;
     WalkResult walkResult = func.walk([&](func::ReturnOp op) {
@@ -90,7 +90,7 @@ class RefinePublicReturnPass
     returnOp->setOperands(newOperands);
 
     // Update the function type.
-    auto funcType = func.getType();
+    auto funcType = func.getFunctionType();
     func.setType(FunctionType::get(funcType.getContext(), funcType.getInputs(),
                                    ValueRange(newOperands).getTypes()));
   }

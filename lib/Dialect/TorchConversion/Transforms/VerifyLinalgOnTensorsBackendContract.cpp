@@ -9,6 +9,8 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -60,7 +62,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, FuncOp, func::ReturnOp>(
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
         opHasLegalTypes);
 
     target.addDynamicallyLegalOp<GetNextSeedOp>(opHasLegalTypes);

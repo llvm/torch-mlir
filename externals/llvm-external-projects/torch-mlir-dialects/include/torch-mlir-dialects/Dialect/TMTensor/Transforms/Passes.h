@@ -10,14 +10,15 @@
 #ifndef TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_TRANSFORMS_PASSES_H_
 #define TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_TRANSFORMS_PASSES_H_
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace torch {
 namespace TMTensor {
 
-std::unique_ptr<OperationPass<FuncOp>> createTMTensorToLoopsPass();
-std::unique_ptr<OperationPass<FuncOp>> createTMTensorBufferizePass();
+std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorToLoopsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorBufferizePass();
 
 void registerPasses();
 

@@ -463,7 +463,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
           $_op->getAttrs());
         for (Region &r : $_op->getRegions())
           r.cloneInto(state.addRegion(), bvm);
-        return b.createOperation(state);
+        return b.create(state);
       }]
     >
   ];

@@ -115,15 +115,15 @@ class RefBackendInvoker:
 
 
 LOWERING_PIPELINE = ",".join([
-    "builtin.func(refback-generalize-tensor-pad)",
+    "func.func(refback-generalize-tensor-pad)",
     # Bufferize.
-    "builtin.func(scf-bufferize)",
-    "builtin.func(tm-tensor-bufferize)",
-    "builtin.func(linalg-bufferize)",
+    "func.func(scf-bufferize)",
+    "func.func(tm-tensor-bufferize)",
+    "func.func(linalg-bufferize)",
     "func-bufferize",
     "arith-bufferize",
-    "builtin.func(tensor-bufferize)",
-    "builtin.func(finalizing-bufferize)",
+    "func.func(tensor-bufferize)",
+    "func.func(finalizing-bufferize)",
     # Munge to make it ExecutionEngine compatible.
     # Specifically, we rewrite calling convention boundaries to be in terms
     # of unranked memref, and we rewrite the return to actually be a
@@ -135,17 +135,17 @@ LOWERING_PIPELINE = ",".join([
     # global seed used in stateful rng.
     "refback-insert-rng-globals",
     # Lower to LLVM
-    "builtin.func(tm-tensor-to-loops)",
-    "builtin.func(refback-munge-memref-copy)",
-    "builtin.func(convert-linalg-to-loops)",
-    "builtin.func(lower-affine)",
+    "func.func(tm-tensor-to-loops)",
+    "func.func(refback-munge-memref-copy)",
+    "func.func(convert-linalg-to-loops)",
+    "func.func(lower-affine)",
     "convert-scf-to-cf",
-    "builtin.func(refback-expand-ops-for-llvm)",
-    "builtin.func(arith-expand)",
-    "builtin.func(convert-math-to-llvm)",
+    "func.func(refback-expand-ops-for-llvm)",
+    "func.func(arith-expand)",
+    "func.func(convert-math-to-llvm)",
     "convert-linalg-to-llvm",
     "convert-memref-to-llvm",
-    "builtin.func(convert-arith-to-llvm)",
+    "func.func(convert-arith-to-llvm)",
     "convert-func-to-llvm",
     "convert-cf-to-llvm",
     "reconcile-unrealized-casts",

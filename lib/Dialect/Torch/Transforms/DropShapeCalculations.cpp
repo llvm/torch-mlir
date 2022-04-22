@@ -54,7 +54,7 @@ class DropShapeCalculationsPass
     patterns.insert<DropShapeCalculateOp>(context);
     ConversionTarget target(*context);
     target.addIllegalOp<ShapeCalculateOp>();
-    target.addLegalOp<FuncOp>();
+    target.addLegalOp<func::FuncOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
@@ -64,7 +64,7 @@ class DropShapeCalculationsPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createDropShapeCalculationsPass() {
   return std::make_unique<DropShapeCalculationsPass>();
 }

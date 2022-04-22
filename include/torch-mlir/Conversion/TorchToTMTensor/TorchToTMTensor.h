@@ -10,11 +10,12 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHTOTMTENSOR_TORCHTOTMTENSOR_H
 #define TORCHMLIR_CONVERSION_TORCHTOTMTENSOR_TORCHTOTMTENSOR_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<FuncOp>> createConvertTorchToTMTensorPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTMTensorPass();
 }
 } // namespace mlir
 

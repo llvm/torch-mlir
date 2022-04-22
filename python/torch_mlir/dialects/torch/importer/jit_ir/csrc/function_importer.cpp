@@ -36,8 +36,8 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
   MlirAttribute symNameAttr = mlirStringAttrGet(
       context, toMlirStringRef(function->qualname().qualifiedName()));
   MlirOperation func = createMlirOperation(
-      "builtin.func", loc, mlirRegionCreate(),
-      toMlirNamedAttribute("type", mlirTypeAttrGet(functionType)),
+      "func.func", loc, mlirRegionCreate(),
+      toMlirNamedAttribute("function_type", mlirTypeAttrGet(functionType)),
       toMlirNamedAttribute("sym_name", symNameAttr));
   std::vector<MlirAttribute> argAttrDicts;
   for (int i = 0, e = mlirFunctionTypeGetNumInputs(functionType); i != e; i++) {

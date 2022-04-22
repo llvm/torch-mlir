@@ -10,12 +10,13 @@
 #ifndef TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H
 #define TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include <memory>
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<FuncOp>> createConvertTorchToLinalgPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass();
 }
 } // namespace mlir
 

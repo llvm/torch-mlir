@@ -3170,7 +3170,7 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::createConvertTorchToTosaPass() {
   return std::make_unique<ConvertTorchToTosa>();
 }
