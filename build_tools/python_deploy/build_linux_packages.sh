@@ -42,9 +42,13 @@ script_name="$(basename $0)"
 repo_root="$(cd $this_dir/../../ && pwd)"
 script_name="$(basename $0)"
 manylinux_docker_image="${manylinux_docker_image:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
-python_versions="${python_versions:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310}"
+python_versions="${TM_PYTHON_VERSIONS:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
+
+PKG_VER_FILE=${repo_root}/torch_mlir_package_version ; [ -f $PKG_VER_FILE ] && . $PKG_VER_FILE
+export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
+echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_VERSION}"
 
 function run_on_host() {
   echo "Running on host"
@@ -56,6 +60,7 @@ function run_on_host() {
     -v "${repo_root}:/main_checkout/torch-mlir" \
     -v "${output_dir}:/wheelhouse" \
     -e __MANYLINUX_BUILD_WHEELS_IN_DOCKER=1 \
+    -e "TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION}" \
     -e "python_versions=${python_versions}" \
     -e "packages=${packages}" \
     ${manylinux_docker_image} \
@@ -97,6 +102,7 @@ function run_in_docker() {
 function build_torch_mlir() {
   python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
+  TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
     --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 }
