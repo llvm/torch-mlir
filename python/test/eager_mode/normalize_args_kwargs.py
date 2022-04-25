@@ -13,7 +13,8 @@ from torch_mlir.eager_mode.torch_mlir_dispatch import normalize_args_kwargs
 
 
 # CHECK: PASS - should_normalize
-@run_test
+# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
+@run_test(XFAIL=True)
 def should_normalize():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -37,7 +38,8 @@ def should_normalize():
 
 # CHECK: FAIL - shouldnt_normalize1
 # CHECK: Couldn't normalize args and kwargs
-@run_test
+# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
+@run_test(XFAIL=True)
 def shouldnt_normalize1():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
