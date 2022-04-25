@@ -19,6 +19,7 @@
 #include "../utils/exception.h"
 #include "backend_impl.h"
 #include "mlir_lowering_context.h"
+#include "ir_builder.h"
 
 namespace torch {
 namespace lazy {
@@ -71,6 +72,16 @@ TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
  * Initialization/Teardown
  * */
 void TorchMlirBackendImpl::PrepareToExit() const {}
+
+
+/**
+  * IR Tracing
+  * */
+
+const IrBuilder* TorchMlirBackendImpl::GetIrBuilder() const {
+  static const IrBuilder* builder = new TorchMlirIrBuilder();
+  return builder;
+}
 
 /**
  * Data Transfer

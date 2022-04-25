@@ -27,8 +27,8 @@
 
 #include "../utils/exception.h"
 #include "../utils/sys_utils.h"
-#include "LazyNativeFunctions.h"
-#include "LazyShapeInference.h"
+#include "generated/LazyNativeFunctions.h"
+#include "generated/LazyShapeInference.h"
 
 namespace torch {
 namespace lazy {

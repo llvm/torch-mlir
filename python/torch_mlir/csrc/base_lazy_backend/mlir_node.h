@@ -27,10 +27,30 @@ namespace lazy {
 
 class TORCH_API TorchMlirNode : public torch::lazy::Node {
 public:
-  using torch::lazy::Node::Node;
+  TorchMlirNode(OpKind op, OpList operands, std::vector<Shape>&& shapes,
+                size_t num_outputs, hash_t hash_seed = kHashSeed);
+
+  TorchMlirNode(OpKind op, OpList operands, const std::function<Shape()>& shape_fn,
+                size_t num_outputs, hash_t hash_seed = kHashSeed);
+
+  TorchMlirNode(OpKind op, OpList operands, size_t num_outputs, hash_t hash_seed = kHashSeed);
+
+  TorchMlirNode(OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed = kHashSeed);
+
+  hash_t hash() const override;
+
+  hash_t shapeHash() const override;
 
   virtual TorchMlirOpVector
   Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const;
+
+private:
+  // The hash of the dag WITH size info. Used for shape caching
+  hash_t shape_hash_;
+  // The hash of the dag used to look up the compiled graph by a hash
+  // in this case, we will use the dag hash WITHOUT size info if dynamic shape is enabled
+  // and use the dag hash WITH size info otherwise.
+  hash_t dag_hash_;
 };
 
 } // namespace lazy

@@ -66,6 +66,12 @@ public:
   virtual void PrepareToExit() const override;
 
   /**
+   * IR Tracing
+   * */
+
+  const IrBuilder* GetIrBuilder() const override;
+
+  /**
    * Configuration
    * */
   // virtual void SetRngSeed(size_t seed) const = 0;
