@@ -166,3 +166,16 @@ func @torch.aten.div.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.f
   %0 = torch.aten.div.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
   return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func @torch.aten.ge.float(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.bool {
+// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK:           %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:           %[[CMP:.*]] = arith.cmpf uge, %[[LHS_F64]], %[[RHS_F64]] : f64
+// CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
+// CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
+func @torch.aten.ge.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.bool {
+  %0 = torch.aten.ge.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.bool
+  return %0 : !torch.bool
+}
