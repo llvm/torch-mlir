@@ -65,8 +65,13 @@ void TorchMlirLoweringContext::SetUpAlias(
       {output_index, param_number, param_index, must_alias});
 }
 
+bool TorchMlirLoweringContext::CheckResultShape(
+    const BackendDataPtr& parameter_data, int64_t result_idx) {
+  return Shape(parameter_data->shape()) == GetResultShape(result_idx);
+}
+
 // Get the shape of the result tuple component, given by index.
-c10::optional<torch::lazy::Shape>
+torch::lazy::Shape
 TorchMlirLoweringContext::GetResultShape(size_t index) const {
   TORCH_CHECK(
       index < root_tuple_.size(), "Tried getting result shape at index ", index,
@@ -86,7 +91,7 @@ TorchMlirLoweringContext::GetResultShape(size_t index) const {
   }
 
   // No shape information.
-  return c10::nullopt;
+  return Shape();
 }
 
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
