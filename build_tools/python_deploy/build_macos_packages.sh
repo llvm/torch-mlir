@@ -24,6 +24,10 @@ python_versions="${python_versions:-3.9 3.10}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
+PKG_VER_FILE=${repo_root}/torch_mlir_package_version ; [ -f $PKG_VER_FILE ] && . $PKG_VER_FILE
+export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
+echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_VERSION}"
+
 # Note that this typically is selected to match the version that the official
 # Python distributed is built at.
 export MACOSX_DEPLOYMENT_TARGET=11.0
@@ -62,6 +66,7 @@ function run() {
 function build_torch_mlir() {
   python -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
+  TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   MACOSX_DEPLOYMENT_TARGET=11.0 \
   CMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
   python -m pip wheel -v -w $output_dir $repo_root --extra-index-url https://download.pytorch.org/whl/nightly/cpu
