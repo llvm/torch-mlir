@@ -12,9 +12,8 @@ from framework import run_test
 from torch_mlir.eager_mode.torch_mlir_dispatch import normalize_args_kwargs
 
 
-# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
-# CHECK: XFAIL - should_normalize
-@run_test(XFAIL=True)
+# CHECK: PASS - should_normalize
+@run_test
 def should_normalize():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -36,10 +35,9 @@ def should_normalize():
         assert v == golden[k]
 
 
-# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
-# CHECK: XFAIL - shouldnt_normalize1
+# CHECK: FAIL - shouldnt_normalize1
 # CHECK: Couldn't normalize args and kwargs
-@run_test(XFAIL=True)
+@run_test
 def shouldnt_normalize1():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -47,10 +45,14 @@ def shouldnt_normalize1():
     normalize_args_kwargs(target, args, kwargs)
 
 
-# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
-# CHECK: XFAIL - shouldnt_normalize2
-# CHECK: Couldn't normalize args and kwargs
-@run_test(XFAIL=True)
+# This next two tests are XPASS because of https://github.com/pytorch/pytorch/issues/75342
+# I.e., they should fail but in fact they pass because of the upstream bug.
+# The reason for the bug is a fast path branch in operator_schemas.normalize_function
+# that doesn't do rigorous type checking, and hence lets type mistmatches slip through.
+# TODO(max): change these to FAIL when the upstream bug is fixed.
+
+# CHECK: XPASS - shouldnt_normalize2
+@run_test(XPASS=True)
 def shouldnt_normalize2():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
@@ -58,10 +60,8 @@ def shouldnt_normalize2():
     normalize_args_kwargs(target, args, kwargs)
 
 
-# TODO:Fix me. Tracked with https://github.com/llvm/torch-mlir/issues/789
-# CHECK: XFAIL - shouldnt_normalize3
-# CHECK: Couldn't normalize args and kwargs
-@run_test(XFAIL=True)
+# CHECK: XPASS - shouldnt_normalize3
+@run_test(XPASS=True)
 def shouldnt_normalize3():
     target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
     args = (torch.randn((1, 3, 32, 32)),)
