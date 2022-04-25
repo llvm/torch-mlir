@@ -69,10 +69,7 @@ public:
 
   // Check if parameter shape matches result at index.
   bool CheckResultShape(
-      const BackendDataPtr& parameter_data, int64_t result_idx) override;
-
-  // Get the shape of the result tuple component, given by index.
-  torch::lazy::Shape GetResultShape(size_t index) const override;
+      const BackendDataPtr& parameter_data, size_t result_idx) override;
 
   // Adds the given output as a component of the result tuple and returns its
   // assigned position within the tuple.

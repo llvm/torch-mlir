@@ -66,18 +66,12 @@ void TorchMlirLoweringContext::SetUpAlias(
 }
 
 bool TorchMlirLoweringContext::CheckResultShape(
-    const BackendDataPtr& parameter_data, int64_t result_idx) {
-  return Shape(parameter_data->shape()) == GetResultShape(result_idx);
-}
-
-// Get the shape of the result tuple component, given by index.
-torch::lazy::Shape
-TorchMlirLoweringContext::GetResultShape(size_t index) const {
+    const BackendDataPtr& parameter_data, size_t result_idx) {
   TORCH_CHECK(
-      index < root_tuple_.size(), "Tried getting result shape at index ", index,
-      " which is out of bounds!");
+      result_idx < root_tuple_.size(), "Tried getting result shape at index ",
+      result_idx, " which is out of bounds!");
 
-  torch::jit::Value* output = root_tuple_[index];
+  torch::jit::Value* output = root_tuple_[result_idx];
 
   if (c10::TensorTypePtr tensor_type =
           output->type()->cast<c10::TensorType>()) {
@@ -86,12 +80,12 @@ TorchMlirLoweringContext::GetResultShape(size_t index) const {
 
     // Not guaranteed to have concrete size, so we need to check it exists.
     if (scalar_type && sizes) {
-      return Shape(scalar_type.value(), c10::ArrayRef<int64_t>(sizes.value()));
+      return Shape(parameter_data->shape()) ==
+             Shape(scalar_type.value(), c10::ArrayRef<int64_t>(sizes.value()));
     }
   }
 
-  // No shape information.
-  return Shape();
+  return false;
 }
 
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
