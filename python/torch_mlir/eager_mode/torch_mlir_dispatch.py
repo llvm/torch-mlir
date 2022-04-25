@@ -63,7 +63,7 @@ def normalize_args_kwargs(target: Callable, args: Tuple[Any], kwargs: Dict[str, 
     }
 
     new_args_and_kwargs = normalize_function(
-        target, args, kwargs, arg_types, kwarg_types, normalize_to_only_use_kwargs=False
+        target.op, args, kwargs, arg_types, kwarg_types, normalize_to_only_use_kwargs=False
     )
     assert new_args_and_kwargs, "Couldn't normalize args and kwargs"
     new_args, new_kwargs = new_args_and_kwargs
