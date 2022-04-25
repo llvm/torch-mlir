@@ -6678,6 +6678,31 @@ def Torch_AtenGtFloatOp : Torch_Op<"aten.gt.float", [
   let hasFolder = 1;
 }
 
+def Torch_AtenGeFloatOp : Torch_Op<"aten.ge.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ge.float : (float, float) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenGeFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenGeFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenLtFloatOp : Torch_Op<"aten.lt.float", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -6722,6 +6747,78 @@ def Torch_AtenLtFloatIntOp : Torch_Op<"aten.lt.float_int", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void AtenLtFloatIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenGeFloatIntOp : Torch_Op<"aten.ge.float_int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ge.float_int : (float, int) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_IntType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenGeFloatIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenGeFloatIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenNeFloatIntOp : Torch_Op<"aten.ne.float_int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ne.float_int : (float, int) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_IntType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNeFloatIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenNeFloatIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenGtFloatIntOp : Torch_Op<"aten.gt.float_int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::gt.float_int : (float, int) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_IntType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenGtFloatIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenGtFloatIntOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
@@ -6968,6 +7065,30 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+}
+
+def Torch_AtenCeilFloatOp : Torch_Op<"aten.ceil.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ceil.float : (float) -> (int)`";
+  let arguments = (ins
+    Torch_FloatType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCeilFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenCeilFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
 }
 
 def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [

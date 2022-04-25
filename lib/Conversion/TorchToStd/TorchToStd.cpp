@@ -13,9 +13,11 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
@@ -77,6 +79,25 @@ public:
 } // namespace
 
 namespace {
+template <typename AtenOp, typename UnaryOp>
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOp> {
+public:
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    Value result = rewriter.create<UnaryOp>(op.getLoc(), adaptor.a());
+    rewriter.replaceOp(
+        op, convertScalarToDtype(rewriter, op.getLoc(), result, resultType));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Lowers aten integer comparison ops.
 template <typename AtenOp, arith::CmpIPredicate Pred>
 class ConvertAtenIntComparisonOp : public OpConversionPattern<AtenOp> {
@@ -88,6 +109,24 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, Pred, adaptor.a(),
                                                adaptor.b());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Lowers aten float and float_int comparison ops.
+template <typename AtenOp, arith::CmpFPredicate Pred>
+class ConvertAtenFloatComparisonOp : public OpConversionPattern<AtenOp> {
+public:
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.a(), rhs = adaptor.b();
+    rhs = convertScalarToDtype(rewriter, op.getLoc(), rhs, lhs.getType());
+    rewriter.replaceOpWithNewOp<arith::CmpFOp>(op, Pred, lhs, rhs);
     return success();
   }
 };
@@ -163,6 +202,7 @@ public:
     registry.insert<arith::ArithmeticDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<cf::ControlFlowDialect>();
+    registry.insert<math::MathDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -171,7 +211,7 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, func::FuncDialect,
                            arith::ArithmeticDialect, tensor::TensorDialect,
-                           cf::ControlFlowDialect>();
+                           cf::ControlFlowDialect, math::MathDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -191,6 +231,20 @@ public:
             typeConverter, context);
     patterns.add<
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
+        typeConverter, context);
+    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp,
+                        AtenGtFloatIntOp>();
+    patterns.add<
+        ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenFloatComparisonOp<AtenGeFloatIntOp,
+                                              arith::CmpFPredicate::UGE>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenFloatComparisonOp<AtenNeFloatIntOp,
+                                              arith::CmpFPredicate::UNE>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenFloatComparisonOp<AtenGtFloatIntOp,
+                                              arith::CmpFPredicate::UGT>>(
         typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
     patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);
@@ -216,6 +270,9 @@ public:
         typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
+        typeConverter, context);
+    target.addIllegalOp<AtenCeilFloatOp>();
+    patterns.add<ConvertAtenUnaryOp<AtenCeilFloatOp, math::CeilOp>>(
         typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,

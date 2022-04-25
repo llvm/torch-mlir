@@ -1186,3 +1186,50 @@ func @torch.aten.to.dtype_layout$same_dtype(%arg0: !torch.tensor<[?,?],f32>) -> 
   %0 = torch.aten.to.dtype_layout %arg0, %int6, %none, %none, %none, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
   return %0 : !torch.tensor<[?,?],f32>
 }
+
+// CHECK-LABEL:   func @torch.aten.ge.float$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.float) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.float$same_operand(%arg0: !torch.float) -> !torch.bool {
+  %2 = torch.aten.ge.float %arg0, %arg0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.float$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.float$same_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float4_0 = torch.constant.float 4.0
+  %2 = torch.aten.ge.float %float4, %float4_0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.float$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.ge.float$different_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float4_0 = torch.constant.float 5.0
+  %2 = torch.aten.ge.float %float4, %float4_0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ceil.float$fold_cst() -> !torch.int {
+// CHECK:           %[[CST2:.*]] = torch.constant.int 2
+// CHECK:           return %[[CST2]] : !torch.int
+func @torch.aten.ceil.float$fold_cst() -> !torch.int {
+  %float = torch.constant.float 1.5
+  %1 = torch.aten.ceil.float %float : !torch.float -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.ceil.float$no_fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.float) -> !torch.int {
+// CHECK:           %[[RESULT:.*]] = torch.aten.ceil.float %[[ARG]] : !torch.float -> !torch.int
+// CHECK:           return %[[RESULT]] : !torch.int
+func @torch.aten.ceil.float$no_fold(%arg0 : !torch.float) -> !torch.int {
+  %1 = torch.aten.ceil.float %arg0 : !torch.float -> !torch.int
+  return %1 : !torch.int
+}

@@ -501,8 +501,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::neg.float : (float) -> (float)")
     emit("aten::eq.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::gt.float : (float, float) -> (bool)", has_folder=True)
+    emit("aten::ge.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::lt.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::lt.float_int : (float, int) -> (bool)")
+    emit("aten::ge.float_int : (float, int) -> (bool)")
+    emit("aten::ne.float_int : (float, int) -> (bool)")
+    emit("aten::gt.float_int : (float, int) -> (bool)")
     emit("aten::__and__.bool : (bool, bool) -> (bool)")
     emit("aten::ne.bool : (bool, bool) -> (bool)", has_folder=True)
     emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
@@ -515,6 +519,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
     emit("aten::div : (Scalar, Scalar) -> (float)")
     emit("aten::eq.device : (Device, Device) -> (bool)")
+    emit("aten::ceil.float : (float) -> (int)", has_folder=True)
 
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
