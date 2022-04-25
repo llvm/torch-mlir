@@ -858,6 +858,15 @@ OpFoldResult AtenGtFloatOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenGeFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenGeFloatOp::fold(ArrayRef<Attribute> operands) {
+  return floatComparatorFoldHelper(*this,
+                                   [](double a, double b) { return a >= b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenEqFloatOp
 //===----------------------------------------------------------------------===//
 
@@ -1601,6 +1610,16 @@ OpFoldResult AtenDivFloatOp::fold(ArrayRef<Attribute> operands) {
     return getF64FloatAttr(getContext(), lhs);
   if (lConstant && rConstant)
     return getF64FloatAttr(getContext(), lhs / rhs);
+  return nullptr;
+}
+
+// AtenCeilFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilFloatOp::fold(ArrayRef<Attribute> operands) {
+  double c;
+  if (matchPattern(getOperand(), m_TorchConstantFloat(&c)))
+    return getI64IntegerAttr(getContext(), std::ceil(c));
   return nullptr;
 }
 

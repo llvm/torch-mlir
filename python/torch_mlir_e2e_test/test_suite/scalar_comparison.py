@@ -11,7 +11,9 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class NeIntModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -29,9 +31,12 @@ class NeIntModule(torch.nn.Module):
 def NeIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
 
+
 # ==============================================================================
 
+
 class EqIntModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -49,9 +54,12 @@ class EqIntModule(torch.nn.Module):
 def EqIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
 
+
 # ==============================================================================
 
+
 class GtIntModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -69,3 +77,94 @@ class GtIntModule(torch.nn.Module):
 def GtIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
 
+
+# ==============================================================================
+
+
+class GeFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+        ([], torch.float64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return float(lhs) >= float(rhs)
+
+
+@register_test_case(module_factory=lambda: GeFloatModule())
+def GeFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(()).double(), torch.randn(()).double())
+
+
+# ==============================================================================
+
+
+class GeFloatIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return float(lhs) >= int(rhs)
+
+
+@register_test_case(module_factory=lambda: GeFloatIntModule())
+def GeFloatIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(()).double(), torch.randint(-100, 100, ()))
+
+
+# ==============================================================================
+
+
+class NeFloatIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return float(lhs) != int(rhs)
+
+
+@register_test_case(module_factory=lambda: NeFloatIntModule())
+def NeFloatIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(()).double(), torch.randint(-100, 100, ()))
+
+
+# ==============================================================================
+
+
+class GtFloatIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return float(lhs) > int(rhs)
+
+
+@register_test_case(module_factory=lambda: GtFloatIntModule())
+def GtFloatIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(()).double(), torch.randint(-100, 100, ()))
