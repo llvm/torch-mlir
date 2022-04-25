@@ -1162,3 +1162,32 @@ func @torch.aten.div.float$fold_cst_operands() -> !torch.float {
   %0 = torch.aten.div.float %float4, %float2 : !torch.float, !torch.float -> !torch.float
   return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func @torch.aten.ge.float$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.float) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.float$same_operand(%arg0: !torch.float) -> !torch.bool {
+  %2 = torch.aten.ge.float %arg0, %arg0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.float$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func @torch.aten.ge.float$same_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float4_0 = torch.constant.float 4.0
+  %2 = torch.aten.ge.float %float4, %float4_0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func @torch.aten.ge.float$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func @torch.aten.ge.float$different_value() -> !torch.bool {
+  %float4 = torch.constant.float 4.0
+  %float4_0 = torch.constant.float 5.0
+  %2 = torch.aten.ge.float %float4, %float4_0: !torch.float, !torch.float -> !torch.bool
+  return %2 : !torch.bool
+}
