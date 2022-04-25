@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
@@ -94,7 +95,7 @@ public:
 } // namespace
 
 namespace {
-// Lowers aten float comparison ops.
+// Lowers aten float and float_int comparison ops.
 template <typename AtenOp, arith::CmpFPredicate Pred>
 class ConvertAtenFloatComparisonOp : public OpConversionPattern<AtenOp> {
 public:
@@ -103,8 +104,9 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<arith::CmpFOp>(op, Pred, adaptor.a(),
-                                               adaptor.b());
+    Value lhs = adaptor.a(), rhs = adaptor.b();
+    rhs = convertScalarToDtype(rewriter, op.getLoc(), rhs, lhs.getType());
+    rewriter.replaceOpWithNewOp<arith::CmpFOp>(op, Pred, lhs, rhs);
     return success();
   }
 };
@@ -209,9 +211,12 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
         typeConverter, context);
-    target.addIllegalOp<AtenGeFloatOp>();
+    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp>();
     patterns.add<
         ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenFloatComparisonOp<AtenGeFloatIntOp,
+                                              arith::CmpFPredicate::UGE>>(
         typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
     patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);
