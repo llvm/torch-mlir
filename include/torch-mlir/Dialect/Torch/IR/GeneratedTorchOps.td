@@ -6420,6 +6420,31 @@ def Torch_AtenMulFloatOp : Torch_Op<"aten.mul.float", [
   }];
 }
 
+def Torch_AtenDivFloatOp : Torch_Op<"aten.div.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::div.float : (float, float) -> (float)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDivFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenDivFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenNegFloatOp : Torch_Op<"aten.neg.float", [
     AllowsTypeRefinement,
     HasValueSemantics,
