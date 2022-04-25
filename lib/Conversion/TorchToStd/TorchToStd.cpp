@@ -213,6 +213,9 @@ public:
     target.addIllegalOp<AtenSubFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenDivFloatOp>();
+    patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

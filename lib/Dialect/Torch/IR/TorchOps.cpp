@@ -93,6 +93,10 @@ static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
   return IntegerAttr::get(IntegerType::get(context, 64), value);
 }
 
+static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
+  return FloatAttr::get(Float64Type::get(context), value);
+}
+
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -1511,6 +1515,23 @@ OpFoldResult AtenFloatTensorOp::fold(ArrayRef<Attribute> operands) {
   // aten.Float.Tensor, fold to the scalar number.
   if (auto numToTensorScalar = a().getDefiningOp<PrimNumToTensorScalarOp>())
     return numToTensorScalar.a();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenDivFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivFloatOp::fold(ArrayRef<Attribute> operands) {
+  double lhs, rhs;
+  bool lConstant = matchPattern(getOperand(0), m_TorchConstantFloat(&lhs));
+  bool rConstant = matchPattern(getOperand(1), m_TorchConstantFloat(&rhs));
+  if (lConstant && lhs == 0.0)
+    return getF64FloatAttr(getContext(), 0.0);
+  if (lConstant && rConstant && rhs == 1.0)
+    return getF64FloatAttr(getContext(), lhs);
+  if (lConstant && rConstant)
+    return getF64FloatAttr(getContext(), lhs / rhs);
   return nullptr;
 }
 
