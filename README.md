@@ -42,14 +42,13 @@ python -m venv mlir_venv
 source mlir_venv/bin/activate
 # Some older pip installs may not be able to handle the recent PyTorch deps
 python -m pip install --upgrade pip
-pip install --pre torch-mlir torchvision --extra-index-url https://github.com/llvm/torch-mlir/releases/tag/snapshot-20220422.5 --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-# Replace the Snapshot with the latest (TODO: resolve the need to use the snapshot URL).
+pip install --pre torch-mlir torchvision --extra-index-url https://github.com/llvm/torch-mlir/releases --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 # This will install the corresponding torch and torchvision nightlies
 ```
 
 ## Demos
 
-### TorchScript RESNET18 
+### TorchScript ResNet18 
 
 Standalone script to Convert a PyTorch ResNet18 model to MLIR and run it on the CPU Backend:
 
