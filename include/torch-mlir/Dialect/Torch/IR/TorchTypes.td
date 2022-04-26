@@ -354,14 +354,14 @@ class OptionalOf<Type type, string descr> :
 
 def AnyTorchOptionalTensorType :
       OptionalOf<AnyTorchTensorType, "Optional torch tensor type">;
-def TorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
-def TorchOptionalBoolType:
+def AnyTorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
+def AnyTorchOptionalBoolType:
       OptionalOf<Torch_BoolType, "Optional torch bool type">;
-def TorchOptionalStringType:
+def AnyTorchOptionalStringType:
       OptionalOf<Torch_StringType, "Optional torch Str type">;
-def TorchOptionalDeviceType:
+def AnyTorchOptionalDeviceType:
       OptionalOf<Torch_DeviceType, "Optional torch device type">;
-def TorchOptionalGeneratorType:
+def AnyTorchOptionalGeneratorType:
       OptionalOf<Torch_GeneratorType, "Optional torch Generator type">;
 
 def IsListTypePred : CPred<"$_self.isa<::mlir::torch::Torch::ListType>()">;
@@ -371,15 +371,15 @@ class ListOf<list<Type> allowedTypes, string descr> :
             "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
-def ListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
-def ListOfTorchIntType : ListOf<[Torch_IntType], "Int list type (int[])">;
-def ListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
+def AnyTorchListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
+def AnyTorchListOfTorchIntType : ListOf<[Torch_IntType], "Int list type (int[])">;
+def AnyTorchListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
 def AnyTorchListOfTensorType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
 def AnyTorchListOfOptionalTensorType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
-def OptionalListOfTorchIntType : OptionalOf<ListOfTorchIntType, "Optional torch int list type (int[]?)">;
+def AnyTorchOptionalListOfTorchIntType : OptionalOf<AnyTorchListOfTorchIntType, "Optional torch int list type (int[]?)">;
 
 // Note: TorchScript does not consider !torch.bool to be a Scalar.
 def AnyTorchScalarType :
