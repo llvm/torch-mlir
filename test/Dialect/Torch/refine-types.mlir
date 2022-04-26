@@ -150,3 +150,12 @@ func @torch.overwrite.tensor.contents$static_overwrites_dynamic(%static: !torch.
   %result = torch.tensor_static_info_cast %dynamic_value_copy : !torch.vtensor to !torch.vtensor<[?],f32>
   return %result : !torch.vtensor<[?],f32>
 }
+
+// CHECK-LABEL:   func @bf16_result_type(
+// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.vtensor<*,bf16>) -> !torch.vtensor<[2],bf16> {
+// CHECK:           %[[SQRT:.*]] = torch.aten.sqrt %[[ARG0]] : !torch.vtensor<*,bf16> -> !torch.vtensor<[2],bf16>
+// CHECK:           return %[[SQRT]] : !torch.vtensor<[2],bf16>
+func @bf16_result_type(%arg0: !torch.vtensor<*,bf16>) -> !torch.vtensor<[2],bf16> {
+  %1 = torch.aten.sqrt %arg0 : !torch.vtensor<*,bf16> -> !torch.vtensor<[2], bf16>
+  return %1 : !torch.vtensor<[2],bf16>
+}
