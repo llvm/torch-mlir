@@ -951,7 +951,7 @@ def Torch_ValsemVariantAtenUniformOp: Torch_Op<"valsem.aten.uniform", [
     AnyTorchTensorType:$self,
     Torch_FloatType:$from,
     Torch_FloatType:$to,
-    TorchOptionalGeneratorType:$generator
+    AnyTorchOptionalGeneratorType:$generator
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -970,7 +970,7 @@ def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.flo
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_FloatType:$p,
-    TorchOptionalGeneratorType:$generator
+    AnyTorchOptionalGeneratorType:$generator
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -989,7 +989,7 @@ def Torch_ValsemVariantAtenBernoulliTensorOp: Torch_Op<"valsem.aten.bernoulli.Te
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchTensorType:$p,
-    TorchOptionalGeneratorType:$generator
+    AnyTorchOptionalGeneratorType:$generator
   );
   let results = (outs
     AnyTorchTensorType:$result
@@ -1171,7 +1171,7 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
   }];
 
   let arguments = (ins
-    Variadic<ListOfTorchIntType>:$results
+    Variadic<AnyTorchListOfTorchIntType>:$results
   );
   let results = (outs);
 
