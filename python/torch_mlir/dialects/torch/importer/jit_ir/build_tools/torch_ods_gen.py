@@ -477,6 +477,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
     emit("aten::Float.str : (str) -> (float)")
     emit("aten::Int.float : (float) -> (int)")
+    emit("aten::Int.Scalar : (Scalar) -> (int)", has_folder=True)
 
     # Primitive ops
     emit("aten::__range_length : (int, int, int) -> (int)", has_folder=True)
@@ -522,6 +523,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)
+    emit("aten::ScalarImplicit : (Tensor) -> (Scalar)")
 
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")

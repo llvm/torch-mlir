@@ -1020,6 +1020,23 @@ OpFoldResult AtenFloatScalarOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIntScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntScalarOp::fold(ArrayRef<Attribute> operands) {
+  // Constant fold float -> int conversion.
+  if (auto floatAttr = operands[0].dyn_cast_or_null<FloatAttr>()) {
+    return IntegerAttr::get(
+        mlir::IntegerType::get(getContext(), 64, IntegerType::Signed),
+        static_cast<long>(floatAttr.getValue().convertToDouble()));
+  }
+  // If the input is int type already, the op is an identity.
+  if (getType() == getOperand().getType())
+    return getOperand();
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
