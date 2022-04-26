@@ -23,17 +23,17 @@ func @aten.arange.start$int64_dtype(%start: !torch.int, %end: !torch.int) -> !to
 // -----
 // CHECK-LABEL:   func @aten.arange.start$float32_dtype(
 // CHECK-SAME:                    %[[START:.*]]: !torch.float,
-// CHECK-SAME:                    %[[END:.*]]: !torch.int) -> !torch.vtensor {
+// CHECK-SAME:                    %[[END:.*]]: !torch.float) -> !torch.vtensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[T:.*]] = torch.aten.arange.start
 // CHECK-SAME:         %[[START]], %[[END]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] :
-// CHECK-SAME:         !torch.float, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none
+// CHECK-SAME:         !torch.float, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none
 // CHECK-SAME:         -> !torch.vtensor<*,f32>
 // CHECK:           %[[RET:.*]] = torch.tensor_static_info_cast %[[T]] : !torch.vtensor<*,f32> to !torch.vtensor
 // CHECK:           return %[[RET]] : !torch.vtensor
-func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.int) -> !torch.vtensor {
+func @aten.arange.start$float32_dtype(%start: !torch.float, %end: !torch.float) -> !torch.vtensor {
   %none = torch.constant.none
-  %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.float, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
+  %ret = torch.aten.arange.start %start, %end, %none, %none, %none, %none: !torch.float, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
   return %ret : !torch.vtensor
 }
 

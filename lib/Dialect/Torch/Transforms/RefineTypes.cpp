@@ -903,11 +903,9 @@ ChangeResult TypeAnalyzer::visitAtenArangeLikeOpHelper(
     // be `torch.int64`
     if ((start.hasValue() && (*start).getType().isa<Torch::FloatType>()) ||
         end.getType().isa<Torch::FloatType>() ||
-        (step.hasValue() && (*step).getType().isa<Torch::FloatType>())) {
-      // TODO: Should get the dtype from torch.get_default_dtype().
-      // For now, use float32 which is the initial default dtype.
-      knowledge.dtype = Float32Type::get(op->getContext());
-    } else
+        (step.hasValue() && (*step).getType().isa<Torch::FloatType>()))
+      knowledge.dtype = getDefaultDtypeForTorchScalar(end.getType());
+    else
       knowledge.dtype =
           IntegerType::get(op->getContext(), 64, IntegerType::Signed);
   }
