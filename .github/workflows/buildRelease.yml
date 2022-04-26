@@ -27,7 +27,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         python -m pip install wheel
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
-        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./tm_pkg_version
+        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         ./build_tools/python_deploy/build_linux_packages.sh
               
     # If we were given a release_id, then upload the package we just built
@@ -68,7 +68,7 @@ jobs:
         cd $GITHUB_WORKSPACE
         python -m pip install wheel
         TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
-        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./tm_pkg_version
+        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
         sudo ./build_tools/python_deploy/install_macos_deps.sh
         TM_PYTHON_VERSIONS="3.9 3.10" ./build_tools/python_deploy/build_macos_packages.sh
 
