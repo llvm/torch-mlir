@@ -126,7 +126,7 @@ def AdjustCallingConventions
   }];
 }
 
-def RefineTypes : Pass<"torch-refine-types", "FuncOp"> {
+def RefineTypes : Pass<"torch-refine-types", "func::FuncOp"> {
   let summary = "Refine types";
   let constructor = "mlir::torch::Torch::createRefineTypesPass()";
   let description = [{
@@ -149,7 +149,7 @@ def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
   }];
 }
 
-def ReduceOpVariants : Pass<"torch-reduce-op-variants", "FuncOp"> {
+def ReduceOpVariants : Pass<"torch-reduce-op-variants", "func::FuncOp"> {
   let summary = "Reduces variants of ops to a smaller set of ops.";
   let constructor = "mlir::torch::Torch::createReduceOpVariantsPass()";
   let description = [{
@@ -165,7 +165,7 @@ def ReduceOpVariants : Pass<"torch-reduce-op-variants", "FuncOp"> {
   }];
 }
 
-def MaximizeValueSemantics : Pass<"torch-maximize-value-semantics", "FuncOp"> {
+def MaximizeValueSemantics : Pass<"torch-maximize-value-semantics", "func::FuncOp"> {
   let summary = "Use value-semantic tensors where possible.";
   let description = [{
     Use value-semantic tensors where possible to make the program more
@@ -215,7 +215,7 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
   }];
 }
 
-def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "FuncOp"> {
+def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   let summary = "Decompose complicated torch operations";
   let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
   let description = [{
@@ -238,7 +238,7 @@ def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> 
   }];
 }
 
-def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "FuncOp"> {
+def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "func::FuncOp"> {
   let summary = "Simplify reified shape calculations.";
   let constructor = "mlir::torch::Torch::createSimplifyShapeCalculationsPass()";
   let description = [{
@@ -246,7 +246,7 @@ def SimplifyShapeCalculations : Pass<"torch-simplify-shape-calculations", "FuncO
   }];
 }
 
-def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "FuncOp"> {
+def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "func::FuncOp"> {
   let summary = "Drop reified shape calculations.";
   let constructor = "mlir::torch::Torch::createDropShapeCalculationsPass()";
   let description = [{

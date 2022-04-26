@@ -42,7 +42,7 @@ torch.nn_module {
   torch.slot "t1", %t : !torch.tensor
   torch.slot "t2", %t : !torch.tensor
 } : !torch.nn.Module<"c">
-builtin.func private @use_slot(%arg0 : !torch.nn.Module<"c">) -> !torch.tensor {
+func.func private @use_slot(%arg0 : !torch.nn.Module<"c">) -> !torch.tensor {
   %t1 = torch.prim.GetAttr %arg0["t1"] : !torch.nn.Module<"c"> -> !torch.tensor
   %t2 = torch.prim.GetAttr %arg0["t2"] : !torch.nn.Module<"c"> -> !torch.tensor
   %cst = torch.constant.int 1
@@ -63,7 +63,7 @@ torch.nn_module {
   torch.slot "t1", %t : !torch.tensor
   torch.slot "t2", %t : !torch.tensor
 } : !torch.nn.Module<"c">
-builtin.func private @set_slot(%arg0 : !torch.nn.Module<"c">, %arg1 : !torch.tensor) {
+func.func private @set_slot(%arg0 : !torch.nn.Module<"c">, %arg1 : !torch.tensor) {
   torch.prim.SetAttr %arg0["t1"] = %arg1: !torch.nn.Module<"c">, !torch.tensor
   torch.prim.SetAttr %arg0["t2"] = %arg1: !torch.nn.Module<"c">, !torch.tensor
   return

@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -150,7 +151,7 @@ struct TMTensorBufferizePass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 torch::TMTensor::createTMTensorBufferizePass() {
   return std::make_unique<TMTensorBufferizePass>();
 }

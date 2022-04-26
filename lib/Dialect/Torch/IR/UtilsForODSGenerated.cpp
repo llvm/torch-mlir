@@ -35,7 +35,7 @@ ParseResult Torch::parseDefaultTorchOp(OpAsmParser &parser,
                                        OperationState &result, int numOperands,
                                        int numResults) {
   llvm::SMLoc loc = parser.getCurrentLocation();
-  SmallVector<OpAsmParser::OperandType> operands;
+  SmallVector<OpAsmParser::UnresolvedOperand> operands;
   if (parser.parseOperandList(operands, /*requiredOperandCount=*/numOperands))
     return failure();
   if (parser.parseOptionalAttrDict(result.attributes))

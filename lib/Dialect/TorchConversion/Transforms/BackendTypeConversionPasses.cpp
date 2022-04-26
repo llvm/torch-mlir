@@ -45,9 +45,10 @@ struct FuncBackendTypeConversionPass
     typeConverter.addConversion([](Type type) { return type; });
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
-    populateFunctionOpInterfaceTypeConversionPattern<FuncOp>(patterns, typeConverter);
-    target.addDynamicallyLegalOp<FuncOp>([&](FuncOp op) {
-      return typeConverter.isSignatureLegal(op.getType()) &&
+    populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(
+        patterns, typeConverter);
+    target.addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
+      return typeConverter.isSignatureLegal(op.getFunctionType()) &&
              typeConverter.isLegal(&op.getBody());
     });
     populateCallOpTypeConversionPattern(patterns, typeConverter);
@@ -155,7 +156,7 @@ struct FinalizingBackendTypeConversionPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass() {
   return std::make_unique<FinalizingBackendTypeConversionPass>();
 }

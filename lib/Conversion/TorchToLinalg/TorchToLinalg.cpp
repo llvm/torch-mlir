@@ -88,7 +88,7 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::createConvertTorchToLinalgPass() {
   return std::make_unique<ConvertTorchToLinalg>();
 }

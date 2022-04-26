@@ -10,11 +10,12 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHTOSCF_TORCHTOSCF_H
 #define TORCHMLIR_CONVERSION_TORCHTOSCF_TORCHTOSCF_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<FuncOp>> createConvertTorchToSCFPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToSCFPass();
 }
 } // namespace mlir
 

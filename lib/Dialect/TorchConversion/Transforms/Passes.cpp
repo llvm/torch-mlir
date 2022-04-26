@@ -59,26 +59,27 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
   // and those constants get somewhat obscured by TorchToStd.
-  pm.addNestedPass<FuncOp>(createConvertTorchToTMTensorPass());
-  pm.addNestedPass<FuncOp>(createConvertTorchToLinalgPass());
-  pm.addNestedPass<FuncOp>(createConvertTorchToStdPass());
-  pm.addNestedPass<FuncOp>(createConvertTorchToSCFPass());
-  pm.addNestedPass<FuncOp>(memref::createExpandOpsPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToStdPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
+  pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
     // Resolve `dim` ops on tensors (which currently live in the `memref`
     // dialect for some reason -- we don't have memrefs at this level).
-    pm.addNestedPass<FuncOp>(memref::createResolveShapedTypeResultDimsPass());
+    pm.addNestedPass<func::FuncOp>(
+        memref::createResolveShapedTypeResultDimsPass());
     // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<FuncOp>(createCSEPass());
+    pm.addNestedPass<func::FuncOp>(createCSEPass());
   }
 
   // Finish the type conversion from `torch` types to the types of the
   // linalg-on-tensors backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
-  pm.addNestedPass<FuncOp>(
+  pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
   // Verify that we have lowered to the form that linalg on tensors backends
@@ -93,21 +94,21 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   pm.addPass(
       TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
 
-  pm.addNestedPass<FuncOp>(createConvertTorchToTosaPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass());
   // Perform rank broadcasting so TosaToLinalg pass works
-  pm.addNestedPass<FuncOp>(createTosaMakeBroadcastablePass());
+  pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
 
   if (options.optimize) {
     // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
     // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<FuncOp>(createCSEPass());
+    pm.addNestedPass<func::FuncOp>(createCSEPass());
   }
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
-  pm.addNestedPass<FuncOp>(
+  pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
   // Verify that we have lowered to the form that TOSA backends

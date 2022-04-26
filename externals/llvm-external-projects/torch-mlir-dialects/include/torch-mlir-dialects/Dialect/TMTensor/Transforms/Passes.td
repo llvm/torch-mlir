@@ -13,12 +13,12 @@
 include "mlir/Pass/PassBase.td"
 
 def TMTensorToLoops :
-    Pass<"tm-tensor-to-loops", "FuncOp"> {
+    Pass<"tm-tensor-to-loops", "func::FuncOp"> {
   let summary = "Convert TMTensor ops to loops and Linalg ops.";
   let constructor = "mlir::torch::TMTensor::createTMTensorToLoopsPass()";
 }
 
-def TMTensorBufferize : Pass<"tm-tensor-bufferize", "FuncOp"> {
+def TMTensorBufferize : Pass<"tm-tensor-bufferize", "func::FuncOp"> {
   let summary = "Bufferize the TMTensor dialect";
   let constructor = "mlir::torch::TMTensor::createTMTensorBufferizePass()";
 }

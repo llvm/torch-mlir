@@ -10,11 +10,14 @@
 #ifndef TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSES_H
 #define TORCHMLIR_DIALECT_TORCH_TRANSFORMS_PASSES_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
 #include <memory>
 
 namespace mlir {
+class ModuleOp;
+
 namespace torch {
 namespace Torch {
 
@@ -48,25 +51,26 @@ void createTorchShapeRefinementPipeline(
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createRefineTypesPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createRefineTypesPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createInlineGlobalSlotsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createReduceOpVariantsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createReduceOpVariantsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createMaximizeValueSemanticsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createMaximizeValueSemanticsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createDecomposeComplexOpsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createDecomposeComplexOpsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createSimplifyShapeCalculationsPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createSimplifyShapeCalculationsPass();
 
-std::unique_ptr<OperationPass<FuncOp>> createDropShapeCalculationsPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createDropShapeCalculationsPass();
 
 StringRef getShapeLibrary();
 

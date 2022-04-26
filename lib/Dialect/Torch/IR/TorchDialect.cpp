@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -124,7 +125,7 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
                                                      unsigned argIndex,
                                                      NamedAttribute namedAttr) {
   if (namedAttr.getName().getValue() == "torch.type_bound") {
-    auto func = dyn_cast<FuncOp>(op);
+    auto func = dyn_cast<func::FuncOp>(op);
     if (!func)
       return op->emitError() << "'torch.type_bound' must be attached to a func";
     TypeAttr attr = namedAttr.getValue().dyn_cast<TypeAttr>();
@@ -134,7 +135,7 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
     if (!type)
       return op->emitError() << "'torch.type_bound' must be of "
                                 "!torch.tensor/!torch.vtensor type";
-    if (!func.getType().getInput(argIndex).isa<BaseTensorType>())
+    if (!func.getFunctionType().getInput(argIndex).isa<BaseTensorType>())
       return op->emitError() << "'torch.type_bound' must be attached to an "
                                 "argument of !torch.tensor/!torch.vtensor type";
     return success();
@@ -176,4 +177,101 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   }
 
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// OptionalType and ListType
+//===----------------------------------------------------------------------===//
+
+void OptionalType::print(AsmPrinter &printer) const {
+  printer << "<";
+  // Print the contained type without the `!torch.` prefix.
+  printTorchDialectType(getImpl()->containedType, printer);
+  printer << ">";
+}
+
+void ListType::print(AsmPrinter &printer) const {
+  printer << "<";
+  // Print the contained type without the `!torch.` prefix.
+  printTorchDialectType(getImpl()->containedType, printer);
+  printer << ">";
+}
+
+Type OptionalType::parse(AsmParser &odsParser) {
+  if (odsParser.parseLess())
+    return Type();
+
+  // Parse the contained type, but forward directly to our internal parsing
+  // of `torch` dialect types, so that we can parse nested types without
+  // the `!torch.` prefix.
+  Type containedType = parseTorchDialectType(odsParser);
+  if (!containedType)
+    return Type();
+  if (odsParser.parseGreater())
+    return Type();
+  return get(odsParser.getContext(), containedType);
+}
+
+Type ListType::parse(AsmParser &odsParser) {
+  if (odsParser.parseLess())
+    return Type();
+
+  // Parse the contained type, but forward directly to our internal parsing
+  // of `torch` dialect types, so that we can parse nested types without
+  // the `!torch.` prefix.
+  Type containedType = parseTorchDialectType(odsParser);
+  if (!containedType)
+    return Type();
+  if (odsParser.parseGreater())
+    return Type();
+  return get(odsParser.getContext(), containedType);
+}
+
+//===----------------------------------------------------------------------===//
+// DictType
+//===----------------------------------------------------------------------===//
+
+void DictType::print(AsmPrinter &printer) const {
+  printer << "<";
+  printTorchDialectType(getImpl()->keyType, printer);
+  printer << ", ";
+  printTorchDialectType(getImpl()->valueType, printer);
+  printer << ">";
+}
+
+Type DictType::parse(AsmParser &odsParser) {
+  if (odsParser.parseLess())
+    return Type();
+  Type keyType = parseTorchDialectType(odsParser);
+  if (!keyType)
+    return Type();
+  if (odsParser.parseComma())
+    return Type();
+  Type valueType = parseTorchDialectType(odsParser);
+  if (!valueType)
+    return Type();
+  if (odsParser.parseGreater())
+    return Type();
+  return get(odsParser.getContext(), keyType, valueType);
+}
+
+//===----------------------------------------------------------------------===//
+// NnModuleType
+//===----------------------------------------------------------------------===//
+
+void NnModuleType::print(AsmPrinter &printer) const {
+  printer << "<\"";
+  llvm::printEscapedString(getImpl()->className, printer.getStream());
+  printer << "\">";
+}
+
+Type NnModuleType::parse(AsmParser &odsParser) {
+  if (odsParser.parseLess())
+    return Type();
+  std::string className;
+  if (odsParser.parseOptionalString(&className))
+    return Type();
+  if (odsParser.parseGreater())
+    return Type();
+  return get(odsParser.getContext(), className);
 }

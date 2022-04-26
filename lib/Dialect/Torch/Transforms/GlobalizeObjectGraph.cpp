@@ -88,7 +88,7 @@ public:
     return it->second;
   }
   Optional<LinkageInfo> getFuncLinkageInfo(NnModuleOp instance,
-                                           FuncOp methodFunc) {
+                                           func::FuncOp methodFunc) {
     auto it = funcLinkageInfo.find({instance, methodFunc});
     if (it == funcLinkageInfo.end())
       return None;
@@ -185,7 +185,7 @@ private:
     for (auto method : classType.getOps<MethodOp>()) {
       nameStack.push_back(method.name().str());
       funcLinkageInfo[{nnModule,
-                       symbolTable.lookup<FuncOp>(method.function())}] =
+                       symbolTable.lookup<func::FuncOp>(method.function())}] =
           LinkageInfo{llvm::join(nameStack, "."), method.isPrivate()};
       nameStack.pop_back();
     }
@@ -251,7 +251,7 @@ private:
   // Linkage info for each method in the program. Since we are going to be
   // monomorphizing all the functions, we also need to key this off of the
   // instance (NnModuleOp) that the func is monomorphized for.
-  DenseMap<std::pair<NnModuleOp, FuncOp>, LinkageInfo> funcLinkageInfo;
+  DenseMap<std::pair<NnModuleOp, func::FuncOp>, LinkageInfo> funcLinkageInfo;
   // The corresponding GlobalSlotOp for each SlotOp in the program.
   DenseMap<SlotOp, GlobalSlotOp> slotToGlobalSlot;
   // A set of values that we have copied into torch.global_slot initializers,
@@ -298,7 +298,7 @@ namespace {
 // any notion of "type" that we have in the IR, but still fits the formal
 // definition.
 struct Monomorphization {
-  FuncOp func;
+  func::FuncOp func;
   std::vector<ArgInstance> argInstances;
 };
 } // namespace
@@ -327,7 +327,7 @@ template <> struct llvm::DenseMapInfo<Monomorphization> {
 //
 // This generalizes to a full abstract interpretation of the function, but
 // currently only analyzes a subset of ops.
-static LogicalResult analyzeInstances(FuncOp func,
+static LogicalResult analyzeInstances(func::FuncOp func,
                                       ArrayRef<ArgInstance> argInstances,
                                       BlockAndValueMapping &mapping) {
   for (auto &argInstance : argInstances)
@@ -351,7 +351,7 @@ static LogicalResult analyzeInstances(FuncOp func,
 static FailureOr<Monomorphization>
 createMonomorphizationForCall(func::CallOp op, BlockAndValueMapping &mapping,
                               SymbolTable &symbolTable) {
-  auto func = symbolTable.lookup<FuncOp>(op.getCallee());
+  auto func = symbolTable.lookup<func::FuncOp>(op.getCallee());
   Monomorphization monomorphization;
   monomorphization.func = func;
   for (auto operand : llvm::enumerate(op->getOperands())) {
@@ -372,7 +372,7 @@ public:
       : module(module), symbolTable(module) {}
   LogicalResult
   initialize(DenseMap<ClassTypeOp, std::vector<NnModuleOp>> &instances) {
-    for (auto func : module.getOps<FuncOp>()) {
+    for (auto func : module.getOps<func::FuncOp>()) {
       Monomorphization monomorphization;
       monomorphization.func = func;
       bool canTriviallyMonomorphize = true;
@@ -455,7 +455,7 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
 
 // Verify that `func` conforms to the subset of allowable method bodies
 // that we can convert.
-static LogicalResult verifyFuncConformsToSubset(FuncOp func) {
+static LogicalResult verifyFuncConformsToSubset(func::FuncOp func) {
   // TODO: Investingate why WalkResult::interrupt() doesn't propagate properly.
   LogicalResult ret = success();
   func.walk([&](Block *block) {
@@ -481,7 +481,7 @@ static LogicalResult verifyFuncConformsToSubset(FuncOp func) {
 static LogicalResult
 verifyPublicMonomorphizations(ModuleOp module, SymbolTable &symbolTable,
                               MonomorphizationTracker &tracker) {
-  DenseMap<FuncOp, int> numMonomorphizations;
+  DenseMap<func::FuncOp, int> numMonomorphizations;
   for (auto &monomorphization : tracker.getMonomorphizations()) {
     numMonomorphizations[monomorphization.func] += 1;
   }
@@ -489,7 +489,7 @@ verifyPublicMonomorphizations(ModuleOp module, SymbolTable &symbolTable,
   for (auto classType : module.getOps<ClassTypeOp>()) {
     for (auto method : classType.getOps<MethodOp>()) {
       if (!method.isPrivate()) {
-        if (numMonomorphizations[symbolTable.lookup<FuncOp>(
+        if (numMonomorphizations[symbolTable.lookup<func::FuncOp>(
                 method.function())] > 1) {
           method.emitError()
               << "public function with multiple monomorphizations";
@@ -503,11 +503,10 @@ verifyPublicMonomorphizations(ModuleOp module, SymbolTable &symbolTable,
 
 // Rewrite `func`, given that all values of `NnModuleType` have been mapped in
 // `mapping` to corresponding global instances.
-static LogicalResult
-rewriteMonomorphizedFuncClone(FuncOp func, BlockAndValueMapping mapping,
-                              SymbolTable &symbolTable,
-                              DenseMap<Monomorphization, FuncOp> &newFuncs,
-                              ObjectGraphInfo &objectGraphInfo) {
+static LogicalResult rewriteMonomorphizedFuncClone(
+    func::FuncOp func, BlockAndValueMapping mapping, SymbolTable &symbolTable,
+    DenseMap<Monomorphization, func::FuncOp> &newFuncs,
+    ObjectGraphInfo &objectGraphInfo) {
 
   SmallVector<Operation *> toErase;
   auto handlePrimSetAttr = [&](PrimSetAttrOp op) {
@@ -605,7 +604,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
   // static analysis to discover how to monomorphize th eprogram, including
   // tracking instances through control flow, through get/set attr, etc. We
   // implement a very simple subset of cases.
-  for (auto func : module.getOps<FuncOp>()) {
+  for (auto func : module.getOps<func::FuncOp>()) {
     if (failed(verifyFuncConformsToSubset(func)))
       return failure();
   }
@@ -637,10 +636,10 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
 
   // Step 4: Clone/rewrite functions to implement the necessary
   // monomorphizations.
-  DenseMap<Monomorphization, FuncOp> newFuncs;
+  DenseMap<Monomorphization, func::FuncOp> newFuncs;
   int uniquifier = 0;
   for (auto &monomorphization : tracker.getMonomorphizations()) {
-    auto newFunc = cast<FuncOp>(monomorphization.func->clone());
+    auto newFunc = cast<func::FuncOp>(monomorphization.func->clone());
     newFuncs[monomorphization] = newFunc;
     Optional<LinkageInfo> linkageInfo = None;
     // If it is potentially a method, check its linkage info.
@@ -675,14 +674,14 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
   }
 
   // Step 5: Clean up object graph.
-  DenseSet<FuncOp> liveFuncs;
+  DenseSet<func::FuncOp> liveFuncs;
   for (auto &kv : newFuncs) {
     liveFuncs.insert(kv.second);
   }
   for (auto &op : llvm::make_early_inc_range(module.getOps())) {
     if (isa<GlobalSlotOp>(&op))
       continue;
-    if (auto func = dyn_cast<FuncOp>(op)) {
+    if (auto func = dyn_cast<func::FuncOp>(op)) {
       if (liveFuncs.contains(func))
         continue;
     }

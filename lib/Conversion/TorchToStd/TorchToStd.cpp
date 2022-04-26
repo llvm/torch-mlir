@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
 
 #include "../PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -221,7 +222,7 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::createConvertTorchToStdPass() {
   return std::make_unique<ConvertTorchToStd>();
 }

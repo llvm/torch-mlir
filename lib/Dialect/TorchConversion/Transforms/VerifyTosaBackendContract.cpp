@@ -9,6 +9,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -39,7 +40,7 @@ class VerifyTosaBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, FuncOp, func::ReturnOp>(
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
         opHasLegalTypes);
     // Basic scalar operations.
     target.addLegalDialect<tosa::TosaDialect>();

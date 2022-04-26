@@ -169,7 +169,7 @@ static Value adjustShapeFunctionArg(Value operand, Type desiredType,
 // from the shape library.
 static LogicalResult
 populateShapeCalculationRegion(ShapeCalculateOp op, ValueRange originalOperands,
-                               mlir::FuncOp shapeFunction) {
+                               mlir::func::FuncOp shapeFunction) {
   // Create a call to the shape function in the `shapeCalculation` region.
   // We will import the callee from the shape library later.
   OpBuilder b(op.getContext());
@@ -241,7 +241,7 @@ class ReifyShapeCalculationsPass
         name = name.drop_front(strlen("valsem."));
       auto shapeFunctionName = ("__torch_mlir_shape_fn." + Twine(name)).str();
       auto shapeFunction =
-          shapeLibrary->lookupSymbol<FuncOp>(shapeFunctionName);
+          shapeLibrary->lookupSymbol<func::FuncOp>(shapeFunctionName);
       if (!shapeFunction)
         return;
       neededShapeFunctions.push_back(shapeFunctionName);
@@ -276,7 +276,7 @@ class ReifyShapeCalculationsPass
       auto symName = worklist.pop_back_val();
       if (importedFunctions.count(symName))
         continue;
-      auto func = shapeLibrary->lookupSymbol<mlir::FuncOp>(symName);
+      auto func = shapeLibrary->lookupSymbol<mlir::func::FuncOp>(symName);
       assert(func && "broken shape library");
       // Move the shape function from the library to the module this pass
       // is running on. (this mutates the library, but we re-parse it each time
