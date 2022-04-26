@@ -33,7 +33,7 @@ We have few paths to lower down to the Torch MLIR Dialect.
 - Github issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
 
-## Use pre-built snapshots of torch-mlir
+## Install torch-mlir snapshot
 
 This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS
 
@@ -89,3 +89,6 @@ The project follows the conventions of typical MLIR-based projects:
 * `test` for holding test code.
 * `tools` for `torch-mlir-opt` and such.
 * `python` top level directory for Python code
+
+## Developers
+If you would like to develop and build torch-mlir from source please look at [Development Notes](development.md)
