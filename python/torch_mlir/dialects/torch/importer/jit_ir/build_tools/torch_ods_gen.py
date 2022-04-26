@@ -32,6 +32,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "bool[]": "AnyTorchListOfTorchBoolType",
     "bool?": "AnyTorchOptionalBoolType",
     "float": "Torch_FloatType",
+    "float?": "AnyTorchOptionalFloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",
@@ -363,6 +364,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
+    emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)

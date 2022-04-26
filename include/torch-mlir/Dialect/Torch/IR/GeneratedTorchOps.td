@@ -3597,6 +3597,32 @@ def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
   }];
 }
 
+def Torch_AtenPadOp : Torch_Op<"aten.pad", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::pad : (Tensor, int[], str, float?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$pad,
+    Torch_StringType:$mode,
+    AnyTorchOptionalFloatType:$value
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPadOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenPadOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenSqueezeDimOp : Torch_Op<"aten.squeeze.dim", [
     AllowsTypeRefinement,
     ReadOnly

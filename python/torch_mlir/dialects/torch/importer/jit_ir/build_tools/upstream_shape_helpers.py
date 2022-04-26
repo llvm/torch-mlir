@@ -617,3 +617,12 @@ def quantized_prepacked_conv2d(input: List[int], conv2dOpContext: Any):
   assert isinstance(conv2dOpContext, __torch__.torch.classes.quantized.Conv2dPackedParamsBase)
   (weight, bias, stride, padding, dilation, groups) = unchecked_cast(Tuple[List[int], Optional[List[int]], List[int], List[int], List[int], int], ops.quantized.conv2d_unpack_sizes(conv2dOpContext))
   return conv2d(input, weight, bias, stride, padding, dilation, groups)
+
+def pad(input: List[int], pad: List[int]):
+    assert len(pad) % 2 == 0, "Must have paired low-high pad amount values"
+    assert len(pad) // 2 <= len(input), "Number of padded dimensions must be less than or equal to the input dimension"
+    # The `pad` list takes the form of Low-high pairs starting at the
+    # *rightmost* dimension of `self`.
+    for i in range(len(pad) // 2):
+        input[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
+    return input

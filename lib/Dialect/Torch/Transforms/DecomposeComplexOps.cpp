@@ -13,6 +13,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringExtras.h"
@@ -1665,6 +1666,27 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.pad` op into `aten.constant_pad_nd` op.
+class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPadOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value value = op.value();
+    if (value.getType().isa<Torch::OptionalType>())
+      return rewriter.notifyMatchFailure(op, "optional type not supported");
+    if (value.getType().isa<Torch::NoneType>())
+      value = rewriter.create<Torch::ConstantFloatOp>(
+          op.getLoc(), rewriter.getF64FloatAttr(0));
+
+    rewriter.replaceOpWithNewOp<AtenConstantPadNdOp>(
+        op, op.getType(), op.self(), op.pad(), value);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1793,6 +1815,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenNewEmptyOp>(context);
     patterns.add<DecomposeAtenIndexPutHackedTwinOp>(context);
     target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+    target.addIllegalOp<AtenPadOp>();
+    patterns.add<DecomposeAtenPadOp>(context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

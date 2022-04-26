@@ -355,6 +355,7 @@ class OptionalOf<Type type, string descr> :
 def AnyTorchOptionalTensorType :
       OptionalOf<AnyTorchTensorType, "Optional torch tensor type">;
 def AnyTorchOptionalIntType: OptionalOf<Torch_IntType, "Optional torch int type">;
+def AnyTorchOptionalFloatType: OptionalOf<Torch_FloatType, "Optional torch float type">;
 def AnyTorchOptionalBoolType:
       OptionalOf<Torch_BoolType, "Optional torch bool type">;
 def AnyTorchOptionalStringType:
