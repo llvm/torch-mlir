@@ -854,3 +854,22 @@ func @torch.aten.where.ScalarOther(%arg0: !torch.vtensor<[?,?,?],i1>, %arg1: !to
   %0 = torch.aten.where.ScalarOther %arg0, %arg1, %cst : !torch.vtensor<[?,?,?],i1>, !torch.vtensor<[?,?],f64>, !torch.float -> !torch.vtensor<[?,?,?],f64>
   return %0 : !torch.vtensor<[?,?,?],f64>
 }
+
+// -----
+// CHECK-LABEL: func @torch.aten.pad
+// CHECK-SAME:  (%[[SELF:.*]]: !torch.vtensor<[?,?,?],f64>, %[[VALUE:.*]]: !torch.float) -> !torch.vtensor<[?,?,?],f64> {
+// CHECK-NOT:       torch.aten.pad 
+// CHECK:           %[[STRING:.*]] = torch.constant.str "constant"
+// CHECK-NEXT:      %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK-NEXT:      %[[PAD_ND:.*]] = torch.aten.constant_pad_nd %[[SELF]], %[[LIST]], %[[VALUE]]
+// CHECK-NEXT:      return %[[PAD_ND]]
+func @torch.aten.pad(%arg0: !torch.vtensor<[?,?,?],f64>, %arg1: !torch.float) -> !torch.vtensor<[?,?,?],f64> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1 
+  %int2 = torch.constant.int 2 
+  %int3 = torch.constant.int 3
+  %str = torch.constant.str "constant"
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2, %int3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %arg1 : !torch.vtensor<[?,?,?],f64>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[?,?,?],f64>
+  return %1 : !torch.vtensor<[?,?,?],f64>
+}

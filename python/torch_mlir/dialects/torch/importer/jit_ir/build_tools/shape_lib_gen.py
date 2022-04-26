@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+import string
 from typing import List, Optional, Any, Tuple, Union
 
 import os
@@ -860,13 +861,10 @@ def aten〇native_batch_norm(input: List[int], weight: Optional[List[int]], bias
     ErrorInvocation(TensorOfShape(2), [1]), # Unpaired pad value.
 ])
 def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) -> List[int]:
-    assert len(pad) % 2 == 0, "Must have paired low-high pad amount values"
-    assert len(pad) // 2 <= len(self), "Number of padded dimensions must be less than or equal to the input dimension"
-    # The `pad` list takes the form of Low-high pairs starting at the
-    # *rightmost* dimension of `self`.
-    for i in range(len(pad) // 2):
-        self[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
-    return self
+    return upstream_shape_helpers.pad(self, pad)
+
+def aten〇pad(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
+    return upstream_shape_helpers.pad(self, pad)
 
 @check_shape_function([
     Invocation(TensorOfShape(2), [LongTensorOfShape(4)]), # Basic case.

@@ -2629,6 +2629,10 @@ module {
     return %0 : !torch.tuple<list<int>, list<int>, list<int>>
   }
   func @"__torch_mlir_shape_fn.aten.constant_pad_nd"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
     %int1 = torch.constant.int 1
     %int0 = torch.constant.int 0
     %int2 = torch.constant.int 2
@@ -2658,12 +2662,12 @@ module {
     %7 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
     %8 = torch.aten.floordiv.int %7, %int2 : !torch.int, !torch.int -> !torch.int
     torch.prim.Loop %8, %true, init() {
-    ^bb0(%arg3: !torch.int):
-      %9 = torch.aten.add.int %arg3, %int1 : !torch.int, !torch.int -> !torch.int
+    ^bb0(%arg2: !torch.int):
+      %9 = torch.aten.add.int %arg2, %int1 : !torch.int, !torch.int -> !torch.int
       %10 = torch.aten.neg.int %9 : !torch.int -> !torch.int
-      %11 = torch.aten.mul.int %int2, %arg3 : !torch.int, !torch.int -> !torch.int
+      %11 = torch.aten.mul.int %int2, %arg2 : !torch.int, !torch.int -> !torch.int
       %12 = torch.aten.__getitem__.t %arg1, %11 : !torch.list<int>, !torch.int -> !torch.int
-      %13 = torch.aten.mul.int %int2, %arg3 : !torch.int, !torch.int -> !torch.int
+      %13 = torch.aten.mul.int %int2, %arg2 : !torch.int, !torch.int -> !torch.int
       %14 = torch.aten.add.int %13, %int1 : !torch.int, !torch.int -> !torch.int
       %15 = torch.aten.__getitem__.t %arg1, %14 : !torch.list<int>, !torch.int -> !torch.int
       %16 = torch.aten.add.int %12, %15 : !torch.int, !torch.int -> !torch.int
@@ -2673,6 +2677,10 @@ module {
       torch.prim.Loop.condition %true, iter()
     } : (!torch.int, !torch.bool) -> ()
     return %arg0 : !torch.list<int>
+  }
+  func @"__torch_mlir_shape_fn.aten.pad"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.str, %arg3: !torch.optional<float>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
   }
   func @"__torch_mlir_shape_fn.aten.index.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>) -> !torch.list<int> {
     %str = torch.constant.str "AssertionError: More indices than dimensions to index"

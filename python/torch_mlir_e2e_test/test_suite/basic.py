@@ -275,6 +275,55 @@ class ConstantPad2dStaticModule(torch.nn.Module):
 def ConstantPad2dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
 
+# ==============================================================================
+
+
+class PadModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        pad = [0, 1, 2, 3]
+        mode = "constant"
+        return torch.ops.aten.pad(x, pad, mode, float(1.5))
+
+
+@register_test_case(module_factory=lambda: PadModule())
+def PadModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+
+
+# ==============================================================================
+
+
+class PadWithNoneValModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        pad = [0, 1, 2, 3]
+        mode = "constant"
+        return torch.ops.aten.pad(x, pad, mode, None)
+
+
+@register_test_case(module_factory=lambda: PadWithNoneValModule())
+def PadWithNoneValModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+
+
+
 
 # ==============================================================================
 
