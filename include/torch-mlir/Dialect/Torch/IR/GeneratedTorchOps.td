@@ -6158,6 +6158,30 @@ def Torch_AtenIntFloatOp : Torch_Op<"aten.Int.float", [
   }];
 }
 
+def Torch_AtenIntScalarOp : Torch_Op<"aten.Int.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::Int.Scalar : (Scalar) -> (int)`";
+  let arguments = (ins
+    AnyTorchScalarType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIntScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenIntScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_Aten__RangeLengthOp : Torch_Op<"aten.__range_length", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -7137,6 +7161,29 @@ def Torch_AtenCeilFloatOp : Torch_Op<"aten.ceil.float", [
     }
   }];
   let hasFolder = 1;
+}
+
+def Torch_AtenScalarImplicitOp : Torch_Op<"aten.ScalarImplicit", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ScalarImplicit : (Tensor) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenScalarImplicitOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenScalarImplicitOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
 }
 
 def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [

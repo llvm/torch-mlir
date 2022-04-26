@@ -621,6 +621,7 @@ def EmbeddingModuleI64_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class EmbeddingModuleI32(torch.nn.Module):
 
     def __init__(self):
@@ -1816,7 +1817,9 @@ class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
 def ToCopyWithDTypeFalsePinMemoryModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
+
 # ==============================================================================
+
 
 class FlipModule(torch.nn.Module):
 
@@ -1857,3 +1860,43 @@ class DetachModule(torch.nn.Module):
     module_factory=lambda: DetachModule())
 def DetachModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
+# ==============================================================================
+
+
+class ScalarImplicitFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+    ])
+    def forward(self, x):
+        return float(torch.ops.aten.ScalarImplicit(x))
+
+
+@register_test_case(module_factory=lambda: ScalarImplicitFloatModule())
+def ScalarImplicitFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand().double())
+
+
+class ScalarImplicitIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, x):
+        return int(torch.ops.aten.ScalarImplicit(x))
+
+
+@register_test_case(module_factory=lambda: ScalarImplicitIntModule())
+def ScalarImplicitIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100, ()))

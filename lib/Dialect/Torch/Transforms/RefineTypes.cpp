@@ -426,6 +426,9 @@ private:
   ChangeResult
   visitBinaryScalarOp(Operation *op,
                       ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  ChangeResult visitAtenScalarImplicitOp(
+      AtenScalarImplicitOp op,
+      ArrayRef<LatticeElement<ValueKnowledge> *> operands);
 };
 } // namespace
 
@@ -982,6 +985,9 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitBinaryScalarOp(op, operands);
   }
 
+  if (auto scalarImplicit = dyn_cast<AtenScalarImplicitOp>(op))
+    return visitAtenScalarImplicitOp(scalarImplicit, operands);
+
   // Otherwise, this is an unknown operation. Just mark all results as
   // having reached a pessimistic fixpoint.
   return markAllPessimisticFixpoint(op->getResults());
@@ -1247,6 +1253,19 @@ ChangeResult TypeAnalyzer::visitAten_SoftmaxLikeOp(
         halfToFloat ? Float32Type::get(op->getContext()) : input.dtype;
   }
   return incorporateKnowledge(op.getResult(), knowledge);
+}
+
+ChangeResult TypeAnalyzer::visitAtenScalarImplicitOp(
+    AtenScalarImplicitOp op,
+    ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+  auto knowledge =
+      ValueKnowledge::getScalarPessimisticValueState(op.getContext());
+  Type dType = operands[0]->getValue().dtype;
+  if (dType.isa<mlir::FloatType>())
+    knowledge.setScalarType(Torch::FloatType::get(op->getContext()));
+  else if (dType.isa<mlir::IntegerType>())
+    knowledge.setScalarType(Torch::IntType::get(op->getContext()));
+  return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 // -----------------------------------------------------------------------------
