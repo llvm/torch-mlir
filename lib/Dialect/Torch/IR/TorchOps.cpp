@@ -1545,6 +1545,16 @@ OpFoldResult AtenDivFloatOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+// AtenCeilFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilFloatOp::fold(ArrayRef<Attribute> operands) {
+  double c;
+  if (matchPattern(getOperand(), m_TorchConstantFloat(&c)))
+    return getI64IntegerAttr(getContext(), std::ceil(c));
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//

@@ -6883,6 +6883,30 @@ def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
   }];
 }
 
+def Torch_AtenCeilFloatOp : Torch_Op<"aten.ceil.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ceil.float : (float) -> (int)`";
+  let arguments = (ins
+    Torch_FloatType:$a
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCeilFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenCeilFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_Aten_SoftmaxBackwardDataOp : Torch_Op<"aten._softmax_backward_data", [
     AllowsTypeRefinement,
     HasValueSemantics,

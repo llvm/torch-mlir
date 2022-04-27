@@ -1191,3 +1191,21 @@ func @torch.aten.ge.float$different_value() -> !torch.bool {
   %2 = torch.aten.ge.float %float4, %float4_0: !torch.float, !torch.float -> !torch.bool
   return %2 : !torch.bool
 }
+
+// CHECK-LABEL:   func @torch.aten.ceil.float$fold_cst() -> !torch.int {
+// CHECK:           %[[CST2:.*]] = torch.constant.int 2
+// CHECK:           return %[[CST2]] : !torch.int
+func @torch.aten.ceil.float$fold_cst() -> !torch.int {
+  %float = torch.constant.float 1.5
+  %1 = torch.aten.ceil.float %float : !torch.float -> !torch.int
+  return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func @torch.aten.ceil.float$no_fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.float) -> !torch.int {
+// CHECK:           %[[RESULT:.*]] = torch.aten.ceil.float %[[ARG]] : !torch.float -> !torch.int
+// CHECK:           return %[[RESULT]] : !torch.int
+func @torch.aten.ceil.float$no_fold(%arg0 : !torch.float) -> !torch.int {
+  %1 = torch.aten.ceil.float %arg0 : !torch.float -> !torch.int
+  return %1 : !torch.int
+}
