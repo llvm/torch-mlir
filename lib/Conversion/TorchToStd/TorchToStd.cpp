@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -72,6 +73,25 @@ public:
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.a(), adaptor.b());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+template <typename AtenOp, typename UnaryOp>
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOp> {
+public:
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    Value result = rewriter.create<UnaryOp>(op.getLoc(), adaptor.a());
+    rewriter.replaceOp(
+        op, convertScalarToDtype(rewriter, op.getLoc(), result, resultType));
     return success();
   }
 };
@@ -182,6 +202,7 @@ public:
     registry.insert<arith::ArithmeticDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<cf::ControlFlowDialect>();
+    registry.insert<math::MathDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -190,7 +211,7 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, func::FuncDialect,
                            arith::ArithmeticDialect, tensor::TensorDialect,
-                           cf::ControlFlowDialect>();
+                           cf::ControlFlowDialect, math::MathDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -245,6 +266,9 @@ public:
         typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
+        typeConverter, context);
+    target.addIllegalOp<AtenCeilFloatOp>();
+    patterns.add<ConvertAtenUnaryOp<AtenCeilFloatOp, math::CeilOp>>(
         typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
