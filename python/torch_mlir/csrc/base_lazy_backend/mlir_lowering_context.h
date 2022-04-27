@@ -39,39 +39,21 @@ public:
   Create(LoweringContext* loctx);
 };
 
-class TORCH_API TorchMlirComputation : public torch::lazy::Computation {
-public:
-  TorchMlirComputation(
-      MlirOperation func_op, MlirContext mlir_context,
-      const std::shared_ptr<torch::jit::Graph>& graph);
-
-  int parameters_size() const override;
-
-  const std::vector<torch::lazy::Shape>& parameter_shapes() const override;
-
-  const std::vector<std::string>& parameter_names() const override;
-
-  const torch::lazy::Shape& result_shape() const override;
-
-  unsigned num_results() const;
-
-  MlirOperation func_op() const;
-
-  std::string to_string() const;
-
-private:
-  std::vector<std::string> parameter_names_;
-  std::vector<Shape> parameter_shapes_;
-  Shape result_shape_;
-
-  MlirOperation func_op_;
-  MlirContext mlir_context_;
-  std::shared_ptr<torch::jit::Graph> graph_;
-  unsigned num_results_;
-};
-
 class TORCH_API TorchMlirLoweringContext : public torch::lazy::LoweringContext {
 public:
+  // Describes an input/output alias as inserted by the SetUpAlias() API.
+  struct InputOutputAlias {
+    // Specifies the index of the aliased buffer in the result tuple.
+    std::vector<int64_t> output_index;
+    // Specifies the parameter containing the buffer to be aliased.
+    int64_t param_number;
+    // Specifies the index of the aliased buffer in the parameter
+    std::vector<int64_t> param_index;
+    // Specifies if the alias is a must alias or may alias.
+    bool must_alias;
+  };
+  using InputOutputAliases = std::vector<InputOutputAlias>;
+
   TorchMlirLoweringContext(
       const std::string& name, torch::lazy::BackendDevice device);
   TorchMlirLoweringContext(
@@ -79,8 +61,15 @@ public:
       c10::ArrayRef<torch::lazy::Node*> post_order,
       torch::lazy::Util::EmissionMap emit_status);
 
-  // Get the shape of the result tuple component, given by index.
-  torch::lazy::Shape GetResultShape(size_t index) const override;
+  // Adds a new input/output alias.
+  void SetUpAlias(
+      const std::vector<int64_t>& output_index, int64_t param_number,
+      const std::vector<int64_t>& param_index,
+      bool must_alias = false) override;
+
+  // Check if parameter shape matches result at index.
+  bool CheckResultShape(
+      const BackendDataPtr& parameter_data, size_t result_idx) override;
 
   // Adds the given output as a component of the result tuple and returns its
   // assigned position within the tuple.
@@ -128,12 +117,50 @@ private:
 
   void RegisterMlirDialects();
 
+  // Holds the input/output alias information populated by the SetUpAlias() API.
+  InputOutputAliases input_output_aliases_;
   std::shared_ptr<torch::jit::Graph> graph_;
   MlirContext mlir_context_;
   std::unordered_map<BackendData::Handle, Parameter> parameters_map_;
   std::vector<torch::jit::Value*> root_tuple_;
   OutputMap<torch::jit::Value*> emitted_outputs_;
   std::unique_ptr<TorchMlirNodeLoweringInterface> lowering_;
+};
+
+class TORCH_API TorchMlirComputation : public torch::lazy::Computation {
+public:
+  using InputOutputAliases = TorchMlirLoweringContext::InputOutputAliases;
+  using InputOutputAlias = TorchMlirLoweringContext::InputOutputAlias;
+
+  TorchMlirComputation(
+      MlirOperation func_op, MlirContext mlir_context,
+      const std::shared_ptr<torch::jit::Graph>& graph,
+      InputOutputAliases input_output_aliases);
+
+  int parameters_size() const override;
+
+  const std::vector<torch::lazy::Shape>& parameter_shapes() const override;
+
+  const std::vector<std::string>& parameter_names() const override;
+
+  const torch::lazy::Shape& result_shape() const override;
+
+  unsigned num_results() const;
+
+  MlirOperation func_op() const;
+
+  std::string to_string() const;
+
+private:
+  std::vector<std::string> parameter_names_;
+  std::vector<Shape> parameter_shapes_;
+  Shape result_shape_;
+
+  MlirOperation func_op_;
+  MlirContext mlir_context_;
+  std::shared_ptr<torch::jit::Graph> graph_;
+  InputOutputAliases input_output_aliases_;
+  unsigned num_results_;
 };
 
 } // namespace lazy
