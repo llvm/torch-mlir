@@ -34,10 +34,14 @@ public:
   NodeImporter(MlirContext context) : context(context) {}
 
   void importNode(Node *node, MlirBlock appendToBlock);
-  MlirBlock importBlock(Block *jitBlock, CreateTerminatorFn createTerminator);
+  MlirBlock importBlock(
+      Block *jitBlock, CreateTerminatorFn createTerminator,
+      c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt);
 
 private:
-  MlirBlock createBlockFor(Block *jitBlock);
+  MlirBlock
+  createBlockFor(Block *jitBlock,
+                 c10::optional<c10::ArrayRef<MlirType>> blockArgTypes);
   void mapValue(Value *jitValue, MlirValue value);
   void mapResults(Node *node, MlirOperation operation);
   MlirValue lookupMappedValue(Value *jitValue);
@@ -256,11 +260,12 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     auto classType = node->input(0)->type()->cast<c10::ClassType>();
     auto methodName = node->s(c10::attr::name);
     torch::jit::Function *function = classType->findMethod(methodName);
-    torch::jit::Block *calleeEntryBlock =
-        torch::jit::toGraphFunction(*function).graph()->block();
-    auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
-      return getMlirTypeFromTorchType(loc, v->type());
-    });
+    MlirType calleeType =
+        getFunctionTypeFromSchema(context, function->getSchema());
+    std::vector<MlirType> expectedTypes;
+    for (int i = 0, e = mlirFunctionTypeGetNumInputs(calleeType); i < e; ++i) {
+      expectedTypes.push_back(mlirFunctionTypeGetInput(calleeType, i));
+    }
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.CallMethod", loc,
         getMlirTypesFromValues(loc, node->outputs()),
@@ -298,9 +303,10 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   }
 }
 
-MlirBlock NodeImporter::importBlock(Block *jitBlock,
-                                    CreateTerminatorFn createTerminator) {
-  MlirBlock block = createBlockFor(jitBlock);
+MlirBlock NodeImporter::importBlock(
+    Block *jitBlock, CreateTerminatorFn createTerminator,
+    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
+  MlirBlock block = createBlockFor(jitBlock, blockArgTypes);
   for (Node *node : jitBlock->nodes()) {
     importNode(node, block);
   }
@@ -309,17 +315,56 @@ MlirBlock NodeImporter::importBlock(Block *jitBlock,
   return block;
 }
 
-MlirBlock NodeImporter::createBlockFor(Block *jitBlock) {
+static MlirValue adjustBlockArgType(MlirContext context,
+                                    MlirBlock appendToBlock, MlirValue value,
+                                    MlirType expectedType, MlirLocation loc) {
+  MlirType type = mlirValueGetType(value);
+  if (mlirTypeEqual(type, expectedType)) {
+    return value;
+  }
+  // For tensors, we might need to erase or add static type information.
+  if (torchMlirTypeIsATorchNonValueTensor(type) ||
+      torchMlirTypeIsATorchValueTensor(type)) {
+    MlirOperation op =
+        createMlirOperationAtEnd(appendToBlock, "torch.tensor_static_info_cast",
+                                 loc, expectedType, value);
+    return mlirOperationGetResult(op, 0);
+  }
+  {
+    std::stringstream msg;
+    MlirStringCallback printToStream = +[](MlirStringRef str, void *userData) {
+      std::stringstream *stream = static_cast<std::stringstream *>(userData);
+      stream->write(str.data, str.length);
+    };
+    msg << "unhandled: could not adjust formal param type from ";
+    mlirTypePrint(type, printToStream, static_cast<void *>(&msg));
+    msg << " to expected type ";
+    mlirTypePrint(expectedType, printToStream, static_cast<void *>(&msg));
+    mlirEmitError(loc, msg.str().c_str());
+    throw mlir_diagnostic_emitted();
+  }
+}
+
+MlirBlock NodeImporter::createBlockFor(
+    Block *jitBlock, c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
   Node *paramNode = jitBlock->param_node();
   MlirLocation loc = getMlirLocationFromNode(context, paramNode);
-  std::vector<MlirType> blockArgTypes =
+  std::vector<MlirType> paramNodeTypes =
       getMlirTypesFromValues(loc, paramNode->outputs());
-  std::vector<MlirLocation> blockArgLocs(blockArgTypes.size(), loc);
-  MlirBlock block = mlirBlockCreate(blockArgTypes.size(), blockArgTypes.data(), blockArgLocs.data());
+  if (!blockArgTypes)
+    blockArgTypes = paramNodeTypes;
+  else
+    assert(blockArgTypes->size() == paramNodeTypes.size());
+  std::vector<MlirLocation> blockArgLocs(paramNodeTypes.size(), loc);
+  MlirBlock block =
+      mlirBlockCreate(blockArgTypes.value().size(),
+                      blockArgTypes.value().data(), blockArgLocs.data());
   for (int i = 0, e = mlirBlockGetNumArguments(block); i < e; i++) {
     Value *jitValue = paramNode->outputs()[i];
     MlirValue value = mlirBlockGetArgument(block, i);
-    mapValue(jitValue, value);
+    MlirValue adjusted =
+        adjustBlockArgType(context, block, value, paramNodeTypes[i], loc);
+    mapValue(jitValue, adjusted);
   }
   return block;
 }
@@ -352,8 +397,10 @@ NodeImporter::lookupMappedValues(c10::ArrayRef<Value *> values) {
   return ret;
 }
 
-MlirBlock torch_mlir::importBlock(MlirContext context, Block *jitBlock,
-                                  CreateTerminatorFn createTerminator) {
+MlirBlock
+torch_mlir::importBlock(MlirContext context, Block *jitBlock,
+                        CreateTerminatorFn createTerminator,
+                        c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
   NodeImporter importer(context);
-  return importer.importBlock(jitBlock, createTerminator);
+  return importer.importBlock(jitBlock, createTerminator, blockArgTypes);
 }
