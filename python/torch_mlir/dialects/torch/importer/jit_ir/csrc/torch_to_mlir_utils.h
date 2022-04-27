@@ -42,7 +42,7 @@ MlirType getMlirTypeFromTorchType(MlirLocation loc,
 /// Creates a FunctionType suitable for expressing the signature of `schema`.
 ///
 /// This can differ from the type inferred from the block of a
-/// torch::jit::Function due to derefinement.
+/// torch::jit::Function due to derefinement and refinement of tensor types.
 MlirType getFunctionTypeFromSchema(MlirContext context,
                                    const c10::FunctionSchema &schema);
 
