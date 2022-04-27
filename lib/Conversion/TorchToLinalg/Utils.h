@@ -13,6 +13,12 @@ namespace mlir {
 namespace torch {
 namespace torch_to_linalg {
 
+struct ReductionOpInfo {
+  bool keepDim;
+  Value tensorOperand;
+  DenseSet<int64_t> dimSet;
+};
+
 // Helper function to get the padding tensor given the padding int values.
 Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                       SmallVectorImpl<int64_t> &lowPaddingInts,
@@ -33,16 +39,21 @@ Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
                              Value kernelSizeInt, Value strideInt,
                              bool ceilMode = false);
 
-// Create a reduction of `tensorOperand`, reducing along the dimensions
-// in `dimSet`. If `keepDim` is true, the output tensor is the same
-// rank as the `tensorOperand` and reduced dimensions are set to size 1.
-// `initElem` is the element used to initialize the output tensor
-// where the reduction will be stored.
+// Create a reduction of `opInfo.tensorOperand`, reducing along the dimensions
+// in `opInfo.dimSet`. If `opInfo.keepDim` is true, the output tensor is the
+// same rank as the `opInfo.tensorOperand` and reduced dimensions are set to
+// size 1. `initElem` is the element used to initialize the output tensor where
+// the reduction will be stored.
 Value createReductionLinalgGeneric(
-    OpBuilder &b, Location loc, Value tensorOperand,
-    const DenseSet<int64_t> &dimSet, bool keepDim, Value initElem,
+    OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 
+// Create a pointwise operation that uses values in `tensorOperands`, such that
+// the element type of the resulting tensor is `resultElementType`.
+Value createElementwiseLinalgGeneric(
+    OpBuilder &b, Location loc, ValueRange tensorOperands,
+    Type resultElementType,
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

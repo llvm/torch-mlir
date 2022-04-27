@@ -383,3 +383,111 @@ class ReduceMaxUnsignedIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMaxUnsignedIntModule())
 def ReduceMaxUnsignedIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceL1NormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=1)
+
+@register_test_case(module_factory=lambda: ReduceL1NormModule())
+def ReduceL1NormModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceL1NormWithDTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=1, dtype=torch.float64)
+
+@register_test_case(module_factory=lambda: ReduceL1NormWithDTypeModule())
+def ReduceL1NormWithDTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float32))
+
+# ==============================================================================
+
+class ReduceL2NormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0)
+
+@register_test_case(module_factory=lambda: ReduceL2NormModule())
+def ReduceL2NormModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceLN3NormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=-3)
+
+@register_test_case(module_factory=lambda: ReduceLN3NormModule())
+def ReduceLN3NormModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceL3NormAllDimsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=None, ord=3)
+
+@register_test_case(module_factory=lambda: ReduceL3NormAllDimsModule())
+def ReduceL3NormAllDimsModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceL3NormKeepDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, keepdim=True, ord=3)
+
+@register_test_case(module_factory=lambda: ReduceL3NormKeepDimModule())
+def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
