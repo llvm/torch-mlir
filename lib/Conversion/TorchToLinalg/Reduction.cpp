@@ -200,9 +200,11 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
   return nullptr;
 }
 
-static Value createLinalgPayloadCalculationForReduceOp(
-    OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
-    ArrayRef<Value> operands, Type resultElementType) {
+static Value createLinalgPayloadCalculationForReduceOp(OpBuilder &b,
+                                                       Location loc,
+                                                       ValueRange payloadArgs,
+                                                       Operation *op,
+                                                       Type resultElementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
@@ -294,7 +296,7 @@ public:
         rewriter, loc, tensorOperand, dimSet, keepDim, initElem,
         [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
           Value result = createLinalgPayloadCalculationForReduceOp(
-              b, loc, payloadArgs, op, operands, resultType.getElementType());
+              b, loc, payloadArgs, op, resultType.getElementType());
           if (!result) {
             hadErrorCreatingPayload = true;
             return;
