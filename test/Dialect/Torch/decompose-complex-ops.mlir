@@ -873,3 +873,21 @@ func @torch.aten.pad(%arg0: !torch.vtensor<[?,?,?],f64>, %arg1: !torch.float) ->
   %1 = torch.aten.pad %arg0, %0, %str, %arg1 : !torch.vtensor<[?,?,?],f64>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[?,?,?],f64>
   return %1 : !torch.vtensor<[?,?,?],f64>
 }
+
+// -----
+// CHECK-LABEL:   func @torch.aten.to.dtype_layout(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f64> {
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[CST7:.*]] = torch.constant.int 7
+// CHECK:           %[[OUT:.*]] = torch.aten.to.dtype %[[SELF]], %[[CST7]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[?,?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f64>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?],f64>
+func @torch.aten.to.dtype_layout(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f64> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.to.dtype_layout %arg0, %int7, %int0, %none, %none, %false, %false, %none : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f64>
+  return %0 : !torch.vtensor<[?,?],f64>
+}

@@ -1687,6 +1687,51 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.to.dtype_layout` op into `aten.to.dtype` op.
+class DecomposeAtenToDtypeLayoutOp
+    : public OpRewritePattern<AtenToDtypeLayoutOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToDtypeLayoutOp op,
+                                PatternRewriter &rewriter) const override {
+    // TODO: Add support for pin_memory arg equal to `True`.
+    if (!op.pin_memory().getType().isa<Torch::NoneType>()) {
+      bool pinMemory;
+      if (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: pin_memory must be a constant");
+      else if (pinMemory)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: pin_memory is expected to be false");
+    }
+
+    // TODO: Add support for non-None device arg.
+    if (!op.device().getType().isa<Torch::NoneType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: device arg must be None");
+    }
+
+    // TODO: Add support for non-strided layout.
+    // torch.layout is by default strided i.e. 0.
+    if (!op.layout().getType().isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.layout(), m_TorchConstantInt(&tensorLayout)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: layout must be a constant");
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: layout is expected to be strided");
+    }
+
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), op.self(),
+                                               op.dtype(), op.non_blocking(),
+                                               op.copy(), op.memory_format());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1817,6 +1862,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenIndexPutHackedTwinOp>();
     target.addIllegalOp<AtenPadOp>();
     patterns.add<DecomposeAtenPadOp>(context);
+    patterns.add<DecomposeAtenToDtypeLayoutOp>(context);
+    target.addIllegalOp<AtenToDtypeLayoutOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

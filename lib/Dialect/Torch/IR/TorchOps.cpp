@@ -647,6 +647,67 @@ OpFoldResult AtenToDtypeOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenToDtypeLayoutOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenToDtypeLayoutOp::fold(ArrayRef<Attribute> operands) {
+  // The pin_memory arg should be either constant `False` or `none`.
+  if (!pin_memory().getType().isa<Torch::NoneType>()) {
+    bool pinMemory;
+    if (!matchPattern(pin_memory(), m_TorchConstantBool(&pinMemory)))
+      return nullptr;
+    else if (pinMemory)
+      return nullptr;
+  }
+
+  // The non_blocking arg should be constant `False`.
+  bool nonBlocking;
+  if (!matchPattern(non_blocking(), m_TorchConstantBool(&nonBlocking)))
+    return nullptr;
+  else if (nonBlocking)
+    return nullptr;
+
+  // The copy arg should be constant `False`.
+  bool copyArg;
+  if (!matchPattern(copy(), m_TorchConstantBool(&copyArg)))
+    return nullptr;
+  else if (copyArg)
+    return nullptr;
+
+  // The device arg must be `none`.
+  if (!device().getType().isa<Torch::NoneType>())
+    return nullptr;
+
+  // The memory_format arg must be `none`.
+  if (!memory_format().getType().isa<Torch::NoneType>())
+    return nullptr;
+
+  auto inputType = self().getType().cast<BaseTensorType>();
+  auto resType = getType().cast<BaseTensorType>();
+  // If the types aren't equal, then we can't fold.
+  if (inputType != resType)
+    return nullptr;
+  // If the type does not have a statically known dtype, then we cannot fold.
+  // For example, folding `tensor<*,unk>` to `tensor<*,unk>` would be wrong,
+  // since the `unk` could be dynamically different for the operand and result.
+  if (!inputType.hasDtype())
+    return nullptr;
+
+  // The layout arg should be either `none` or `0` i.e. strided.
+  if (!layout().getType().isa<Torch::NoneType>()) {
+    int64_t tensorLayout;
+    if (!matchPattern(layout(), m_TorchConstantInt(&tensorLayout)))
+      return nullptr;
+    else if (tensorLayout != torch_upstream::Layout::Strided)
+      return nullptr;
+  }
+
+  // Fold when both the input tensor and result are of the same type and the
+  // layout arg is strided.
+  return getOperand(0);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 

@@ -425,6 +425,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::max : (Tensor) -> (Tensor)")
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)", has_folder=True)
+    emit("aten::to.dtype_layout : (Tensor, int?, int?, Device?, bool?, bool, bool, int?) -> (Tensor)", has_folder=True)
     emit("aten::to.other : (Tensor, Tensor, bool, bool, int?) -> (Tensor)")
     emit("aten::to.prim_Device : (Tensor, Device?, int?, bool, bool) -> (Tensor)")
     emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")

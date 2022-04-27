@@ -5074,6 +5074,36 @@ def Torch_AtenToDtypeOp : Torch_Op<"aten.to.dtype", [
   let hasFolder = 1;
 }
 
+def Torch_AtenToDtypeLayoutOp : Torch_Op<"aten.to.dtype_layout", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::to.dtype_layout : (Tensor, int?, int?, Device?, bool?, bool, bool, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalIntType:$layout,
+    AnyTorchOptionalDeviceType:$device,
+    AnyTorchOptionalBoolType:$pin_memory,
+    Torch_BoolType:$non_blocking,
+    Torch_BoolType:$copy,
+    AnyTorchOptionalIntType:$memory_format
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenToDtypeLayoutOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void AtenToDtypeLayoutOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenToOtherOp : Torch_Op<"aten.to.other", [
     AllowsTypeRefinement,
     ReadOnly
