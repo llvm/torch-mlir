@@ -128,6 +128,7 @@ cc_library(
         "@llvm-project//mlir:ControlFlowInterfaces",
         "@llvm-project//mlir:InferTypeOpInterface",
         "@llvm-project//mlir:TransformUtils",
+        "@llvm-project//mlir:FuncDialect"
     ]
 )
 
@@ -206,6 +207,7 @@ td_library(
     includes = ["include"],
     deps = [
         ":MLIRTorchOpsIncGenTdFiles",
+        "@llvm-project//mlir:AttrTdFiles",
         "@llvm-project//mlir:OpBaseTdFiles",
         "@llvm-project//mlir:CastInterfacesTdFiles",
         "@llvm-project//mlir:ControlFlowInterfacesTdFiles",
