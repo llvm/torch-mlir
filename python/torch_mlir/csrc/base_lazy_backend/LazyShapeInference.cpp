@@ -13,9 +13,5 @@
 namespace torch {
 namespace lazy {
 
-std::vector<Shape> compute_shape_detach(const at::Tensor& self) {
-  return {Shape(self.scalar_type(), self.sizes().vec())};
-}
-
 } // namespace lazy
 } // namespace torch

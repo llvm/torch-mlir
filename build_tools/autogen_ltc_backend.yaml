@@ -19,6 +19,7 @@ blacklist:
 - zeros_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 
 # Additional ops which autogen is supported for but don't compile yet
+- detach
 - item
 - size
 - where
