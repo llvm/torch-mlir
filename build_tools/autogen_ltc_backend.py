@@ -232,7 +232,6 @@ def generate_backend(
     shape_inference_defs = extract_signatures(
         backend_path.joinpath("LazyShapeInference.cpp")
     )
-    assert len(shape_inference_defs) > 0
     assert len(shape_inference_decls) > len(shape_inference_defs)
 
     missing_defs = (
