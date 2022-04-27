@@ -38,7 +38,6 @@ TORCH_API std::vector<Shape> compute_shape_broadcast_to(const at::Tensor & self,
 TORCH_API std::vector<Shape> compute_shape_bucketize(const at::Tensor & self, const at::Tensor & boundaries, bool out_int32, bool right);
 TORCH_API std::vector<Shape> compute_shape_constant_pad_nd(const at::Tensor & self, at::IntArrayRef pad, const at::Scalar & value);
 TORCH_API std::vector<Shape> compute_shape_conv2d(const at::Tensor & input, const at::Tensor & weight, const c10::optional<at::Tensor> & bias, at::IntArrayRef stride, at::IntArrayRef padding, at::IntArrayRef dilation, int64_t groups);
-TORCH_API std::vector<Shape> compute_shape_detach(const at::Tensor & self);
 TORCH_API std::vector<Shape> compute_shape_div(const at::Tensor & self, const at::Scalar & other);
 TORCH_API std::vector<Shape> compute_shape_div_(at::Tensor & self, const at::Scalar & other);
 TORCH_API std::vector<Shape> compute_shape_dropout(const at::Tensor & input, double p, bool train);
