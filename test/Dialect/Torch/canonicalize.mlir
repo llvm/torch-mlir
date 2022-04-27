@@ -1162,3 +1162,14 @@ func @torch.aten.div.float$fold_cst_operands() -> !torch.float {
   %0 = torch.aten.div.float %float4, %float2 : !torch.float, !torch.float -> !torch.float
   return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func @torch.aten.to.dtype_layout$same_dtype(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
+func @torch.aten.to.dtype_layout$same_dtype(%arg0: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int6 = torch.constant.int 6
+  %0 = torch.aten.to.dtype_layout %arg0, %int6, %none, %none, %none, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
+  return %0 : !torch.tensor<[?,?],f32>
+}

@@ -33,10 +33,11 @@ static bool isViewLikeOp(Operation *op) {
   // that it does not return a view and treat those as having value
   // semantics.
   return isa<AtenBroadcastToOp, AtenContiguousOp, AtenExpandAsOp, AtenExpandOp,
-             AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp,
-             AtenSelectIntOp, AtenSliceTensorOp, AtenSqueezeDimOp,
-             AtenSqueezeOp, AtenTOp, AtenToDtypeOp, AtenTransposeIntOp,
-             AtenUnsqueezeOp, AtenViewOp, TensorStaticInfoCastOp>(op);
+             AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
+             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
+             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
+             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+             TensorStaticInfoCastOp, AtenToDtypeLayoutOp>(op);
 }
 
 namespace {

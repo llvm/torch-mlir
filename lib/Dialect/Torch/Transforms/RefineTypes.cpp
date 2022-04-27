@@ -289,9 +289,10 @@ private:
   template <typename OpTy>
   ChangeResult visitConstantTensorNewLikeOp(
       OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  template <typename OpTy>
   ChangeResult
-  visitAtenToDtypeOp(AtenToDtypeOp op,
-                     ArrayRef<LatticeElement<ValueKnowledge> *> operands);
+  visitAtenToDtypeLikeOp(OpTy op,
+                         ArrayRef<LatticeElement<ValueKnowledge> *> operands);
   template <typename OpTy>
   ChangeResult
   visitTypeConversionOp(OpTy op,
@@ -797,14 +798,11 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitConstantTensorAllocLikeOp<Aten_ToCopyOp>(toCopy, operands);
   }
 
-  if (auto toDtype = dyn_cast<AtenToDtypeOp>(op)) {
-    auto knowledge =
-        ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
-    int64_t dtypeInt;
-    if (matchPattern(toDtype.dtype(), m_TorchConstantInt(&dtypeInt)))
-      knowledge.dtype = getTypeForDTypeInteger(op->getContext(), dtypeInt);
-    return incorporateKnowledge(toDtype.getResult(), knowledge);
-  }
+  if (auto toDtype = dyn_cast<AtenToDtypeOp>(op))
+    return visitAtenToDtypeLikeOp<AtenToDtypeOp>(toDtype, operands);
+
+  if (auto toDtypeLayout = dyn_cast<AtenToDtypeLayoutOp>(op))
+    return visitAtenToDtypeLikeOp<AtenToDtypeLayoutOp>(toDtypeLayout, operands);
 
   if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
     return visitTypeConversionOp<AtenToOtherOp>(toOther, operands);
@@ -1023,8 +1021,9 @@ ChangeResult TypeAnalyzer::visitConstantTensorNewLikeOp(
 }
 
 // Convert input tensor type to the given `dtype`.
-ChangeResult TypeAnalyzer::visitAtenToDtypeOp(
-    AtenToDtypeOp op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
+template <typename OpTy>
+ChangeResult TypeAnalyzer::visitAtenToDtypeLikeOp(
+    OpTy op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
       ValueKnowledge::getNotNonePessimisticValueState(op->getContext());
   Value dtype = op.dtype();
