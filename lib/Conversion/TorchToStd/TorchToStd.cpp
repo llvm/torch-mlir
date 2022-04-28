@@ -211,15 +211,12 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
         typeConverter, context);
-    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp>();
+    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp>();
     patterns.add<
         ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
         typeConverter, context);
     patterns.add<ConvertAtenFloatComparisonOp<AtenGeFloatIntOp,
                                               arith::CmpFPredicate::UGE>>(
-        typeConverter, context);
-    patterns.add<ConvertAtenFloatComparisonOp<AtenNeFloatIntOp,
-                                              arith::CmpFPredicate::UNE>>(
         typeConverter, context);
     target.addIllegalOp<ValueTensorLiteralOp>();
     patterns.add<ConvertTorchTensorLiteralOp>(typeConverter, context);

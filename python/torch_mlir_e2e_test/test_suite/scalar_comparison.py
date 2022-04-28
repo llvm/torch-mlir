@@ -108,23 +108,3 @@ class GeFloatIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: GeFloatIntModule())
 def GeFloatIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(()), torch.randint(-100, 100, ()))
-
-# ==============================================================================
-
-class NeFloatIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.int64, True),
-    ])
-    def forward(self, lhs, rhs):
-        return float(lhs) != int(rhs)
-
-
-@register_test_case(module_factory=lambda: NeFloatIntModule())
-def NeFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(()), torch.randint(-100, 100, ()))
