@@ -248,6 +248,63 @@ static Value createLinalgPayloadCalculationForReduceOp(OpBuilder &b,
 
 namespace {
 class ConvertReductionOp : public ConversionPattern {
+private:
+  struct ReductionOpInfo {
+    bool keepDim;
+    Value tensorOperand;
+    DenseSet<int64_t> dimSet;
+  };
+
+  template <typename T>
+  LogicalResult
+  computeReductionOpInfoFromDimOp(T op, ArrayRef<Value> operands,
+                                  ConversionPatternRewriter &rewriter,
+                                  ReductionOpInfo &opInfo) const {
+    opInfo.tensorOperand = operands[0];
+    auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+
+    if (!matchPattern(op.keepdim(), m_TorchConstantBool(&opInfo.keepDim)))
+      return failure();
+
+    SmallVector<int64_t> dimList;
+    if (!matchPattern(op.dim(), m_TorchConstantIntList(dimList)))
+      return failure();
+
+    for (auto dim : dimList) {
+      // Torch allows for negative values in dimSet to go in reverse
+      // order in the dimensions of the input tensor.
+      dim = dim >= 0 ? dim : dim + inputType.getRank();
+      // Drop invalid dimensions
+      if (dim < inputType.getRank())
+        opInfo.dimSet.insert(dim);
+    }
+
+    return success();
+  }
+
+  LogicalResult computeReductionOpInfo(Operation *op, ArrayRef<Value> operands,
+                                       ConversionPatternRewriter &rewriter,
+                                       ReductionOpInfo &opInfo) const {
+    opInfo.keepDim = false;
+
+    if (isa<AtenMaxOp, AtenSumOp>(op)) {
+      opInfo.tensorOperand = operands[0];
+      auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+
+      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
+      // input tensor.
+      for (int64_t i = 0; i < inputType.getRank(); i++)
+        opInfo.dimSet.insert(i);
+
+      return success();
+    }
+
+    if (auto sumOp = dyn_cast<AtenSumDimIntListOp>(op))
+      return computeReductionOpInfoFromDimOp(sumOp, operands, rewriter, opInfo);
+
+    return rewriter.notifyMatchFailure(op, "not a supported reduce op");
+  }
+
 public:
   ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
       : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
@@ -258,41 +315,9 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    // Every reduce operation must set a value for the `dimSet`,
-    // `tensorOperand`, and `keepDim` in accordance with their specification.
-    DenseSet<int64_t> dimSet;
-    Value tensorOperand;
-    bool keepDim = false;
-    if (isa<AtenSumOp>(op) || isa<AtenMaxOp>(op)) {
-      tensorOperand = operands[0];
-      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
-
-      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
-      // input tensor.
-      for (int64_t i = 0; i < inputType.getRank(); i++)
-        dimSet.insert(i);
-    } else if (auto sumDimIntListOp = dyn_cast<AtenSumDimIntListOp>(op)) {
-      tensorOperand = operands[0];
-      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
-
-      if (!matchPattern(sumDimIntListOp.keepdim(),
-                        m_TorchConstantBool(&keepDim)))
-        return failure();
-
-      SmallVector<int64_t> dimList;
-      if (!matchPattern(sumDimIntListOp.dim(), m_TorchConstantIntList(dimList)))
-        return failure();
-      for (auto dim : dimList) {
-        // Torch allows for negative values in dimSet to go in reverse
-        // order in the dimensions of the input tensor.
-        dim = dim >= 0 ? dim : dim + inputType.getRank();
-        // Drop invalid dimensions
-        if (dim < inputType.getRank())
-          dimSet.insert(dim);
-      }
-    } else {
-      return rewriter.notifyMatchFailure(op, "not a supported reduce op");
-    }
+    auto opInfo = ReductionOpInfo{false, Value{}, {}};
+    if (failed(computeReductionOpInfo(op, operands, rewriter, opInfo)))
+      return failure();
 
     Location loc = op->getLoc();
     auto resultType = getTypeConverter()
@@ -303,8 +328,8 @@ public:
 
     bool hadErrorCreatingPayload = false;
     Value generic = torch_to_linalg::createReductionLinalgGeneric(
-        rewriter, loc, tensorOperand, dimSet, keepDim, initElem,
-        [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+        rewriter, loc, opInfo.tensorOperand, opInfo.dimSet, opInfo.keepDim,
+        initElem, [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
           Value result = createLinalgPayloadCalculationForReduceOp(
               b, loc, payloadArgs, op, resultType.getElementType());
           if (!result) {
