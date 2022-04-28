@@ -179,17 +179,3 @@ func @torch.aten.ge.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.bo
   %0 = torch.aten.ge.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.bool
   return %0 : !torch.bool
 }
-
-// CHECK-LABEL:   func @torch.aten.ge.float_int(
-// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
-// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
-// CHECK:           %[[RHS_F64:.*]] = arith.sitofp %[[RHS_I64]] : i64 to f64
-// CHECK:           %[[CMP:.*]] = arith.cmpf uge, %[[LHS_F64]], %[[RHS_F64]] : f64
-// CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
-// CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
-func @torch.aten.ge.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !torch.bool {
-  %0 = torch.aten.ge.float_int %arg0, %arg1 : !torch.float, !torch.int -> !torch.bool
-  return %0 : !torch.bool
-}
