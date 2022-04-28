@@ -402,3 +402,60 @@ class ReduceMaxUnsignedIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMaxUnsignedIntModule())
 def ReduceMaxUnsignedIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (3, 4, 5)))
+
+# ==============================================================================
+
+class ReduceMeanDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, 5], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.mean(a, dim=-1)
+
+
+@register_test_case(module_factory=lambda: ReduceMeanDimModule())
+def ReduceMeanDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMeanDimMultiModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.mean(a, dim=(0,1))
+
+
+@register_test_case(module_factory=lambda: ReduceMeanDimMultiModule())
+def ReduceMeanDimMultiModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
+class ReduceMeanDimKeepDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.mean(a, dim=0, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: ReduceMeanDimKeepDimModule())
+def ReduceMeanDimKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))

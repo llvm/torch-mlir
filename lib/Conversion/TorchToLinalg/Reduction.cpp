@@ -302,7 +302,108 @@ private:
     if (auto sumOp = dyn_cast<AtenSumDimIntListOp>(op))
       return computeReductionOpInfoFromDimOp(sumOp, operands, rewriter, opInfo);
 
+    if (auto meanOp = dyn_cast<AtenMeanDimOp>(op))
+      return computeReductionOpInfoFromDimOp(meanOp, operands, rewriter,
+                                             opInfo);
+
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
+  }
+
+  Value createSumReduction(Location loc, Type elemType,
+                           const ReductionOpInfo &opInfo,
+                           ConversionPatternRewriter &rewriter) const {
+    auto err = false;
+
+    // Function to create the body of the linalg.generic operation.
+    auto sumBodyBuilder = [&](OpBuilder &builder, Location loc,
+                              ValueRange payloadArgs) {
+      auto result = createLinalgPayloadCalculationForSumReduceOp(
+          builder, loc, payloadArgs, elemType);
+      if (result)
+        builder.create<linalg::YieldOp>(loc, result);
+      err = !result;
+    };
+
+    auto zeroAttr = rewriter.getZeroAttr(elemType);
+    auto initElement = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
+
+    // linalg.generic operation for sum reduction
+    auto sumOp = torch_to_linalg::createReductionLinalgGeneric(
+        rewriter, loc, opInfo.tensorOperand, opInfo.dimSet, opInfo.keepDim,
+        initElement, sumBodyBuilder);
+    return err || !sumOp ? Value{} : sumOp;
+  }
+
+  Optional<double>
+  computeReducedElementCount(const ReductionOpInfo &opInfo) const {
+    auto inputType = opInfo.tensorOperand.getType();
+    auto inputShape = inputType.dyn_cast<RankedTensorType>().getShape();
+    auto reducedElemCount = 1.0;
+    for (auto dim : opInfo.dimSet) {
+      auto sizeInDim = inputShape[dim];
+      if (sizeInDim <= 0)
+        return llvm::None;
+      reducedElemCount *= static_cast<double>(sizeInDim);
+    }
+    return reducedElemCount;
+  }
+
+  Value createPointwiseMul(Location loc, Type elemType, double reducedElemCount,
+                           Value sumOp, const ReductionOpInfo &opInfo,
+                           ConversionPatternRewriter &rewriter) const {
+    // Create an attribute whose value is the reciprocal of the tensor size.
+    bool unused;
+    auto inverse = APFloat(1.0 / reducedElemCount);
+    inverse.convert(elemType.cast<mlir::FloatType>().getFloatSemantics(),
+                    APFloat::rmNearestTiesToEven, &unused);
+    auto inverseAttr = rewriter.getFloatAttr(elemType, inverse);
+    auto inverseValue = rewriter.create<arith::ConstantOp>(loc, inverseAttr);
+
+    bool err = false;
+    auto mulBodyBuilder = [&](OpBuilder &builder, Location loc,
+                              ValueRange payloadArgs) {
+      auto elem = convertScalarToDtype(builder, loc, payloadArgs[0], elemType);
+      auto result = builder.create<arith::MulFOp>(loc, elem, inverseValue);
+      if (result)
+        builder.create<linalg::YieldOp>(loc, Value{result});
+      err = !result;
+    };
+
+    auto mulOp = torch_to_linalg::createElementwiseLinalgGeneric(
+        rewriter, loc, {sumOp}, elemType, mulBodyBuilder);
+    return err || !mulOp ? Value{} : mulOp;
+  }
+
+  LogicalResult convertMeanDimOp(Operation *op, Location loc,
+                                 RankedTensorType resultType,
+                                 const ReductionOpInfo &opInfo,
+                                 ConversionPatternRewriter &rewriter) const {
+    auto elemType = resultType.getElementType();
+    if (!elemType.isa<mlir::FloatType>())
+      return op->emitError("only float types are valid for mean operation");
+
+    // We lower the mean operation in two steps, the first of which is to
+    // compute a sum reduction of the input tensor, after which we compute a
+    // pointwise operation where we multiply each element with the reciprocal
+    // of the tensor size along the reduced dimensions.
+    auto sumOp = createSumReduction(loc, elemType, opInfo, rewriter);
+    if (!sumOp)
+      return failure();
+
+    // Determine the divisor for computing the mean.
+    auto reducedElemCount = computeReducedElementCount(opInfo);
+    if (!reducedElemCount)
+      return op->emitError("insufficient type information to determine "
+                           "tensor size; check input tensor annotations");
+
+    // Multiply each element of the reduction with reciprocal of the divisor.
+    auto mulOp = createPointwiseMul(loc, elemType, *reducedElemCount, sumOp,
+                                    opInfo, rewriter);
+    if (!mulOp)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, mulOp);
+    return success();
   }
 
   LogicalResult
@@ -350,7 +451,10 @@ public:
     auto resultType = getTypeConverter()
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
-    return convertGenericReductionOp(op, loc, resultType, opInfo, rewriter);
+    return isa<AtenMeanDimOp>(op)
+               ? convertMeanDimOp(op, loc, resultType, opInfo, rewriter)
+               : convertGenericReductionOp(op, loc, resultType, opInfo,
+                                           rewriter);
   }
 };
 } // namespace
@@ -364,5 +468,6 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenMaxOp>();
+  target.addIllegalOp<AtenMeanDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);
 }
