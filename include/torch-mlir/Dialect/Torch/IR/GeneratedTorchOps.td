@@ -6667,30 +6667,6 @@ def Torch_AtenGeFloatIntOp : Torch_Op<"aten.ge.float_int", [
   }];
 }
 
-def Torch_AtenNeFloatIntOp : Torch_Op<"aten.ne.float_int", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::ne.float_int : (float, int) -> (bool)`";
-  let arguments = (ins
-    Torch_FloatType:$a,
-    Torch_IntType:$b
-  );
-  let results = (outs
-    Torch_BoolType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenNeFloatIntOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenNeFloatIntOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
 def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
     AllowsTypeRefinement,
     HasValueSemantics,
