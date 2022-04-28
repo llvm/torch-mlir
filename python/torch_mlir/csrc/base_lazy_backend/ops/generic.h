@@ -19,34 +19,9 @@ class TORCH_API Generic : public TorchMlirNode {
       size_t num_outputs = 1,
       hash_t hash_seed = static_cast<uint32_t>(0x5a2d296e9));
 
-  Generic(
-      OpKind op,
-      OpList operands,
-      const std::function<Shape()>& shape_fn,
-      size_t num_outputs = 1,
-      hash_t hash_seed = static_cast<uint32_t>(0x5a2d296e9));
-
-  Generic(
-      OpKind op,
-      OpList operands,
-      size_t num_outputs = 1,
-      hash_t hash_seed = static_cast<uint32_t>(0x5a2d296e9));
-
-  Generic(OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed);
-
  private:
   hash_t hash_seed_;
 };
-
-inline NodePtr GenericOp(
-    OpKind op,
-    OpList operands,
-    Shape shape,
-    size_t num_outputs = 1,
-    hash_t hash_seed = static_cast<uint32_t>(0x5a2d296e9)) {
-  return MakeNode<Generic>(
-      op, operands, std::move(shape), num_outputs, hash_seed);
-}
 
 } // namespace lazy
 } // namespace torch
