@@ -305,24 +305,11 @@ private:
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
 
-public:
-  ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
-      : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
-                          context) {}
   LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    auto opInfo = ReductionOpInfo{false, Value{}, {}};
-    if (failed(computeReductionOpInfo(op, operands, rewriter, opInfo)))
-      return failure();
-
-    Location loc = op->getLoc();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+  convertGenericReductionOp(Operation *op, Location loc,
+                            RankedTensorType resultType,
+                            const ReductionOpInfo &opInfo,
+                            ConversionPatternRewriter &rewriter) const {
     Value initElem = createLinalgNeutralElementForReduceOp(
         rewriter, loc, op, resultType.getElementType());
 
@@ -343,6 +330,27 @@ public:
       return failure();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, generic);
     return success();
+  }
+
+public:
+  ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
+      : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
+                          context) {}
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto opInfo = ReductionOpInfo{false, Value{}, {}};
+    if (failed(computeReductionOpInfo(op, operands, rewriter, opInfo)))
+      return failure();
+
+    Location loc = op->getLoc();
+    auto resultType = getTypeConverter()
+                          ->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    return convertGenericReductionOp(op, loc, resultType, opInfo, rewriter);
   }
 };
 } // namespace
