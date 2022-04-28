@@ -42,6 +42,12 @@ Value createReductionLinalgGeneric(
     const DenseSet<int64_t> &dimSet, bool keepDim, Value initElem,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 
+// Create a pointwise operation that uses values in `tensorOperands`, such that
+// the element type of the resulting tensor is `resultElementType`.
+Value createElementwiseLinalgGeneric(
+    OpBuilder &b, Location loc, ValueRange tensorOperands,
+    Type resultElementType,
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

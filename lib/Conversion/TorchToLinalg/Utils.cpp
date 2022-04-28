@@ -146,3 +146,110 @@ Value torch_to_linalg::createReductionLinalgGeneric(
           /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild)
       .getResult(0);
 }
+
+Value torch_to_linalg::createElementwiseLinalgGeneric(
+    OpBuilder &b, Location loc, ValueRange tensorOperands,
+    Type resultElementType,
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
+  // The overall error handling strategy here is best viewed by thinking about
+  // what happens for a single result dimension. This loop not structured that
+  // way because it is hard to create the affine maps for each operand unless
+  // we structure the loop to iterate over tensor operands as the outer loop
+  // instead of inner loop. This pseudocode gives better intuition:
+  // ```
+  // for each result dimension:
+  //   for each tensor operand:
+  //     if it doesn't even have high enough rank relative to the result:
+  //       continue
+  //     if it is a static size-1 along this result dimension:
+  //       continue
+  //     if this is the first tensor operand that didn't continue above:
+  //       take its dimension size as the size of the non-broadcasted
+  //       traversal along this dimension (this may include a dynamic size-1,
+  //       **non-broadcasted** traversal!)
+  //     emit error check "if the size does not match the non-broadcasted
+  //     traversal size along this dimension, error"
+  // ```
+  SmallVector<int64_t> operandRanks;
+  operandRanks.resize(tensorOperands.size());
+  llvm::transform(tensorOperands, operandRanks.begin(), [](Value tensor) {
+    return tensor.getType().dyn_cast<RankedTensorType>().getRank();
+  });
+
+  auto resultRankIt =
+      std::max_element(operandRanks.begin(), operandRanks.end());
+  assert(resultRankIt != operandRanks.end() && "Unable to get result rank.");
+  int64_t resultRank = *resultRankIt;
+
+  // Initialize the resultShape to all 1's, as a fallback in case
+  // all sizes along that result dimension are statically 1.
+  auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
+  SmallVector<Value> resultShape(resultRank, c1);
+  SmallVector<AffineMap> indexingMaps;
+  for (Value tensorOperand : tensorOperands) {
+    SmallVector<AffineExpr> exprs;
+    auto type = tensorOperand.getType().cast<RankedTensorType>();
+    for (auto size : llvm::enumerate(type.getShape())) {
+      // If the size is statically known to be 1, we don't want any
+      // error guards to be spuriously emitted, since we are specifically
+      // allowing size-1 broadcasts in this case, as they correspond to a
+      // constant-0 indexing map.
+      if (size.value() == 1) {
+        exprs.push_back(b.getAffineConstantExpr(0));
+        continue;
+      }
+
+      // The rank of this operand might be smaller than the overall rank of
+      // the broadcast. Add an offset to correlate it to the correct
+      // dimension of the result.
+      auto resultDim = size.index() + (resultRank - type.getRank());
+
+      // The generated linalg op will now be iterating along the full size
+      // of this dimension. Record that fact.
+      exprs.push_back(b.getAffineDimExpr(resultDim));
+
+      // Now, we need to ensure that such iteration is not going to trigger
+      // undefined behavior, by doing appropriate checks against the current
+      // dimension size.
+      auto currentDimSize = getDimOp(b, loc, tensorOperand, size.index());
+
+      // If the result size of this dimension has so far only hit the
+      // statically-known-to-be-1 case above (i.e., we have not yet assigned a
+      // new Value to `resultShape[resultDim]`), then we have no other dynamic
+      // values to check against, and merely need to record the current
+      // dimension size.
+      if (resultShape[resultDim] == c1) {
+        resultShape[resultDim] = currentDimSize;
+        continue;
+      }
+
+      // We prohibit the size-1 dynamic broadcasting scenario, so just check
+      // for exact equality with the running result size.
+      // This is the check which protects against the undefined behavior of
+      // the generated linalg op in the case of iterating two operands with
+      // dimensions sizes that are expected to match.
+      auto equalToRunning =
+          b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                  resultShape[resultDim], currentDimSize);
+      b.create<cf::AssertOp>(loc, equalToRunning,
+                             "mismatched size for broadcast");
+    }
+    indexingMaps.push_back(AffineMap::get(
+        /*dimCount=*/resultRank, /*symbolCount=*/0, exprs, b.getContext()));
+  }
+
+  SmallVector<StringRef> iteratorTypes(resultRank,
+                                       getParallelIteratorTypeName());
+  // Add the indexing map for the outs init tensor.
+  indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
+
+  Value initTensor = b.create<linalg::InitTensorOp>(
+      loc, getAsOpFoldResult(resultShape), resultElementType);
+  return b
+      .create<linalg::GenericOp>(loc,
+                                 /*resultTensorTypes=*/initTensor.getType(),
+                                 /*inputs=*/tensorOperands,
+                                 /*outputs=*/initTensor, indexingMaps,
+                                 iteratorTypes, bodyBuild)
+      .getResult(0);
+}
