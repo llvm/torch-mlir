@@ -497,7 +497,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::ge.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::lt.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::lt.float_int : (float, int) -> (bool)")
-    emit("aten::ge.float_int : (float, int) -> (bool)")
     emit("aten::__and__.bool : (bool, bool) -> (bool)")
     emit("aten::ne.bool : (bool, bool) -> (bool)", has_folder=True)
     emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
