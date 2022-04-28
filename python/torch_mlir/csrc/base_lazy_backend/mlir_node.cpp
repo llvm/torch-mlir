@@ -36,6 +36,8 @@ hash_t OperandHashes(const OpList& operands,
   return hash;
 }
 
+}  // namespace
+
 TorchMlirNode::TorchMlirNode(OpKind op, OpList operands, std::vector<Shape>&& shapes, size_t num_outputs, hash_t hash_seed)
     : Node(op, operands, std::move(shapes), num_outputs) {
   hash_seed = HashCombine(op.hash(), hash_seed);
@@ -63,6 +65,24 @@ hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 TorchMlirOpVector TorchMlirNode::Lower(
     TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
   return {};
+}
+
+TensorList::TensorList(OpList values)
+  : TorchMlirNode(/*op=*/tensor_list_opkind,
+                  /*operands=*/values,
+                  /*shapes=*/std::vector<Shape>(),
+                  /*num_outputs=*/1,
+                  /*hash_seed=*/kHashSeed) {}
+
+torch::lazy::TorchMlirOpVector TensorList::Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
+  std::vector<torch::jit::Value*> tensor_list;
+  CHECK(!operands().empty());
+  for (const torch::lazy::Output& operand : operands()) {
+    tensor_list.emplace_back(loctx->GetOutputOp(operand));
+  }
+  auto graph = function->graph();
+  auto listnode = graph->insertNode(graph->createList(tensor_list[0]->type(), tensor_list));
+  return {listnode->output()};
 }
 
 } // namespace lazy

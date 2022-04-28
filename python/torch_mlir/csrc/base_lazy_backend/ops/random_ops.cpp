@@ -20,9 +20,7 @@ std::string Normal::ToString() const {
   return ss.str();
 }
 
-torch::lazy::TSOpVector Normal::Lower(
-    std::shared_ptr<torch::jit::GraphFunction> function,
-    torch::lazy::TSLoweringContext* loctx) const {
+torch::lazy::TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
   std::vector<torch::jit::NamedValue> arguments;
   std::vector<torch::jit::NamedValue> kwarguments;
   arguments.reserve(3);
@@ -30,7 +28,7 @@ torch::lazy::TSOpVector Normal::Lower(
   arguments.emplace_back(loctx->GetOutputOp(operand(i++)));
   arguments.emplace_back("mean", mean_);
   arguments.emplace_back("std", std_);
-  torch::lazy::TSOpVector normal__out = torch::lazy::LowerTSBuiltin(function, op().op, arguments, kwarguments);
+  torch::lazy::TorchMlirOpVector normal__out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, arguments, kwarguments);
   CHECK_EQ(normal__out.size(), 1);
 
   return normal__out;

@@ -302,7 +302,7 @@ unsigned TorchMlirComputation::num_results() const { return num_results_; }
 
 MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
-std::string TorchMlirComputation::to_string() const {
+const std::string TorchMlirComputation::to_string() const {
   // Since we use the C-MLIR API, we need to use a callback to print.
   MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
     // user_data is a void ptr to some data structure of our choice -- in this

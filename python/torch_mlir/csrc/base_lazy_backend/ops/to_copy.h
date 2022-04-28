@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../mlir_node.h"
+#include "base_lazy_backend/mlir_node_lowering.h"
 
 namespace torch {
 namespace lazy {
@@ -57,9 +58,8 @@ class ToCopy : public torch::lazy::TorchMlirNode {
     return ss.str();
   }
 
-  torch::lazy::TSOpVector Lower(std::shared_ptr<torch::jit::GraphFunction> function,
-                   torch::lazy::TSLoweringContext* loctx) const override {
-        std::vector<torch::jit::NamedValue> arguments;
+  torch::lazy::TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override {
+    std::vector<torch::jit::NamedValue> arguments;
     std::vector<torch::jit::NamedValue> kwarguments;
     arguments.reserve(1);
     kwarguments.reserve(6);
@@ -71,7 +71,7 @@ class ToCopy : public torch::lazy::TorchMlirNode {
     kwarguments.emplace_back("pin_memory", pin_memory);
     kwarguments.emplace_back("non_blocking", non_blocking);
     kwarguments.emplace_back("memory_format", memory_format);
-    torch::lazy::TSOpVector _to_copy_out = torch::lazy::LowerTSBuiltin(function, op().op, arguments, kwarguments);
+    torch::lazy::TorchMlirOpVector _to_copy_out = torch::lazy::LowerTorchMlirBuiltin(TorchMlirFunction function, c10::Symbol sym, const c10::ArrayRef<Shape> result_shapes, const std::vector<torch::jit::NamedValue> &arguments)Builtin(function, op().op, arguments, kwarguments);
     CHECK_EQ(_to_copy_out.size(), 1);
 
     return _to_copy_out;

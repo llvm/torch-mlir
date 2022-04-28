@@ -18,6 +18,7 @@
 #include <ATen/ops/result_type.h>
 #include <torch/csrc/lazy/core/helpers.h>
 #include <torch/csrc/lazy/core/ir_builder.h>
+#include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include <torch/csrc/lazy/core/metrics.h>
 #include <torch/csrc/lazy/core/ops/utils.h>
 #include <torch/csrc/lazy/core/tensor_util.h>
@@ -111,8 +112,49 @@ GetLtcDevice(const c10::optional<c10::Device>& device) {
   return torch::lazy::atenDeviceToBackendDevice(*device);
 }
 
+torch::lazy::Value MaybeExpand(const torch::lazy::Value& input,
+                               const torch::lazy::Shape& target_shape) {
+  if (input.shape().sizes() == target_shape.sizes()) {
+    return input;
+  }
+  return torch::lazy::MakeExpand(
+      input, target_shape.sizes().vec(),
+      /*is_scalar_expand=*/false);
+}
 
-torch::lazy::LazyTensorPtr view(const torch::lazy::LazyTensorPtr& input, c10::ArrayRef<int64_t> output_size) {
+std::vector<int64_t> GetExpandDimensions(const torch::lazy::Shape& shape,
+                                         std::vector<int64_t> dimensions) {
+  CHECK_GE(dimensions.size(), shape.dim()) << shape;
+  int64_t base = dimensions.size() - shape.dim();
+  for (size_t i = 0; i < shape.dim(); ++i) {
+    if (dimensions[base + i] == -1) {
+      dimensions[base + i] = shape.size(i);
+    }
+  }
+  return dimensions;
+}
+
+void copy_(torch::lazy::LazyTensorPtr& input, torch::lazy::LazyTensorPtr& src) {
+  if (input->GetDevice() == src->GetDevice()) {
+    torch::lazy::Value copy_value;
+    if (input->dtype() == src->dtype()) {
+      copy_value = src->GetIrValue();
+    } else {
+      copy_value = torch::lazy::MakeCast(
+          src->GetIrValue(), input->dtype(), src->dtype());
+    }
+    input->SetIrValue(MaybeExpand(copy_value, input->shape()));
+  } else {
+    auto input_shape = input->shape();
+    at::Tensor src_tensor = src->ToTensor(/*detached=*/true);
+    if (src_tensor.sizes() != input_shape.Get().sizes()) {
+      src_tensor = src_tensor.expand(input_shape.Get().sizes().vec());
+    }
+    input->UpdateFromTensor(std::move(src_tensor), /*sync=*/false);
+  }
+}
+
+torch::lazy::LazyTensorPtr create_view(const torch::lazy::LazyTensorPtr& input, c10::ArrayRef<int64_t> output_size) {
   auto input_shape = input->shape().Get();
   torch::lazy::Shape shape = torch::lazy::Shape(
       input_shape.scalar_type(), at::infer_size(output_size, input_shape.numel()));
@@ -220,7 +262,7 @@ at::Tensor LazyNativeFunctions::_copy_from(
         dst_tensor_data->copy_(self_tensor->ToTensor(/*detached=*/false));
       }
     } else {
-      torch::lazy::copy_(dst_tensor, self_tensor);
+      copy_(dst_tensor, self_tensor);
       auto* impl =
           dynamic_cast<torch::lazy::LTCTensorImpl*>(dst.unsafeGetTensorImpl());
       impl->set_tensor(dst_tensor);
@@ -323,7 +365,7 @@ at::Tensor LazyNativeFunctions::squeeze(const at::Tensor& self, int64_t dim) {
   auto output_dimensions =
       BuildSqueezedDimensions(input_shape.Get().sizes(), squeeze_dim);
 
-  return torch::lazy::CreateAtenFromLtcTensor(view(self_tensor, output_dimensions));
+  return torch::lazy::CreateAtenFromLtcTensor(create_view(self_tensor, output_dimensions));
 }
 
 at::Tensor LazyNativeFunctions::t(const at::Tensor& self) {
@@ -349,7 +391,7 @@ at::Tensor LazyNativeFunctions::unsqueeze(const at::Tensor& self, int64_t dim) {
       torch::lazy::GetCanonicalDimensionIndex(dim, input_shape.Get().dim() + 1);
   auto dimensions =
       BuildUnsqueezedDimensions(input_shape.Get().sizes(), squeeze_dim);
-  return torch::lazy::CreateAtenFromLtcTensor(view(self_tensor, dimensions));
+  return torch::lazy::CreateAtenFromLtcTensor(create_view(self_tensor, dimensions));
 }
 
 at::Tensor

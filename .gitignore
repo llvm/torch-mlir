@@ -24,5 +24,8 @@ __pycache__
 /generated_backend.hash
 /python/torch_mlir/csrc/base_lazy_backend/generated
 
+# LTC Example Backend
+/examples/ltc_backend/ltc_backend/_EXAMPLE_MLIR_BACKEND.*.so
+
 # Bazel
 bazel-*

@@ -106,6 +106,15 @@ BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
   return std::make_shared<TorchMlirBackendData>(device, shape);
 }
 
+BackendDataPtr TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
+  PRINT_FUNCTION();
+  auto* device_data_node = dynamic_cast<DeviceData*>(node);
+  if (!device_data_node) {
+    return nullptr;
+  }
+  return device_data_node->data;
+}
+
 at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
     const BackendDataPtr data,
     c10::optional<at::ScalarType> logical_scalar_type) const {
