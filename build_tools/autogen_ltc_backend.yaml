@@ -38,8 +38,7 @@ supported:
 - empty
 - expand
 - fill_
-- native_batch_norm
-# - native_batch_norm_backward
+- native_batch_norm_backward
 - permute
 - squeeze
 - t
@@ -50,7 +49,7 @@ additional_ops:
 # Additional ops to support that are not supported by Torch-MLIR explicitly
 - _copy_from
 - _copy_from_and_resize
-- native_batch_norm_backward
+# - native_batch_norm_backward
 
 # List of non native ops that we only want to do IR node class generation for
 non_native:

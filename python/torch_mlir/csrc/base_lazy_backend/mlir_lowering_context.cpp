@@ -148,12 +148,13 @@ void TorchMlirLoweringContext::AssignOutputOp(
     const Output& output, torch::jit::Value* op) {
   PRINT_FUNCTION();
 
-  auto torch_mlir_node =
-      NodeCast<TorchMlirNode>(output.node, output.node->op());
-  if (!torch_mlir_node->getPythonStacktrace().empty()) {
-    op->node()->s_(
-        c10::Symbol::attr("source"), torch_mlir_node->getPythonStacktrace());
-  }
+  // TODO (antoniojkim): Do we need this?
+  // auto torch_mlir_node =
+  //     NodeCast<TorchMlirNode>(output.node, output.node->op());
+  // if (!torch_mlir_node->getPythonStacktrace().empty()) {
+  //   op->node()->s_(
+  //       c10::Symbol::attr("source"), torch_mlir_node->getPythonStacktrace());
+  // }
   emitted_outputs_[output] = std::move(op);
 }
 

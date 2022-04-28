@@ -88,6 +88,8 @@ TORCH_API std::vector<Shape> compute_shape_type_as(const at::Tensor & self, cons
 TORCH_API std::vector<Shape> compute_shape_var(const at::Tensor & self, bool unbiased);
 TORCH_API std::vector<Shape> compute_shape_zero_(at::Tensor & self);
 
+TORCH_API std::vector<Shape> compute_shape_native_batch_norm(const at::Tensor & input, const c10::optional<at::Tensor> & weight, const c10::optional<at::Tensor> & bias, const c10::optional<at::Tensor> & running_mean, const c10::optional<at::Tensor> & running_var, bool training, double momentum, double eps);
+
 // clang-format on
 
 } // namespace lazy

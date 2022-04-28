@@ -22,9 +22,9 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 add_library(torch_mlir_ltc_backend SHARED
   base_lazy_backend/backend_impl.cpp
   base_lazy_backend/generated/LazyNativeFunctions.cpp
-  base_lazy_backend/generated/LazyShapeInference.cpp
   base_lazy_backend/generated/GenLazyShapeInference.cpp
   base_lazy_backend/generated/RegisterLazy.cpp
+  base_lazy_backend/LazyShapeInference.cpp
   base_lazy_backend/mlir_lowering_context.cpp
   base_lazy_backend/mlir_native_functions.cpp
   base_lazy_backend/mlir_node.cpp
