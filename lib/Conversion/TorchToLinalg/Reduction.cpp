@@ -255,11 +255,13 @@ private:
     DenseSet<int64_t> dimSet;
   };
 
+  /// Given a reduction operation that has the `keepdim` and `dim` attributes,
+  /// extract the source tensor operand and the literal values of the attributes
+  /// into a value of type `ReductionOpInfo` into `opInfo`.  The `opInfo` type
+  /// is invalid if this method returns failure.
   template <typename T>
-  LogicalResult
-  computeReductionOpInfoFromDimOp(T op, ArrayRef<Value> operands,
-                                  ConversionPatternRewriter &rewriter,
-                                  ReductionOpInfo &opInfo) const {
+  LogicalResult computeReductionOpInfoFromDimOp(T op, ArrayRef<Value> operands,
+                                                ReductionOpInfo &opInfo) const {
     opInfo.tensorOperand = operands[0];
     auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
 
@@ -282,6 +284,10 @@ private:
     return success();
   }
 
+  /// Given a reduction operation, extract the source tensor operand and the
+  /// literal values of the `keepdim` and `dim` attributes, if any, into a value
+  /// of type `ReductionOpInfo` into `opInfo`.  The `opInfo` type is invalid if
+  /// this method returns failure.
   LogicalResult computeReductionOpInfo(Operation *op, ArrayRef<Value> operands,
                                        ConversionPatternRewriter &rewriter,
                                        ReductionOpInfo &opInfo) const {
@@ -300,15 +306,17 @@ private:
     }
 
     if (auto sumOp = dyn_cast<AtenSumDimIntListOp>(op))
-      return computeReductionOpInfoFromDimOp(sumOp, operands, rewriter, opInfo);
+      return computeReductionOpInfoFromDimOp(sumOp, operands, opInfo);
 
     if (auto meanOp = dyn_cast<AtenMeanDimOp>(op))
-      return computeReductionOpInfoFromDimOp(meanOp, operands, rewriter,
-                                             opInfo);
+      return computeReductionOpInfoFromDimOp(meanOp, operands, opInfo);
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
 
+  /// Generate a linalg.generic operation for performing a sum reduction along
+  /// the tensor and dimensions specified in `opInfo`, such that the element
+  /// type of the result tensor is `elemType`.
   Value createSumReduction(Location loc, Type elemType,
                            const ReductionOpInfo &opInfo,
                            ConversionPatternRewriter &rewriter) const {
@@ -334,6 +342,8 @@ private:
     return err || !sumOp ? Value{} : sumOp;
   }
 
+  /// Determine the size of the tensor along the dimensions to be used for the
+  /// reduction.
   Optional<double>
   computeReducedElementCount(const ReductionOpInfo &opInfo) const {
     auto inputType = opInfo.tensorOperand.getType();
@@ -348,6 +358,8 @@ private:
     return reducedElemCount;
   }
 
+  /// Generate a linalg.generic operation for pointwise multiplication of each
+  /// element with the reciprocal of the `reducedElemCount` field.
   Value createPointwiseMul(Location loc, Type elemType, double reducedElemCount,
                            Value sumOp, const ReductionOpInfo &opInfo,
                            ConversionPatternRewriter &rewriter) const {
@@ -374,6 +386,7 @@ private:
     return err || !mulOp ? Value{} : mulOp;
   }
 
+  /// Top-level method for lowering AtenMeanDimOp operation.
   LogicalResult convertMeanDimOp(Operation *op, Location loc,
                                  RankedTensorType resultType,
                                  const ReductionOpInfo &opInfo,
@@ -406,6 +419,8 @@ private:
     return success();
   }
 
+  /// Top-level method for lowering reduction operations other than
+  /// AtenMeanDimOp.
   LogicalResult
   convertGenericReductionOp(Operation *op, Location loc,
                             RankedTensorType resultType,
