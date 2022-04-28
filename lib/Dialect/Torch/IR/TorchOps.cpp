@@ -797,15 +797,6 @@ OpFoldResult AtenGtFloatOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenGeFloatOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenGeFloatOp::fold(ArrayRef<Attribute> operands) {
-  return floatComparatorFoldHelper(*this,
-                                   [](double a, double b) { return a >= b; });
-}
-
-//===----------------------------------------------------------------------===//
 // AtenEqFloatOp
 //===----------------------------------------------------------------------===//
 

@@ -6569,31 +6569,6 @@ def Torch_AtenGtFloatOp : Torch_Op<"aten.gt.float", [
   let hasFolder = 1;
 }
 
-def Torch_AtenGeFloatOp : Torch_Op<"aten.ge.float", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::ge.float : (float, float) -> (bool)`";
-  let arguments = (ins
-    Torch_FloatType:$a,
-    Torch_FloatType:$b
-  );
-  let results = (outs
-    Torch_BoolType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenGeFloatOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenGeFloatOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-  let hasFolder = 1;
-}
-
 def Torch_AtenLtFloatOp : Torch_Op<"aten.lt.float", [
     AllowsTypeRefinement,
     HasValueSemantics,
