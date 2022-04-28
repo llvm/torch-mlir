@@ -417,6 +417,7 @@ cc_library(
         ":TorchMLIRTorchBackendTypeConversion",
         ":TorchMLIRTorchConversionDialect",
         ":TorchMLIRConversionPassesIncGen",
+        ":TorchMLIRConversionUtils",
         "@llvm-project//mlir:Dialect"
     ]
 )
