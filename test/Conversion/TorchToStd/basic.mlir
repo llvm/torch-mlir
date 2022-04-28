@@ -207,15 +207,3 @@ func @torch.aten.ne.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !torch.
   %0 = torch.aten.ne.float_int %arg0, %arg1 : !torch.float, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
-
-// CHECK-LABEL:  func @torch.aten.ceil.float(
-// CHECK-SAME:                            %[[ARG:.*]]: !torch.float) -> !torch.int {
-// CHECK:          %[[ARG_F64:.*]] = torch_c.to_f64 %[[ARG]]
-// CHECK:          %[[CEIL:.*]] = math.ceil %[[ARG_F64]] : f64
-// CHECK:          %[[CEIL_I64:.*]] = arith.fptosi %[[CEIL]] : f64 to i64
-// CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[CEIL_I64]]
-// CHECK:          return %[[OUT]] : !torch.int
-func @torch.aten.ceil.float(%arg0: !torch.float) -> !torch.int {
-  %0 = torch.aten.ceil.float %arg0 : !torch.float -> !torch.int
-  return %0 : !torch.int
-}

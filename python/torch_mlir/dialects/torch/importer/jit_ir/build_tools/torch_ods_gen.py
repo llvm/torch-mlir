@@ -511,7 +511,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
     emit("aten::div : (Scalar, Scalar) -> (float)")
     emit("aten::eq.device : (Device, Device) -> (bool)")
-    emit("aten::ceil.float : (float) -> (int)", has_folder=True)
 
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
