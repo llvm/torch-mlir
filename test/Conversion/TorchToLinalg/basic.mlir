@@ -207,3 +207,16 @@ func @torch.aten.neg(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f
   %0 = torch.aten.neg %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:     func @torch.aten.neg.bf16
+// CHECK: linalg.generic {{.*}} {
+// CHECK-NEXT:    ^bb0(%[[LHS:.*]]: bf16, %{{.*}}: bf16):
+// CHECK-NEXT:      %[[NEG:.*]] = arith.negf %[[LHS]] : bf16
+// CHECK-NEXT:      linalg.yield %[[NEG]] : bf16
+// CHECK-NEXT:    } -> tensor<?x?xbf16>
+func @torch.aten.neg.bf16(%arg0: !torch.vtensor<[?,?],bf16>) -> !torch.vtensor<[?,?],bf16> {
+  %0 = torch.aten.neg %arg0 : !torch.vtensor<[?,?],bf16> -> !torch.vtensor<[?,?],bf16>
+  return %0 : !torch.vtensor<[?,?],bf16>
+}
