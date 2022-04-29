@@ -33,7 +33,7 @@ public:
     SmallVector<int64_t> splitSizes;
     // TODO: Support non static splitSizes.
     if (!matchPattern(op.split_size(), m_TorchConstantIntList(splitSizes)))
-      return rewriter.notifyMatchFailure(op, "int list does not exist");
+      return rewriter.notifyMatchFailure(op, "op.split_sizes() must be a constant int list");
 
     int64_t dim;
     if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
@@ -92,8 +92,12 @@ public:
     auto listType = op.getType().template cast<Torch::ListType>();
     Location loc = op.getLoc();
 
+    auto viewOp = dyn_cast<AtenViewOp>(op.self().getDefiningOp());
+    if (!viewOp)
+      return failure();
+
     auto sizesListOp =
-        dyn_cast<PrimListConstructOp>(op.self().getDefiningOp());
+        dyn_cast<PrimListConstructOp>(viewOp.size().getDefiningOp());
     if (!sizesListOp)
       return failure();
     SmallVector<Value> sizes = sizesListOp.elements();
@@ -110,6 +114,11 @@ public:
       if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&splitSize)))
         return rewriter.notifyMatchFailure(op, "split_size must be constant");
       chunks = (dimSize + splitSize - 1) / splitSize;
+    } else if (isa<AtenChunkOp>(op)) {
+      if (!matchPattern(op.getOperand(1), m_TorchConstantInt(&chunks)))
+        return rewriter.notifyMatchFailure(op,
+                                           "number of chunks must be constant");
+      splitSize = dimSize / chunks;
     }
 
     // Calculate the end indices of the slices.
