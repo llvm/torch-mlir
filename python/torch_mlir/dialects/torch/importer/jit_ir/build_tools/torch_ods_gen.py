@@ -454,6 +454,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::t : (Tensor) -> (Tensor)")
     emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::split : (Tensor, int[], int) -> (Tensor[])")
+    emit("aten::split.sizes : (Tensor, int[], int) -> (Tensor[])")
+    emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
+    emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)

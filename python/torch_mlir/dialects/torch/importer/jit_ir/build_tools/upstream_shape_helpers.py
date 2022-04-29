@@ -665,3 +665,27 @@ def pad(input: List[int], pad: List[int]):
     for i in range(len(pad) // 2):
         input[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
     return input
+
+def split(input: List[int], split_sizes: List[int], dim: int = 0):
+    dim = maybe_wrap_dim(dim, len(input))
+    results: List[List[int]] = []
+    end_idx: List[int] = []
+    num_splits = len(split_sizes)
+    for i in range(num_splits):
+        if(i == 0):
+            end_idx.append(input[0])
+        else:
+            end_idx.append(end_idx[i-1] + input[i])
+    start = 0
+    step = 1
+    for i in range(num_splits):
+        end = end_idx[i]
+        temp: List[int] = []
+        for i in range(len(input)):
+          if i == dim:
+            temp.append(end - start)
+          else:
+            temp.append(input[i])
+        results.append(temp)
+        start = split_sizes[i]
+    return results

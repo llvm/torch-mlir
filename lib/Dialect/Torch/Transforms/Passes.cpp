@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -90,6 +91,8 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
 
   // Incorporate user annotations and remove signature Python-isms.
   pm.addPass(createAdjustCallingConventionsPass());
+  if (options.decomposeEarly)
+    pm.addNestedPass<func::FuncOp>(createDecomposeComplexOpsEarlyPass());
 
   if (options.optimize) {
     // Eliminate the PrimTupleIndexOp generated from the
@@ -154,7 +157,6 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // only-used-in-training operations on `torch.global_slot`'s.
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
-  
   if (options.decompose)
     pm.addNestedPass<func::FuncOp>(Torch::createDecomposeComplexOpsPass());
 
