@@ -11,6 +11,7 @@ from . import hf_sequence_classification
 from . import fully_connected_backward
 from . import bert_functorch
 from . import vision_models
+from . import functorch_inference
 
 
 def _get_argparse():
