@@ -93,24 +93,6 @@ def AlbertSequenceClassification_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-hf_bart_model = "facebook/bart-base"
-
-trace_input = {
-    "forward":
-    prepare_sentence_tokens(hf_bart_model, "how do you like the project")
-}
-test_input = prepare_sentence_tokens(hf_bart_model,
-                                     "this project is very interesting")
-
-
-@register_test_case(module_factory=lambda: getTracedRecursiveScriptModule(
-    HfSequenceClassification(hf_bart_model), trace_input))
-def BartSequenceClassification_basic(module, tu: TestUtils):
-    module.forward(test_input)
-
-
-# ==============================================================================
-
 hf_bert_model = "bert-base-uncased"
 
 trace_input = {
@@ -124,24 +106,6 @@ test_input = prepare_sentence_tokens(hf_bert_model,
 @register_test_case(module_factory=lambda: getTracedRecursiveScriptModule(
     HfSequenceClassification(hf_bert_model), trace_input))
 def BertSequenceClassification_basic(module, tu: TestUtils):
-    module.forward(test_input)
-
-
-# ==============================================================================
-
-hf_bigbird_model = "google/bigbird-roberta-base"
-
-trace_input = {
-    "forward":
-    prepare_sentence_tokens(hf_bigbird_model, "how do you like the project")
-}
-test_input = prepare_sentence_tokens(hf_bigbird_model,
-                                     "this project is very interesting")
-
-
-@register_test_case(module_factory=lambda: getTracedRecursiveScriptModule(
-    HfSequenceClassification(hf_bigbird_model), trace_input))
-def BigBirdSequenceClassification_basic(module, tu: TestUtils):
     module.forward(test_input)
 
 
@@ -162,20 +126,4 @@ test_input = prepare_sentence_tokens(hf_distilbert_model,
 def DistilBertSequenceClassification_basic(module, tu: TestUtils):
     module.forward(test_input)
 
-
 # ==============================================================================
-
-hf_gpt2_model = "gpt2"
-
-trace_input = {
-    "forward":
-    prepare_sentence_tokens(hf_gpt2_model, "how do you like the project")
-}
-test_input = prepare_sentence_tokens(hf_gpt2_model,
-                                     "this project is very interesting")
-
-
-@register_test_case(module_factory=lambda: getTracedRecursiveScriptModule(
-    HfSequenceClassification(hf_gpt2_model), trace_input))
-def GPT2SequenceClassification_basic(module, tu: TestUtils):
-    module.forward(test_input)

@@ -9,6 +9,7 @@ import torchvision.models as models
 from torch_mlir_e2e_test.torchscript.framework import TestUtils
 from torch_mlir_e2e_test.torchscript.registry import register_test_case
 from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
+import timm
 
 torch.manual_seed(0)
 
@@ -29,7 +30,7 @@ class VisionModule(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
-        self.train(False)
+        self.model.eval()
 
     def forward(self, input):
         return self.model.forward(input)
@@ -239,12 +240,9 @@ def PytorchUnetVisionModel_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-resnest_model = torch.hub.load('zhanghang1989/ResNeSt',
-                               'resnest50',
-                               pretrained=True)
+resnest_model = timm.create_model('resnest101e', pretrained=True)
 
 input = torch.randn(1, 3, 224, 224)
-
 
 @register_test_case(module_factory=lambda: getTracedRecursiveScriptModule(
     VisionModule(resnest_model)))

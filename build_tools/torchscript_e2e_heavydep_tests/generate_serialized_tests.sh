@@ -20,11 +20,19 @@ mkdir -p $venv_dir
 mkdir -p $serialized_test_dir
 python3 -m venv $venv_dir
 source $venv_dir/bin/activate
+
+# latest torch-version and torch-vision module is required.
+python3 -m pip install --upgrade -r "$torch_mlir_src_root/requirements.txt"
+
 # For minilm_seq_classification.py
 python3 -m pip install 'transformers[torch]'
-# For functorch dependent models
-python3 -m pip install ninja "git+https://github.com/pytorch/functorch.git"
+
+# For functorch dependent models.
+python3 -m pip install "git+https://github.com/pytorch/functorch.git"
 python3 -m pip install networkx
+
+# For pytorch image models.
+python3 -m pip install timm
 
 cd "$torch_mlir_src_root"
 export PYTHONPATH=${PYTHONPATH-}
