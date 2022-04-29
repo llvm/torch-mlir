@@ -12,7 +12,7 @@ from textwrap import dedent
 import yaml
 
 TORCH_MLIR_DIR = Path(__file__).parent.parent.resolve()
-TORCH_DIR = TORCH_MLIR_DIR.parent.joinpath("pytorch")
+TORCH_DIR = TORCH_MLIR_DIR.joinpath("externals", "pytorch")
 
 sys.path.append(str(TORCH_DIR))
 
