@@ -1,3 +1,15 @@
+//===- dynamic_ir.h -------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+// This file is adapted from pytorch/pytorch
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/dynamic_ir.h
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <ATen/core/symbol.h>
@@ -11,12 +23,12 @@
 #include <utility>
 #include <vector>
 
+#include "mlir_node.h"
 #include <c10/core/ScalarType.h>
+#include <c10/util/Flags.h>
 #include <torch/csrc/lazy/core/hash.h>
 #include <torch/csrc/lazy/core/ir.h>
 #include <torch/csrc/lazy/core/ir_metadata.h>
-#include "mlir_node.h"
-#include <c10/util/Flags.h>
 
 C10_DECLARE_bool(ltc_enable_dynamic_shapes);
 
@@ -44,11 +56,9 @@ namespace lazy {
  */
 
 class TORCH_API DimensionNode : public lazy::TorchMlirNode {
- public:
+public:
   DimensionNode(OpKind op, OpList operands, hash_t hash_seed = kHashSeed);
-  bool isDynamic() {
-      return false;
-  }
+  bool isDynamic() { return false; }
 
   std::string ToString() const override;
 
@@ -57,29 +67,29 @@ class TORCH_API DimensionNode : public lazy::TorchMlirNode {
 
 // Represents the result of calling `size` on a Tensor
 class TORCH_API SizeNode : public DimensionNode {
- public:
+public:
   SizeNode(Value input, size_t dim);
   int64_t getStaticValue() const override;
   std::string ToString() const override;
   size_t dim_ = 0;
 };
 
-class TORCH_API SizeAdd: public DimensionNode {
- public:
+class TORCH_API SizeAdd : public DimensionNode {
+public:
   SizeAdd(Value a, Value b);
   int64_t getStaticValue() const override;
   std::string ToString() const override;
 };
 
-class TORCH_API SizeMul: public DimensionNode {
- public:
+class TORCH_API SizeMul : public DimensionNode {
+public:
   SizeMul(Value a, Value b);
   int64_t getStaticValue() const override;
   std::string ToString() const override;
 };
 
-class TORCH_API SizeDiv: public DimensionNode {
- public:
+class TORCH_API SizeDiv : public DimensionNode {
+public:
   SizeDiv(Value a, Value b);
   int64_t getStaticValue() const override;
   std::string ToString() const override;

@@ -90,7 +90,8 @@ public:
   virtual BackendDataPtr CreateDataPlaceholder(
       const BackendDevice& device, const Shape& shape) const override;
 
-  // Gets backend data if the node is a device data node. Otherwise returns nullptr
+  // Gets backend data if the node is a device data node. Otherwise returns
+  // nullptr.
   virtual BackendDataPtr GetComputationDataFromNode(Node*) const override;
 
   virtual at::Tensor MakeTensorFromComputationData(

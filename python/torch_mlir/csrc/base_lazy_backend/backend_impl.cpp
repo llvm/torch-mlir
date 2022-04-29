@@ -18,8 +18,8 @@
 #include "../utils/debug.h"
 #include "../utils/exception.h"
 #include "backend_impl.h"
-#include "mlir_lowering_context.h"
 #include "ir_builder.h"
+#include "mlir_lowering_context.h"
 
 namespace torch {
 namespace lazy {
@@ -73,10 +73,9 @@ TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
  * */
 void TorchMlirBackendImpl::PrepareToExit() const {}
 
-
 /**
-  * IR Tracing
-  * */
+ * IR Tracing
+ * */
 
 const IrBuilder* TorchMlirBackendImpl::GetIrBuilder() const {
   static const IrBuilder* builder = new TorchMlirIrBuilder();
@@ -106,7 +105,8 @@ BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
   return std::make_shared<TorchMlirBackendData>(device, shape);
 }
 
-BackendDataPtr TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
+BackendDataPtr
+TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
   PRINT_FUNCTION();
   auto* device_data_node = dynamic_cast<DeviceData*>(node);
   if (!device_data_node) {

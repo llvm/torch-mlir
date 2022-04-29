@@ -1,23 +1,35 @@
+//===- ir_builder.h -------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+// This file is adapted from pytorch/pytorch
+// https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ir_builder.h
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
+#include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
 #include <torch/csrc/lazy/core/ir.h>
 #include <torch/csrc/lazy/core/ir_builder.h>
-#include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
 #include <torch/csrc/lazy/core/shape_inference.h>
 
-
-#include "mlir_node.h"
 #include "dynamic_ir.h"
 #include "generated/LazyNonNativeIr.h"
+#include "mlir_node.h"
 #include "ops/generic.h"
 
-// This file contains the TorchScript IrBuilder
+// This file contains the TorchMlir IrBuilder
 
 namespace torch {
 namespace lazy {
 
+// clang-format off
 
-struct TorchMlirIrBuilder: IrBuilder {
+struct TorchMlirIrBuilder : IrBuilder {
   NodePtr MakeDeviceData(const std::shared_ptr<BackendData>& data) const override { return MakeNode<DeviceData>(data); }
   NodePtr MakeScalar(const at::Scalar& value, const at::ScalarType& type) const override { return MakeNode<Scalar>(value, type); }
   NodePtr MakeExpand(const Value& input0, const std::vector<int64_t>& size, const bool& is_scalar_expand) const override { return MakeNode<Expand>(input0, size, is_scalar_expand); }
@@ -46,6 +58,8 @@ struct TorchMlirIrBuilder: IrBuilder {
   NodePtr MakeSizeMul(const Value& a, const Value& b) const override { return MakeNode<SizeMul>(a, b); }
   NodePtr MakeSizeDiv(const Value& a, const Value& b) const override { return MakeNode<SizeDiv>(a, b); }
 };
+
+// clang-format on
 
 } // namespace lazy
 } // namespace torch

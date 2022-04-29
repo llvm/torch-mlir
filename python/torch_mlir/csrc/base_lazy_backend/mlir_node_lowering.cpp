@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir_node_lowering.h"
+#include "generated/LazyNonNativeIr.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
-#include "generated/LazyNonNativeIr.h"
 
 #include <ATen/Functions.h>
 #include <c10/core/ScalarType.h>
@@ -21,8 +21,8 @@
 #include <torch/csrc/jit/jit_log.h>
 #include <torch/csrc/lazy/backend/backend_interface.h>
 #include <torch/csrc/lazy/core/helpers.h>
-#include <torch/csrc/lazy/core/ir_builder.h>
 #include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
+#include <torch/csrc/lazy/core/ir_builder.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include <torch/csrc/lazy/core/ops/utils.h>
 #include <torch/csrc/lazy/core/permutation_util.h>
@@ -342,8 +342,7 @@ public:
   }
 
   TorchMlirOpVector LowerSelect(const torch::lazy::Select* node) {
-    int64_t step = torch::lazy::GetStride(
-        node->start, node->end, node->stride);
+    int64_t step = torch::lazy::GetStride(node->start, node->end, node->stride);
     torch::jit::Value* base = loctx()->GetOutputOp(node->operand(0));
     return {GenerateSlice(
         /*base=*/base, /*dim=*/node->dim,
@@ -364,8 +363,7 @@ public:
   LowerSelectViewUpdate(const torch::lazy::SelectViewUpdate* node) {
     torch::jit::Value* dest =
         GenerateClone(loctx()->GetOutputOp(node->operand(0)));
-    int64_t step = torch::lazy::GetStride(
-        node->start, node->end, node->stride);
+    int64_t step = torch::lazy::GetStride(node->start, node->end, node->stride);
     torch::jit::Value* selected = GenerateSlice(
         /*base=*/dest, /*dim=*/node->dim, /*start=*/node->start,
         /*end=*/node->end, /*step=*/step);
