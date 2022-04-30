@@ -781,6 +781,9 @@ def aten〇conv2d(input: List[int], weight: List[int], bias: Optional[List[int]]
 
 def aten〇convolution(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int) -> List[int]:
     return upstream_shape_helpers.conv_output_size(input, weight, bias, stride, padding, dilation, groups)
+    
+def aten〇flip(self: List[int], dims: List[int]) -> List[int]:
+    return self
 
 def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     # Torch's symbolic shape analysis is a bit looser about optional
