@@ -30,8 +30,10 @@ echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_
 
 # Note that this typically is selected to match the version that the official
 # Python distributed is built at.
-export MACOSX_DEPLOYMENT_TARGET=11.0
-export CMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+export MACOSX_DEPLOYMENT_TARGET="${TORCH_MLIR_OSX_TARGET:-11:0}"
+export CMAKE_OSX_ARCHITECTURES="${TORCH_MLIR_OSX_ARCH:-arm64;x86_64}"
+echo "CMAKE_OSX_ARCHITECTURES: $CMAKE_OSX_ARCHITECTURES"
+echo "MACOSX_DEPLOYMENT_TARGET $MACOSX_DEPLOYMENT_TARGET"
 
 function run() {
   echo "Using python versions: ${python_versions}"
@@ -67,8 +69,8 @@ function build_torch_mlir() {
   python -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  MACOSX_DEPLOYMENT_TARGET=11.0 \
-  CMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+  MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET \
+  CMAKE_OSX_ARCHITECTURES=$CMAKE_OSX_ARCHITECTURES \
   python -m pip wheel -v -w $output_dir $repo_root --extra-index-url https://download.pytorch.org/whl/nightly/cpu
 }
 
