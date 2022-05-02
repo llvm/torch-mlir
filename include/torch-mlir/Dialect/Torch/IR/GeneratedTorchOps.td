@@ -3250,6 +3250,7 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
