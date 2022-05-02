@@ -35,7 +35,7 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ## Install torch-mlir snapshot
 
-This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS
+This installs a pre-built snapshot of torch-mlir for Python 3.7/3.8/3.9/3.10 on Linux and macOS. (Ensure you have the required `python-dev` package installed).
 
 ```shell
 python -m venv mlir_venv
