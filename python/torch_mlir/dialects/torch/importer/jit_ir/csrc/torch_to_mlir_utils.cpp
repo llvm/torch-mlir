@@ -124,6 +124,8 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
   switch (kind) {
   case TypeKind::TensorType: {
     auto tensorType = torchType->cast<c10::TensorType>();
+    bool assumeZeroRankTensorsAreScalar =
+        importOptions.assumeZeroRankTensorsAreScalar;
     auto getMlirTensorType = importOptions.assumeTensorsHaveValueSemantics
                                  ? torchMlirTorchValueTensorTypeGet
                                  : torchMlirTorchNonValueTensorTypeGet;
@@ -144,7 +146,9 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
                                /*numSizes=*/0,
                                /*optionalSizes=*/nullptr,
                                /*optionalDtype=*/
-                               elementType);
+                               elementType,
+                               /*assumeZeroRankTensorsAreScalar=*/
+                               assumeZeroRankTensorsAreScalar);
     }
     // Ranked with possibly dynamic dims.
     auto &symbolicShape = tensorType->symbolic_sizes();
@@ -157,7 +161,9 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     return getMlirTensorType(context, dims.size(),
                              /*optionalSizes=*/dims.data(),
                              /*optionalDtype=*/
-                             elementType);
+                             elementType,
+                             /*assumeZeroRankTensorsAreScalar=*/
+                             assumeZeroRankTensorsAreScalar);
   }
   case TypeKind::IntType: {
     return torchMlirTorchIntTypeGet(context);

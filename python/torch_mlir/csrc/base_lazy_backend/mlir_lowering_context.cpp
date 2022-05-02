@@ -16,6 +16,7 @@
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
+#include "../../dialects/torch/importer/jit_ir/csrc/import_options.h"
 #include "../utils/debug.h"
 #include "../utils/exception.h"
 #include "backend_impl.h"
@@ -114,11 +115,14 @@ ComputationPtr TorchMlirLoweringContext::Build() {
   }
 
   // Generate MLIR.
+  torch_mlir::ImportOptions import_options{
+      /*assumeTensorsHaveValueSemantics=*/true,
+      /*assumeZeroRankTensorsAreScalar=*/true};
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
       /*context=*/mlir_context_,
       /*function=*/generate_jit_fn().get(),
       /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
-      /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
+      /*importOptions=*/import_options);
 
   return std::make_shared<TorchMlirComputation>(
       func_op, mlir_context_, graph_, input_output_aliases_);
