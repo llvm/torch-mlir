@@ -92,6 +92,66 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenFlipOp : public OpConversionPattern<AtenFlipOp> {
+
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenFlipOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    MLIRContext *context = op.getContext();
+    Value self = adaptor.self();
+    auto selfRank = adaptor.self().getType().cast<RankedTensorType>().getRank();
+    Type elementType =
+        adaptor.self().getType().cast<RankedTensorType>().getElementType();
+    Value c1 =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+
+    SmallVector<int64_t> axis;
+    if (!matchPattern(adaptor.dims(), m_TorchConstantIntList(axis)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only constant dim lists supported");
+    // Only used to calculate flipped values, i.e. those on the flip axes. Other
+    // dims won't be used.
+    SmallVector<Value> dims = getTensorSizes(rewriter, loc, self);
+    for (auto flipDim : axis)
+      dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
+
+    Value initTensor = createZeroInitTensor(
+        rewriter, loc, getTensorSizes(rewriter, loc, self), elementType);
+
+    SmallVector<StringRef> iteratorTypes(selfRank, "parallel");
+    SmallVector<AffineMap> indexingMaps(
+        2, AffineMap::getMultiDimIdentityMap(selfRank, context));
+    Value flipped =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, self.getType(), self, initTensor, indexingMaps,
+                iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  SmallVector<Value> indices;
+                  for (auto i = 0; i < selfRank; i++)
+                    indices.push_back(b.create<linalg::IndexOp>(loc, i));
+                  for (auto flipDim : axis) {
+                    indices[flipDim] = b.create<arith::SubIOp>(
+                        loc, dims[flipDim], indices[flipDim]);
+                  }
+                  Value res = b.create<tensor::ExtractOp>(loc, self, indices)
+                                  .getResult();
+                  b.create<linalg::YieldOp>(loc, res);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, self.getType(), flipped);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenMatmulOp : public OpConversionPattern<AtenMatmulOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -587,6 +647,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMmOp>();
   patterns.add<ConvertAtenMmOp>(typeConverter, context);
+  target.addIllegalOp<AtenFlipOp>();
+  patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
   patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
   target.addIllegalOp<AtenBmmOp>();

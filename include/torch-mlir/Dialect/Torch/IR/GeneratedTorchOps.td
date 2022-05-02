@@ -2841,6 +2841,30 @@ def Torch_AtenConvolutionOverrideableOp : Torch_Op<"aten.convolution_overrideabl
   }];
 }
 
+def Torch_AtenFlipOp : Torch_Op<"aten.flip", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::flip : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$dims
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFlipOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenFlipOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
     AllowsTypeRefinement,
     HasValueSemantics,

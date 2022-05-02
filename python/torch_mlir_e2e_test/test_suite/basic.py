@@ -1938,3 +1938,24 @@ class ToCopyWithDTypeFalsePinMemoryModule(torch.nn.Module):
     module_factory=lambda: ToCopyWithDTypeFalsePinMemoryModule())
 def ToCopyWithDTypeFalsePinMemoryModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
+# ==============================================================================
+
+class FlipModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.flip(x, [1, 2])
+
+
+@register_test_case(
+    module_factory=lambda: FlipModule())
+def FlipModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
