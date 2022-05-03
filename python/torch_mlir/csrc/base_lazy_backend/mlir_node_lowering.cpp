@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir_node_lowering.h"
+#include "generated/LazyNonNativeIr.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
 
@@ -21,25 +22,10 @@
 #include <torch/csrc/lazy/backend/backend_interface.h>
 #include <torch/csrc/lazy/core/helpers.h>
 #include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
+#include <torch/csrc/lazy/core/ir_builder.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
+#include <torch/csrc/lazy/core/ops/utils.h>
 #include <torch/csrc/lazy/core/permutation_util.h>
-
-#include <torch/csrc/lazy/core/internal_ops/cast.h>
-#include <torch/csrc/lazy/core/internal_ops/device_data.h>
-#include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
-#include <torch/csrc/lazy/core/ops/batch_norm_ops.h>
-#include <torch/csrc/lazy/core/ops/expand.h>
-#include <torch/csrc/lazy/core/ops/scalar.h>
-#include <torch/csrc/lazy/core/view_ops/as_strided.h>
-#include <torch/csrc/lazy/core/view_ops/as_strided_view_update.h>
-#include <torch/csrc/lazy/core/view_ops/narrow.h>
-#include <torch/csrc/lazy/core/view_ops/narrow_view_update.h>
-#include <torch/csrc/lazy/core/view_ops/permute.h>
-#include <torch/csrc/lazy/core/view_ops/select.h>
-#include <torch/csrc/lazy/core/view_ops/select_view_update.h>
-#include <torch/csrc/lazy/core/view_ops/squeeze.h>
-#include <torch/csrc/lazy/core/view_ops/unsqueeze.h>
-#include <torch/csrc/lazy/core/view_ops/view.h>
 
 namespace torch {
 namespace lazy {
@@ -195,16 +181,6 @@ public:
       arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
       return LowerBuiltin(node, arguments);
     }
-    if (node->op().op == at::aten::native_batch_norm) {
-      return LowerBatchNorm(
-          torch::lazy::NodeCast<torch::lazy::NativeBatchNormForward>(
-              node, torch::lazy::OpKind(at::aten::native_batch_norm)));
-    }
-    if (node->op().op == at::aten::native_batch_norm_backward) {
-      return LowerBatchNormBackward(
-          torch::lazy::NodeCast<torch::lazy::NativeBatchNormBackward>(
-              node, torch::lazy::OpKind(at::aten::native_batch_norm_backward)));
-    }
     if (node->op().op == at::aten::expand) {
       return LowerExpand(torch::lazy::NodeCast<torch::lazy::Expand>(
           node, torch::lazy::OpKind(at::aten::expand)));
@@ -237,14 +213,14 @@ public:
       const torch::lazy::DeviceData* device_data_node =
           torch::lazy::NodeCast<torch::lazy::DeviceData>(
               node, *torch::lazy::ltc_device_data);
-      auto infoptr = device_data_node->data()->info();
+      auto infoptr = device_data_node->data->info();
       auto deviceDataInfoPtr =
           (torch::lazy::LazyGraphExecutor::DeviceDataInfo*)infoptr;
       if (GRAPH_DUMP_ENABLED) {
         LOG(ERROR) << "Lowering device data node, tensor id "
                    << deviceDataInfoPtr->tensor_id << std::endl;
       }
-      return {loctx()->GetParameter(device_data_node->data())};
+      return {loctx()->GetParameter(device_data_node->data)};
     }
 
     std::vector<torch::jit::NamedValue> arguments;
@@ -278,9 +254,9 @@ public:
   TorchMlirOpVector LowerAsStrided(const torch::lazy::AsStrided* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.emplace_back(node->size());
-    arguments.emplace_back(node->stride());
-    arguments.emplace_back(node->storage_offset());
+    arguments.emplace_back(node->size);
+    arguments.emplace_back(node->stride);
+    arguments.emplace_back(node->storage_offset);
     TorchMlirOpVector as_strided_out = LowerBuiltin(node, arguments);
     CHECK_EQ(as_strided_out.size(), 1);
     return {GenerateClone(as_strided_out.front())};
@@ -297,8 +273,8 @@ public:
     dest_arguments.emplace_back(destination);
     dest_arguments.emplace_back(
         std::vector<int64_t>(input_dimensions.begin(), input_dimensions.end()));
-    dest_arguments.emplace_back(node->stride());
-    dest_arguments.emplace_back(node->storage_offset());
+    dest_arguments.emplace_back(node->stride);
+    dest_arguments.emplace_back(node->storage_offset);
     TorchMlirOpVector as_strided_out =
         LowerBuiltin(at::aten::as_strided, node->shapes(), dest_arguments);
     CHECK_EQ(as_strided_out.size(), 1);
@@ -307,52 +283,19 @@ public:
     return {destination};
   }
 
-  TorchMlirOpVector
-  LowerBatchNorm(const torch::lazy::NativeBatchNormForward* node) {
-    std::vector<torch::jit::NamedValue> arguments;
-    for (size_t i = 0; i < 5; ++i) {
-      arguments.emplace_back(loctx()->GetOutputOp(node->operand(i)));
-    }
-    arguments.emplace_back(node->training());
-    arguments.emplace_back(node->momentum());
-    arguments.emplace_back(node->eps());
-    return LowerBuiltin(node, arguments);
-  }
-
-  TorchMlirOpVector
-  LowerBatchNormBackward(const torch::lazy::NativeBatchNormBackward* node) {
-    std::vector<torch::jit::NamedValue> arguments;
-    for (size_t i = 0; i < 3; ++i) {
-      arguments.emplace_back(loctx()->GetOutputOp(node->operand(i)));
-    }
-    const auto& operands = node->operands();
-    c10::optional<at::Tensor> null_arg;
-    if (operands.size() == 5) {
-      arguments.emplace_back(null_arg);
-      arguments.emplace_back(null_arg);
-    }
-    for (size_t i = 3; i < operands.size(); ++i) {
-      arguments.emplace_back(loctx()->GetOutputOp(node->operand(i)));
-    }
-    arguments.emplace_back(node->training());
-    arguments.emplace_back(node->eps());
-    arguments.emplace_back(node->output_mask());
-    return LowerBuiltin(node, arguments);
-  }
-
   TorchMlirOpVector LowerCast(const torch::lazy::Cast* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.emplace_back(node->dtype());
+    arguments.emplace_back(node->dtype);
     return LowerBuiltin(at::aten::to, node->shapes(), arguments);
   }
 
   TorchMlirOpVector LowerExpand(const torch::lazy::Expand* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.emplace_back(node->size());
+    arguments.emplace_back(node->size);
     auto expand_out = LowerBuiltin(node, arguments);
-    if (node->is_scalar_expand()) {
+    if (node->is_scalar_expand) {
       // The aten::expand operations sets all strides to 0 when the original
       // of rank 0. This leads to false positives when checking for internal
       // memory overlap, because at::has_internal_overlap returns
@@ -366,8 +309,8 @@ public:
   TorchMlirOpVector LowerNarrow(const torch::lazy::Narrow* node) {
     const torch::lazy::Output& input = node->operand(0);
     torch::jit::Value* base = loctx()->GetOutputOp(input);
-    const auto& base_indices = node->base_indices();
-    const auto& sizes = node->sizes();
+    const auto& base_indices = node->base_indices;
+    const auto& sizes = node->sizes;
     const torch::lazy::Shape& input_shape = input.shape();
     CHECK_EQ(sizes.size(), base_indices.size());
     CHECK_EQ(input_shape.dim(), base_indices.size());
@@ -383,12 +326,12 @@ public:
   TorchMlirOpVector LowerPermute(const torch::lazy::Permute* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.push_back(node->dims());
+    arguments.push_back(node->dims);
     return LowerBuiltin(node, arguments);
   }
 
   TorchMlirOpVector LowerScalar(const torch::lazy::Scalar* node) {
-    const at::Scalar& value = node->value();
+    const at::Scalar& value = node->value;
     const torch::lazy::Shape& shape = node->shape();
     auto options =
         at::TensorOptions()
@@ -399,20 +342,19 @@ public:
   }
 
   TorchMlirOpVector LowerSelect(const torch::lazy::Select* node) {
-    int64_t step = torch::lazy::Select::GetStride(
-        node->start(), node->end(), node->stride());
+    int64_t step = torch::lazy::GetStride(node->start, node->end, node->stride);
     torch::jit::Value* base = loctx()->GetOutputOp(node->operand(0));
     return {GenerateSlice(
-        /*base=*/base, /*dim=*/node->dim(),
-        /*start=*/node->start(), /*end=*/node->end(),
+        /*base=*/base, /*dim=*/node->dim,
+        /*start=*/node->start, /*end=*/node->end,
         /*step=*/step)};
   }
 
   TorchMlirOpVector LowerSqueeze(const torch::lazy::Squeeze* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    if (node->dim() != -1) {
-      arguments.push_back(node->dim());
+    if (node->dim != -1) {
+      arguments.push_back(node->dim);
     }
     return LowerBuiltin(node, arguments);
   }
@@ -421,11 +363,10 @@ public:
   LowerSelectViewUpdate(const torch::lazy::SelectViewUpdate* node) {
     torch::jit::Value* dest =
         GenerateClone(loctx()->GetOutputOp(node->operand(0)));
-    int64_t step = torch::lazy::Select::GetStride(
-        node->start(), node->end(), node->stride());
+    int64_t step = torch::lazy::GetStride(node->start, node->end, node->stride);
     torch::jit::Value* selected = GenerateSlice(
-        /*base=*/dest, /*dim=*/node->dim(), /*start=*/node->start(),
-        /*end=*/node->end(), /*step=*/step);
+        /*base=*/dest, /*dim=*/node->dim, /*start=*/node->start,
+        /*end=*/node->end, /*step=*/step);
     GenerateCopy(selected, loctx()->GetOutputOp(node->operand(1)));
     return {dest};
   }
@@ -434,7 +375,7 @@ public:
   LowerNarrowViewUpdate(const torch::lazy::NarrowViewUpdate* node) {
     torch::jit::Value* dest =
         GenerateClone(loctx()->GetOutputOp(node->operand(0)));
-    const auto& base_indices = node->base_indices();
+    const auto& base_indices = node->base_indices;
     const torch::lazy::Output& source_argument = node->operand(1);
     const torch::lazy::Shape& source_shape = source_argument.shape();
     CHECK_EQ(source_shape.dim(), base_indices.size());
@@ -453,14 +394,14 @@ public:
   TorchMlirOpVector LowerUnsqueeze(const torch::lazy::Unsqueeze* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.push_back(node->dim());
+    arguments.push_back(node->dim);
     return LowerBuiltin(node, arguments);
   }
 
   TorchMlirOpVector LowerView(const torch::lazy::View* node) {
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
-    arguments.push_back(node->output_size());
+    arguments.push_back(node->output_size);
     return LowerBuiltin(at::aten::reshape, node->shapes(), arguments);
   }
 
