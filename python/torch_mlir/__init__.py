@@ -34,7 +34,8 @@ class OutputType(Enum):
 
 def compile(model: torch.nn.Module,
             example_args: List[torch.Tensor],
-            output_type: OutputType = OutputType.TORCH):
+            output_type: OutputType = OutputType.TORCH,
+            use_tracing=False):
     """Convert a PyTorch model to MLIR.
 
     Args:
@@ -44,6 +45,8 @@ def compile(model: torch.nn.Module,
             A single tensor is treated as a list of a single tensor.
         output_type: The kind of output to produce. See `OutputType` for more
             details.
+        use_tracing: If True, use `torch.jit.trace` to convert the model to
+            JIT IR rather than `torch.jit.script`.
     
     Returns:
         An MLIR module that contains the converted model in the specified
@@ -55,8 +58,10 @@ def compile(model: torch.nn.Module,
     # TODO: Support dynamic dimension sizes. See `torch.onnx.export`'s
     # `dynamic_axes` for API inspiration, or do something more ergonomic
     # like a tensor wrapper possibly.
-    # TODO: Support tracing the model instead of scripting it.
-    scripted = torch.jit.script(model)
+    if use_tracing:
+        scripted = torch.jit.trace(model, tuple(example_args))
+    else:
+        scripted = torch.jit.script(model)
 
     if isinstance(example_args, torch.Tensor):
         example_args = [example_args]

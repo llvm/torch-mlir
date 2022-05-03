@@ -63,9 +63,10 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
   }
   auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
                               MlirBlock appendToBlock) {
-    createMlirOperationAtEnd(
-        appendToBlock, "func.return", loc,
-        derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
+    createMlirOperationAtEnd(appendToBlock, "func.return", loc,
+                             adjustStaticInformationForValues(
+                                 appendToBlock, loc, yieldedValues, resultTypes,
+                                 /*userAllowsRefinement=*/false));
   };
   MlirBlock block = importBlock(
       context, torch::jit::toGraphFunction(*function).graph()->block(),

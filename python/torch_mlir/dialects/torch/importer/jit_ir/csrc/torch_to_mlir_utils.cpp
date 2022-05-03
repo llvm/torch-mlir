@@ -19,6 +19,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
+#include "torch-mlir-c/TorchOps.h"
 #include "torch-mlir-c/TorchTypes.h"
 
 using namespace torch_mlir;
@@ -380,24 +381,34 @@ torch_mlir::getMlirTypesFromValues(MlirLocation loc,
   return ret;
 }
 
-std::vector<MlirValue>
-torch_mlir::derefineValues(c10::ArrayRef<MlirValue> values,
-                           c10::ArrayRef<MlirType> expectedTypes,
-                           MlirLocation loc, MlirBlock appendToBlock) {
+std::vector<MlirValue> torch_mlir::adjustStaticInformationForValues(
+    MlirBlock appendToBlock, MlirLocation loc, c10::ArrayRef<MlirValue> values,
+    c10::ArrayRef<MlirType> desiredTypes, bool userAllowsRefinement) {
   std::vector<MlirValue> ret;
-  assert(values.size() == expectedTypes.size());
+  assert(values.size() == desiredTypes.size());
   for (int i = 0, e = values.size(); i != e; i++) {
     MlirValue value = values[i];
-    MlirType expectedType = expectedTypes[i];
+    MlirType expectedType = desiredTypes[i];
     MlirType type = mlirValueGetType(value);
-    if (mlirTypeEqual(expectedType, type)) {
-      // No need to derefine.
-      ret.push_back(value);
-    } else {
-      MlirOperation operation = createMlirOperationAtEnd(
-          appendToBlock, "torch.derefine", loc, expectedType, value);
-      ret.push_back(mlirOperationGetResult(operation, 0));
+    MlirValue adjusted = torchMlirAdjustStaticInformation(
+        appendToBlock, mlirBlockGetTerminator(appendToBlock), value,
+        expectedType, userAllowsRefinement);
+    if (!mlirValueIsNull(adjusted)) {
+      ret.push_back(adjusted);
+      continue;
     }
+
+    std::stringstream msg;
+    MlirStringCallback printToStream = +[](MlirStringRef str, void *userData) {
+      std::stringstream *stream = static_cast<std::stringstream *>(userData);
+      stream->write(str.data, str.length);
+    };
+    msg << "unhandled: could not adjust static info for type from ";
+    mlirTypePrint(type, printToStream, static_cast<void *>(&msg));
+    msg << " to type ";
+    mlirTypePrint(expectedType, printToStream, static_cast<void *>(&msg));
+    mlirEmitError(loc, msg.str().c_str());
+    throw mlir_diagnostic_emitted();
   }
   return ret;
 }
