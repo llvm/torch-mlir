@@ -1055,6 +1055,19 @@ func @torch.prim.TupleIndex$out_of_bound(%t0: !torch.tensor, %t1: !torch.tensor,
     return %1 : !torch.tensor
 }
 
+// CHECK-LABEL:   func @torch.prim.TupleIndex$different_types$no_change(
+// CHECK-SAME:                                                          %[[ARG0:.*]]: !torch.tensor<[1,768],f32>) -> !torch.tensor {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[ARG0]] : !torch.tensor<[1,768],f32> -> !torch.tuple<tensor<[1,768],f32>>
+// CHECK:           %[[ELEMENT:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[INT0]] : !torch.tuple<tensor<[1,768],f32>>, !torch.int -> !torch.tensor
+// CHECK:           return %[[ELEMENT]] : !torch.tensor
+func @torch.prim.TupleIndex$different_types$no_change(%arg0: !torch.tensor<[1,768],f32>) -> !torch.tensor {
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.TupleConstruct %arg0 : !torch.tensor<[1,768],f32> -> !torch.tuple<tensor<[1,768],f32>>
+  %1 = torch.prim.TupleIndex %0, %int0 : !torch.tuple<tensor<[1,768],f32>>, !torch.int -> !torch.tensor
+  return %1 : !torch.tensor
+}
+
 // CHECK-LABEL:   func @torch.prim.unchecked_cast$derefine
 // CHECK-next:      return %arg0 : !torch.list<int>
 func @torch.prim.unchecked_cast$derefine(%arg0: !torch.list<int>) -> !torch.list<int> {
