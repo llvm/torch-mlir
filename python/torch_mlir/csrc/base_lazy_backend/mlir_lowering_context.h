@@ -23,22 +23,6 @@
 namespace torch {
 namespace lazy {
 
-class TORCH_API TorchMlirNodeLoweringInterface {
-  /**
-   * This interface is only needed for legacy ops, and can be removed once all
-   * ops implement LtcMlirNode->lower().
-   * */
-public:
-  TorchMlirNodeLoweringInterface() = default;
-
-  virtual ~TorchMlirNodeLoweringInterface() = default;
-
-  virtual bool Lower(const Node* node) = 0;
-
-  static std::unique_ptr<TorchMlirNodeLoweringInterface>
-  Create(LoweringContext* loctx);
-};
-
 class TORCH_API TorchMlirLoweringContext : public torch::lazy::LoweringContext {
 public:
   // Describes an input/output alias as inserted by the SetUpAlias() API.
@@ -60,6 +44,8 @@ public:
       const std::string& name, torch::lazy::BackendDevice device,
       c10::ArrayRef<torch::lazy::Node*> post_order,
       torch::lazy::Util::EmissionMap emit_status);
+
+  void Lower(const Node* node);
 
   // Adds a new input/output alias.
   void SetUpAlias(
@@ -120,11 +106,11 @@ private:
   // Holds the input/output alias information populated by the SetUpAlias() API.
   InputOutputAliases input_output_aliases_;
   std::shared_ptr<torch::jit::Graph> graph_;
+  std::shared_ptr<torch::jit::GraphFunction> function_;
   MlirContext mlir_context_;
   std::unordered_map<BackendData::Handle, Parameter> parameters_map_;
   std::vector<torch::jit::Value*> root_tuple_;
   OutputMap<torch::jit::Value*> emitted_outputs_;
-  std::unique_ptr<TorchMlirNodeLoweringInterface> lowering_;
 };
 
 class TORCH_API TorchMlirComputation : public torch::lazy::Computation {
