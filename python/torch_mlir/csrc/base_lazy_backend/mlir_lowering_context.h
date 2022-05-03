@@ -149,7 +149,7 @@ public:
 
   MlirOperation func_op() const;
 
-  std::string to_string() const;
+  const std::string to_string() const;
 
 private:
   std::vector<std::string> parameter_names_;
