@@ -32,6 +32,11 @@ struct TorchLoweringPipelineOptions
   // If this option is false, only do the bare minimum for correctness.
   Option<bool> optimize{*this, "optimize", llvm::cl::desc("Do optimizations."),
                         llvm::cl::init(true)};
+  
+  // If this option is false, decompose complex operations.
+  // If this option is true, skip decomposition of complex operations.
+  Option<bool> nodecompose{*this, "nodecompose", llvm::cl::desc("No decomposition."),
+                        llvm::cl::init(false)};                      
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
