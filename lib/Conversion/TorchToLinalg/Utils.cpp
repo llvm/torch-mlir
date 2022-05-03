@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <cstdint>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -65,6 +66,51 @@ Value torch_to_linalg::getZeroPaddedTensor(
       loc,
       b.getZeroAttr(input.getType().cast<RankedTensorType>().getElementType()));
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
+}
+
+// Helper function that adds dynamic padding to a tensor, ignoring unpaddedDims
+// dimensions at the beginning. The high and low padding are the same, and the
+// padding value is zero.
+Value torch_to_linalg::getDynamicZeroPaddedTensor(
+    Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
+    int unpaddedDims) {
+  assert(input.getType().isa<RankedTensorType>() &&
+         "input must be RankedTensorType");
+  Location loc = op->getLoc();
+
+  Value c1 = b.create<arith::ConstantOp>(loc, b.getIndexAttr(1));
+  SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
+
+  Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
+  SmallVector<Value> paddingIncludingUnchanged{c0, c0};
+  paddingIncludingUnchanged.append(padding);
+  for (auto pad = paddingIncludingUnchanged.begin();
+       pad < paddingIncludingUnchanged.end(); pad++)
+    *pad = castIntToIndex(b, loc, *pad);
+
+  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
+  auto inputRank = input.getType().cast<RankedTensorType>().getRank();
+  SmallVector<Value> outputDims{inputDims[0], inputDims[1]};
+  for (auto i = 0; i < inputRank; i++) {
+    if (i >= unpaddedDims) {
+      Value padDouble = b.create<arith::MulIOp>(loc, padding[i - 2], c2);
+      Value dim = b.create<arith::AddIOp>(loc, inputDims[i],
+                                          castIntToIndex(b, loc, padDouble));
+      outputDims.push_back(dim);
+    }
+  }
+
+  Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  Type inputType = RankedTensorType::get(
+      llvm::ArrayRef<int64_t>(SmallVector<int64_t>(inputRank, kUnknownSize)),
+      elementType);
+  input = b.create<tensor::CastOp>(loc, inputType, input);
+
+  SmallVector<Value> strides(inputRank, c1);
+  Value cf0 =
+      b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+  return createPadScalarOp(input, cf0, paddingIncludingUnchanged,
+                           paddingIncludingUnchanged, false, loc, b);
 }
 
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
@@ -255,4 +301,22 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
                                  /*outputs=*/initTensor, indexingMaps,
                                  iteratorTypes, bodyBuild)
       .getResult(0);
+}
+
+Value torch_to_linalg::createPadScalarOp(Value source, Value pad,
+                                         SmallVector<Value> low,
+                                         SmallVector<Value> high, bool nofold,
+                                         Location loc, OpBuilder &builder) {
+  auto padTensorOp =
+      builder.create<tensor::PadOp>(loc, source, low, high, nofold);
+  int rank = padTensorOp.getResultType().getRank();
+  SmallVector<Type> blockArgTypes(rank, builder.getIndexType());
+  SmallVector<Location> blockArgLocs(rank, loc);
+  auto &region = padTensorOp.region();
+  // `builder.createBlock` changes the insertion point within the block. Create
+  // a guard to reset the insertion point of the builder after it is destroyed.
+  OpBuilder::InsertionGuard guard(builder);
+  builder.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
+  builder.create<tensor::YieldOp>(loc, pad);
+  return padTensorOp;
 }

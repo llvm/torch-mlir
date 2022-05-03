@@ -93,7 +93,6 @@ public:
 
 namespace {
 class ConvertAtenFlipOp : public OpConversionPattern<AtenFlipOp> {
-
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
@@ -534,11 +533,6 @@ public:
       return rewriter.create<arith::IndexCastOp>(loc, intType, v);
     };
 
-    SmallVector<int64_t> paddingInts;
-    if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts))) {
-      return rewriter.notifyMatchFailure(
-          op, "only support constant padding values");
-    }
     SmallVector<int64_t> strideInts;
     if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
@@ -557,7 +551,7 @@ public:
     for (size_t i = 2; i < inRank; i++)
       weightDims.push_back(getDimOp(rewriter, loc, weight, i));
 
-    // Guard unused values (transposed, groups)
+    // Guard unused values (transposed, groups).
     int64_t group_size;
     if (!matchPattern(op.groups(), m_TorchConstantInt(&group_size)) ||
         group_size != 1)
@@ -570,14 +564,13 @@ public:
           op, "unimplemented: only non-transposed convolution supported");
 
     // Pad the input tensor according to padding.
-    SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
-    paddingIncludingNC.insert(paddingIncludingNC.end(), paddingInts.begin(),
-                              paddingInts.end());
-    Value paddedInput = torch_to_linalg::getZeroPaddedTensor(
-        op, rewriter, input, paddingIncludingNC);
+    SmallVector<Value> paddingIntValues;
+    getListConstructElements(adaptor.padding(), paddingIntValues);
+    paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                              paddingIntValues);
+    Value paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
+        op, rewriter, input, paddingIntValues, 2);
 
-    SmallVector<Value> paddingIntValues =
-        getAsConstantIntValues(rewriter, loc, paddingInts);
     SmallVector<Value> dilationIntValues =
         getAsConstantIntValues(rewriter, loc, dilationInts);
     SmallVector<Value> strideIntValues =
@@ -626,7 +619,7 @@ public:
     auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
     auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
 
-    // TODO: add 1D and 3D case
+    // TODO: add 1D and 3D case.
     Value conv =
         rewriter
             .create<linalg::Conv2DNchwFchwOp>(
@@ -651,6 +644,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
   patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
+  target.addIllegalOp<AtenFlipOp>();
+  patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenBmmOp>();
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenLinearOp>();

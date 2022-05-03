@@ -13,6 +13,7 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 
 class SoftmaxBackwardModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -36,6 +37,7 @@ def SoftmaxBackwardModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 class TanhBackwardModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -56,7 +58,148 @@ def TanhBackward_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
+class ConvolutionBackwardModule1D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=None,
+            stride=[1],
+            padding=[0],
+            dilation=[1],
+            transposed=False,
+            output_padding=[0],
+            groups=1,
+            output_mask=[True, True, True])
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule1D())
+def ConvolutionBackwardModule1D_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(torch.randn(3, 3, 3), torch.randn(3, 3, 3),
+                       torch.randn(3, 3, 1))
+
+
+class ConvolutionBackwardModule2D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=None,
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            transposed=False,
+            output_padding=[0],
+            groups=1,
+            output_mask=[True, True, True])
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule2D())
+def ConvolutionBackwardModule2D_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(torch.randn(2, 2, 5, 5), torch.randn(2, 2, 6, 6),
+                       torch.randn(2, 2, 2, 2))
+
+
+class ConvolutionBackwardModule2DPadded(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=None,
+            stride=[1, 1],
+            padding=[2, 2],
+            dilation=[1, 1],
+            transposed=False,
+            output_padding=[0],
+            groups=1,
+            output_mask=[True, True, True])
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule2DPadded())
+def ConvolutionBackwardModule2DPadded_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(torch.randn(2, 2, 8, 8), torch.randn(2, 2, 6, 6),
+                       torch.randn(2, 2, 3, 3))
+
+
+class ConvolutionBackwardModule3D(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=None,
+            stride=[1, 1, 1],
+            padding=[0],
+            dilation=[1, 1, 1],
+            transposed=False,
+            output_padding=[0],
+            groups=1,
+            output_mask=[True, True, True])
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule3D())
+def ConvolutionBackwardModule3D_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(torch.randn(3, 3, 3, 3, 3), torch.randn(3, 3, 3, 3, 3),
+                       torch.randn(3, 3, 1, 1, 1))
+
+
+# ==============================================================================
+
+
 class GeluBackwardModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -74,7 +217,9 @@ class GeluBackwardModule(torch.nn.Module):
 def GeluBackwardModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3), tu.rand(5, 3))
 
+
 class LogSoftmaxBackwardModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
 
@@ -89,6 +234,7 @@ class LogSoftmaxBackwardModule(torch.nn.Module):
                                                          output,
                                                          dim=1,
                                                          input_dtype=6)
+
 
 @register_test_case(module_factory=lambda: LogSoftmaxBackwardModule())
 def LogSoftmaxBackwardModule_basic(module, tu: TestUtils):

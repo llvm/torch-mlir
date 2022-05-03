@@ -30,6 +30,12 @@ Value getPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 Value getZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
                           SmallVectorImpl<int64_t> &paddingInts);
 
+// Helper function that adds dynamic padding to a tensor, ignoring the first two
+// dimensions
+Value getDynamicZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
+                                 SmallVectorImpl<Value> &padding,
+                                 int unpaddedDims = 0);
+
 // Helper function to caculate the output tensor dims for convolution-like ops.
 // Along each dim:
 // dim_out =
@@ -54,6 +60,11 @@ Value createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
+
+Value createPadScalarOp(Value source, Value pad, SmallVector<Value> low,
+                        SmallVector<Value> high, bool nofold, Location loc,
+                        OpBuilder &builder);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

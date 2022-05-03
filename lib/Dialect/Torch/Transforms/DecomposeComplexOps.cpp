@@ -17,6 +17,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringExtras.h"
+#include <algorithm>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -785,6 +786,173 @@ public:
         op, op->getResultTypes(), op.input(), op.weight(), op.bias(),
         op.stride(), op.padding(), op.dilation(), cstFalse, emptyList,
         op.groups());
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.convolution_backward_overrideable to aten.convolution_backward
+namespace {
+class DecomposeAtenConvolutionBackwardOverrideableOp
+    : public OpRewritePattern<AtenConvolutionBackwardOverrideableOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvolutionBackwardOverrideableOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
+    rewriter.replaceOpWithNewOp<AtenConvolutionBackwardOp>(
+        op, op.getResultTypes(), op.grad_output(), op.input(), op.weight(),
+        none, op.stride(), op.padding(), op.dilation(), op.transposed(),
+        op.output_padding(), op.groups(), op.output_mask());
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.convolution_backward_overrideable to aten.convolution_backward
+namespace {
+class DecomposeAtenConvolutionBackwardOp
+    : public OpRewritePattern<AtenConvolutionBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvolutionBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Value ci0 = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value ci1 = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value ci2 = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(2));
+    Value cNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value cFalse = rewriter.create<Torch::ConstantBoolOp>(
+        loc, rewriter.getBoolAttr(false));
+
+    Value gradOutput = op.grad_output();
+    Value input = op.input();
+    Value weight = op.weight();
+    auto gradRank = getTensorRank(gradOutput);
+
+    SmallVector<Value> padding;
+    if (!getListConstructElements(op.padding(), padding))
+      return rewriter.notifyMatchFailure(op, "padding must be a list.");
+    SmallVector<Value> strides;
+    if (!getListConstructElements(op.stride(), strides))
+      return rewriter.notifyMatchFailure(op, "stride must be a list.");
+    SmallVector<int64_t> strideInts;
+    if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)) ||
+        !llvm::all_of(strideInts, [](int64_t stride) { return stride == 1; }))
+      return rewriter.notifyMatchFailure(
+          op, "only constant strides of 1 supported.");
+    SmallVector<Value> dilations;
+    if (!getListConstructElements(op.dilation(), dilations))
+      return rewriter.notifyMatchFailure(op, "dilation must be a list.");
+    if (gradRank != 4)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 2D convolutions supported.");
+    SmallVector<bool> outMask;
+    if (!matchPattern(op.output_mask(), m_TorchConstantBoolList(outMask)))
+      return rewriter.notifyMatchFailure(
+          op, "only constant output_mask is supported.");
+    bool transposed;
+    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed)))
+      return rewriter.notifyMatchFailure(
+          op, "only constant transposed is supported.");
+    if (transposed)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: transposed convolutions are not supported.");
+
+    // Add guards for unsupported values.
+    if (!llvm::all_of(outMask, [](bool mask) { return mask; }))
+      return rewriter.notifyMatchFailure(
+          op, "false values in output_mask not supported.");
+    for (Value dilation : dilations) {
+      Value cmp = rewriter.create<Torch::AtenEqIntOp>(loc, dilation, ci1);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          loc, cmp, "unimplemented: only dilations of 1 supported.");
+    }
+
+    // Rotate weight.
+    SmallVector<Value> axes;
+    for (auto i = 2; i < gradRank; i++) {
+      axes.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i)));
+    }
+    Value axesList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())), axes);
+    weight = rewriter.create<Torch::AtenFlipOp>(loc, weight.getType(), weight,
+                                                axesList);
+
+    // Transpose inputs.
+    Value gradOutputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, gradOutput.getType(), gradOutput, ci0, ci1);
+    Value inputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, input.getType(), input, ci0, ci1);
+    Value weightTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, weight.getType(), weight, ci0, ci1);
+
+    // Calculate padding for first convolution.
+    SmallVector<Value> gradInputPaddingValues;
+    for (auto i = 2; i < gradRank; i++) {
+      Value dim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i));
+      Value outDim = rewriter.create<Torch::AtenSizeIntOp>(loc, input, dim);
+
+      // Calculate 1 + (weightDim // 2) * 2, which fixes issues with even-sized
+      // weight.
+      Value weightDim = rewriter.create<Torch::AtenSizeIntOp>(loc, weight, dim);
+      weightDim =
+          rewriter.create<Torch::AtenFloordivIntOp>(loc, weightDim, ci2);
+      weightDim = rewriter.create<Torch::AtenMulIntOp>(loc, weightDim, ci2);
+      weightDim = rewriter.create<Torch::AtenAddIntOp>(loc, weightDim, ci1);
+      Value gradOutDim =
+          rewriter.create<Torch::AtenSizeIntOp>(loc, gradOutput, dim);
+
+      // Calculate (((outDim - 1) * stride) + weightDim - gradOutDim) // 2, the
+      // padding value for this dimension.
+      Value padVal = rewriter.create<Torch::AtenSubIntOp>(loc, outDim, ci1);
+      padVal =
+          rewriter.create<Torch::AtenMulIntOp>(loc, padVal, strides[i - 2]);
+      padVal = rewriter.create<Torch::AtenAddIntOp>(loc, padVal, weightDim);
+      padVal = rewriter.create<Torch::AtenSubIntOp>(loc, padVal, gradOutDim);
+      padVal = rewriter.create<Torch::AtenFloordivIntOp>(loc, padVal, ci2);
+
+      gradInputPaddingValues.push_back(padVal);
+    }
+    Value gradInputPadding = rewriter.create<Torch::PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), gradInputPaddingValues);
+
+    // Convolve grad_output with weight.
+    Value gradInput = rewriter.create<Torch::AtenConvolutionOp>(
+        loc, op.getResultTypes()[0], gradOutput, weightTransposed, cNone,
+        op.stride(), gradInputPadding, op.dilation(), op.transposed(),
+        op.output_padding(), op.groups());
+
+    // Convolve input with grad_output.
+    Value gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
+        loc, op.getResultTypes()[1], inputTransposed, gradOutputTransposed,
+        cNone, op.stride(), op.padding(), op.dilation(), op.transposed(),
+        op.output_padding(), op.groups());
+    gradWeight = rewriter.create<Torch::AtenTransposeIntOp>(
+        loc, gradWeight.getType(), gradWeight, ci0, ci1);
+
+    // Sum grad_output along dim 1.
+    SmallVector<Value> dimIntList{ci0};
+    for (auto i = 2; i < gradRank; i++)
+      dimIntList.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i)));
+    Value gradIntList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        dimIntList);
+    Value gradBias = rewriter.create<Torch::AtenSumDimIntListOp>(
+        loc, op.getResultTypes()[2], gradOutput, gradIntList, cFalse, cNone);
+
+    rewriter.replaceOp(op, {gradInput, gradWeight, gradBias});
 
     return success();
   }
@@ -1919,6 +2087,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenWhereScalarOtherOp>();
     patterns.add<DecomposeAtenWhereScalarSelfOp>(context);
     target.addIllegalOp<AtenWhereScalarSelfOp>();
+    patterns.add<DecomposeAtenConvolutionBackwardOverrideableOp>(context);
+    target.addIllegalOp<AtenConvolutionBackwardOverrideableOp>();
     patterns.add<DecomposeAtenSizeOp>(context);
     target.addIllegalOp<AtenSizeOp>();
     patterns.add<DecomposeAtenReshapeOp>(context);
@@ -1959,6 +2129,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
     target.addIllegalOp<AtenConvolutionOverrideableOp>();
     patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
+    target.addIllegalOp<AtenConvolutionBackwardOp>();
+    patterns.add<DecomposeAtenConvolutionBackwardOp>(context);
     target.addIllegalOp<AtenConv2dOp>();
     patterns.add<DecomposeAtenConv2dOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
