@@ -81,6 +81,30 @@ def MaxPool2dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 64, 112, 112))
 
 
+class MaxPool2dCeilModeTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       dilation=2,
+                                       ceil_mode=True)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool2dCeilModeTrueModule())
+def MaxPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 20, 20, low=0.5, high=1.0))
+
+
 class MaxPool2dWith3dInputModule(torch.nn.Module):
 
     def __init__(self):
@@ -318,6 +342,31 @@ class MaxPool2dWithIndicesAllOnesModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaxPool2dWithIndicesAllOnesModule())
 def MaxPool2dWithIndicesAllOnesModule_basic(module, tu: TestUtils):
     module.forward(torch.ones(1, 1, 8, 8))
+
+
+class MaxPool2dWithIndicesCeilModeTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.max_pool2d_with_indices(x,
+                                                      kernel_size=[2, 2],
+                                                      stride=[1, 1],
+                                                      padding=[0, 0],
+                                                      dilation=[1, 1],
+                                                      ceil_mode=True)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dWithIndicesCeilModeTrueModule())
+def MaxPool2dWithIndicesCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 8, 8, low=0.5, high=1.0))
 
 
 class MaxPool2dWithIndicesWith3dInputModule(torch.nn.Module):
@@ -568,3 +617,28 @@ class AvgPool2dDivisorOverrideModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool2dDivisorOverrideModule())
 def AvgPool2dDivisorOverrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4, 20, 20) - 0.5)
+
+
+class AvgPool2dCeilModeTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(kernel_size=[6, 8],
+                                       stride=[2, 2],
+                                       padding=[3, 4],
+                                       ceil_mode=False,
+                                       count_include_pad=True,
+                                       divisor_override=None)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilModeTrueModule())
+def AvgPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))

@@ -30,7 +30,8 @@ Value getZeroPaddedTensor(Operation *op, OpBuilder &b, Value &input,
 //  floor((dim_in + 2 * padding - dilation * (kernelSize - 1) - 1) / stride) + 1
 Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
                              Value paddingInt, Value dilationInt,
-                             Value kernelSizeInt, Value strideInt);
+                             Value kernelSizeInt, Value strideInt,
+                             bool ceilMode = false);
 
 // Create a reduction of `tensorOperand`, reducing along the dimensions
 // in `dimSet`. If `keepDim` is true, the output tensor is the same

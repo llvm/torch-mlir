@@ -32,6 +32,7 @@ using namespace mlir::torch::Torch;
 template <typename OpTy>
 static LogicalResult
 checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
+                             bool &ceilMode,
                              SmallVectorImpl<int64_t> &kernelSizeInts,
                              SmallVectorImpl<int64_t> &strideInts,
                              SmallVectorImpl<int64_t> &paddingInts) {
@@ -45,14 +46,9 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
   if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant int paddings");
-  bool ceilMode;
   if (!matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant bool ceil_mode");
-  // TODO: Add support for ceil_mode equal to `True`.
-  if (ceilMode)
-    return rewriter.notifyMatchFailure(op, "only ceil_mode false is supported");
-
   return success();
 }
 
@@ -61,21 +57,27 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
 template <typename OpTy>
 static LogicalResult createPoolingOp(
     Operation *op, ConversionPatternRewriter &rewriter, Value self,
-    bool supportFPInputOnly, SmallVectorImpl<int64_t> &kernelSizeInts,
+    bool supportFPInputOnly, bool ceilMode,
+    SmallVectorImpl<int64_t> &kernelSizeInts,
     SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
-    SmallVectorImpl<int64_t> &dilationInts, Attribute intiValueAttr,
+    SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
     SmallVectorImpl<Value> &outTensorShape, Value &paddedInput, Value &result) {
   Location loc = op->getLoc();
   Type elementType = self.getType().cast<RankedTensorType>().getElementType();
   if (!elementType.isa<mlir::FloatType>() && !supportFPInputOnly)
     return op->emitError("unimplemented: non-floating point type");
 
-  SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
-  paddingIncludingNC.insert(paddingIncludingNC.end(), paddingInts.begin(),
-                            paddingInts.end());
-  Value initValue = rewriter.create<arith::ConstantOp>(loc, intiValueAttr);
+  SmallVector<int64_t, 4> lowPaddingIncludingNC = {0, 0};
+  lowPaddingIncludingNC.append(paddingInts);
+  SmallVector<int64_t, 4> highPaddingIncludingNC = lowPaddingIncludingNC;
+  if (ceilMode) {
+    highPaddingIncludingNC[2] += strideInts[0];
+    highPaddingIncludingNC[3] += strideInts[1];
+  }
+  Value initValue = rewriter.create<arith::ConstantOp>(loc, initValueAttr);
   paddedInput = torch_to_linalg::getPaddedTensor(
-      op, rewriter, self, paddingIncludingNC, paddingIncludingNC, initValue);
+      op, rewriter, self, lowPaddingIncludingNC, highPaddingIncludingNC,
+      initValue);
 
   Value N = getDimOp(rewriter, loc, self, 0);
   Value C = getDimOp(rewriter, loc, self, 1);
@@ -93,10 +95,10 @@ static LogicalResult createPoolingOp(
 
   Value hOut = torch_to_linalg::getOutputDimForConvOps(
       rewriter, loc, H, paddingIntValues[0], dilationIntValues[0],
-      kernelSizeIntValues[0], strideIntValues[0]);
+      kernelSizeIntValues[0], strideIntValues[0], ceilMode);
   Value wOut = torch_to_linalg::getOutputDimForConvOps(
       rewriter, loc, W, paddingIntValues[1], dilationIntValues[1],
-      kernelSizeIntValues[1], strideIntValues[1]);
+      kernelSizeIntValues[1], strideIntValues[1], ceilMode);
 
   // Create output tensor initialized with smallest floating point value.
   outTensorShape.insert(outTensorShape.begin(), {N, C, hOut, wOut});
@@ -140,8 +142,9 @@ public:
     if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
+    bool ceilMode;
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dOp>(
-            op, rewriter, kernelSizeInts, strideInts, paddingInts)))
+            op, rewriter, ceilMode, kernelSizeInts, strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     Type elementType = self.getType().cast<RankedTensorType>().getElementType();
@@ -154,9 +157,9 @@ public:
     // `maxpool2d` contains the result of maxpool2d operation over the input.
     Value maxPool2d, paddedInput;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
-            op, rewriter, self, /*supportFPInput=*/false, kernelSizeInts,
-            strideInts, paddingInts, dilationInts, smallestFPValueAttr,
-            outTensorShape, paddedInput, maxPool2d)))
+            op, rewriter, self, /*supportFPInput=*/false, ceilMode,
+            kernelSizeInts, strideInts, paddingInts, dilationInts,
+            smallestFPValueAttr, outTensorShape, paddedInput, maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
     Type newResultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool2d);
@@ -215,8 +218,9 @@ public:
     if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
+    bool ceilMode;
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dWithIndicesOp>(
-            op, rewriter, kernelSizeInts, strideInts, paddingInts)))
+            op, rewriter, ceilMode, kernelSizeInts, strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     // `maxpool2d` contains the result of maxpool2d operation over the input.
@@ -228,9 +232,9 @@ public:
     Value maxPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
-            op, rewriter, self, /*supportFPInput=*/false, kernelSizeInts,
-            strideInts, paddingInts, dilationInts, smallestFPValueAttr,
-            outTensorShape, paddedInput, maxPool2d)))
+            op, rewriter, self, /*supportFPInput=*/false, ceilMode,
+            kernelSizeInts, strideInts, paddingInts, dilationInts,
+            smallestFPValueAttr, outTensorShape, paddedInput, maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
 
     Value cstMinusOne =
@@ -459,8 +463,9 @@ public:
 
     SmallVector<int64_t, 2> dilationInts{1, 1};
     SmallVector<int64_t, 2> kernelSizeInts, strideInts, paddingInts;
+    bool ceilMode;
     if (failed(checkAndGetPoolingParameters<AtenAvgPool2dOp>(
-            op, rewriter, kernelSizeInts, strideInts, paddingInts)))
+            op, rewriter, ceilMode, kernelSizeInts, strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
     // TODO: Add support for count_include_pad equal to `False`.
@@ -478,8 +483,8 @@ public:
     Value sumPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwSumOp>(
-            op, rewriter, self, /*supportFPInput=*/true, kernelSizeInts,
-            strideInts, paddingInts, dilationInts,
+            op, rewriter, self, /*supportFPInput=*/true, ceilMode,
+            kernelSizeInts, strideInts, paddingInts, dilationInts,
             rewriter.getZeroAttr(inputElementType), outTensorShape, paddedInput,
             sumPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute sumpool2d");
