@@ -543,6 +543,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
          traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
     emit("prim::Print : (...) -> ()")
     emit("prim::tolist : (...) -> (...)")
+    emit("prim::abs.Scalar : (Scalar) -> (Scalar)")
 
     # ==========================================================================
     # `quantized::` namespace.
