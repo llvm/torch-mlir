@@ -1388,6 +1388,13 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (i >= (int64_t)tupleConstruct.elements().size())
       return failure();
 
+    Value element = tupleConstruct.elements()[i];
+    // TODO: We should have a clear picture of whether we want to consistently
+    // allow refinement, and where. It seems desirable to require precise
+    // type equality for TupleConstruct / TupleIndex, but that might break
+    // things.
+    if (element.getType() != op.getType())
+      return failure();
     rewriter.replaceOp(op, tupleConstruct.elements()[i]);
     return success();
   });
