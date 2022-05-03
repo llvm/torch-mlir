@@ -148,12 +148,13 @@ void TorchMlirLoweringContext::AssignOutputOp(
     const Output& output, torch::jit::Value* op) {
   PRINT_FUNCTION();
 
-  auto torch_mlir_node =
-      NodeCast<TorchMlirNode>(output.node, output.node->op());
-  if (!torch_mlir_node->getPythonStacktrace().empty()) {
-    op->node()->s_(
-        c10::Symbol::attr("source"), torch_mlir_node->getPythonStacktrace());
-  }
+  // TODO (antoniojkim): Do we need this?
+  // auto torch_mlir_node =
+  //     NodeCast<TorchMlirNode>(output.node, output.node->op());
+  // if (!torch_mlir_node->getPythonStacktrace().empty()) {
+  //   op->node()->s_(
+  //       c10::Symbol::attr("source"), torch_mlir_node->getPythonStacktrace());
+  // }
   emitted_outputs_[output] = std::move(op);
 }
 
@@ -301,7 +302,7 @@ unsigned TorchMlirComputation::num_results() const { return num_results_; }
 
 MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
-std::string TorchMlirComputation::to_string() const {
+const std::string TorchMlirComputation::to_string() const {
   // Since we use the C-MLIR API, we need to use a callback to print.
   MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
     // user_data is a void ptr to some data structure of our choice -- in this
