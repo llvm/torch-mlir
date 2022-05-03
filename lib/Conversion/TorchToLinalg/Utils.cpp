@@ -71,7 +71,7 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
                                               Value in, Value paddingInt,
                                               Value dilationInt,
                                               Value kernelSizeInt,
-                                              Value strideInt) {
+                                              Value strideInt, bool ceilMode) {
   Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
   Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
 
@@ -88,7 +88,11 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   Value temp =
       b.create<arith::SubIOp>(loc, inAddDoublePadding, dilationTimesKernelSize);
   Value dividend = b.create<arith::SubIOp>(loc, temp, c1);
-  Value division = b.create<arith::FloorDivSIOp>(loc, dividend, strideInt);
+  Value division;
+  if (ceilMode)
+    division = b.create<arith::CeilDivSIOp>(loc, dividend, strideInt);
+  else
+    division = b.create<arith::FloorDivSIOp>(loc, dividend, strideInt);
   Value out = b.create<arith::AddIOp>(loc, division, c1);
   return castIntToIndex(b, loc, out);
 }
