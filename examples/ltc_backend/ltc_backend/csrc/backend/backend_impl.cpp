@@ -12,7 +12,7 @@
 #include <torch/csrc/lazy/backend/lowering_context.h>
 #include <torch/csrc/lazy/core/shape.h>
 
-#include <torch_mlir/csrc/base_lazy_backend/LazyNativeFunctions.h>
+#include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
 #include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
 #include <torch_mlir/csrc/utils/debug.h>
