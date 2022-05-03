@@ -18,6 +18,7 @@
 #include "../utils/debug.h"
 #include "../utils/exception.h"
 #include "backend_impl.h"
+#include "ir_builder.h"
 #include "mlir_lowering_context.h"
 
 namespace torch {
@@ -73,6 +74,15 @@ TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
 void TorchMlirBackendImpl::PrepareToExit() const {}
 
 /**
+ * IR Tracing
+ * */
+
+const IrBuilder* TorchMlirBackendImpl::GetIrBuilder() const {
+  static const IrBuilder* builder = new TorchMlirIrBuilder();
+  return builder;
+}
+
+/**
  * Data Transfer
  * */
 
@@ -93,6 +103,16 @@ BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
     const BackendDevice& device, const Shape& shape) const {
   PRINT_FUNCTION();
   return std::make_shared<TorchMlirBackendData>(device, shape);
+}
+
+BackendDataPtr
+TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
+  PRINT_FUNCTION();
+  auto* device_data_node = dynamic_cast<DeviceData*>(node);
+  if (!device_data_node) {
+    return nullptr;
+  }
+  return device_data_node->data;
 }
 
 at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
