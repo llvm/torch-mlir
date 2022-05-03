@@ -19,6 +19,7 @@
 #include "mlir-c/BuiltinAttributes.h"
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
+#include "torch-mlir-c/TorchOps.h"
 #include "torch-mlir-c/TorchTypes.h"
 
 namespace py = pybind11;
@@ -114,16 +115,40 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
   }
 
   // Builtin interpreter ops with no operator/schema.
-  InputsTransformFn transformer =
-      kind != c10::prim::DictConstruct ? nullptr : rearrangeDictConstructInputs;
   switch (kind) {
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
-  case c10::prim::TupleConstruct:
-  case c10::prim::DictConstruct:
   case c10::prim::CreateObject: {
     createAndMapTrivialNode(
-        node, "torch.prim." + std::string(kind.toUnqualString()), transformer);
+        node, "torch.prim." + std::string(kind.toUnqualString()), nullptr);
+    return;
+  }
+  case c10::prim::TupleConstruct: {
+    // TODO: We will probably need to adjust the static information for
+    // ListConstruct and DictConstruct too.
+    auto containedTypes = c10::fmap(
+        node->output()->type()->cast<c10::TupleType>()->containedTypes(),
+        [&](const c10::TypePtr &t) {
+          MlirType type = getMlirTypeFromTorchType(loc, t);
+          if (mlirTypeIsNull(type)) {
+            throw mlir_diagnostic_emitted();
+          }
+          return type;
+        });
+    createAndMapTrivialNode(node,
+                            "torch.prim." + std::string(kind.toUnqualString()),
+                            [&](std::vector<MlirValue> &inputs) {
+                              assert(containedTypes.size() == inputs.size());
+                              return adjustStaticInformationForValues(
+                                  appendToBlock, loc, inputs, containedTypes,
+                                  /*userAllowsRefinement=*/true);
+                            });
+    return;
+  }
+  case c10::prim::DictConstruct: {
+    createAndMapTrivialNode(node,
+                            "torch.prim." + std::string(kind.toUnqualString()),
+                            rearrangeDictConstructInputs);
     return;
   }
   case c10::prim::GetAttr:
@@ -213,8 +238,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.Loop", loc, resultTypes,
         lookupMappedValues(node->inputs().slice(0, 2)),
-        derefineValues(lookupMappedValues(node->inputs().slice(2)), resultTypes,
-                       loc, appendToBlock),
+        adjustStaticInformationForValues(
+            appendToBlock, loc, lookupMappedValues(node->inputs().slice(2)),
+            resultTypes, /*userAllowsRefinement=*/false),
         mlirRegionCreate());
     mapResults(node, operation);
     std::vector<MlirType> terminatorOperandTypes = {
@@ -223,10 +249,11 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
                                   resultTypes.begin(), resultTypes.end());
     auto createTerminator = [&](c10::ArrayRef<MlirValue> yieldedValues,
                                 MlirBlock appendToBlock) {
-      createMlirOperationAtEnd(appendToBlock, "torch.prim.Loop.condition", loc,
-                               derefineValues(yieldedValues,
-                                              terminatorOperandTypes, loc,
-                                              appendToBlock));
+      createMlirOperationAtEnd(
+          appendToBlock, "torch.prim.Loop.condition", loc,
+          adjustStaticInformationForValues(appendToBlock, loc, yieldedValues,
+                                           terminatorOperandTypes,
+                                           /*userAllowsRefinement=*/false));
     };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
@@ -245,7 +272,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
                                 MlirBlock appendToBlock) {
       createMlirOperationAtEnd(
           appendToBlock, "torch.prim.If.yield", loc,
-          derefineValues(yieldedValues, resultTypes, loc, appendToBlock));
+          adjustStaticInformationForValues(appendToBlock, loc, yieldedValues,
+                                           resultTypes,
+                                           /*userAllowsRefinement=*/false));
     };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
@@ -269,8 +298,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.CallMethod", loc,
         getMlirTypesFromValues(loc, node->outputs()),
-        derefineValues(lookupMappedValues(node->inputs()), expectedTypes, loc,
-                       appendToBlock),
+        adjustStaticInformationForValues(
+            appendToBlock, loc, lookupMappedValues(node->inputs()),
+            expectedTypes, /*userAllowsRefinement=*/false),
         toMlirNamedAttribute("name",
                              importAttribute(loc, node, c10::attr::name)));
     mapResults(node, operation);
@@ -288,8 +318,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
         appendToBlock, "func.call_indirect", loc,
         getMlirTypesFromValues(loc, node->outputs()),
         lookupMappedValue(node->input(0)),
-        derefineValues(lookupMappedValues(node->inputs().slice(1)),
-                       expectedTypes, loc, appendToBlock));
+        adjustStaticInformationForValues(
+            appendToBlock, loc, lookupMappedValues(node->inputs().slice(1)),
+            expectedTypes, /*userAllowsRefinement=*/false));
     mapResults(node, operation);
     return;
   }
@@ -315,36 +346,6 @@ MlirBlock NodeImporter::importBlock(
   return block;
 }
 
-static MlirValue adjustBlockArgType(MlirContext context,
-                                    MlirBlock appendToBlock, MlirValue value,
-                                    MlirType expectedType, MlirLocation loc) {
-  MlirType type = mlirValueGetType(value);
-  if (mlirTypeEqual(type, expectedType)) {
-    return value;
-  }
-  // For tensors, we might need to erase or add static type information.
-  if (torchMlirTypeIsATorchNonValueTensor(type) ||
-      torchMlirTypeIsATorchValueTensor(type)) {
-    MlirOperation op =
-        createMlirOperationAtEnd(appendToBlock, "torch.tensor_static_info_cast",
-                                 loc, expectedType, value);
-    return mlirOperationGetResult(op, 0);
-  }
-  {
-    std::stringstream msg;
-    MlirStringCallback printToStream = +[](MlirStringRef str, void *userData) {
-      std::stringstream *stream = static_cast<std::stringstream *>(userData);
-      stream->write(str.data, str.length);
-    };
-    msg << "unhandled: could not adjust formal param type from ";
-    mlirTypePrint(type, printToStream, static_cast<void *>(&msg));
-    msg << " to expected type ";
-    mlirTypePrint(expectedType, printToStream, static_cast<void *>(&msg));
-    mlirEmitError(loc, msg.str().c_str());
-    throw mlir_diagnostic_emitted();
-  }
-}
-
 MlirBlock NodeImporter::createBlockFor(
     Block *jitBlock, c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
   Node *paramNode = jitBlock->param_node();
@@ -362,8 +363,9 @@ MlirBlock NodeImporter::createBlockFor(
   for (int i = 0, e = mlirBlockGetNumArguments(block); i < e; i++) {
     Value *jitValue = paramNode->outputs()[i];
     MlirValue value = mlirBlockGetArgument(block, i);
-    MlirValue adjusted =
-        adjustBlockArgType(context, block, value, paramNodeTypes[i], loc);
+    MlirValue adjusted = adjustStaticInformationForValues(
+        block, loc, {value}, {paramNodeTypes[i]},
+        /*userAllowsRefinement=*/false)[0];
     mapValue(jitValue, adjusted);
   }
   return block;

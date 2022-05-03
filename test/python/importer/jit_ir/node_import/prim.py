@@ -5,20 +5,15 @@
 import typing
 
 import torch
-from torch._C import CompilationUnit
 from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+
+from utils import create_script_function
 
 import typing
 
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
 mb = ModuleBuilder()
-
-
-# Import TorchScript IR string as ScriptFunction.
-def import_ts_ir(func_name, ts_ir_str):
-    cu = CompilationUnit()
-    mb.import_function(cu.create_function(func_name, torch._C.parse_ir(ts_ir_str)))
 
 # CHECK-LABEL:   func @__torch__.prim_NumToTensor(
 # CHECK-SAME:                           %[[ARG:.*]]: !torch.int) -> !torch.tensor {
@@ -159,9 +154,11 @@ def prim_max(x: int):
 # CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %[[A]], %[[B]], %[[C]] :
 # CHECK-SAME:          (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
 # CHECK:           return %[[RET]] : !torch.list<int>
-import_ts_ir('__torch__.prim_Constant_list', '''graph():
+mb.import_function(create_script_function("__torch__.prim_Constant_list", """
+graph():
   %list : int[] = prim::Constant[value=[1, 2, 3]]()
-  return (%list)''')
+  return (%list)
+"""))
 
 mb.module.operation.print()
 print()
