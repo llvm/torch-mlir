@@ -10,6 +10,9 @@ git submodule update --init
 
 ## Setup your Python VirtualEnvironment and Dependencies
 
+Also, ensure that you have the appropriate `python-dev` package installed
+to access the Python development libraries / headers.
+
 ```shell
 python -m venv mlir_venv
 source mlir_venv/bin/activate
