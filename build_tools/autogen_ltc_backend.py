@@ -12,20 +12,20 @@ from textwrap import dedent
 import yaml
 
 TORCH_MLIR_DIR = Path(__file__).parent.parent.resolve()
-TORCH_DIR = TORCH_MLIR_DIR.parent.joinpath("pytorch")
+TORCH_DIR = TORCH_MLIR_DIR.joinpath("externals", "pytorch")
 
-sys.path.append(str(TORCH_DIR.joinpath("tools")))
+sys.path.append(str(TORCH_DIR))
 
 # PyTorch's LTC backend autogen script
-import codegen.dest.lazy_ir
-import codegen.gen_lazy_tensor
-from codegen.api.lazy import LazyIrSchema
-from codegen.gen import get_grouped_native_functions, parse_native_yaml
-from codegen.model import NativeFunctionsGroup
+import torchgen.dest.lazy_ir
+import torchgen.gen_lazy_tensor
+from torchgen.api.lazy import LazyIrSchema
+from torchgen.gen import get_grouped_native_functions, parse_native_yaml
+from torchgen.model import NativeFunctionsGroup
 
 
 def isOptionalCType(arg):
-    return str(type(arg)) == "<class 'tools.codegen.api.types.OptionalCType'>"
+    return str(type(arg)) == "<class 'torchgen.api.types.OptionalCType'>"
 
 
 def generate_native_functions(
@@ -33,11 +33,11 @@ def generate_native_functions(
 ):
     print("Generating Native Functions Yaml")
 
-    native_yaml_path = TORCH_DIR.joinpath(
-        "aten", "src", "ATen", "native", "native_functions.yaml"
-    )
+    native_path = TORCH_DIR.joinpath("aten", "src", "ATen", "native")
+    native_yaml_path = native_path.joinpath("native_functions.yaml")
+    tags_yaml_path = native_path.joinpath("tags.yaml")
 
-    parsed_yaml = parse_native_yaml(native_yaml_path)
+    parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path)
     native_functions = parsed_yaml.native_functions
     grouped_native_functions = get_grouped_native_functions(native_functions)
 
@@ -56,6 +56,9 @@ def generate_native_functions(
     # List of supported ops that we don't want to do the full codegen for
     # primarily view ops
     supported = config.get("supported", [])
+
+    # List of non-native ops to do IR codegen for
+    non_native = config.get("non_native", [])
 
     if which("rg") is not None:  # use ripgrep if available as its much faster
         cmd = ["rg", "-o", "-N", r"aten::[0-9a-zA-Z_\.]+"]
@@ -105,6 +108,7 @@ def generate_native_functions(
                 "cpp_namespace": "torch::lazy",
                 "full_codegen": opnames,
                 "supported": sorted(supported_ops),
+                "non_native": non_native,
             },
             f,
             default_flow_style=False,
@@ -123,13 +127,13 @@ def generate_native_functions(
 
 
 @dataclass(frozen=True)
-class MlirLazyIr(codegen.gen_lazy_tensor.dest.LazyIR):
+class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
-    def lowering_function(self, f):
-        func = (
-            f.functional.func if isinstance(f, NativeFunctionsGroup) else f.func
-        )
-        schema = LazyIrSchema(func)
+    def lowering_function(self, schema, declaration_only=True):
+        signature = "TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override"
+
+        if declaration_only:
+            return f"{signature};"
 
         emplace_arguments = []
         for arg in schema.positional_args:
@@ -149,7 +153,7 @@ class MlirLazyIr(codegen.gen_lazy_tensor.dest.LazyIR):
             [f"kwarguments.emplace_back({a});" for a in emplace_kwarg_values + emplace_kwarg_scalars])
 
         return f"""
-  TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override {{
+  {signature} {{
     PRINT_FUNCTION();
     std::vector<torch::jit::NamedValue> arguments;
     std::vector<torch::jit::NamedValue> kwarguments;
@@ -159,7 +163,7 @@ class MlirLazyIr(codegen.gen_lazy_tensor.dest.LazyIR):
     {emplace_arguments_str}
     {emplace_kwarguments}
     torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
-    CHECK_EQ({schema.aten_name}_out.size(), {len(func.returns)});
+    CHECK_EQ({schema.aten_name}_out.size(), {len(schema.returns)});
   
     return {schema.aten_name}_out;
   }}
@@ -178,13 +182,13 @@ def generate_backend(
     def gen_fallback_code(*args, **kwargs):
         return ""
 
-    codegen.dest.lazy_ir.gen_fallback_code = gen_fallback_code
+    torchgen.dest.lazy_ir.gen_fallback_code = gen_fallback_code
 
-    codegen.gen_lazy_tensor.run_gen_lazy_tensor(
+    torchgen.gen_lazy_tensor.run_gen_lazy_tensor(
         backend_name="TorchMlir",
         aten_path=str(TORCH_DIR.joinpath("aten", "src", "ATen")),
         source_yaml=str(source_yaml),
-        output_dir=str(backend_path),
+        output_dir=str(backend_path.joinpath("generated")),
         dry_run=False,
         impl_path=str(backend_path.joinpath("mlir_native_functions.cpp")),
         node_base="torch::lazy::TorchMlirNode",
@@ -192,7 +196,7 @@ def generate_backend(
         tensor_class="torch::lazy::LazyTensor",
         tensor_class_hdr="torch/csrc/lazy/core/tensor.h",
         shape_inference_hdr=str(backend_path.joinpath("LazyShapeInference.h")),
-        lazy_ir_cls=MlirLazyIr,
+        lazy_ir_generator=GenMlirLazyIr,
     )
 
     # Remove lazy_tensor_core imports
@@ -201,7 +205,7 @@ def generate_backend(
             "sed",
             "-i",
             "/lazy_tensor_core/d",
-            str(backend_path.joinpath("LazyNativeFunctions.cpp")),
+            str(backend_path.joinpath("generated", "LazyNativeFunctions.cpp")),
         ]
     )
 
@@ -240,14 +244,14 @@ def generate_backend(
         - shape_inference_defs
     )
     if missing_defs:
-        backend_path.joinpath("GenLazyShapeInference.cpp").write_text(
+        backend_path.joinpath("generated", "GenLazyShapeInference.cpp").write_text(
             dedent(
                 """
                 // This file contains autogenerated Lazy Shape Inference placeholders
                 // for ops that dont have a corresponding structured kernel or shape definition
 
-                #include "LazyShapeInference.h"
-                #include "../utils/exception.h"
+                #include "../LazyShapeInference.h"
+                #include "../../utils/exception.h"
                 namespace torch {{
                 namespace lazy {{
                 {}

@@ -66,6 +66,12 @@ public:
   virtual void PrepareToExit() const override;
 
   /**
+   * IR Tracing
+   * */
+
+  const IrBuilder* GetIrBuilder() const override;
+
+  /**
    * Configuration
    * */
   // virtual void SetRngSeed(size_t seed) const = 0;
@@ -83,6 +89,10 @@ public:
 
   virtual BackendDataPtr CreateDataPlaceholder(
       const BackendDevice& device, const Shape& shape) const override;
+
+  // Gets backend data if the node is a device data node. Otherwise returns
+  // nullptr.
+  virtual BackendDataPtr GetComputationDataFromNode(Node*) const override;
 
   virtual at::Tensor MakeTensorFromComputationData(
       const BackendDataPtr data,
