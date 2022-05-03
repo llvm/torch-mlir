@@ -6,6 +6,7 @@
 // Code for testing transfer functions for new ops (which is most changes)
 // should go in refine-types-ops.mlir.
 
+// -----
 // CHECK-LABEL:   func @basic(
 // CHECK-SAME:                      %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
 // CHECK:           %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
@@ -16,6 +17,7 @@ func @basic(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
   return %1 : !torch.vtensor
 }
 
+// -----
 // CHECK-LABEL:   func @keep_existing_shape_information(
 // CHECK-SAME:                                          %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor<[2],f32> {
 // CHECK:           %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<[2],f32>
@@ -25,6 +27,7 @@ func @keep_existing_shape_information(%arg0: !torch.vtensor<*,f32>) -> !torch.vt
   return %1 : !torch.vtensor<[2],f32>
 }
 
+// -----
 // CHECK-LABEL:   func @propagate_through_multiple_ops(
 // CHECK-SAME:                                         %[[ARG0:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
 // CHECK:           %[[TANH0:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
@@ -39,6 +42,7 @@ func @propagate_through_multiple_ops(%arg0: !torch.vtensor<*,f32>) -> !torch.vte
   return %3 : !torch.vtensor
 }
 
+// -----
 // Check rewriting logic in case of mixes of users that do/don't allow type
 // refinement.
 // CHECK-LABEL:   func @mixed_allowing_not_allowing_type_refinement(
@@ -53,6 +57,7 @@ func @mixed_allowing_not_allowing_type_refinement(%arg0: !torch.vtensor<*,f32>) 
   return %1, %1 : !torch.vtensor, !torch.vtensor
 }
 
+// -----
 // CHECK-LABEL:   func @type_promotion$same_category_different_width(
 // CHECK-SAME:                                                       %[[ARG0:.*]]: !torch.vtensor<[?],si32>,
 // CHECK-SAME:                                                       %[[ARG1:.*]]: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?],unk> {
@@ -66,6 +71,7 @@ func @type_promotion$same_category_different_width(%arg0: !torch.vtensor<[?],si3
   return %0 : !torch.vtensor<[?],unk>
 }
 
+// -----
 // CHECK-LABEL:   func @type_promotion$different_category(
 // CHECK-SAME:                                            %[[ARG0:.*]]: !torch.vtensor<[?],si64>,
 // CHECK-SAME:                                            %[[ARG1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],unk> {
@@ -79,6 +85,7 @@ func @type_promotion$different_category(%arg0: !torch.vtensor<[?],si64>, %arg1: 
   return %0 : !torch.vtensor<[?],unk>
 }
 
+// -----
 // CHECK-LABEL:   func @type_promotion$same_category_zero_rank_wider(
 // CHECK-SAME:                                                       %[[ARG0:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                                                       %[[ARG1:.*]]: !torch.vtensor<[],f64>) -> !torch.vtensor<[?],unk> {
@@ -92,6 +99,7 @@ func @type_promotion$same_category_zero_rank_wider(%arg0: !torch.vtensor<[?],f32
   return %0 : !torch.vtensor<[?],unk>
 }
 
+// -----
 // CHECK-LABEL:   func @type_promotion$zero_rank_higher_category(
 // CHECK-SAME:                                                   %[[ARG0:.*]]: !torch.vtensor<[?],si64>,
 // CHECK-SAME:                                                   %[[ARG1:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],unk> {
@@ -105,6 +113,7 @@ func @type_promotion$zero_rank_higher_category(%arg0: !torch.vtensor<[?],si64>, 
   return %0 : !torch.vtensor<[?],unk>
 }
 
+// -----
 // CHECK-LABEL:   func @type_promotion$alpha_wider(
 // CHECK-SAME:                                     %[[ARG0:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                                     %[[ARG1:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],unk> {
@@ -118,6 +127,7 @@ func @type_promotion$alpha_wider(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.v
   return %0 : !torch.vtensor<[?],unk>
 }
 
+// -----
 // CHECK-LABEL:   func @torch.overwrite.tensor.contents$dynamic_overwrites_static(
 // CHECK-SAME:                                                           %[[STATIC:.*]]: !torch.vtensor<[2],f32>,
 // CHECK-SAME:                                                           %[[DYNAMIC:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[2],f32> {
@@ -134,6 +144,7 @@ func @torch.overwrite.tensor.contents$dynamic_overwrites_static(%static: !torch.
   return %result : !torch.vtensor<[2],f32>
 }
 
+// -----
 // CHECK-LABEL:   func @torch.overwrite.tensor.contents$static_overwrites_dynamic(
 // CHECK-SAME:                                                                    %[[ARG0:.*]]: !torch.vtensor<[2],f32>,
 // CHECK-SAME:                                                                    %[[ARG1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
@@ -151,6 +162,7 @@ func @torch.overwrite.tensor.contents$static_overwrites_dynamic(%static: !torch.
   return %result : !torch.vtensor<[?],f32>
 }
 
+// -----
 // CHECK-LABEL:   func @bf16_result_type(
 // CHECK-SAME:                                          %[[ARG0:.*]]: !torch.vtensor<*,bf16>) -> !torch.vtensor<[2],bf16> {
 // CHECK:           %[[SQRT:.*]] = torch.aten.sqrt %[[ARG0]] : !torch.vtensor<*,bf16> -> !torch.vtensor<[2],bf16>
@@ -158,4 +170,17 @@ func @torch.overwrite.tensor.contents$static_overwrites_dynamic(%static: !torch.
 func @bf16_result_type(%arg0: !torch.vtensor<*,bf16>) -> !torch.vtensor<[2],bf16> {
   %1 = torch.aten.sqrt %arg0 : !torch.vtensor<*,bf16> -> !torch.vtensor<[2], bf16>
   return %1 : !torch.vtensor<[2],bf16>
+}
+
+// -----
+// CHECK-LABEL:   func @propagate_scalar_type(
+// CHECK-SAME:                                %[[INT:.*]]: !torch.int) -> !torch.number {
+// CHECK:           %[[NUM:.*]] = torch.derefine %[[INT]] : !torch.int to !torch.number
+// CHECK:           %[[ABS:.*]] = torch.prim.abs.Scalar %[[INT]] : !torch.int -> !torch.int
+// CHECK:           %[[RET:.*]] = torch.derefine %[[ABS]] : !torch.int to !torch.number
+// CHECK:           return %[[RET]] : !torch.number
+func @propagate_scalar_type(%arg0: !torch.int) -> !torch.number {
+  %num = torch.derefine %arg0 : !torch.int to !torch.number
+  %1 = torch.prim.abs.Scalar %num: !torch.number -> !torch.number
+  return %1 : !torch.number
 }

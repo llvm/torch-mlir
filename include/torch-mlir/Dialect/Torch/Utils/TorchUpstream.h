@@ -30,6 +30,55 @@ namespace torch {
 namespace torch_upstream {
 
 //===----------------------------------------------------------------------===//
+// TypeKind related enum related code are copied from
+// https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/core/jit_type_base.h
+//===----------------------------------------------------------------------===//
+#define C10_FORALL_TYPES(_)                                                    \
+  _(AnyType)                                                                   \
+  _(EnumType)                                                                  \
+  _(AnyEnumType)                                                               \
+  _(TensorType)                                                                \
+  _(StorageType)                                                               \
+  _(TupleType)                                                                 \
+  _(ListType)                                                                  \
+  _(DictType)                                                                  \
+  _(NumberType)                                                                \
+  _(FloatType)                                                                 \
+  _(ComplexType)                                                               \
+  _(FutureType)                                                                \
+  _(RRefType)                                                                  \
+  _(IntType)                                                                   \
+  _(NoneType)                                                                  \
+  _(StringType)                                                                \
+  _(GeneratorType)                                                             \
+  _(QuantizerType)                                                             \
+  _(BoolType)                                                                  \
+  _(OptionalType)                                                              \
+  _(VarType)                                                                   \
+  _(DeviceObjType)                                                             \
+  _(StreamObjType)                                                             \
+  _(FunctionType)                                                              \
+  _(ClassType)                                                                 \
+  _(PyObjectType)                                                              \
+  _(CapsuleType)                                                               \
+  _(InterfaceType)                                                             \
+  _(QSchemeType)                                                               \
+  _(LayoutType)                                                                \
+  _(ScalarTypeType)                                                            \
+  _(AnyListType)                                                               \
+  _(AnyTupleType)                                                              \
+  _(AnyClassType)                                                              \
+  _(SymIntType)                                                                \
+  _(UnionType)                                                                 \
+  _(DynamicType)
+
+enum class TypeKind {
+#define DEFINE_TYPE(T) T,
+  C10_FORALL_TYPES(DEFINE_TYPE)
+#undef DEFINE_TYPE
+};
+
+//===----------------------------------------------------------------------===//
 // ScalarType enum related code are copied from c10/core/ScalarType.h
 //===----------------------------------------------------------------------===//
 
