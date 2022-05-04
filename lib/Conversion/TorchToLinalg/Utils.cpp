@@ -88,18 +88,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
        pad < paddingIncludingUnchanged.end(); pad++)
     *pad = castIntToIndex(b, loc, *pad);
 
-  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
   auto inputRank = input.getType().cast<RankedTensorType>().getRank();
-  SmallVector<Value> outputDims{inputDims[0], inputDims[1]};
-  for (auto i = 0; i < inputRank; i++) {
-    if (i >= unpaddedDims) {
-      Value padDouble = b.create<arith::MulIOp>(loc, padding[i - 2], c2);
-      Value dim = b.create<arith::AddIOp>(loc, inputDims[i],
-                                          castIntToIndex(b, loc, padDouble));
-      outputDims.push_back(dim);
-    }
-  }
-
   Type elementType = input.getType().cast<RankedTensorType>().getElementType();
   Type inputType = RankedTensorType::get(
       llvm::ArrayRef<int64_t>(SmallVector<int64_t>(inputRank, kUnknownSize)),

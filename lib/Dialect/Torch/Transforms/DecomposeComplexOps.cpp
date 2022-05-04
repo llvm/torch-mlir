@@ -914,7 +914,8 @@ public:
           rewriter.create<Torch::AtenSizeIntOp>(loc, gradOutput, dim);
 
       // Calculate (((outDim - 1) * stride) + weightDim - gradOutDim) // 2, the
-      // padding value for this dimension.
+      // padding value for this dimension. Derived from the formula at
+      // https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
       Value padVal = rewriter.create<Torch::AtenSubIntOp>(loc, outDim, ci1);
       padVal =
           rewriter.create<Torch::AtenMulIntOp>(loc, padVal, strides[i - 2]);
