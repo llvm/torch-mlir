@@ -155,7 +155,7 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
   
-  if (!options.nodecompose)
+  if (options.decompose)
     pm.addNestedPass<func::FuncOp>(Torch::createDecomposeComplexOpsPass());
 
   // TODO: VerifyTorchBackendContractPass.
