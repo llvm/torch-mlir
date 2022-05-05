@@ -1011,6 +1011,46 @@ OpFoldResult AtenFloatScalarOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTransposeIntOp
+//===----------------------------------------------------------------------===//
+
+void AtenTransposeIntOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenTransposeIntOp op, PatternRewriter &rewriter) {
+    auto type = op.self().getType().dyn_cast<BaseTensorType>();
+    if (!type || !type.hasSizes())
+      return failure();
+
+    auto permuteOp = op.self().getDefiningOp<AtenPermuteOp>();
+    if (!permuteOp)
+      return failure();
+
+    int64_t dim0, dim1;
+    if (!matchPattern(op.dim0(), m_TorchConstantInt(&dim0)) ||
+        !matchPattern(op.dim1(), m_TorchConstantInt(&dim1)))
+      return failure();
+    int64_t inputRank = type.getSizes().size();
+    dim0 = toPositiveDim(dim0, inputRank);
+    dim1 = toPositiveDim(dim1, inputRank);
+    if (!isValidDim(dim0, inputRank) || !isValidDim(dim1, inputRank)) {
+      return failure();
+    }
+
+    SmallVector<Value> dimsList;
+    if (!getListConstructElements(permuteOp.dims(), dimsList))
+      return failure();
+
+    std::swap(dimsList[dim0], dimsList[dim1]);
+    Value updatedDimsList = rewriter.create<Torch::PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        dimsList);
+    rewriter.replaceOpWithNewOp<AtenPermuteOp>(
+        op, op.getType(), permuteOp.self(), updatedDimsList);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // NonValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 

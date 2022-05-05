@@ -1186,3 +1186,49 @@ func @torch.aten.to.dtype_layout$same_dtype(%arg0: !torch.tensor<[?,?],f32>) -> 
   %0 = torch.aten.to.dtype_layout %arg0, %int6, %none, %none, %none, %false, %false, %none : !torch.tensor<[?,?],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.tensor<[?,?],f32>
   return %0 : !torch.tensor<[?,?],f32>
 }
+
+// CHECK-LABEL:   func @torch.aten.transpose.int$fold_permute_operand(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[1,128,12,32],f32>) -> !torch.vtensor<[1,12,32,128],f32> {
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2]], %[[INT1]], %[[INT3]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[PERMUTE0:.*]] = torch.aten.permute %[[ARG]], %[[LIST]] : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,128,32],f32>
+// CHECK:           %[[NEW_LIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2]], %[[INT3]], %[[INT1]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[RES:.*]] = torch.aten.permute %[[ARG]], %[[NEW_LIST]] : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,32,128],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[1,12,32,128],f32>
+func @torch.aten.transpose.int$fold_permute_operand(%arg0: !torch.vtensor<[1,128,12,32],f32>) -> !torch.vtensor<[1,12,32,128],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %0 = torch.prim.ListConstruct %int0, %int2, %int1, %int3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,128,32],f32>
+  %2 = torch.aten.transpose.int %1, %int2, %int3 : !torch.vtensor<[1,12,128,32],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,12,32,128],f32>
+  return %2 : !torch.vtensor<[1,12,32,128],f32>
+}
+
+// CHECK-LABEL:   func @torch.aten.transpose.int$fold_permute_operand_neg_dim(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[1,128,12,32],f32>) -> !torch.vtensor<[1,12,32,128],f32> {
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2]], %[[INT1]], %[[INT3]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[PERMUTE0:.*]] = torch.aten.permute %[[ARG]], %[[LIST]] : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,128,32],f32>
+// CHECK:           %[[NEW_LIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2]], %[[INT3]], %[[INT1]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[RES:.*]] = torch.aten.permute %[[ARG]], %[[NEW_LIST]] : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,32,128],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[1,12,32,128],f32>
+func @torch.aten.transpose.int$fold_permute_operand_neg_dim(%arg0: !torch.vtensor<[1,128,12,32],f32>) -> !torch.vtensor<[1,12,32,128],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int-1 = torch.constant.int -1
+  %int-2 = torch.constant.int -2
+  %0 = torch.prim.ListConstruct %int0, %int2, %int1, %int3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[1,128,12,32],f32>, !torch.list<int> -> !torch.vtensor<[1,12,128,32],f32>
+  %2 = torch.aten.transpose.int %1, %int-2, %int-1 : !torch.vtensor<[1,12,128,32],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,12,32,128],f32>
+  return %2 : !torch.vtensor<[1,12,32,128],f32>
+}
