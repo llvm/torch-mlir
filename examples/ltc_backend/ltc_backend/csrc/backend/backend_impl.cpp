@@ -76,25 +76,43 @@ public:
     // `arguments` maps 1:1 with the parameters in the generated MLIR. In this
     // function, we will generate a list of BackendData that corresponds to the
     // return values in the MLIR.
-    std::vector<torch::lazy::BackendDataPtr> results;
 
-    // "Borrow" some tensor data from arguments to reuse in return. This ensures
-    // that the tensor device is correctly configured.
-    TORCH_CHECK(arguments.size() > 0,
-                "Need at least one argument for example execution.");
-    const TorchMlirBackendData *torch_mlir_data =
-        dynamic_cast<const TorchMlirBackendData *>(arguments[0].get());
-    TORCH_CHECK(torch_mlir_data,
-                "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
-
-    // For this demo we aren't performing a legitimate execution, so we generate
-    // some dummy data to return based on the expected number of return values.
     auto mlir_computation = static_cast<TorchMlirComputation *>(&computation);
-    for (unsigned i = 0; i < mlir_computation->num_results(); i++) {
-      results.push_back(std::make_shared<TorchMlirBackendData>(
-          torch_mlir_data->mlir_info()->tensor, device,
-          torch_mlir_data->shape()));
+
+    // Vendor backend specific execution can be inserted here.
+    //
+    // We don't have a way to execute a computation based on the generated MLIR,
+    // so we'll fallback to the implementation used by the TS LTC backend.
+    //
+    // JIT Execution adopted from:
+    // https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
+    torch::jit::GraphExecutor graph_executor(mlir_computation->graph(), "");
+    std::vector<torch::jit::IValue> stack;
+    for (const auto &argument : arguments) {
+      const auto mlir_data =
+          std::static_pointer_cast<TorchMlirBackendData>(argument);
+      if (mlir_data->mlir_info()->scalar.has_value()) {
+        stack.emplace_back(mlir_data->mlir_info()->scalar.value());
+      } else {
+        at::Tensor tensor = mlir_data->mlir_info()->tensor;
+        stack.emplace_back(tensor);
+      }
     }
+    graph_executor.run(stack);
+    std::vector<torch::lazy::BackendDataPtr> results;
+    for (torch::jit::IValue component : stack) {
+      at::Tensor result = component.toTensor();
+      at::IntArrayRef result_sizes = result.sizes();
+      torch::lazy::Shape shape(
+          result.scalar_type(),
+          std::vector<int64_t>(result_sizes.begin(), result_sizes.end()));
+      results.push_back(
+          std::make_shared<TorchMlirBackendData>(result, device, shape));
+    }
+
+    std::cout << "Received " << arguments.size() << " arguments, and returned "
+              << results.size() << " results during ExecuteCompile!"
+              << std::endl;
 
     return results;
   }

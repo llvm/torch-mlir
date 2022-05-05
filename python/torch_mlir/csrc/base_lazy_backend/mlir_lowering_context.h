@@ -145,7 +145,7 @@ public:
 
   const torch::lazy::Shape& result_shape() const override;
 
-  unsigned num_results() const;
+  std::shared_ptr<torch::jit::Graph> graph() const;
 
   MlirOperation func_op() const;
 
@@ -160,7 +160,6 @@ private:
   MlirContext mlir_context_;
   std::shared_ptr<torch::jit::Graph> graph_;
   InputOutputAliases input_output_aliases_;
-  unsigned num_results_;
 };
 
 } // namespace lazy
