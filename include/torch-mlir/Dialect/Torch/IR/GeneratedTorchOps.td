@@ -5547,6 +5547,30 @@ def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [
   }];
 }
 
+def Torch_AtenDropout_Op : Torch_Op<"aten.dropout_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::dropout_ : (Tensor, float, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_FloatType:$p,
+    Torch_BoolType:$train
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDropout_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenDropout_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenTOp : Torch_Op<"aten.t", [
     AllowsTypeRefinement,
     ReadOnly
