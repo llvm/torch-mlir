@@ -270,8 +270,7 @@ TorchMlirComputation::TorchMlirComputation(
     const std::shared_ptr<torch::jit::Graph>& graph,
     InputOutputAliases input_output_aliases)
     : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
-      graph_(graph), input_output_aliases_(input_output_aliases),
-      num_results_(graph_->outputs().size()) {
+      graph_(graph), input_output_aliases_(input_output_aliases) {
   for (torch::jit::Value* input : graph_->inputs()) {
     parameter_names_.push_back(input->debugName());
   }
@@ -298,7 +297,9 @@ const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
   return result_shape_;
 }
 
-unsigned TorchMlirComputation::num_results() const { return num_results_; }
+std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
+  return graph_;
+}
 
 MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
