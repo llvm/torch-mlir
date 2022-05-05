@@ -61,10 +61,6 @@ Value createElementwiseLinalgGeneric(
     Type resultElementType,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
 
-Value createPadScalarOp(Value source, Value pad, SmallVector<Value> low,
-                        SmallVector<Value> high, bool nofold, Location loc,
-                        OpBuilder &builder);
-
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

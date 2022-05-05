@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -98,8 +99,10 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
   SmallVector<Value> strides(inputRank, c1);
   Value cf0 =
       b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
-  return createPadScalarOp(input, cf0, paddingIncludingUnchanged,
-                           paddingIncludingUnchanged, false, loc, b);
+  SmallVector<OpFoldResult> paddingValues =
+      getAsOpFoldResult(paddingIncludingUnchanged);
+  return tensor::createPadScalarOp(inputType, input, cf0, paddingValues,
+                                   paddingValues, false, loc, b);
 }
 
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
@@ -290,22 +293,4 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
                                  /*outputs=*/initTensor, indexingMaps,
                                  iteratorTypes, bodyBuild)
       .getResult(0);
-}
-
-Value torch_to_linalg::createPadScalarOp(Value source, Value pad,
-                                         SmallVector<Value> low,
-                                         SmallVector<Value> high, bool nofold,
-                                         Location loc, OpBuilder &builder) {
-  auto padTensorOp =
-      builder.create<tensor::PadOp>(loc, source, low, high, nofold);
-  int rank = padTensorOp.getResultType().getRank();
-  SmallVector<Type> blockArgTypes(rank, builder.getIndexType());
-  SmallVector<Location> blockArgLocs(rank, loc);
-  auto &region = padTensorOp.region();
-  // `builder.createBlock` changes the insertion point within the block. Create
-  // a guard to reset the insertion point of the builder after it is destroyed.
-  OpBuilder::InsertionGuard guard(builder);
-  builder.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
-  builder.create<tensor::YieldOp>(loc, pad);
-  return padTensorOp;
 }
