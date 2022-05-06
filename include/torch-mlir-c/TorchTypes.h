@@ -160,7 +160,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchNonValueTensor(MlirType t);
 /// information is present.
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchNonValueTensorTypeGet(
     MlirContext context, intptr_t numSizes, const int64_t *optionalSizes,
-    MlirType optionalDtype, bool assumeZeroRankTensorsAreScalar = false);
+    MlirType optionalDtype);
 
 /// Gets the !torch.tensor type with the least static information.
 MLIR_CAPI_EXPORTED MlirType
@@ -186,7 +186,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchValueTensor(MlirType t);
 /// information is present.
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchValueTensorTypeGet(
     MlirContext context, intptr_t numSizes, const int64_t *optionalSizes,
-    MlirType optionalDtype, bool assumeZeroRankTensorsAreScalar = false);
+    MlirType optionalDtype);
 
 /// Gets the !torch.tensor type with the least static information.
 MLIR_CAPI_EXPORTED MlirType

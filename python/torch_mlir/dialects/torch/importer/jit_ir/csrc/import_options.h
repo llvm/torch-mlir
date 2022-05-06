@@ -23,10 +23,6 @@ struct ImportOptions {
   // a requirement to use a value-semantic tensor type (!torch.vtensor) in
   // signatures.
   bool assumeTensorsHaveValueSemantics = false;
-  // If this is set to true, then all tensors with zero rank are assumed to be
-  // a scalar value; denoted with a shape of []. Otherwise, an unranked tensor
-  // is assumed to have an unknown shape, which has a shape of *.
-  bool assumeZeroRankTensorsAreScalar = false;
 };
 } // namespace torch_mlir
 

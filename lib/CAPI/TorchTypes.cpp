@@ -182,13 +182,12 @@ bool torchMlirTypeIsATorchNonValueTensor(MlirType t) {
   return unwrap(t).isa<Torch::NonValueTensorType>();
 }
 
-MlirType torchMlirTorchNonValueTensorTypeGet(
-    MlirContext context, intptr_t numSizes, const int64_t *optionalSizes,
-    MlirType optionalDtype, bool assumeZeroRankTensorsAreScalar) {
+MlirType torchMlirTorchNonValueTensorTypeGet(MlirContext context,
+                                             intptr_t numSizes,
+                                             const int64_t *optionalSizes,
+                                             MlirType optionalDtype) {
   Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
-  // If assumeZeroRankTensorsAreScalar is true, then we will create an array
-  // even if it's empty to explicitly show the tensor is a scalar.
-  if (optionalSizes || assumeZeroRankTensorsAreScalar)
+  if (optionalSizes)
     optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
   return wrap(Torch::NonValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
@@ -218,12 +217,9 @@ bool torchMlirTypeIsATorchValueTensor(MlirType t) {
 MlirType torchMlirTorchValueTensorTypeGet(MlirContext context,
                                           intptr_t numSizes,
                                           const int64_t *optionalSizes,
-                                          MlirType optionalDtype,
-                                          bool assumeZeroRankTensorsAreScalar) {
+                                          MlirType optionalDtype) {
   Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
-  // If assumeZeroRankTensorsAreScalar is true, then we will create an array
-  // even if it's empty to explicitly show the tensor is a scalar.
-  if (optionalSizes || assumeZeroRankTensorsAreScalar)
+  if (optionalSizes)
     optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
   return wrap(Torch::ValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
