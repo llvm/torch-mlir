@@ -5650,6 +5650,30 @@ def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
   }];
 }
 
+def Torch_AtenAddOp : Torch_Op<"aten.add", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::add : (Scalar, Scalar) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchScalarType:$a,
+    AnyTorchScalarType:$b
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAddOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenAddOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics,

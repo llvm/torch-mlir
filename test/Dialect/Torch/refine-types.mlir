@@ -128,6 +128,18 @@ func @type_promotion$alpha_wider(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.v
 }
 
 // -----
+// CHECK-LABEL:   func @type_promotion_scalar_operation(
+// CHECK-SAME:                         %[[FLOAT:.*]]: !torch.float,
+// CHECK-SAME:                         %[[INT:.*]]: !torch.int) -> !torch.number {
+// CHECK:           %[[ADD:.*]] = torch.aten.add %[[FLOAT]], %[[INT]] : !torch.float, !torch.int -> !torch.float
+// CHECK:           %[[RET:.*]] = torch.derefine %[[ADD]] : !torch.float to !torch.number
+// CHECK:           return %[[RET]] : !torch.number
+func @type_promotion_scalar_operation(%float: !torch.float, %int: !torch.int) -> !torch.number {
+  %ret = torch.aten.add %float, %int : !torch.float, !torch.int -> !torch.number
+  return %ret : !torch.number
+}
+
+// -----
 // CHECK-LABEL:   func @torch.overwrite.tensor.contents$dynamic_overwrites_static(
 // CHECK-SAME:                                                           %[[STATIC:.*]]: !torch.vtensor<[2],f32>,
 // CHECK-SAME:                                                           %[[DYNAMIC:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[2],f32> {
