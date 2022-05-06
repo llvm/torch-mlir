@@ -30,11 +30,18 @@ torch_upstream::ScalarType getScalarTypeForType(Type type);
 Type getTypeForScalarType(
     MLIRContext *context, torch_upstream::ScalarType dtypeInt,
     mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
+
+Type getTorchTypeForScalarType(MLIRContext *context,
+                               torch_upstream::ScalarType dtypeInt);
+
 Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                               Type dtype);
 // Helper to convert a tensor to a specific scalar type.
 Value convertTensorToDtype(PatternRewriter &rewriter, Location loc, Value input,
                            Type dtype);
+
+bool isBuiltInType(Type type);
+
 // Helper funtion to get rank of `Base tensor type`.
 // -1 is returned if the tensorRank can't be determined.
 int getTensorRank(Value tensor);

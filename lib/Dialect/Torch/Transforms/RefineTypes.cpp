@@ -114,6 +114,10 @@ static torch_upstream::TypeKind getTypeKind(Type type) {
 /// on the `dtype` from tensors and can't be used on other types like scalar
 /// types.
 static Optional<Type> meetElementTypes(Type lhs, Type rhs) {
+  auto isNullOrBuiltIn = [](Type type) { return !type || isBuiltInType(type); };
+  assert(isNullOrBuiltIn(lhs) && "`lhs` must be a builtin type");
+  assert(isNullOrBuiltIn(rhs) && "`rhs` must be a builtin type");
+
   if (!lhs)
     return rhs;
   if (!rhs)
@@ -166,6 +170,14 @@ struct ValueKnowledge {
                  torch_upstream::TypeKind kind)
       : dtype(dtype), scalarType(scalarType), kind(kind),
         optional(optionalKnowledge) {}
+
+  void setScalarType(Type type) {
+    bool isValidScalarType = type.isa<NumberType, IntType, Torch::FloatType>();
+    assert(isValidScalarType &&
+           "scalarType can only be one of NumberType, IntType and FloatType");
+    scalarType = type;
+    kind = getTypeKind(type);
+  }
 
   // Get the static knowledge intrinsic to `type`.
   static ValueKnowledge getKnowledgeFromType(Type type) {
@@ -420,7 +432,7 @@ private:
 // This is the type rule used for deciding dtype for:
 // 1. A new tensor created from given data.
 // 2. The scalar type for type promotion when a scalar is an operand of a tensor
-// and scalar binary operation.
+// operation (such as AtenMulScalarOp, AtenAddScalarOp etc)
 // If the data is floating-point, the `dtype` is inferred to be the
 // default dtype, see `torch.get_default_dtype`.
 static Type getDefaultDtypeForTorchScalar(Type type) {
@@ -438,12 +450,29 @@ static Type getDefaultDtypeForTorchScalar(Type type) {
       "getDefaultDtypeForTorchScalar called on an unsupported type");
 }
 
+// This is the type rule used for deciding builtin type for:
+// 1. The dtype of the result tensor when converting a Scalar into a Tensor like
+// PrimNumToTensorScalarOp.
+// 2. The scalar type for type promotion when a scalar is an operand of scalar
+// only operation like AtenAddOp.
+static Type getBuiltInTypeForTorchScalar(Type type) {
+  MLIRContext *context = type.getContext();
+  if (type.isa<Torch::FloatType>())
+    return Float64Type::get(context);
+  if (type.isa<Torch::IntType>())
+    return IntegerType::get(context, 64, IntegerType::Signed);
+  if (type.isa<Torch::BoolType>())
+    return IntegerType::get(context, 1);
+  llvm_unreachable(
+      "getBuiltInTypeForTorchScalar called on an unsupported type");
+}
+
 static torch_upstream::ResultTypeState
 updateResultTypeState(Type scalarType,
                       const torch_upstream::ResultTypeState &inState) {
+  assert(isBuiltInType(scalarType) && "scalarType must be builtin type");
   torch_upstream::ResultTypeState new_state = inState;
-  torch_upstream::ScalarType current =
-      getScalarTypeForType(getDefaultDtypeForTorchScalar(scalarType));
+  torch_upstream::ScalarType current = getScalarTypeForType(scalarType);
   new_state.wrappedResult =
       promote_skip_undefined(inState.wrappedResult, current);
   return new_state;
@@ -481,15 +510,22 @@ updateResultTypeState(ValueKnowledge *tensor, Optional<bool> rankIsNonZero,
   return new_state;
 }
 
-static Type getPromotedResultType(ArrayRef<Type> scalarTypes) {
+// Type promotion helper for operators where only scalar operands participating
+// in type promotion like AtenAddOp.
+//
+// \return The return type is a TorchType.
+static Type getPromotedResultScalarType(ArrayRef<Type> scalarTypes) {
   torch_upstream::ResultTypeState state = {};
-  for (const Type &scalarType : scalarTypes)
-    state = updateResultTypeState(scalarType, state);
-  return getTypeForScalarType(scalarTypes[0].getContext(), result_type(state));
+  for (const Type &scalarType : scalarTypes) {
+    state =
+        updateResultTypeState(getBuiltInTypeForTorchScalar(scalarType), state);
+  }
+  return getTorchTypeForScalarType(scalarTypes[0].getContext(),
+                                   result_type(state));
 }
 
 // Returns most generic type Type() if the tensor dtype is unknown.
-static Type getPromotedResultType(ValueKnowledge *tensor, Type scalarType) {
+static Type getPromotedResultDType(ValueKnowledge *tensor, Type scalarType) {
   if (!tensor->dtype)
     return Type();
   torch_upstream::ResultTypeState state = {};
@@ -497,7 +533,8 @@ static Type getPromotedResultType(ValueKnowledge *tensor, Type scalarType) {
   // wrappedResult which is a lower priority than both dimResult and zeroResult.
   state = updateResultTypeState(tensor, /*rankIsNonZero=*/None, state,
                                 /*skipRankCheck=*/true);
-  state = updateResultTypeState(scalarType, state);
+  state =
+      updateResultTypeState(getDefaultDtypeForTorchScalar(scalarType), state);
   return getTypeForScalarType(scalarType.getContext(), result_type(state));
 }
 
@@ -550,8 +587,7 @@ getPromotedResultTypeAssumingNonZeroRank(MLIRContext *context,
 static void fillInDTypeGivenDTypeIntAndInputDType(ValueKnowledge &knowledge,
                                                   Value dtype,
                                                   Type inputDType) {
-  assert(isa<BuiltinDialect>(inputDType.getDialect()) &&
-         "`inputDType` must be a builtin type");
+  assert(isBuiltInType(inputDType) && "`inputDType` must be a builtin type");
   int64_t dtypeInt;
   if (dtype.getType().isa<Torch::NoneType>())
     knowledge.dtype = inputDType;
@@ -692,7 +728,7 @@ ChangeResult TypeAnalyzer::visitOperation(
     Value scalar = op->getOperand(1);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(getContext());
-    knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
@@ -712,8 +748,8 @@ ChangeResult TypeAnalyzer::visitOperation(
     Value rhsScalar = op->getOperand(2);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(getContext());
-    knowledge.dtype =
-        getPromotedResultType({lhsScalar.getType(), rhsScalar.getType()});
+    knowledge.dtype = getDefaultDtypeForTorchScalar(getPromotedResultScalarType(
+        {lhsScalar.getType(), rhsScalar.getType()}));
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
@@ -723,7 +759,7 @@ ChangeResult TypeAnalyzer::visitOperation(
     Value scalar = op->getOperand(2);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(getContext());
-    knowledge.dtype = getPromotedResultType(&lhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(&lhs, scalar.getType());
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
@@ -733,7 +769,7 @@ ChangeResult TypeAnalyzer::visitOperation(
     Value scalar = op->getOperand(1);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(getContext());
-    knowledge.dtype = getPromotedResultType(&rhs, scalar.getType());
+    knowledge.dtype = getPromotedResultDType(&rhs, scalar.getType());
     return incorporateKnowledge(op->getResult(0), knowledge);
   }
 
@@ -942,7 +978,7 @@ ChangeResult TypeAnalyzer::visitOperation(
     return visitNumToTensorOp(numToTensorOp);
   }
 
-  if (isa<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>(op)) {
+  if (isa<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp, AtenAddOp>(op)) {
     return visitBinaryScalarOp(op, operands);
   }
 
@@ -1069,10 +1105,9 @@ ChangeResult TypeAnalyzer::visitBinaryScalarOp(
     Operation *op, ArrayRef<LatticeElement<ValueKnowledge> *> operands) {
   auto knowledge =
       ValueKnowledge::getScalarPessimisticValueState(op->getContext());
-  Type resultType = getPromotedResultType(
+  Type resultType = getPromotedResultScalarType(
       {op->getOperand(0).getType(), op->getOperand(1).getType()});
-  knowledge.scalarType = resultType;
-  knowledge.kind = getTypeKind(resultType);
+  knowledge.setScalarType(resultType);
   return incorporateKnowledge(op->getResult(0), knowledge);
 }
 
@@ -1183,12 +1218,7 @@ ChangeResult TypeAnalyzer::visitNumToTensorOp(PrimNumToTensorScalarOp op) {
   // https://github.com/pytorch/pytorch/blob/master/aten/src/ATen/ScalarOps.h.
   // `NumToTensor` falls in the latter case.
   Type type = op.a().getType();
-  if (type.isa<Torch::FloatType>())
-    knowledge.dtype = Float64Type::get(op.getContext());
-  else if (type.isa<Torch::IntType>())
-    knowledge.dtype =
-        IntegerType::get(op.getContext(), 64, IntegerType::Signed);
-
+  knowledge.dtype = getBuiltInTypeForTorchScalar(type);
   return incorporateKnowledge(op.getResult(), knowledge);
 }
 

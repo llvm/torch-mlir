@@ -108,8 +108,9 @@ public:
         result.returnOp = returnOp;
       } else {
         return rewriter.notifyMatchFailure(
-            copyToNonValueTensor,
-            "unsupported op encountered during abstract analysis");
+            copyToNonValueTensor, "unsupported op `" +
+                                      user->getName().getStringRef() +
+                                      "` encountered during abstract analysis");
       }
     }
     return result;
