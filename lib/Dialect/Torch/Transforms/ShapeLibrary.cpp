@@ -100,6 +100,10 @@ module {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func @"__torch_mlir_shape_fn.aten.detach"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func @"__torch_mlir_shape_fn.aten.log2"(%arg0: !torch.list<int>) -> !torch.list<int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
@@ -2026,7 +2030,7 @@ module {
     %int0 = torch.constant.int 0
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
-    %0 = torch.operator "aten.ne.float_int"(%arg2, %int0) : (!torch.float, !torch.int) -> !torch.bool
+    %0 = torch.aten.ne.float_int %arg2, %int0 : !torch.float, !torch.int -> !torch.bool
     torch.prim.If %0 -> () {
       torch.prim.If.yield
     } else {
@@ -2035,7 +2039,7 @@ module {
     }
     %1 = torch.aten.lt.float_int %arg2, %int0 : !torch.float, !torch.int -> !torch.bool
     torch.prim.If %1 -> () {
-      %6 = torch.operator "aten.ge.float"(%arg0, %arg1) : (!torch.float, !torch.float) -> !torch.bool
+      %6 = torch.aten.ge.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.bool
       torch.prim.If %6 -> () {
         torch.prim.If.yield
       } else {
@@ -2044,7 +2048,7 @@ module {
       }
       torch.prim.If.yield
     } else {
-      %6 = torch.operator "aten.ge.float"(%arg1, %arg0) : (!torch.float, !torch.float) -> !torch.bool
+      %6 = torch.aten.ge.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.bool
       torch.prim.If %6 -> () {
         torch.prim.If.yield
       } else {
@@ -2055,7 +2059,7 @@ module {
     }
     %2 = torch.aten.sub.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.float
     %3 = torch.aten.div.float %2, %arg2 : !torch.float, !torch.float -> !torch.float
-    %4 = torch.operator "aten.ceil.float"(%3) : (!torch.float) -> !torch.int
+    %4 = torch.aten.ceil.float %3 : !torch.float -> !torch.int
     %5 = torch.prim.ListConstruct %4 : (!torch.int) -> !torch.list<int>
     return %5 : !torch.list<int>
   }
@@ -2071,14 +2075,14 @@ module {
     %int0 = torch.constant.int 0
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
-    %0 = torch.operator "aten.ge.float_int"(%arg1, %int0) : (!torch.float, !torch.int) -> !torch.bool
+    %0 = torch.aten.ge.float_int %arg1, %int0 : !torch.float, !torch.int -> !torch.bool
     torch.prim.If %0 -> () {
       torch.prim.If.yield
     } else {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %1 = torch.operator "aten.ge.float"(%arg1, %arg0) : (!torch.float, !torch.float) -> !torch.bool
+    %1 = torch.aten.ge.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.bool
     torch.prim.If %1 -> () {
       torch.prim.If.yield
     } else {
@@ -2086,7 +2090,7 @@ module {
       torch.prim.If.yield
     }
     %2 = torch.aten.sub.float %arg1, %arg0 : !torch.float, !torch.float -> !torch.float
-    %3 = torch.operator "aten.ceil.float"(%2) : (!torch.float) -> !torch.int
+    %3 = torch.aten.ceil.float %2 : !torch.float -> !torch.int
     %4 = torch.prim.ListConstruct %3 : (!torch.int) -> !torch.list<int>
     return %4 : !torch.list<int>
   }
@@ -2102,14 +2106,14 @@ module {
     %int0 = torch.constant.int 0
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
-    %0 = torch.operator "aten.ge.float_int"(%arg0, %int0) : (!torch.float, !torch.int) -> !torch.bool
+    %0 = torch.aten.ge.float_int %arg0, %int0 : !torch.float, !torch.int -> !torch.bool
     torch.prim.If %0 -> () {
       torch.prim.If.yield
     } else {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %1 = torch.operator "aten.ceil.float"(%arg0) : (!torch.float) -> !torch.int
+    %1 = torch.aten.ceil.float %arg0 : !torch.float -> !torch.int
     %2 = torch.prim.ListConstruct %1 : (!torch.int) -> !torch.list<int>
     return %2 : !torch.list<int>
   }

@@ -1638,6 +1638,24 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenDetachOp : public OpConversionPattern<AtenDetachOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDetachOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Type resultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.self());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertTensorStaticInfoCastOp
     : public OpConversionPattern<TensorStaticInfoCastOp> {
 public:
@@ -1672,6 +1690,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
+  patterns.add<ConvertAtenDetachOp>(typeConverter, context);
+  target.addIllegalOp<AtenDetachOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
   target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
