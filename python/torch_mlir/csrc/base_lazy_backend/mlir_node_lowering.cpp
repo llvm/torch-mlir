@@ -14,6 +14,7 @@
 #include "generated/LazyNonNativeIr.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
+#include "ops/device_data.h"
 
 #include <ATen/Functions.h>
 #include <c10/core/ScalarType.h>
@@ -213,14 +214,14 @@ public:
       const torch::lazy::DeviceData* device_data_node =
           torch::lazy::NodeCast<torch::lazy::DeviceData>(
               node, *torch::lazy::ltc_device_data);
-      auto infoptr = device_data_node->data->info();
+      auto infoptr = device_data_node->data()->info();
       auto deviceDataInfoPtr =
           (torch::lazy::LazyGraphExecutor::DeviceDataInfo*)infoptr;
       if (GRAPH_DUMP_ENABLED) {
         LOG(ERROR) << "Lowering device data node, tensor id "
                    << deviceDataInfoPtr->tensor_id << std::endl;
       }
-      return {loctx()->GetParameter(device_data_node->data)};
+      return {loctx()->GetParameter(device_data_node->data())};
     }
 
     std::vector<torch::jit::NamedValue> arguments;

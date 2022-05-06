@@ -1,22 +1,11 @@
 blacklist:
 # List of unsupported ops in LTC autogen because of some error
-- arange  # Error: Code below assumes there is at least one tensor arg
-- contiguous  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 - empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- full  # Error: Code below assumes there is at least one tensor arg
 - index.Tensor  # Error: TODO not sure if there are other valid types to handle here
 - index_put  # Error: TODO not sure if there are other valid types to handle here
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
 - _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
-- ones  # Error: Code below assumes there is at least one tensor arg
-- ones_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- resize_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 - stack  # Error: TODO not sure if there are other valid types to handle here
-- to.dtype  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- to.other  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- uniform_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- zeros  # Error: Code below assumes there is at least one tensor arg
-- zeros_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 
 # Additional ops which autogen is supported for but don't compile yet
 - detach
@@ -24,23 +13,24 @@ blacklist:
 - size
 - where
 - copy_
-- _to_copy
-- log_softmax  # Not inherently differentiable. Needs to be decomposed.
-- linear  # Not inherently differentiable. Needs to be decomposed.
 
 # List of supported ops that we don't want to do the full codegen for
 # primarily view ops
 supported:
 # - bernoulli
 # - bernoulli_
+- as_strided
+- as_strided_
+- _to_copy
 - cat
 - clone
-- empty
+- empty.memory_format
+- empty_strided
 - expand
-- fill_
-- native_batch_norm_backward
+- fill_.Scalar
 - permute
 - squeeze
+- squeeze.dim
 - t
 - unsqueeze
 - view
@@ -53,14 +43,11 @@ additional_ops:
 
 # List of non native ops that we only want to do IR node class generation for
 non_native:
-  - func: device_data(BackendDataPtr data) -> Tensor
-    opkind: ltc_device_data
-    properties:
-      - ShapeCompute
-  - func: scalar(ScalarVal value, ScalarType type) -> Tensor
+  - func: scalar(Scalar value, ScalarType type) -> Tensor
     opkind: at::prim::Constant
     properties:
       - ShapeCompute
+      - TreatScalarsAsConstants
   - func: expand(Tensor input, int[] size, bool is_scalar_expand) -> Tensor
   - func: view(Tensor input, int[] output_size) -> Tensor
     properties:
