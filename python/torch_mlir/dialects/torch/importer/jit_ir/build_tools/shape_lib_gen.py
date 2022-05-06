@@ -325,6 +325,9 @@ def aten〇neg(self: List[int]) -> List[int]:
 def aten〇floor(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇detach(self: List[int]) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇log2(self: List[int]) -> List[int]:
     return upstream_shape_helpers.unary(self)
 

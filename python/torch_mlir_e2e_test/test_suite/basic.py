@@ -1836,3 +1836,24 @@ class FlipModule(torch.nn.Module):
     module_factory=lambda: FlipModule())
 def FlipModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
+# ==============================================================================
+
+class DetachModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.detach(x)
+
+
+@register_test_case(
+    module_factory=lambda: DetachModule())
+def DetachModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
