@@ -141,7 +141,7 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     if (!sizes.rank()) {
       // Unranked.
       return getMlirTensorType(context,
-                               /*numSizes=*/0,
+                               /*numSizes=*/-1,
                                /*optionalSizes=*/nullptr,
                                /*optionalDtype=*/
                                elementType);

@@ -154,6 +154,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchNonValueTensor(MlirType t);
 
 /// Gets a !torch.tensor type.
 ///
+/// - `numSizes` having a value of -1 denotes an unranked tensor.
 /// - `optionalSizes` is allowed to be null, meaning that no size
 /// information is present (and `numSizes` is ignored in that case).  -
 /// `optionalDtype` is allowed to be null, meaning that no dtype
@@ -180,6 +181,7 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchValueTensor(MlirType t);
 
 /// Gets a !torch.vtensor type.
 ///
+/// - `numSizes` having a value of -1 denotes an unranked tensor.
 /// - `optionalSizes` is allowed to be null, meaning that no size
 /// information is present (and `numSizes` is ignored in that case).
 /// - `optionalDtype` is allowed to be null, meaning that no dtype
