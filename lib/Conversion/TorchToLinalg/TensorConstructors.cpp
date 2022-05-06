@@ -196,13 +196,19 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: pin_memory must be either None or false");
 
-    // Only `none` and `contiguous` memory_format is supported.
-    int64_t memoryFormat;
-    if (!op.memory_format().getType().isa<Torch::NoneType>() &&
-        (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)) ||
-         memoryFormat != torch_upstream::MemoryFormat::Contiguous))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default memory format is supported");
+    // Only `none`, `contiguous` and `preserve` memory_format is supported.
+    if (!op.memory_format().getType().isa<Torch::NoneType>()) {
+      int64_t memoryFormat;
+      if (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: the memory format should be specified in "
+                "an integer constant");
+      if (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+          memoryFormat != torch_upstream::MemoryFormat::Preserve)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only none, contiguous and preserve "
+                "memory_format is supported");
+    }
 
     Location loc = op.getLoc();
     TypeConverter *typeConverter = this->getTypeConverter();
