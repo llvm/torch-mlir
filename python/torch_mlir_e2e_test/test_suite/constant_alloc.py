@@ -331,6 +331,25 @@ def EmptyLikeModule_int(module, tu: TestUtils):
     module.forward(torch.randint(10, (3, 5)))
 
 
+class EmptyLikeMemoryFormatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.empty_like(a, memory_format=torch.preserve_format).fill_(0)
+
+
+@register_test_case(module_factory=lambda: EmptyLikeMemoryFormatModule())
+def EmptyLikeMemoryFormatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 1))
+
+
 class EmptyLikeFloatModule(torch.nn.Module):
 
     def __init__(self):
