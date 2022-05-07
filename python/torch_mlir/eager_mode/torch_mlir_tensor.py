@@ -15,7 +15,7 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends import refbackend
 
 
 class TorchMLIRTensor(torch.Tensor):
-    """Wrap torch.Tensor in orer to dispatch through torch-mlir instead of aten.
+    """Wrap torch.Tensor in order to dispatch through torch-mlir instead of aten.
 
     This class uses the _make_wrapper_subclass pattern to override __torch_dispatch__
     in order to dispatch through torch-mlir instead of aten. Here we basically only unwrap and wrap
