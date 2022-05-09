@@ -140,7 +140,12 @@ class CeilFloatModule(torch.nn.Module):
     ])
     def forward(self, lhs, rhs):
         sub = float(lhs) - float(rhs)
-        return torch.ops.aten.ceil(float(sub))
+        # Cast the result to int to make e2e test baseline result to be an int.
+        # Without the cast, baseline result is a Tensor which is unexpected see
+        # https://github.com/llvm/torch-mlir/issues/842
+        # TODO: Investigate the root cause of baseline returning a Tensor
+        # without the int cast and remove the cast.
+        return int(torch.ops.aten.ceil(float(sub)))
 
 
 @register_test_case(module_factory=lambda: CeilFloatModule())
