@@ -13,7 +13,7 @@
 #include <iostream>
 
 #include <torch/csrc/jit/api/compilation_unit.h>
-#include <torch/csrc/jit/passes/refine_types.h>
+#include <torch/csrc/jit/passes/refine_tuple_types.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
@@ -110,9 +110,8 @@ ComputationPtr TorchMlirLoweringContext::Build() {
   PRINT_FUNCTION();
 
   // Since we mutated the types of some nodes to insert shape information, we
-  // must perform this pass to ensure other data structures (such as tuples)
-  // have up to date output types.
-  torch::jit::RefineTypes(graph_);
+  // must perform this pass to ensure tuples have up to date output types.
+  torch::jit::RefineTupleTypes(graph_);
 
   // Insert return values into graph.
   for (torch::jit::Value* output : root_tuple_) {
