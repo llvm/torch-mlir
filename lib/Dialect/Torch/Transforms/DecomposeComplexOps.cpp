@@ -16,7 +16,9 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
+#include <cstdint>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -2121,6 +2123,55 @@ class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
 } // namespace
 
 namespace {
+// Decompose the `aten.select_scatter` operation into `aten.slice_scatter` op.
+class DecomposeAtenSelectScatterOp
+    : public OpRewritePattern<AtenSelectScatterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSelectScatterOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value start = op.index();
+    Value dim = op.dim();
+    Value self = op.self();
+    Value src = op.src();
+
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value startPlusOne =
+        rewriter.create<AtenAddIntOp>(loc, one.getType(), start, one);
+    BaseTensorType srcTensorType = src.getType().cast<BaseTensorType>();
+    SmallVector<int64_t> sizes;
+    if (!srcTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "src tensor must have size");
+
+    ArrayRef<int64_t> srcShape = srcTensorType.getSizes();
+    // `src` has a reduced rank. Hence add 1.
+    int64_t srcRank = srcShape.size() + 1;
+    int64_t dimInt = 0;
+    if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
+      dimInt = toPositiveDim(dimInt, srcRank);
+      if (!isValidDim(dimInt, srcRank))
+        return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+
+      sizes.append(srcShape.begin(), srcShape.end());
+      sizes.insert(sizes.begin() + dimInt, 1);
+
+    } else {
+      sizes.resize(srcShape.size() + 1, kUnknownSize);
+    }
+    Type srcType = srcTensorType.getWithSizesAndDtype(llvm::makeArrayRef(sizes),
+                                                      srcTensorType.getDtype());
+    src = rewriter.create<AtenUnsqueezeOp>(loc, srcType, src, dim);
+    rewriter.replaceOpWithNewOp<AtenSliceScatterOp>(
+        op, op.self().getType(), self, src, dim, start, startPlusOne,
+        /*step=*/one);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2271,6 +2322,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenFloorDivideOp>();
     patterns.add<DecomposeAtenNumpyTOp>(context);
     target.addIllegalOp<AtenNumpyTOp>();
+    patterns.add<DecomposeAtenSelectScatterOp>(context);
+    target.addIllegalOp<AtenSelectScatterOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

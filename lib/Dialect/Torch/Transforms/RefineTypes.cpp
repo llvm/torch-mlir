@@ -645,10 +645,11 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
           AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
           AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
-          AtenSliceTensorOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
-          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
-          AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
-          AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroFunctionalOp,
+          AtenSelectScatterOp, AtenSliceTensorOp, AtenSliceScatterOp,
+          AtenGatherOp, AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp,
+          AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp, AtenZero_Op,
+          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
+          ValsemVariantAtenCopyOp, AtenZeroFunctionalOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());

@@ -7,6 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/TypeSupport.h"
+#include "mlir/Support/LogicalResult.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "../PassDetail.h"
@@ -29,6 +33,94 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+static Value toPositiveValidDim(ConversionPatternRewriter &rewriter,
+                                Location loc, Value torchType,
+                                Value builtinType, Value valueForNone,
+                                Value dimSize) {
+  if (torchType.getType().isa<Torch::NoneType>())
+    return valueForNone;
+  auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
+  Value positiveDim =
+      toPositiveDimDynamic(rewriter, loc, builtinType, dimSizeAsInt);
+  // startOrEnd < 0 ? 0 : startOrEnd
+  Value cst0 = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
+  Value predDimSltZero = rewriter.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::slt, positiveDim, cst0);
+  Value startOrEndAtLeastZero =
+      rewriter.create<arith::SelectOp>(loc, predDimSltZero, cst0, positiveDim);
+  // startOrEnd > dimSizeAsInt ? dimSizeAsInt : startOrEnd
+  Value startOrEndSgtDimSize = rewriter.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sgt, startOrEndAtLeastZero, dimSizeAsInt);
+  Value startOrEndBoundedByDimSize = rewriter.create<arith::SelectOp>(
+      loc, startOrEndSgtDimSize, dimSizeAsInt, startOrEndAtLeastZero);
+
+  return castIntToIndex(rewriter, loc, startOrEndBoundedByDimSize);
+}
+
+template <typename OpTy, typename OpAdaptor>
+LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
+                                           ConversionPatternRewriter &rewriter,
+                                           SmallVector<Value> &resultShape,
+                                           SmallVector<Value> &offsets,
+                                           SmallVector<Value> &strides) {
+  Location loc = op.getLoc();
+  auto input = adaptor.self();
+  RankedTensorType inputType =
+      input.getType().template cast<RankedTensorType>();
+
+  Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return op->emitError("unimplemented: dim is not constant");
+
+  SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+  Value dimSize = inputShape[dim];
+
+  Value torchTypeStart = op.start();
+  Value torchTypeEnd = op.end();
+  Value builtinTypeStart = adaptor.start();
+  Value builtinTypeEnd = adaptor.end();
+
+  if (torchTypeStart.getType().isa<OptionalType>() ||
+      torchTypeEnd.getType().isa<OptionalType>())
+    return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
+
+  int64_t step;
+  if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
+    if (!op.step().getType().template isa<Torch::NoneType>())
+      return op->emitError("unimplemented: step is not constant");
+    step = 1;
+  }
+
+  Value start = toPositiveValidDim(rewriter, loc, torchTypeStart,
+                                   builtinTypeStart, zero, dimSize);
+  Value end = toPositiveValidDim(rewriter, loc, torchTypeEnd, builtinTypeEnd,
+                                 dimSize, dimSize);
+
+  // end >= start ? end : start
+  Value endSgeStart = rewriter.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sge, end, start);
+  end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
+  Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
+
+  // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
+  resultShape = getTensorSizes(rewriter, loc, input);
+  Value len = rewriter.create<arith::SubIOp>(loc, end, start);
+  Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
+  resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
+  resultSize = rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
+  resultShape[dim] = resultSize;
+
+  strides.resize(inputType.getRank(), one);
+  offsets.resize(inputType.getRank(), zero);
+
+  offsets[dim] = start;
+  strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
+  return success();
+}
 namespace {
 class ConvertAtenFlattenUsingIntsOp
     : public OpConversionPattern<AtenFlattenUsingIntsOp> {
@@ -742,76 +834,18 @@ public:
     TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.self();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType resultType =
         typeConverter->convertType(op->getResult(0).getType())
             .cast<RankedTensorType>();
-    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    int64_t dim;
-    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
-      return op->emitError("unimplemented: dim is not constant");
-
-    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
-    Value dimSize = inputShape[dim];
-
-    auto adjustStartOrEnd = [&](Value startOrEndTorchType,
-                                Value startOrEndBuiltin, Value valueForNone) {
-      if (startOrEndTorchType.getType().isa<Torch::NoneType>())
-        return valueForNone;
-      auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
-      Value startOrEndToPositive =
-          toPositiveDimDynamic(rewriter, loc, startOrEndBuiltin, dimSizeAsInt);
-      // startOrEnd < 0 ? 0 : startOrEnd
-      Value cst0 = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
-      Value predDimSltZero = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::slt, startOrEndToPositive, cst0);
-      Value startOrEndAtLeastZero = rewriter.create<arith::SelectOp>(
-          loc, predDimSltZero, cst0, startOrEndToPositive);
-      // startOrEnd > dimSizeAsInt ? dimSizeAsInt : startOrEnd
-      Value startOrEndSgtDimSize = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::sgt, startOrEndAtLeastZero, dimSizeAsInt);
-      Value startOrEndBoundedByDimSize = rewriter.create<arith::SelectOp>(
-          loc, startOrEndSgtDimSize, dimSizeAsInt, startOrEndAtLeastZero);
-
-      return castIntToIndex(rewriter, loc, startOrEndBoundedByDimSize);
-    };
-
-    if (op.start().getType().isa<OptionalType>() ||
-        op.end().getType().isa<OptionalType>())
-      return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
-    Value start = adjustStartOrEnd(op.start(), adaptor.start(), zero);
-    Value end = adjustStartOrEnd(op.end(), adaptor.end(), dimSize);
-
-    // end >= start ? end : start
-    Value endSgeStart = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::sge, end, start);
-    end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
-
-    int64_t step;
-    if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
-      if (!op.step().getType().isa<Torch::NoneType>())
-        return op->emitError("unimplemented: step is not constant");
-      step = 1;
+    SmallVector<Value> resultShape;
+    SmallVector<Value> offsets;
+    SmallVector<Value> strides;
+    if (failed(prepareArgumentsForSlicingOp<AtenSliceTensorOp,
+                                            AtenSliceTensorOpAdaptor>(
+            op, adaptor, rewriter, resultShape, offsets, strides))) {
+      return failure();
     }
-
-    // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
-    Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
-    Value len = rewriter.create<arith::SubIOp>(loc, end, start);
-    Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
-    resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
-    resultSize =
-        rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
-
-    SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
-    resultShape[dim] = resultSize;
-
-    SmallVector<Value> offsets(inputType.getRank(), zero);
-    SmallVector<Value> strides(inputType.getRank(), one);
-    offsets[dim] = start;
-    strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
 
     Value result = rewriter.create<tensor::ExtractSliceOp>(
         loc, input, offsets, resultShape, strides);
@@ -1019,6 +1053,55 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenSliceScatterOp
+    : public OpConversionPattern<AtenSliceScatterOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSliceScatterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+
+    auto input = adaptor.self();
+
+    RankedTensorType resultType =
+        typeConverter->convertType(op->getResult(0).getType())
+            .cast<RankedTensorType>();
+
+    SmallVector<Value> resultShape;
+    SmallVector<Value> offsets;
+    SmallVector<Value> strides;
+    if (failed(prepareArgumentsForSlicingOp<AtenSliceScatterOp,
+                                            AtenSliceScatterOpAdaptor>(
+            op, adaptor, rewriter, resultShape, offsets, strides))) {
+      return failure();
+    }
+
+    Value src = adaptor.src();
+    auto srcType = src.getType().cast<RankedTensorType>();
+    int64_t srcRank = srcType.getRank();
+    SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
+    auto abstractSrcType =
+        RankedTensorType::get(srcAbstractSizes, srcType.getElementType());
+    Value abstractSrc =
+        rewriter.create<tensor::CastOp>(loc, abstractSrcType, src);
+
+    Value result = rewriter.create<tensor::InsertSliceOp>(
+        loc, abstractSrc, input, offsets, resultShape, strides);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1047,4 +1130,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
   target.addIllegalOp<ValsemVariantAtenCopyOp>();
   patterns.add<ConvertValsemVariantAtenCopyOp>(typeConverter, context);
+  target.addIllegalOp<AtenSliceScatterOp>();
+  patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
 }
