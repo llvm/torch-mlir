@@ -232,3 +232,112 @@ def SelectIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (5,5)))
 
 # ==============================================================================
+
+# For aten.slice_scatter op, The arguments are: SliceScatter(input, src, dim=0, start=None, end=None, step=1).
+# For aten.select_scatter op, The arguments are: SelectScatter(input, src, dim=0, index).
+class SliceScatterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x, src, dim = 1, start = 0, end = 1, step = 1)
+
+@register_test_case(module_factory=lambda: SliceScatterModule())
+def SliceScatterModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(6, 1))
+
+class SliceScatterZeroDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x, src, dim = 0, start = 0, end = 1, step = 1)
+
+
+@register_test_case(module_factory=lambda: SliceScatterZeroDimModule())
+def SliceScatterZeroDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(1, 8))
+
+class SliceScatterStepVariationModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x, src, dim = 1, start = 0, end = 1, step = 2)
+
+
+@register_test_case(module_factory=lambda: SliceScatterStepVariationModule())
+def SliceScatterStepVariationModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(6, 1))
+
+class SliceScatterStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 8], torch.float32, True),
+        ([6, 1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x, src, dim = 1, start = 0, end = 1, step = 1)
+
+
+@register_test_case(module_factory=lambda: SliceScatterStaticModule())
+def SliceScatterStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(6, 1))
+
+class SelectScatterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.select_scatter(x, src, dim = 0, index = 0)
+
+
+@register_test_case(module_factory=lambda: SelectScatterModule())
+def SelectScattertModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(6, 8, 5), torch.rand(8, 5))
+
+class SelectScatterStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 8, 5], torch.float32, True),
+        ([6, 5], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.select_scatter(x, src, dim = 1, index = 0)
+
+
+@register_test_case(module_factory=lambda: SelectScatterStaticModule())
+def SelectScattertStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(6, 8, 5), torch.rand(6, 5))

@@ -1087,3 +1087,21 @@ func.func @torch.aten.repeat(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.int
   %2 = torch.aten.repeat %arg0, %1 : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
   return %2 : !torch.vtensor<[?,?,?],f32>
 }
+
+// -----
+// CHECK-LABEL: func @torch.aten.select_scatter
+// CHECK-SAME:  (%[[SELF:.*]]: !torch.vtensor<[?,?],f32>, %[[SRC:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK-NEXT:    %[[START:.*]] = torch.constant.int 0
+// CHECK-NEXT:    %[[DIM:.*]] = torch.constant.int 1
+// CHECK-NEXT:    %[[STEP:.*]] = torch.constant.int 1
+// CHECK-NEXT:    %[[END:.*]] = torch.aten.add.int %[[START]], %[[STEP]]
+// CHECK-NEXT:    %[[UNSQUEEZE_SRC:.*]] = torch.aten.unsqueeze %[[SRC]], %[[DIM]]
+// CHECK-NEXT:    %[[SLICE_SCATTER:.*]] = torch.aten.slice_scatter %[[SELF]], %[[UNSQUEEZE_SRC]], %[[DIM]], %[[START]], %[[END]], %[[STEP]]
+// CHECK-NEXT:    return %[[SLICE_SCATTER]]
+// CHECK-NEXT:    }
+func.func @torch.aten.select_scatter(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int0 = torch.constant.int 0 
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.select_scatter %arg0, %arg1, %int1, %int0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}

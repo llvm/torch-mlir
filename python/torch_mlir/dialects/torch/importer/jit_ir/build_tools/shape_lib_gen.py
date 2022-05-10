@@ -904,8 +904,14 @@ def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optio
 def aten〇slice〇Tensor(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
+def aten〇slice_scatter(self: List[int], src: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
+    return self
+
 def aten〇select〇int(self: List[int], dim: int, index: int) -> List[int]:
     return upstream_shape_functions.select(self, dim, index)
+
+def aten〇select_scatter(self: List[int], src: List[int], dim: int, index: int) -> List[int]:
+    return self
 
 def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int]:
     return upstream_shape_functions.index_select(self, dim, index)
