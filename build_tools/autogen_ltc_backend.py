@@ -18,6 +18,7 @@ TORCH_DIR = TORCH_MLIR_DIR.joinpath("externals", "pytorch")
 sys.path.append(str(TORCH_DIR))
 
 # PyTorch's LTC backend autogen script
+import torchgen
 import torchgen.dest.lazy_ir
 import torchgen.gen_lazy_tensor
 from torchgen.api.lazy import LazyIrSchema
@@ -329,25 +330,30 @@ def main(args):
     )
     assert backend_path.is_dir()
 
+    torchgen_path = Path(torchgen.__path__[0]).resolve()
+    assert torchgen_path.is_dir()
+
     prev_hash = None
     hash_file = TORCH_MLIR_DIR.joinpath("generated_backend.hash")
     if hash_file.exists():
         prev_hash = hash_file.read_text().strip()
 
     m = hashlib.sha256()
-    m.update(script_path.read_bytes())
-    m.update(config_path.read_bytes())
-    m.update(torch_ops_file.read_bytes())
-    if native_functions.exists():
-        m.update(native_functions.read_bytes())
 
-    shape_inference_headers = backend_path.joinpath("LazyShapeInference.h")
-    if shape_inference_headers.exists():
-        m.update(shape_inference_headers.read_bytes())
-
-    shape_inference_defs = backend_path.joinpath("LazyShapeInference.cpp")
-    if shape_inference_defs.exists():
-        m.update(shape_inference_defs.read_bytes())
+    # Add file contents to hash
+    for path in (
+        script_path,
+        config_path,
+        torch_ops_file,
+        native_functions,
+        backend_path.joinpath("LazyShapeInference.h"),
+        backend_path.joinpath("LazyShapeInference.cpp"),
+        torchgen_path.joinpath("dest", "lazy_ir.py"),
+        torchgen_path.joinpath("api", "lazy.py"),
+        torchgen_path.joinpath("model.py"),
+    ):
+        if path.exists():
+            m.update(path.read_bytes())
 
     new_hash = m.hexdigest().strip()
 
