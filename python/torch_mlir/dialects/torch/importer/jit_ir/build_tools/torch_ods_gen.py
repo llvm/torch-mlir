@@ -394,7 +394,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
     emit("aten::clone : (Tensor, int?) -> (Tensor)")
-    emit("aten::contiguous : (Tensor, int) -> (Tensor)")
+    emit("aten::contiguous : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)")
     emit("aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)")
     emit("aten::detach : (Tensor) -> (Tensor)")

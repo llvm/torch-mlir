@@ -616,6 +616,18 @@ OpFoldResult AtenSqueezeDimOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenContiguousOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenContiguousOp::fold(ArrayRef<Attribute> operands) {
+  if (auto tensorType = getOperand(0).getType().dyn_cast<BaseTensorType>()) {
+    if (tensorType.hasSizes())
+      return getOperand(0);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenToDtypeOp
 //===----------------------------------------------------------------------===//
 

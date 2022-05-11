@@ -1002,24 +1002,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenContiguousOp : public OpConversionPattern<AtenContiguousOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenContiguousOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    Type resultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, adaptor.self());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class ConvertValsemVariantAtenCopyOp
     : public OpConversionPattern<ValsemVariantAtenCopyOp> {
 public:
@@ -1112,8 +1094,6 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenCatOp>(typeConverter, context);
   target.addIllegalOp<AtenBroadcastToOp>();
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
-  target.addIllegalOp<AtenContiguousOp>();
-  patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
   target.addIllegalOp<ValsemVariantAtenCopyOp>();
   patterns.add<ConvertValsemVariantAtenCopyOp>(typeConverter, context);
 }

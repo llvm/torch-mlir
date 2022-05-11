@@ -4324,6 +4324,7 @@ def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenCopy_Op : Torch_Op<"aten.copy_", [
