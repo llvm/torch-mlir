@@ -330,8 +330,10 @@ def run_workers_in_parallel(task_queue: mp.Queue, worker):
         p.join()
 
 
-def run_tests(tests: List[Test], config: TestConfig) -> List[TestResult]:
+def run_tests(tests: List[Test], config: TestConfig, sequential = False) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
+    if sequential:
+        return [compile_and_run_test(test, config) for test in tests]
 
     # To run e2e tests in parallel:
     # The tests are put into a synchronized queue. Multiple worker processes are

@@ -56,6 +56,10 @@ torch-mlir).
 See `build_tools/torchscript_e2e_heavydep_tests/generate_serialized_tests.sh`
 for more information on building these artifacts.
 ''')
+    parser.add_argument('-s', '--sequential',
+                        default=False,
+                        action='store_true',
+                        help='run e2e tests sequentially rather than in parallel')
     return parser
 
 def main():
@@ -98,7 +102,7 @@ def main():
         sys.exit(1)
 
     # Run the tests.
-    results = run_tests(tests, config)
+    results = run_tests(tests, config, args.sequential)
 
     # Report the test results.
     failed = report_results(results, xfail_set, args.verbose)
