@@ -20,7 +20,7 @@ set -eu -o errtrace
 
 this_dir="$(cd $(dirname $0) && pwd)"
 repo_root="$(cd $this_dir/../../ && pwd)"
-python_versions="${python_versions:-3.9 3.10}"
+python_versions="${TORCH_MLIR_PYTHON_VERSIONS:-3.9 3.10}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
@@ -55,6 +55,7 @@ function run() {
         torch-mlir)
           clean_wheels torch-mlir $python_version
           build_torch_mlir
+          run_audit_wheel torch_mlir $python_version
           ;;
         *)
           echo "Unrecognized package '$package'"
@@ -78,7 +79,28 @@ function clean_wheels() {
   local wheel_basename="$1"
   local python_version="$2"
   echo ":::: Clean wheels $wheel_basename $python_version"
-  rm -f $output_dir/${wheel_basename}-*-${python_version}-*.whl
+  rm -rf $repo_root/build/
+  rm -f $output_dir/${wheel_basename}-*-${python_version//./}-*.whl
+}
+
+function run_audit_wheel() {
+  set +x
+  local wheel_basename="$1"
+  local python_version="$2"
+  generic_wheel=`ls  $output_dir/${wheel_basename}-* | grep ${python_version//./}`
+  echo "Looking for $generic_wheel"
+  if [ -f "$generic_wheel" ]; then
+    echo "$generic_wheel found. Delocating it.."
+    rm -rf $output_dir/test_venv
+    python${python_version} -m venv $output_dir/test_venv
+    source  $output_dir/test_venv/bin/activate
+    python${python_version} -m pip install -U pip
+    python${python_version} -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    python${python_version} -m pip install $generic_wheel --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    DYLD_LIBRARY_PATH=$output_dir/test_venv/lib/python${python_version}/site-packages/torch/lib delocate-wheel -v $generic_wheel
+    deactivate
+    rm -rf $output_dir/test_venv
+  fi
 }
 
 run
