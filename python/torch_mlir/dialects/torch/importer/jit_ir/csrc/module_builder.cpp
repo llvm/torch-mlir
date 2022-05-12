@@ -116,7 +116,6 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
       unknownLoc(mlirLocationUnknownGet(context)) {
   // TODO: Rework this once dialect registration C-APIs are in place.
   // https://reviews.llvm.org/D88162
-  mlirRegisterAllDialects(context);
   torchMlirRegisterAllDialects(context);
 
   registerPythonSysStderrDiagnosticHandler(context);
