@@ -42,6 +42,8 @@ public:
   TorchMlirNode(
       OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed = kHashSeed);
 
+  ~TorchMlirNode() override = default;
+
   hash_t hash() const override;
 
   hash_t shapeHash() const override;

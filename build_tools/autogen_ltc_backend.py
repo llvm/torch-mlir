@@ -129,11 +129,13 @@ def generate_native_functions(
 @dataclass(frozen=True)
 class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
-    def lowering_function(self, schema, declaration_only=True):
+    def lowering_function(self, schema):
         signature = "TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override"
 
-        if declaration_only:
+        if schema.properties.LowerDeclOnly:
             return f"{signature};"
+        elif not schema.properties.Lower:
+            return ""
 
         emplace_arguments = []
         for arg in schema.positional_args:
