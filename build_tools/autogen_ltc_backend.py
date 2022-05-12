@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import importlib
 import os
 import subprocess
 import sys
@@ -12,11 +13,6 @@ from textwrap import dedent
 
 import yaml
 
-TORCH_MLIR_DIR = Path(__file__).parent.parent.resolve()
-TORCH_DIR = TORCH_MLIR_DIR.joinpath("externals", "pytorch")
-
-sys.path.append(str(TORCH_DIR))
-
 # PyTorch's LTC backend autogen script
 import torchgen
 import torchgen.dest.lazy_ir
@@ -25,6 +21,8 @@ from torchgen.api.lazy import LazyIrSchema
 from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.model import NativeFunctionsGroup
 
+TORCH_DIR = Path(importlib.util.find_spec('torch').origin).resolve().parent.parent
+TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
 def isOptionalCType(arg):
     return str(type(arg)) == "<class 'torchgen.api.types.OptionalCType'>"

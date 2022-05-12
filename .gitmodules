@@ -1,7 +1,3 @@
 [submodule "external/llvm-project"]
 	path = externals/llvm-project
 	url = https://github.com/llvm/llvm-project.git
-[submodule "externals/pytorch"]
-	path = externals/pytorch
-	url = https://github.com/pytorch/pytorch.git
-	shallow = true
