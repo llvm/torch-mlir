@@ -1116,42 +1116,26 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
+    Type resultType = op.getType();
     auto inputType = input.getType().cast<BaseTensorType>();
-    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>())
+    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>()) {
       return rewriter.notifyMatchFailure(op,
                                          "only support floating-point type");
-
-    // TODO: Add support for layout, pin_memory and memory_format features.
-    // Only `none` layout is supported.
-    if (!op.layout().getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default layout is supported");
-
-    // The pin_memory should be either `none` or constant `False`.
-    if (!op.pin_memory().getType().isa<Torch::NoneType>()) {
-      bool pinMemory;
-      if (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: pin_memory must be a constant");
-      else if (pinMemory)
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: pin_memory is expected to be false");
     }
 
-    // Only `none` memory_format is supported.
-    if (!op.memory_format().getType().isa<Torch::NoneType>())
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only default memory format is supported");
-
-    // Create a uniform random op with low and high set to 0.0 and 1.0
+    // Create a uniform random op with low and high set to 0.0 and 1.0,
     // respectively.
     Value none = rewriter.create<ConstantNoneOp>(loc);
-    Value lb =
+    Value zero =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
-    Value ub =
+    Value one =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
+        loc, resultType, input, op.dtype(), op.layout(), op.device(),
+        op.pin_memory(), op.memory_format());
     rewriter.replaceOpWithNewOp<ValsemVariantAtenUniformOp>(
-        op, op.getType(), input, lb, ub, /*generator=*/none);
+        op, resultType, emptyTensor, /*from=*/zero, /*to=*/one,
+        /*generator=*/none);
     return success();
   }
 };
