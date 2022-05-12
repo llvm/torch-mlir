@@ -199,7 +199,8 @@ MlirType torchMlirTorchNonValueTensorTypeGet(MlirContext context,
                                              const int64_t *optionalSizes,
                                              MlirType optionalDtype) {
   Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
-  if (optionalSizes)
+  // if numSizes == -1, then it is unranked.
+  if (numSizes > -1)
     optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
   return wrap(Torch::NonValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
@@ -231,7 +232,8 @@ MlirType torchMlirTorchValueTensorTypeGet(MlirContext context,
                                           const int64_t *optionalSizes,
                                           MlirType optionalDtype) {
   Optional<ArrayRef<int64_t>> optionalSizesArrayRef = None;
-  if (optionalSizes)
+  // if numSizes == -1, then it is unranked.
+  if (numSizes > -1)
     optionalSizesArrayRef = llvm::makeArrayRef(optionalSizes, numSizes);
   return wrap(Torch::ValueTensorType::get(
       unwrap(context), optionalSizesArrayRef, unwrap(optionalDtype)));
