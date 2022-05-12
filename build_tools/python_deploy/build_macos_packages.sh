@@ -53,8 +53,8 @@ function run() {
       echo ":::: Python version $(python3 --version)"
       case "$package" in
         torch-mlir)
-          clean_wheels torch-mlir $python_version
-          build_torch_mlir
+          clean_wheels torch_mlir $python_version
+          build_torch_mlir torch_mlir $python_version
           run_audit_wheel torch_mlir $python_version
           ;;
         *)
@@ -67,12 +67,20 @@ function run() {
 }
 
 function build_torch_mlir() {
-  python -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  local wheel_basename="$1"
+  local python_version="$2"
+  rm -rf $output_dir/build_venv
+  python${python_version} -m venv $output_dir/build_venv
+  source  $output_dir/build_venv/bin/activate
+  python${python_version} -m pip install -U pip
+  python${python_version} -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET \
   CMAKE_OSX_ARCHITECTURES=$CMAKE_OSX_ARCHITECTURES \
-  python -m pip wheel -v -w $output_dir $repo_root --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python${python_version} -m pip wheel -v -w $output_dir $repo_root --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  deactivate
+  rm -rf $output_dir/build_venv
 }
 
 function clean_wheels() {
