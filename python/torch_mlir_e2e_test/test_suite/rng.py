@@ -234,3 +234,45 @@ def BernoulliTensorModule_basic(module, tu: TestUtils):
         tu.rand(1024, 2048, 8).double(),
         tu.rand(1024, 512, 8).double(),
         tu.rand(1024, 512, 8).double())
+
+# ==============================================================================
+
+class RandLikeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.rand_like(x)
+        mean = torch.mean(a)
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandLikeModule())
+def RandLikeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1024).double())
+
+# ==============================================================================
+
+class RandLikeDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        a = torch.ops.aten.rand_like(x, dtype=torch.float32)
+        mean = torch.mean(a)
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandLikeDtypeModule())
+def RandLikeDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1024).double())

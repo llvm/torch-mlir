@@ -665,6 +665,9 @@ def aten〇index_put_impl(self: List[int], indices: List[Optional[List[int]]], v
 def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:
     return self
 
+def aten〇rand_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
+    return self
+
 def aten〇arange〇start_step(start: float, end: float, step: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_helpers.arange_start_step(start, end, step, dtype, layout, device, pin_memory)
 
