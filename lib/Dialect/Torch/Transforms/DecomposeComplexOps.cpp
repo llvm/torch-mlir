@@ -1551,7 +1551,8 @@ class DecomposeAten_UnsafeViewOp : public OpRewritePattern<Aten_UnsafeViewOp> {
 // Note that this is the same decomposition as in AOTAutograd
 // https://github.com/pytorch/functorch/blob/a3042d94e616d4143813668b1372d9d4545be14e/functorch/_src/aot_autograd.py#L104
 namespace {
-class DecomposeAten_ReshapeAliasOp : public OpRewritePattern<Aten_ReshapeAliasOp> {
+class DecomposeAten_ReshapeAliasOp
+    : public OpRewritePattern<Aten_ReshapeAliasOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten_ReshapeAliasOp op,
                                 PatternRewriter &rewriter) const override {
@@ -1776,6 +1777,116 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.adaptive_avg_pool2d` op into `aten.avg_pool2d` op.
+//
+// For AdaptiveAvgPool2d op, when the input size is an integer multiple of
+// output size the kernel_size, stride and padding is calculated as follows:
+// strideH = inH // outH
+// strideW = inH // outH
+// kernelH = inH - [(outH - 1) * strideH]
+// kernelW = inW - [(outW - 1) * strideW]
+// paddingH = 0, paddingW = 0
+//
+// For the special case, when the output size is one for all dimensions,
+// the kernel size is same as the input size.
+class DecomposeAtenAdaptiveAvgPool2dOp
+    : public OpRewritePattern<AtenAdaptiveAvgPool2dOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAdaptiveAvgPool2dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.self();
+    int64_t rank = getTensorRank(input);
+    SmallVector<Value, 2> inputHW;
+    Value dimH = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 2));
+    inputHW.push_back(
+        /*inH=*/rewriter.create<AtenSizeIntOp>(loc, input, dimH));
+    Value dimW = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    inputHW.push_back(
+        /*inW=*/rewriter.create<AtenSizeIntOp>(loc, input, dimW));
+
+    Value outputShape = op.output_size();
+    SmallVector<Value> outputShapeSizesTorchInt;
+    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+
+    // TODO: Add support for cases other than:
+    // 1.) inH == outH and inW == outW.
+    // 2.) outH == outW == 1
+    bool unitOutputSize = true;
+    for (Value outShape : outputShapeSizesTorchInt) {
+      int64_t outShapeInt;
+      if (!matchPattern(outShape, m_TorchConstantInt(&outShapeInt))) {
+        return rewriter.notifyMatchFailure(
+            op, "output size is expected to be a constant");
+      }
+      if (outShapeInt != 1) {
+        unitOutputSize = false;
+        break;
+      }
+    }
+
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+    Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    SmallVector<Value, 2> kernelSize;
+
+    for (unsigned i = 0; i < inputHW.size(); i++) {
+      if (unitOutputSize) {
+        BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        kernelSize.push_back(inputShape[rank - 2 + i] == kUnknownSize
+                                 ? inputHW[i]
+                                 : rewriter.create<Torch::ConstantIntOp>(
+                                       loc, rewriter.getI64IntegerAttr(
+                                                inputShape[rank - 2 + i])));
+      } else {
+        Value cond = rewriter.create<AtenEqIntOp>(loc, inputHW[i],
+                                                  outputShapeSizesTorchInt[i]);
+        rewriter.create<RuntimeAssertOp>(
+            loc, cond,
+            "unimplemented: only support cases where input and output size are "
+            "equal for non-unit output size");
+
+        Value outMinusOne = rewriter.create<AtenSubIntOp>(
+            loc, outputShapeSizesTorchInt[i], constantOne);
+        kernelSize.push_back(
+            rewriter.create<AtenSubIntOp>(loc, inputHW[i], outMinusOne));
+      }
+    }
+
+    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
+    // Currently we only support cases where input size is equal to the output
+    // size or unit output size. For the former case, stride is always equal to
+    // one and for the latter the stride value doesn't matter, since the kernel
+    // size is same as the input size. Therfore, keeping the stride as one for
+    // the latter case as well for the ease of implementation.
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne, constantOne});
+    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantZero, constantZero});
+
+    rewriter.replaceOpWithNewOp<AtenAvgPool2dOp>(
+        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+        /*ceil_mode=*/constantFalse, /*count_include_pad=*/constantTrue,
+        /*divisor_override=*/constantNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -1910,6 +2021,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenPadOp>(context);
     patterns.add<DecomposeAtenToDtypeLayoutOp>(context);
     target.addIllegalOp<AtenToDtypeLayoutOp>();
+    patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
+    target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
