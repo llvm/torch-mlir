@@ -1113,6 +1113,19 @@ func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.t
   return %0 : !torch.tensor<[],f32>
 }
 
+// -----
+
+// CHECK-LABEL:   func @torch.aten.contiguous$basic(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
+func @torch.aten.contiguous$basic(%arg0: !torch.tensor<[?,?],f32> ) -> !torch.tensor<[?,?],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.contiguous %arg0, %int0 : !torch.tensor<[?,?],f32>, !torch.int -> !torch.tensor<[?,?],f32>
+  return %0 : !torch.tensor<[?,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func @torch.aten.to.dtype$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<*,f32>

@@ -708,10 +708,8 @@ func @torch.aten.unsqueeze$basic(%arg0: !torch.vtensor<[4,3],si32> ) -> !torch.v
 
 // CHECK-LABEL:   func @torch.aten.contiguous$basic(
 // CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_1]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
-// CHECK:           return %[[VAL_3]] : !torch.vtensor<[?,?],f32>
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 0
+// CHECK:           return %[[VAL_0]] : !torch.vtensor<[?,?],f32>
 // CHECK:         }
 func @torch.aten.contiguous$basic(%arg0: !torch.vtensor<[?,?],f32> ) -> !torch.vtensor<[?,?],f32> {
   %int0 = torch.constant.int 0
