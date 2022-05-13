@@ -17,7 +17,7 @@ class TestModule(torch.nn.Module):
   def __init__(self):
     super().__init__()
 
-  # CHECK-LABEL:   func private @__torch__.TestModule.forward(
+  # CHECK-LABEL:   func.func private @__torch__.TestModule.forward(
   # CHECK-SAME:                                               %[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">) -> !torch.optional<int> {
   # CHECK:           %[[NONE:.*]] = torch.constant.none
   # CHECK:           %[[DEREFINED:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<int>

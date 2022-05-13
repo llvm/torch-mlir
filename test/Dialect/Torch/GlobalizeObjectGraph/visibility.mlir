@@ -6,8 +6,8 @@ torch.class_type @c {
   torch.method private "forward", @method
 }
 
-// CHECK: func private @forward() {
-func private @method(%arg0: !torch.nn.Module<"c">) {
+// CHECK: func.func private @forward() {
+func.func private @method(%arg0: !torch.nn.Module<"c">) {
   return
 }
 

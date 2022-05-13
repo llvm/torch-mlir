@@ -1,6 +1,6 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-scf | FileCheck %s
 
-// CHECK-LABEL:   func @torch.prim.if(
+// CHECK-LABEL:   func.func @torch.prim.if(
 // CHECK-SAME:                        %[[VAL_0:.*]]: !torch.bool) -> !torch.int {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_i1 %[[VAL_0]]
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 2
@@ -14,7 +14,7 @@
 // CHECK:           }
 // CHECK:           %[[VAL_7:.*]] = torch_c.from_i64 %[[VAL_8:.*]]
 // CHECK:           return %[[VAL_7]] : !torch.int
-func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
+func.func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
   %int2 = torch.constant.int 2
   %int1 = torch.constant.int 1
   %0 = torch.prim.If %arg0 -> (!torch.int) {
@@ -25,7 +25,7 @@ func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
   return %0 : !torch.int
 }
 
-// CHECK-LABEL:   func @aten.prim.if$nested(
+// CHECK-LABEL:   func.func @aten.prim.if$nested(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !torch.bool,
 // CHECK-SAME:                              %[[VAL_1:.*]]: !torch.bool) -> !torch.int {
 // CHECK:           %[[VAL_2:.*]] = torch_c.to_i1 %[[VAL_0]]
@@ -48,7 +48,7 @@ func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
 // CHECK:           }
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_i64 %[[VAL_14:.*]]
 // CHECK:           return %[[VAL_13]] : !torch.int
-func @aten.prim.if$nested(%arg0: !torch.bool, %arg1: !torch.bool) -> !torch.int {
+func.func @aten.prim.if$nested(%arg0: !torch.bool, %arg1: !torch.bool) -> !torch.int {
   %int2 = torch.constant.int 2
   %int3 = torch.constant.int 3
   %int4 = torch.constant.int 4
@@ -65,7 +65,7 @@ func @aten.prim.if$nested(%arg0: !torch.bool, %arg1: !torch.bool) -> !torch.int 
   return %0 : !torch.int
 }
 
-// CHECK-LABEL: func @torch.prim.loop$while
+// CHECK-LABEL: func.func @torch.prim.loop$while
 // CHECK-SAME:  (%[[ARG0:.*]]: !torch.int) -> !torch.float {
 // CHECK:         %[[TORCH_FLOAT_VAL:.*]] = torch.constant.float
 // CHECK-NEXT:    %[[FLOAT_VAL:.*]] = torch_c.to_f64 %[[TORCH_FLOAT_VAL]]
@@ -86,7 +86,7 @@ func @aten.prim.if$nested(%arg0: !torch.bool, %arg1: !torch.bool) -> !torch.int 
 // CHECK-NEXT:    }
 // CHECK-NEXT:    %[[TORCH_LOOP:.*]] = torch_c.from_f64 %[[LOOP]]
 // CHECK-NEXT:    return %[[TORCH_LOOP]] : !torch.float
-func @torch.prim.loop$while(%arg0: !torch.int) -> !torch.float {
+func.func @torch.prim.loop$while(%arg0: !torch.int) -> !torch.float {
   %float3.200000e00 = torch.constant.float 3.200000e+00
   %int9223372036854775807 = torch.constant.int 9223372036854775807
   %0 = torch.aten.lt.float_int %float3.200000e00, %arg0 : !torch.float, !torch.int -> !torch.bool
@@ -99,7 +99,7 @@ func @torch.prim.loop$while(%arg0: !torch.int) -> !torch.float {
   return %1 : !torch.float
 }
 
-// CHECK-LABEL: func @torch.prim.loop$while_with_multiple_values
+// CHECK-LABEL: func.func @torch.prim.loop$while_with_multiple_values
 // CHECK-SAME:  () -> (!torch.float, !torch.float) {
 // CHECK:         %[[TORCH_FLOAT_VAL_0:.*]] = torch.constant.float
 // CHECK-NEXT:    %[[FLOAT_VAL_0:.*]] = torch_c.to_f64 %[[TORCH_FLOAT_VAL_0]]
@@ -127,7 +127,7 @@ func @torch.prim.loop$while(%arg0: !torch.int) -> !torch.float {
 // CHECK-NEXT:    %[[TORCH_LOOP_0:.*]] = torch_c.from_f64 %[[LOOP]]#0
 // CHECK-NEXT:    %[[TORCH_LOOP_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
 // CHECK-NEXT:    return %[[TORCH_LOOP_0]], %[[TORCH_LOOP_1]] : !torch.float, !torch.float
-func @torch.prim.loop$while_with_multiple_values() -> (!torch.float, !torch.float) {
+func.func @torch.prim.loop$while_with_multiple_values() -> (!torch.float, !torch.float) {
   %float3.200000e00 = torch.constant.float 3.200000e+00
   %int9223372036854775807 = torch.constant.int 9223372036854775807
   %float9.0 = torch.constant.float 9.0
@@ -143,7 +143,7 @@ func @torch.prim.loop$while_with_multiple_values() -> (!torch.float, !torch.floa
   return %1#0, %1#1 : !torch.float, !torch.float
 }
 
-// CHECK-LABEL: func @torch.prim.Loop$for
+// CHECK-LABEL: func.func @torch.prim.Loop$for
 // CHECK-SAME:  (%[[TORCH_ARG0:.*]]: !torch.int) -> !torch.float {
 // CHECK:         %[[ARG0:.*]] = torch_c.to_i64 %[[TORCH_ARG0]]
 // CHECK-NEXT:    %{{.*}} = torch.constant.bool true
@@ -164,7 +164,7 @@ func @torch.prim.loop$while_with_multiple_values() -> (!torch.float, !torch.floa
 // CHECK-NEXT:    %[[RETURN:.*]] = torch_c.from_f64 %[[LOOP]]
 // CHECK-NEXT:    return %[[RETURN]] : !torch.float
 // CHECK-NEXT:  }
-func @torch.prim.Loop$for(%arg0: !torch.int) -> !torch.float {
+func.func @torch.prim.Loop$for(%arg0: !torch.int) -> !torch.float {
   %true = torch.constant.bool true
   %float0.000000e00 = torch.constant.float 0.000000e+00
   %0 = torch.prim.Loop %arg0, %true, init(%float0.000000e00) {
@@ -175,7 +175,7 @@ func @torch.prim.Loop$for(%arg0: !torch.int) -> !torch.float {
   return %0 : !torch.float
 }
 
-// CHECK-LABEL: func @torch.prim.Loop$for_with_multiple_results
+// CHECK-LABEL: func.func @torch.prim.Loop$for_with_multiple_results
 // CHECK-SAME:  (%[[TORCH_ARG0:.*]]: !torch.int) -> (!torch.float, !torch.float) {
 // CHECK:         %[[ARG0:.*]] = torch_c.to_i64 %[[TORCH_ARG0]]
 // CHECK-NEXT:    %{{.*}} = torch.constant.bool true
@@ -202,7 +202,7 @@ func @torch.prim.Loop$for(%arg0: !torch.int) -> !torch.float {
 // CHECK-NEXT:    %[[RETURN_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
 // CHECK-NEXT:    return %[[RETURN_0]], %[[RETURN_1]] : !torch.float, !torch.float
 // CHECK-NEXT:  }
-func @torch.prim.Loop$for_with_multiple_results(%arg0: !torch.int) -> (!torch.float, !torch.float) {
+func.func @torch.prim.Loop$for_with_multiple_results(%arg0: !torch.int) -> (!torch.float, !torch.float) {
   %true = torch.constant.bool true
   %float0.000000e00 = torch.constant.float 0.000000e+00
   %float9.0 = torch.constant.float 9.0

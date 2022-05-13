@@ -1,7 +1,7 @@
 // RUN: torch-mlir-dialects-opt -canonicalize -split-input-file %s | FileCheck %s
 
-// CHECK-LABEL: func @tensor.cast(
-func @tensor.cast(%arg0: tensor<128xi32>) -> tensor<128xi32> {
+// CHECK-LABEL: func.func @tensor.cast(
+func.func @tensor.cast(%arg0: tensor<128xi32>) -> tensor<128xi32> {
   %init = linalg.init_tensor [128] : tensor<128xi32>
   %c0 = linalg.init_tensor [] : tensor<i32>
 

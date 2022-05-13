@@ -16,8 +16,8 @@ torch.global_slot "private" @mutated : !torch.tensor  {
   torch.global_slot.init %0 : !torch.tensor
 }
 
-// CHECK-LABEL:   func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
-func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
+// CHECK-LABEL:   func.func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
+func.func @forward() -> (!torch.tensor, !torch.tensor, !torch.tensor) {
   // Inlined.
   // CHECK:           %[[READONLY:.*]] = torch.tensor.literal(dense<0.000000e+00> : tensor<1xf32>) : !torch.tensor
   %0 = torch.global_slot.get @readonly : !torch.tensor

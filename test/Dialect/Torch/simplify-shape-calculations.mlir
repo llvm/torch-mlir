@@ -1,7 +1,7 @@
 // RUN: torch-mlir-opt -torch-simplify-shape-calculations -split-input-file %s | FileCheck %s
 
 
-// CHECK-LABEL:   func @refine_shape_calculate_result$basic(
+// CHECK-LABEL:   func.func @refine_shape_calculate_result$basic(
 // CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                              %[[ARG1:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[INT2:.*]] = torch.constant.int 2
@@ -14,7 +14,7 @@
 // CHECK:           } : !torch.vtensor<[2,?],unk>
 // CHECK:           %[[RESULT_ERASED:.*]] = torch.tensor_static_info_cast %[[RESULT:.*]] : !torch.vtensor<[2,?],unk> to !torch.vtensor
 // CHECK:           return %[[RESULT_ERASED]] : !torch.vtensor
-func @refine_shape_calculate_result$basic(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
+func.func @refine_shape_calculate_result$basic(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
   %int2 = torch.constant.int 2
   %0 = torch.shape.calculate {
     torch.shape.calculate.yield %arg0 : !torch.vtensor
@@ -25,10 +25,10 @@ func @refine_shape_calculate_result$basic(%arg0: !torch.vtensor, %arg1: !torch.i
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @refine_shape_calculate_result$clobber_one_element(
+// CHECK-LABEL:   func.func @refine_shape_calculate_result$clobber_one_element(
 // CHECK:           %[[RESULT_ERASED:.*]] = torch.tensor_static_info_cast %{{.*}} : !torch.vtensor<[?,2],unk> to !torch.vtensor
 // CHECK:           return %[[RESULT_ERASED]] : !torch.vtensor
-func @refine_shape_calculate_result$clobber_one_element(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.vtensor {
+func.func @refine_shape_calculate_result$clobber_one_element(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.vtensor {
   %int0 = torch.constant.int 0
   %int2 = torch.constant.int 2
   %0 = torch.shape.calculate {
@@ -47,10 +47,10 @@ func @refine_shape_calculate_result$clobber_one_element(%arg0: !torch.vtensor, %
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @refine_shape_calculate_result$clobber_all_elements(
+// CHECK-LABEL:   func.func @refine_shape_calculate_result$clobber_all_elements(
 // CHECK:           %[[RESULT_ERASED:.*]] = torch.tensor_static_info_cast %{{.*}} : !torch.vtensor<[?,?],unk> to !torch.vtensor
 // CHECK:           return %[[RESULT_ERASED]] : !torch.vtensor
-func @refine_shape_calculate_result$clobber_all_elements(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.vtensor {
+func.func @refine_shape_calculate_result$clobber_all_elements(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.vtensor {
   %int0 = torch.constant.int 0
   %int2 = torch.constant.int 2
   %0 = torch.shape.calculate {
@@ -71,10 +71,10 @@ func @refine_shape_calculate_result$clobber_all_elements(%arg0: !torch.vtensor, 
 }
 
 // Make sure that information previously in the IR is not lost.
-// CHECK-LABEL:   func @refine_shape_calculate_result$meet_with_existing_information(
+// CHECK-LABEL:   func.func @refine_shape_calculate_result$meet_with_existing_information(
 // CHECK:           %[[RESULT_ERASED:.*]] = torch.tensor_static_info_cast %{{.*}} : !torch.vtensor<[2,3],f32> to !torch.vtensor<[?,3],f32>
 // CHECK:           return %[[RESULT_ERASED]] : !torch.vtensor<[?,3],f32>
-func @refine_shape_calculate_result$meet_with_existing_information(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,3],f32> {
+func.func @refine_shape_calculate_result$meet_with_existing_information(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,3],f32> {
   %int0 = torch.constant.int 0
   %int2 = torch.constant.int 2
   %0 = torch.shape.calculate {
@@ -87,9 +87,9 @@ func @refine_shape_calculate_result$meet_with_existing_information(%arg0: !torch
 }
 
 // Don't insert static info casts if not needed.
-// CHECK-LABEL:   func @refine_shape_calculate_result$user_allows_type_refinement(
+// CHECK-LABEL:   func.func @refine_shape_calculate_result$user_allows_type_refinement(
 // CHECK-NOT:       torch.tensor_static_info_cast
-func @refine_shape_calculate_result$user_allows_type_refinement(%arg0: !torch.vtensor) -> !torch.vtensor {
+func.func @refine_shape_calculate_result$user_allows_type_refinement(%arg0: !torch.vtensor) -> !torch.vtensor {
   %int2 = torch.constant.int 2
   %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
   %1 = torch.shape.calculate {
@@ -102,7 +102,7 @@ func @refine_shape_calculate_result$user_allows_type_refinement(%arg0: !torch.vt
   return %2 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @fully_unroll_prim_loop$unroll(
+// CHECK-LABEL:   func.func @fully_unroll_prim_loop$unroll(
 // CHECK-SAME:                                 %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                 %[[ARG1:.*]]: !torch.list<int>) -> !torch.vtensor {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
@@ -117,7 +117,7 @@ func @refine_shape_calculate_result$user_allows_type_refinement(%arg0: !torch.vt
 // CHECK:             torch.shape.calculate.yield.shapes %[[ARG1]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @fully_unroll_prim_loop$unroll(%arg0: !torch.vtensor, %arg1: !torch.list<int>) -> !torch.vtensor {
+func.func @fully_unroll_prim_loop$unroll(%arg0: !torch.vtensor, %arg1: !torch.list<int>) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int0 = torch.constant.int 0
   %int3 = torch.constant.int 3
@@ -134,9 +134,9 @@ func @fully_unroll_prim_loop$unroll(%arg0: !torch.vtensor, %arg1: !torch.list<in
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @fully_unroll_prim_loop$no_unroll(
+// CHECK-LABEL:   func.func @fully_unroll_prim_loop$no_unroll(
 // CHECK:           torch.prim.Loop
-func @fully_unroll_prim_loop$no_unroll(%arg0: !torch.vtensor, %arg1: !torch.list<int>, %arg2: !torch.int) -> !torch.vtensor {
+func.func @fully_unroll_prim_loop$no_unroll(%arg0: !torch.vtensor, %arg1: !torch.list<int>, %arg2: !torch.int) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int3 = torch.constant.int 3
   %0 = torch.shape.calculate {
@@ -152,13 +152,13 @@ func @fully_unroll_prim_loop$no_unroll(%arg0: !torch.vtensor, %arg1: !torch.list
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$basic(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$basic(
 // CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                              %[[ARG1:.*]]: !torch.int,
 // CHECK-SAME:                                              %[[ARG2:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[ARG2]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
-func @abstractly_interpret_list_ops$basic(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$basic(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int) -> !torch.vtensor {
   %0 = torch.shape.calculate {
     torch.shape.calculate.yield %arg0 : !torch.vtensor
   } shapes {
@@ -171,10 +171,10 @@ func @abstractly_interpret_list_ops$basic(%arg0: !torch.vtensor, %arg1: !torch.i
 }
 
 // Test the different supported mutation ops.
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$mutation_ops(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$mutation_ops(
 // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %int1, %arg1, %arg2, %arg3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
-func @abstractly_interpret_list_ops$mutation_ops(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$mutation_ops(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor {
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
   %int2 = torch.constant.int 2
@@ -192,10 +192,10 @@ func @abstractly_interpret_list_ops$mutation_ops(%arg0: !torch.vtensor, %arg1: !
 }
 
 // Test negative indexes with set_item op.
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$neg_index_set_item(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$neg_index_set_item(
 // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %arg1, %arg2 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
-func @abstractly_interpret_list_ops$neg_index_set_item(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$neg_index_set_item(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %int-1 = torch.constant.int -1
   %int-2 = torch.constant.int -2
@@ -211,10 +211,10 @@ func @abstractly_interpret_list_ops$neg_index_set_item(%arg0: !torch.vtensor, %a
 }
 
 // Test interspersed mutation and evaluation ops.
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(
 // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
-func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(%arg0: !torch.vtensor) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(%arg0: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.shape.calculate {
     torch.shape.calculate.yield %arg0 : !torch.vtensor
   } shapes {
@@ -230,10 +230,10 @@ func @abstractly_interpret_list_ops$mix_mutation_and_evaluation_ops(%arg0: !torc
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(
 // CHECK:           torch.aten.append.t
 // CHECK:           torch.aten.append.t
-func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(%arg0: !torch.vtensor, %arg1: !torch.int, %arg2: !torch.int) -> !torch.vtensor {
   %0 = torch.shape.calculate {
     torch.shape.calculate.yield %arg0 : !torch.vtensor
   } shapes {
@@ -247,13 +247,13 @@ func @abstractly_interpret_list_ops$use_of_alias$not_yet_handled(%arg0: !torch.v
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$readonly_op_in_child_region(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$readonly_op_in_child_region(
 // CHECK-SAME:                                                                    %[[VAL_0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                                                    %[[VAL_1:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[INT3:.*]] = torch.constant.int 3
 // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct %[[INT3]] : (!torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
-func @abstractly_interpret_list_ops$readonly_op_in_child_region(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$readonly_op_in_child_region(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int3 = torch.constant.int 3
   %int0 = torch.constant.int 0
@@ -276,9 +276,9 @@ func @abstractly_interpret_list_ops$readonly_op_in_child_region(%arg0: !torch.vt
 }
 
 // The mutation in the child region prevents us from abstractly interpreting.
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$mutation_in_child_region(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$mutation_in_child_region(
 // CHECK:             torch.aten.append.t
-func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int3 = torch.constant.int 3
   %int0 = torch.constant.int 0
@@ -300,7 +300,7 @@ func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.vtens
   return %0 : !torch.vtensor
 }
 
-// CHECK-LABEL:   func @abstractly_interpret_list_ops$miscompile$list_identity(
+// CHECK-LABEL:   func.func @abstractly_interpret_list_ops$miscompile$list_identity(
 // CHECK-SAME:                                                                 %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                                                 %[[ARG1:.*]]: !torch.list<int>,
 // CHECK-SAME:                                                                 %[[ARG2:.*]]: !torch.bool) -> !torch.vtensor {
@@ -329,7 +329,7 @@ func @abstractly_interpret_list_ops$mutation_in_child_region(%arg0: !torch.vtens
 // CHECK:           } : !torch.vtensor<[3,3],unk>
 // CHECK:           %[[VAL_13:.*]] = torch.tensor_static_info_cast %[[VAL_14:.*]] : !torch.vtensor<[3,3],unk> to !torch.vtensor
 // CHECK:           return %[[VAL_13]] : !torch.vtensor
-func @abstractly_interpret_list_ops$miscompile$list_identity(%arg0: !torch.vtensor, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.vtensor {
+func.func @abstractly_interpret_list_ops$miscompile$list_identity(%arg0: !torch.vtensor, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.vtensor {
   %true = torch.constant.bool true
   %int3 = torch.constant.int 3
   %int0 = torch.constant.int 0
@@ -373,7 +373,7 @@ func @abstractly_interpret_list_ops$miscompile$list_identity(%arg0: !torch.vtens
 // This test should usually not be the one to catch an issue.
 // If it does catch an issue then it indicates a more precise unit test that is
 // missing.
-// CHECK-LABEL:   func @basic_integration(
+// CHECK-LABEL:   func.func @basic_integration(
 // CHECK-SAME:                %[[ARG0:.*]]: !torch.vtensor<[?,?],unk>) -> !torch.vtensor {
 // CHECK:           %[[INT0:.*]] = torch.constant.int 0
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
@@ -388,7 +388,7 @@ func @abstractly_interpret_list_ops$miscompile$list_identity(%arg0: !torch.vtens
 // CHECK:           } : !torch.vtensor<[?,?],unk>
 // CHECK:           %[[RESULT_ERASED:.*]] = torch.tensor_static_info_cast %[[RESULT:.*]] : !torch.vtensor<[?,?],unk> to !torch.vtensor
 // CHECK:           return %[[RESULT_ERASED]] : !torch.vtensor
-func @basic_integration(%arg0: !torch.vtensor<[?,?],unk>) -> !torch.vtensor {
+func.func @basic_integration(%arg0: !torch.vtensor<[?,?],unk>) -> !torch.vtensor {
   %true = torch.constant.bool true
   %0 = torch.shape.calculate {
     %1 = torch.aten.tanh %arg0 : !torch.vtensor<[?,?],unk> -> !torch.vtensor

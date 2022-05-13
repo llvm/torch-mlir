@@ -1,7 +1,7 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -mlir-print-local-scope -verify-diagnostics | FileCheck %s
 
 
-// CHECK-LABEL:   func @elementwise$unary(
+// CHECK-LABEL:   func.func @elementwise$unary(
 // CHECK-SAME:                            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
 // CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [] : tensor<f32>
@@ -14,12 +14,12 @@
 // CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<f32> -> !torch.vtensor<[],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
 // CHECK:         }
-func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+func.func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
   %0 = torch.aten.tanh %arg0 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
 
-// CHECK-LABEL:   func @elementwise$binary(
+// CHECK-LABEL:   func.func @elementwise$binary(
 // CHECK-SAME:                             %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                             %[[ARG1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[BUILTIN_ARG0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
@@ -41,23 +41,23 @@ func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
 // CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<?x?xf32> to tensor<?x?xf32>
 // CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[?,?],f32>
-func @elementwise$binary(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+func.func @elementwise$binary(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
   %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
 
-// CHECK-LABEL:   func @elementwise$ternary(
+// CHECK-LABEL:   func.func @elementwise$ternary(
 // CHECK:       linalg.generic {indexing_maps = [
 // CHECK-SAME:    affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
 // CHECK-SAME:    affine_map<(d0, d1, d2) -> (d1, d2)>,
 // CHECK-SAME:    affine_map<(d0, d1, d2) -> (d2)>,
 // CHECK-SAME:    affine_map<(d0, d1, d2) -> (d0, d1, d2)>]
-func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>, %arg2: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+func.func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>, %arg2: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?,?],f32> {
   %0 = torch.aten.lerp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
 }
 
-// CHECK-LABEL:   func @elementwise$with_scalar_capture(
+// CHECK-LABEL:   func.func @elementwise$with_scalar_capture(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                                          %[[VAL_1:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],f32> {
 // CHECK:           %[[C1:.*]] = torch.constant.int 1
@@ -69,18 +69,18 @@ func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vten
 // CHECK:             %[[RES:.*]] = arith.addf %[[LHS]], %[[SCALED]] : f32
 // CHECK:             linalg.yield %[[RES]] : f32
 // CHECK:           } -> tensor<?xf32>
-func @elementwise$with_scalar_capture(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],f32> {
+func.func @elementwise$with_scalar_capture(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],f32> {
   %int1 = torch.constant.int 1
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[?],f32>, !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[?],f32>
   return %0 : !torch.vtensor<[?],f32>
 }
 
-// CHECK-LABEL:   func @elementwise$static_1(
+// CHECK-LABEL:   func.func @elementwise$static_1(
 // CHECK:           linalg.generic {indexing_maps = [
 // CHECK-SAME:        affine_map<(d0) -> (d0)>,
 // CHECK-SAME:        affine_map<(d0) -> (0)>,
 // CHECK-SAME:        affine_map<(d0) -> (d0)>]
-func @elementwise$static_1(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?],f32> {
+func.func @elementwise$static_1(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?],f32> {
   %1 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
   return %1 : !torch.vtensor<[?],f32>
 }

@@ -1,7 +1,7 @@
 // RUN: torch-mlir-dialects-opt -split-input-file -tm-tensor-bufferize %s | FileCheck %s
 
 // -----
-// CHECK-LABEL:   func @scan_1d_inclusive(
+// CHECK-LABEL:   func.func @scan_1d_inclusive(
 // CHECK-SAME:            %[[IN_TENSOR:.*]]: tensor<128xi32>, %[[OUT_TENSOR:.*]]: tensor<128xi32>,
 // CHECK-SAME:            %[[ACC_TENSOR:.*]]: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
 // CHECK:           %[[IN_MEMREF:.*]] = bufferization.to_memref %[[IN_TENSOR]] : memref<128xi32>
@@ -16,7 +16,7 @@
 // CHECK:           %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] : memref<128xi32>
 // CHECK:           %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] : memref<i32>
 // CHECK:           return %[[OUT_TENSOR_NEW]], %[[ACC_TENSOR_NEW]] : tensor<128xi32>, tensor<i32>
-func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
+func.func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
   %ret_out, %ret_acc = tm_tensor.scan dimension(0) inclusive(true)
     ins(%in : tensor<128xi32>) outs(%out, %acc: tensor<128xi32>, tensor<i32>) {
     ^bb0(%arg0 : i32, %arg1 : i32):
@@ -27,7 +27,7 @@ func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tenso
 }
 
 // -----
-// CHECK-LABEL:   func @scan_1d_exclusive(
+// CHECK-LABEL:   func.func @scan_1d_exclusive(
 // CHECK-SAME:            %[[IN_TENSOR:.*]]: tensor<128xi32>, %[[OUT_TENSOR:.*]]: tensor<128xi32>,
 // CHECK-SAME:            %[[ACC_TENSOR:.*]]: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
 // CHECK:           %[[IN_MEMREF:.*]] = bufferization.to_memref %[[IN_TENSOR]] : memref<128xi32>
@@ -44,7 +44,7 @@ func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tenso
 // CHECK:           %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] : memref<128xi32>
 // CHECK:           %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] : memref<i32>
 // CHECK:           return %[[OUT_TENSOR_NEW]], %[[ACC_TENSOR_NEW]] : tensor<128xi32>, tensor<i32>
-func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
+func.func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tensor<i32>) -> (tensor<128xi32>, tensor<i32>) {
   %ret_out, %ret_acc = tm_tensor.scan dimension(0) inclusive(false)
     ins(%in : tensor<128xi32>) outs(%out, %acc: tensor<128xi32>, tensor<i32>) {
     ^bb0(%arg0 : i32, %arg1 : i32):
@@ -55,7 +55,7 @@ func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tenso
 }
 
 // -----
-// CHECK-LABEL:   func @scatter_update_scalar_1D(
+// CHECK-LABEL:   func.func @scatter_update_scalar_1D(
 // CHECK-SAME:            %[[ORIG_TENSOR:.*]]: tensor<8xi32>,
 // CHECK-SAME:            %[[INDICES_TENSOR:.*]]: tensor<3x1xi32>,
 // CHECK-SAME:            %[[UPDATES_TENSOR:.*]]: tensor<3xi32>) -> tensor<8xi32> {
@@ -71,7 +71,7 @@ func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: tenso
 // CHECK:           }
 // CHECK:           %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] : memref<8xi32>
 // CHECK:           return %[[OUT_TENSOR]] : tensor<8xi32>
-func @scatter_update_scalar_1D(
+func.func @scatter_update_scalar_1D(
     %original: tensor<8xi32>, %indices: tensor<3x1xi32>,
     %updates: tensor<3xi32>) -> tensor<8xi32> {
   %0 = tm_tensor.scatter unique_indices(true)
@@ -83,7 +83,7 @@ func @scatter_update_scalar_1D(
   return %0 : tensor<8xi32>
 }
 
-// CHECK-LABEL:   func @scatter_add_scalar_1D(
+// CHECK-LABEL:   func.func @scatter_add_scalar_1D(
 // CHECK-SAME:            %[[ORIG_TENSOR:.*]]: tensor<8xi32>,
 // CHECK-SAME:            %[[INDICES_TENSOR:.*]]: tensor<3x1xi32>,
 // CHECK-SAME:            %[[UPDATES_TENSOR:.*]]: tensor<3xi32>) -> tensor<8xi32> {
@@ -101,7 +101,7 @@ func @scatter_update_scalar_1D(
 // CHECK:           }
 // CHECK:           %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] : memref<8xi32>
 // CHECK:           return %[[OUT_TENSOR]] : tensor<8xi32>
-func @scatter_add_scalar_1D(
+func.func @scatter_add_scalar_1D(
     %original: tensor<8xi32>, %indices: tensor<3x1xi32>,
     %updates: tensor<3xi32>) -> tensor<8xi32> {
   %0 = tm_tensor.scatter unique_indices(true)

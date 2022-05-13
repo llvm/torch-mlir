@@ -1,11 +1,11 @@
 // RUN: torch-mlir-opt -torch-drop-shape-calculations -split-input-file %s | FileCheck %s
 
-// CHECK-LABEL:   func @basic(
+// CHECK-LABEL:   func.func @basic(
 // CHECK-SAME:                 %[[ARG:.*]]: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
 // CHECK:           %[[TANH:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor<[2,?],unk> -> !torch.vtensor<[2,?],unk>
 // CHECK:           %[[ERASED:.*]] = torch.tensor_static_info_cast %[[TANH]] : !torch.vtensor<[2,?],unk> to !torch.vtensor
 // CHECK:           return %[[ERASED]] : !torch.vtensor
-func @basic(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
+func.func @basic(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
   %int2 = torch.constant.int 2
   %int1 = torch.constant.int 1
   %0 = torch.shape.calculate  {

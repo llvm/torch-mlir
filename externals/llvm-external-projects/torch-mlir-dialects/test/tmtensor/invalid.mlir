@@ -1,6 +1,6 @@
 // RUN: torch-mlir-dialects-opt -split-input-file -verify-diagnostics %s
 
-func @scatter_mixed_tensor_memref(
+func.func @scatter_mixed_tensor_memref(
     %update : memref<?x?xf32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{expected inputs and outputs to be RankedTensorType or scalar}}
@@ -16,7 +16,7 @@ func @scatter_mixed_tensor_memref(
 
 // -----
 
-func @scatter_mixed_tensor_memref(
+func.func @scatter_mixed_tensor_memref(
     %update : tensor<?x?xf32>, %indices : memref<?x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{expected inputs and outputs to be RankedTensorType or scalar}}
@@ -32,7 +32,7 @@ func @scatter_mixed_tensor_memref(
 
 // -----
 
-func @scatter_extra_outputs(
+func.func @scatter_extra_outputs(
     %update : tensor<?x?xf32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xf32>) -> (tensor<?x?xf32>, tensor<?x?xf32>) {
   // expected-error @+1 {{expected number of outputs to be same as the number of results}}
@@ -48,7 +48,7 @@ func @scatter_extra_outputs(
 
 // -----
 
-func @scatter_mixed_tensor_memref(
+func.func @scatter_mixed_tensor_memref(
     %update : tensor<?x?xf32>, %indices : tensor<?x1xi32>,
     %original : memref<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{expected inputs and outputs to be RankedTensorType or scalar}}
@@ -64,7 +64,7 @@ func @scatter_mixed_tensor_memref(
 
 // -----
 
-func @scatter_output_type_mismatch(
+func.func @scatter_output_type_mismatch(
     %update : tensor<?x?xf32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<4x?xf32> {
   // expected-error @+1 {{expected type of `outs` operand #0 'tensor<?x?xf32>' to be same as result type 'tensor<4x?xf32>'}}
@@ -80,7 +80,7 @@ func @scatter_output_type_mismatch(
 
 // -----
 
-func @scatter_mixed_tensor_memref(
+func.func @scatter_mixed_tensor_memref(
     %update : memref<?x?xf32>, %indices : tensor<?x1xi32>,
     %original : memref<?x?xf32>) {
   // expected-error @+1 {{expected inputs and outputs to be MemRefType or scalar}}
@@ -96,7 +96,7 @@ func @scatter_mixed_tensor_memref(
 
 // -----
 
-func @scatter_mixed_tensor_memref(
+func.func @scatter_mixed_tensor_memref(
     %update : memref<?x?xf32>, %indices : memref<?x1xi32>,
     %original : tensor<?x?xf32>) {
   // expected-error @+1 {{expected inputs and outputs to be MemRefType or scalar}}
@@ -112,7 +112,7 @@ func @scatter_mixed_tensor_memref(
 
 // -----
 
-func @scatter_dim_mismatch(
+func.func @scatter_dim_mismatch(
     %update : tensor<?x?xf32>, %indices : tensor<48x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{mismatch in shape of indices and update value at dim#0}}
@@ -128,7 +128,7 @@ func @scatter_dim_mismatch(
 
 // -----
 
-func @scatter_dim_mismatch(
+func.func @scatter_dim_mismatch(
     %update : tensor<64x?xf32>, %indices : tensor<48x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{mismatch in shape of indices and update value at dim#0}}
@@ -144,7 +144,7 @@ func @scatter_dim_mismatch(
 
 // -----
 
-func @scatter_dim_mismatch(
+func.func @scatter_dim_mismatch(
     %update : tensor<?x?x?x?xf32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{op update value rank exceeds the rank of the original value}}
@@ -160,7 +160,7 @@ func @scatter_dim_mismatch(
 
 // -----
 
-func @scatter_dim_mismatch(
+func.func @scatter_dim_mismatch(
     %update : tensor<?x4xf32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xf32>) -> tensor<?x?xf32> {
   // expected-error @+1 {{mismatch in shape of update value dim#1 and original value at dim#1}}
@@ -176,7 +176,7 @@ func @scatter_dim_mismatch(
 
 // -----
 
-func @scatter_region_type_mismatch(
+func.func @scatter_region_type_mismatch(
     %update : tensor<?x?xi32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi32>) -> tensor<?x?xi32> {
   // expected-error @+1 {{expected region to have scalar argument of integer or float types}}
@@ -193,7 +193,7 @@ func @scatter_region_type_mismatch(
 
 // -----
 
-func @scatter_region_type_mismatch(
+func.func @scatter_region_type_mismatch(
     %update : tensor<?x?xi32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi32>) -> tensor<?x?xi32> {
   // expected-error @+1 {{mismatch in argument 0 of region 'i64' and element type of update value 'i32'}}
@@ -210,7 +210,7 @@ func @scatter_region_type_mismatch(
 
 // -----
 
-func @scatter_region_type_mismatch(
+func.func @scatter_region_type_mismatch(
     %update : tensor<?x?xi32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi32>) -> tensor<?x?xi32> {
   // expected-error @+1 {{mismatch in argument 1 of region 'i64' and element type of original value 'i32'}}
@@ -227,7 +227,7 @@ func @scatter_region_type_mismatch(
 
 // -----
 
-func @scatter_region_type_mismatch(
+func.func @scatter_region_type_mismatch(
     %update : tensor<?x?xi32>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   // expected-error @+1 {{mismatch in region argument types 'i32' and 'i64'}}
@@ -244,7 +244,7 @@ func @scatter_region_type_mismatch(
 
 // -----
 
-func @scatter_region_type_mismatch(
+func.func @scatter_region_type_mismatch(
     %update : tensor<?x?xi64>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   // expected-error @+1 {{expected region to have two arguments}}
@@ -261,7 +261,7 @@ func @scatter_region_type_mismatch(
 
 // -----
 
-func @scatter_yield_mismatch(
+func.func @scatter_yield_mismatch(
     %update : tensor<?x?xi64>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   %0 = tm_tensor.scatter unique_indices(true)
@@ -278,7 +278,7 @@ func @scatter_yield_mismatch(
 
 // -----
 
-func @scatter_yield_mismatch(
+func.func @scatter_yield_mismatch(
     %update : tensor<?x?xi64>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   %0 = tm_tensor.scatter unique_indices(true)
@@ -295,7 +295,7 @@ func @scatter_yield_mismatch(
 
 // -----
 
-func @scatter_index_depth_dynamic(
+func.func @scatter_index_depth_dynamic(
     %update : tensor<?x?xi64>, %indices : tensor<?x?xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   // expected-error @+1 {{expected index depth is static}}
@@ -312,7 +312,7 @@ func @scatter_index_depth_dynamic(
 
 // -----
 
-func @scatter_original_rank_mismatch(
+func.func @scatter_original_rank_mismatch(
     %update : tensor<?xi64>, %indices : tensor<?x1xi32>,
     %original : tensor<?x?xi64>) -> tensor<?x?xi64> {
   // expected-error @+1 {{op index depth and update value does not cover rank of original value}}

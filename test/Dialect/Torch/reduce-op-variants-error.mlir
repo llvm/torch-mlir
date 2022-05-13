@@ -2,7 +2,7 @@
 
 // -----
 
-func @convert_to_value_semantic_tensors_list( %list: !torch.list<tensor>) -> !torch.tensor {
+func.func @convert_to_value_semantic_tensors_list( %list: !torch.list<tensor>) -> !torch.tensor {
   %int1 = torch.constant.int 1
   // expected-error@+1 {{failed to legalize operation 'torch.aten.cat' that was explicitly marked illegal}}
   %ret = torch.aten.cat %list, %int1 : !torch.list<tensor>, !torch.int -> !torch.tensor
@@ -11,7 +11,7 @@ func @convert_to_value_semantic_tensors_list( %list: !torch.list<tensor>) -> !to
 
 // -----
 
-func @convert_to_value_semantic_tensors_optional(%tensor_optional: !torch.optional<tensor>,
+func.func @convert_to_value_semantic_tensors_optional(%tensor_optional: !torch.optional<tensor>,
                                                  %t: !torch.tensor,
                                                  %training: !torch.bool,
                                                  %cudnn_enable: !torch.bool,

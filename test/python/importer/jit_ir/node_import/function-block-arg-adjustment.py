@@ -10,7 +10,7 @@ from utils import create_script_function
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL:   func @__torch__.refined_block_arg(
+# CHECK-LABEL:   func.func @__torch__.refined_block_arg(
 # CHECK-SAME:                                      %[[ARG:.*]]: !torch.tensor) -> !torch.tensor {
 # CHECK:           %[[REFINED:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.tensor to !torch.tensor<[1,384],f32>
 # CHECK:           %[[RESULT:.*]] = torch.tensor_static_info_cast %[[REFINED]] : !torch.tensor<[1,384],f32> to !torch.tensor

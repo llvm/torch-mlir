@@ -17,7 +17,7 @@ class TestModule(torch.nn.Module):
         self.t1 = torch.ones(1)
         self.t2 = torch.ones(1)
 
-    # CHECK-LABEL:   func private @__torch__.TestModule.forward(
+    # CHECK-LABEL:   func.func private @__torch__.TestModule.forward(
     # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">) -> !torch.none {
     def forward(self):
         # CHECK: %[[T2:.*]] = torch.prim.GetAttr %[[SELF]]["t2"]
@@ -25,7 +25,7 @@ class TestModule(torch.nn.Module):
         self.t1 = self.t2
         # CHECK: torch.prim.CallMethod %[[SELF]]["callee"] (%{{.*}}, %{{.*}})
         self.callee(self.t1, self.t2)
-    # CHECK-LABEL:   func private @__torch__.TestModule.callee(
+    # CHECK-LABEL:   func.func private @__torch__.TestModule.callee(
     # CHECK-SAME:         %[[SELF:.*]]: !torch.nn.Module<"{{.*}}">,
     # CHECK-SAME:         %[[X:.*]]: !torch.tensor,
     # CHECK-SAME:         %[[Y:.*]]: !torch.tensor

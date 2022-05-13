@@ -11,7 +11,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL:   func @__torch__.f(
+# CHECK-LABEL:   func.func @__torch__.f(
 # CHECK-SAME:                      %{{.*}}: !torch.union<float, int>) -> !torch.none {
 
 @mb.import_function
