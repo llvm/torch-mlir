@@ -32,6 +32,7 @@ We have few paths to lower down to the Torch MLIR Dialect.
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
 - Github issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
+- Monday Morning 9AM-10AM PT [Community / Developer Meeting](https://meet.google.com/gkh-gyvy-yci) 
 
 ## Install torch-mlir snapshot
 
