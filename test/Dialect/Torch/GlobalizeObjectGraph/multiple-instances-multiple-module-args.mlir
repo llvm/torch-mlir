@@ -34,10 +34,10 @@ torch.class_type @__torch__.Submodule  {
 } : !torch.nn.Module<"__torch__.TestModule">
 
 
-// CHECK-LABEL:   func @forward() {
+// CHECK-LABEL:   func.func @forward() {
 // CHECK:           call @__torch__.free_function$[[$MONOMORPHIZE_TAG0:.*]]() : () -> ()
 // CHECK:           call @__torch__.free_function$[[$MONOMORPHIZE_TAG1:.*]]() : () -> ()
-func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.TestModule">) {
+func.func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.TestModule">) {
   %4 = torch.prim.GetAttr %arg0["s1"] : !torch.nn.Module<"__torch__.TestModule"> -> !torch.nn.Module<"__torch__.Submodule">
   %5 = torch.prim.GetAttr %arg0["s2"] : !torch.nn.Module<"__torch__.TestModule"> -> !torch.nn.Module<"__torch__.Submodule">
   call @__torch__.free_function(%4, %5) : (!torch.nn.Module<"__torch__.Submodule">, !torch.nn.Module<"__torch__.Submodule">) -> ()
@@ -48,27 +48,27 @@ func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.Te
 }
 
 // s1 called first, then s2
-// CHECK-LABEL:   func private
+// CHECK-LABEL:   func.func private
 // CHECK-SAME         @__torch__.free_function$[[$MONOMORPHIZE_TAG0]]() {
 // CHECK:           call @s1.forward() : () -> ()
 // CHECK:           call @s2.forward() : () -> ()
 
 // s2 called first, then s1
-// CHECK-LABEL:   func private
+// CHECK-LABEL:   func.func private
 // CHECK-SAME:        @__torch__.free_function$[[$MONOMORPHIZE_TAG1]]() {
 // CHECK:           call @s2.forward() : () -> ()
 // CHECK:           call @s1.forward() : () -> ()
-func private @__torch__.free_function(%arg0: !torch.nn.Module<"__torch__.Submodule">, %arg1: !torch.nn.Module<"__torch__.Submodule">) {
+func.func private @__torch__.free_function(%arg0: !torch.nn.Module<"__torch__.Submodule">, %arg1: !torch.nn.Module<"__torch__.Submodule">) {
   call @__torch__.Submodule.forward(%arg0) : (!torch.nn.Module<"__torch__.Submodule">) -> ()
   call @__torch__.Submodule.forward(%arg1) : (!torch.nn.Module<"__torch__.Submodule">) -> ()
   return
 }
 
-// CHECK-LABEL:   func private @s2.forward() {
+// CHECK-LABEL:   func.func private @s2.forward() {
 // CHECK:           return
 
-// CHECK-LABEL:   func private @s1.forward() {
+// CHECK-LABEL:   func.func private @s1.forward() {
 // CHECK:           return
-func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
+func.func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
   return
 }

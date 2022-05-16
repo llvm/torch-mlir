@@ -18,7 +18,7 @@ class BasicClass:
     def __init__(self, x: int):
         self.x = x
 
-# CHECK-LABEL:   func @__torch__.prim_CreateObject(
+# CHECK-LABEL:   func.func @__torch__.prim_CreateObject(
 # CHECK-SAME:                                      %[[ARG0:.*]]: !torch.int) -> !torch.nn.Module<"__torch__.BasicClass"> {
 # CHECK:           %[[OBJECT:.*]] = torch.prim.CreateObject !torch.nn.Module<"__torch__.BasicClass">
 # CHECK:           %[[NONE:.*]] = torch.prim.CallMethod %[[OBJECT]]["__init__"] (%[[ARG0]]) : !torch.nn.Module<"__torch__.BasicClass">, (!torch.int) -> !torch.none

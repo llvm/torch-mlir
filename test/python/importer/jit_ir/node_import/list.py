@@ -9,7 +9,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL:   func @__torch__.f(
+# CHECK-LABEL:   func.func @__torch__.f(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) -> !torch.list<tensor> {
 # CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %[[T0]], %[[T1]] : (!torch.tensor, !torch.tensor) -> !torch.list<tensor>

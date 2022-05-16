@@ -32,31 +32,31 @@ torch.class_type @__torch__.Submodule  {
 } : !torch.nn.Module<"__torch__.TestModule">
 
 
-// CHECK-LABEL:   func @forward() {
+// CHECK-LABEL:   func.func @forward() {
 // CHECK:           call @s1.forward() : () -> ()
 // CHECK:           call @s2.forward() : () -> ()
 // CHECK:           return
-func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.TestModule">) {
+func.func private @__torch__.TestModule.forward(%arg0: !torch.nn.Module<"__torch__.TestModule">) {
   %4 = torch.prim.GetAttr %arg0["s1"] : !torch.nn.Module<"__torch__.TestModule"> -> !torch.nn.Module<"__torch__.Submodule">
   %5 = torch.prim.GetAttr %arg0["s2"] : !torch.nn.Module<"__torch__.TestModule"> -> !torch.nn.Module<"__torch__.Submodule">
   call @__torch__.Submodule.forward(%4) : (!torch.nn.Module<"__torch__.Submodule">) -> ()
   call @__torch__.Submodule.forward(%5) : (!torch.nn.Module<"__torch__.Submodule">) -> ()
   return
 }
-// CHECK-LABEL:   func private @s1.forward() {
+// CHECK-LABEL:   func.func private @s1.forward() {
 // CHECK:           %[[C3:.*]] = torch.constant.int 3
 // CHECK:           %[[N:.*]] = torch.global_slot.get @s1.n : !torch.int
 // CHECK:           %[[NEWVAL:.*]] = torch.aten.add.int %[[N]], %[[C3]] : !torch.int, !torch.int -> !torch.int
 // CHECK:           torch.global_slot.set @s1.n = %[[NEWVAL]] : !torch.int
 // CHECK:           return
 
-// CHECK-LABEL:   func private @s2.forward() {
+// CHECK-LABEL:   func.func private @s2.forward() {
 // CHECK:           %[[C3:.*]] = torch.constant.int 3
 // CHECK:           %[[N:.*]] = torch.global_slot.get @s2.n : !torch.int
 // CHECK:           %[[NEWVAL:.*]] = torch.aten.add.int %[[N]], %[[C3]] : !torch.int, !torch.int -> !torch.int
 // CHECK:           torch.global_slot.set @s2.n = %[[NEWVAL]] : !torch.int
 // CHECK:           return
-func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
+func.func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
   %int3 = torch.constant.int 3
   %5 = torch.prim.GetAttr %arg0["n"] : !torch.nn.Module<"__torch__.Submodule"> -> !torch.int
   %6 = torch.aten.add.int %5, %int3 : !torch.int, !torch.int -> !torch.int

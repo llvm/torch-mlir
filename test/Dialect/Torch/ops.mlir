@@ -1,52 +1,52 @@
 // RUN: torch-mlir-opt %s | torch-mlir-opt | FileCheck %s
 
-// CHECK-LABEL: func @torch.operator(
-func @torch.operator(%arg0: !torch.tensor, %arg1: !torch.tensor) -> !torch.tensor {
+// CHECK-LABEL: func.func @torch.operator(
+func.func @torch.operator(%arg0: !torch.tensor, %arg1: !torch.tensor) -> !torch.tensor {
   // CHECK: torch.operator "ns.unqual.overload"(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tensor
   %0 = torch.operator "ns.unqual.overload"(%arg0, %arg1) : (!torch.tensor, !torch.tensor) -> !torch.tensor
   return %0 : !torch.tensor
 }
 
-func @torch.linear_params.create(%arg0: !torch.tensor, %arg1: !torch.tensor) -> (!torch.LinearParams, !torch.LinearParams) {
+func.func @torch.linear_params.create(%arg0: !torch.tensor, %arg1: !torch.tensor) -> (!torch.LinearParams, !torch.LinearParams) {
   %with_bias = torch.linear_params.create %arg0, %arg1 : !torch.tensor, !torch.tensor
   %without_bias = torch.linear_params.create %arg0 : !torch.tensor
   return %with_bias, %without_bias : !torch.LinearParams, !torch.LinearParams
 }
 
 // CHECK: @tensor.default() -> !torch.tensor
-func private @tensor.default() -> !torch.tensor
+func.func private @tensor.default() -> !torch.tensor
 // CHECK: @tensor.default_explicit() -> !torch.tensor{{$}}
-func private @tensor.default_explicit() -> !torch.tensor<*,unk>
+func.func private @tensor.default_explicit() -> !torch.tensor<*,unk>
 // CHECK: @tensor.value_semantic() -> !torch.vtensor{{$}}
-func private @tensor.value_semantic() -> !torch.vtensor<*,unk>
+func.func private @tensor.value_semantic() -> !torch.vtensor<*,unk>
 // CHECK: @tensor.dtype() -> !torch.tensor<*,si32>
-func private @tensor.dtype() -> !torch.tensor<*,si32>
+func.func private @tensor.dtype() -> !torch.tensor<*,si32>
 // CHECK: @tensor.ranked() -> !torch.tensor<[?,?,?],unk>
-func private @tensor.ranked() -> !torch.tensor<[?,?,?],unk>
+func.func private @tensor.ranked() -> !torch.tensor<[?,?,?],unk>
 // CHECK: @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
-func private @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
+func.func private @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
 // CHECK: @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
-func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
+func.func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 
 // CHECK: @tuple.empty() -> !torch.tuple<>
-func private @tuple.empty() -> !torch.tuple<>
+func.func private @tuple.empty() -> !torch.tuple<>
 // CHECK: @tuple.one_element() -> !torch.tuple<tensor>
-func private @tuple.one_element() -> !torch.tuple<tensor>
+func.func private @tuple.one_element() -> !torch.tuple<tensor>
 // CHECK: @tuple.two_elements() -> !torch.tuple<tensor, tensor>
-func private @tuple.two_elements() -> !torch.tuple<tensor, tensor>
+func.func private @tuple.two_elements() -> !torch.tuple<tensor, tensor>
 
 // CHECK: @union.empty() -> !torch.union<>
-func private @union.empty() -> !torch.union<>
+func.func private @union.empty() -> !torch.union<>
 // CHECK: @union.one_element() -> !torch.union<tensor>
-func private @union.one_element() -> !torch.union<tensor>
+func.func private @union.one_element() -> !torch.union<tensor>
 // CHECK: @union.two_elements() -> !torch.union<tensor, tensor>
-func private @union.two_elements() -> !torch.union<tensor, tensor>
+func.func private @union.two_elements() -> !torch.union<tensor, tensor>
 
 // CHECK: @dict() -> !torch.dict<str, tensor>
-func private @dict() -> !torch.dict<str, tensor>
+func.func private @dict() -> !torch.dict<str, tensor>
 
-// CHECK-LABEL:   func @torch.tensor.literal() {
-func @torch.tensor.literal() {
+// CHECK-LABEL:   func.func @torch.tensor.literal() {
+func.func @torch.tensor.literal() {
   // CHECK: torch.tensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.tensor
   %0 = torch.tensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.tensor
   // CHECK: torch.tensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.tensor<[3,2],f32>
@@ -54,19 +54,19 @@ func @torch.tensor.literal() {
   return
 }
 
-// CHECK-LABEL:   func @torch.vtensor.literal() {
-func @torch.vtensor.literal() {
+// CHECK-LABEL:   func.func @torch.vtensor.literal() {
+func.func @torch.vtensor.literal() {
   // CHECK: torch.vtensor.literal(dense<4.200000e+01> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
   %0 = torch.vtensor.literal(dense<42.0> : tensor<3x2xf32>) : !torch.vtensor<[3,2],f32>
   return
 }
 
-func @derefine(%arg0: !torch.tensor) -> !torch.optional<tensor> {
+func.func @derefine(%arg0: !torch.tensor) -> !torch.optional<tensor> {
   %0 = torch.derefine %arg0 : !torch.tensor to !torch.optional<tensor>
   return %0 : !torch.optional<tensor>
 }
 
-func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
+func.func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
   %0 = torch.prim.If %arg0 -> (!torch.int) {
     %1 = torch.aten.add.int %arg1, %arg1 : !torch.int, !torch.int -> !torch.int
     torch.prim.If.yield %1 : !torch.int
@@ -103,7 +103,7 @@ func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
 %none = torch.constant.none
 // CHECK: %str = torch.constant.str "some str"
 %str = torch.constant.str "some str"
-func private @f(%arg0: !torch.nn.Module<"test">) {
+func.func private @f(%arg0: !torch.nn.Module<"test">) {
   return
 }
 
@@ -131,7 +131,7 @@ torch.nn_module {
 } : !torch.nn.Module<"test">
 
 
-func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
+func.func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.shape.calculate {
     %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
     torch.shape.calculate.yield %0 : !torch.vtensor
@@ -142,7 +142,7 @@ func @shape_calculations(%arg0: !torch.vtensor) -> !torch.vtensor {
   return %0 : !torch.vtensor
 }
 
-func @number_type_subtypes(%arg0: !torch.tensor, %arg1: !torch.list<int>, %arg2: !torch.union<float, int>) {
+func.func @number_type_subtypes(%arg0: !torch.tensor, %arg1: !torch.list<int>, %arg2: !torch.union<float, int>) {
   %0 = torch.aten.constant_pad_nd %arg0, %arg1, %arg2 : !torch.tensor, !torch.list<int>, !torch.union<float, int> -> !torch.tensor
   return
 }

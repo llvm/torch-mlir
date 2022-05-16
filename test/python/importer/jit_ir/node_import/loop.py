@@ -11,7 +11,7 @@ import typing
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL:   func @__torch__.prim_Loop_forlike(
+# CHECK-LABEL:   func.func @__torch__.prim_Loop_forlike(
 # CHECK-SAME:                            %[[MAX_ITERATIONS:.*]]: !torch.int) -> !torch.float {
 # CHECK:           %[[BOOL_TRUE:.*]] = torch.constant.bool true
 # CHECK:           %[[F_INIT:.*]] = torch.constant.float 0.000000e+00
@@ -29,7 +29,7 @@ def prim_Loop_forlike(n: int):
         f += i
     return f
 
-# CHECK-LABEL:   func @__torch__.prim_Loop_whilelike(
+# CHECK-LABEL:   func.func @__torch__.prim_Loop_whilelike(
 # CHECK-SAME:                              %[[VAL_0:.*]]: !torch.int) -> !torch.float {
 # CHECK:           %[[F_INIT:.*]] = torch.constant.float 3.200000e+00
 # CHECK:           %[[MAX_ITERATIONS:.*]] = torch.constant.int 9223372036854775807
@@ -49,7 +49,7 @@ def prim_Loop_whilelike(n: int):
         f = f * f
     return f
 
-# CHECK-LABEL:   func @__torch__.prim_Loop_derefine(
+# CHECK-LABEL:   func.func @__torch__.prim_Loop_derefine(
 # CHECK-SAME:                             %[[ARG:.*]]: !torch.int) -> !torch.optional<int> {
 # CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 # CHECK:           %[[NONE:.*]] = torch.constant.none

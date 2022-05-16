@@ -9,7 +9,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL: func @__torch__.add3
+# CHECK-LABEL: func.func @__torch__.add3
 # Note that line-level debug information for parts unannotated in the Torch
 # graph are ascribed to the first op that carries source information. Presently
 # this includes naked constants, return and the function itself. This heuristic

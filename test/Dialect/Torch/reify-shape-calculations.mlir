@@ -1,20 +1,20 @@
 // RUN: torch-mlir-opt -torch-reify-shape-calculations -split-input-file %s | FileCheck %s
 
 // CHECK: module {
-// CHECK: func private @__torch_mlir_shape_fn.aten.tanh(
+// CHECK: func.func private @__torch_mlir_shape_fn.aten.tanh(
 
-// CHECK-LABEL:   func @basic(
+// CHECK-LABEL:   func.func @basic(
 // CHECK-SAME:                %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate  {
 // CHECK:             %[[TANH:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor -> !torch.vtensor
 // CHECK:             torch.shape.calculate.yield %[[TANH]] : !torch.vtensor
 // CHECK:           } shapes  {
 // CHECK:             %[[SHAPE:.*]] = torch.aten.size %[[ARG]] : !torch.vtensor -> !torch.list<int>
-// CHECK:             %[[RESULT_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.tanh(%[[SHAPE]]) : (!torch.list<int>) -> !torch.list<int>
+// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.tanh(%[[SHAPE]]) : (!torch.list<int>) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
+func.func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.aten.tanh %arg0 : !torch.vtensor -> !torch.vtensor
   return %0 : !torch.vtensor
 }
@@ -22,9 +22,9 @@ func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
 // -----
 
 // CHECK: module {
-// CHECK:   func private @__torch_mlir_shape_fn.aten.fill.Scalar(
+// CHECK:   func.func private @__torch_mlir_shape_fn.aten.fill.Scalar(
 
-// CHECK-LABEL:   func @valsem_ops(
+// CHECK-LABEL:   func.func @valsem_ops(
 // CHECK-SAME:                     %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                     %[[ARG1:.*]]: !torch.int) -> !torch.vtensor {
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate {
@@ -32,11 +32,11 @@ func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
 // CHECK:             torch.shape.calculate.yield %[[VALUE]] : !torch.vtensor
 // CHECK:           } shapes {
 // CHECK:             %[[SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
-// CHECK:             %[[RESULT_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.fill.Scalar(%[[SHAPE]], %{{.*}}) : (!torch.list<int>, !torch.float) -> !torch.list<int>
+// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.fill.Scalar(%[[SHAPE]], %{{.*}}) : (!torch.list<int>, !torch.float) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
+func.func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
   %0 = torch.valsem.aten.fill.Scalar %arg0, %arg1 : !torch.vtensor, !torch.int -> !torch.vtensor
   return %0 : !torch.vtensor
 }
@@ -44,10 +44,10 @@ func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
 // -----
 
 // CHECK: module {
-// CHECK-LABEL:   func private @__torch_mlir_shape_fn.aten.uniform(
+// CHECK-LABEL:   func.func private @__torch_mlir_shape_fn.aten.uniform(
 // CHECK-SAME:                                                     {{.*}}!torch.any)
 
-// CHECK-LABEL:   func @adjust_shape_function_arg$torch.any(
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$torch.any(
 // CHECK-SAME:                     %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                     %[[ARG1:.*]]: !torch.float) -> !torch.vtensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
@@ -57,11 +57,11 @@ func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
 // CHECK:           } shapes {
 // CHECK:             %[[ARG0_SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[ANY:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.any
-// CHECK:             %[[SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.uniform(%[[ARG0_SHAPE]], %[[ARG1]], %[[ARG1]], %[[ANY]]) : (!torch.list<int>, !torch.float, !torch.float, !torch.any) -> !torch.list<int>
+// CHECK:             %[[SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.uniform(%[[ARG0_SHAPE]], %[[ARG1]], %[[ARG1]], %[[ANY]]) : (!torch.list<int>, !torch.float, !torch.float, !torch.any) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @adjust_shape_function_arg$torch.any(%arg0: !torch.vtensor, %arg1: !torch.float) -> !torch.vtensor {
+func.func @adjust_shape_function_arg$torch.any(%arg0: !torch.vtensor, %arg1: !torch.float) -> !torch.vtensor {
   %none = torch.constant.none
   %0 = torch.valsem.aten.uniform %arg0, %arg1, %arg1, %none : !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
   return %0 : !torch.vtensor
@@ -74,9 +74,9 @@ func @adjust_shape_function_arg$torch.any(%arg0: !torch.vtensor, %arg1: !torch.f
 // callees of the shape functions.
 
 // CHECK: module {
-// CHECK: func private @__torch_mlir_shape_fn.aten.add.Tensor(
+// CHECK: func.func private @__torch_mlir_shape_fn.aten.add.Tensor(
 
-// CHECK-LABEL:   func @adjust_shape_function_arg$scalar(
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$scalar(
 // CHECK-SAME:                      %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                      %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
@@ -87,11 +87,11 @@ func @adjust_shape_function_arg$torch.any(%arg0: !torch.vtensor, %arg1: !torch.f
 // CHECK:             %[[ARG0_SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[ARG1_SHAPE:.*]] = torch.aten.size %[[ARG1]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[SCALAR_CONVERTED:.*]] = torch.aten.Float.Scalar %[[INT1]] : !torch.int -> !torch.float
-// CHECK:             %[[RESULT_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.add.Tensor(%[[ARG0_SHAPE]], %[[ARG1_SHAPE]], %[[SCALAR_CONVERTED]]) : (!torch.list<int>, !torch.list<int>, !torch.float) -> !torch.list<int>
+// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.add.Tensor(%[[ARG0_SHAPE]], %[[ARG1_SHAPE]], %[[SCALAR_CONVERTED]]) : (!torch.list<int>, !torch.list<int>, !torch.float) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @adjust_shape_function_arg$scalar(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
+func.func @adjust_shape_function_arg$scalar(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   %int1 = torch.constant.int 1
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor, !torch.vtensor, !torch.int -> !torch.vtensor
   return %0 : !torch.vtensor
@@ -100,9 +100,9 @@ func @adjust_shape_function_arg$scalar(%arg0: !torch.vtensor, %arg1: !torch.vten
 // -----
 
 // CHECK: module {
-// CHECK: func private @__torch_mlir_shape_fn.aten.topk(
+// CHECK: func.func private @__torch_mlir_shape_fn.aten.topk(
 
-// CHECK-LABEL:   func @multiple_results(
+// CHECK-LABEL:   func.func @multiple_results(
 // CHECK-SAME:                           %[[ARG:.*]]: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           %[[INT3:.*]] = torch.constant.int 3
@@ -112,13 +112,13 @@ func @adjust_shape_function_arg$scalar(%arg0: !torch.vtensor, %arg1: !torch.vten
 // CHECK:             torch.shape.calculate.yield %[[TOP_VALUES]], %[[TOPK_INDICES]] : !torch.tensor, !torch.tensor
 // CHECK:           } shapes  {
 // CHECK:             %[[ARG_SHAPE:.*]] = torch.aten.size %[[ARG]] : !torch.tensor -> !torch.list<int>
-// CHECK:             %[[TOPK_SHAPE_TUPLE:.*]] = call @__torch_mlir_shape_fn.aten.topk(%[[ARG_SHAPE]], %[[INT3]], %[[INT1]], %[[TRUE]], %[[TRUE]]) : (!torch.list<int>, !torch.int, !torch.int, !torch.bool, !torch.bool) -> !torch.tuple<list<int>, list<int>>
+// CHECK:             %[[TOPK_SHAPE_TUPLE:.*]] = func.call @__torch_mlir_shape_fn.aten.topk(%[[ARG_SHAPE]], %[[INT3]], %[[INT1]], %[[TRUE]], %[[TRUE]]) : (!torch.list<int>, !torch.int, !torch.int, !torch.bool, !torch.bool) -> !torch.tuple<list<int>, list<int>>
 // CHECK:             %[[TOPK_SHAPE:.*]]:2 = torch.prim.TupleUnpack %[[TOPK_SHAPE_TUPLE]] : !torch.tuple<list<int>, list<int>> -> !torch.list<int>, !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[TOPK_SHAPE]]#0, %[[TOPK_SHAPE]]#1 : !torch.list<int>, !torch.list<int>
 // CHECK:           } : !torch.tensor, !torch.tensor
 // CHECK:           return %[[RESULTS:.*]]#0, %[[RESULTS]]#1 : !torch.tensor, !torch.tensor
 
-func @multiple_results(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
+func.func @multiple_results(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
   %true = torch.constant.bool true
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
@@ -128,7 +128,7 @@ func @multiple_results(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
 
 // -----
 
-// CHECK-LABEL:   func @adjust_shape_function_arg$optional(
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$optional(
 // CHECK-SAME:                  %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                  %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate  {
@@ -138,11 +138,11 @@ func @multiple_results(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
 // CHECK:             %[[SHAPE0:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[SHAPE1:.*]] = torch.aten.size %[[ARG1]] : !torch.vtensor -> !torch.list<int>
 // CHECK:             %[[DEREFINED:.*]] = torch.derefine %{{.*}} : !torch.none to !torch.optional<list<int>>
-// CHECK:             %[[SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.conv2d(%[[SHAPE0]], %[[SHAPE1]], %[[DEREFINED]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
+// CHECK:             %[[SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.conv2d(%[[SHAPE0]], %[[SHAPE1]], %[[DEREFINED]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @adjust_shape_function_arg$optional(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
+func.func @adjust_shape_function_arg$optional(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   %int3 = torch.constant.int 3
   %int4 = torch.constant.int 4
   %int2 = torch.constant.int 2
@@ -157,7 +157,7 @@ func @adjust_shape_function_arg$optional(%arg0: !torch.vtensor, %arg1: !torch.vt
 
 // -----
 
-// CHECK-LABEL:   func @adjust_shape_function_arg$optional_tensor(
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$optional_tensor(
 // CHECK-SAME:                          %[[ARG:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
@@ -184,11 +184,11 @@ func @adjust_shape_function_arg$optional(%arg0: !torch.vtensor, %arg1: !torch.vt
 // CHECK:             %[[DEREFINED_NONE1:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<list<int>>
 // CHECK:             %[[DEREFINED_NONE2:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<list<int>>
 // CHECK:             %[[DEREFINED_NONE3:.*]] = torch.derefine %[[NONE]] : !torch.none to !torch.optional<list<int>>
-// CHECK:             %[[BN_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.batch_norm(%[[ARG_SIZE]], %[[DEREFINED_OPTIONAL_SIZE:.*]], %[[DEREFINED_NONE1]], %[[DEREFINED_NONE2]], %[[DEREFINED_NONE3]], %[[FALSE]], %[[C1EM1]], %[[C1EM5]], %[[TRUE]]) : (!torch.list<int>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.bool, !torch.float, !torch.float, !torch.bool) -> !torch.list<int>
+// CHECK:             %[[BN_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.batch_norm(%[[ARG_SIZE]], %[[DEREFINED_OPTIONAL_SIZE:.*]], %[[DEREFINED_NONE1]], %[[DEREFINED_NONE2]], %[[DEREFINED_NONE3]], %[[FALSE]], %[[C1EM1]], %[[C1EM5]], %[[TRUE]]) : (!torch.list<int>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.bool, !torch.float, !torch.float, !torch.bool) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[BN_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func @adjust_shape_function_arg$optional_tensor(%arg0: !torch.vtensor) -> !torch.vtensor {
+func.func @adjust_shape_function_arg$optional_tensor(%arg0: !torch.vtensor) -> !torch.vtensor {
   %false = torch.constant.bool false
   %true = torch.constant.bool true
   %float1.000000e-05 = torch.constant.float 1.000000e-05
@@ -201,7 +201,7 @@ func @adjust_shape_function_arg$optional_tensor(%arg0: !torch.vtensor) -> !torch
 
 // -----
 
-// CHECK-LABEL:   func @adjust_shape_function_arg$list(
+// CHECK-LABEL:   func.func @adjust_shape_function_arg$list(
 // CHECK-SAME:                                       %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                       %[[ARG1:.*]]: !torch.vtensor) -> !torch.vtensor {
 // CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[ARG1]] : (!torch.vtensor) -> !torch.list<vtensor>
@@ -221,11 +221,11 @@ func @adjust_shape_function_arg$optional_tensor(%arg0: !torch.vtensor) -> !torch
 // CHECK:               %{{.*}} = torch.aten.append.t %[[ADJUSTED_LIST]], %[[ADJUSTED_ELEMENT]] : !torch.list<optional<list<int>>>, !torch.optional<list<int>> -> !torch.list<optional<list<int>>>
 // CHECK:               torch.prim.Loop.condition %[[CTRUE]], iter()
 // CHECK:             } : (!torch.int, !torch.bool) -> ()
-// CHECK:             %[[RESULT_SHAPE:.*]] = call @__torch_mlir_shape_fn.aten.index.Tensor(%[[ARG0_SHAPE]], %[[ADJUSTED_LIST]]) : (!torch.list<int>, !torch.list<optional<list<int>>>) -> !torch.list<int>
+// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.index.Tensor(%[[ARG0_SHAPE]], %[[ADJUSTED_LIST]]) : (!torch.list<int>, !torch.list<optional<list<int>>>) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[VAL_15:.*]] : !torch.vtensor
-func @adjust_shape_function_arg$list(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
+func.func @adjust_shape_function_arg$list(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor) -> !torch.list<vtensor>
   %1 = torch.aten.index.Tensor %arg0, %0 : !torch.vtensor, !torch.list<vtensor> -> !torch.vtensor
   return %1 : !torch.vtensor

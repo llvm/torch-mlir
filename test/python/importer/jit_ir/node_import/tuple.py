@@ -14,7 +14,7 @@ mb = ModuleBuilder()
 NT = NamedTuple('NT', [('f1', Optional[torch.Tensor]),
                        ('f2', Optional[torch.Tensor])])
 
-# CHECK-LABEL:   func @__torch__.tuple(
+# CHECK-LABEL:   func.func @__torch__.tuple(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<tensor, tensor> {
@@ -27,7 +27,7 @@ def tuple(t0, t1):
   return t0, t1
 
 
-# CHECK-LABEL:   func @__torch__.tuple_optional(
+# CHECK-LABEL:   func.func @__torch__.tuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<optional<tensor>, optional<tensor>> {
@@ -44,7 +44,7 @@ def tuple_optional(
   return t0, t1
 
 
-# CHECK-LABEL:   func @__torch__.namedtuple_optional(
+# CHECK-LABEL:   func.func @__torch__.namedtuple_optional(
 # CHECK-SAME:            %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:            %[[T1:.*]]: !torch.tensor) ->
 # CHECK-SAME:            !torch.tuple<optional<tensor>, optional<tensor>> {
@@ -59,7 +59,7 @@ def namedtuple_optional(
   return NT(t0, t1)
 
 
-# CHECK-LABEL:   func @__torch__.tuple_construct_arg_needs_refinement(
+# CHECK-LABEL:   func.func @__torch__.tuple_construct_arg_needs_refinement(
 # CHECK-SAME:                                                         %[[T0:.*]]: !torch.tensor,
 # CHECK-SAME:                                                         %[[T1:.*]]: !torch.tensor) -> !torch.tuple<tensor, tensor> {
 # CHECK:           %[[T0_REFINED:.*]] = torch.tensor_static_info_cast %[[T1]] : !torch.tensor to !torch.tensor<[4],f32>

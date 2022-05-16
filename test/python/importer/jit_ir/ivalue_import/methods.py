@@ -21,7 +21,7 @@ mb = ModuleBuilder()
 # Given how systematic this is, we don't treat the symbol names as opaque (i.e.
 # we don't need to capture their names when FileCheck testing).
 
-# CHECK-LABEL:     func private @__torch__.TestModule.forward
+# CHECK-LABEL:     func.func private @__torch__.TestModule.forward
 # CHECK-SAME:        (%[[SELF:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[X:.*]]: !torch.tensor) -> !torch.tensor {
 # CHECK:             return %[[X]] : !torch.tensor
 # CHECK:           }

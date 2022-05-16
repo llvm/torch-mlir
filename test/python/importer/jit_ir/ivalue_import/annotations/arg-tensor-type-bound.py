@@ -21,7 +21,7 @@ recursivescriptmodule = torch.jit.script(test_module)
 
 annotator = ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
-# CHECK: func private @__torch__.TestModule.forward(
+# CHECK: func.func private @__torch__.TestModule.forward(
 # CHECK-SAME: %arg0: !torch.nn.Module<"__torch__.TestModule">,
 # CHECK-SAME: %arg1: !torch.tensor {torch.type_bound = !torch.vtensor<[?,1024],si8>},
 # CHECK-SAME: %arg2: !torch.tensor {torch.type_bound = !torch.vtensor<[],f32>}

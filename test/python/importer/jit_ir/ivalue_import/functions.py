@@ -11,13 +11,13 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
-# CHECK-LABEL:     func private @__torch__.TestModule.forward
+# CHECK-LABEL:     func.func private @__torch__.TestModule.forward
 # CHECK-SAME:        (%[[ARG0:.*]]: !torch.nn.Module<"__torch__.TestModule">, %[[ARG1:.*]]: !torch.tensor) -> !torch.tensor {
 # CHECK:             %[[VAL_2:.*]] = constant @__torch__.identity : (!torch.tensor) -> !torch.tensor
 # CHECK:             %[[VAL_3:.*]] = call_indirect %[[VAL_2]](%[[ARG1]]) : (!torch.tensor) -> !torch.tensor
 # CHECK:             return %[[VAL_3]] : !torch.tensor
 # CHECK:           }
-# CHECK-LABEL:     func private @__torch__.identity
+# CHECK-LABEL:     func.func private @__torch__.identity
 # CHECK-SAME:        (%[[ARG:.*]]: !torch.tensor) -> !torch.tensor {
 # CHECK:             return %[[ARG]] : !torch.tensor
 # CHECK:           }
