@@ -533,6 +533,10 @@ public:
       return rewriter.create<arith::IndexCastOp>(loc, intType, v);
     };
 
+    SmallVector<Value> paddingIntValues;
+    if (!getListConstructElements(adaptor.padding(), paddingIntValues))
+      return rewriter.notifyMatchFailure(
+          op, "only support padding from a list construct");
     SmallVector<int64_t> strideInts;
     if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
@@ -564,12 +568,10 @@ public:
           op, "unimplemented: only non-transposed convolution supported");
 
     // Pad the input tensor according to padding.
-    SmallVector<Value> paddingIntValues;
-    getListConstructElements(adaptor.padding(), paddingIntValues);
     paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                               paddingIntValues);
     Value paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
-        op, rewriter, input, paddingIntValues, 2);
+        op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2);
 
     SmallVector<Value> dilationIntValues =
         getAsConstantIntValues(rewriter, loc, dilationInts);
