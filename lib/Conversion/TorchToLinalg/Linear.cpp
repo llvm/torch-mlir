@@ -646,8 +646,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
   patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
-  target.addIllegalOp<AtenFlipOp>();
-  patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenBmmOp>();
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenLinearOp>();
