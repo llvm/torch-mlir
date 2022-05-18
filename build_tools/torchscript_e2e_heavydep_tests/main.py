@@ -8,9 +8,8 @@ import argparse
 from torch_mlir_e2e_test.torchscript.serialization import serialize_all_tests_to
 
 from . import hf_sequence_classification
-from . import fully_connected_backward
-from . import bert_functorch
 from . import vision_models
+from . import train_models
 
 
 def _get_argparse():
