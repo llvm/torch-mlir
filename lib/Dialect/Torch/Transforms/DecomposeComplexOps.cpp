@@ -2061,6 +2061,55 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.linear` op into `aten.matmul` and `aten.add` ops.
+class DecomposeAtenLinearOp : public OpRewritePattern<AtenLinearOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinearOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.input();
+    Value weight = op.weight();
+    Value bias = op.bias();
+
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes() || inputType.getSizes().size() < 2)
+      return rewriter.notifyMatchFailure(
+          op, "expected input to be rank 2 or greater");
+
+    BaseTensorType weightType = weight.getType().cast<BaseTensorType>();
+    // `weight` must be a rank 2 matrix.
+    if (!weightType.hasSizes() || weightType.getSizes().size() != 2)
+      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 2");
+
+    SmallVector<int64_t> transposeShape =
+        llvm::to_vector(llvm::reverse(weightType.getSizes()));
+    Type transposeType = weightType.getWithSizesAndDtype(
+        llvm::makeArrayRef(transposeShape), weightType.getDtype());
+    Value transposeWeight =
+        rewriter.create<AtenTOp>(loc, transposeType, weight);
+
+    Value matmul = rewriter.create<AtenMatmulOp>(loc, op.getType(), input,
+                                                 transposeWeight);
+    if (bias.getType().isa<Torch::NoneType>()) {
+      rewriter.replaceOp(op, matmul);
+      return success();
+    }
+
+    BaseTensorType biasType = bias.getType().cast<BaseTensorType>();
+    if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+
+    Value alpha =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), matmul,
+                                                 op.bias(), alpha);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.full_like` op into `aten.empty_like` and `aten.fill` ops.
 class DecomposeAtenFullLikeOp : public OpRewritePattern<AtenFullLikeOp> {
 public:
@@ -2837,6 +2886,8 @@ public:
     target.addIllegalOp<AtenHardtanhOp>();
     patterns.add<DecomposeAtenFullOp>(context);
     target.addIllegalOp<AtenFullOp>();
+    patterns.add<DecomposeAtenLinearOp>(context);
+    target.addIllegalOp<AtenLinearOp>();
     patterns.add<DecomposeAtenFullLikeOp>(context);
     target.addIllegalOp<AtenFullLikeOp>();
     patterns.add<DecomposeAtenIndexPutOp>(context);
