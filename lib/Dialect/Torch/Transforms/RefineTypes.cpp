@@ -988,6 +988,14 @@ ChangeResult TypeAnalyzer::visitOperation(
   if (auto scalarImplicit = dyn_cast<AtenScalarImplicitOp>(op))
     return visitAtenScalarImplicitOp(scalarImplicit, operands);
 
+  if (auto vectorNorm = dyn_cast<AtenLinalgVectorNormOp>(op)) {
+    Type defaultDtype = operands[0]->getValue().dtype;
+    Type dtype = getDtypeOrDefault(vectorNorm.getContext(), vectorNorm.dtype(),
+                                   defaultDtype);
+    return visitReductionAlongDimIntListOp(
+        vectorNorm, vectorNorm.dim(), vectorNorm.keepdim(), dtype, operands);
+  }
+
   // Otherwise, this is an unknown operation. Just mark all results as
   // having reached a pessimistic fixpoint.
   return markAllPessimisticFixpoint(op->getResults());

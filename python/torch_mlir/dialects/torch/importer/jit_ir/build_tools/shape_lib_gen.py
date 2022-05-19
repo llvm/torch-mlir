@@ -946,6 +946,11 @@ def hacky_get_unknown_dimension_size():
 def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlength: int = 0) -> List[int]:
     return [hacky_get_unknown_dimension_size()]
 
+def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    if dim is None:
+        dim = list(range(len(self)))
+    return upstream_shape_helpers.mean_dim(self, dim, keepdim, dtype)
+
 # ==============================================================================
 # Shape library generator main().
 # ==============================================================================

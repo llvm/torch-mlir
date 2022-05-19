@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -67,7 +68,8 @@ public:
 
     bool keepDim = false;
     if (!matchPattern(maxDimOp.keepdim(), m_TorchConstantBool(&keepDim)))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          maxDimOp, "aten.max_dim requires boolean value for keepdim");
 
     int64_t dim;
     if (!matchPattern(maxDimOp.dim(), m_TorchConstantInt(&dim)))
@@ -173,9 +175,8 @@ public:
 };
 } // namespace
 
-static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
-                                                   Operation *op,
-                                                   Type elementType) {
+static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
+                                          Operation *op, Type elementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
@@ -195,14 +196,18 @@ static Value createLinalgNeutralElementForReduceOp(OpBuilder &b, Location loc,
                                     elementType.getIntOrFloatBitWidth())));
   }
 
-  op->emitError("unimplemented lowering in "
-                "createLinalgNeutralElementForReduceOp");
+  if (isa<AtenLinalgVectorNormOp>(op))
+    return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+
+  op->emitError("unimplemented lowering in createInitElementForReduceOp");
   return nullptr;
 }
 
-static Value createLinalgPayloadCalculationForReduceOp(
-    OpBuilder &b, Location loc, ValueRange payloadArgs, Operation *op,
-    ArrayRef<Value> operands, Type resultElementType) {
+static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
+                                            ValueRange payloadArgs,
+                                            Operation *op,
+                                            ArrayRef<Value> operands,
+                                            Type resultElementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
@@ -228,14 +233,180 @@ static Value createLinalgPayloadCalculationForReduceOp(
       if (intType.isSigned())
         return b.create<arith::MaxSIOp>(loc, self, result);
     }
+  } else if (isa<AtenLinalgVectorNormOp>(op)) {
+    // This creates payload for only the first of the two linalg.generic ops.
+    // TODO: Short-circuit operations if `ord` is zero or one.
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    auto abs = b.create<math::AbsOp>(loc, self);
+    AtenLinalgVectorNormOp::Adaptor adaptor(operands);
+    Value ord = convertScalarToDtype(b, loc, adaptor.ord(), resultElementType);
+    auto pow = b.create<math::PowFOp>(loc, abs, ord);
+    return b.create<arith::AddFOp>(loc, pow, result);
   }
-  op->emitError("unimplemented lowering in "
-                "createLinalgPayloadCalculationForReduceOp");
+  op->emitError("unimplemented lowering in createLinalgPayloadForReduceOp");
   return nullptr;
 }
 
 namespace {
 class ConvertReductionOp : public ConversionPattern {
+private:
+  /// Given a reduction operation that has the `keepdim` attribute and the
+  /// (optional) `dim` attribute, return the source tensor operand and the
+  /// literal values of the attributes or failure otherwise.
+  template <typename T>
+  FailureOr<torch_to_linalg::ReductionOpInfo>
+  computeReductionOpInfoForDimVariantOp(
+      T op, ArrayRef<Value> operands,
+      ConversionPatternRewriter &rewriter) const {
+    auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
+    typename T::Adaptor adaptor(operands);
+    opInfo.tensorOperand = adaptor.self();
+    auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+
+    if (!matchPattern(op.keepdim(), m_TorchConstantBool(&opInfo.keepDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "`keepdim` must be a constant bool");
+
+    SmallVector<int64_t> dimList;
+    if (matchPattern(op.dim(), m_TorchConstantIntList(dimList))) {
+      // Fix negative dimensions, if any, before adding to the list.
+      for (int64_t dim : dimList) {
+        dim = toPositiveDim(dim, inputType.getRank());
+        // Drop invalid dimensions
+        if (isValidDim(dim, inputType.getRank()))
+          opInfo.dimSet.insert(dim);
+      }
+    } else if (op.dim().getType().template isa<Torch::NoneType>()) {
+      // If no dimensions were specified, reduce along all dimensions
+      for (int64_t i = 0; i < inputType.getRank(); i++)
+        opInfo.dimSet.insert(i);
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "`dim` argument must be a constant int list or None");
+    }
+
+    return opInfo;
+  }
+
+  /// Given a reduction operation, return the source tensor operand and the
+  /// literal values of the `keepdim` and `dim` attributes, if any, or failure
+  /// otherwise.
+  FailureOr<torch_to_linalg::ReductionOpInfo>
+  computeReductionOpInfo(Operation *op, ArrayRef<Value> operands,
+                         ConversionPatternRewriter &rewriter) const {
+    auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
+
+    if (isa<AtenMaxOp, AtenSumOp>(op)) {
+      opInfo.tensorOperand = operands[0];
+      auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+
+      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
+      // input tensor.
+      for (int64_t i = 0; i < inputType.getRank(); i++)
+        opInfo.dimSet.insert(i);
+
+      return opInfo;
+    }
+
+    if (auto sumOp = dyn_cast<AtenSumDimIntListOp>(op))
+      return computeReductionOpInfoForDimVariantOp(sumOp, operands, rewriter);
+
+    if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op))
+      return computeReductionOpInfoForDimVariantOp(normOp, operands, rewriter);
+
+    return rewriter.notifyMatchFailure(op, "not a supported reduce op");
+  }
+
+  /// Generate a linalg.generic operation for pointwise exponentiation of each
+  /// element.
+  Value createElementwiseExp(Location loc, Type elemType, Value exponent,
+                             Value inputTensor,
+                             const torch_to_linalg::ReductionOpInfo &opInfo,
+                             ConversionPatternRewriter &rewriter) const {
+    bool err = false;
+    auto powBodyBuilder = [&](OpBuilder &builder, Location loc,
+                              ValueRange payloadArgs) {
+      Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], elemType);
+      auto result = builder.create<math::PowFOp>(loc, elem, exponent);
+      if (result)
+        builder.create<linalg::YieldOp>(loc, Value{result});
+      err = !result;
+    };
+
+    Value powOp = torch_to_linalg::createElementwiseLinalgGeneric(
+        rewriter, loc, {inputTensor}, elemType, powBodyBuilder);
+    return err ? Value{} : powOp;
+  }
+
+  FailureOr<Value> createSecondReductionForVectorNormOp(
+      Location loc, Type elemType, AtenLinalgVectorNormOp op, Value ordOp,
+      Value firstReduction, const torch_to_linalg::ReductionOpInfo &opInfo,
+      ConversionPatternRewriter &rewriter) const {
+    // Cast `ord` to float so that we can readily pass it math.powf.
+    Value ordValue = convertScalarToDtype(rewriter, loc, ordOp, elemType);
+
+    // TODO: Add support for ord = {0, +inf, -inf}.
+    auto epsilon = 1e-5;
+    auto ordLiteral = 0.0;
+    if (matchPattern(ordValue, m_TorchConstantFloat(&ordLiteral)) &&
+        fabs(ordLiteral) < epsilon)
+      return rewriter.notifyMatchFailure(op, "unimplemented: L0 norm");
+
+    if (std::isinf(ordLiteral))
+      return rewriter.notifyMatchFailure(op, "unimplemented: ord = +/- inf");
+
+    // Raise each summed value to the inverse of the order of the norm.
+    Attribute oneAttr = rewriter.getFloatAttr(elemType, 1.0);
+    auto oneValue = rewriter.create<arith::ConstantOp>(loc, oneAttr);
+    auto inverseOrdValue =
+        rewriter.create<arith::DivFOp>(loc, oneValue, ordValue);
+
+    // Use the results of the first reduction operation from above to generate
+    // a second reduction operation.
+    Value reduceOp = createElementwiseExp(loc, elemType, inverseOrdValue,
+                                          firstReduction, opInfo, rewriter);
+    if (!reduceOp)
+      return rewriter.notifyMatchFailure(
+          op, "failed to create linalg.generic operation for element-wise "
+              "exponentiation");
+
+    return reduceOp;
+  }
+
+  /// Generate a linalg.generic operation for a reduction.
+  Value createReductionOp(Location loc, Type elemType, Operation *op,
+                          ArrayRef<Value> operands,
+                          const torch_to_linalg::ReductionOpInfo &opInfo,
+                          ConversionPatternRewriter &rewriter) const {
+    bool err = false;
+    auto reductionBodyBuilder = [&](OpBuilder &builder, Location loc,
+                                    ValueRange payloadArgs) {
+      Value result = createLinalgPayloadForReduceOp(builder, loc, payloadArgs,
+                                                    op, operands, elemType);
+      if (result)
+        builder.create<linalg::YieldOp>(loc, result);
+      err = !result;
+    };
+
+    Value initElem = createInitElementForReduceOp(rewriter, loc, op, elemType);
+    Value reduceOp = torch_to_linalg::createReductionLinalgGeneric(
+        rewriter, loc, opInfo, initElem, reductionBodyBuilder);
+    return err ? Value{} : reduceOp;
+  }
+
+  /// Depending on the operation, check validity of the result's element type.
+  LogicalResult
+  validateReductionElementType(Operation *op, Type elemType,
+                               ConversionPatternRewriter &rewriter) const {
+    if (isa<AtenLinalgVectorNormOp>(op) && !elemType.isa<mlir::FloatType>())
+      return rewriter.notifyMatchFailure(
+          op, "only float types are valid for vector norm ops");
+    // No checks for all other reduction operations
+    return success();
+  }
+
 public:
   ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
       : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
@@ -244,67 +415,42 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "invalid operand or result types to use with linalg on tensors");
 
-    // Every reduce operation must set a value for the `dimSet`,
-    // `tensorOperand`, and `keepDim` in accordance with their specification.
-    DenseSet<int64_t> dimSet;
-    Value tensorOperand;
-    bool keepDim = false;
-    if (isa<AtenSumOp>(op) || isa<AtenMaxOp>(op)) {
-      tensorOperand = operands[0];
-      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
-
-      // `AtenSumOp` and `AtenMaxOp` reduces along all the dimensions of the
-      // input tensor.
-      for (int64_t i = 0; i < inputType.getRank(); i++)
-        dimSet.insert(i);
-    } else if (auto sumDimIntListOp = dyn_cast<AtenSumDimIntListOp>(op)) {
-      tensorOperand = operands[0];
-      auto inputType = tensorOperand.getType().cast<RankedTensorType>();
-
-      if (!matchPattern(sumDimIntListOp.keepdim(),
-                        m_TorchConstantBool(&keepDim)))
-        return failure();
-
-      SmallVector<int64_t> dimList;
-      if (!matchPattern(sumDimIntListOp.dim(), m_TorchConstantIntList(dimList)))
-        return failure();
-      for (auto dim : dimList) {
-        // Torch allows for negative values in dimSet to go in reverse
-        // order in the dimensions of the input tensor.
-        dim = dim >= 0 ? dim : dim + inputType.getRank();
-        // Drop invalid dimensions
-        if (dim < inputType.getRank())
-          dimSet.insert(dim);
-      }
-    } else {
-      return rewriter.notifyMatchFailure(op, "not a supported reduce op");
-    }
+    FailureOr<torch_to_linalg::ReductionOpInfo> opInfo =
+        computeReductionOpInfo(op, operands, rewriter);
+    if (failed(opInfo))
+      return opInfo;
 
     Location loc = op->getLoc();
     auto resultType = getTypeConverter()
                           ->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
-    Value initElem = createLinalgNeutralElementForReduceOp(
-        rewriter, loc, op, resultType.getElementType());
+    Type elemType = resultType.getElementType();
+    LogicalResult elemTypeCheck =
+        validateReductionElementType(op, elemType, rewriter);
+    if (failed(elemTypeCheck))
+      return elemTypeCheck;
 
-    bool hadErrorCreatingPayload = false;
-    Value generic = torch_to_linalg::createReductionLinalgGeneric(
-        rewriter, loc, tensorOperand, dimSet, keepDim, initElem,
-        [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-          Value result = createLinalgPayloadCalculationForReduceOp(
-              b, loc, payloadArgs, op, operands, resultType.getElementType());
-          if (!result) {
-            hadErrorCreatingPayload = true;
-            return;
-          }
-          b.create<linalg::YieldOp>(loc, result);
-        });
+    Value reduceOp =
+        createReductionOp(loc, elemType, op, operands, *opInfo, rewriter);
+    if (!reduceOp)
+      return rewriter.notifyMatchFailure(
+          op, "failed to create linalg.generic operation for reduction");
 
-    if (hadErrorCreatingPayload)
-      return failure();
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, generic);
+    // If this is aten.linalg_vector_norm op, then we need to generate another
+    // linalg.generic op that references the first linalg.generic op.
+    if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op)) {
+      AtenLinalgVectorNormOp::Adaptor adaptor(operands);
+      FailureOr<Value> secondReduceOp = createSecondReductionForVectorNormOp(
+          loc, elemType, normOp, adaptor.ord(), reduceOp, *opInfo, rewriter);
+      if (failed(secondReduceOp))
+        return secondReduceOp;
+      reduceOp = *secondReduceOp;
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, reduceOp);
     return success();
   }
 };
@@ -319,5 +465,6 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenMaxOp>();
+  target.addIllegalOp<AtenLinalgVectorNormOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);
 }
