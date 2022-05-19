@@ -1231,3 +1231,21 @@ func.func @torch.aten.ceil.float$no_fold(%arg0 : !torch.float) -> !torch.int {
   %1 = torch.aten.ceil.float %arg0 : !torch.float -> !torch.int
   return %1 : !torch.int
 }
+
+// CHECK-LABEL:   func.func @torch.aten.sqrt.int$fold_cst() -> !torch.float {
+// CHECK:           %[[CST:.*]] = torch.constant.float 2.2360679774997898
+// CHECK:           return %[[CST]] : !torch.float
+func.func @torch.aten.sqrt.int$fold_cst() -> !torch.float {
+  %int = torch.constant.int 5
+  %0 = torch.aten.sqrt.int %int : !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.sqrt.int$no_fold(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.int) -> !torch.float {
+// CHECK:           %[[RESULT:.*]] = torch.aten.sqrt.int %[[ARG]] : !torch.int -> !torch.float
+// CHECK:           return %[[RESULT]] : !torch.float
+func.func @torch.aten.sqrt.int$no_fold(%arg0 : !torch.int) -> !torch.float {
+  %0 = torch.aten.sqrt.int %arg0 : !torch.int -> !torch.float
+  return %0 : !torch.float
+}

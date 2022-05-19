@@ -1582,6 +1582,17 @@ OpFoldResult AtenNegIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSqrtIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSqrtIntOp::fold(ArrayRef<Attribute> operands) {
+  int64_t c;
+  if (matchPattern(getOperand(), m_TorchConstantInt(&c)))
+    return getF64FloatAttr(getContext(), std::sqrt(c));
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // PrimDtypeOp
 //===----------------------------------------------------------------------===//
 
