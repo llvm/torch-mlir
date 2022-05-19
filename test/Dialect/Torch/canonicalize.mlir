@@ -1055,16 +1055,14 @@ func.func @torch.prim.TupleIndex$out_of_bound(%t0: !torch.tensor, %t1: !torch.te
     return %1 : !torch.tensor
 }
 
-// CHECK-LABEL:   func.func @torch.prim.TupleIndex$different_types$no_change(
-// CHECK-SAME:                                                          %[[ARG0:.*]]: !torch.tensor<[1,768],f32>) -> !torch.tensor {
-// CHECK:           %[[INT0:.*]] = torch.constant.int 0
-// CHECK:           %[[TUPLE:.*]] = torch.prim.TupleConstruct %[[ARG0]] : !torch.tensor<[1,768],f32> -> !torch.tuple<tensor<[1,768],f32>>
-// CHECK:           %[[ELEMENT:.*]] = torch.prim.TupleIndex %[[TUPLE]], %[[INT0]] : !torch.tuple<tensor<[1,768],f32>>, !torch.int -> !torch.tensor
-// CHECK:           return %[[ELEMENT]] : !torch.tensor
-func.func @torch.prim.TupleIndex$different_types$no_change(%arg0: !torch.tensor<[1,768],f32>) -> !torch.tensor {
+// CHECK-LABEL:   func.func @torch.prim.TupleIndex$adjust_type$tensor(
+// CHECK-SAME:                 %[[ARG:.*]]: !torch.tensor<[7],f32>) -> !torch.tensor {
+// CHECK:           %[[RETURN:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.tensor<[7],f32> to !torch.tensor
+// CHECK:           return %[[RETURN]] : !torch.tensor
+func.func @torch.prim.TupleIndex$adjust_type$tensor(%arg0: !torch.tensor<[7],f32>) -> !torch.tensor {
   %int0 = torch.constant.int 0
-  %0 = torch.prim.TupleConstruct %arg0 : !torch.tensor<[1,768],f32> -> !torch.tuple<tensor<[1,768],f32>>
-  %1 = torch.prim.TupleIndex %0, %int0 : !torch.tuple<tensor<[1,768],f32>>, !torch.int -> !torch.tensor
+  %0 = torch.prim.TupleConstruct %arg0 : !torch.tensor<[7],f32> -> !torch.tuple<tensor<[7],f32>>
+  %1 = torch.prim.TupleIndex %0, %int0 : !torch.tuple<tensor<[7],f32>>, !torch.int -> !torch.tensor
   return %1 : !torch.tensor
 }
 
