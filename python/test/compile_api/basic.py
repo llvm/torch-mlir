@@ -34,6 +34,11 @@ print(torch_mlir.compile(TanhModule(), placeholder))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[?,2],f32> -> !torch.vtensor<[?,2],f32>
 
+# Basic smoke test for the raw output type.
+print(torch_mlir.compile(TanhModule(), tanh_example_input, output_type=torch_mlir.OutputType.RAW))
+# CHECK: torch.nn_module {
+# CHECK: } : !torch.nn.Module<"__torch__.TanhModule">
+
 class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
