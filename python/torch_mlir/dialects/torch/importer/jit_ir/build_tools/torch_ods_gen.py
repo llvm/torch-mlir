@@ -521,6 +521,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
     emit("aten::div : (Scalar, Scalar) -> (float)")
     emit("aten::add : (Scalar, Scalar) -> (Scalar)")
+    emit("aten::sqrt.int : (int) -> (float)", has_folder=True)
 
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)

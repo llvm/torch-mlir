@@ -80,18 +80,22 @@ public:
 
 namespace {
 template <typename AtenOp, typename UnaryOp>
-class ConvertAtenUnaryOp : public OpConversionPattern<AtenOp> {
+class ConvertAtenUnaryOpToFloatMathOp : public OpConversionPattern<AtenOp> {
 public:
   using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = adaptor.a();
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
-    Value result = rewriter.create<UnaryOp>(op.getLoc(), adaptor.a());
-    rewriter.replaceOp(
-        op, convertScalarToDtype(rewriter, op.getLoc(), result, resultType));
+    if (!input.getType().isa<mlir::FloatType>())
+      input = convertScalarToDtype(rewriter, loc, input, rewriter.getF64Type());
+    Value result = rewriter.create<UnaryOp>(loc, input);
+    rewriter.replaceOp(op,
+                       convertScalarToDtype(rewriter, loc, result, resultType));
     return success();
   }
 };
@@ -272,7 +276,11 @@ public:
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
-    patterns.add<ConvertAtenUnaryOp<AtenCeilFloatOp, math::CeilOp>>(
+    patterns
+        .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
+            typeConverter, context);
+    target.addIllegalOp<AtenSqrtIntOp>();
+    patterns.add<ConvertAtenUnaryOpToFloatMathOp<AtenSqrtIntOp, math::SqrtOp>>(
         typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,

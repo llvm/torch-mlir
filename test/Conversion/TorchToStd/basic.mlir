@@ -233,3 +233,15 @@ func.func @torch.aten.gt.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !t
   %0 = torch.aten.gt.float_int %arg0, %arg1 : !torch.float, !torch.int -> !torch.bool
   return %0 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.sqrt.int(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.float {
+// CHECK:           %[[ARG_I64:.*]] = torch_c.to_i64 %[[ARG]]
+// CHECK:           %[[ARG_F64:.*]] = arith.sitofp %[[ARG_I64]] : i64 to f64
+// CHECK:           %[[SQRT:.*]] = math.sqrt %[[ARG_F64]] : f64
+// CHECK:           %[[SQRT_TORCH_FLOAT:.*]] = torch_c.from_f64 %[[SQRT]]
+// CHECK:           return %[[SQRT_TORCH_FLOAT]] : !torch.float
+func.func @torch.aten.sqrt.int(%arg0: !torch.int) -> !torch.float {
+  %0 = torch.aten.sqrt.int %arg0 : !torch.int -> !torch.float
+  return %0 : !torch.float
+}

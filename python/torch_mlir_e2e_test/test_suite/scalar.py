@@ -151,3 +151,43 @@ class CeilFloatModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CeilFloatModule())
 def CeilFloatModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(()).double(), torch.rand(()).double())
+
+
+# ==============================================================================
+
+
+class SqrtIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, a):
+        return float(torch.ops.aten.sqrt(int(a)))
+
+
+@register_test_case(module_factory=lambda: SqrtIntModule())
+def SqrtIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, ()))
+
+
+class SqrtIntConstantModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return float(torch.ops.aten.sqrt(5))
+
+
+@register_test_case(module_factory=lambda: SqrtIntConstantModule())
+def SqrtIntConstantModule_basic(module, tu: TestUtils):
+    module.forward()

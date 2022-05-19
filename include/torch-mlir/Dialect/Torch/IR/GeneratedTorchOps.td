@@ -7142,6 +7142,30 @@ def Torch_AtenAddOp : Torch_Op<"aten.add", [
   }];
 }
 
+def Torch_AtenSqrtIntOp : Torch_Op<"aten.sqrt.int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sqrt.int : (int) -> (float)`";
+  let arguments = (ins
+    Torch_IntType:$a
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSqrtIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenSqrtIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
     AllowsTypeRefinement,
     HasValueSemantics,
