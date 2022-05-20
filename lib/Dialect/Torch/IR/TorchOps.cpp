@@ -1003,6 +1003,28 @@ OpFoldResult AtenGeIntOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenBoolFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenBoolFloatOp::fold(ArrayRef<Attribute> operands) {
+  double c;
+  if (matchPattern(getOperand(), m_TorchConstantFloat(&c)))
+    return getI1IntegerAttr(getContext(), c != 0.0);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenBoolIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenBoolIntOp::fold(ArrayRef<Attribute> operands) {
+  int64_t c;
+  if (matchPattern(getOperand(), m_TorchConstantInt(&c)))
+    return getI1IntegerAttr(getContext(), c != 0);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloatScalarOp
 //===----------------------------------------------------------------------===//
 

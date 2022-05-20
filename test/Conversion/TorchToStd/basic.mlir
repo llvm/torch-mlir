@@ -262,3 +262,33 @@ func.func @torch.aten.any.bool() -> !torch.bool {
   %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
   return %0 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.Bool.float(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.float) -> !torch.bool {
+// CHECK:           %[[ARG_F64:.*]] = torch_c.to_f64 %[[ARG]]
+// CHECK:           %[[CST:.*]] = arith.constant 0.000000e+00 : f64
+// CHECK:           %[[TRUE:.*]] = arith.constant true
+// CHECK:           %[[FALSE:.*]] = arith.constant false
+// CHECK:           %[[CMP:.*]] = arith.cmpf une, %[[ARG_F64]], %[[CST]] : f64
+// CHECK:           %[[SELECT:.*]] = arith.select %[[CMP]], %[[TRUE]], %[[FALSE]] : i1
+// CHECK:           %[[OUT:.*]] = torch_c.from_i1 %[[SELECT]]
+// CHECK:           return %[[OUT]] : !torch.bool
+func.func @torch.aten.Bool.float(%arg0: !torch.float) -> !torch.bool {
+  %0 = torch.aten.Bool.float %arg0 : !torch.float -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.Bool.int(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.bool {
+// CHECK:           %[[ARG_I64:.*]] = torch_c.to_i64 %[[ARG]]
+// CHECK:           %[[CST:.*]] = arith.constant 0 : i64
+// CHECK:           %[[TRUE:.*]] = arith.constant true
+// CHECK:           %[[FALSE:.*]] = arith.constant false
+// CHECK:           %[[CMP:.*]] = arith.cmpi ne, %[[ARG_I64]], %[[CST]] : i64
+// CHECK:           %[[SELECT:.*]] = arith.select %[[CMP]], %[[TRUE]], %[[FALSE]] : i1
+// CHECK:           %[[OUT:.*]] = torch_c.from_i1 %[[SELECT]]
+// CHECK:           return %[[OUT]] : !torch.bool
+func.func @torch.aten.Bool.int(%arg0: !torch.int) -> !torch.bool {
+  %0 = torch.aten.Bool.int %arg0 : !torch.int -> !torch.bool
+  return %0 : !torch.bool
+}

@@ -1249,3 +1249,21 @@ func.func @torch.aten.sqrt.int$no_fold(%arg0 : !torch.int) -> !torch.float {
   %0 = torch.aten.sqrt.int %arg0 : !torch.int -> !torch.float
   return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func.func @torch.aten.Bool.float$fold_cst() -> !torch.bool {
+// CHECK:           %[[CST2:.*]] = torch.constant.bool true
+// CHECK:           return %[[CST2]] : !torch.bool
+func.func @torch.aten.Bool.float$fold_cst() -> !torch.bool {
+  %float = torch.constant.float 1.5
+  %1 = torch.aten.Bool.float %float : !torch.float -> !torch.bool
+  return %1 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.Bool.int$fold_cst() -> !torch.bool {
+// CHECK:           %[[CST2:.*]] = torch.constant.bool true
+// CHECK:           return %[[CST2]] : !torch.bool
+func.func @torch.aten.Bool.int$fold_cst() -> !torch.bool {
+  %int = torch.constant.int 2
+  %1 = torch.aten.Bool.int %int : !torch.int -> !torch.bool
+  return %1 : !torch.bool
+}

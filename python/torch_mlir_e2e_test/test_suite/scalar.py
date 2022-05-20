@@ -191,3 +191,123 @@ class SqrtIntConstantModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: SqrtIntConstantModule())
 def SqrtIntConstantModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class BoolFloatFalseModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+    ])
+    def forward(self, a):
+        sub = float(a) - float(a)
+        return bool(torch.ops.aten.Bool(float(sub)))
+
+
+@register_test_case(module_factory=lambda: BoolFloatFalseModule())
+def BoolFloatFalseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(low=0.5).double())
+
+
+class BoolFloatTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float64, True),
+    ])
+    def forward(self, a):
+        return bool(torch.ops.aten.Bool(float(a)))
+
+
+@register_test_case(module_factory=lambda: BoolFloatTrueModule())
+def BoolFloatTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(low=0.5).double())
+
+
+class BoolFloatConstantModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return bool(torch.ops.aten.Bool(5.0))
+
+
+@register_test_case(module_factory=lambda: BoolFloatConstantModule())
+def BoolFloatConstantModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class BoolIntFalseModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, a):
+        sub = int(a) - int(a)
+        return bool(torch.ops.aten.Bool(int(sub)))
+
+
+@register_test_case(module_factory=lambda: BoolIntFalseModule())
+def BoolIntFalseModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(1, 100, ()))
+
+
+class BoolIntTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, a):
+        return bool(torch.ops.aten.Bool(int(a)))
+
+
+@register_test_case(module_factory=lambda: BoolIntTrueModule())
+def BoolIntTrueModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(1, 100, ()))
+
+
+class BoolIntConstantModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return bool(torch.ops.aten.Bool(5))
+
+
+@register_test_case(module_factory=lambda: BoolIntConstantModule())
+def BoolIntConstantModule_basic(module, tu: TestUtils):
+    module.forward()
