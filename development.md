@@ -106,16 +106,7 @@ cmake --build build
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
 ```
 
-## Running execution (end-to-end) tests:
-
-```shell
-# Run E2E TorchScript tests. These compile and run the TorchScript program
-# through torch-mlir with a simplified MLIR CPU backend we call RefBackend
-python -m e2e_testing.torchscript.main --filter Conv2d --verbose
-```
-
-[Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
-
+## Jupyter
 
 Jupyter notebook:
 ```shell
@@ -125,6 +116,8 @@ python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPA
 jupyter notebook
 ```
 
+[Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
+
 
 ## Interactive Use
 
@@ -133,3 +126,61 @@ file in the workspace folder with the correct PYTHONPATH set. This allows
 tools like VSCode to work by default for debugging. This file can also be
 manually `source`'d in a shell.
 
+# Testing
+
+Torch-MLIR has two types of tests:
+
+1. End-to-end execution tests. These compile and run a program and check the
+   result against the expected output from execution on native Torch. These use
+   a homegrown testing framework (see
+   `python/torch_mlir_e2e_test/torchscript/framework.py`) and the test suite
+   lives at `python/torch_mlir_e2e_test/test_suite/__init__.py`.
+
+2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
+   For example, these might involve using `torch-mlir-opt` to run a pass and
+   check the output with `FileCheck`.
+
+
+## Running execution (end-to-end) tests:
+
+```shell
+# Run all tests on the reference backend
+./tools/torchscript_e2e_test.sh
+# Run tests that match the regex `Conv2d`, with verbose errors.
+./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
+# Run tests on the TOSA backend.
+./tools/torchscript_e2e_test.sh --config tosa
+```
+
+## Running unit tests.
+
+To run all of the unit tests, run:
+
+```
+ninja check-torch-mlir-all
+```
+
+This can be broken down into
+
+```
+ninja check-torch-mlir check-torch-mlir-dialects check-torch-mlir-python
+```
+
+To run more fine-grained tests, you can do, for `check-torch-mlir`:
+
+```
+cd $TORCH_MLIR_BUILD_DIR/tools/torch-mlir/test
+$TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonicalize
+```
+
+See [the `lit` documentation](https://llvm.org/docs/CommandGuide/lit.html) for details on the available lit args.
+
+For example, if you wanted to test just `test/Dialect/Torch/canonicalize.mlir`,
+then you might do
+
+```
+cd $TORCH_MLIR_BUILD_DIR/tools/torch-mlir/test
+$TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonicalize.mlir
+```
+
+Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
