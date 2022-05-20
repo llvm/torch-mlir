@@ -7189,6 +7189,54 @@ def Torch_AtenSqrtIntOp : Torch_Op<"aten.sqrt.int", [
   let hasFolder = 1;
 }
 
+def Torch_AtenBoolFloatOp : Torch_Op<"aten.Bool.float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::Bool.float : (float) -> (bool)`";
+  let arguments = (ins
+    Torch_FloatType:$a
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenBoolFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenBoolFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+def Torch_AtenBoolIntOp : Torch_Op<"aten.Bool.int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::Bool.int : (int) -> (bool)`";
+  let arguments = (ins
+    Torch_IntType:$a
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenBoolIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenBoolIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenEqDeviceOp : Torch_Op<"aten.eq.device", [
     AllowsTypeRefinement,
     HasValueSemantics,

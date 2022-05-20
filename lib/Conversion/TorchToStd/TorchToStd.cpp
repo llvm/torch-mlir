@@ -225,6 +225,33 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy, typename CmpOpTy, typename CmpOpPred, CmpOpPred Pred>
+class ConvertAtenBoolLikeOp : public OpConversionPattern<OpTy> {
+public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
+  LogicalResult
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type inputType = adaptor.a().getType();
+    Value cstZero = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getZeroAttr(inputType));
+    Value cstTrue =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(true));
+    Value cstFalse =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
+
+    Value cmpPred;
+    cmpPred = rewriter.create<CmpOpTy>(loc, Pred, adaptor.a(), cstZero);
+    rewriter.replaceOpWithNewOp<arith::SelectOp>(op, cmpPred, cstTrue,
+                                                 cstFalse);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -315,6 +342,15 @@ public:
         typeConverter, context);
     target.addIllegalOp<AtenAnyBoolOp>();
     patterns.add<ConvertAtenAnyBoolOp>(typeConverter, context);
+    target.addIllegalOp<AtenBoolFloatOp, AtenBoolIntOp>();
+    patterns.add<
+        ConvertAtenBoolLikeOp<AtenBoolFloatOp, arith::CmpFOp,
+                              arith::CmpFPredicate, arith::CmpFPredicate::UNE>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenBoolLikeOp<AtenBoolIntOp, arith::CmpIOp,
+                              arith::CmpIPredicate, arith::CmpIPredicate::ne>>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
