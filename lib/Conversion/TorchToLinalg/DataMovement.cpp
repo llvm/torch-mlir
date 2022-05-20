@@ -135,29 +135,23 @@ public:
           op, "desired size list length mismatches with the result type rank");
     }
 
+    // If all values in the shape are known, then lower to `tensor::ReshapeOp`.
+    ArrayRef<int64_t> outShape = resultType.getShape();
+    if (llvm::none_of(outShape, [](int64_t shape) { return shape == -1; })) {
+      SmallVector<Value> outShapeValues =
+          getAsConstantIndexValues(rewriter, loc, outShape);
+      auto shapeTensor =
+          rewriter.create<tensor::FromElementsOp>(loc, outShapeValues);
+      rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, input,
+                                                     shapeTensor);
+      return success();
+    }
+
     SmallVector<Value> inputSize = getTensorSizes(rewriter, loc, input);
     ArrayRef<Value> expandedShapeInt =
         llvm::makeArrayRef(isCollapse ? inputSize : outputSizeInt);
     ArrayRef<Value> collapsedShapeInt =
         llvm::makeArrayRef(isCollapse ? outputSizeInt : inputSize);
-
-    // Currently, we only handle the expanding or collapsing cases or the
-    // identity cases where the rank and shape of the input and result are
-    // equal, and the input itself is the result. We do not handle expanding And
-    // collapsing happening at the same time or cases where it's neither
-    // collapsing nor expanding like view of [2,3] for 3x2 tensor.
-    // TODO: For the expanding And collapsing case, we will need to identify
-    // which dimensions are collapsing and which are expanding and do it in two
-    // steps.
-    // TODO: For neither collapsing nor expanding, we could find a intermediate
-    // shape to collapse and then expanded to the target shape. Like [2,3] =>
-    // [6] => [3, 2].
-    if (inputRank == resultRank) {
-      for (unsigned i = 0; i < inputRank; i++)
-        checkDimEqualHelper(rewriter, loc, inputSize[i], outputSizeInt[i]);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
-      return success();
-    }
 
     // Iterate through the view op size list to do the following:
     //

@@ -58,10 +58,10 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor);
 Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType);
 
 SmallVector<Value> getAsConstantIntValues(OpBuilder &b, Location loc,
-                                          SmallVectorImpl<int64_t> &ints);
+                                          ArrayRef<int64_t> ints);
 
 SmallVector<Value> getAsConstantIndexValues(OpBuilder &b, Location loc,
-                                            SmallVectorImpl<int64_t> &ints);
+                                            ArrayRef<int64_t> ints);
 
 // This is a temporary solution to deal with types that are not fully supported
 // like list, dict. For those container tyes, this helper can be used to

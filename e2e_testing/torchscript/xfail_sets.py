@@ -153,4 +153,6 @@ TOSA_PASS_SET = {
     "ConvolutionModule2DStatic_basic",
     "ElementwiseNegModule_basic",
     "TestMultipleTensorReturn_basic",
+    "ReshapeExpandAndCollapseModule_basic",
+    "ReshapeSameRankModule_basic",
 }

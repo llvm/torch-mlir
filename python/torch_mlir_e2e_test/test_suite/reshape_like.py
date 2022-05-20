@@ -429,3 +429,40 @@ class ReshapeAliasCollapseModule(torch.nn.Module):
 def ReshapeAliasCollapseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4))
 
+# ==============================================================================
+
+class ReshapeSameRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 4], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(8, 3)
+
+@register_test_case(module_factory=lambda: ReshapeSameRankModule())
+def ReshapeSameRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4))
+
+# ==============================================================================
+
+class ReshapeExpandAndCollapseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 12, 4, 5], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 2, 3, 48, 1, 5)
+
+@register_test_case(module_factory=lambda: ReshapeExpandAndCollapseModule())
+def ReshapeExpandAndCollapseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 12, 4, 5))

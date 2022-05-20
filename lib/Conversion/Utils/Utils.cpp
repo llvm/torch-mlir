@@ -188,7 +188,7 @@ Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
 }
 
 SmallVector<Value> getAsConstantIntValues(OpBuilder &b, Location loc,
-                                          SmallVectorImpl<int64_t> &ints) {
+                                          ArrayRef<int64_t> ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
     return b.create<arith::ConstantOp>(loc,
                                        b.getIntegerAttr(b.getI64Type(), val));
@@ -196,7 +196,7 @@ SmallVector<Value> getAsConstantIntValues(OpBuilder &b, Location loc,
 }
 
 SmallVector<Value> getAsConstantIndexValues(OpBuilder &b, Location loc,
-                                            SmallVectorImpl<int64_t> &ints) {
+                                            ArrayRef<int64_t> ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
     return b.create<arith::ConstantOp>(loc, b.getIndexAttr(val));
   }));
