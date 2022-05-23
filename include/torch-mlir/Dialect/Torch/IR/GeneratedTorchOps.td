@@ -6005,6 +6005,29 @@ def Torch_AtenNeIntListOp : Torch_Op<"aten.ne.int_list", [
   }];
 }
 
+def Torch_AtenAnyBoolOp : Torch_Op<"aten.any.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::any.bool : (bool[]) -> (bool)`";
+  let arguments = (ins
+    AnyTorchListOfTorchBoolType:$self
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAnyBoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAnyBoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenAddStrOp : Torch_Op<"aten.add.str", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -466,6 +466,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
     emit("aten::insert.t : (t[], int, t) -> ()")
     emit("aten::ne.int_list : (int[], int[]) -> (bool)")
+    emit("aten::any.bool : (bool[]) -> (bool)")
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")

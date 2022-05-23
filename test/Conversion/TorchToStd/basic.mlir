@@ -245,3 +245,20 @@ func.func @torch.aten.sqrt.int(%arg0: !torch.int) -> !torch.float {
   %0 = torch.aten.sqrt.int %arg0 : !torch.int -> !torch.float
   return %0 : !torch.float
 }
+
+// CHECK-LABEL:   func.func @torch.aten.any.bool() -> !torch.bool {
+// CHECK:           %[[CST_FALSE:.*]] = arith.constant false
+// CHECK:           %[[FALSE:.*]] = torch_c.from_i1 %[[CST_FALSE]]
+// CHECK:           %[[CST_TRUE:.*]] = arith.constant true
+// CHECK:           %[[TRUE:.*]] = torch_c.from_i1 %[[CST_TRUE]]
+// CHECK:           %[[INPUT:.*]] = torch.prim.ListConstruct %[[FALSE]], %[[TRUE]], %[[FALSE]] : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+// CHECK:           %[[CST_RESULT:.*]] = arith.constant true
+// CHECK:           %[[RESULT:.*]] = torch_c.from_i1 %[[CST_RESULT]]
+// CHECK:           return %[[RESULT]] : !torch.bool
+func.func @torch.aten.any.bool() -> !torch.bool {
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %input = torch.prim.ListConstruct %false, %true, %false : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %0 = torch.aten.any.bool %input : !torch.list<bool> -> !torch.bool
+  return %0 : !torch.bool
+}
