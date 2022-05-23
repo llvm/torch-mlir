@@ -20,6 +20,7 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -194,6 +195,36 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenAnyBoolOp : public OpConversionPattern<AtenAnyBoolOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenAnyBoolOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    SmallVector<Value> inputListTorchBool;
+    if (!getListConstructElements(op.self(), inputListTorchBool)) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented input list not constructed from ListConstruct");
+    }
+    SmallVector<bool> inputListBool;
+    for (Value v : inputListTorchBool) {
+      bool cst;
+      if (!matchPattern(v, m_TorchConstantBool(&cst)))
+        return rewriter.notifyMatchFailure(
+            op, "only support constant bool input list elements");
+      inputListBool.push_back(cst);
+    }
+    bool result = llvm::any_of(
+        inputListBool, [](bool inputListElem) { return inputListElem; });
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, rewriter.getBoolAttr(result));
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -282,6 +313,8 @@ public:
     target.addIllegalOp<AtenSqrtIntOp>();
     patterns.add<ConvertAtenUnaryOpToFloatMathOp<AtenSqrtIntOp, math::SqrtOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenAnyBoolOp>();
+    patterns.add<ConvertAtenAnyBoolOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
