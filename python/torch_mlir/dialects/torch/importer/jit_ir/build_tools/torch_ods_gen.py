@@ -274,6 +274,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
+            "aten::unsqueeze : (Tensor, int) -> (Tensor)",
 
     ]:
         emit_with_mutating_variants(key)
@@ -371,7 +372,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
-    emit("aten::unsqueeze : (Tensor, int) -> (Tensor)")
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
     emit("aten::dim : (Tensor) -> (int)", has_folder=True)
