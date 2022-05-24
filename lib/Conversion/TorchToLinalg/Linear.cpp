@@ -641,7 +641,6 @@ public:
 };
 } // namespace
 
-
 namespace {
 class ConvertAtenAllBoolOp : public OpConversionPattern<AtenAllBoolOp> {
 public:
@@ -649,36 +648,33 @@ public:
   LogicalResult
   matchAndRewrite(AtenAllBoolOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-
-    //bool list of type::bool[]
     Value inputList = op.self();
 
     SmallVector<Value> inputValues;
-    if (!getListConstructElements(inputList, inputValues)){
+    if (!getListConstructElements(inputList, inputValues)) {
       return rewriter.notifyMatchFailure(
-        op, "could not get input list from getListConstructElements!"
-      );
+          op, "could not get input list from getListConstructElements!");
     }
 
     SmallVector<bool> inputValsBool;
-    for (size_t i=0; i<inputValues.size(); i++){
+    for (size_t i = 0; i < inputValues.size(); i++) {
       Value element = inputValues[i];
       bool elementVal;
-      if(!matchPattern(element, m_TorchConstantBool(&elementVal))){
+      if (!matchPattern(element, m_TorchConstantBool(&elementVal))) {
         return rewriter.notifyMatchFailure(
-          op, "could not pattern match the value as a bool!"
-        );
+            op, "could not pattern match the value as a bool!");
       }
       inputValsBool.push_back(elementVal);
     }
-    
-    //reduce the bool array into a single value
+
+    //reduce the boolean array to a single value.
     bool reduce = true;
-    for(size_t i=0; i<inputValsBool.size(); i++){
+    for (size_t i = 0; i < inputValsBool.size(); i++) {
       reduce = reduce && inputValsBool[i];
     }
 
-    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, rewriter.getBoolAttr(reduce));
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, rewriter.getBoolAttr(reduce));
     return success();
   }
 };
