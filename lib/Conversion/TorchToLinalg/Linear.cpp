@@ -667,7 +667,7 @@ public:
       inputValsBool.push_back(elementVal);
     }
 
-    //reduce the boolean array to a single value.
+    // reduce the boolean array to a single value.
     bool reduce = true;
     for (size_t i = 0; i < inputValsBool.size(); i++) {
       reduce = reduce && inputValsBool[i];
