@@ -47,7 +47,7 @@ static Value createComparisonTemplate(OpBuilder &b, Location loc, Type type,
     if (intType.isSigned())
       return b.create<arith::CmpIOp>(loc, ispred, lhs, rhs);
   }
-  assert(false && "Unhandled element type for comparison");
+  llvm_unreachable("Unhandled element type for comparison");
 }
 
 static Value createGreaterThan(OpBuilder &b, Location loc, Type elementalType,
