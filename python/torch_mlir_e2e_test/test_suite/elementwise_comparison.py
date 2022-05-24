@@ -496,7 +496,6 @@ class ElementwiseNeIntScalarModule(torch.nn.Module):
 def ElementwiseNeIntScalarModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(2, 4, (8, 5)))
 
-
 # ==============================================================================
 
 class AnyBoolTrueModule(torch.nn.Module):
@@ -533,3 +532,43 @@ class AnyBoolFalseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AnyBoolFalseModule())
 def AnyBoolFalseModule_basic(module, tu: TestUtils):
     module.forward()
+
+# =================================================================================
+
+class AllBoolTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        input = [True, True, True, True, True]
+        return torch.ops.aten.all(input)
+
+
+@register_test_case(module_factory=lambda: AllBoolTrueModule())
+def AllBoolTrueModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# =================================================================================
+
+class AllBoolFalseModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        input = [True, False, True, True, False]
+        return torch.ops.aten.all(input)
+        
+@register_test_case(module_factory=lambda: AllBoolFalseModule())
+def AllBoolFalseModule_basic(module, tu: TestUtils):
+    module.forward()
+
