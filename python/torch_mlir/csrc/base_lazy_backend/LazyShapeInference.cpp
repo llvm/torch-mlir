@@ -25,6 +25,11 @@ int64_t normalize_index(int64_t index, unsigned dims) {
 }
 
 std::vector<torch::lazy::Shape>
+compute_shape__unsafe_view(const at::Tensor& self, at::IntArrayRef size) {
+  return compute_shape_reshape(self, size);
+}
+
+std::vector<torch::lazy::Shape>
 compute_shape_dropout(const at::Tensor& input, double p, bool train) {
   return {Shape(input.scalar_type(), input.sizes().vec())};
 }
@@ -133,6 +138,11 @@ compute_shape_matmul(const at::Tensor& self, const at::Tensor& other) {
   return {Shape(self.scalar_type(), sizes)};
 }
 
+std::vector<torch::lazy::Shape>
+compute_shape_mul(const at::Tensor& self, const at::Scalar& other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_native_batch_norm(
     const at::Tensor& input, const c10::optional<at::Tensor>& weight,
     const c10::optional<at::Tensor>& bias,
@@ -142,14 +152,59 @@ std::vector<torch::lazy::Shape> compute_shape_native_batch_norm(
   std::vector<torch::lazy::Shape> shapes;
   shapes.reserve(3);
   shapes.emplace_back(input.scalar_type(), input.sizes().vec());
+
+  // A separate mean and var needs to be kept for each channel.
+  TORCH_CHECK(
+      input.sizes().size() >= 2,
+      "Input tensor must have at least batch and channel dimensions!");
+  int64_t num_features = input.sizes().vec()[1];
+
   if (running_mean.has_value()) {
     shapes.emplace_back(
         running_mean.value().scalar_type(), running_mean.value().sizes().vec());
-    if (running_var.has_value()) {
-      shapes.emplace_back(
-          running_var.value().scalar_type(), running_var.value().sizes().vec());
-    }
+  } else {
+    shapes.emplace_back(
+        at::get_default_dtype_as_scalartype(),
+        std::vector<int64_t>{num_features});
   }
+
+  if (running_var.has_value()) {
+    shapes.emplace_back(
+        running_var.value().scalar_type(), running_var.value().sizes().vec());
+  } else {
+    shapes.emplace_back(
+        at::get_default_dtype_as_scalartype(),
+        std::vector<int64_t>{num_features});
+  }
+  return shapes;
+}
+
+std::vector<torch::lazy::Shape> compute_shape_native_batch_norm_backward(
+    const at::Tensor& grad_out, const at::Tensor& input,
+    const c10::optional<at::Tensor>& weight,
+    const c10::optional<at::Tensor>& running_mean,
+    const c10::optional<at::Tensor>& running_var,
+    const c10::optional<at::Tensor>& save_mean,
+    const c10::optional<at::Tensor>& save_invstd, bool train, double eps,
+    ::std::array<bool, 3> output_mask) {
+  std::vector<torch::lazy::Shape> shapes;
+  shapes.reserve(3);
+  shapes.emplace_back(input.scalar_type(), input.sizes().vec());
+
+  // A separate mean and var needs to be kept for each channel.
+  TORCH_CHECK(
+      input.sizes().size() >= 2,
+      "Input tensor must have at least batch and channel dimensions!");
+  int64_t num_features = input.sizes().vec()[1];
+
+  // `weight` and `bias` are vectors of length C (number of channels)`
+  shapes.emplace_back(
+      at::get_default_dtype_as_scalartype(),
+      std::vector<int64_t>{num_features});
+  shapes.emplace_back(
+      at::get_default_dtype_as_scalartype(),
+      std::vector<int64_t>{num_features});
+
   return shapes;
 }
 
@@ -181,13 +236,13 @@ compute_shape_reshape(const at::Tensor& self, at::IntArrayRef shape) {
     // No wildcard, the shape should already be known.
     TORCH_CHECK(
         num_entries == num_concrete_entries, "shape `[", sizes,
-        "]` is invalid for input of size ", num_concrete_entries);
+        "]` is invalid for input of size ", num_entries);
   } else {
     // There is one dimension which is not explicitly declared -- we need to
     // infer.
     TORCH_CHECK(
         num_entries % num_concrete_entries == 0, "shape `[", sizes,
-        "]` is invalid for input of size ", num_concrete_entries);
+        "]` is invalid for input of size ", num_entries);
 
     sizes[wildcard_idx] = num_entries / num_concrete_entries;
   }
