@@ -4123,6 +4123,29 @@ def Torch_AtenAllOp : Torch_Op<"aten.all", [
   }];
 }
 
+def Torch_AtenAllBoolOp : Torch_Op<"aten.all.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::all.bool : (bool[]) -> (bool)`";
+  let arguments = (ins
+    AnyTorchListOfTorchBoolType:$self
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAllBoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAllBoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenAnyOp : Torch_Op<"aten.any", [
     AllowsTypeRefinement,
     HasValueSemantics,

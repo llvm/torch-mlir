@@ -641,6 +641,49 @@ public:
 };
 } // namespace
 
+
+namespace {
+class ConvertAtenAllBoolOp : public OpConversionPattern<AtenAllBoolOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenAllBoolOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    //bool list of type::bool[]
+    Value inputList = op.self();
+
+    SmallVector<Value> inputValues;
+    if (!getListConstructElements(inputList, inputValues)){
+      return rewriter.notifyMatchFailure(
+        op, "could not get input list from getListConstructElements!"
+      );
+    }
+
+    SmallVector<bool> inputValsBool;
+    for (size_t i=0; i<inputValues.size(); i++){
+      Value element = inputValues[i];
+      bool elementVal;
+      if(!matchPattern(element, m_TorchConstantBool(&elementVal))){
+        return rewriter.notifyMatchFailure(
+          op, "could not pattern match the value as a bool!"
+        );
+      }
+      inputValsBool.push_back(elementVal);
+    }
+    
+    //reduce the bool array into a single value
+    bool reduce = true;
+    for(size_t i=0; i<inputValsBool.size(); i++){
+      reduce = reduce && inputValsBool[i];
+    }
+
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, rewriter.getBoolAttr(reduce));
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -657,4 +700,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenLinearOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<AtenAllBoolOp>();
+  patterns.add<ConvertAtenAllBoolOp>(typeConverter, context);
 }
