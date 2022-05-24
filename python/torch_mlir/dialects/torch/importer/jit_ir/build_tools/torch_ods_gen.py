@@ -448,6 +448,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::t : (Tensor) -> (Tensor)")
     emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::is_grad_enabled : () -> (bool)")
+    emit("aten::_native_multi_head_attention : (Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor, Tensor, Tensor?, bool, bool) -> (Tensor, Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
@@ -474,6 +476,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::str : (t) -> (str)")
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
+    emit("aten::len.str : (str) -> (int)")
+    emit("aten::find : (str, str, int, int) -> (int)")
 
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
@@ -556,6 +560,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::Print : (...) -> ()")
     emit("prim::tolist : (...) -> (...)")
     emit("prim::abs.Scalar : (Scalar) -> (Scalar)")
+    emit("prim::is_cuda : (Tensor) -> (bool)")
+    emit("prim::requires_grad : (Tensor) -> (bool)")
+    emit("prim::is_nested : (Tensor) -> (bool)")
 
     # ==========================================================================
     # `quantized::` namespace.

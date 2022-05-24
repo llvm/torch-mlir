@@ -5677,6 +5677,63 @@ def Torch_AtenFullLikeOp : Torch_Op<"aten.full_like", [
   }];
 }
 
+def Torch_AtenIsGradEnabledOp : Torch_Op<"aten.is_grad_enabled", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::is_grad_enabled : () -> (bool)`";
+  let arguments = (ins
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIsGradEnabledOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 0, 1);
+    }
+    void AtenIsGradEnabledOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 0, 1);
+    }
+  }];
+}
+
+def Torch_Aten_NativeMultiHeadAttentionOp : Torch_Op<"aten._native_multi_head_attention", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_native_multi_head_attention : (Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor, Tensor, Tensor?, bool, bool) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$query,
+    AnyTorchTensorType:$key,
+    AnyTorchTensorType:$value,
+    Torch_IntType:$embed_dim,
+    Torch_IntType:$num_head,
+    AnyTorchTensorType:$qkv_weight,
+    AnyTorchTensorType:$qkv_bias,
+    AnyTorchTensorType:$proj_weight,
+    AnyTorchTensorType:$proj_bias,
+    AnyTorchOptionalTensorType:$mask,
+    Torch_BoolType:$need_weights,
+    Torch_BoolType:$average_attn_weights
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_NativeMultiHeadAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 12, 2);
+    }
+    void Aten_NativeMultiHeadAttentionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 12, 2);
+    }
+  }];
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -6134,6 +6191,55 @@ def Torch_AtenJoinOp : Torch_Op<"aten.join", [
     }
     void AtenJoinOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenLenStrOp : Torch_Op<"aten.len.str", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::len.str : (str) -> (int)`";
+  let arguments = (ins
+    Torch_StringType:$s
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLenStrOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenLenStrOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenFindOp : Torch_Op<"aten.find", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::find : (str, str, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_StringType:$self,
+    Torch_StringType:$substr,
+    Torch_IntType:$start,
+    Torch_IntType:$end
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFindOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenFindOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
 }
@@ -7706,6 +7812,75 @@ def Torch_PrimAbsScalarOp : Torch_Op<"prim.abs.Scalar", [
       return parseDefaultTorchOp(parser, result, 1, 1);
     }
     void PrimAbsScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_PrimIsCudaOp : Torch_Op<"prim.is_cuda", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prim::is_cuda : (Tensor) -> (bool)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimIsCudaOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void PrimIsCudaOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_PrimRequiresGradOp : Torch_Op<"prim.requires_grad", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prim::requires_grad : (Tensor) -> (bool)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimRequiresGradOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void PrimRequiresGradOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_PrimIsNestedOp : Torch_Op<"prim.is_nested", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prim::is_nested : (Tensor) -> (bool)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimIsNestedOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void PrimIsNestedOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
