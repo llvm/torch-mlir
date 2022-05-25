@@ -43,6 +43,7 @@ The following command generates configuration files to build the project *in-tre
 
 ```shell
 cmake -GNinja -Bbuild \
+  -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DPython3_FIND_VIRTUALENV=ONLY \
@@ -70,6 +71,7 @@ The following additional quality of life flags can be used to reduce build time:
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
 cmake -GNinja -Bbuild \
+  -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DPython3_FIND_VIRTUALENV=ONLY \
