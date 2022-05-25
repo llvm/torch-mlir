@@ -15,8 +15,8 @@ from torch_mlir.eager_mode.torch_mlir_dispatch import normalize_args_kwargs
 # CHECK: PASS - should_normalize
 @run_test
 def should_normalize():
-    target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
-    args = (torch.randn((1, 3, 32, 32)),)
+    target = torch.ops.aten.max_pool2d_with_indices.default
+    input = torch.randn((1, 3, 32, 32))
     kwargs = {"kernel_size": [3, 3]}
     golden = {
         "kernel_size": [3, 3],
@@ -28,18 +28,18 @@ def should_normalize():
         "ceil_mode": False,
     }
 
-    new_args, new_kwargs = normalize_args_kwargs(target, args, kwargs)
-    for arg, new_arg in zip(args, new_args):
-        assert torch.allclose(arg, new_arg)
+    new_kwargs = normalize_args_kwargs(target, (input,), kwargs)
+    assert torch.allclose(new_kwargs["input"], input)
     for k, v in new_kwargs.items():
+        if k == "input": continue
         assert v == golden[k]
 
 
 # CHECK: FAIL - shouldnt_normalize1
-# CHECK: Couldn't normalize args and kwargs
+# CHECK: Errors: missing a required argument: 'kernel_size'
 @run_test
 def shouldnt_normalize1():
-    target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
+    target = torch.ops.aten.max_pool2d_with_indices.default
     args = (torch.randn((1, 3, 32, 32)),)
     kwargs = {"stride": []}
     normalize_args_kwargs(target, args, kwargs)
@@ -54,7 +54,7 @@ def shouldnt_normalize1():
 # CHECK: XPASS - shouldnt_normalize2
 @run_test(XPASS=True)
 def shouldnt_normalize2():
-    target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
+    target = torch.ops.aten.max_pool2d_with_indices.default
     args = (torch.randn((1, 3, 32, 32)),)
     kwargs = {"kernel_size": []}
     normalize_args_kwargs(target, args, kwargs)
@@ -63,7 +63,7 @@ def shouldnt_normalize2():
 # CHECK: XPASS - shouldnt_normalize3
 @run_test(XPASS=True)
 def shouldnt_normalize3():
-    target = torch.ops.aten.max_pool2d_with_indices.default.overloadpacket
+    target = torch.ops.aten.max_pool2d_with_indices.default
     args = (torch.randn((1, 3, 32, 32)),)
     kwargs = {"kernel_size": [3, 3], "padding": None}
     normalize_args_kwargs(target, args, kwargs)
