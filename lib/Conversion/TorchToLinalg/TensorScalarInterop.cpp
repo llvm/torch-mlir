@@ -195,6 +195,32 @@ public:
 };
 } // namespace
 
+namespace{
+class ConvertPrimIsNestedOp : public OpConversionPattern<PrimIsNestedOp> {
+public: using OpConversionPattern::OpConversionPattern;
+LogicalResult
+matchAndRewrite(PrimIsNestedOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter) const override {
+   
+   Value inputTensor = adaptor.a();
+   //check if this inputTensor was constructed from a call via AtenNestedTensorOp.
+   auto parentOp     = inputTensor.getDefiningOp<AtenNestedTensorOp>();
+   
+   bool is_nested; 
+   if (parentOp){
+     //true.
+     is_nested = true;
+   }
+   else{
+     //false.
+     is_nested = false;
+   }
+
+   rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, rewriter.getBoolAttr(is_nested));
+   return success();
+}
+};
+}
+
 void mlir::torch::torch_to_linalg::
     populateTensorScalarInteropPatternsAndLegality(TypeConverter &typeConverter,
                                                    RewritePatternSet &patterns,
@@ -217,4 +243,6 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
   patterns.add<ConvertAtenScalarImplicitOp>(typeConverter, context);
   target.addIllegalOp<AtenScalarImplicitOp>();
+  target.addIllegalOp<PrimIsNestedOp>();
+  patterns.add<ConvertPrimIsNestedOp>(typeConverter, context);
 }

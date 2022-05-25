@@ -449,6 +449,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::t : (Tensor) -> (Tensor)")
     emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit("aten::nested_tensor : (Tensor[], int?, int?, Device?, bool?) -> (Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
@@ -555,6 +556,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::Print : (...) -> ()")
     emit("prim::tolist : (...) -> (...)")
     emit("prim::abs.Scalar : (Scalar) -> (Scalar)")
+    emit("prim::is_nested : (Tensor) -> (bool)")
 
     # ==========================================================================
     # `quantized::` namespace.
