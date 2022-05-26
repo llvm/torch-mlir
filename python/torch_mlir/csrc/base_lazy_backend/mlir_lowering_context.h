@@ -122,6 +122,10 @@ private:
 
   size_t AddResult(torch::jit::Value* op);
 
+  // Creates a jit::Function from the current jit::Graph. Input and output
+  // type information is patched to include shape.
+  std::unique_ptr<torch::jit::Function> generate_jit_fn() const;
+
   void RegisterMlirDialects();
 
   std::shared_ptr<torch::jit::Graph> graph_;

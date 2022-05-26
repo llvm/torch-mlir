@@ -44,6 +44,76 @@
 namespace torch {
 namespace lazy {
 
+TorchMlirOpVector LowerTorchMlirBuiltin(
+    std::shared_ptr<torch::jit::GraphFunction> function, c10::Symbol sym,
+    const std::vector<c10::TypePtr> tensor_types,
+    const std::vector<torch::jit::NamedValue>& arguments,
+    const std::vector<torch::jit::NamedValue>& kwarguments) {
+  auto builtin =
+      std::make_shared<torch::jit::BuiltinFunction>(sym, at::nullopt);
+  auto magic_method = std::make_shared<torch::jit::MagicMethod>("", builtin);
+  auto ret = magic_method->call({}, *function, arguments, kwarguments, 0);
+  auto sv = dynamic_cast<torch::jit::SimpleValue*>(ret.get());
+  CHECK(sv);
+
+  TorchMlirOpVector results;
+  if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
+    // Op returns multiple values.
+    const auto tuple_call_result = sv->asTuple({}, *function);
+    for (const auto& tuple_component : tuple_call_result) {
+      auto tuple_component_sv =
+          dynamic_cast<torch::jit::SimpleValue*>(tuple_component.get());
+      results.push_back(tuple_component_sv->getValue());
+    }
+  } else {
+    // Op returns single value.
+    results.push_back(sv->getValue());
+  }
+
+  // Insert known tensor type information.
+  unsigned tensor_type_idx = 0;
+  for (jit::Value* value : results) {
+    if (value->type()->kind() == c10::TypeKind::TensorType) {
+      TORCH_CHECK(
+          tensor_type_idx < tensor_types.size(),
+          "Tensor corresponding to JIT SSA value %", value->debugName(),
+          " corresponds to result #", tensor_type_idx, ", but we only have ",
+          tensor_types.size(), " known types!");
+
+      value->setType(tensor_types[tensor_type_idx++]);
+    }
+  }
+
+  // Ensure that we use up all the known tensor type information available.
+  TORCH_CHECK(
+      tensor_type_idx == tensor_types.size(), tensor_type_idx,
+      " known types were injected into jit::Value, but ", tensor_types.size(),
+      " were provided from lazy::Node!");
+
+  return results;
+}
+
+TorchMlirOpVector LowerTorchMlirBuiltin(
+    std::shared_ptr<torch::jit::GraphFunction> function, c10::Symbol sym,
+    const c10::ArrayRef<Shape> result_shapes,
+    const std::vector<torch::jit::NamedValue>& arguments,
+    const std::vector<torch::jit::NamedValue>& kwarguments) {
+  std::vector<c10::TypePtr> tensor_types;
+
+  // Generate types with fixed tensor shape information.
+  for (const Shape& shape : result_shapes) {
+    tensor_types.push_back(torch::jit::TensorType::create(
+        /*scalar_type=*/shape.scalar_type(),
+        /*device=*/c10::nullopt,
+        /*sizes=*/c10::VaryingShape<int64_t>(shape.sizes()),
+        /*strides=*/c10::VaryingShape<int64_t>(),
+        /*requires_grad=*/c10::nullopt));
+  }
+
+  return LowerTorchMlirBuiltin(
+      function, sym, tensor_types, arguments, kwarguments);
+}
+
 class TorchMlirNodeLowering : public TorchMlirNodeLoweringInterface {
 public:
   TorchMlirNodeLowering(
@@ -189,12 +259,20 @@ public:
       const std::vector<torch::jit::NamedValue>& arguments,
       const std::vector<torch::jit::NamedValue>& kwarguments = {}) {
     return LowerTorchMlirBuiltin(
-        function_, node->op().op, arguments, kwarguments);
+        function_, node->op().op, node->shapes(), arguments, kwarguments);
   }
   TorchMlirOpVector LowerBuiltin(
-      c10::Symbol sym, const std::vector<torch::jit::NamedValue>& arguments,
+      c10::Symbol sym, const c10::ArrayRef<Shape> result_shapes,
+      const std::vector<torch::jit::NamedValue>& arguments,
       const std::vector<torch::jit::NamedValue>& kwarguments = {}) {
-    return LowerTorchMlirBuiltin(function_, sym, arguments, kwarguments);
+    return LowerTorchMlirBuiltin(
+        function_, sym, result_shapes, arguments, kwarguments);
+  }
+  TorchMlirOpVector LowerBuiltin(
+      c10::Symbol sym, const std::vector<c10::TypePtr> types,
+      const std::vector<torch::jit::NamedValue>& arguments,
+      const std::vector<torch::jit::NamedValue>& kwarguments = {}) {
+    return LowerTorchMlirBuiltin(function_, sym, types, arguments, kwarguments);
   }
 
   TorchMlirOpVector LowerAsStrided(const torch::lazy::AsStrided* node) {
@@ -222,7 +300,7 @@ public:
     dest_arguments.emplace_back(node->stride());
     dest_arguments.emplace_back(node->storage_offset());
     TorchMlirOpVector as_strided_out =
-        LowerBuiltin(at::aten::as_strided, dest_arguments);
+        LowerBuiltin(at::aten::as_strided, node->shapes(), dest_arguments);
     CHECK_EQ(as_strided_out.size(), 1);
     torch::jit::Value* as_strided = as_strided_out.front();
     GenerateCopy(as_strided, loctx()->GetOutputOp(input_op));
@@ -266,7 +344,7 @@ public:
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
     arguments.emplace_back(node->dtype());
-    return LowerBuiltin(at::aten::to, arguments);
+    return LowerBuiltin(at::aten::to, node->shapes(), arguments);
   }
 
   TorchMlirOpVector LowerExpand(const torch::lazy::Expand* node) {
@@ -383,13 +461,16 @@ public:
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(loctx()->GetOutputOp(node->operand(0)));
     arguments.push_back(node->output_size());
-    return LowerBuiltin(at::aten::reshape, arguments);
+    return LowerBuiltin(at::aten::reshape, node->shapes(), arguments);
   }
 
   torch::jit::Value* GenerateClone(torch::jit::Value* val) {
     std::vector<torch::jit::NamedValue> clone_arguments;
     clone_arguments.emplace_back(val);
-    TorchMlirOpVector cloned = LowerBuiltin(at::aten::clone, clone_arguments);
+
+    // Type of cloned value should be identical to the original one.
+    TorchMlirOpVector cloned =
+        LowerBuiltin(at::aten::clone, {val->type()}, clone_arguments);
     CHECK_EQ(cloned.size(), 1);
     return cloned.front();
   }
@@ -398,7 +479,9 @@ public:
     std::vector<torch::jit::NamedValue> arguments;
     arguments.emplace_back(destination);
     arguments.emplace_back(source);
-    LowerBuiltin(at::aten::copy_, arguments);
+    LowerBuiltin(
+        at::aten::copy_, c10::ArrayRef<Shape>({/*shape goes here*/}),
+        arguments);
   }
 
   torch::jit::Value* GenerateSlice(
@@ -410,7 +493,9 @@ public:
     arguments.emplace_back(start);
     arguments.emplace_back(end);
     arguments.emplace_back(step);
-    TorchMlirOpVector selected = LowerBuiltin(at::aten::slice, arguments);
+    TorchMlirOpVector selected = LowerBuiltin(
+        at::aten::slice, c10::ArrayRef<Shape>({/*shape goes here*/}),
+        arguments);
     CHECK_EQ(selected.size(), 1);
     return selected.front();
   }
@@ -424,29 +509,5 @@ TorchMlirNodeLoweringInterface::Create(torch::lazy::LoweringContext* loctx) {
       "TorchMlirNodeLowering",
       static_cast<torch::lazy::TorchMlirLoweringContext*>(loctx));
 }
-
-TorchMlirOpVector LowerTorchMlirBuiltin(
-    std::shared_ptr<torch::jit::GraphFunction> function, c10::Symbol sym,
-    const std::vector<torch::jit::NamedValue>& arguments,
-    const std::vector<torch::jit::NamedValue>& kwarguments) {
-  auto builtin =
-      std::make_shared<torch::jit::BuiltinFunction>(sym, at::nullopt);
-  auto magic_method = std::make_shared<torch::jit::MagicMethod>("", builtin);
-  auto ret = magic_method->call({}, *function, arguments, kwarguments, 0);
-  auto sv = dynamic_cast<torch::jit::SimpleValue*>(ret.get());
-  CHECK(sv);
-  if (sv->getValue()->type()->kind() == c10::TypeKind::TupleType) {
-    const auto tuple_call_result = sv->asTuple({}, *function);
-    TorchMlirOpVector tuple_result;
-    for (const auto& tuple_component : tuple_call_result) {
-      auto tuple_component_sv =
-          dynamic_cast<torch::jit::SimpleValue*>(tuple_component.get());
-      tuple_result.push_back(tuple_component_sv->getValue());
-    }
-    return tuple_result;
-  }
-  return {sv->getValue()};
-}
-
 } // namespace lazy
 } // namespace torch

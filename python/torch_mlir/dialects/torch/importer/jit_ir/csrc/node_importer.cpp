@@ -33,15 +33,18 @@ class NodeImporter {
 public:
   NodeImporter(MlirContext context) : context(context) {}
 
-  void importNode(Node *node, MlirBlock appendToBlock);
+  void importNode(Node *node, MlirBlock appendToBlock,
+                  const ImportOptions &importOptions = {});
   MlirBlock importBlock(
       Block *jitBlock, CreateTerminatorFn createTerminator,
-      c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt);
+      c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt,
+      const ImportOptions &importOptions = {});
 
 private:
   MlirBlock
   createBlockFor(Block *jitBlock,
-                 c10::optional<c10::ArrayRef<MlirType>> blockArgTypes);
+                 c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+                 const ImportOptions &importOptions = {});
   void mapValue(Value *jitValue, MlirValue value);
   void mapResults(Node *node, MlirOperation operation);
   MlirValue lookupMappedValue(Value *jitValue);
@@ -76,39 +79,39 @@ rearrangeDictConstructInputs(std::vector<MlirValue> &inputs) {
   return rearranged;
 }
 
-void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
+void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
+                              const ImportOptions &importOptions) {
   MlirLocation loc = getMlirLocationFromNode(context, node);
   auto kind = node->kind();
 
   auto createAndMapTrivialNode = [&](Node *node, const std::string &opName,
                                      InputsTransformFn t) {
     std::vector<MlirValue> mappedInputs = lookupMappedValues(node->inputs());
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, opName, loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 t ? t(mappedInputs) : mappedInputs);
+    MlirOperation operation = createMlirOperationAtEnd(
+        appendToBlock, opName, loc,
+        getMlirTypesFromValues(loc, node->outputs(), importOptions),
+        t ? t(mappedInputs) : mappedInputs);
     mapResults(node, operation);
   };
 
-  auto createAndMapNodeWithAttribute = [&](Node *node,
-                                           const std::string &opName,
-                                           const std::string &attrName,
-                                           MlirAttribute attr) {
-    MlirOperation operation =
-        createMlirOperationAtEnd(appendToBlock, opName, loc,
-                                 getMlirTypesFromValues(loc, node->outputs()),
-                                 lookupMappedValues(node->inputs()),
-                                 toMlirNamedAttribute(attrName.c_str(), attr));
-    mapResults(node, operation);
-  };
+  auto createAndMapNodeWithAttribute =
+      [&](Node *node, const std::string &opName, const std::string &attrName,
+          MlirAttribute attr) {
+        MlirOperation operation = createMlirOperationAtEnd(
+            appendToBlock, opName, loc,
+            getMlirTypesFromValues(loc, node->outputs(), importOptions),
+            lookupMappedValues(node->inputs()),
+            toMlirNamedAttribute(attrName.c_str(), attr));
+        mapResults(node, operation);
+      };
 
   // Trivial ops with schema.
   auto maybeSchema = node->maybeSchema();
   if (maybeSchema) {
-    MlirOperation operation =
-        createOperationFromSchema(appendToBlock, loc, node->schema(),
-                                  getMlirTypesFromValues(loc, node->outputs()),
-                                  lookupMappedValues(node->inputs()));
+    MlirOperation operation = createOperationFromSchema(
+        appendToBlock, loc, node->schema(),
+        getMlirTypesFromValues(loc, node->outputs(), importOptions),
+        lookupMappedValues(node->inputs()));
     mapResults(node, operation);
     return;
   }
@@ -178,13 +181,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     } else if (output->type()->cast<c10::IntType>()) {
       op = createMlirOperation(
           "torch.constant.int", loc,
-          getMlirTypeFromTorchType(loc, output->type()),
+          getMlirTypeFromTorchType(loc, output->type(), importOptions),
           toMlirNamedAttribute("value",
                                importAttribute(loc, node, c10::attr::value)));
     } else if (output->type()->cast<c10::FloatType>()) {
       op = createMlirOperation(
           "torch.constant.float", loc,
-          getMlirTypeFromTorchType(loc, output->type()),
+          getMlirTypeFromTorchType(loc, output->type(), importOptions),
           toMlirNamedAttribute("value",
                                importAttribute(loc, node, c10::attr::value)));
     } else if (output->type()->cast<c10::StringType>()) {
@@ -202,7 +205,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     } else if (output->type()->cast<c10::DeviceObjType>()) {
       op = createMlirOperation(
           "torch.constant.device", loc,
-          getMlirTypeFromTorchType(loc, output->type()),
+          getMlirTypeFromTorchType(loc, output->type(), importOptions),
           toMlirNamedAttribute(
               "value", mlirStringAttrGet(context, toMlirStringRef(node->s(
                                                       c10::attr::value)))));
@@ -211,16 +214,15 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
       const std::string &symName = function->qualname().qualifiedName();
       op = createMlirOperation(
           "func.constant", loc,
-          getFunctionTypeFromSchema(context, function->getSchema()),
+          getFunctionTypeFromSchema(context, function->getSchema(),
+                                    importOptions),
           toMlirNamedAttribute(
               "value",
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
     } else if (output->type()->cast<c10::ListType>()) {
       ClassAnnotator dummyAnnotator;
-      MlirValue listValue = importIValue(node->ival(c10::attr::value),
-                                         appendToBlock,
-                                         context,
-                                         dummyAnnotator);
+      MlirValue listValue = importIValue(
+          node->ival(c10::attr::value), appendToBlock, context, dummyAnnotator);
       mapResults(node, mlirOpResultGetOwner(listValue));
       return; // Early return, since `importIValue` already added op to block.
     } else {
@@ -237,7 +239,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 
   if (kind == c10::prim::Loop) {
     std::vector<MlirType> resultTypes =
-        getMlirTypesFromValues(loc, node->outputs());
+        getMlirTypesFromValues(loc, node->outputs(), importOptions);
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.Loop", loc, resultTypes,
         lookupMappedValues(node->inputs().slice(0, 2)),
@@ -260,13 +262,13 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
-        importBlock(node->blocks()[0], createTerminator));
+        importBlock(node->blocks()[0], createTerminator, c10::nullopt, importOptions));
     return;
   }
 
   if (kind == c10::prim::If) {
     std::vector<MlirType> resultTypes =
-        getMlirTypesFromValues(loc, node->outputs());
+        getMlirTypesFromValues(loc, node->outputs(), importOptions);
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.If", loc, lookupMappedValue(node->input()),
         resultTypes, mlirRegionCreate(), mlirRegionCreate());
@@ -281,10 +283,10 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     };
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 0),
-        importBlock(node->blocks()[0], createTerminator));
+        importBlock(node->blocks()[0], createTerminator, c10::nullopt, importOptions));
     mlirRegionAppendOwnedBlock(
         mlirOperationGetRegion(operation, 1),
-        importBlock(node->blocks()[1], createTerminator));
+        importBlock(node->blocks()[1], createTerminator, c10::nullopt, importOptions));
     return;
   }
 
@@ -293,14 +295,14 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     auto methodName = node->s(c10::attr::name);
     torch::jit::Function *function = classType->findMethod(methodName);
     MlirType calleeType =
-        getFunctionTypeFromSchema(context, function->getSchema());
+        getFunctionTypeFromSchema(context, function->getSchema(), importOptions);
     std::vector<MlirType> expectedTypes;
     for (int i = 0, e = mlirFunctionTypeGetNumInputs(calleeType); i < e; ++i) {
       expectedTypes.push_back(mlirFunctionTypeGetInput(calleeType, i));
     }
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "torch.prim.CallMethod", loc,
-        getMlirTypesFromValues(loc, node->outputs()),
+        getMlirTypesFromValues(loc, node->outputs(), importOptions),
         adjustStaticInformationForValues(
             appendToBlock, loc, lookupMappedValues(node->inputs()),
             expectedTypes, /*userAllowsRefinement=*/false),
@@ -315,11 +317,11 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
     torch::jit::Block *calleeEntryBlock =
         torch::jit::toGraphFunction(*functionType->function()).graph()->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
-      return getMlirTypeFromTorchType(loc, v->type());
+      return getMlirTypeFromTorchType(loc, v->type(), importOptions);
     });
     MlirOperation operation = createMlirOperationAtEnd(
         appendToBlock, "func.call_indirect", loc,
-        getMlirTypesFromValues(loc, node->outputs()),
+        getMlirTypesFromValues(loc, node->outputs(), importOptions),
         lookupMappedValue(node->input(0)),
         adjustStaticInformationForValues(
             appendToBlock, loc, lookupMappedValues(node->inputs().slice(1)),
@@ -339,10 +341,11 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 
 MlirBlock NodeImporter::importBlock(
     Block *jitBlock, CreateTerminatorFn createTerminator,
-    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
-  MlirBlock block = createBlockFor(jitBlock, blockArgTypes);
+    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+    const ImportOptions &importOptions) {
+  MlirBlock block = createBlockFor(jitBlock, blockArgTypes, importOptions);
   for (Node *node : jitBlock->nodes()) {
-    importNode(node, block);
+    importNode(node, block, importOptions);
   }
   Node *returnNode = jitBlock->return_node();
   createTerminator(lookupMappedValues(returnNode->inputs()), block);
@@ -350,11 +353,12 @@ MlirBlock NodeImporter::importBlock(
 }
 
 MlirBlock NodeImporter::createBlockFor(
-    Block *jitBlock, c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
+    Block *jitBlock, c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+    const ImportOptions &importOptions) {
   Node *paramNode = jitBlock->param_node();
   MlirLocation loc = getMlirLocationFromNode(context, paramNode);
   std::vector<MlirType> paramNodeTypes =
-      getMlirTypesFromValues(loc, paramNode->outputs());
+      getMlirTypesFromValues(loc, paramNode->outputs(), importOptions);
   if (!blockArgTypes)
     blockArgTypes = paramNodeTypes;
   else
@@ -405,7 +409,8 @@ NodeImporter::lookupMappedValues(c10::ArrayRef<Value *> values) {
 MlirBlock
 torch_mlir::importBlock(MlirContext context, Block *jitBlock,
                         CreateTerminatorFn createTerminator,
-                        c10::optional<c10::ArrayRef<MlirType>> blockArgTypes) {
+                        c10::optional<c10::ArrayRef<MlirType>> blockArgTypes,
+                        const ImportOptions &importOptions) {
   NodeImporter importer(context);
-  return importer.importBlock(jitBlock, createTerminator, blockArgTypes);
+  return importer.importBlock(jitBlock, createTerminator, blockArgTypes, importOptions);
 }
