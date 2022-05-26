@@ -57,6 +57,7 @@ TORCH_API std::vector<torch::lazy::Shape> compute_shape_empty_like(const at::Ten
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_expand_as(const at::Tensor & self, const at::Tensor & other);
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_fill_out(const at::Tensor & self, const at::Scalar & value, at::Tensor & out);
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_flatten(const at::Tensor & self, int64_t start_dim, int64_t end_dim);
+TORCH_API std::vector<torch::lazy::Shape> compute_shape_flip(const at::Tensor & self, at::IntArrayRef dims);
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_floor_divide(const at::Tensor & self, const at::Scalar & other);
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_fmod(const at::Tensor & self, const at::Scalar & other);
 TORCH_API std::vector<torch::lazy::Shape> compute_shape_full(at::IntArrayRef size, const at::Scalar & fill_value, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory);
