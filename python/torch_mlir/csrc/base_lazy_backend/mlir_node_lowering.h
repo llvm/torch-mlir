@@ -23,6 +23,7 @@ typedef std::shared_ptr<torch::jit::GraphFunction> TorchMlirFunction;
 
 TORCH_API TorchMlirOpVector LowerTorchMlirBuiltin(
     TorchMlirFunction function, c10::Symbol sym,
+    const c10::ArrayRef<Shape> result_shapes,
     const std::vector<torch::jit::NamedValue>& arguments,
     const std::vector<torch::jit::NamedValue>& kwarguments = {});
 
