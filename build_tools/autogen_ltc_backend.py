@@ -158,7 +158,7 @@ class MlirLazyIr(codegen.gen_lazy_tensor.dest.LazyIR):
     size_t i = 0;
     {emplace_arguments_str}
     {emplace_kwarguments}
-    torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, arguments, kwarguments);
+    torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
     CHECK_EQ({schema.aten_name}_out.size(), {len(func.returns)});
   
     return {schema.aten_name}_out;

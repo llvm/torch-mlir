@@ -22,12 +22,13 @@ using namespace torch_mlir;
 
 MlirOperation torch_mlir::importJitFunctionAsFuncOp(
     MlirContext context, torch::jit::Function *function,
-    std::function<MlirAttribute(int)> getArgAttribute) {
+    std::function<MlirAttribute(int)> getArgAttribute,
+    const ImportOptions &importOptions) {
   // Useful for debugging:
   // graph->dump();
   MlirLocation loc = mlirLocationUnknownGet(context);
   MlirType functionType =
-      getFunctionTypeFromSchema(context, function->getSchema());
+      getFunctionTypeFromSchema(context, function->getSchema(), importOptions);
   // Use the function's qualified name from the compilation unit.
   // This is a stable linkage name that matches Python module lookup
   // conventions (see compilation unit import in IValueImporter for more details
@@ -69,7 +70,7 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
   };
   MlirBlock block = importBlock(
       context, torch::jit::toGraphFunction(*function).graph()->block(),
-      createTerminator, inputTypes);
+      createTerminator, inputTypes, importOptions);
   mlirRegionAppendOwnedBlock(bodyRegion, block);
   return func;
 }

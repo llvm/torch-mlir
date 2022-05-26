@@ -10,6 +10,8 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_TORCH_TO_MLIR_UTILS_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_TORCH_TO_MLIR_UTILS_H
 
+#include "import_options.h"
+
 #include <memory>
 
 #include "mlir-c/IR.h"
@@ -42,14 +44,16 @@ MlirType getMlirTypeForTorchScalarType(MlirLocation loc,
 /// Maps a torch type to a corresponding MlirType. Returns a null type
 /// on failure and emits a diagnostic.
 MlirType getMlirTypeFromTorchType(MlirLocation loc,
-                                  const c10::TypePtr &torchType);
+                                  const c10::TypePtr &torchType,
+                                  const ImportOptions &importOptions = {});
 
 /// Creates a FunctionType suitable for expressing the signature of `schema`.
 ///
 /// This can differ from the type inferred from the block of a
 /// torch::jit::Function due to derefinement and refinement of tensor types.
 MlirType getFunctionTypeFromSchema(MlirContext context,
-                                   const c10::FunctionSchema &schema);
+                                   const c10::FunctionSchema &schema,
+                                   const ImportOptions &importOptions = {});
 
 /// Creates an appropriate MlirAttribute that holds the same values as `tensor`.
 MlirAttribute convertTensorToMlirElementsAttr(at::Tensor tensor,
@@ -63,7 +67,8 @@ MlirLocation getMlirLocationFromNode(MlirContext context,
 
 std::vector<MlirType>
 getMlirTypesFromValues(MlirLocation loc,
-                       c10::ArrayRef<torch::jit::Value *> values);
+                       c10::ArrayRef<torch::jit::Value *> values,
+                       const ImportOptions &importOptions = {});
 
 std::vector<MlirValue> adjustStaticInformationForValues(
     MlirBlock appendToBlock, MlirLocation loc, c10::ArrayRef<MlirValue> values,
