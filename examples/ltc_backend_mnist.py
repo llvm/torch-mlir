@@ -42,7 +42,7 @@ def main(device):
     class Model(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.fc1 = torch.nn.Linear(5, 5)
+            self.fc1 = torch.nn.Linear(5, 10)
 
         def forward(self, x):
             out = self.fc1(x)
