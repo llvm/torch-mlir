@@ -387,7 +387,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::tensor.int : (int, int?, Device?, bool) -> (Tensor)")
     emit("aten::_shape_as_tensor : (Tensor) -> (Tensor)")
     emit("aten::all : (Tensor) -> (Tensor)")
-    emit("aten::all.bool : (bool[]) -> (bool)")
     emit("aten::any : (Tensor) -> (Tensor)")
     emit("aten::any.dim : (Tensor, int, bool) -> (Tensor)")
     emit("aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
