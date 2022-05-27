@@ -535,6 +535,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::gelu_backward : (Tensor, Tensor, str) -> (Tensor)")
     emit("aten::_log_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
+    emit("aten::embedding_dense_backward : (Tensor, Tensor, int, int, bool) -> (Tensor)")
 
     # ==========================================================================
     # `prim::` namespace.

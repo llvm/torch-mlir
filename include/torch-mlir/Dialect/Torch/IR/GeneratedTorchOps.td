@@ -7432,6 +7432,33 @@ def Torch_Aten_LogSoftmaxBackwardDataOp : Torch_Op<"aten._log_softmax_backward_d
   }];
 }
 
+def Torch_AtenEmbeddingDenseBackwardOp : Torch_Op<"aten.embedding_dense_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::embedding_dense_backward : (Tensor, Tensor, int, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$indices,
+    Torch_IntType:$num_weights,
+    Torch_IntType:$padding_idx,
+    Torch_BoolType:$scale_grad_by_freq
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenEmbeddingDenseBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void AtenEmbeddingDenseBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
 def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AllowsTypeRefinement,
     HasValueSemantics,
