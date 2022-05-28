@@ -673,7 +673,7 @@ ChangeResult TypeAnalyzer::visitOperation(
   // Dtype is always i1.
   if (isa<AtenEqScalarOp, AtenGeScalarOp, AtenGtScalarOp, AtenLtScalarOp,
           AtenLeScalarOp, AtenNeScalarOp, AtenAnyOp, AtenAllOp, AtenEqTensorOp,
-          AtenGtTensorOp, AtenLtTensorOp>(op)) {
+          AtenGtTensorOp, AtenLtTensorOp, AtenLogicalOrOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = IntegerType::get(op->getContext(), 1);

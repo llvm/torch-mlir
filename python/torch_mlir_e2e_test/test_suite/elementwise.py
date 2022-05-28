@@ -1302,3 +1302,156 @@ class ElementwiseNegModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseNegModule())
 def ElementwiseNegModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.bool, True),
+        ([-1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpModule())
+def ElementwiseAtenLogicalOrOpModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([False, True]), torch.tensor([False, False]))
+
+class ElementwiseAtenLogicalOrOpDiffArgs1Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs1Module())
+def ElementwiseAtenLogicalOrOpDiffArgs1Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.2, 0.1]), torch.tensor([0, 1]))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpDiffArgs2Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.bool, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs2Module())
+def ElementwiseAtenLogicalOrOpDiffArgs2Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([True, False]), torch.tensor([0, 1]))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpDiffArgs3Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int64, True),
+        ([-1], torch.bool, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpDiffArgs3Module())
+def ElementwiseAtenLogicalOrOpDiffArgs3Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([1, 2]), torch.tensor([False, True]))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpRandomModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomModule())
+def ElementwiseAtenLogicalOrOpRandomModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(3, 10, (2, 3, 4, 5)), torch.randint(10, 100, (2, 3, 4, 5)))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpRandomFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomFloatModule())
+def ElementwiseAtenLogicalOrOpRandomFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(2, 3, 3, 5), torch.rand(2, 3, 3, 5))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.int64, True),
+        ([-1, -1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpNegativeModule())
+def ElementwiseAtenLogicalOrOpNegativeModule_basic(module, tu: TestUtils):
+    module.forward(torch.neg(torch.randint(3, 10, (2, 3, 4, 5))), torch.neg(torch.randint(10, 100, (2, 3, 4, 5))))
+
+# ==============================================================================
+
+class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1],     torch.int64, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.logical_or(x, y)
+
+@register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpBrodcastModule())
+def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(3, (3,)), torch.randint(3, (4, 3)))
+
+
+

@@ -249,6 +249,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
