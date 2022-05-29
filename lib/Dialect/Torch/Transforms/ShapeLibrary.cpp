@@ -3145,25 +3145,23 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.linalg_vector_norm"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.optional<list<int>>, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.list<int> {
     %none = torch.constant.none
     %true = torch.constant.bool true
-    %0 = torch.aten.__isnot__ %arg2, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %0 = torch.aten.__is__ %arg2, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
     %1 = torch.prim.If %0 -> (!torch.list<int>) {
-      %2 = torch.prim.unchecked_cast %arg2 : !torch.optional<list<int>> -> !torch.list<int>
-      %3 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
-      %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %2, %arg3, %3) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
-      torch.prim.If.yield %4 : !torch.list<int>
-    } else {
-      %2 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-      %3 = torch.prim.ListConstruct  : () -> !torch.list<int>
-      torch.prim.Loop %2, %true, init() {
+      %4 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+      %5 = torch.prim.ListConstruct  : () -> !torch.list<int>
+      torch.prim.Loop %4, %true, init() {
       ^bb0(%arg5: !torch.int):
-        %6 = torch.aten.append.t %3, %arg5 : !torch.list<int>, !torch.int -> !torch.list<int>
+        %6 = torch.aten.append.t %5, %arg5 : !torch.list<int>, !torch.int -> !torch.list<int>
         torch.prim.Loop.condition %true, iter()
       } : (!torch.int, !torch.bool) -> ()
-      %4 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
-      %5 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %3, %arg3, %4) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
       torch.prim.If.yield %5 : !torch.list<int>
+    } else {
+      %4 = torch.prim.unchecked_cast %arg2 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %4 : !torch.list<int>
     }
-    return %1 : !torch.list<int>
+    %2 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
+    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %1, %arg3, %2) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
+    return %3 : !torch.list<int>
   }
 }
 )mlir");
