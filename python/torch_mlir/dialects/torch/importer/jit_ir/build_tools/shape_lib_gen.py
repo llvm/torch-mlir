@@ -549,6 +549,13 @@ def aten〇bmm(self: List[int], mat2: List[int]) -> List[int]:
     assert self[2] == mat2[1], "mismatching contracting dimension"
     return [self[0], self[1], mat2[2]]
 
+def aten〇baddbmm(self: List[int], batch1: List[int], batch2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
+    assert len(batch1) == 3, "baddbmm only supports 3D tensors"
+    assert len(batch2) == 3, "baddbmm only supports 3D tensors"
+    assert batch1[0] == batch2[0], "mismatching batch dimension"
+    assert batch1[2] == batch2[1], "mismatching contracting dimension"
+    return [batch1[0], batch1[1], batch2[2]]
+
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_helpers.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 

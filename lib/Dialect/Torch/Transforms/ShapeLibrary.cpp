@@ -942,6 +942,55 @@ module {
     %13 = torch.prim.ListConstruct %10, %11, %12 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
     return %13 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.baddbmm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.float, %arg4: !torch.float) -> !torch.list<int> {
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int0 = torch.constant.int 0
+    %int3 = torch.constant.int 3
+    %str = torch.constant.str "AssertionError: baddbmm only supports 3D tensors"
+    %none = torch.constant.none
+    %str_0 = torch.constant.str "AssertionError: mismatching batch dimension"
+    %str_1 = torch.constant.str "AssertionError: mismatching contracting dimension"
+    %0 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
+    %1 = torch.aten.eq.int %0, %int3 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %1 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %2 = torch.aten.len.t %arg2 : !torch.list<int> -> !torch.int
+    %3 = torch.aten.eq.int %2, %int3 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %3 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %4 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %5 = torch.aten.__getitem__.t %arg2, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %6 = torch.aten.eq.int %4, %5 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %6 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str_0, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %7 = torch.aten.__getitem__.t %arg1, %int2 : !torch.list<int>, !torch.int -> !torch.int
+    %8 = torch.aten.__getitem__.t %arg2, %int1 : !torch.list<int>, !torch.int -> !torch.int
+    %9 = torch.aten.eq.int %7, %8 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %9 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str_1, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %10 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %11 = torch.aten.__getitem__.t %arg1, %int1 : !torch.list<int>, !torch.int -> !torch.int
+    %12 = torch.aten.__getitem__.t %arg2, %int2 : !torch.list<int>, !torch.int -> !torch.int
+    %13 = torch.prim.ListConstruct %10, %11, %12 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    return %13 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.embedding"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {
     %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.embedding(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.int, !torch.bool, !torch.bool) -> !torch.list<int>
     return %0 : !torch.list<int>
