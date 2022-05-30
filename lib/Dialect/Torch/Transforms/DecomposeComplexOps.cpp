@@ -1915,6 +1915,33 @@ class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
+// `aten.add.Tensor` op.
+class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBaddbmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value bmm =
+        rewriter.create<AtenBmmOp>(loc, op.getType(), op.batch1(), op.batch2());
+    Value alphaTimesBmm =
+        rewriter.create<AtenMulScalarOp>(loc, op.getType(), bmm, op.alpha());
+    Value input = op.self();
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    BaseTensorType resultType =
+        op->getResult(0).getType().cast<BaseTensorType>();
+    if (inputType.hasDtype() && resultType.hasDtype() &&
+        inputType.getDtype() != resultType.getDtype()) {
+      input = convertTensorToDtype(rewriter, loc, input, resultType.getDtype());
+    }
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(
+        op, op.getType(), alphaTimesBmm, op.self(), op.beta());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2055,6 +2082,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenClampMinOp>();
     patterns.add<DecomposeAtenClampMaxOp>(context);
     target.addIllegalOp<AtenClampMaxOp>();
+    patterns.add<DecomposeAtenBaddbmmOp>(context);
+    target.addIllegalOp<AtenBaddbmmOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

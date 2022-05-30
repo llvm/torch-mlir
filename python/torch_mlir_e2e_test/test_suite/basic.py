@@ -275,6 +275,7 @@ class ConstantPad2dStaticModule(torch.nn.Module):
 def ConstantPad2dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
 
+
 # ==============================================================================
 
 
@@ -321,8 +322,6 @@ class PadWithNoneValModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PadWithNoneValModule())
 def PadWithNoneValModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20) - 0.5)
-
-
 
 
 # ==============================================================================
@@ -1568,7 +1567,9 @@ class HardTanhIntModule(torch.nn.Module):
 def HardTanhIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-5, 5, (100, 100)))
 
+
 # ==============================================================================
+
 
 class BincountModule(torch.nn.Module):
 
@@ -1588,7 +1589,9 @@ class BincountModule(torch.nn.Module):
 def BincountModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (1000, )))
 
+
 # ==============================================================================
+
 
 class BincountStaticSizeModule(torch.nn.Module):
 
@@ -1608,7 +1611,9 @@ class BincountStaticSizeModule(torch.nn.Module):
 def BincountStaticSizeModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(100, (200, )))
 
+
 # ==============================================================================
+
 
 class BincountMinlengthModule(torch.nn.Module):
 
@@ -1835,12 +1840,13 @@ class FlipModule(torch.nn.Module):
         return torch.ops.aten.flip(x, [1, 2])
 
 
-@register_test_case(
-    module_factory=lambda: FlipModule())
+@register_test_case(module_factory=lambda: FlipModule())
 def FlipModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
+
 # ==============================================================================
+
 
 class DetachModule(torch.nn.Module):
 
@@ -1856,10 +1862,10 @@ class DetachModule(torch.nn.Module):
         return torch.ops.aten.detach(x)
 
 
-@register_test_case(
-    module_factory=lambda: DetachModule())
+@register_test_case(module_factory=lambda: DetachModule())
 def DetachModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
 
 # ==============================================================================
 
@@ -1900,3 +1906,175 @@ class ScalarImplicitIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ScalarImplicitIntModule())
 def ScalarImplicitIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100, ()))
+
+
+# ==============================================================================
+
+
+class BaddbmmDynamicModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: BaddbmmDynamicModule())
+def BaddbmmDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 6), tu.rand(3, 6, 5))
+
+
+class BaddbmmStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([5, 2, 7], torch.float32, True),
+        ([5, 2, 9], torch.float32, True),
+        ([5, 9, 7], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: BaddbmmStaticModule())
+def BaddbmmStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class BaddbmmDifferentDtypesModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.int64, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: BaddbmmDifferentDtypesModule())
+def BaddbmmDifferentDtypesModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 4, 5)), tu.rand(3, 4, 6),
+                   tu.rand(3, 6, 5))
+
+
+class BaddbmmWithAlphaModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2, alpha=5)
+
+
+@register_test_case(module_factory=lambda: BaddbmmWithAlphaModule())
+def BaddbmmWithAlphaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 6), tu.rand(3, 6, 5))
+
+
+class BaddbmmWithBetaModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2, beta=0.5)
+
+
+@register_test_case(module_factory=lambda: BaddbmmWithBetaModule())
+def BaddbmmWithBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 6), tu.rand(3, 6, 5))
+
+
+class BaddbmmWithAlphaBetaModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2, beta=6, alpha=2.4)
+
+
+@register_test_case(module_factory=lambda: BaddbmmWithAlphaBetaModule())
+def BaddbmmWithAlphaBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 6), tu.rand(3, 6, 5))
+
+
+class BaddbmmBroadcast1DInputModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1], torch.float32, True),
+        ([5, 2, 9], torch.float32, True),
+        ([5, 9, 7], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: BaddbmmBroadcast1DInputModule())
+def BaddbmmBroadcast1DInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1,), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class BaddbmmBroadcast2DInputModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 7], torch.float32, True),
+        ([5, 2, 9], torch.float32, True),
+        ([5, 9, 7], torch.float32, True),
+    ])
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.baddbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: BaddbmmBroadcast2DInputModule())
+def BaddbmmBroadcast2DInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))

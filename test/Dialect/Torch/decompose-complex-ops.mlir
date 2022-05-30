@@ -1009,3 +1009,18 @@ func.func @torch.aten.clamp_max(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vten
   %0 = torch.aten.clamp_max %arg0, %max : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+// CHECK-LABEL:   func @torch.aten.baddbmm(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[?,?,?],f32>, %[[BATCH1:.*]]: !torch.vtensor<[?,?,?],f32>,
+// CHECK-SAME:                  %[[BATCH2:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[BMM:.*]] = torch.aten.bmm %[[BATCH1]], %[[BATCH2]] : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           %[[MUL:.*]] = torch.aten.mul.Scalar %[[BMM]], %[[CST1]] : !torch.vtensor<[?,?,?],f32>, !torch.int -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           %[[OUT:.*]] = torch.aten.add.Tensor %[[MUL]], %[[SELF]], %[[CST1]] : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>, !torch.int  -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?,?],f32>
+func.func @torch.aten.baddbmm(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>, %arg2: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.baddbmm %arg0, %arg1, %arg2, %int1, %int1 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>, !torch.int , !torch.int -> !torch.vtensor<[?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?],f32>
+}

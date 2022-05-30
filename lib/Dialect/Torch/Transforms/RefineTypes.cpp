@@ -738,7 +738,7 @@ ChangeResult TypeAnalyzer::visitOperation(
   }
 
   // Promote 2nd and 3rd operands.
-  if (isa<AtenWhereSelfOp>(op)) {
+  if (isa<AtenWhereSelfOp, AtenBaddbmmOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(getContext());
     knowledge.dtype = getPromotedResultType(
