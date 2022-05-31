@@ -2403,6 +2403,29 @@ def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
   }];
 }
 
+def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::zero.functional : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenZeroFunctionalOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenZeroFunctionalOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
     AllowsTypeRefinement
   ]> {

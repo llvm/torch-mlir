@@ -638,6 +638,9 @@ def aten〇masked_fill〇Scalar(self: List[int], mask: List[int], value: float) 
 def aten〇zero(self: List[int]) -> List[int]:
     return self
 
+def aten〇zero〇functional(self: List[int]) -> List[int]:
+    return self
+
 @not_present_in_registry
 def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
     return self
