@@ -15,15 +15,18 @@ Based on LTC code samples by ramiro050
 
 import argparse
 import sys
+from typing import List
+
+import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import torch
 import torch._C
 import torch._lazy
+import torch._lazy.ts_backend
 from datasets import load_dataset
 from datasets.dataset_dict import DatasetDict
 from torch.utils.data import DataLoader
 from transformers import BertForSequenceClassification, \
     BertConfig, BertTokenizer, AdamW, get_scheduler
-from typing import List
 
 
 def tokenize_dataset(dataset: DatasetDict) -> DatasetDict:
@@ -113,7 +116,9 @@ def main(device='lazy', full_size=False):
 
     # Get debug information from LTC
     if 'ltc_backend' in sys.modules:
-        print(ltc_backend.get_latest_computation().debug_string())
+        computation = ltc_backend.get_latest_computation()
+        if computation:
+            print(computation.debug_string())
 
     print('Loss: ', losses)
 
@@ -141,11 +146,9 @@ if __name__ == "__main__":
 
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
-            import torch._lazy.ts_backend
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
-            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
             ltc_backend._initialize()
 
         device = "lazy"
