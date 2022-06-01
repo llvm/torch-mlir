@@ -14,12 +14,10 @@ Based on LTC code samples by ramiro050
 """
 
 import argparse
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import sys
 import torch
 import torch._C
 import torch._lazy
-import torch._lazy.ts_backend
 from datasets import load_dataset
 from datasets.dataset_dict import DatasetDict
 from torch.utils.data import DataLoader
@@ -81,6 +79,7 @@ def main(device='lazy', full_size=False):
     :param device: name of device to load tensors to
     :param full_size: if true, use a full pretrained bert-base-cased model instead of a smaller variant
     """
+    torch.manual_seed(0)
 
     tokenized_datasets = tokenize_dataset(load_dataset('imdb'))
     small_train_dataset = tokenized_datasets['train'].shuffle(seed=42) \
@@ -118,6 +117,7 @@ def main(device='lazy', full_size=False):
 
     print('Loss: ', losses)
 
+
 if __name__ == "__main__":
     torch.manual_seed(0)
 
@@ -141,9 +141,11 @@ if __name__ == "__main__":
 
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
+            import torch._lazy.ts_backend
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
+            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
             ltc_backend._initialize()
 
         device = "lazy"

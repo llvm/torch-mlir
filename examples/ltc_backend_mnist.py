@@ -6,11 +6,9 @@
 Example use of the example Torch MLIR LTC backend.
 """
 import argparse
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import sys
 import torch
 import torch._lazy
-import torch._lazy.ts_backend
 import torch.nn.functional as F
 
 
@@ -20,6 +18,8 @@ def main(device='lazy'):
 
     :param device: name of device to load tensors to
     """
+    torch.manual_seed(0)
+
     inputs = torch.tensor([[1, 2, 3, 4, 5]], dtype=torch.float32, device=device)
     assert inputs.device.type == device
 
@@ -57,12 +57,11 @@ def main(device='lazy'):
         print("Calling Mark Step")
         torch._lazy.mark_step()
 
-    print()
-    print(loss)
-
     # Get debug information from LTC
     if 'ltc_backend' in sys.modules:
         print(ltc_backend.get_latest_computation().debug_string())
+
+    print(loss)
 
 
 if __name__ == "__main__":
@@ -81,9 +80,11 @@ if __name__ == "__main__":
 
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
+            import torch._lazy.ts_backend
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
+            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
             ltc_backend._initialize()
 
         device = "lazy"
