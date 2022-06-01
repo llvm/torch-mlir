@@ -642,7 +642,7 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
           AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroFunctionalOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
-          PrimAbsScalarOp>(op)) {
+          PrimAbsScalarOp, TorchMlirCustomOpExampleIdentityOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 

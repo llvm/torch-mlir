@@ -8,6 +8,7 @@
 from typing import List, Optional, TextIO
 
 import argparse
+import importlib
 import logging
 import os
 import sys
@@ -61,11 +62,18 @@ def get_ods_type(type: str):
     return ods_type
 
 
+def _name_thunk() -> None:
+  # Strictly exists for _get_main_module_name to harvest its __module__.
+  pass
 def _get_main_module_name() -> str:
-    # pytype: disable=attribute-error
-    return sys.modules["__main__"].__loader__.name
-    # pytype: enable=attribute-error
-
+    # If a Python module is loaded interactively or as part of a module
+    # directory, it uses a BuiltinImporter. If loaded from a file, it uses
+    # the SourceFileLoader. These two objects have different attributes.
+    loader = sys.modules["__main__"].__loader__
+    try:
+        return loader.name # pytype: disable=attribute-error
+    except AttributeError:
+        return _name_thunk.__module__
 
 ODS_BANNER = f"""//===-------------------------------------------------------*- tablegen -*-===//
 //
@@ -581,13 +589,31 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "quantized::linear : (Tensor, __torch__.torch.classes.quantized.LinearPackedParamsBase, float, int) -> (Tensor)",
         traits=["HasValueSemantics"])
 
+    # ==========================================================================
+    # `_torch_mlir_custom_op_example::` namespace.
+    #
+    # This is a demonstration of supporting an operation defined in a PyTorch
+    # extension.
+    # ==========================================================================
+
+    emit("_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)")
+
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
         outfile.write(repr(v))
 
+def _maybe_import_op_extensions(args: argparse.Namespace):
+    extension_string = str.strip(args.pytorch_op_extensions)
+    if len(extension_string) > 0:
+        extension_names = extension_string.split(",")
+        for name in extension_names:
+            # Registration of new PyTorch ops should be a side-effect of
+            # importing these modules, so we don't need the return value.
+            importlib.import_module(name)
 
 def main(args: argparse.Namespace):
+    _maybe_import_op_extensions(args)
     registry = Registry.load()
     if args.debug_registry_dump:
         with open(args.debug_registry_dump, "w") as debug_registry_dump:
@@ -608,6 +634,11 @@ def _create_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         "--debug_registry_dump",
         help="File to dump the the PyTorch JIT operator registry into")
+    parser.add_argument(
+        "--pytorch_op_extensions",
+        type=str,
+        default="",
+        help="An optional, comma-separated list of Python modules which register additional PyTorch operators upon being imported. These modules can be used to build a torch-mlir which supports PyTorch extensions.")
     return parser
 
 

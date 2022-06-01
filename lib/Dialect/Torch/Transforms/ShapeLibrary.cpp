@@ -6508,6 +6508,10 @@ module {
     %3 = call @__torch__.torch.jit._shape_functions.mean_dim(%arg0, %1, %arg3, %2) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
     return %3 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn._torch_mlir_custom_op_example.identity"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
 }
 )mlir");
 #pragma clang diagnostic pop
