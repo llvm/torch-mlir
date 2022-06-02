@@ -267,6 +267,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
+            "aten::clamp_min : (Tensor, Scalar) -> (Tensor)",
+            "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",

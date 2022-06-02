@@ -487,6 +487,44 @@ def ElementwiseClampModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseClampMinModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.clamp_min(x, -2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinModule())
+def ElementwiseClampMinModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10))
+
+# ==============================================================================
+
+class ElementwiseClampMaxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.clamp_max(x, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMaxModule())
+def ElementwiseClampMaxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10))
+
+# ==============================================================================
+
 class RsubModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
