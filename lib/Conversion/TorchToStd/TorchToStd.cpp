@@ -196,11 +196,14 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenAnyBoolOp : public OpConversionPattern<AtenAnyBoolOp> {
+template <typename OpTy>
+class ConvertAtenAnyOrAllBoolOp : public OpConversionPattern<OpTy> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
+  virtual bool reductionFunction(ArrayRef<bool> inputArray) const = 0;
   LogicalResult
-  matchAndRewrite(AtenAnyBoolOp op, OpAdaptor adaptor,
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     SmallVector<Value> inputListTorchBool;
@@ -216,11 +219,27 @@ public:
             op, "only support constant bool input list elements");
       inputListBool.push_back(cst);
     }
-    bool result = llvm::any_of(
-        inputListBool, [](bool inputListElem) { return inputListElem; });
+    bool result = reductionFunction(inputListBool);
+
     rewriter.replaceOpWithNewOp<arith::ConstantOp>(
         op, rewriter.getBoolAttr(result));
     return success();
+  }
+};
+
+class ConvertAtenAnyOp : public ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp> {
+  using ConvertAtenAnyOrAllBoolOp<AtenAnyBoolOp>::ConvertAtenAnyOrAllBoolOp;
+  bool reductionFunction(ArrayRef<bool> inputArray) const override {
+    return llvm::any_of(inputArray,
+                        [](bool inputListElem) { return inputListElem; });
+  }
+};
+
+class ConvertAtenAllOp : public ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp> {
+  using ConvertAtenAnyOrAllBoolOp<AtenAllBoolOp>::ConvertAtenAnyOrAllBoolOp;
+  bool reductionFunction(ArrayRef<bool> inputArray) const override {
+    return llvm::all_of(inputArray,
+                        [](bool inputListElem) { return inputListElem; });
   }
 };
 } // namespace
@@ -340,8 +359,9 @@ public:
     target.addIllegalOp<AtenSqrtIntOp>();
     patterns.add<ConvertAtenUnaryOpToFloatMathOp<AtenSqrtIntOp, math::SqrtOp>>(
         typeConverter, context);
-    target.addIllegalOp<AtenAnyBoolOp>();
-    patterns.add<ConvertAtenAnyBoolOp>(typeConverter, context);
+    target.addIllegalOp<AtenAnyBoolOp, AtenAllBoolOp>();
+    patterns.add<ConvertAtenAnyOp>(typeConverter, context);
+    patterns.add<ConvertAtenAllOp>(typeConverter, context);
     target.addIllegalOp<AtenBoolFloatOp, AtenBoolIntOp>();
     patterns.add<
         ConvertAtenBoolLikeOp<AtenBoolFloatOp, arith::CmpFOp,
