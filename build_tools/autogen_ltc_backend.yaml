@@ -14,6 +14,9 @@ blacklist:
 - where
 - copy_
 
+# Disabled for consistency with TS backend
+- rsub
+
 # List of supported ops that we don't want to do the full codegen for
 # primarily view ops
 supported:
@@ -29,11 +32,15 @@ supported:
 - expand
 - fill_.Scalar
 - permute
+- select.int
+- slice.Tensor
 - squeeze
 - squeeze.dim
 - t
+- transpose.int
 - unsqueeze
 - view
+- _unsafe_view
 
 additional_ops:
 # Additional ops to support that are not supported by Torch-MLIR explicitly

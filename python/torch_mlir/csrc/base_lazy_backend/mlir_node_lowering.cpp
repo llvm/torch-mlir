@@ -63,7 +63,8 @@ TorchMlirOpVector LowerTorchMlirBuiltin(
     if (value->type()->kind() == c10::TypeKind::TensorType) {
       TORCH_CHECK(
           tensor_type_idx < tensor_types.size(),
-          "Tensor corresponding to JIT SSA value %", value->debugName(),
+          function->graph()->toString(),
+          "\nTensor corresponding to JIT SSA value %", value->debugName(),
           " corresponds to result #", tensor_type_idx, ", but we only have ",
           tensor_types.size(), " known types!");
 

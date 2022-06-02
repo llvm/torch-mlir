@@ -19,14 +19,14 @@ namespace lazy {
 
 // TODO(henrytu): Upstream these shape inference functions to PyTorch in the future.
 
-// Turns any negative index positive (assuming it's valid)
-int64_t normalize_index(int64_t index, unsigned dims) {
-  return index < 0 ? (int64_t)dims + index : index;
-}
-
 std::vector<torch::lazy::Shape>
 compute_shape__unsafe_view(const at::Tensor& self, at::IntArrayRef size) {
   return compute_shape_reshape(self, size);
+}
+
+std::vector<torch::lazy::Shape>
+compute_shape_div(const at::Tensor& self, const at::Scalar & other) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
 std::vector<torch::lazy::Shape>
