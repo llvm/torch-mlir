@@ -1900,3 +1900,28 @@ class ScalarImplicitIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ScalarImplicitIntModule())
 def ScalarImplicitIntModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-100, 100, ()))
+
+
+class PrimIsNestedOpModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+    def forward(self, a):
+        return torch.ops.prim.is_nested(a)
+
+@register_test_case(module_factory=lambda: PrimIsNestedOpModule())
+def PrimIsNestedOpModule_nested(module, tu: TestUtils):
+    tensor       = torch.tensor([1, 2, 3])
+    nested_basic = torch.ops.aten.nested_tensor([tensor])
+    module.forward(nested_basic)
+
+@register_test_case(module_factory=lambda: PrimIsNestedOpModule())
+def PrimIsNestedOpModule_notnested(module, tu: TestUtils):
+    tensor       = torch.tensor([1, 2, 3])
+    module.forward(tensor)
