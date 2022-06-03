@@ -152,4 +152,5 @@ TOSA_PASS_SET = {
     "ConvolutionModule2DStatic_basic",
     "ElementwiseNegModule_basic",
     "TestMultipleTensorReturn_basic",
+    "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
 }
