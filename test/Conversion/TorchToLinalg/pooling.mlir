@@ -11,12 +11,14 @@ func.func @forward(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,
   %int7 = torch.constant.int 7
   %int8 = torch.constant.int 8
   %false = torch.constant.bool false
+  // CHECK: %[[C1:.*]] = torch_c.to_i64 %int1
+  // CHECK: %[[C2:.*]] = torch_c.to_i64 %int2
   // CHECK: %[[NEUTRAL:.*]] = arith.constant -3.40282347E+38 : f32
   // CHECK: %[[PADDED:.*]] = tensor.pad %{{.*}} low[0, 0, 5, 6] high[0, 0, 5, 6]
   // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
-  // CHECK: %[[C1:.*]] = arith.constant 1 : index
-  // CHECK: %[[C2:.*]] = arith.constant 2 : index
-  // CHECK: %[[INIT:.*]] = linalg.init_tensor [%[[C1]], %[[C2]]] : tensor<?x?xf32>
+  // CHECK: %[[T1:.*]] = arith.index_cast %[[C1]] : i64 to index
+  // CHECK: %[[T2:.*]] = arith.index_cast %[[C2]] : i64 to index
+  // CHECK: %[[INIT:.*]] = linalg.init_tensor [%[[T1]], %[[T2]]] : tensor<?x?xf32>
   // CHECK: linalg.pooling_nchw_max {dilations = dense<[7, 8]> : vector<2xi64>, strides = dense<[3, 4]> : vector<2xi64>} ins(%[[PADDED]], %[[INIT]] : tensor<?x?x?x?xf32>, tensor<?x?xf32>) outs(%[[OUT]] : tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
   %kernel_size = torch.prim.ListConstruct %int1, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int4 : (!torch.int, !torch.int) -> !torch.list<int>

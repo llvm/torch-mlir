@@ -143,6 +143,15 @@ Value castIndexToInt64(OpBuilder &b, Location loc, Value idx) {
   return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
+SmallVector<Value>
+castIntVectorToIndexVector(OpBuilder &b, Location loc,
+                           SmallVectorImpl<Value> &intValues) {
+  SmallVector<Value> indexValues;
+  for (Value v : intValues)
+    indexValues.push_back(castIntToIndex(b, loc, v));
+  return indexValues;
+}
+
 Value getDimOp(OpBuilder &b, Location loc, Value v, int dim) {
   return b.createOrFold<tensor::DimOp>(loc, v, dim);
 }
