@@ -983,3 +983,29 @@ func.func @torch.aten.adaptive_avg_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) 
   %0 = torch.aten.adaptive_avg_pool2d %arg0, %output_size : !torch.vtensor<[?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?,?],f32>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.clamp_min(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           %[[MIN:.*]] = torch.constant.int -2
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[OUT:.*]] = torch.aten.clamp %[[SELF]], %[[MIN]], %[[NONE]] : !torch.vtensor<[?,?],f32>, !torch.int, !torch.none -> !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.clamp_min(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %min = torch.constant.int -2
+  %0 = torch.aten.clamp_min %arg0, %min : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.clamp_max(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           %[[MAX:.*]] = torch.constant.int 7
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[OUT:.*]] = torch.aten.clamp %[[SELF]], %[[NONE]], %[[MAX]]  : !torch.vtensor<[?,?],f32>, !torch.none, !torch.int -> !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.clamp_max(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %max = torch.constant.int 7
+  %0 = torch.aten.clamp_max %arg0, %max : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}

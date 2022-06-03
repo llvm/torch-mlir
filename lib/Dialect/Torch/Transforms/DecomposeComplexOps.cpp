@@ -1887,6 +1887,34 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 } // namespace
 
 namespace {
+// Decompose `aten.clamp_min` op into `aten.clamp` op.
+class DecomposeAtenClampMinOp : public OpRewritePattern<AtenClampMinOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenClampMinOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constantNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    rewriter.replaceOpWithNewOp<AtenClampOp>(op, op.getType(), op.self(),
+                                             op.min(), /*max=*/constantNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.clamp_max` op into `aten.clamp` op.
+class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenClampMaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constantNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    rewriter.replaceOpWithNewOp<AtenClampOp>(op, op.getType(), op.self(),
+                                             /*min=*/constantNone, op.max());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2023,6 +2051,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenToDtypeLayoutOp>();
     patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
     target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
+    patterns.add<DecomposeAtenClampMinOp>(context);
+    target.addIllegalOp<AtenClampMinOp>();
+    patterns.add<DecomposeAtenClampMaxOp>(context);
+    target.addIllegalOp<AtenClampMaxOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

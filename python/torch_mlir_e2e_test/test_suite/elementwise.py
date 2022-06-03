@@ -469,20 +469,66 @@ class ElementwiseClampModule(torch.nn.Module):
         ([-1, -1], torch.float32, True),
     ])
     def forward(self, x):
-        # TODO: It would be great to return all of these, so they get checked
-        # individually, but RefBackend doesn't support multiple returns.
-        # Instead, multiply them together, which has some chance of propagating
-        # all the values.
         float_min = torch.clamp(x, min=-2.0)
         int_min = torch.clamp(x, min=-3)
         float_max = torch.clamp(x, max=2.0)
         int_max = torch.clamp(x, max=3)
         both = torch.clamp(x, min=-5, max=5)
-        return float_min * int_min * float_max * int_max * both
+        return float_min, int_min, float_max, int_max, both
 
 
 @register_test_case(module_factory=lambda: ElementwiseClampModule())
 def ElementwiseClampModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMinModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        float_min = torch.ops.aten.clamp_min(x, min=-2.0)
+        int_min = torch.ops.aten.clamp_min(x, min=2)
+        min = torch.ops.aten.clamp_min(x, min=11.0)
+        return float_min, int_min, min
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinModule())
+def ElementwiseClampMinModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMaxModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        float_max = torch.ops.aten.clamp_max(x, max=2.0)
+        int_max = torch.ops.aten.clamp_max(x, max=3)
+        max = torch.ops.aten.clamp_max(x, max=-11.0)
+        return float_max, int_max, max
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMaxModule())
+def ElementwiseClampMaxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5, low=-10, high=10))
 
 # ==============================================================================
