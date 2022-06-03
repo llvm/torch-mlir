@@ -1036,3 +1036,30 @@ func.func @torch.aten.floor_divide(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !tor
   %0 = torch.aten.floor_divide %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+// CHECK-LABEL:   func @torch.aten.numpy_T$rank_two(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[5,4],f32>) -> !torch.vtensor<[4,5],f32> {
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[DIMS:.*]] = torch.prim.ListConstruct %[[CST1]], %[[CST0]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[OUT:.*]] = torch.aten.permute %[[SELF]], %[[DIMS]] : !torch.vtensor<[5,4],f32>, !torch.list<int> -> !torch.vtensor<[4,5],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[4,5],f32>
+func.func @torch.aten.numpy_T$rank_two(%arg0: !torch.vtensor<[5,4],f32>) -> !torch.vtensor<[4,5],f32> {
+  %0 = torch.aten.numpy_T %arg0 : !torch.vtensor<[5,4],f32> -> !torch.vtensor<[4,5],f32>
+  return %0 : !torch.vtensor<[4,5],f32>
+}
+
+// -----
+// CHECK-LABEL:   func @torch.aten.numpy_T$rank_three(
+// CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[5,4,3],f32>) -> !torch.vtensor<[3,4,5],f32> {
+// CHECK:           %[[CST2:.*]] = torch.constant.int 2
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[DIMS:.*]] = torch.prim.ListConstruct %[[CST2]], %[[CST1]], %[[CST0]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[OUT:.*]] = torch.aten.permute %[[SELF]], %[[DIMS]] : !torch.vtensor<[5,4,3],f32>, !torch.list<int> -> !torch.vtensor<[3,4,5],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[3,4,5],f32>
+func.func @torch.aten.numpy_T$rank_three(%arg0: !torch.vtensor<[5,4,3],f32>) -> !torch.vtensor<[3,4,5],f32> {
+  %0 = torch.aten.numpy_T %arg0 : !torch.vtensor<[5,4,3],f32> -> !torch.vtensor<[3,4,5],f32>
+  return %0 : !torch.vtensor<[3,4,5],f32>
+}
