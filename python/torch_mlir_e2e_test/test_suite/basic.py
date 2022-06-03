@@ -64,6 +64,50 @@ def BmmModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IsFloatingPointInt(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.is_floating_point(x)
+
+
+@register_test_case(module_factory=lambda: IsFloatingPointInt())
+def IsFloatingPointInt_False(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 3)))
+
+
+# ==============================================================================
+
+
+class IsFloatingPointFloat(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.is_floating_point(x)
+
+
+@register_test_case(module_factory=lambda: IsFloatingPointFloat())
+def IsFloatingPointFloat_True(module, tu: TestUtils):
+    module.forward(tu.rand(3))
+        
+
+# ==============================================================================
+
+
 # A subgraph with multiple mm ops.
 class MmDagModule(torch.nn.Module):
 
