@@ -640,7 +640,7 @@ ChangeResult TypeAnalyzer::visitOperation(
           AtenGatherOp, AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp,
           AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp, AtenZero_Op,
           AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp, ValsemVariantAtenZeroOp,
+          ValsemVariantAtenCopyOp, AtenZeroFunctionalOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
