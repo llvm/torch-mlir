@@ -160,4 +160,8 @@ TOSA_PASS_SET = {
     "BaddbmmWithBetaModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
+    "NumpyTRank1Module_basic",
+    "NumpyTRank2Module_basic",
+    "NumpyTRankNStaticModule_basic",
+    "NumpyTRankNDynamicModule_basic",
 }

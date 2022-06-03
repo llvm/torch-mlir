@@ -2193,3 +2193,101 @@ class BaddbmmBroadcast2DInputModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BaddbmmBroadcast2DInputModule())
 def BaddbmmBroadcast2DInputModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+# ==============================================================================
+
+
+class NumpyTRankNStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 4, 5, 6], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.ops.aten.numpy_T(lhs)
+
+
+@register_test_case(module_factory=lambda: NumpyTRankNStaticModule())
+def NumpyTRankNStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, 6))
+
+
+class NumpyTRankNDynamicModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.ops.aten.numpy_T(lhs)
+
+
+@register_test_case(module_factory=lambda: NumpyTRankNDynamicModule())
+def NumpyTRankNDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, 6, 2))
+
+
+class NumpyTRank2Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.ops.aten.numpy_T(lhs)
+
+
+@register_test_case(module_factory=lambda: NumpyTRank2Module())
+def NumpyTRank2Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+class NumpyTRank1Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.ops.aten.numpy_T(lhs)
+
+
+@register_test_case(module_factory=lambda: NumpyTRank1Module())
+def NumpyTRank1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3))
+
+
+class NumpyTRank0Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.ops.aten.numpy_T(lhs)
+
+
+@register_test_case(module_factory=lambda: NumpyTRank0Module())
+def NumpyTRank0Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(7, dtype=torch.float32))

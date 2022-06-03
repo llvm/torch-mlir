@@ -1958,6 +1958,29 @@ class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.numpy_T` op into `aten.permute` op.
+class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNumpyTOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    int64_t inputRank = getTensorRank(self);
+
+    SmallVector<Value> dimListElements;
+    for (int64_t i = inputRank - 1; i >= 0; i--)
+      dimListElements.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i)));
+    Value dimList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        dimListElements);
+    rewriter.replaceOpWithNewOp<AtenPermuteOp>(op, op.getType(), self, dimList);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2102,6 +2125,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenBaddbmmOp>();
     patterns.add<DecomposeAtenFloorDivideOp>(context);
     target.addIllegalOp<AtenFloorDivideOp>();
+    patterns.add<DecomposeAtenNumpyTOp>(context);
+    target.addIllegalOp<AtenNumpyTOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
