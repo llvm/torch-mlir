@@ -447,11 +447,53 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(div.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>())
+    if (!dtype.isa<mlir::FloatType>()) {
       div.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::DivFOp>(loc, lhs, rhs);
+  }
+  if (auto divTensorMode = dyn_cast<AtenDivTensorModeOp>(op)) {
+    AtenDivTensorModeOp::Adaptor adaptor(operands);
+    Type dtype = converter->convertType(divTensorMode.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    if (!dtype.isa<mlir::FloatType>()) {
+      divTensorMode.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value div = b.create<arith::DivFOp>(loc, lhs, rhs);
+
+    if (divTensorMode.rounding_mode().getType().isa<Torch::NoneType>())
+      return div;
+
+    std::string roundingMode;
+    if (!matchPattern(divTensorMode.rounding_mode(),
+                      m_TorchConstantStr(roundingMode))) {
+      divTensorMode.emitError("only support constant str rounding mode");
+      return nullptr;
+    }
+    if (roundingMode == "trunc") {
+      // "trunc" - rounds the results of the division towards zero. Equivalent
+      // to C-style integer division.
+      Value ceil = b.create<math::CeilOp>(loc, div);
+      Value floor = b.create<math::FloorOp>(loc, div);
+      Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+      Value pred =
+          b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, div, cstZero);
+      return b.create<arith::SelectOp>(loc, pred, ceil, floor);
+    }
+    if (roundingMode == "floor") {
+      // "floor" - rounds the results of the division down. Equivalent to
+      // floor division in Python (the // operator)
+      return b.create<math::FloorOp>(loc, div);
+    }
+    divTensorMode.emitError("invalid rounding mode");
+    return nullptr;
   }
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
     if (!pow.getType()
@@ -845,17 +887,17 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp,
              AtenGeluBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
-             AtenDivTensorOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
-             AtenExpOp, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp,
-             AtenClampOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
-             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
-             AtenLog2Op, AtenRsqrtOp, AtenDivScalarOp, AtenAbsOp,
-             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
-             AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-             AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
-             AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
-             AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
+             AtenDivTensorOp, AtenDivTensorModeOp, AtenSubTensorOp,
+             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenMinimumOp,
+             AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp,
+             AtenMulScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
+             AtenPowTensorScalarOp, AtenLog2Op, AtenRsqrtOp, AtenDivScalarOp,
+             AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+             AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
+             AtenLeScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
+             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
+             AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
+             AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
              AtenLogicalOrOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
@@ -1585,15 +1627,15 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
       AtenTanhOp, AtenReluOp, AtenLeakyReluOp, AtenGeluOp, AtenGeluBackwardOp,
-      AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenSubTensorOp,
-      AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenMaximumOp,
-      AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp,
-      AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp, AtenLog2Op,
-      AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
-      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
-      AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
-      AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
+      AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
+      AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp,
+      AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenRsubScalarOp, AtenLogOp,
+      AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPowTensorScalarOp,
+      AtenLog2Op, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
+      AtenBitwiseAndTensorOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
       AtenLogicalOrOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
