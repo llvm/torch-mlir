@@ -711,6 +711,9 @@ def aten〇mul〇Tensor(self: List[int], other: List[int]) -> List[int]:
 def aten〇div〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, other)
 
+def aten〇div〇Tensor_mode(self: List[int], other: List[int], rounding_mode: Optional[str]) -> List[int]:
+    return upstream_shape_helpers.broadcast(self, other)
+
 def aten〇__and__〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, other)
 
