@@ -839,6 +839,6 @@ class IndexAddModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexAddModule())
 def IndexAddModule_basic(module, tu: TestUtils):
   module.forward(torch.rand((3, 5, 2), dtype=torch.float32),
-          torch.tensor(0),
+          torch.tensor(0.0),
           torch.tensor([0, 1]),
           torch.rand((2, )))

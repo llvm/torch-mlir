@@ -1643,12 +1643,13 @@ namespace {
 class DecomposeAtenIndexAddOp : public OpRewritePattern<AtenIndexAddOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenIndexAdd op,
+  LogicalResult matchAndRewrite(AtenIndexAddOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value input = op.self();
-    Value updates = op.values();
     int inputRank = getTensorRank(input);
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    Value updates = op.source();
 
     if (inputRank < 0) {
       return rewriter.notifyMatchFailure(op, "Invalid Input: Unranked tensor");
@@ -1659,9 +1660,9 @@ public:
           op, "Unimplemented: Ranks of input and updates do not match");
     }
 
-    SmallVector<int64_t> expandedUpdatesSizes{updates.getShape().front(), 1};
-
-    BaseTensorType expandUpdatesType = inputType.getWithSizesAndDtype(
+    inputType = input.getType().cast<BaseTensorType>();
+    SmallVector<int64_t> empty;
+    Type expandUpdatesType = inputType.getWithSizesAndDtype(
         llvm::makeArrayRef(empty), rewriter.getF64Type());
 
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
@@ -1672,11 +1673,14 @@ public:
 
     Value indicesAsTensorList = rewriter.create<PrimListConstructOp>(
         op.getLoc(), Torch::ListType::get(updates.getType()),
-        SmallVector<Value>(op.indices()));
+        Value(op.index()));
+
+    Value accumulateTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
 
     rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
-        op, op.getType(), op.self(), indicesAsTensorList, expandedUpdates,
-        /*accumulate=*/true);
+        op, op.getType(), op.self(), indicesAsTensorList, expandedUpdates, accumulateTrue,
+        /*unsafe=*/cstFalse);
     return success();
   }
 };
@@ -2053,7 +2057,7 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenIndexPutOp>(context);
     target.addIllegalOp<AtenIndexPutOp>();
     patterns.add<DecomposeAtenIndexAddOp>(context);
-    target.addIllegalOp<AtenIndexAddOp>;
+    target.addIllegalOp<AtenIndexAddOp>();
     patterns.add<DecomposeAtenExpandAsOp>(context);
     target.addIllegalOp<AtenExpandAsOp>();
     patterns.add<DecomposeAten_ToCopyOp>(context);

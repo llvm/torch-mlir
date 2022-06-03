@@ -303,7 +303,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
     emit_with_mutating_variants(
         "aten::index_put.hacked_twin : (Tensor, Tensor[], Tensor, bool) -> (Tensor)")
-    #emit_with_mutating_variants("aten::index_add : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit_with_mutating_variants("aten::index_add : (Tensor, int, Tensor, Tensor, Scalar) -> (Tensor)") 
 
     # Non-elementwise tensor compute ops
