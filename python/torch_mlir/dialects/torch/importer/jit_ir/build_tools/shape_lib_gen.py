@@ -710,6 +710,9 @@ def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
 def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, other)
 
+def aten〇logical_or(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_helpers.broadcast(self, other)
+
 def aten〇threshold(self: List[int], threshold: float, value: float) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
