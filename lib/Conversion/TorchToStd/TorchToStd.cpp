@@ -51,6 +51,24 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenIsFloatingPointOp
+    : public OpConversionPattern<AtenIsFloatingPointOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIsFloatingPointOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto tensorType = op.self().getType().cast<BaseTensorType>();
+    bool result =
+        tensorType.hasDtype() && tensorType.getDtype().isa<mlir::FloatType>();
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, BoolAttr::get(getContext(), result));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -301,6 +319,8 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenDimOp>();
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
+    target.addIllegalOp<AtenIsFloatingPointOp>();
+    patterns.add<ConvertAtenIsFloatingPointOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp>();

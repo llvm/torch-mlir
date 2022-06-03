@@ -4149,6 +4149,29 @@ def Torch_AtenBoolTensorOp : Torch_Op<"aten.Bool.Tensor", [
   }];
 }
 
+def Torch_AtenIsFloatingPointOp : Torch_Op<"aten.is_floating_point", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::is_floating_point : (Tensor) -> (bool)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIsFloatingPointOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenIsFloatingPointOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
     AllowsTypeRefinement,
     HasValueSemantics,
