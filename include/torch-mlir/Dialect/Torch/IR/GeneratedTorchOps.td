@@ -5979,6 +5979,28 @@ def Torch_AtenTOp : Torch_Op<"aten.t", [
   }];
 }
 
+def Torch_AtenNumpyTOp : Torch_Op<"aten.numpy_T", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::numpy_T : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNumpyTOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenNumpyTOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenFullOp : Torch_Op<"aten.full", [
     AllowsTypeRefinement,
     HasValueSemantics,

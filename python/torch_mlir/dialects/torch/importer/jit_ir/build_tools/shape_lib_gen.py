@@ -529,6 +529,12 @@ def aten〇transpose〇int(self: List[int], dim0: int, dim1: int) -> List[int]:
 def aten〇t(self: List[int]) -> List[int]:
     return upstream_shape_functions.transpose(self, 0, 1)
 
+def aten〇numpy_T(self: List[int]) -> List[int]:
+    result_shape: List[int] = []
+    for i in self:
+        result_shape.insert(0, i)
+    return result_shape
+
 def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.matmul(self, other)
 

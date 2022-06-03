@@ -5628,6 +5628,19 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.transpose(%arg0, %int0, %int1) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.numpy_T"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %int0 = torch.constant.int 0
+    %true = torch.constant.bool true
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %1 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    torch.prim.Loop %1, %true, init() {
+    ^bb0(%arg1: !torch.int):
+      %2 = torch.aten.__getitem__.t %arg0, %arg1 : !torch.list<int>, !torch.int -> !torch.int
+      torch.aten.insert.t %0, %int0, %2 : !torch.list<int>, !torch.int, !torch.int
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %0 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.matmul"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.matmul(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
