@@ -122,6 +122,8 @@ def main(device='lazy', full_size=False):
 
     print('Loss: ', losses)
 
+    return model, losses
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

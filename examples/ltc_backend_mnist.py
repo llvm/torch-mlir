@@ -49,16 +49,22 @@ def main(device='lazy'):
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    optimizer.zero_grad()
 
-    outputs = model(inputs)
-    loss = criterion(outputs, targets)
-    loss.backward()
-    optimizer.step()
+    num_epochs = 3
+    losses = []
+    for _ in range(num_epochs):
+        optimizer.zero_grad()
 
-    if device == "lazy":
-        print("Calling Mark Step")
-        torch._lazy.mark_step()
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
+        loss.backward()
+        losses.append(loss)
+
+        optimizer.step()
+
+        if device == "lazy":
+            print("Calling Mark Step")
+            torch._lazy.mark_step()
 
     # Get debug information from LTC
     if 'ltc_backend' in sys.modules:
@@ -66,7 +72,9 @@ def main(device='lazy'):
         if computation:
             print(computation.debug_string())
 
-    print(loss)
+    print(losses)
+
+    return model, losses
 
 
 if __name__ == "__main__":
