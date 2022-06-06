@@ -21,22 +21,40 @@ class LTCNumericTests(unittest.TestCase):
     executed using the MLIR LTC backend and ensuring they match the results on CPU.
     """
 
-    def assert_tensors_list_almost_equal(self, tensors_a, tensors_b):
-        self.assertEqual(len(tensors_a), len(tensors_b))
+    def assert_tensors_almost_equal(self, tensor_a, tensor_b, message):
+        a, b = tensor_a.cpu().detach().numpy(), tensor_b.cpu().detach().numpy()
 
-        for idx in range(len(tensors_a)):
-            a = tensors_a[idx].cpu().detach().numpy()
-            b = tensors_b[idx].cpu().detach().numpy()
-
-            assert_almost_equal(a, b)
+        assert_almost_equal(a, b, 7, message)
 
     def run_test(self, run_model):
         model_torch_mlir, loss_torch_mlir = run_model('lazy')
         model_cpu, loss_cpu = run_model('cpu')
 
-        # Ensure that model states and losses are almost equal between LTC and CPU.
-        self.assert_tensors_list_almost_equal(loss_torch_mlir, loss_cpu)
-        self.assert_tensors_list_almost_equal(list(model_torch_mlir.parameters()), list(model_cpu.parameters()))
+        # Check losses match.
+        self.assertEqual(len(loss_torch_mlir), len(loss_cpu))
+        for idx in range(len(loss_torch_mlir)):
+            self.assert_tensors_almost_equal(loss_torch_mlir[idx], loss_cpu[idx],
+                                             f'Losses at index {idx} do not match!')
+
+        # Check that number of parameters match.
+        torch_mlir_params, cpu_params = [list(model.named_parameters()) for model in (model_torch_mlir, model_cpu)]
+        self.assertEqual(len(torch_mlir_params), len(cpu_params))
+
+        # Check that names of parameters.
+        torch_mlir_keys = []
+        for name, param in torch_mlir_params:
+            torch_mlir_keys.append(name)
+
+        cpu_keys = []
+        for name, param in cpu_params:
+            cpu_keys.append(name)
+
+        self.assertEqual(torch_mlir_keys, cpu_keys)
+
+        # Check contents of parameters match.
+        for idx in range(len(torch_mlir_params)):
+            self.assert_tensors_almost_equal(torch_mlir_params[idx][1], cpu_params[idx][1],
+                                             f'Parameters {torch_mlir_keys[idx]} do not match!')
 
     def test_bert(self):
         self.run_test(ltc_backend_bert.main)
