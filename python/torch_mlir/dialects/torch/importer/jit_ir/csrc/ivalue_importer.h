@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "class_annotator.h"
-#include "pybind.h"
 
 #include "mlir-c/IR.h"
 
