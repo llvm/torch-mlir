@@ -190,6 +190,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::AndIOp>(loc, lhs, rhs);
   }
+  if (auto logicalOr = dyn_cast<AtenLogicalOrOp>(op)) {
+    MLIRContext *context = op->getContext();
+    Type floatDtype = mlir::FloatType::getF64(context);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], floatDtype);
+    Value zero =
+        b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
+    Value lhsTest = createNotEqual(b, loc, floatDtype, lhs, zero);
+    Value rhsTest = createNotEqual(b, loc, floatDtype, rhs, zero);
+    return b.create<arith::OrIOp>(loc, lhsTest, rhsTest);
+  }
   if (isa<AtenAbsOp>(op))
     return b.create<math::AbsOp>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
@@ -844,7 +855,8 @@ public:
              AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
              AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
              AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
-             AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp>(op))
+             AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
+             AtenLogicalOrOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1581,7 +1593,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
       AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
       AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
-      AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp>();
+      AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
+      AtenLogicalOrOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

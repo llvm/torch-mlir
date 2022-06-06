@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Union, List
+from typing import Sequence, Union, List
 from enum import Enum
 
 import torch
@@ -87,7 +87,7 @@ _example_arg = Union[TensorPlaceholder, torch.Tensor]
 
 
 def compile(model: torch.nn.Module,
-            example_args: Union[_example_arg, List[_example_arg]],
+            example_args: Union[_example_arg, Sequence[_example_arg]],
             output_type: OutputType = OutputType.TORCH,
             use_tracing=False):
     """Convert a PyTorch model to MLIR.
@@ -109,17 +109,17 @@ def compile(model: torch.nn.Module,
         output type.
     """
 
+    # Special case -- many models have just one input, so canonicalize a single
+    # tensor to a list of a single tensor to make the API more ergonomic.
+    if isinstance(example_args, (torch.Tensor, TensorPlaceholder)):
+        example_args = (example_args,)
+
     # TODO: Don't hardcode "forward". See `torch.onnx.export` and
     # `torch.jit.trace_module` for API inspiration.
     if use_tracing:
         scripted = torch.jit.trace(model, tuple(example_args))
     else:
         scripted = torch.jit.script(model)
-
-    # Special case -- many models have just one input, so canonicalize a single
-    # tensor to a list of a single tensor to make the API more ergonomic.
-    if not isinstance(example_args, list):
-        example_args = [example_args]
 
     # Convert all concrete inputs to TensorPlaceholder's, for consistency.
     arg_placeholders = []

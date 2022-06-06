@@ -249,6 +249,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -267,6 +268,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::fmod.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::masked_fill.Scalar : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::clamp : (Tensor, Scalar?, Scalar?) -> (Tensor)",
+            "aten::clamp_min : (Tensor, Scalar) -> (Tensor)",
+            "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
@@ -394,6 +397,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::arange.start : (Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::arange.start_step : (Scalar, Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)")
+    emit("aten::arange.start_out : (Scalar, Scalar, Scalar, Tensor) -> (Tensor)")
     emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
     emit("aten::clone : (Tensor, int?) -> (Tensor)")
@@ -442,6 +446,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::len.Tensor : (Tensor) -> (int)")
     emit("aten::cpu : (Tensor) -> (Tensor)")
     emit("aten::gather : (Tensor, int, Tensor, bool) -> (Tensor)")
+    emit("aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)")
     emit("aten::IntImplicit : (Tensor) -> (int)")
     emit("aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)")
     emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True)

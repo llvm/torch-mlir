@@ -370,6 +370,12 @@ def aten〇log_softmax〇int(self: List[int], dim: int, dtype: Optional[int] = N
 def aten〇clamp(self: List[int], min: Optional[float] = None, max: Optional[float] = None) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
+def aten〇clamp_min(self: List[int], min: float) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
+def aten〇clamp_max(self: List[int], max: float) -> List[int]:
+    return upstream_shape_helpers.unary(self)
+
 def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_helpers.unary(self)
 
@@ -708,6 +714,9 @@ def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, other)
 
 def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_helpers.broadcast(self, other)
+
+def aten〇logical_or(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_helpers.broadcast(self, other)
 
 def aten〇threshold(self: List[int], threshold: float, value: float) -> List[int]:
