@@ -4255,6 +4255,32 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
   }];
 }
 
+def Torch_AtenArangeStartOutOp : Torch_Op<"aten.arange.start_out", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::arange.start_out : (Scalar start, Scalar end, Scalar step, Tensor out) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchScalarType:$start,
+    AnyTorchScalarType:$end,
+    AnyTorchScalarType:$step,
+    AnyTorchTensorType:$out
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenArangeStartOutOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenArangeStartOutOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenArgmaxOp : Torch_Op<"aten.argmax", [
     AllowsTypeRefinement,
     HasValueSemantics,
