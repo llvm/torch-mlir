@@ -20,6 +20,7 @@
 #include "backend_impl.h"
 #include "ir_builder.h"
 #include "mlir_lowering_context.h"
+#include "ops/device_data.h"
 
 namespace torch {
 namespace lazy {
@@ -112,7 +113,7 @@ TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
   if (!device_data_node) {
     return nullptr;
   }
-  return device_data_node->data;
+  return device_data_node->data();
 }
 
 at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
