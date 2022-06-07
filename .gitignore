@@ -9,6 +9,7 @@ mlir_venv/
 
 /build/
 __pycache__
+*.pyc
 
 .pytype
 

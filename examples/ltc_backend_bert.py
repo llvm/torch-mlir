@@ -19,7 +19,7 @@ from datasets import load_dataset
 from datasets.dataset_dict import DatasetDict
 from torch.utils.data import DataLoader
 from transformers import BertForSequenceClassification, \
-    BertTokenizer, AdamW, get_scheduler
+    BertConfig, BertTokenizer, AdamW, get_scheduler
 from typing import List
 
 
@@ -70,7 +70,7 @@ def train(model: BertForSequenceClassification,
     return losses
 
 
-def main(device, lower_only):
+def main(device, lower_only, full_size):
     if device in ("TS", "MLIR_EXAMPLE"):
         import torch._lazy
 
@@ -95,8 +95,24 @@ def main(device, lower_only):
 
     train_dataloader = DataLoader(small_train_dataset, shuffle=True,
                                   batch_size=8)
-    model = BertForSequenceClassification.from_pretrained('bert-base-cased',
-                                                          num_labels=2)
+    if full_size:
+        model = BertForSequenceClassification.from_pretrained('bert-base-cased',
+                                                              num_labels=2)
+    else:
+        configuration = BertConfig(
+            vocab_size=28996,
+            hidden_size=32,
+            num_hidden_layers=1,
+            num_attention_heads=2,
+            intermediate_size=32,
+            hidden_act='gelu',
+            hidden_dropout_prob=0.0,
+            attention_probs_dropout_prob=0.0,
+            max_position_embeddings=512,
+            layer_norm_eps=1.0e-05,
+        )
+        model = BertForSequenceClassification(configuration)
+
     model.to(device)
 
     num_epochs = 3
@@ -115,6 +131,8 @@ def main(device, lower_only):
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
@@ -131,5 +149,12 @@ if __name__ == "__main__":
         default=False,
         help="Only get backend printout -- do not execute computation",
     )
+    parser.add_argument(
+        "-f",
+        "--full_size",
+        action='store_true',
+        default=False,
+        help="Use full sized BERT model instead of one with smaller parameterization",
+    )
     args = parser.parse_args()
-    main(args.device, args.lower_only)
+    main(args.device, args.lower_only, args.full_size)

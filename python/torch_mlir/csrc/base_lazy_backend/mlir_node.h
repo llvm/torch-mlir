@@ -42,6 +42,8 @@ public:
   TorchMlirNode(
       OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed = kHashSeed);
 
+  ~TorchMlirNode() override = default;
+
   hash_t hash() const override;
 
   hash_t shapeHash() const override;
@@ -58,9 +60,6 @@ private:
   hash_t dag_hash_;
 };
 
-// Note: this OpKind is separate from ltc_ops.h since it would be a circular
-// import otherwise
-const OpKind tensor_list_opkind = OpKind::Get("lazy_tensors::tensor_list");
 
 // TensorList represents an at::TensorList which is a vector[Tensor] but is also
 // a first-class IValue and can be fed as a single input to a TS program.  It is
@@ -77,9 +76,11 @@ const OpKind tensor_list_opkind = OpKind::Get("lazy_tensors::tensor_list");
 // TODO(whc) once Shape() API is moved to Node base, also make it virtual, and
 // then implement it as NotImplemented for TensorList, also fixing the assertion
 // that would fail.
-struct TORCH_API TensorList : public TorchMlirNode {
-  TensorList() = delete;
-  TensorList(OpList values);
+struct TORCH_API TorchMlirTensorList : public TorchMlirNode {
+  static OpKind ClassOpKind();
+
+  TorchMlirTensorList() = delete;
+  TorchMlirTensorList(OpList values);
 
   torch::lazy::TorchMlirOpVector Lower(
       TorchMlirFunction function,
