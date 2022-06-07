@@ -133,7 +133,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
     auto containedTypes = c10::fmap(
         node->output()->type()->cast<c10::TupleType>()->containedTypes(),
         [&](const c10::TypePtr &t) {
-          MlirType type = getMlirTypeFromTorchType(loc, t);
+          MlirType type = getMlirTypeFromTorchType(loc, t, importOptions);
           if (mlirTypeIsNull(type)) {
             throw mlir_diagnostic_emitted();
           }
