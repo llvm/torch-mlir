@@ -24,6 +24,7 @@ class LTCNumericTests(unittest.TestCase):
     def assert_tensors_almost_equal(self, tensor_a, tensor_b, message):
         a, b = tensor_a.cpu().detach().numpy(), tensor_b.cpu().detach().numpy()
 
+        # Ensure tensors match up to 7 decimals of precision.
         assert_almost_equal(a, b, 7, message)
 
     def run_test(self, run_model):
