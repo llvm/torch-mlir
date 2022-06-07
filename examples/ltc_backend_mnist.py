@@ -78,8 +78,6 @@ def main(device='lazy'):
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
