@@ -218,7 +218,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         operator = registry[key]
         emit_op(operator, emitter_td, **kwargs)
         ns, unqual, overload = operator.triple
-        emit_op(registry.get_by_triple((ns, unqual + "_", overload)),
+        # Underscore variant of functional ops should have "functional" part removed.
+        emit_op(registry.get_by_triple((ns, unqual + "_", overload if overload != 'functional' else '')),
                 emitter_td,
                 traits=["IsTrailingUnderscoreInplaceVariant"])
 
@@ -279,7 +280,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
-
+            "aten::zero.functional : (Tensor) -> (Tensor)",
     ]:
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
@@ -292,7 +293,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
-    emit("aten::zero.functional : (Tensor) -> (Tensor)")
 
     # Ops without value semantics but the corresponding without trailing
     # underscore variant doesn't exist.
@@ -385,7 +385,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
-    emit("aten::zero_ : (Tensor) -> (Tensor)")
     emit("aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
