@@ -12,13 +12,13 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 add_library(TorchMLIRJITIRImporter MODULE
   class_annotator.cpp
+  class_annotator_pybind.cpp
   get_registered_ops.cpp
   function_importer.cpp
   module_builder.cpp
   node_importer.cpp
   ivalue_importer.cpp
   init_python_bindings.cpp
-  pybind.cpp
   torch_to_mlir_utils.cpp
   )
 

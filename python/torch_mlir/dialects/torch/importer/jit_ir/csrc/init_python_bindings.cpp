@@ -11,9 +11,9 @@
 
 #include <ATen/core/dispatch/Dispatcher.h>
 
+#include "class_annotator_pybind.h"
 #include "get_registered_ops.h"
 #include "module_builder.h"
-#include "pybind.h"
 
 using namespace torch_mlir;
 

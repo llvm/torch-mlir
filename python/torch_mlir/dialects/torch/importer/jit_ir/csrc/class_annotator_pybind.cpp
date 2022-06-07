@@ -1,4 +1,4 @@
-//===- pybind.cpp ------------------------------------------------===//
+//===- class_annotator_pybind.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "pybind.h"
+#include "class_annotator_pybind.h"
 #include "class_annotator.h"
 
 #include <torch/csrc/Dtype.h>

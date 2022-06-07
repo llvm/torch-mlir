@@ -10,8 +10,6 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_BUILDER_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_BUILDER_H
 
-#include "pybind.h"
-
 #include "class_annotator.h"
 
 #include "mlir-c/IR.h"
@@ -20,6 +18,7 @@
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/api/module.h>
 #include <torch/csrc/jit/ir/ir.h>
+#include <torch/csrc/utils/pybind.h>
 
 namespace torch_mlir {
 
