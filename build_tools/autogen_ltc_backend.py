@@ -1,9 +1,11 @@
 import argparse
 import hashlib
+import importlib
 import os
 import subprocess
 import sys
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import which
@@ -11,18 +13,16 @@ from textwrap import dedent
 
 import yaml
 
-TORCH_MLIR_DIR = Path(__file__).parent.parent.resolve()
-TORCH_DIR = TORCH_MLIR_DIR.joinpath("externals", "pytorch")
-
-sys.path.append(str(TORCH_DIR))
-
 # PyTorch's LTC backend autogen script
+import torchgen
 import torchgen.dest.lazy_ir
 import torchgen.gen_lazy_tensor
 from torchgen.api.lazy import LazyIrSchema
 from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.model import NativeFunctionsGroup
 
+TORCH_DIR = Path(importlib.util.find_spec('torch').origin).resolve().parent.parent
+TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
 def isOptionalCType(arg):
     return str(type(arg)) == "<class 'torchgen.api.types.OptionalCType'>"
@@ -42,20 +42,29 @@ def generate_native_functions(
     grouped_native_functions = get_grouped_native_functions(native_functions)
 
     def get_native_function_name(f):
-        func = f.func if hasattr(f, "func") else f.functional.func
-        return str(func.name)
+        func = f if hasattr(f, "func") else f.functional
+        return str(func.func.name), func
 
-    aten_funcs = set(map(get_native_function_name, grouped_native_functions))
+    def get_opnames(ops):
+        opnames = defaultdict(set)
+        for op in ops:
+            opname = op.split(".")[0]
+            opnames[opname].add(op)
+        return opnames
+
+    native_functions = dict(map(get_native_function_name, native_functions))
+    grouped_native_functions = dict(map(get_native_function_name, grouped_native_functions))
+    aten_funcs = get_opnames(set(grouped_native_functions.keys()))
 
     with config_path.open() as f:
         config = yaml.load(f, yaml.CLoader)
 
     # List of unsupported ops in LTC autogen because of some error
-    blacklist = config.get("blacklist", [])
+    blacklist = set(config.get("blacklist", []))
 
     # List of supported ops that we don't want to do the full codegen for
     # primarily view ops
-    supported = config.get("supported", [])
+    supported = set(config.get("supported", []))
 
     # List of non-native ops to do IR codegen for
     non_native = config.get("non_native", [])
@@ -65,49 +74,54 @@ def generate_native_functions(
     else:
         cmd = ["grep", "-o", r"aten::[0-9a-zA-Z_\.]\+"]
 
-    output = (
-        subprocess.check_output(
+    torch_ops = set(
+        op[6:]
+        for op in subprocess.check_output(
             cmd + [str(torch_ops_file)],
             encoding="utf-8",
         )
         .strip()
         .split(os.linesep)
     )
+    torch_opnames = get_opnames(torch_ops)
 
     # process ops list
-    ops = []
-    supported_ops = []
-    skipped = []
+    ops = set()
+    composite_implicit = set()
 
-    for op in output:
-        op = op[6:]
-        opname = op.split(".")[0]
-
-        if opname in blacklist or op in blacklist:
+    for op in torch_ops:
+        if op not in native_functions:
             continue
 
-        if opname in supported:
-            supported_ops.append(op)
+        func = native_functions[op]
+        base = func.func.name.name.base
+
+        if base in blacklist or op in blacklist:
+            continue
+        if base in supported or op in supported:
             continue
 
-        if op not in aten_funcs:
-            skipped.append(op)
-            continue
+        if func.has_composite_implicit_autograd_kernel and f"{op}_backward" not in torch_ops:
+            composite_implicit.add(op)
+        elif func.func.name.name.inplace:
+            for autogen in func.autogen:
+                if "functional" in autogen.overload_name:
+                    ops.add(str(autogen))
+        else:
+            ops.add(op)
 
-        ops.append(op)
-
-    opnames = sorted(set(ops))
+    skipped = set(torch_ops) - ops - supported - composite_implicit
 
     # Additional ops to support that are not supported by Torch-MLIR explicitly
-    supported_ops.extend(config.get("additional_ops", []))
+    supported |= set(config.get("additional_ops", []))
 
     with out_file.open("w") as f:
         yaml.dump(
             {
                 "backend": "Lazy",
                 "cpp_namespace": "torch::lazy",
-                "full_codegen": opnames,
-                "supported": sorted(supported_ops),
+                "full_codegen": sorted(ops),
+                "supported": sorted(supported),
                 "non_native": non_native,
             },
             f,
@@ -117,10 +131,15 @@ def generate_native_functions(
             dedent(
                 """
 
+                # Composite implicit ops (supported by Torch-MLIR but not differentiable)
+                {composite_implicit}
                 # Skipped ops (supported by Torch-MLIR but no equivalent native function)
+                {skipped}
                 """
+            ).format(
+                composite_implicit=os.linesep.join(f"#  - {op}" for op in sorted(composite_implicit)),
+                skipped=os.linesep.join(f"#  - {op}" for op in sorted(skipped)),
             )
-            + os.linesep.join(f"#  - {op}" for op in sorted(skipped))
         )
 
     return parsed_yaml, grouped_native_functions
@@ -129,11 +148,13 @@ def generate_native_functions(
 @dataclass(frozen=True)
 class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
-    def lowering_function(self, schema, declaration_only=True):
+    def lowering_function(self, schema):
         signature = "TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override"
 
-        if declaration_only:
+        if schema.properties.LowerDeclOnly:
             return f"{signature};"
+        elif not schema.properties.Lower:
+            return ""
 
         emplace_arguments = []
         for arg in schema.positional_args:
@@ -213,7 +234,7 @@ def generate_backend(
     import re
 
     sig_re = re.compile(
-        r"std::vector<Shape>\s+(?P<name>\w+)\((?P<signature>[^\)]+)\)"
+        r"std::vector<torch::lazy::Shape>\s+(?P<name>\w+)\((?P<signature>[^\)]+)\)"
     )
     global_signatures = {}
 
@@ -307,25 +328,30 @@ def main(args):
     )
     assert backend_path.is_dir()
 
+    torchgen_path = Path(torchgen.__path__[0]).resolve()
+    assert torchgen_path.is_dir()
+
     prev_hash = None
     hash_file = TORCH_MLIR_DIR.joinpath("generated_backend.hash")
     if hash_file.exists():
         prev_hash = hash_file.read_text().strip()
 
     m = hashlib.sha256()
-    m.update(script_path.read_bytes())
-    m.update(config_path.read_bytes())
-    m.update(torch_ops_file.read_bytes())
-    if native_functions.exists():
-        m.update(native_functions.read_bytes())
 
-    shape_inference_headers = backend_path.joinpath("LazyShapeInference.h")
-    if shape_inference_headers.exists():
-        m.update(shape_inference_headers.read_bytes())
-
-    shape_inference_defs = backend_path.joinpath("LazyShapeInference.cpp")
-    if shape_inference_defs.exists():
-        m.update(shape_inference_defs.read_bytes())
+    # Add file contents to hash
+    for path in (
+        script_path,
+        config_path,
+        torch_ops_file,
+        native_functions,
+        backend_path.joinpath("LazyShapeInference.h"),
+        backend_path.joinpath("LazyShapeInference.cpp"),
+        torchgen_path.joinpath("dest", "lazy_ir.py"),
+        torchgen_path.joinpath("api", "lazy.py"),
+        torchgen_path.joinpath("model.py"),
+    ):
+        if path.exists():
+            m.update(path.read_bytes())
 
     new_hash = m.hexdigest().strip()
 
