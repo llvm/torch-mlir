@@ -76,15 +76,23 @@ TorchMlirOpVector TorchMlirNode::Lower(
   return {};
 }
 
-TensorList::TensorList(OpList values)
+
+OpKind TorchMlirTensorList::ClassOpKind() {
+  // Note: this OpKind is separate from ltc_ops.h since it would be a circular
+  // import otherwise
+  static const OpKind tensor_list_opkind = OpKind::Get("lazy_tensors::tensor_list");
+  return tensor_list_opkind;
+}
+
+TorchMlirTensorList::TorchMlirTensorList(OpList values)
     : TorchMlirNode(
-          /*op=*/tensor_list_opkind,
+          /*op=*/TorchMlirTensorList::ClassOpKind(),
           /*operands=*/values,
           /*shapes=*/std::vector<Shape>(),
           /*num_outputs=*/1,
           /*hash_seed=*/kHashSeed) {}
 
-torch::lazy::TorchMlirOpVector TensorList::Lower(
+torch::lazy::TorchMlirOpVector TorchMlirTensorList::Lower(
     TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
   std::vector<torch::jit::Value*> tensor_list;
   CHECK(!operands().empty());
