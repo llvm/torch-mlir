@@ -20,6 +20,7 @@
 #include "dynamic_ir.h"
 #include "generated/LazyNonNativeIr.h"
 #include "mlir_node.h"
+#include "ops/device_data.h"
 #include "ops/generic.h"
 
 // This file contains the TorchMlir IrBuilder
@@ -35,7 +36,7 @@ struct TorchMlirIrBuilder : IrBuilder {
   NodePtr MakeExpand(const Value& input0, const std::vector<int64_t>& size, const bool& is_scalar_expand) const override { return MakeNode<Expand>(input0, size, is_scalar_expand); }
   NodePtr MakeView(const Value& input0, const std::vector<int64_t>& output_size) const override { return MakeNode<View>(input0, output_size); }
   NodePtr MakeCast(const Value& input0, const at::ScalarType& dtype, const c10::optional<at::ScalarType>& stype = c10::nullopt) const override { return MakeNode<Cast>(input0, dtype, stype); }
-  NodePtr MakeTensorList(const OpList& inputs) const override { return MakeNode<TensorList>(inputs); }
+  NodePtr MakeTensorList(const OpList& inputs) const override { return MakeNode<TorchMlirTensorList>(inputs); }
   NodePtr MakeGeneric(const OpKind& op, const OpList& operands, const Shape& shape, const size_t& num_outputs = 1, const hash_t& hash_seed = static_cast<uint32_t>(0x5a2d296e9)) const override { return MakeNode<Generic>(op, operands, shape, num_outputs, hash_seed); }
 
   // view ops

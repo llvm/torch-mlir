@@ -1,22 +1,11 @@
 blacklist:
 # List of unsupported ops in LTC autogen because of some error
-- arange  # Error: Code below assumes there is at least one tensor arg
-- contiguous  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 - empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- full  # Error: Code below assumes there is at least one tensor arg
 - index.Tensor  # Error: TODO not sure if there are other valid types to handle here
 - index_put  # Error: TODO not sure if there are other valid types to handle here
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
 - _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
-- ones  # Error: Code below assumes there is at least one tensor arg
-- ones_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- resize_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 - stack  # Error: TODO not sure if there are other valid types to handle here
-- to.dtype  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- to.other  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- uniform_  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
-- zeros  # Error: Code below assumes there is at least one tensor arg
-- zeros_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 
 # Additional ops which autogen is supported for but don't compile yet
 - detach
@@ -24,26 +13,34 @@ blacklist:
 - size
 - where
 - copy_
-- _to_copy
-- log_softmax  # Not inherently differentiable. Needs to be decomposed.
-- linear  # Not inherently differentiable. Needs to be decomposed.
+
+# Disabled for consistency with TS backend
+- rsub
 
 # List of supported ops that we don't want to do the full codegen for
 # primarily view ops
 supported:
 # - bernoulli
 # - bernoulli_
+- as_strided
+- as_strided_
+- _to_copy
 - cat
 - clone
-- empty
+- empty.memory_format
+- empty_strided
 - expand
-- fill_
-- native_batch_norm_backward
+- fill_.Scalar
 - permute
+- select.int
+- slice.Tensor
 - squeeze
+- squeeze.dim
 - t
+- transpose.int
 - unsqueeze
 - view
+- _unsafe_view
 
 additional_ops:
 # Additional ops to support that are not supported by Torch-MLIR explicitly
@@ -53,35 +50,38 @@ additional_ops:
 
 # List of non native ops that we only want to do IR node class generation for
 non_native:
-  - func: device_data(std::shared_ptr<BackendData> data) -> Tensor
-    opkind: ltc_device_data
-    cache_shape: false
-  - func: scalar(at::Scalar value, at::ScalarType type) -> Tensor
+  - func: scalar(Scalar value, ScalarType type) -> Tensor
     opkind: at::prim::Constant
-    cache_shape: false
-  - func: expand(Tensor input, std::vector<int64_t> size, bool is_scalar_expand) -> Tensor
-  - func: view(Tensor input, std::vector<int64_t> output_size) -> Tensor
-    cache_shape: false
-  - func: cast(Tensor input, at::ScalarType dtype, optional<at::ScalarType> stype) -> Tensor
+    properties:
+      - ShapeCompute
+      - TreatScalarsAsConstants
+  - func: expand(Tensor input, int[] size, bool is_scalar_expand) -> Tensor
+  - func: view(Tensor input, int[] output_size) -> Tensor
+    properties:
+      - ShapeCompute
+  - func: cast(Tensor input, ScalarType dtype, ScalarType? stype) -> Tensor
     opkind: ltc_cast
-    cache_shape: false
+    properties:
+      - ShapeCompute
 
   # View ops only required until proper functionalization pass is introduced into LTC
-  - func: as_strided_view_update(Tensor target, Tensor input, std::vector<int64_t> size, std::vector<int64_t> stride, int64_t storage_offset) -> Tensor
+  - func: as_strided_view_update(Tensor target, Tensor input, int[] size, int[] stride, int storage_offset) -> Tensor
     opkind: ltc_as_strided_view_update
-  - func: as_strided(Tensor input, std::vector<int64_t> size, std::vector<int64_t> stride, int64_t storage_offset) -> Tensor
-  - func: diagonal_view_update(Tensor target, Tensor input, int64_t offset, int64_t dim1, int64_t dim2) -> Tensor
+  - func: as_strided(Tensor input, int[] size, int[] stride, int storage_offset) -> Tensor
+  - func: diagonal_view_update(Tensor target, Tensor input, int offset, int dim1, int dim2) -> Tensor
     opkind: ltc_diagonal_view_update
-    cache_shape: false
-  - func: diagonal(Tensor input, int64_t offset, int64_t dim1, int64_t dim2) -> Tensor
-  - func: narrow_view_update(Tensor input, Tensor source, std::vector<int64_t> base_indices) -> Tensor
+    properties:
+      - ShapeCompute
+  - func: diagonal(Tensor input, int offset, int dim1, int dim2) -> Tensor
+  - func: narrow_view_update(Tensor input, Tensor source, int[] base_indices) -> Tensor
     opkind: ltc_narrow_view_update
-  - func: narrow(Tensor input, std::vector<int64_t> base_indices, std::vector<int64_t> sizes) -> Tensor
-  - func: permute(Tensor input, std::vector<int64_t> dims) -> Tensor
-  - func: resize(Tensor input, std::vector<int64_t> size) -> Tensor
-  - func: select_view_update(Tensor target, Tensor source, int64_t dim, int64_t start, int64_t end, int64_t stride) -> Tensor
+  - func: narrow(Tensor input, int[] base_indices, int[] sizes) -> Tensor
+  - func: permute(Tensor input, int[] dims) -> Tensor
+  - func: resize(Tensor input, int[] size) -> Tensor
+  - func: select_view_update(Tensor target, Tensor source, int dim, int start, int end, int stride) -> Tensor
     opkind: ltc_select_view_update
-    cache_shape: false
-  - func: select(Tensor input, int64_t dim, int64_t start, int64_t end, int64_t stride) -> Tensor
+    properties:
+      - ShapeCompute
+  - func: select(Tensor input, int dim, int start, int end, int stride) -> Tensor
   - func: squeeze(Tensor input, int dim) -> Tensor
   - func: unsqueeze(Tensor input, int dim) -> Tensor
