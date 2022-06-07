@@ -29,7 +29,7 @@
 
 #include "../utils/exception.h"
 #include "../utils/sys_utils.h"
-#include "LazyShapeInference.h"
+#include "generated/shape_inference.h"
 #include "generated/LazyNativeFunctions.h"
 #include "ops/to_copy.h"
 
