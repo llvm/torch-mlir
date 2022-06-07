@@ -18,6 +18,17 @@ include_directories(BEFORE
 )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
+# Generate Lazy IR Nodes
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} build_tools/autogen_ltc_backend.py -f
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+)
+add_custom_target(
+  generate_ltc_sources
+  ALL
+  COMMENT "Generating Lazy Tensor Core IR Nodes"
+  COMMAND ${Python3_EXECUTABLE} build_tools/autogen_ltc_backend.py
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 add_library(torch_mlir_ltc_backend SHARED
   base_lazy_backend/backend_impl.cpp
@@ -29,7 +40,10 @@ add_library(torch_mlir_ltc_backend SHARED
   base_lazy_backend/mlir_native_functions.cpp
   base_lazy_backend/mlir_node.cpp
   base_lazy_backend/mlir_node_lowering.cpp
+  base_lazy_backend/ops/device_data.cpp
+  base_lazy_backend/ops/generic.cpp
 )
+target_compile_features(torch_mlir_ltc_backend PRIVATE cxx_std_17)
 
 add_dependencies(torch_mlir_ltc_backend
   TorchMLIRJITIRImporter
