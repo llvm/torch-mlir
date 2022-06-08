@@ -220,7 +220,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         ns, unqual, overload = operator.triple
         # Underscore variant of functional ops should have "functional" part removed.
         is_functional_op = overload == 'functional'
-        emit_op(registry.get_by_triple((ns, unqual + "_", overload if not is_functional_op else '')),
+        emit_op(registry.get_by_triple((ns, unqual + "_", overload if not is_functional_op else "")),
                 emitter_td,
                 traits=["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else [])
 
