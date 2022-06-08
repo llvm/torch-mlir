@@ -13,7 +13,6 @@
 #include <memory>
 
 #include "node_importer.h"
-#include "pybind.h"
 
 #include "mlir-c/IR.h"
 

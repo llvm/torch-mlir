@@ -11,7 +11,7 @@
 
 #include <ATen/core/dispatch/Dispatcher.h>
 
-#include "class_annotator.h"
+#include "class_annotator_pybind.h"
 #include "get_registered_ops.h"
 #include "module_builder.h"
 
