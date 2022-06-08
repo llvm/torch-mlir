@@ -41,7 +41,7 @@ class LTCNumericTests(unittest.TestCase):
         torch_mlir_params, cpu_params = [list(model.named_parameters()) for model in (model_torch_mlir, model_cpu)]
         self.assertEqual(len(torch_mlir_params), len(cpu_params))
 
-        # Check that names of parameters.
+        # Check that names of parameters match.
         torch_mlir_keys = []
         for name, param in torch_mlir_params:
             torch_mlir_keys.append(name)
