@@ -2395,6 +2395,50 @@ def Torch_AtenUnsqueeze_Op : Torch_Op<"aten.unsqueeze_", [
   }];
 }
 
+def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::zero.functional : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenZeroFunctionalOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenZeroFunctionalOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenZero_Op : Torch_Op<"aten.zero_", [
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::zero_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenZero_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenZero_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenAddcmulOp : Torch_Op<"aten.addcmul", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -2589,29 +2633,6 @@ def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
     }
     void AtenThresholdBackwardOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 3, 1);
-    }
-  }];
-}
-
-def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::zero.functional : (Tensor) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenZeroFunctionalOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 1, 1);
-    }
-    void AtenZeroFunctionalOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
 }
@@ -4182,27 +4203,6 @@ def Torch_AtenZerosOp : Torch_Op<"aten.zeros", [
     }
     void AtenZerosOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 1);
-    }
-  }];
-}
-
-def Torch_AtenZero_Op : Torch_Op<"aten.zero_", [
-    AllowsTypeRefinement
-  ]> {
-  let summary = "Generated op for `aten::zero_ : (Tensor) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenZero_Op::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 1, 1);
-    }
-    void AtenZero_Op::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
 }
