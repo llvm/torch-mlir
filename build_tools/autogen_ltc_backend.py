@@ -235,6 +235,9 @@ class GenTorchMlirLTC:
 
         skipped = set(torch_ops) - ops - supported - composite_implicit
 
+        # List of ops autogen even if not explicitly supported by Torch-MLIR explicitly
+        ops |= set(config.get("whitelist", []))
+
         # Additional ops to support that are not supported by Torch-MLIR explicitly
         supported |= set(config.get("additional_ops", []))
 
