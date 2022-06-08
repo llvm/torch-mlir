@@ -87,6 +87,25 @@ def MmDagModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ContainsIntList(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self,):
+        return 3 in [1,2,3]
+
+
+@register_test_case(module_factory=lambda: ContainsIntList())
+def ContainsIntList_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
 
 class MmTanhModule(torch.nn.Module):
 
