@@ -87,6 +87,32 @@ def MmDagModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class __contains__int_list_Test(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, lhs):
+        return torch.__contains__int_list(lhs)
+
+
+@register_test_case(module_factory=lambda: __contains__int_list_Test())
+def __contains__int_list_False(module, tu: TestUtils):
+    module.forward(tu.rand(3))
+
+
+@register_test_case(module_factory=lambda: __contains__int_list_Test())
+def __contains__int_list_True(module, tu: TestUtils):
+    module.forward(tu.rand(3.0))
+
+
+# ==============================================================================
+
 
 class MmTanhModule(torch.nn.Module):
 
