@@ -2419,7 +2419,6 @@ def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
 }
 
 def Torch_AtenZero_Op : Torch_Op<"aten.zero_", [
-    IsTrailingUnderscoreInplaceVariant,
     AllowsTypeRefinement
   ]> {
   let summary = "Generated op for `aten::zero_ : (Tensor) -> (Tensor)`";

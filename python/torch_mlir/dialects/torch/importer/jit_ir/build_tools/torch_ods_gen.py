@@ -219,9 +219,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         emit_op(operator, emitter_td, **kwargs)
         ns, unqual, overload = operator.triple
         # Underscore variant of functional ops should have "functional" part removed.
-        emit_op(registry.get_by_triple((ns, unqual + "_", overload if overload != 'functional' else '')),
+        is_functional_op = overload == 'functional'
+        emit_op(registry.get_by_triple((ns, unqual + "_", overload if not is_functional_op else '')),
                 emitter_td,
-                traits=["IsTrailingUnderscoreInplaceVariant"])
+                traits=["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else [])
 
     # ==========================================================================
     # `aten::` namespace.
