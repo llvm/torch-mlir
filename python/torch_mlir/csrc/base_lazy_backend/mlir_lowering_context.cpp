@@ -36,8 +36,9 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
     const std::string& name, BackendDevice device)
     : LoweringContext(name, std::forward<BackendDevice>(device)),
       graph_(std::make_shared<torch::jit::Graph>()),
+      function_(
+          std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
-  lowering_ = TorchMlirNodeLoweringInterface::Create(this);
   RegisterMlirDialects();
 }
 
@@ -49,14 +50,29 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
           std::forward<c10::ArrayRef<torch::lazy::Node*>>(post_order),
           std::forward<Util::EmissionMap>(emit_status)),
       graph_(std::make_shared<torch::jit::Graph>()),
+      function_(
+          std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
-  lowering_ = TorchMlirNodeLoweringInterface::Create(this);
   for (auto node : post_order) {
-    bool ok = lowering_->Lower(node);
-    CHECK(ok) << "Failed to lower: " << *node;
+    Lower(node);
   }
 
   RegisterMlirDialects();
+}
+
+void TorchMlirLoweringContext::Lower(const Node* node) {
+  if (auto* torch_mlir_node =
+          dynamic_cast<const torch::lazy::TorchMlirNode*>(node)) {
+    TorchMlirOpVector ops = torch_mlir_node->Lower(function_, this);
+    CHECK(!ops.empty()) << "Failed to lower: " << *node;
+    CHECK_EQ(node->num_outputs(), ops.size());
+    for (size_t i = 0; i < ops.size(); ++i) {
+      AssignOutputOp(torch::lazy::Output(node, i), ops[i]);
+    }
+  } else {
+    throw std::runtime_error(
+        "Expected torch::lazy::TorchMlirNode but could not dynamic cast");
+  }
 }
 
 void TorchMlirLoweringContext::SetUpAlias(
@@ -136,8 +152,7 @@ torch::jit::Value* TorchMlirLoweringContext::GetOutputOp(const Output& output) {
   if (it == emitted_outputs_.end()) {
     auto post_order = Util::ComputePostOrder(output.node, &emit_status_);
     for (auto node : post_order) {
-      bool ok = lowering_->Lower(node);
-      TORCH_CHECK(ok, "Failed to lower: ", node->ToString());
+      Lower(node);
     }
     // At this point the output better be present, otherwise there is an issue
     // with the lowering code.
