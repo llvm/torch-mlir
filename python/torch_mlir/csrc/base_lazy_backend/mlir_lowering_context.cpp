@@ -323,24 +323,14 @@ std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
 
 MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
-const std::string TorchMlirComputation::to_string() const {
-  // Since we use the C-MLIR API, we need to use a callback to print.
-  MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
-    // user_data is a void ptr to some data structure of our choice -- in this
-    // case, the string stream where we'll be accumulating the strings.
-    std::stringstream* ss_ptr = static_cast<std::stringstream*>(user_data);
-    *ss_ptr << std::string(part.data, part.length);
-  };
-
+const std::string TorchMlirComputation::debug_string() const {
   std::stringstream ss;
 
   // JIT Graph
   ss << "JIT Graph: \n" << graph_->toString() << "\n\n";
 
   // MLIR
-  ss << "MLIR: \n";
-  mlirOperationPrint(func_op_, print_callback, &ss);
-  ss << "\n";
+  ss << "MLIR: \n" << to_string() << "\n";
 
   // Input/Output Mapping
   ss << "Input/Output Alias Mapping: \n";
@@ -353,6 +343,19 @@ const std::string TorchMlirComputation::to_string() const {
   // Mark Step
   ss << "In Mark Step: " << (in_mark_step ? "true" : "false") << "\n";
 
+  return ss.str();
+}
+
+const std::string TorchMlirComputation::to_string() const {
+  // Since we use the C-MLIR API, we need to use a callback to print.
+  MlirStringCallback print_callback = [](MlirStringRef part, void* user_data) {
+    // user_data is a void ptr to some data structure of our choice -- in this
+    // case, the string stream where we'll be accumulating the strings.
+    std::stringstream* ss_ptr = static_cast<std::stringstream*>(user_data);
+    *ss_ptr << std::string(part.data, part.length);
+  };
+  std::stringstream ss;
+  mlirOperationPrint(func_op_, print_callback, &ss);
   return ss.str();
 }
 
