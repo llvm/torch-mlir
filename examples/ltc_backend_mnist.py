@@ -6,30 +6,22 @@
 Example use of the example Torch MLIR LTC backend.
 """
 import argparse
+import sys
 
+import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+import torch
+import torch._lazy
+import torch._lazy.ts_backend
 import torch.nn.functional as F
 
 
-def main(device):
-    import torch
+def main(device='lazy'):
+    """
+    Load model to specified device. Ensure that any backends have been initialized by this point.
 
-    if device in ("TS", "MLIR_EXAMPLE"):
-        import torch._lazy
-
-        if device == "TS":
-            import torch._lazy.ts_backend
-
-            torch._lazy.ts_backend.init()
-
-        elif device == "MLIR_EXAMPLE":
-            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
-
-            ltc_backend._initialize()
-
-        device = "lazy"
-        print("Initialized backend")
-    else:
-        device = device.lower()
+    :param device: name of device to load tensors to
+    """
+    torch.manual_seed(0)
 
     inputs = torch.tensor([[1, 2, 3, 4, 5]], dtype=torch.float32, device=device)
     assert inputs.device.type == device
@@ -57,24 +49,35 @@ def main(device):
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    optimizer.zero_grad()
 
-    outputs = model(inputs)
-    loss = criterion(outputs, targets)
-    loss.backward()
-    optimizer.step()
+    num_epochs = 3
+    losses = []
+    for _ in range(num_epochs):
+        optimizer.zero_grad()
 
-    if device == "lazy":
-        print("Calling Mark Step")
-        torch._lazy.mark_step()
+        outputs = model(inputs)
+        loss = criterion(outputs, targets)
+        loss.backward()
+        losses.append(loss)
 
-    print()
-    print(loss)
+        optimizer.step()
+
+        if device == "lazy":
+            print("Calling Mark Step")
+            torch._lazy.mark_step()
+
+    # Get debug information from LTC
+    if 'ltc_backend' in sys.modules:
+        computation = ltc_backend.get_latest_computation()
+        if computation:
+            print(computation.debug_string())
+
+    print(losses)
+
+    return model, losses
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
@@ -85,4 +88,17 @@ if __name__ == "__main__":
         help="The device type",
     )
     args = parser.parse_args()
-    main(args.device)
+
+    if args.device in ("TS", "MLIR_EXAMPLE"):
+        if args.device == "TS":
+            torch._lazy.ts_backend.init()
+
+        elif args.device == "MLIR_EXAMPLE":
+            ltc_backend._initialize()
+
+        device = "lazy"
+        print("Initialized backend")
+    else:
+        device = args.device.lower()
+
+    main(device)
