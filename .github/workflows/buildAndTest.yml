@@ -56,11 +56,6 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
-    - name: Lazy Tensor Core end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.lazy_tensor_core.main
 
   build-out-of-tree:
     name: Build out-of-tree (Release Asserts)
