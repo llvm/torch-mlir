@@ -21,7 +21,7 @@ from torch_mlir_e2e_test.torchscript.configs import (
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET
+from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET, LTC_XFAIL_SET
 
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
@@ -89,7 +89,7 @@ def main():
         xfail_set = EAGER_MODE_XFAIL_SET
     elif args.config == 'lazy_tensor_core':
         config = LazyTensorCoreTestConfig()
-        xfail_set = {}
+        xfail_set = LTC_XFAIL_SET
 
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
