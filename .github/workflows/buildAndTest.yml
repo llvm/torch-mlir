@@ -69,7 +69,7 @@ jobs:
           -DCMAKE_OSX_ARCHITECTURES=${{ matrix.taregetarch }} \
           -DMACOSX_DEPLOYMENT_TARGET=10.15 \
           -DLLVM_TARGETS_TO_BUILD=host
-        
+
     - name: llvm-source-out-of-tree-torch-src-or-binary
       # This build takes a while but is expected to almost always be cached.
       # A cache invalidation occurs when the committed LLVM version is changed.
@@ -114,17 +114,24 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=refbackend -v
-        
+
     - name: EagerMode - TorchScript end-to-end tests
       if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=eager_mode -v
-        
+
     - name: TOSA backend - TorchScript end-to-end tests
       if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
+
+    - name: Lazy Tensor Core - TorchScript end-to-end tests
+      if: matrix.llvmtype == 'binary'
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v

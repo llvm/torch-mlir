@@ -12,8 +12,8 @@
 #include <torch/csrc/lazy/backend/lowering_context.h>
 #include <torch/csrc/lazy/core/shape.h>
 
-#include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
 #include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
+#include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
 #include <torch_mlir/csrc/utils/debug.h>
 #include <torch_mlir/csrc/utils/exception.h>
@@ -60,9 +60,12 @@ public:
 
     // Vendor backend specific lowering can be exec here before returning.
     for (const auto &instance : instances) {
-      std::cout << "Instance received at Compile: \n"
-                << GetComputationBackendText(instance) << std::endl;
+      // Store computation instance for external access after compilation.
+      GetLatestComputation() = instance;
     }
+
+    std::cout << "Received " << instances.size()
+              << " computation instances at Compile!" << std::endl;
 
     return instances;
   }
@@ -133,9 +136,13 @@ public:
    * */
   std::string
   GetComputationBackendText(const ComputationPtr computation) const override {
-    auto mlir_computation =
-        static_cast<TorchMlirComputation *>(computation.get());
-    return mlir_computation->to_string();
+    // Store computation instance for external access after compilation.
+    // We do this in GetComputationBackendText since there may be instances
+    // where a ComputationPtr does not pass through Compile (e.g. when using
+    // DumpUtil::ToBackend.)
+    GetLatestComputation() = computation;
+
+    return computation->to_string();
   }
 
 private:
@@ -152,6 +159,12 @@ void InitExampleMlirBackend() {
   at::RegisterTorchMlirLazyNativeFunctions();
   static std::unique_ptr<BackendRegistrar> g_registrar;
   g_registrar.reset(new BackendRegistrar(GetExampleMlirBackendImpl()));
+}
+
+ComputationPtr &GetLatestComputation() {
+  // Store the computation from the most recent compile.
+  static ComputationPtr computation;
+  return computation;
 }
 
 } // namespace lazy
