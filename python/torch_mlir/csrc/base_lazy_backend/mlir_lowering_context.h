@@ -135,6 +135,8 @@ public:
 
   MlirOperation func_op() const;
 
+  const std::string debug_string() const;
+
   const std::string to_string() const;
 
 private:
