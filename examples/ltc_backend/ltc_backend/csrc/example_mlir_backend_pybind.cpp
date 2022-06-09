@@ -10,6 +10,8 @@
 #include "torch/csrc/jit/python/pybind.h"
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
+#include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
+
 #include <exception>
 #include <iostream>
 #include <string>
@@ -61,7 +63,16 @@ void Shutdown() {
 } // anonymous namespace
 
 PYBIND11_MODULE(_EXAMPLE_MLIR_BACKEND, m) {
+  py::class_<torch::lazy::TorchMlirComputation>(m, "TorchMlirComputation")
+      .def("to_string", &torch::lazy::TorchMlirComputation::to_string)
+      .def("debug_string", &torch::lazy::TorchMlirComputation::debug_string);
+
   m.doc() = ("pybind11 for example MLIR LTC backend.");
+  m.def("get_latest_computation", []() {
+    auto computation = static_cast<torch::lazy::TorchMlirComputation *>(
+        torch::lazy::GetLatestComputation().get());
+    return py::cast(computation);
+  });
   m.def("_initialize", []() {
     NoGilSection gil;
     Initialize();

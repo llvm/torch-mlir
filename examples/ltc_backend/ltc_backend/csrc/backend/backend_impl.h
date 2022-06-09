@@ -23,5 +23,7 @@ torch::lazy::BackendImplInterface *GetExampleMlirBackendImpl();
 
 void InitExampleMlirBackend();
 
+ComputationPtr &GetLatestComputation();
+
 } // namespace lazy
 } // namespace torch
