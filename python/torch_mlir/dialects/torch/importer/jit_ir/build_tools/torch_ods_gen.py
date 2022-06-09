@@ -302,6 +302,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
+    emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
 
     # Ops without value semantics but the corresponding without trailing
     # underscore variant doesn't exist.
