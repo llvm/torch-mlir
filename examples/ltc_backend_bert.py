@@ -14,13 +14,19 @@ Based on LTC code samples by ramiro050
 """
 
 import argparse
+import sys
+from typing import List
+
+import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import torch
+import torch._C
+import torch._lazy
+import torch._lazy.ts_backend
 from datasets import load_dataset
 from datasets.dataset_dict import DatasetDict
 from torch.utils.data import DataLoader
 from transformers import BertForSequenceClassification, \
     BertConfig, BertTokenizer, AdamW, get_scheduler
-from typing import List
 
 
 def tokenize_dataset(dataset: DatasetDict) -> DatasetDict:
@@ -42,8 +48,7 @@ def train(model: BertForSequenceClassification,
           num_epochs: int,
           num_training_steps: int,
           train_dataloader: DataLoader,
-          device: torch.device,
-          do_mark_step: bool) -> List[torch.Tensor]:
+          device: torch.device) -> List[torch.Tensor]:
     optimizer = AdamW(model.parameters(), lr=5e-5)
     lr_scheduler = get_scheduler('linear', optimizer=optimizer,
                                  num_warmup_steps=0,
@@ -63,31 +68,21 @@ def train(model: BertForSequenceClassification,
             lr_scheduler.step()
             optimizer.zero_grad()
 
-            if do_mark_step and 'lazy' in str(model.device):
+            if 'lazy' in str(model.device):
                 print("Calling Mark Step")
                 torch._lazy.mark_step()
 
     return losses
 
 
-def main(device, lower_only, full_size):
-    if device in ("TS", "MLIR_EXAMPLE"):
-        import torch._lazy
+def main(device='lazy', full_size=False):
+    """
+    Load model to specified device. Ensure that any backends have been initialized by this point.
 
-        if device == "TS":
-            import torch._lazy.ts_backend
-
-            torch._lazy.ts_backend.init()
-
-        elif device == "MLIR_EXAMPLE":
-            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
-
-            ltc_backend._initialize()
-
-        device = "lazy"
-        print("Initialized backend")
-    else:
-        device = device.lower()
+    :param device: name of device to load tensors to
+    :param full_size: if true, use a full pretrained bert-base-cased model instead of a smaller variant
+    """
+    torch.manual_seed(0)
 
     tokenized_datasets = tokenize_dataset(load_dataset('imdb'))
     small_train_dataset = tokenized_datasets['train'].shuffle(seed=42) \
@@ -117,22 +112,20 @@ def main(device, lower_only, full_size):
 
     num_epochs = 3
     num_training_steps = num_epochs * len(train_dataloader)
-    losses = train(model, num_epochs,
-                   num_training_steps, train_dataloader, device, not lower_only)
+    losses = train(model, num_epochs, num_training_steps, train_dataloader, device)
 
-    if lower_only:
-        print('\nJIT Graph:')
-        import torch._C
-        graph_str = torch._C._lazy._get_tensors_backend([losses[0]])
-        print(graph_str)
-    else:
-        # Execute computation
-        print('Loss: ', losses)
+    # Get debug information from LTC
+    if 'ltc_backend' in sys.modules:
+        computation = ltc_backend.get_latest_computation()
+        if computation:
+            print(computation.debug_string())
+
+    print('Loss: ', losses)
+
+    return model, losses
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d",
@@ -143,13 +136,6 @@ if __name__ == "__main__":
         help="The device type",
     )
     parser.add_argument(
-        "-l",
-        "--lower_only",
-        action='store_true',
-        default=False,
-        help="Only get backend printout -- do not execute computation",
-    )
-    parser.add_argument(
         "-f",
         "--full_size",
         action='store_true',
@@ -157,4 +143,17 @@ if __name__ == "__main__":
         help="Use full sized BERT model instead of one with smaller parameterization",
     )
     args = parser.parse_args()
-    main(args.device, args.lower_only, args.full_size)
+
+    if args.device in ("TS", "MLIR_EXAMPLE"):
+        if args.device == "TS":
+            torch._lazy.ts_backend.init()
+
+        elif args.device == "MLIR_EXAMPLE":
+            ltc_backend._initialize()
+
+        device = "lazy"
+        print("Initialized backend")
+    else:
+        device = args.device.lower()
+
+    main(device, args.full_size)
