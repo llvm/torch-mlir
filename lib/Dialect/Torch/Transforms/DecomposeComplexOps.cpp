@@ -1942,6 +1942,22 @@ class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.floor_divide` op into `aten.div.Tensor_mode` op.
+class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFloorDivideOp op,
+                                PatternRewriter &rewriter) const override {
+    Value cstStrFloor =
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "floor");
+    rewriter.replaceOpWithNewOp<AtenDivTensorModeOp>(
+        op, op.getType(), op.self(), op.other(),
+        /*rounding_mode=*/cstStrFloor);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2084,6 +2100,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenClampMaxOp>();
     patterns.add<DecomposeAtenBaddbmmOp>(context);
     target.addIllegalOp<AtenBaddbmmOp>();
+    patterns.add<DecomposeAtenFloorDivideOp>(context);
+    target.addIllegalOp<AtenFloorDivideOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
