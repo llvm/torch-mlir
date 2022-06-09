@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../mlir_lowering_context.h"
 #include "../mlir_node.h"
 
 #include <torch/csrc/lazy/backend/backend_data.h>
@@ -33,6 +34,8 @@ class TORCH_API DeviceData : public TorchMlirNode {
   void SetData(std::shared_ptr<BackendData> data) {
     data_ = data;
   }
+
+  TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override;
 
   static const DeviceData* Cast(const Node* node);
 
