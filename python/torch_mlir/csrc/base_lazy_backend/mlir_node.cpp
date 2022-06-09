@@ -71,12 +71,6 @@ hash_t TorchMlirNode::hash() const { return dag_hash_; }
 
 hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 
-TorchMlirOpVector TorchMlirNode::Lower(
-    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
-  return {};
-}
-
-
 OpKind TorchMlirTensorList::ClassOpKind() {
   // Note: this OpKind is separate from ltc_ops.h since it would be a circular
   // import otherwise
