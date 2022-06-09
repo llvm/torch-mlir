@@ -57,6 +57,30 @@ class Mlp2LayerModule(torch.nn.Module):
 def Mlp2LayerModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3))
 
+class Mlp2LayerModuleNoBias(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Reset seed to make model deterministic.
+        torch.manual_seed(0)
+        N_HIDDEN = 5
+        self.fc0 = nn.Linear(3, N_HIDDEN, bias=False)
+        self.tanh0 = nn.Tanh()
+        self.fc1 = nn.Linear(N_HIDDEN, 2, bias=False)
+        self.tanh1 = nn.Tanh()
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        x = self.tanh0(self.fc0(x))
+        x = self.tanh1(self.fc1(x))
+        return x
+
+@register_test_case(module_factory=lambda: Mlp2LayerModuleNoBias())
+def Mlp2LayerModuleNoBias_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3))
+
 class BatchMlpLayerModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
