@@ -1720,4 +1720,45 @@ def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(3, (3,)), torch.randint(3, (4, 3)))
 
 
+# ==============================================================================
 
+
+class ElementwiseAtenFloorDivideModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.floor_divide(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenFloorDivideModule())
+def ElementwiseAtenFloorDivideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3), tu.rand(4, 3))
+
+
+class ElementwiseAtenFloorDivideBroadcastModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.floor_divide(x, y)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenFloorDivideBroadcastModule())
+def ElementwiseAtenFloorDivideBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3), tu.rand(4, 3))

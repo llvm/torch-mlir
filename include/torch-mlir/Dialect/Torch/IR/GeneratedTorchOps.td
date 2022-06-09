@@ -2637,6 +2637,30 @@ def Torch_AtenThresholdBackwardOp : Torch_Op<"aten.threshold_backward", [
   }];
 }
 
+def Torch_AtenFloorDivideOp : Torch_Op<"aten.floor_divide", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::floor_divide : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFloorDivideOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenFloorDivideOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenFill_ScalarOp : Torch_Op<"aten.fill_.Scalar", [
     AllowsTypeRefinement
   ]> {
