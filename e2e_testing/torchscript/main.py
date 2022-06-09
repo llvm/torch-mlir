@@ -15,20 +15,20 @@ from torch_mlir_e2e_test.torchscript.serialization import deserialize_all_tests_
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
-    LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig, EagerModeTestConfig
+    LazyTensorCoreTestConfig, LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig, EagerModeTestConfig
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET
+from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET, LTC_XFAIL_SET
 
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'eager_mode']
+    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'eager_mode', 'lazy_tensor_core']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -40,6 +40,7 @@ Meaning of options:
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "eager_mode": run through torch-mlir's eager mode frontend, using RefBackend for execution.
+"lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph. 
 ''')
     parser.add_argument('-f', '--filter', default='.*', help='''
 Regular expression specifying which tests to include in this run.
@@ -86,6 +87,9 @@ def main():
     elif args.config == 'eager_mode':
         config = EagerModeTestConfig()
         xfail_set = EAGER_MODE_XFAIL_SET
+    elif args.config == 'lazy_tensor_core':
+        config = LazyTensorCoreTestConfig()
+        xfail_set = LTC_XFAIL_SET
 
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
