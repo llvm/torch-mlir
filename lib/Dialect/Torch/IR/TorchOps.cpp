@@ -1513,6 +1513,23 @@ OpFoldResult Aten__Getitem__DictStrOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Contains__IntListOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
+  auto arrayConstruct = getArrayConstructIfNotModified(array());
+  if (!arrayConstruct)
+    return nullptr;
+
+  auto targetKey = key();
+  for (auto key : arrayConstruct.keys()) {
+    if (key == targetKey)
+      return getI1IntegerAttr(getContext(), true);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // Aten__Contains__StrOp
 //===----------------------------------------------------------------------===//
 

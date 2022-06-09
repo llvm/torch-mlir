@@ -103,12 +103,12 @@ class __contains__int_list_Test(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: __contains__int_list_Test())
 def __contains__int_list_False(module, tu: TestUtils):
-    module.forward(tu.rand(3))
+    module.forward([1,2,3],4)
 
 
 @register_test_case(module_factory=lambda: __contains__int_list_Test())
 def __contains__int_list_True(module, tu: TestUtils):
-    module.forward(tu.rand(3.0))
+    module.forward([1,2,3],2)
 
 
 # ==============================================================================
