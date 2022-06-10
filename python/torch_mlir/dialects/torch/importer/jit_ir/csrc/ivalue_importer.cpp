@@ -21,7 +21,7 @@
 #include "mlir-c/Diagnostics.h"
 #include "torch-mlir-c/TorchTypes.h"
 
-#include "ATen/native/ao_sparse/quantized/cpu/packed_params.h"
+#include "ATen/native/quantized/cpu/PackedParams.h"
 #include "caffe2/core/scope_guard.h"
 
 using namespace torch_mlir;
