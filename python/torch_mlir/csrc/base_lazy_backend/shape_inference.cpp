@@ -12,7 +12,7 @@
 #include <cmath>
 
 #include "../utils/exception.h"
-#include "LazyShapeInference.h"
+#include "generated/shape_inference.h"
 
 namespace torch {
 namespace lazy {
