@@ -97,7 +97,6 @@ class ContainsIntList(torch.nn.Module):
     ])
     def forward(self,):
         return 3 in [1,2,3]
-        #return torch.ops.aten.__contains__.int_list([1,2,3], 3)
 
 
 @register_test_case(module_factory=lambda: ContainsIntList())
