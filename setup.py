@@ -101,6 +101,14 @@ class CMakeBuild(build_py):
             else:
                 print(f"Not removing _mlir_libs dir (does not exist): {mlir_libs_dir}")
 
+            src_dir = os.path.abspath(os.path.dirname(__file__))
+
+            # Autogenerate LTC Backend
+            subprocess.check_call([sys.executable,
+                                   os.path.join(src_dir, "build_tools", "autogen_ltc_backend.py")],
+                                  cwd=cmake_build_dir)
+
+            # CMake build
             subprocess.check_call(["cmake", llvm_dir] +
                                   cmake_args, cwd=cmake_build_dir)
             subprocess.check_call(["cmake",
