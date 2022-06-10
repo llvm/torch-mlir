@@ -6384,6 +6384,15 @@ module {
     }
     return %0 : !torch.tuple<list<int>, list<int>, list<int>>
   }
+  func.func @"__torch_mlir_shape_fn.aten.native_group_norm"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.optional<list<int>>, %arg3: !torch.int, %arg4: !torch.int, %arg5: !torch.int, %arg6: !torch.int, %arg7: !torch.float) -> !torch.tuple<list<int>, list<int>, list<int>> {
+    %int0 = torch.constant.int 0
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %1 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %2 = torch.aten.append.t %0, %1 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %3 = torch.aten.append.t %0, %arg6 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %4 = torch.prim.TupleConstruct %arg0, %0, %0 : !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>>
+    return %4 : !torch.tuple<list<int>, list<int>, list<int>>
+  }
   func.func @"__torch_mlir_shape_fn.aten.constant_pad_nd"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
     %0 = call @__torch__.pad_shape_fn(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>

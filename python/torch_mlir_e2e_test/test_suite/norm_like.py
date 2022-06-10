@@ -332,3 +332,27 @@ class LayerNormNormalizeOverAllDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LayerNormNormalizeOverAllDimsModule())
 def LayerNormNormalizeOverAllDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 3))
+
+
+# ==============================================================================
+
+class NativeGroupNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 5, 2, 2, 3], torch.float32, True),
+        ([5], torch.float32, True),
+        ([5], torch.float32, True),
+    ])
+    def forward(self, x, weight, bias):
+        list = [2, 2, 3]
+        return torch.ops.aten.native_group_norm(
+            x, weight, bias, 2, 5, 12, 1, eps=0.5)
+
+
+@register_test_case(module_factory=lambda: NativeGroupNormModule())
+def NativeGroupNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(5), tu.rand(5))

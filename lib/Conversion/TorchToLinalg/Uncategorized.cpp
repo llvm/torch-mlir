@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Utils/StructuredOpsUtils.h"
+#include "mlir/IR/AffineExpr.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "../PassDetail.h"
@@ -1621,6 +1623,235 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenNativeGroupNormOp
+    : public OpConversionPattern<AtenNativeGroupNormOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNativeGroupNormOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    MLIRContext *context = op->getContext();
+    Location loc = op->getLoc();
+    Value input = adaptor.input();
+    Value weight = adaptor.weight();
+    Value bias = adaptor.bias();
+    Value N = adaptor.N();
+    Value C = adaptor.C();
+    Value HxW = adaptor.HxW();
+    Value group = adaptor.group();
+    Value eps = adaptor.eps();
+
+    op->getParentOfType<ModuleOp>()->dump();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    // TODO: Handle the None cases for the optional parameters:
+    // weight, bias.
+    if (failed(checkNotNone(rewriter, op, weight)) ||
+        failed(checkNotNone(rewriter, op, bias)))
+      return failure();
+
+    auto inputType = input.getType().cast<RankedTensorType>();
+    auto weightType = weight.getType().cast<RankedTensorType>();
+    auto biasType = bias.getType().cast<RankedTensorType>();
+    int64_t inputRank = inputType.getRank();
+    Type elemTy = inputType.getElementType();
+
+    // Common parts to be used for getting mean and var.
+
+    // The shape of mean and var is always {N, num_groups}. Hence its rank is 2.
+    int64_t meanAndVarShapeRank = 2;
+    // Get sizes and affineMaps needed for mean and var.
+    SmallVector<AffineExpr> inputExprs, meanAndVarShapeExprs;
+    for (int i = 0; i < inputRank; i++)
+      inputExprs.push_back(mlir::getAffineDimExpr(i, context));
+    meanAndVarShapeExprs.push_back(mlir::getAffineDimExpr(0, context));
+    meanAndVarShapeExprs.push_back(mlir::getAffineDimExpr(inputRank, context));
+    auto inputShapeAffineMap = AffineMap::get(
+        /*dimCount=*/inputRank + 1,
+        /*symbolCount=*/0, inputExprs, context);
+    auto meanAndVarShapeAffineMap = AffineMap::get(
+        /*dimCount=*/inputRank + 1,
+        /*symbolCount=*/0, meanAndVarShapeExprs, context);
+    SmallVector<Value> meanAndVarShapeSizes;
+    meanAndVarShapeSizes.push_back(castIntToIndex(rewriter, loc, N));
+    meanAndVarShapeSizes.push_back(castIntToIndex(rewriter, loc, group));
+
+    // Get number of elements to be used for calculating mean and var.
+    Value elemCnts = rewriter.create<arith::MulIOp>(loc, C, HxW);
+    elemCnts = rewriter.create<arith::DivSIOp>(loc, elemCnts, group);
+    Value elemCntsFloat =
+        rewriter.create<arith::SIToFPOp>(loc, elemTy, elemCnts);
+
+    // Get iterator types for input shape.
+    SmallVector<StringRef> meanAndVarIterationTypes(
+        meanAndVarShapeRank, getParallelIteratorTypeName());
+    SmallVector<StringRef> iteratorTypes;
+    iteratorTypes.push_back(getParallelIteratorTypeName());
+    for (unsigned i = 1; i < inputRank; i++)
+      iteratorTypes.push_back(getReductionIteratorTypeName());
+    iteratorTypes.push_back(getParallelIteratorTypeName());
+
+    // Helper to calculate mean and var.
+    auto genMeanOrVarCalculation = [&](Value sumOrSquareSum) {
+      SmallVector<AffineMap> indexingMaps(
+          2, rewriter.getMultiDimIdentityMap(meanAndVarShapeRank));
+      Value initShapeTensor = rewriter.create<linalg::InitTensorOp>(
+          loc, meanAndVarShapeSizes, elemTy);
+      return rewriter
+          .create<linalg::GenericOp>(
+              loc, initShapeTensor.getType(), sumOrSquareSum, initShapeTensor,
+              /*indexingMaps=*/indexingMaps,
+              /*iteratorTypes=*/meanAndVarIterationTypes,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                Value sumOrSqureSum = args[0];
+                Value result =
+                    b.create<arith::DivFOp>(loc, sumOrSqureSum, elemCntsFloat);
+                b.create<linalg::YieldOp>(loc, result);
+              })
+          .getResult(0);
+    };
+
+    // Get mean.
+
+    // Get sum to be used for calculating mean.
+    SmallVector<AffineMap, 2> sumIndexingMaps = {
+        inputShapeAffineMap,      // input
+        meanAndVarShapeAffineMap, // output
+    };
+    auto initSumTensor =
+        createZeroInitTensor(rewriter, loc, meanAndVarShapeSizes, elemTy);
+    Value sum = rewriter
+                    .create<linalg::GenericOp>(
+                        loc, initSumTensor.getType(), input, initSumTensor,
+                        /*indexingMaps=*/sumIndexingMaps,
+                        /*iteratorTypes=*/iteratorTypes,
+                        [&](OpBuilder &b, Location loc, ValueRange args) {
+                          Value input = args[0], sum = args[1];
+                          Value result =
+                              rewriter.create<arith::AddFOp>(loc, sum, input);
+                          b.create<linalg::YieldOp>(loc, result);
+                        })
+                    .getResult(0);
+    Value mean = genMeanOrVarCalculation(sum);
+
+    // Get rSTD.
+
+    // Calculate squareSum for the layer.
+    SmallVector<AffineMap> squareSumIndexingMaps{
+        inputShapeAffineMap,
+        meanAndVarShapeAffineMap,
+        meanAndVarShapeAffineMap,
+    };
+    auto initSquareSumTensor =
+        createZeroInitTensor(rewriter, loc, meanAndVarShapeSizes, elemTy);
+    Value squareSum =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initSquareSumTensor.getType(), ValueRange{input, mean},
+                initSquareSumTensor,
+                /*indexingMaps=*/squareSumIndexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0], mean = args[1], squareSum = args[2];
+                  Value sub = rewriter.create<arith::SubFOp>(loc, input, mean);
+                  Value square = rewriter.create<arith::MulFOp>(loc, sub, sub);
+                  Value result =
+                      rewriter.create<arith::AddFOp>(loc, squareSum, square);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    Value var = genMeanOrVarCalculation(squareSum);
+    Value rSTDTensor = rewriter.create<linalg::InitTensorOp>(
+        loc, meanAndVarShapeSizes, elemTy);
+    SmallVector<AffineMap> rSTDIndexingMap(
+        2, rewriter.getMultiDimIdentityMap(meanAndVarShapeRank));
+
+    Value rSTD = rewriter
+                     .create<linalg::GenericOp>(
+                         loc, rSTDTensor.getType(), var, rSTDTensor,
+                         rSTDIndexingMap, meanAndVarIterationTypes,
+                         [&](OpBuilder &b, Location loc, ValueRange args) {
+                           Value result =
+                               calculateRSTD(b, loc, elemTy, eps, args[0]);
+                           b.create<linalg::YieldOp>(loc, result);
+                         })
+                     .getResult(0);
+
+    // Get groupnorm.
+
+    // Get affineMap for normalized shape.
+    SmallVector<AffineExpr> normalizedShapeExprs;
+    for (int i = meanAndVarShapeRank; i < inputRank; i++)
+      normalizedShapeExprs.push_back(mlir::getAffineDimExpr(i, context));
+    auto normalizedShapeAffineMap = AffineMap::get(
+        /*dimCount=*/inputRank,
+        /*symbolCount=*/0, normalizedShapeExprs, context);
+    auto inputSizes = getTensorSizes(rewriter, loc, input);
+    Value initLayerNormTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, inputSizes, elemTy);
+    SmallVector<AffineMap> indexingMaps(1, inputShapeAffineMap);
+    indexingMaps.resize(3, meanAndVarShapeAffineMap);
+    // indexingMaps.resize(5, normalizedShapeAffineMap);
+    indexingMaps.push_back(inputShapeAffineMap);
+    SmallVector<StringRef> layerNormIterationTypes(
+        inputRank, getParallelIteratorTypeName());
+    Value layerNorm =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initLayerNormTensor.getType(),
+                ValueRange{input, mean, rSTD, weight, bias},
+                initLayerNormTensor,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/layerNormIterationTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value input = args[0], mean = args[1], rSTD = args[2],
+                        weight = args[3], bias = args[4];
+                  Value result =
+                      createLinalgPayloadCalculationForNormOpsWithRSTD(
+                          b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
+                  b.create<linalg::YieldOp>(loc, result);
+                })
+            .getResult(0);
+    SmallVector<int64_t> expandShape(inputRank, 1);
+    for (int i = 0; i < meanAndVarShapeRank; i++) {
+      // `mean` and `rstd` are not yet casted, so they will be having
+      // dynamic
+      // shape. Hence to match them, for each dimension corresponding to
+      // `mean`
+      // or `rstd` assign -1.
+      expandShape[i] = -1;
+    }
+    auto expandShapeType = RankedTensorType::get(expandShape, elemTy);
+    SmallVector<ReassociationIndices> reassociation(meanAndVarShapeRank);
+    for (auto i : llvm::seq<int64_t>(0, meanAndVarShapeRank)) {
+      reassociation[i].push_back(i);
+      if (i == meanAndVarShapeRank - 1) {
+        for (auto j : llvm::seq<int64_t>(0, normalizedShapeRank))
+          reassociation[i].push_back(i + j + 1);
+      }
+    }
+    Value meanResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, mean, reassociation);
+    Value rSTDResult = rewriter.create<tensor::ExpandShapeOp>(
+        loc, expandShapeType, rSTD, reassociation);
+    Type layerNormResultType = getTypeConverter()->convertType(op.getType(0));
+    Type meanResultType = getTypeConverter()->convertType(op.getType(1));
+    Type rSTDResultType = getTypeConverter()->convertType(op.getType(2));
+    Value layerNorm_ =
+        rewriter.create<tensor::CastOp>(loc, layerNormResultType, layerNorm);
+    Value mean_ =
+        rewriter.create<tensor::CastOp>(loc, meanResultType, meanResult);
+    Value var_ =
+        rewriter.create<tensor::CastOp>(loc, rSTDResultType, rSTDResult);
+    rewriter.replaceOp(op, {layerNorm_, mean_, var_});
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1650,4 +1881,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
   target.addIllegalOp<TensorStaticInfoCastOp>();
+  target.addIllegalOp<AtenNativeGroupNormOp>();
+  patterns.add<ConvertAtenNativeGroupNormOp>(typeConverter, context);
 }

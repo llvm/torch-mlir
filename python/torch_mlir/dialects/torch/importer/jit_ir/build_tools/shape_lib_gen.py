@@ -938,6 +938,12 @@ def aten〇native_batch_norm(input: List[int], weight: Optional[List[int]], bias
         return input, [input[1]], [input[1]]
     return input, [0], [0]
 
+def aten〇native_group_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], N: int, C: int, HxW: int, group: int, eps: float) -> Tuple[List[int], List[int], List[int]]:
+    reduction_shape: List[int] = []
+    reduction_shape.append(input[0])
+    reduction_shape.append(group)
+    return input, reduction_shape, reduction_shape
+
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
 def pad_shape_fn(input: List[int], pad: List[int]):
