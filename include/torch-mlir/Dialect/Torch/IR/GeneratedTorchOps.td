@@ -4515,11 +4515,9 @@ def Torch_AtenArangeStartStepOp : Torch_Op<"aten.arange.start_step", [
 }
 
 def Torch_AtenArangeStartOutOp : Torch_Op<"aten.arange.start_out", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
+    AllowsTypeRefinement
   ]> {
-  let summary = "Generated op for `aten::arange.start_out : (Scalar start, Scalar end, Scalar step, Tensor out) -> (Tensor)`";
+  let summary = "Generated op for `aten::arange.start_out : (Scalar, Scalar, Scalar, Tensor) -> (Tensor)`";
   let arguments = (ins
     AnyTorchScalarType:$start,
     AnyTorchScalarType:$end,
@@ -5742,7 +5740,7 @@ def Torch_AtenScatterAddOp : Torch_Op<"aten.scatter_add", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::scatter_add : (Tensor self, int dim, Tensor index, Tensor src) -> (Tensor)`";
+  let summary = "Generated op for `aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$dim,
@@ -6086,6 +6084,31 @@ def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void Aten__Contains__StrOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+def Torch_Aten__Contains__IntListOp : Torch_Op<"aten.__contains__.int_list", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__contains__.int_list : (int[], int) -> (bool)`";
+  let arguments = (ins
+    AnyTorchListOfTorchIntType:$l,
+    Torch_IntType:$item
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten__Contains__IntListOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten__Contains__IntListOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
@@ -8293,3 +8316,4 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     }
   }];
 }
+
