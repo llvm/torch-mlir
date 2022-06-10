@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_CLASS_ANNOTATOR_PYBIND_H
-#define TORCHMLIRJITIRIMPORTER_CSRC_PYBIND_H
+#define TORCHMLIRJITIRIMPORTER_CSRC_CLASS_ANNOTATOR_PYBIND_H
 
 #include <torch/csrc/utils/pybind.h>
 
