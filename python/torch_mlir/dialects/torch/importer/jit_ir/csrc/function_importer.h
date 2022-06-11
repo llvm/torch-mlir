@@ -14,7 +14,6 @@
 
 #include "import_options.h"
 #include "node_importer.h"
-#include "pybind.h"
 
 #include "mlir-c/IR.h"
 

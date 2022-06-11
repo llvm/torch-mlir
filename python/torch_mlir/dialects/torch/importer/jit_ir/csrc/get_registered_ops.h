@@ -15,7 +15,7 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_GETREGISTEREDOPS_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_GETREGISTEREDOPS_H
 
-#include "pybind.h"
+#include <torch/csrc/utils/pybind.h>
 
 namespace torch_mlir {
 

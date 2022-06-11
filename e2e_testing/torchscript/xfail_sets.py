@@ -153,6 +153,13 @@ TOSA_PASS_SET = {
     "ElementwiseNegModule_basic",
     "TestMultipleTensorReturn_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
+    "BaddbmmDynamicModule_basic",
+    "BaddbmmStaticModule_basic",
+    "BaddbmmWithAlphaBetaModule_basic",
+    "BaddbmmWithAlphaModule_basic",
+    "BaddbmmWithBetaModule_basic",
+    "BaddbmmBroadcast1DInputModule_basic",
+    "BaddbmmBroadcast2DInputModule_basic",
 }
 
 LTC_XFAIL_SET = {

@@ -14,8 +14,6 @@
 
 #include <memory>
 
-#include "pybind.h"
-
 #include "mlir-c/IR.h"
 
 #include <torch/csrc/jit/api/compilation_unit.h>

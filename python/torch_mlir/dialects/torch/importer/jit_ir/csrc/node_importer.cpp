@@ -22,7 +22,6 @@
 #include "torch-mlir-c/TorchOps.h"
 #include "torch-mlir-c/TorchTypes.h"
 
-namespace py = pybind11;
 using namespace torch_mlir;
 
 using Value = torch::jit::Value;

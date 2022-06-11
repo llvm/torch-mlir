@@ -218,9 +218,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         operator = registry[key]
         emit_op(operator, emitter_td, **kwargs)
         ns, unqual, overload = operator.triple
-        emit_op(registry.get_by_triple((ns, unqual + "_", overload)),
+        # Underscore variant of functional ops should have "functional" part removed.
+        is_functional_op = overload == "functional"
+        emit_op(registry.get_by_triple((ns, unqual + "_", overload if not is_functional_op else "")),
                 emitter_td,
-                traits=["IsTrailingUnderscoreInplaceVariant"])
+                traits=["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else [])
 
     # ==========================================================================
     # `aten::` namespace.
@@ -250,6 +252,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
+            "aten::div.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -278,7 +281,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
-
+            "aten::zero.functional : (Tensor) -> (Tensor)",
     ]:
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
@@ -291,7 +294,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
-    emit("aten::zero.functional : (Tensor) -> (Tensor)")
 
     # Ops without value semantics but the corresponding without trailing
     # underscore variant doesn't exist.
@@ -384,7 +386,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
-    emit("aten::zero_ : (Tensor) -> (Tensor)")
     emit("aten::new_zeros : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::tensor : (t[], int?, Device?, bool) -> (Tensor)")
     emit("aten::tensor.bool : (bool, int?, Device?, bool) -> (Tensor)")
@@ -456,6 +457,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::t : (Tensor) -> (Tensor)")
     emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
+    emit_with_mutating_variants("aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)

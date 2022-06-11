@@ -11,8 +11,6 @@
 
 #include <stdexcept>
 
-#include "torch/csrc/Dtype.h"
-
 using namespace torch_mlir;
 
 //===----------------------------------------------------------------------===//
@@ -150,21 +148,10 @@ ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType *classType) {
   return *it->second;
 }
 
-static c10::ScalarType convertToC10ScalarType(py::object obj) {
-  if (THPDtype_Check(obj.ptr())) {
-    // Need reinterpret_cast, since no C++-level inheritance is involved.
-    THPDtype *dtype = reinterpret_cast<THPDtype *>(obj.ptr());
-    return dtype->scalar_type;
-  }
-  std::stringstream ss;
-  ss << "unsupported scalar type '" << obj << "'";
-  throw std::invalid_argument(ss.str());
-}
-
 static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
-                               py::list pyArgAnnotations,
+                               std::vector<ArgAnnotation> argAnnotations,
                                torch::jit::Function *function) {
-  if (pyArgAnnotations.size() != function->num_inputs()) {
+  if (argAnnotations.size() != function->num_inputs()) {
     throw std::invalid_argument("Arg annotations should have one entry per "
                                 "function parameter (including self).");
   }
@@ -172,29 +159,13 @@ static void fillArgAnnotations(MethodAnnotation &methodAnnotation,
     methodAnnotation.argAnnotations.emplace(function->num_inputs(),
                                             ArgAnnotation{});
   }
-  std::vector<ArgAnnotation> &argAnnotations =
-      methodAnnotation.argAnnotations.value();
-  for (int i = 0, e = argAnnotations.size(); i != e; i++) {
-    if (pyArgAnnotations[i].is_none()) {
-      continue;
-    }
-    auto tuple = py::cast<py::tuple>(pyArgAnnotations[i]);
-    auto shape = tuple[0];
-    auto dtype = tuple[1];
-    auto hasValueSemantics = tuple[2];
-    if (!shape.is_none()) {
-      argAnnotations[i].shape = py::cast<std::vector<int64_t>>(shape);
-    }
-    if (!dtype.is_none()) {
-      argAnnotations[i].dtype = convertToC10ScalarType(dtype);
-    }
-    argAnnotations[i].hasValueSemantics = py::cast<bool>(hasValueSemantics);
-  };
+
+  methodAnnotation.argAnnotations = argAnnotations;
 }
 
 void ClassAnnotator::annotateArgs(c10::ClassType &rootClassType,
                                   std::vector<std::string> path,
-                                  py::list argAnnotations) {
+                                  std::vector<ArgAnnotation> argAnnotations) {
   if (path.size() == 0) {
     throw std::invalid_argument("Empty annotated path. Can only annotate "
                                 "shapes/dtypes of a method of a class.");
@@ -330,13 +301,4 @@ std::string ClassAnnotator::toString() {
   }
   ss << "}\n";
   return ss.str();
-}
-
-void torch_mlir::initClassAnnotatorBindings(py::module &m) {
-  py::class_<ClassAnnotator>(m, "ClassAnnotator")
-      .def(py::init<>())
-      .def("exportPath", &ClassAnnotator::exportPath)
-      .def("exportNone", &ClassAnnotator::exportNone)
-      .def("annotateArgs", &ClassAnnotator::annotateArgs)
-      .def("__repr__", &ClassAnnotator::toString);
 }

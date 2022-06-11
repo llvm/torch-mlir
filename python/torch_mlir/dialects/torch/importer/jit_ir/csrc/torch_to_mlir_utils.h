@@ -14,8 +14,6 @@
 
 #include <memory>
 
-#include "pybind.h"
-
 #include "mlir-c/IR.h"
 
 #include <torch/csrc/jit/api/compilation_unit.h>
@@ -23,6 +21,13 @@
 #include <torch/csrc/jit/ir/ir.h>
 
 namespace torch_mlir {
+
+/// Thrown on failure when details are in MLIR emitted diagnostics.
+class mlir_diagnostic_emitted : public std::runtime_error {
+public:
+  mlir_diagnostic_emitted(const char *what) : std::runtime_error(what) {}
+  mlir_diagnostic_emitted() : std::runtime_error("see diagnostics") {}
+};
 
 /// Gets a corresponding MlirType for the Torch ScalarType.
 /// `c10::`ScalarType` is used to represent tensor dtypes, and is a different

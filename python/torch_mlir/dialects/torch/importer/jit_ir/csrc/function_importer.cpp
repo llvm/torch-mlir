@@ -18,7 +18,6 @@
 #include "mlir-c/BuiltinTypes.h"
 #include "mlir-c/Diagnostics.h"
 
-namespace py = pybind11;
 using namespace torch_mlir;
 
 MlirOperation torch_mlir::importJitFunctionAsFuncOp(
