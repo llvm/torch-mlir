@@ -37,5 +37,23 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
   return success();
 }
 
+OpFoldResult FromI64Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
+  if (attr) {
+    return attr;
+  } else {
+    return nullptr;
+  }
+}
+
+OpFoldResult ToI64Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
+  if (attr) {
+    return attr;
+  } else {
+    return nullptr;
+  }
+}
+
 #define GET_OP_CLASSES
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.cpp.inc"

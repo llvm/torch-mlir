@@ -25,6 +25,8 @@ def TorchConversion_Dialect : Dialect {
     tensor ops being converted linalg-on-tensors and `!torch.vtensor` being
     converted to the builtin `tensor` type.
   }];
+
+  let hasConstantMaterializer = 1;
 }
 
 #endif // TORCHCONVERSION_BASE
