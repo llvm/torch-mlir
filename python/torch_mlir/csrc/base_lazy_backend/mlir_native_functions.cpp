@@ -436,6 +436,12 @@ at::Tensor LazyNativeFunctions::pixel_unshuffle(const at::Tensor & self, int64_t
 at::Tensor LazyNativeFunctions::select_backward(const at::Tensor & grad_output, at::IntArrayRef input_sizes, int64_t dim, int64_t index) {
   return at::functionalization::functionalize_aten_op<ATEN_OP(select_backward)>::call(grad_output, input_sizes, dim, index);
 }
+at::Tensor LazyNativeFunctions::slice_backward(const at::Tensor & grad_output, at::IntArrayRef input_sizes, int64_t dim, int64_t start, int64_t end, int64_t step) {
+  return at::functionalization::functionalize_aten_op<ATEN_OP(slice_backward)>::call(grad_output, input_sizes, dim, start, end, step);
+}
+at::Tensor LazyNativeFunctions::diagonal_backward(const at::Tensor & grad_output, at::IntArrayRef input_sizes, int64_t offset, int64_t dim1, int64_t dim2) {
+  return at::functionalization::functionalize_aten_op<ATEN_OP(diagonal_backward)>::call(grad_output, input_sizes, offset, dim1, dim2);
+}
 at::Tensor LazyNativeFunctions::_trilinear(const at::Tensor & i1, const at::Tensor & i2, const at::Tensor & i3, at::IntArrayRef expand1, at::IntArrayRef expand2, at::IntArrayRef expand3, at::IntArrayRef sumdim, int64_t unroll_dim) {
   return at::functionalization::functionalize_aten_op<ATEN_OP(_trilinear)>::call(i1, i2, i3, expand1, expand2, expand3, sumdim, unroll_dim);
 }
