@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import importlib
+import logging
 import os
 import re
 import subprocess
@@ -23,6 +24,7 @@ from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.gen_backend_stubs import parse_backend_yaml
 
 TORCH_DIR = Path(importlib.util.find_spec("torch").origin).resolve().parent.parent
+TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -92,7 +94,9 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
 
 class GenTorchMlirLTC:
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
         self.script_path = Path(__file__).resolve()
         self.config_path = (
             Path(__file__).resolve().parent.joinpath("autogen_ltc_backend.yaml")
@@ -118,9 +122,6 @@ class GenTorchMlirLTC:
         self.generated_path = self.backend_path.joinpath("generated")
         self.generated_path.mkdir(exist_ok=True)
 
-        self.torchgen_path = Path(torchgen.__path__[0]).resolve()
-        assert self.torchgen_path.is_dir()
-
         self.tensor_class = "torch::lazy::LazyTensor"
 
         # Set the lazy value class
@@ -136,9 +137,9 @@ class GenTorchMlirLTC:
             self.torch_ops_file,
             self.source_yaml,
             self.backend_path.joinpath("shape_inference.cpp"),
-            self.torchgen_path.joinpath("dest", "lazy_ir.py"),
-            self.torchgen_path.joinpath("api", "lazy.py"),
-            self.torchgen_path.joinpath("model.py"),
+            TORCHGEN_DIR.joinpath("dest", "lazy_ir.py"),
+            TORCHGEN_DIR.joinpath("api", "lazy.py"),
+            TORCHGEN_DIR.joinpath("model.py"),
         ):
             if path.exists():
                 m.update(path.read_bytes())
@@ -146,9 +147,9 @@ class GenTorchMlirLTC:
         return m.hexdigest().strip()
 
     def generate_native_functions(self):
-        print("Generating Native Functions Yaml")
+        logging.info("Generating Native Functions Yaml")
 
-        native_path = self.torchgen_path.joinpath("packaged", "ATen", "native")
+        native_path = TORCHGEN_DIR.joinpath("packaged", "ATen", "native")
         native_yaml_path = native_path.joinpath("native_functions.yaml")
         tags_yaml_path = native_path.joinpath("tags.yaml")
 
@@ -385,7 +386,7 @@ class GenTorchMlirLTC:
             )
 
     def generate_backend(self):
-        print("Running Lazy Tensor Autogen")
+        logging.info("Running Lazy Tensor Autogen")
 
         # No fallback code allowed
         def gen_fallback_code(*args, **kwargs):
@@ -447,4 +448,23 @@ if __name__ == "__main__":
         "--force",
         action="store_true",
     )
-    main(parser.parse_args())
+    parser.add_argument(
+        "-d",
+        "--debug",
+        help="Print lots of debugging statements",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+        default=logging.WARNING,
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Be verbose",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+    )
+    args = parser.parse_args()
+    logging.basicConfig(level=args.loglevel)
+    main(args)
