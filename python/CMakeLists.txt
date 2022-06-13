@@ -72,6 +72,13 @@ endif()
 add_subdirectory(torch_mlir/eager_mode)
 
 ################################################################################
+# Custom op example
+# Required for running the update_torch_ods.sh and update_shape_lib.sh scripts.
+################################################################################
+
+add_subdirectory(torch_mlir/_torch_mlir_custom_op_example)
+
+################################################################################
 # Generate packages and shared library
 # Downstreams typically will not use these, but they are useful for local
 # testing.
@@ -117,4 +124,7 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_dependencies(TorchMLIRPythonModules TorchMLIRE2ETestPythonModules)
 endif()
 
+add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
+
 add_subdirectory(test)
+
