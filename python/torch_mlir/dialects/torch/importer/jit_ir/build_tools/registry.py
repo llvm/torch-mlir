@@ -138,6 +138,8 @@ class JitOperator:
                 op_class_name_atoms.append(s if s else "_")
         cpp_class_name = "".join(
             uppercase_first_letter(s) for s in op_class_name_atoms) + "Op"
+        # Disallow leading underscores in C++ to avoid illegal names.
+        cpp_class_name = cpp_class_name.lstrip("_")
         return op_name, cpp_class_name
 
     def get_shape_function_signature(self):

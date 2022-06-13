@@ -62,6 +62,8 @@ public:
 
     RewritePatternSet patterns(context);
 
+    torch_to_linalg::populateCustomOpExamplePatternsAndLegality(
+        typeConverter, patterns, target);
     torch_to_linalg::populateTensorScalarInteropPatternsAndLegality(
         typeConverter, patterns, target);
     torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,
