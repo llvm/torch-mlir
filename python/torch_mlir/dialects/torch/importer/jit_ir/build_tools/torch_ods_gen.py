@@ -461,6 +461,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
+    emit("aten::__contains__.int_list : (int[], int) -> (bool)", has_folder=True)
     emit("aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)", has_folder=True)
     emit("aten::_set_item.str : (Dict(str, t), str, t) -> ()")
     emit("aten::keys.str : (Dict(str, t)) -> (str[])")
@@ -492,6 +493,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::Int.Scalar : (Scalar) -> (int)", has_folder=True)
 
     # Primitive ops
+    
     emit("aten::__range_length : (int, int, int) -> (int)", has_folder=True)
     emit("aten::__derive_index : (int, int, int) -> (int)", has_folder=True)
     emit("aten::gt.int : (int, int) -> (bool)", has_folder=True)
