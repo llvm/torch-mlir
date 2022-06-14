@@ -723,15 +723,31 @@ public:
           op, "repeats are not matched with self's rank");
     }
 
-    SmallVector<Value> newSizes0, newSizes1, newSizes2;
+    auto insertDimSizes = [](SmallVector<Value> &dimSizes,
+                             SmallVector<int64_t> &shape,
+                             const ArrayRef<Value> &vals) {
+      dimSizes.insert(dimSizes.end(), vals.begin(), vals.end());
+      std::transform(vals.begin(), vals.end(), std::back_inserter(shape),
+                     [&](Value val) -> int64_t {
+                       int64_t cst_val;
+                       if (matchPattern(val, m_TorchConstantInt(&cst_val))) {
+                         return cst_val;
+                       } else {
+                         return ShapedType::kDynamicSize;
+                       }
+                     });
+    };
+
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
 
+    SmallVector<Value> newSizes0, newSizes1, newSizes2;
+    SmallVector<int64_t> newShape0, newShape1;
     // leadingRank >= 0
     auto leadingRank = repeats.size() - rank;
     for (size_t i = 0; i < leadingRank; ++i) {
-      newSizes0.push_back(one);
-      newSizes1.push_back(repeats[i]);
+      insertDimSizes(newSizes0, newShape0, ArrayRef<Value>{one});
+      insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{repeats[i]});
       newSizes2.push_back(repeats[i]);
     }
     for (size_t i = 0; i < rank; i++) {
@@ -739,16 +755,14 @@ public:
           loc, rewriter.getI64IntegerAttr(i));
       auto dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
       auto scale = repeats[i + leadingRank];
-      newSizes0.insert(newSizes0.end(), {one, dimSize});
-      newSizes1.insert(newSizes1.end(), {scale, dimSize});
+
+      insertDimSizes(newSizes0, newShape0, ArrayRef<Value>{one, dimSize});
+      insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{scale, dimSize});
+
       Value scaledSize = rewriter.create<AtenMulIntOp>(loc, dimSize, scale);
       newSizes2.push_back(scaledSize);
     }
 
-    auto newRank = repeats.size();
-    SmallVector<int64_t> newShape0(rank + newRank, ShapedType::kDynamicSize);
-    SmallVector<int64_t> newShape1(rank + newRank, ShapedType::kDynamicSize);
-    SmallVector<int64_t> newShape2(newRank, ShapedType::kDynamicSize);
     Type dtype = self.getType().cast<ValueTensorType>().getDtype();
     Type reshapeType0 =
         ValueTensorType::get(context, llvm::makeArrayRef(newShape0), dtype);

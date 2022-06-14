@@ -1066,8 +1066,8 @@ func.func @torch.aten.numpy_T$rank_three(%arg0: !torch.vtensor<[5,4,3],f32>) -> 
 
 // ----
 // CHECK-LABEL:   func.func @torch.aten.repeat(
-// CHECK-SAME:     %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>, %[[ARG1:.*]]: !torch.int, %[[ARG2:.*]]: !torch.int, %[[ARG3:.*]]: !torch.int) -> !torch.vtensor<[?,?,?],f32> {
-// CHECK:     %[[T0:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[ARG2]], %[[ARG3]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>, %[[ARG1:.*]]: !torch.int, %[[ARG2:.*]]: !torch.int, %[[ARG3:.*]]: !torch.int) -> !torch.vtensor<[?,?,?],f32> {                                                                                    
+// CHECK:     %[[T0:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[ARG2]], %[[ARG3]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>                                                                                                                                       
 // CHECK:     %[[INT1:.*]] = torch.constant.int 1
 // CHECK:     %[[INT0:.*]] = torch.constant.int 0
 // CHECK:     %[[T1:.*]] = torch.aten.size.int %[[ARG0]], %[[INT0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
@@ -1075,12 +1075,12 @@ func.func @torch.aten.numpy_T$rank_three(%arg0: !torch.vtensor<[5,4,3],f32>) -> 
 // CHECK:     %[[INT1_0:.*]] = torch.constant.int 1
 // CHECK:     %[[T3:.*]] = torch.aten.size.int %[[ARG0]], %[[INT1_0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
 // CHECK:     %[[T4:.*]] = torch.aten.mul.int %[[T3]], %[[ARG3]] : !torch.int, !torch.int -> !torch.int
-// CHECK:     %[[T5:.*]] = torch.prim.ListConstruct %[[INT1]], %[[INT1]], %[[T1]], %[[INT1]], %[[T3]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// CHECK:     %[[T6:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[ARG2]], %[[T1]], %[[ARG3]], %[[T3]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:     %[[T5:.*]] = torch.prim.ListConstruct %[[INT1]], %[[INT1]], %[[T1]], %[[INT1]], %[[T3]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>                                                                                                  
+// CHECK:     %[[T6:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[ARG2]], %[[T1]], %[[ARG3]], %[[T3]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>                                                                                                  
 // CHECK:     %[[T7:.*]] = torch.prim.ListConstruct %[[ARG1]], %[[T2]], %[[T4]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// CHECK:     %[[T8:.*]] = torch.aten.view %[[ARG0]], %[[T5]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,?,?],f32>
-// CHECK:     %[[T9:.*]] = torch.aten.broadcast_to %[[T8]], %[[T6]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,?,?],f32>
-// CHECK:     %[[T10:.*]] = torch.aten.view %[[T9]], %[[T7]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
+// CHECK:     %[[T8:.*]] = torch.aten.view %[[ARG0]], %[[T5]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[1,1,?,1,?],f32>                                                                                                                                            
+// CHECK:     %[[T9:.*]] = torch.aten.broadcast_to %[[T8]], %[[T6]] : !torch.vtensor<[1,1,?,1,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,?,?],f32>                                                                                                                                
+// CHECK:     %[[T10:.*]] = torch.aten.view %[[T9]], %[[T7]] : !torch.vtensor<[?,?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>                                                                                                                                           
 // CHECK:     return %[[T10]] : !torch.vtensor<[?,?,?],f32>
 func.func @torch.aten.repeat(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.vtensor<[?,?,?],f32> {
   %1 = torch.prim.ListConstruct %arg1, %arg2, %arg3: (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
