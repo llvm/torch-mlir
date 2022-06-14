@@ -709,7 +709,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.self();
     MLIRContext *context = op.getContext();
-    int64_t rank = getTensorRank(self);
+    auto rank = getTensorRank(self);
     if (rank < 0)
       return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
 
@@ -723,54 +723,52 @@ public:
           op, "repeats are not matched with self's rank");
     }
 
-    SmallVector<Value> new_sizes0, new_sizes1, new_sizes2;
+    SmallVector<Value> newSizes0, newSizes1, newSizes2;
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
-    int64_t leading_rank = repeats.size() - rank;
-    for (int i = 0; i < leading_rank; ++i) {
-      new_sizes0.push_back(one);
-      new_sizes1.push_back(repeats[i]);
-      new_sizes2.push_back(repeats[i]);
+
+    // leadingRank >= 0
+    auto leadingRank = repeats.size() - rank;
+    for (size_t i = 0; i < leadingRank; ++i) {
+      newSizes0.push_back(one);
+      newSizes1.push_back(repeats[i]);
+      newSizes2.push_back(repeats[i]);
     }
-    for (int i = 0; i < rank; i++) {
+    for (size_t i = 0; i < rank; i++) {
       Value dim = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i));
       auto dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
-      auto scale = repeats[i + leading_rank];
-      new_sizes0.push_back(one);
-      new_sizes0.push_back(dimSize);
-      new_sizes1.push_back(scale);
-      new_sizes1.push_back(dimSize);
+      auto scale = repeats[i + leadingRank];
+      newSizes0.insert(newSizes0.end(), {one, dimSize});
+      newSizes1.insert(newSizes1.end(), {scale, dimSize});
       Value scaledSize = rewriter.create<AtenMulIntOp>(loc, dimSize, scale);
-      new_sizes2.push_back(scaledSize);
+      newSizes2.push_back(scaledSize);
     }
 
-    auto new_rank = repeats.size();
-    SmallVector<int64_t> new_shape0(rank + new_rank, ShapedType::kDynamicSize);
-    SmallVector<int64_t> new_shape1(rank + new_rank, ShapedType::kDynamicSize);
-    SmallVector<int64_t> new_shape2(new_rank, ShapedType::kDynamicSize);
+    auto newRank = repeats.size();
+    SmallVector<int64_t> newShape0(rank + newRank, ShapedType::kDynamicSize);
+    SmallVector<int64_t> newShape1(rank + newRank, ShapedType::kDynamicSize);
+    SmallVector<int64_t> newShape2(newRank, ShapedType::kDynamicSize);
     Type dtype = self.getType().cast<ValueTensorType>().getDtype();
     Type reshapeType0 =
-        ValueTensorType::get(context, llvm::makeArrayRef(new_shape0), dtype);
+        ValueTensorType::get(context, llvm::makeArrayRef(newShape0), dtype);
     Type reshapeType1 =
-        ValueTensorType::get(context, llvm::makeArrayRef(new_shape1), dtype);
-    Type reshapeType2 =
-        ValueTensorType::get(context, llvm::makeArrayRef(new_shape2), dtype);
+        ValueTensorType::get(context, llvm::makeArrayRef(newShape1), dtype);
 
     auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
-    Value new_dims0 =
-        rewriter.create<PrimListConstructOp>(loc, listType, new_sizes0);
-    Value new_dims1 =
-        rewriter.create<PrimListConstructOp>(loc, listType, new_sizes1);
-    Value new_dims2 =
-        rewriter.create<PrimListConstructOp>(loc, listType, new_sizes2);
+    Value newDims0 =
+        rewriter.create<PrimListConstructOp>(loc, listType, newSizes0);
+    Value newDims1 =
+        rewriter.create<PrimListConstructOp>(loc, listType, newSizes1);
+    Value newDims2 =
+        rewriter.create<PrimListConstructOp>(loc, listType, newSizes2);
     auto reshaped =
-        rewriter.create<AtenViewOp>(loc, reshapeType0, op.self(), new_dims0);
+        rewriter.create<AtenViewOp>(loc, reshapeType0, op.self(), newDims0);
     auto expanded = rewriter.create<AtenBroadcastToOp>(loc, reshapeType1,
-                                                       reshaped, new_dims1);
+                                                       reshaped, newDims1);
 
     rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), expanded,
-                                            new_dims2);
+                                            newDims2);
     return success();
   }
 };
