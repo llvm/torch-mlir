@@ -191,3 +191,26 @@ class ToDtypeLayoutStridedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ToDtypeLayoutStridedModule())
 def ToDtypeLayoutStridedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
+
+
+class ToDtypeBoolLayoutNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.to(x,
+                                 dtype=torch.bool,
+                                 layout=None,
+                                 device=None,
+                                 pin_memory=None,
+                                 non_blocking=False,
+                                 copy=False,
+                                 memory_format=None)
+
+
+@register_test_case(module_factory=lambda: ToDtypeBoolLayoutNoneModule())
+def ToDtypeBoolLayoutNoneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
