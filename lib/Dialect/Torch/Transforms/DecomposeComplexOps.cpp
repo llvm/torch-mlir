@@ -750,11 +750,20 @@ public:
       insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{repeats[i]});
       newSizes2.push_back(repeats[i]);
     }
+
+    auto selfType = self.getType().dyn_cast<BaseTensorType>();
+    auto selfShape = selfType.getSizes();
     for (size_t i = 0; i < rank; i++) {
-      Value dim = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i));
-      auto dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
       auto scale = repeats[i + leadingRank];
+      Value dimSize;
+      if (selfShape[i] == ShapedType::kDynamicSize) {
+        Value dim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(i));
+        dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
+      } else {
+        dimSize = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(selfShape[i]));
+      }
 
       insertDimSizes(newSizes0, newShape0, ArrayRef<Value>{one, dimSize});
       insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{scale, dimSize});

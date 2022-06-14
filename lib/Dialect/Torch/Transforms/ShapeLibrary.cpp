@@ -5761,6 +5761,48 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.embedding(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.int, !torch.bool, !torch.bool) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.repeat"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
+    %int0 = torch.constant.int 0
+    %str = torch.constant.str "AssertionError: "
+    %none = torch.constant.none
+    %true = torch.constant.bool true
+    %0 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
+    %1 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %2 = torch.aten.ge.int %0, %1 : !torch.int, !torch.int -> !torch.bool
+    torch.prim.If %2 -> () {
+      torch.prim.If.yield
+    } else {
+      torch.prim.RaiseException %str, %none : !torch.str, !torch.none
+      torch.prim.If.yield
+    }
+    %3 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
+    %4 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %5 = torch.aten.eq.int %3, %int0 : !torch.int, !torch.int -> !torch.bool
+    %6 = torch.prim.If %5 -> (!torch.list<int>) {
+      %7 = func.call @__torch__.torch.jit._shape_functions._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
+      torch.prim.If.yield %7 : !torch.list<int>
+    } else {
+      %7 = torch.prim.ListConstruct  : () -> !torch.list<int>
+      %8 = torch.aten.sub.int %3, %4 : !torch.int, !torch.int -> !torch.int
+      torch.prim.Loop %8, %true, init() {
+      ^bb0(%arg2: !torch.int):
+        %9 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<int>, !torch.int -> !torch.int
+        %10 = torch.aten.append.t %7, %9 : !torch.list<int>, !torch.int -> !torch.list<int>
+        torch.prim.Loop.condition %true, iter()
+      } : (!torch.int, !torch.bool) -> ()
+      torch.prim.Loop %4, %true, init() {
+      ^bb0(%arg2: !torch.int):
+        %9 = torch.aten.__getitem__.t %arg0, %arg2 : !torch.list<int>, !torch.int -> !torch.int
+        %10 = torch.aten.add.int %arg2, %8 : !torch.int, !torch.int -> !torch.int
+        %11 = torch.aten.__getitem__.t %arg1, %10 : !torch.list<int>, !torch.int -> !torch.int
+        %12 = torch.aten.mul.int %9, %11 : !torch.int, !torch.int -> !torch.int
+        %13 = torch.aten.append.t %7, %12 : !torch.list<int>, !torch.int -> !torch.list<int>
+        torch.prim.Loop.condition %true, iter()
+      } : (!torch.int, !torch.bool) -> ()
+      torch.prim.If.yield %7 : !torch.list<int>
+    }
+    return %6 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.expand"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>

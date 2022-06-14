@@ -571,6 +571,20 @@ def aten〇baddbmm(self: List[int], batch1: List[int], batch2: List[int], beta: 
 def aten〇embedding(weight: List[int], indices: List[int], padding_idx: int = -1, scale_grad_by_freq: bool = False, sparse: bool = False) -> List[int]:
     return upstream_shape_functions.embedding(weight, indices, padding_idx, scale_grad_by_freq, sparse)
 
+def aten〇repeat(self: List[int], repeats: List[int]) -> List[int]:
+    assert len(repeats) >= len(self)
+    ndim = len(repeats)
+    tensor_dim = len(self)
+    if ndim == 0:
+        return upstream_shape_functions._copy(self)
+    out: List[int] = []
+    leading_rank = ndim - tensor_dim
+    for i in range(leading_rank):
+        out.append(repeats[i])
+    for i in range(tensor_dim):
+        out.append(self[i] * repeats[i + leading_rank])
+    return out
+
 def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> List[int]:
     return upstream_shape_functions.expand(self, size)
 

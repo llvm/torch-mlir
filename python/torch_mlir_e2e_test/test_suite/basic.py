@@ -1001,6 +1001,28 @@ def BroadcastToModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class RepeatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x.repeat([2, 1, 3, 4])
+
+
+@register_test_case(module_factory=lambda: RepeatModule())
+def RepeatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
+
+
+# ==============================================================================
+
+
 class ExpandModule(torch.nn.Module):
 
     def __init__(self):
