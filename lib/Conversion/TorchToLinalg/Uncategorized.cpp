@@ -736,15 +736,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = converter->convertType(rsub.getType())
                      .cast<RankedTensorType>()
                      .getElementType();
-    if (!dtype.isa<mlir::FloatType>()) {
-      rsub.emitError("unimplemented: non-floating point dtype");
-      return nullptr;
-    }
-    Value self = payloadArgs[0];
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
     Value alpha = convertScalarToDtype(b, loc, operands[2], dtype);
-    Value mult = b.create<arith::MulFOp>(loc, self, alpha);
-    return b.create<arith::SubFOp>(loc, other, mult);
+    if (dtype.isa<mlir::FloatType>()) {
+      Value mult = b.create<arith::MulFOp>(loc, self, alpha);
+      return b.create<arith::SubFOp>(loc, other, mult);
+    } else if (dtype.isa<mlir::IntegerType>()) {
+      Value mult = b.create<arith::MulIOp>(loc, self, alpha);
+      return b.create<arith::SubIOp>(loc, other, mult);
+    }
+    rsub.emitError("unimplemented: dtype other than float and integer "
+                   "types are not supported.");
+    return nullptr;
   }
   if (auto mulScalar = dyn_cast<AtenMulScalarOp>(op)) {
     Type dtype = converter->convertType(mulScalar.getType())
