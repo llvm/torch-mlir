@@ -696,9 +696,12 @@ public:
     for (unsigned i = 0; i < inputRank; i++)
       swapExprs.push_back(idExprs[dimensions[i]]);
 
-    SmallVector<AffineMap> indexingMaps =
-        AffineMap::inferFromExprList({idExprs, swapExprs});
-    SmallVector<StringRef> iteratorTypes(inputRank, "parallel");
+    AffineMap inputMap = AffineMap::get(inputRank, /*symbolCount=*/0, idExprs,
+                                        op->getContext());
+    AffineMap outputMap = AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs,
+                                         op->getContext());
+    SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
+    SmallVector<StringRef> iteratorTypes(inputRank, getParallelIteratorTypeName());
     auto transpose = rewriter
                          .create<linalg::GenericOp>(
                              loc, outVector.getType(), inVector, outVector,
