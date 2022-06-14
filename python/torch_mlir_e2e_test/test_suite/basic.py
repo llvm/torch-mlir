@@ -453,6 +453,44 @@ def PermuteModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PermuteNegativeIndexModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 4, 2], torch.float32, True)])
+    def forward(self, x):
+        return x.permute(0, -1, 1)
+
+
+@register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
+def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 2))
+
+
+# ==============================================================================
+
+
+class Permute0RankModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, x):
+        return x.permute([])
+
+
+@register_test_case(module_factory=lambda: Permute0RankModule())
+def Permute0RankModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(3.0))
+
+
+# ==============================================================================
+
+
 class TransposeIntNegDimsModule(torch.nn.Module):
 
     def __init__(self):
@@ -469,25 +507,6 @@ class TransposeIntNegDimsModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TransposeIntNegDimsModule())
 def TransposeIntNegDimsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 2))
-
-
-# ==============================================================================
-
-
-class PermuteNegativeIndexModule(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([None, ([3, 4, 2], torch.float32, True)])
-    def forward(self, x):
-        return x.permute(0, -1, 1)
-
-
-@register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
-def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 2))
 
 
