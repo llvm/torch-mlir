@@ -603,7 +603,7 @@ def ElementwiseClampMaxModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class RsubModule(torch.nn.Module):
+class RsubFloatModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -617,15 +617,15 @@ class RsubModule(torch.nn.Module):
         return torch.rsub(x, 3.0, alpha=1.0)
 
 
-@register_test_case(module_factory=lambda: RsubModule())
-def RsubModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: RsubFloatModule())
+def RsubFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
 # ==============================================================================
 
 
-class RsubModule_noalpha(torch.nn.Module):
+class RsubFloatModule_noalpha(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -639,9 +639,53 @@ class RsubModule_noalpha(torch.nn.Module):
         return torch.rsub(x, 2.0)
 
 
-@register_test_case(module_factory=lambda: RsubModule_noalpha())
-def RsubModule_noalpha_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: RsubFloatModule_noalpha())
+def RsubFloatModule_noalpha_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class RsubIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.rsub(x, 2, alpha=3)
+
+
+@register_test_case(module_factory=lambda: RsubIntModule())
+def RsubIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4)))
+
+
+# ==============================================================================
+
+
+class RsubIntModule_noalpha(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x):
+        return torch.rsub(x, 2.)
+
+
+@register_test_case(module_factory=lambda: RsubIntModule_noalpha())
+def RsubIntModule_noalpha_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3, 4)))
 
 
 # ==============================================================================
