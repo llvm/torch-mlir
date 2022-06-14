@@ -242,13 +242,30 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
     return false;
   };
 
-  if (isByteOrChar(scalarType) || isByteOrChar(dtype) ||
-      dtype.isSignlessInteger(1)) {
+  if (isByteOrChar(scalarType) || isByteOrChar(dtype)) {
     // TODO: Handle to-boolean conversion(from-boolean conversion is handled).
     mlir::emitError(loc)
         << "unsupported byte, char or bool type for convertScalarToDtype "
         << scalarType << "(scalar type) -> " << dtype << "(dtype)";
     return nullptr;
+  }
+
+  // If the dtype is i1, i.e., a boolean type.
+  if (dtype.isSignlessInteger(1)) {
+    Type scalarType = scalar.getType();
+    Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(scalarType));
+    if (scalarType.isa<mlir::FloatType>()) {
+      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, scalar,
+                                     cstZero);
+    } else if (scalarType.isa<mlir::IntegerType>()) {
+      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, scalar,
+                                     cstZero);
+    } else {
+      mlir::emitError(loc)
+          << "unsupported scalar type for convertScalarToDtype " << scalarType
+          << "(scalar type) -> " << dtype << "(dtype)";
+      return nullptr;
+    }
   }
 
   if (auto dtypeFloat = dtype.dyn_cast<mlir::FloatType>()) {
