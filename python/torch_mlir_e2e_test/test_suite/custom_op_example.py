@@ -15,7 +15,12 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 # This is part of the test.
 # Note that once this library has been loaded, the side effects mutate
 # the PyTorch op registry permanently.
-import torch_mlir._torch_mlir_custom_op_example
+try:
+  import torch_mlir._torch_mlir_custom_op_example
+except ImportError:
+  # Delay import failure. This allows us to xfail the CustomOp tests at the
+  # cost of slightly more complicated error messages later.
+  pass
 
 class CustomOpExampleModule(torch.nn.Module):
     def __init__(self):
