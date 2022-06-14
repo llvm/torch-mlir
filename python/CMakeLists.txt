@@ -76,7 +76,8 @@ add_subdirectory(torch_mlir/eager_mode)
 # Required for running the update_torch_ods.sh and update_shape_lib.sh scripts.
 ################################################################################
 
-add_subdirectory(torch_mlir/_torch_mlir_custom_op_example)
+# TODO: renable once it build on macOS Intel / M1
+#add_subdirectory(torch_mlir/_torch_mlir_custom_op_example)
 
 ################################################################################
 # Generate packages and shared library
