@@ -125,7 +125,8 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_dependencies(TorchMLIRPythonModules TorchMLIRE2ETestPythonModules)
 endif()
 
-add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
+# TODO: Add after macOS builds are fixed
+#add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
 
 add_subdirectory(test)
 
