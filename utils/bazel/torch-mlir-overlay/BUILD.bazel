@@ -344,6 +344,7 @@ cc_library(
 cc_library(
     name = "TorchMLIRTorchToLinalg",
     srcs = [
+        "lib/Conversion/TorchToLinalg/CustomOpExample.cpp",
         "lib/Conversion/TorchToLinalg/DataMovement.cpp",
         "lib/Conversion/TorchToLinalg/IndirectDataMovement.cpp",
         "lib/Conversion/TorchToLinalg/Linear.cpp",
