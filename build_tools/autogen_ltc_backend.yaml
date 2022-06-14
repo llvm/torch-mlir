@@ -18,33 +18,11 @@ blacklist:
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
 
-whitelist:
+# whitelist:
 # List of ops to autogen even if not supported by Torch-MLIR explicitly
-- alias_copy
-- as_strided_copy
-- diagonal_copy
-- expand_copy
-- permute_copy
-- _reshape_alias_copy
-- select_copy.int
-- detach_copy
-- slice_copy.Tensor
 #- split_copy.Tensor
 #- split_with_sizes_copy
 #- unbind_copy.int
-- squeeze_copy
-- squeeze_copy.dim
-- t_copy
-- transpose_copy.int
-- unsqueeze_copy
-- view_copy
-- view_copy.dtype
-- unfold_copy
-- select_scatter
-- slice_scatter
-- diagonal_scatter
-- as_strided_scatter
-- _unsafe_view_copy
 
 # List of supported ops that we don't want to do the full codegen for
 supported:
