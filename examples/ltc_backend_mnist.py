@@ -8,10 +8,8 @@ Example use of the example Torch MLIR LTC backend.
 import argparse
 import sys
 
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import torch
 import torch._lazy
-import torch._lazy.ts_backend
 import torch.nn.functional as F
 
 
@@ -91,9 +89,11 @@ if __name__ == "__main__":
 
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
+            import torch._lazy.ts_backend
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
+            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
             ltc_backend._initialize()
 
         device = "lazy"
