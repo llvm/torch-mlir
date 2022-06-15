@@ -26,8 +26,8 @@ Shape functions are defined as TorchScript-able Python functions in
 The signatures of the shape functions are systematically derived from Torch JIT
 operator registry (mainly by replacing `Tensor` with `List[int]` in the operator
 signatures). Most shape functions are expected to reuse the upstream helper
-functions in
-`python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/upstream_shape_helpers.py`.
+functions [`torch/jit/_shape_functions.py`](https://github.com/pytorch/pytorch/blob/279634f384662b7c3a9f8bf7ccc3a6afd2f05657/torch/jit/_shape_functions.py#L1),
+and any new shape functions should be added there.
 
 The `build_tools/update_shape_lib.sh` script invokes `shape_lib_gen.py` to
 generate an MLIR module containing the shape functions, which is currently
@@ -119,10 +119,3 @@ was based on the following goals:
   written, which are still a fairly large and non-trivial set.
 
 - To make it as mechanical as possible to add a new shape function.
-
-## TODO
-
-We should develop a workflow with upstream to push our manually-authored shape
-functions to live and be tested there. We should also find a way to share with
-upstream the mapping between operators and their shape functions. We will be
-able to simplify this infrastructure quite a bit once that happens.
