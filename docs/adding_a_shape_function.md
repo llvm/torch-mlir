@@ -26,9 +26,13 @@ We will use the example of adding support for the `torch.aten.tanh` op.
    functions don't get outdated if Torch changes an operator signature.
 
 3. Fill in the body of the shape function. Ideally this will just be a call into
-   a helper function from `upstream_shape_helpers.py`. But in general, you will
-   need to write the shape function and test it (see the comments about "Shape
-   function testing infrastructure" in `shape_lib_gen.py`).
+   a helper function from
+   [`torch/jit/_shape_functions.py`](https://github.com/pytorch/pytorch/blob/279634f384662b7c3a9f8bf7ccc3a6afd2f05657/torch/jit/_shape_functions.py#L1).
+   But in general, you will need to write the shape function and test it (see
+   the comments about "Shape function testing infrastructure" in
+   `shape_lib_gen.py`). New shape functions should be added upstream following
+   the example of [this PR](https://github.com/pytorch/pytorch/pull/76889),
+   though it can be useful to iterate locally in `shape_lib_gen.py` first.
 
 4. Re-run the `build_tools/update_shape_lib.sh` script to update the shape
    library. After this step happens, ideally everything "just works" and the
