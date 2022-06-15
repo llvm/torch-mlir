@@ -5764,7 +5764,7 @@ def Torch_AtenScatterAddOp : Torch_Op<"aten.scatter_add", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::scatter_add : (Tensor, int, Tensor, Tensor) -> (Tensor)`";
+  let summary = "Generated op for `aten::scatter_add : (Tensor self, int dim, Tensor index, Tensor src) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$dim,

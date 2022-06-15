@@ -51,20 +51,6 @@ public:
 } // namespace
 
 namespace {
-class Convert__Contains__IntOp : public OpConversionPattern<RuntimeAssertOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(RuntimeAssertOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, adaptor.condition(),
-                                              adaptor.message());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
