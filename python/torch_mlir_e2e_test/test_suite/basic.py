@@ -133,19 +133,26 @@ def MmDagModule_basic(module, tu: TestUtils):
 
 class ContainsIntList(torch.nn.Module):
     def __init__(self):
+        self.l = [1,2,3]
         super().__init__()
 
     @export
     @annotate_args([
         None,
+        ([-1], torch.float32, True)
     ])
-    def forward(self,):
-        return 3 in [1,2,3]
+    def forward(self,key):
+        
+        return torch.ops.aten.__contains__(self.l, key)
 
 
 @register_test_case(module_factory=lambda: ContainsIntList())
-def ContainsIntList_basic(module, tu: TestUtils):
-    module.forward()
+def ContainsIntList_True(module, tu: TestUtils):
+    module.forward(3)
+
+@register_test_case(module_factory=lambda: ContainsIntList())
+def ContainsIntList_False(module, tu: TestUtils):
+    module.forward(4)
 
 
 # ==============================================================================
