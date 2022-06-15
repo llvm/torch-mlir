@@ -1034,8 +1034,9 @@ def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[Lis
         dim = list(range(len(self)))
     return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
 
-def _torch_mlir_custom_op_example〇identity(t: List[int]) -> List[int]:
-    return upstream_shape_functions.unary(t)
+# TODO: Re-enable after MacOS support is fixed for the extension.
+#def _torch_mlir_custom_op_example〇identity(t: List[int]) -> List[int]:
+#    return upstream_shape_functions.unary(t)
 
 # ==============================================================================
 # Shape library generator main().

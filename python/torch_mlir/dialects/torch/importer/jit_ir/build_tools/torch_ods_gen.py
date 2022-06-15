@@ -599,7 +599,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # extension.
     # ==========================================================================
 
-    emit("_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)")
+    # TODO: Re-enable after MacOS support is fixed for the extension.
+    #emit("_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)")
 
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):

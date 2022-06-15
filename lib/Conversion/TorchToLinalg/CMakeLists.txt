@@ -1,5 +1,6 @@
 add_mlir_conversion_library(TorchMLIRTorchToLinalg
-  CustomOpExample.cpp
+# TODO: Re-enable after MacOS support is fixed for the custom op extension.
+#  CustomOpExample.cpp
   DataMovement.cpp
   IndirectDataMovement.cpp
   Linear.cpp
