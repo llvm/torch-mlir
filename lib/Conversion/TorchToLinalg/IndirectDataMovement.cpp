@@ -133,7 +133,7 @@ public:
     sizes.push_back(embeddingDim);
     int64_t resultRank = sizes.size();
 
-    auto indicesTy = weight.getType().cast<RankedTensorType>();
+    auto indicesTy = indices.getType().cast<RankedTensorType>();
     int64_t indicesRank = indicesTy.getRank();
     SmallVector<AffineExpr> indicesExprs;
     for (int i = 0; i < indicesRank; i++)

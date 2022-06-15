@@ -666,6 +666,32 @@ def EmbeddingModuleI32_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class EmbeddingModule1DIndices(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.embed = torch.nn.Embedding(num_embeddings=100,
+                                        embedding_dim=50,
+                                        padding_idx=4)
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+    ])
+    def forward(self, indices):
+        return self.embed.forward(indices)
+
+
+@register_test_case(module_factory=lambda: EmbeddingModule1DIndices())
+def EmbeddingModule1DIndices_basic(module, tu: TestUtils):
+    module.forward(torch.randint(100, (3,)).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class SoftmaxIntModule(torch.nn.Module):
 
     def __init__(self):
