@@ -26,6 +26,8 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
   // TODO: Remove this check but use a separate verification pass to verify the
   // invariants expected by later passes.
   auto isValidLinalgType = [](Type type) {
+    if (type.isa<NonValueTensorType>())
+      return false;
     auto tensor = type.dyn_cast<ValueTensorType>();
     return !tensor ||
            tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
