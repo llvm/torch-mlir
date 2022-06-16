@@ -165,11 +165,15 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    unsigned lhsRank = lhs.getType().cast<RankedTensorType>().getRank();
-    unsigned rhsRank = rhs.getType().cast<RankedTensorType>().getRank();
+    auto lhsType = lhs.getType().cast<RankedTensorType>();
+    auto rhsType = rhs.getType().cast<RankedTensorType>();
+
+    unsigned lhsRank = lhsType.getRank();
+    unsigned rhsRank = rhsType.getRank();
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
+    auto resultType = newResultType.cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
 
     // The different cases of torch_matmul op is mentioned here:
     // https://pytorch.org/docs/stable/generated/torch.matmul.html
@@ -227,11 +231,89 @@ public:
       return success();
     }
 
+    // Fourth Case: When rhs rank and lhs rank is 3, it can be lowered to 
+    // linalg.batch_matmul op.
+    if (lhsRank == 3 && rhsRank == 3) {
+      Value batchDim = getDimOp(rewriter, loc, lhs, 0);
+      Value lhsDim0 = getDimOp(rewriter, loc, lhs, 1);
+      Value lhsDim1 = getDimOp(rewriter, loc, lhs, 2);
+      Value rhsDim0 = getDimOp(rewriter, loc, rhs, 1);
+      Value rhsDim1 = getDimOp(rewriter, loc, rhs, 2);
+      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+      Value zeroTensor = createZeroInitTensor(
+          rewriter, loc, ValueRange{batchDim, lhsDim0, rhsDim1}, elementType);
+      Value matmul =
+          rewriter
+              .create<linalg::BatchMatmulOp>(loc, zeroTensor.getType(),
+                                             ValueRange{lhs, rhs}, zeroTensor)
+              .getResult(0);
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
+      return success();
+    }
+
     // Fourth Case: Batch-Matrix Multiplication.
     // TODO: Broadcasting of batch dimension is remaining.
-    if (lhsRank >= 3 && rhsRank >= 3 && lhsRank == rhsRank) {
+    if (lhsRank > 3 && rhsRank > 3 && lhsRank == rhsRank) {
 
       unsigned batchRank = lhsRank - 2;
+
+      // Incase of static sizes, we can collapse the batchDim and still lower to
+      // linalg.batch_matmul op.
+      if (lhsType.hasStaticShape() && rhsType.hasStaticShape()) {
+
+        ArrayRef<int64_t> lhsShape = lhsType.getShape();
+        ArrayRef<int64_t> rhsShape = rhsType.getShape();
+        ArrayRef<int64_t> resultShape = resultType.getShape();
+
+        SmallVector<int64_t> collapsedResultShape;
+
+        for (int i = 0; i < lhsRank; i++) {
+          if (i < batchRank) {
+            if (collapsedResultShape.empty())
+              collapsedResultShape.push_back(resultShape[i]);
+            else
+              collapsedResultShape[0] *= resultShape[i];
+          } else {
+            collapsedResultShape.push_back(resultShape[i]);
+          }
+        }
+
+        auto collapsedResultType =
+            RankedTensorType::get(collapsedResultShape, elementType);
+
+        // Collapse the batch dimension into one dimension. The resultant rank
+        // will always be 3.
+        SmallVector<ReassociationIndices> reassociation(3);
+
+        for (unsigned i = 0, j = 0; i < lhsRank; i++) {
+          if (i < batchRank) {
+            reassociation[j].push_back(i);
+          } else {
+            j += 1;
+            reassociation[j].push_back(i);
+          }
+        }
+        Value collapsedLhs = rewriter.create<tensor::CollapseShapeOp>(
+            op->getLoc(), lhs, reassociation);
+        Value collapsedRhs = rewriter.create<tensor::CollapseShapeOp>(
+            op->getLoc(), rhs, reassociation);
+        Value initTensor0 = createStaticZeroInitTensor(
+            rewriter, loc, collapsedResultShape, elementType);
+
+        Value batchMatMul =
+            rewriter
+                .create<linalg::BatchMatmulOp>(
+                    loc, collapsedResultType,
+                    ValueRange{collapsedLhs, collapsedRhs}, initTensor0)
+                .getResult(0);
+        Value expandResult = rewriter.create<tensor::ExpandShapeOp>(
+            loc, resultType, batchMatMul, reassociation);
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                    expandResult);
+        return success();
+      }
+
       SmallVector<Value, 4> resultShape;
 
       SmallVector<AffineExpr> lhsExpr;

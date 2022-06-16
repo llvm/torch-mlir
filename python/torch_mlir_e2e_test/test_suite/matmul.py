@@ -130,3 +130,21 @@ def Matmul_4d(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
     
 # ==============================================================================
+
+class Matmul4dStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6, 7], torch.float32, True),
+        ([4, 5, 7, 6], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: Matmul4dStatic())
+def Matmul4dStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))

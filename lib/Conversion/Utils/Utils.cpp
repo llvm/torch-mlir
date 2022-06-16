@@ -135,6 +135,15 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
+Value createStaticZeroInitTensor(OpBuilder &b, Location loc,
+                                 ArrayRef<int64_t> sizes, Type elemTy) {
+  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
+  Value c0 =
+      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
+  return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+}
+
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   assert(v.getType().isa<IntegerType>() && "must be called with integer type");
   return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);

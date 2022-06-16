@@ -41,6 +41,9 @@ Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
 Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy);
 
+Value createStaticZeroInitTensor(OpBuilder &b, Location loc,
+                                 ArrayRef<int64_t> sizes, Type elemTy);
+
 Value castIntToIndex(OpBuilder &b, Location loc, Value v);
 
 Value castIndexToInt64(OpBuilder &b, Location loc, Value idx);
