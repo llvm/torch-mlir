@@ -164,12 +164,16 @@ public:
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
+    auto lhsType = lhs.getType().cast<RankedTensorType>();
+    auto rhsType = rhs.getType().cast<RankedTensorType>();
 
-    unsigned lhsRank = lhs.getType().cast<RankedTensorType>().getRank();
-    unsigned rhsRank = rhs.getType().cast<RankedTensorType>().getRank();
+    // Get the rank of both matrix.
+    unsigned lhsRank = lhsType.getRank();
+    unsigned rhsRank = rhsType.getRank();
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = newResultType.cast<TensorType>().getElementType();
+    auto resultType = newResultType.cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
 
     // The different cases of torch_matmul op is mentioned here:
     // https://pytorch.org/docs/stable/generated/torch.matmul.html
@@ -228,39 +232,134 @@ public:
     }
 
     // Fourth Case: Batch-Matrix Multiplication.
-    // TODO: Broadcasting of batch dimension is remaining.
-    if (lhsRank >= 3 && rhsRank >= 3 && lhsRank == rhsRank) {
+    // TODO: Handle batch matrix multiplication when one of the matrix is unity
+    // rank and the other has batch dimension.
+    if (lhsRank > 1 && rhsRank > 1) {
+      unsigned maxRank = std::max(lhsRank, rhsRank);
+      unsigned minRank = std::min(lhsRank, rhsRank);
+      unsigned batchRank = maxRank - 2;
 
-      unsigned batchRank = lhsRank - 2;
-      SmallVector<Value, 4> resultShape;
+      // At least one of the matrix must have rank greater than 2.
+      if (batchRank <= 0) {
+        return rewriter.notifyMatchFailure(op, "expected batch dimensions");
+      }
+
+      // The `broadcastedBatchShape` contains batch dimensions of the resultant
+      // matrix.
+      SmallVector<Value> broadcastedBatchShape(batchRank);
+      Value maxRankMatrix = (lhsRank > rhsRank) ? lhs : rhs;
+      Value maxDim;
+      // Compute broadcasted batch dimensions if the batch dimensions of
+      // the matrices are broadcastable.
+      for (unsigned i = 1; i <= batchRank; i++) {
+        if (i <= minRank - 2) {
+          Value lhsDim = getDimOp(rewriter, loc, lhs, lhsRank - 2 - i);
+          Value rhsDim = getDimOp(rewriter, loc, rhs, rhsRank - 2 - i);
+          maxDim = rewriter.createOrFold<arith::MaxUIOp>(loc, lhsDim, rhsDim);
+        } else {
+          maxDim = getDimOp(rewriter, loc, maxRankMatrix, maxRank - 2 - i);
+        }
+        broadcastedBatchShape[batchRank - i] = maxDim;
+      }
+
+      Value lhsDim0 = getDimOp(rewriter, loc, lhs, lhsRank - 2);
+      Value lhsDim1 = getDimOp(rewriter, loc, lhs, lhsRank - 1);
+      Value rhsDim0 = getDimOp(rewriter, loc, rhs, rhsRank - 2);
+      Value rhsDim1 = getDimOp(rewriter, loc, rhs, rhsRank - 1);
+      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+      // Compute broadcasted shape of both the matrices in integer format.
+      SmallVector<Value> lhsBroadcastToShape(broadcastedBatchShape);
+      lhsBroadcastToShape.push_back(lhsDim0);
+      lhsBroadcastToShape.push_back(lhsDim1);
+      SmallVector<Value> rhsBroadcastToShape(broadcastedBatchShape);
+      rhsBroadcastToShape.push_back(rhsDim0);
+      rhsBroadcastToShape.push_back(rhsDim1);
+      for (unsigned i = 0; i < maxRank; i++) {
+        lhsBroadcastToShape[i] =
+            castIndexToInt64(rewriter, loc, lhsBroadcastToShape[i]);
+        rhsBroadcastToShape[i] =
+            castIndexToInt64(rewriter, loc, rhsBroadcastToShape[i]);
+      }
+
+      // Broadcast the batch dimensions of both the matrices.
+      Value broadcastedLhs, broadcastedRhs;
+      if (failed(torch_to_linalg::broadcastToGivenShape(
+              op, rewriter, lhs, lhsBroadcastToShape, broadcastedLhs))) {
+        return rewriter.notifyMatchFailure(
+            op, "unable to perform broadcast operation");
+      }
+      if (failed(torch_to_linalg::broadcastToGivenShape(
+              op, rewriter, rhs, rhsBroadcastToShape, broadcastedRhs))) {
+        return rewriter.notifyMatchFailure(
+            op, "unable to perform broadcast operation");
+      }
+
+      // Check if the result of the matrix multiplication has more than one
+      // dynamic batch dimensions.
+      ArrayRef<int64_t> batchDimsInt = resultType.getShape().drop_back(2);
+      bool multipleDynamicBatchDims =
+          llvm::count(batchDimsInt, kUnknownSize) > 1;
+
+      // TODO: Lowering to `linalg.BatchMatmul` is only possible when there is
+      // at most one dynamic batch dimension due to limited support of the
+      // `tensor.ExpandShape` op.
+      if (!multipleDynamicBatchDims) {
+        // Collapse the batch dimensions into one dimension. The resultant rank
+        // will always be 3.
+        SmallVector<ReassociationIndices> reassociation(3);
+        for (unsigned i = 0, j = 0; i < maxRank; i++) {
+          if (i >= batchRank)
+            j++;
+          reassociation[j].push_back(i);
+        }
+        Value collapsedLhs = rewriter.create<tensor::CollapseShapeOp>(
+            op->getLoc(), broadcastedLhs, reassociation);
+        Value collapsedRhs = rewriter.create<tensor::CollapseShapeOp>(
+            op->getLoc(), broadcastedRhs, reassociation);
+
+        // Compute the result shape after collapsing the batch dimensions.
+        SmallVector<Value> collapsedResultShape;
+        collapsedResultShape.push_back(broadcastedBatchShape[0]);
+        for (unsigned i = 1; i < batchRank; i++) {
+          collapsedResultShape[0] = rewriter.createOrFold<arith::MulIOp>(
+              loc, collapsedResultShape[0], broadcastedBatchShape[i]);
+        }
+        collapsedResultShape.push_back(lhsDim0);
+        collapsedResultShape.push_back(rhsDim1);
+        SmallVector<OpFoldResult> updatedCollapseResultShape =
+            getAsOpFoldResult(collapsedResultShape);
+
+        Value initTensor = rewriter.create<linalg::InitTensorOp>(
+            loc, updatedCollapseResultShape, elementType);
+        Value c0 = rewriter.create<arith::ConstantOp>(
+            loc, rewriter.getZeroAttr(elementType));
+        Value zeroTensor =
+            rewriter.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+
+        Value batchMatMul =
+            rewriter
+                .create<linalg::BatchMatmulOp>(
+                    loc, zeroTensor.getType(),
+                    ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
+                .getResult(0);
+        Value expandResult = rewriter.create<tensor::ExpandShapeOp>(
+            loc, resultType, batchMatMul, reassociation);
+        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                    expandResult);
+        return success();
+      }
 
       SmallVector<AffineExpr> lhsExpr;
       SmallVector<AffineExpr> rhsExpr;
       SmallVector<AffineExpr> outExpr;
       SmallVector<StringRef> iteratorTypes;
-
-      // Since broadcasting is a TODO, check whether the lhs and rhs batch
-      // dimension match.
       for (unsigned i = 0; i < batchRank; i++) {
-        Value lhsBatch = getDimOp(rewriter, loc, lhs, i);
-        Value rhsBatch = getDimOp(rewriter, loc, rhs, i);
-        resultShape.push_back(lhsBatch);
         lhsExpr.push_back(rewriter.getAffineDimExpr(i));
         rhsExpr.push_back(rewriter.getAffineDimExpr(i));
         outExpr.push_back(rewriter.getAffineDimExpr(i));
         iteratorTypes.push_back(getParallelIteratorTypeName());
-        checkDimEqualHelper(rewriter, loc, lhsBatch, rhsBatch);
       }
-
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, batchRank);
-      Value lhsDim1 = getDimOp(rewriter, loc, lhs, batchRank + 1);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, batchRank);
-      Value rhsDim1 = getDimOp(rewriter, loc, rhs, batchRank + 1);
-      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
-
-      // Push the final matrix dimension.
-      resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
-
       lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(batchRank),
                                      rewriter.getAffineDimExpr(batchRank + 1)});
       rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(batchRank + 1),
@@ -268,9 +367,10 @@ public:
       outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(batchRank),
                                      rewriter.getAffineDimExpr(batchRank + 2)});
 
-      Value initTensor0 =
+      SmallVector<Value> resultShape(broadcastedBatchShape);
+      resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
+      Value zeroTensor =
           createZeroInitTensor(rewriter, loc, resultShape, elementType);
-
       auto indexingMaps =
           AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr});
       iteratorTypes.insert(iteratorTypes.end(),
@@ -279,7 +379,8 @@ public:
       Value finalRes =
           rewriter
               .create<linalg::GenericOp>(
-                  loc, initTensor0.getType(), ValueRange{lhs, rhs}, initTensor0,
+                  loc, zeroTensor.getType(),
+                  ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor,
                   /*indexingMaps=*/indexingMaps,
                   /*iteratorTypes=*/iteratorTypes,
                   [&](OpBuilder &b, Location loc, ValueRange args) {
