@@ -61,6 +61,7 @@ TOSA_PASS_SET = {
     "ElementwisePowModule_basic",
     "BmmModule_basic",
     "MmDagModule_basic",
+    "Matmul4dStatic_basic",
     "Matmul_dot",
     "Matmul_3d",
     "RsubFloatModule_basic",

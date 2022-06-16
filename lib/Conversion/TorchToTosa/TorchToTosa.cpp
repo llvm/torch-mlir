@@ -1129,8 +1129,10 @@ public:
       SmallVector<int32_t> transposedLhsDims;
 
       // Step: generate the common dim/shape information
+      bool hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
         bool isDynamicDim = ShapedType::isDynamic(lhsBroadcastedShape[dim]);
+        hasDynamicDims |= isDynamicDim;
         if (isDynamicDim ||
             lhsBroadcastedShape[dim] == rhsBroadcastedShape[dim]) {
           commonValue *= lhsBroadcastedShape[dim];
@@ -1138,11 +1140,13 @@ public:
         }
       }
 
+      // TODO: Handle the case when there are dynamic batch dimensions.
+      if (hasDynamicDims)
+        commonValue = ShapedType::kDynamicSize;
+
       // Step: generate the LHS squeezed dim/shape information.
-      bool hasDynamicDims = false;
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
         bool isDynamicDim = ShapedType::isDynamic(lhsBroadcastedShape[dim]);
-        hasDynamicDims |= isDynamicDim;
         if (!isDynamicDim &&
             lhsBroadcastedShape[dim] != rhsBroadcastedShape[dim]) {
           lhsSqueezedValue *= lhsBroadcastedShape[dim];

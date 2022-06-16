@@ -54,6 +54,13 @@ Value createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
+
+// Broadcasts input tensor based on the broadcastToShape.
+LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
+                                    Value input,
+                                    SmallVector<Value> broadcastToShape,
+                                    Value &result);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

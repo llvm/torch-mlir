@@ -130,3 +130,82 @@ def Matmul_4d(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
     
 # ==============================================================================
+
+class Matmul4dStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 5, 6, 7], torch.float32, True),
+        ([4, 5, 7, 6], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: Matmul4dStatic())
+def Matmul4dStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
+
+# ==============================================================================
+
+class MatmulStaticBroadcast(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, 1, 6, 7], torch.float32, True),
+        ([8, 1, 5, 7, 6], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: MatmulStaticBroadcast())
+def MatmulStaticBroadcast_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 1, 6, 7), tu.rand(8, 1, 5, 7, 6))
+
+# ==============================================================================
+
+class MatmulSingleDynamicBatchDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, -1, -1, -1], torch.float32, True),
+        ([4, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: MatmulSingleDynamicBatchDim())
+def MatmulSingleDynamicBatchDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6, 7), tu.rand(4, 5, 7, 6))
+    
+# ==============================================================================
+
+class MatmulBroadcastBatchDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([4, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: MatmulBroadcastBatchDim())
+def MatmulBroadcastBatchDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6, 7), tu.rand(5, 7, 6))
+    

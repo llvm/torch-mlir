@@ -890,90 +890,6 @@ public:
 };
 } // namespace
 
-// Broadcasts input tensor based on the broadcastToShape.
-static LogicalResult broadcastToGivenShape(Operation *op,
-                                           ConversionPatternRewriter &rewriter,
-                                           Value input,
-                                           SmallVector<Value> broadcastToShape,
-                                           Value &result) {
-  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-  ArrayRef<int64_t> inputShape = inputType.getShape();
-  if (broadcastToShape.size() < inputShape.size()) {
-    return rewriter.notifyMatchFailure(
-        op, "invalid shape: broadcastToShape size must not be smaller than the "
-            "size of the input shape");
-  }
-
-  Type elementType = inputType.getElementType();
-  Location loc = op->getLoc();
-  MLIRContext *context = op->getContext();
-  SmallVector<Value> outShape;
-
-  // Create affine map and shapes for tensor initialization.
-  SmallVector<AffineExpr> outExpr;
-  Value zero =
-      rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
-  size_t diff = broadcastToShape.size() - inputShape.size();
-  for (size_t i = 0; i < broadcastToShape.size(); i++) {
-    Value shapeValue = broadcastToShape[i];
-    size_t j = i - diff;
-    if (i < diff) {
-      Value isValid = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::sge, shapeValue, zero);
-      rewriter.create<cf::AssertOp>(
-          loc, isValid,
-          rewriter.getStringAttr(
-              "negative values not allowed in new dimensions"));
-      outShape.push_back(castIntToIndex(rewriter, loc, shapeValue));
-      continue;
-    }
-    if (inputShape[j] == 1) {
-      // Broadcast singleton dimension
-      Value one =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-      Value isNegative = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::slt, shapeValue, zero);
-      Value select = rewriter.create<arith::SelectOp>(
-          loc, isNegative, one, castIntToIndex(rewriter, loc, shapeValue));
-      outShape.push_back(select);
-      outExpr.push_back(mlir::getAffineConstantExpr(0, context));
-      continue;
-    }
-    // Non-broadcast case
-    Value dim = getDimOp(rewriter, loc, input, j);
-    Value isNegative = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::slt, shapeValue, zero);
-    Value isEqual = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, castIndexToInt64(rewriter, loc, dim),
-        shapeValue);
-    Value isValid = rewriter.create<arith::OrIOp>(loc, isNegative, isEqual);
-    rewriter.create<cf::AssertOp>(
-        loc, isValid,
-        rewriter.getStringAttr(
-            "only broadcasting singleton dimensions supported"));
-    outShape.push_back(dim);
-    outExpr.push_back(mlir::getAffineDimExpr(i, context));
-  }
-
-  Value outTensor =
-      rewriter.create<linalg::InitTensorOp>(loc, outShape, elementType);
-
-  SmallVector<AffineMap> indexingMaps = {
-      AffineMap::get(broadcastToShape.size(), 0, outExpr, context),
-      rewriter.getMultiDimIdentityMap(broadcastToShape.size())};
-  SmallVector<StringRef> iteratorTypes(broadcastToShape.size(), "parallel");
-  result = rewriter
-               .create<linalg::GenericOp>(
-                   loc, outTensor.getType(), input, outTensor, indexingMaps,
-                   iteratorTypes,
-                   [](OpBuilder &b, Location loc, ValueRange args) {
-                     b.create<linalg::YieldOp>(loc, args[0]);
-                   })
-               .getResult(0);
-
-  return success();
-}
-
 namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
@@ -995,8 +911,8 @@ public:
         rewriter, op.getLoc(), getTypeConverter(), inShape);
 
     Value result;
-    if (failed(broadcastToGivenShape(op, rewriter, self, inShapeConverted,
-                                     result))) {
+    if (failed(torch_to_linalg::broadcastToGivenShape(
+            op, rewriter, self, inShapeConverted, result))) {
       return rewriter.notifyMatchFailure(
           op, "unable to perform broadcast operation");
     }
@@ -1060,8 +976,8 @@ public:
     for (unsigned i = 0; i < selfSizes.size(); i++)
       selfSizes[i] = castIndexToInt64(rewriter, loc, selfSizes[i]);
     Value broadcastedSrc;
-    if (failed(broadcastToGivenShape(op, rewriter, src, selfSizes,
-                                     broadcastedSrc))) {
+    if (failed(torch_to_linalg::broadcastToGivenShape(
+            op, rewriter, src, selfSizes, broadcastedSrc))) {
       return rewriter.notifyMatchFailure(
           op, "unable to perform broadcast operation");
     }
