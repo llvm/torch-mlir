@@ -1535,6 +1535,10 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
     if (l == targetKey)
       return getI1IntegerAttr(getContext(), true);
   }
+  for (auto l : arrayConstruct.elements()) {
+    if (typeid(l) != typeid(torch.constant.int))
+      return getI1IntegerAttr(getContext(), false);
+  }
   return nullptr;
 }
 

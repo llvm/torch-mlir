@@ -138,21 +138,19 @@ class ContainsIntList(torch.nn.Module):
 
     @export
     @annotate_args([
-        None,
-        ([-1], torch.float32, True)
+        None
     ])
-    def forward(self,key):
-        
-        return torch.ops.aten.__contains__(self.l, key)
+    def forward(self):
+        return torch.ops.aten.__contains__([1,2,3], 3)
 
 
 @register_test_case(module_factory=lambda: ContainsIntList())
 def ContainsIntList_True(module, tu: TestUtils):
-    module.forward(3)
+    module.forward()
 
 @register_test_case(module_factory=lambda: ContainsIntList())
 def ContainsIntList_False(module, tu: TestUtils):
-    module.forward(4)
+    module.forward()
 
 
 # ==============================================================================
