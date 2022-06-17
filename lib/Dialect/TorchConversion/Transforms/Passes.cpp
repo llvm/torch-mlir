@@ -79,6 +79,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // Finish the type conversion from `torch` types to the types of the
   // linalg-on-tensors backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
@@ -108,6 +109,7 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
