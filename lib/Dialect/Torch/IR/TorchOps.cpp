@@ -98,6 +98,29 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
   return FloatAttr::get(Float64Type::get(context), value);
 }
 
+static Value getScalarValue(Value input, Location loc,
+                            PatternRewriter &rewriter) {
+  Value scalar = nullptr;
+  if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
+    if (valueTensorLiteralOp &&
+        getTensorRank(valueTensorLiteralOp.getResult()) == 0) {
+      auto tensorType =
+          valueTensorLiteralOp.value().getType().cast<RankedTensorType>();
+      if (tensorType.getElementType().isa<mlir::IntegerType>()) {
+        auto val = valueTensorLiteralOp.value()
+                       .cast<DenseElementsAttr>()
+                       .getSplatValue<int64_t>();
+        scalar = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(val));
+      }
+    }
+  } else if (auto primNumToTensorScalarOp =
+                 input.getDefiningOp<PrimNumToTensorScalarOp>()) {
+    scalar = primNumToTensorScalarOp.a();
+  }
+  return scalar;
+}
+
 //===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
@@ -759,6 +782,38 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!size)
       return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
     rewriter.replaceOpWithNewOp<AtenDimOp>(op, size.getOperand());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddTensorOp
+//===----------------------------------------------------------------------===//
+
+void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenAddTensorOp op, PatternRewriter &rewriter) {
+    // The lhs and rhs of the add.tensor op should be 0d tensors for the
+    // canonicalization to be carried out.
+    // `aten.add.tensor(self, other, alpha)` is canonicalized to
+    // `aten.add.int(self, aten.mul.int(other, alpha))`.
+
+    Value lhs = getScalarValue(op.self(), op.getLoc(), rewriter);
+    if (!lhs)
+      return rewriter.notifyMatchFailure(op, "lhs scalar is empyty");
+    if (!lhs.getType().isa<Torch::IntType>())
+      return rewriter.notifyMatchFailure(op, "lhs scalar is not IntType");
+
+    Value rhs = getScalarValue(op.other(), op.getLoc(), rewriter);
+    if (!rhs)
+      return rewriter.notifyMatchFailure(op, "rhs scalar is empyty");
+    if (!rhs.getType().isa<Torch::IntType>())
+      return rewriter.notifyMatchFailure(op, "rhs scalar is not IntType");
+
+    Value mul = rewriter.create<AtenMulIntOp>(op->getLoc(), rhs, op.alpha());
+    Value add = rewriter.create<AtenAddIntOp>(op->getLoc(), lhs, mul);
+    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
+        op, op.self().getType(), add);
     return success();
   });
 }
