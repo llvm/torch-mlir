@@ -1527,19 +1527,29 @@ OpFoldResult Aten__Getitem__DictStrOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
   auto arrayConstruct = getListConstructIfNotModified(l());
+  auto itemConstruct = item();
   if (!arrayConstruct)
     return nullptr;
 
-  auto targetKey = item();
-  for (auto l : arrayConstruct.elements()) {
-    if (l == targetKey)
+  int64_t item;
+  SmallVector<int64_t> list;
+
+  if (!matchPattern(itemConstruct, m_TorchConstantInt(&item)))
+  {
+    return nullptr;
+  }
+
+  if (!matchPattern(l(), m_TorchConstantIntList(list)))
+  {
+    return nullptr;
+  }
+
+  
+  for (auto elem : list) {
+    if (elem == item)
       return getI1IntegerAttr(getContext(), true);
   }
-  for (auto l : arrayConstruct.elements()) {
-    if (typeid(l) != typeid(torch.constant.int))
-      return getI1IntegerAttr(getContext(), false);
-  }
-  return nullptr;
+  return getI1IntegerAttr(getContext(), false);
 }
 
 //===----------------------------------------------------------------------===//
