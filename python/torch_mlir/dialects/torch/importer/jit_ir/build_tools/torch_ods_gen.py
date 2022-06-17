@@ -255,7 +255,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::floor : (Tensor) -> (Tensor)",
             "aten::ceil : (Tensor) -> (Tensor)",
             "aten::bitwise_not : (Tensor) -> (Tensor)",
-            "aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
             "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
@@ -294,6 +293,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
     # variants.
+    emit_with_mutating_variants("aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)    
     emit("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")

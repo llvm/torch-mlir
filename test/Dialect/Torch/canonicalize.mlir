@@ -1267,3 +1267,37 @@ func.func @torch.aten.Bool.int$fold_cst() -> !torch.bool {
   %1 = torch.aten.Bool.int %int : !torch.int -> !torch.bool
   return %1 : !torch.bool
 }
+
+// CHECK-LABEL:   func.func @torch.aten.add.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
+// CHECK:      %[[INT6:.*]] = torch.constant.int 6
+// CHECK:      %[[INT0:.*]] = torch.constant.int 0
+// CHECK:      %[[INT2:.*]] = torch.constant.int 2
+// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT0]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:      %[[PR3:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:      return %[[PR3]] : !torch.vtensor<[],si64>
+func.func @torch.aten.add.Tensor$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %0 = torch.prim.NumToTensor.Scalar %int0 : !torch.int -> !torch.vtensor<[],si64>
+    %1 = torch.prim.NumToTensor.Scalar %int2 : !torch.int -> !torch.vtensor<[],si64>
+    %2 = torch.aten.add.Tensor %0, %1, %int3 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
+    return %2 : !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL:   @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
+// CHECK:      %[[INT6:.*]] = torch.constant.int 6
+// CHECK:      %[[INT2:.*]] = torch.constant.int 2
+// CHECK:      %[[PR1:.*]] = torch.prim.NumToTensor.Scalar %[[INT2]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:      %[[PR2:.*]] = torch.prim.NumToTensor.Scalar %[[INT6]] : !torch.int -> !torch.vtensor<[],si64>
+// CHECK:      return %[[PR2]] : !torch.vtensor<[],si64>
+func.func @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %0 = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+    %1 = torch.prim.NumToTensor.Scalar %int2 : !torch.int -> !torch.vtensor<[],si64>
+    %2 = torch.aten.add.Tensor %0, %1, %int3 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
+    return %2 : !torch.vtensor<[],si64>
+}
