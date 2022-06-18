@@ -49,19 +49,6 @@ pip install --pre torch-mlir torchvision -f https://github.com/llvm/torch-mlir/r
 # This will install the corresponding torch and torchvision nightlies
 ```
 
-## Build with Bazel
-
-Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
-
-1. Install [Bazel](https://docs.bazel.build/versions/main/install.html) if you don't already have it
-2. Install a relatively new release of [Clang](https://releases.llvm.org/download.html)
-3. Clone `torch-mlir` and run:
-```
-cd torch-mlir/utils/bazel
-bazel build @torch-mlir//...
-```
-4. Find the built binary at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
-
 ## Demos
 
 ### TorchScript ResNet18 

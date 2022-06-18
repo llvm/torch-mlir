@@ -186,3 +186,16 @@ $TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonic
 ```
 
 Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
+
+## Bazel Build
+
+Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
+
+1. Install [Bazel](https://docs.bazel.build/versions/main/install.html) if you don't already have it
+2. Install a relatively new release of [Clang](https://releases.llvm.org/download.html)
+3. Build:
+```shell
+cd utils/bazel
+bazel build @torch-mlir//...
+```
+4. Find the built binary at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
