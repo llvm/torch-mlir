@@ -144,7 +144,26 @@ class ContainsIntList(torch.nn.Module):
 
 
 @register_test_case(module_factory=lambda: ContainsIntList())
-def ContainsIntList_Basic(module, tu: TestUtils):
+def ContainsIntList_True(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+class ContainsIntListFalse(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None
+    ])
+    def forward(self):
+        return torch.ops.aten.__contains__([1,2,3], 4)
+
+
+@register_test_case(module_factory=lambda: ContainsIntListFalse())
+def ContainsIntList_False(module, tu: TestUtils):
     module.forward()
 
 
