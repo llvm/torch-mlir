@@ -1494,7 +1494,7 @@ static PrimDictConstructOp getDictConstructIfNotModified(Value torchDict) {
   return torchDict.getDefiningOp<Torch::PrimDictConstructOp>();
 }
 
-static PrimListConstructOp getListConstructIfNotModified(Value torchList) {
+static PrimListConstructOp getListConstructNotModified(Value torchList) {
   if (!llvm::all_of(torchList.getUsers(), [](Operation *op) {
         return isa<Aten__Contains__IntListOp>(op);
       }))
@@ -1526,7 +1526,7 @@ OpFoldResult Aten__Getitem__DictStrOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
-  auto arrayConstruct = getListConstructIfNotModified(l());
+  auto arrayConstruct = getListConstructNotModified(l());
   auto itemConstruct = item();
   if (!arrayConstruct)
     return nullptr;
@@ -1535,16 +1535,11 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
   SmallVector<int64_t> list;
 
   if (!matchPattern(itemConstruct, m_TorchConstantInt(&item)))
-  {
     return nullptr;
-  }
 
   if (!matchPattern(l(), m_TorchConstantIntList(list)))
-  {
     return nullptr;
-  }
 
-  
   for (auto elem : list) {
     if (elem == item)
       return getI1IntegerAttr(getContext(), true);
