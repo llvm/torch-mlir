@@ -459,9 +459,15 @@ at::Tensor & LazyNativeFunctions::logsumexp_out(const at::Tensor & self, at::Int
   auto out_wrapped = at::functionalization::impl::to_functional_tensor(out);
   // directly call the composite kernel from core.
   // Make sure to re-enable functionalization first.
-  at::functionalization::ReenableFunctionalize guard;
+  auto curr_tls = c10::impl::tls_local_dispatch_key_set();
+  auto tls_reenable_functionalize = c10::impl::PODLocalDispatchKeySet();
+  tls_reenable_functionalize.set_included(curr_tls.included_);
+  tls_reenable_functionalize.set_excluded(
+      curr_tls.excluded_.remove(c10::DispatchKey::Functionalize));
+  c10::impl::ForceDispatchKeyGuard guard_(tls_reenable_functionalize);
   at::native::logsumexp_out(self_wrapped, dim, keepdim, out_wrapped);
-  auto out_unwrapped = at::functionalization::impl::from_functional_tensor(out_wrapped);
+  auto out_unwrapped =
+      at::functionalization::impl::from_functional_tensor(out_wrapped);
   // propagate mutations back to the inputs (including resizing)
   out.resize_(out_unwrapped.sizes());
   out.copy_(out_unwrapped);
