@@ -1,13 +1,13 @@
 set(LIBS
-  MLIRArithmetic
+  MLIRArithmeticDialect
   MLIRDialect
-  MLIRLinalg
-  MLIRMemRef
+  MLIRLinalgDialect
+  MLIRMemRefDialect
   MLIROptLib
-  MLIRSCF
+  MLIRSCFDialect
   MLIRSCFTransforms
-  MLIRFunc
-  MLIRTensor
+  MLIRFuncDialect
+  MLIRTensorDialect
   MLIRTransforms
   TorchMLIRTMTensorDialect
   TorchMLIRTMTensorPasses

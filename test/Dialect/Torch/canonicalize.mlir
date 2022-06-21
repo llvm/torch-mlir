@@ -3,8 +3,8 @@
 // CHECK-LABEL:   func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
 // CHECK:           %[[INT1:.*]] = torch.constant.int 1
 // CHECK:           %[[INT2:.*]] = torch.constant.int 2
-// CHECK:           %[[INTM1:.*]] = torch.constant.int -1
 // CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[INTM1:.*]] = torch.constant.int -1
 // CHECK:           %[[NEG_STEP:.*]] = torch.aten.__range_length %[[INT1]], %[[INT3]], %[[INTM1]] : !torch.int, !torch.int, !torch.int -> !torch.int
 // CHECK:           return %[[INT2]], %[[INT2]], %[[INT1]], %[[NEG_STEP]] : !torch.int, !torch.int, !torch.int, !torch.int
 func.func @torch.aten.__range_length$fold() -> (!torch.int, !torch.int, !torch.int, !torch.int) {
@@ -559,8 +559,8 @@ func.func @torch.aten.__getitem__.t() -> !torch.int {
 
 // Not canonicalized because of passed in index
 // CHECK-LABEL:   func.func @torch.aten.__getitem__.t$no_change_test0(
-// CHECK:           %[[C4:.*]] = torch.constant.int 4
 // CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[C4:.*]] = torch.constant.int 4
 // CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C4]], %[[C5]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %arg0 : !torch.list<int>, !torch.int -> !torch.int
 // CHECK:           return %[[ITEM]] : !torch.int
@@ -673,8 +673,8 @@ func.func @torch.constant.none$constantlike() -> (!torch.none, !torch.none) {
 }
 
 // CHECK-LABEL:   func.func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.str) {
-// CHECK:           %[[T:.*]] = torch.constant.str "t"
 // CHECK:           %[[S:.*]] = torch.constant.str "s"
+// CHECK:           %[[T:.*]] = torch.constant.str "t"
 // CHECK:           return %[[S]], %[[S]], %[[T]] : !torch.str, !torch.str, !torch.str
 func.func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.str) {
   %0 = torch.constant.str "s"
@@ -684,8 +684,8 @@ func.func @torch.constant.str$constantlike() -> (!torch.str, !torch.str, !torch.
 }
 
 // CHECK-LABEL:   func.func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bool) {
-// CHECK:           %[[F:.*]] = torch.constant.bool false
 // CHECK:           %[[T:.*]] = torch.constant.bool true
+// CHECK:           %[[F:.*]] = torch.constant.bool false
 // CHECK:           return %[[T]], %[[T]], %[[F]] : !torch.bool, !torch.bool, !torch.bool
 func.func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !torch.bool) {
   %0 = torch.constant.bool true
