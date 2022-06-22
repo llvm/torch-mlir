@@ -743,7 +743,7 @@ func.func @torch.aten.index_put(%input: !torch.vtensor<[?],f32>, %index: !torch.
 // CHECK:           %[[INDEX:.*]] = torch.vtensor<[?]>,f32 %[[INDEX]]
 // CHECK:           %[[RES:.*]] = torch.valsem.aten.index_put_impl %[[INP]], %[[INDEX]], %[[VALUES]]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32>
 // CHECK:           return %[[RES]] : !torch.vtensor<[?],f32>
-func @torch.aten.index_add(%input: !torch.vtensor<[?],f32>, %dim: !torch.int, %index: !torch.vtensor<[?],f32>, %values: !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32> {
+func.func @torch.aten.index_add(%input: !torch.vtensor<[?],f32>, %dim: !torch.int, %index: !torch.vtensor<[?],f32>, %values: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
   %0 = torch.aten.index_add %input, %dim, %index, %values : !torch.vtensor<[?],f32>, !torch.int, !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32>
   return %0 : !torch.vtensor<[?],f32>
 }
