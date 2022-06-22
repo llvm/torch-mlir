@@ -84,3 +84,13 @@ func.func @elementwise$static_1(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vt
   %1 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
   return %1 : !torch.vtensor<[?],f32>
 }
+
+// -----
+
+func.func @insufficient_dims_for_triu(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %int0 = torch.constant.int 0
+  // expected-error@+2 {{failed to legalize operation 'torch.aten.triu' that was explicitly marked illegal}}
+  // expected-error@+1 {{too few dimensions to compute triangular part of matrix}}
+  %0 = torch.aten.triu %arg0, %int0 : !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
