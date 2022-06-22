@@ -29,11 +29,11 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
   constexpr StringLiteral shapeLib(R"mlir(
 module {
   func.func @"__torch_mlir_shape_fn.aten.tanh"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0: !torch.list<int>) -> !torch.list<int> {
@@ -49,218 +49,218 @@ module {
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.erf"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.sigmoid"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.hardsigmoid"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.square"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.hardswish"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.silu"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.exp"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.sin"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.cos"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.hardtanh"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.sqrt"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.neg"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.floor"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.detach"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.log2"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.rsqrt"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.abs"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.reciprocal"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.tanh_backward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.gelu_backward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.str) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.ceil"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.log"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.relu"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._softmax"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.softmax.int"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._log_softmax"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.log_softmax.int"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.clamp"(%arg0: !torch.list<int>, %arg1: !torch.optional<float>, %arg2: !torch.optional<float>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.rsub.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.to.dtype"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.bool, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.to.dtype_layout"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.bool, %arg6: !torch.bool, %arg7: !torch.optional<int>) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.to.other"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.type_as"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.dropout"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.gelu"(%arg0: !torch.list<int>, %arg1: !torch.str) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.contiguous"(%arg0: !torch.list<int>, %arg1: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.clone"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._log_softmax_backward_data"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.eq.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.ne.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.gt.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.ge.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.le.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.lt.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.add.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.sub.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.mul.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.div.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.floor_divide.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.pow.Tensor_Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.leaky_relu"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.gather"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.list<int>, %arg3: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg2) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg2) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.layer_norm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.float, %arg5: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._softmax_backward_data"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.any"(%arg0: !torch.list<int>) -> !torch.list<int> {
@@ -309,7 +309,7 @@ module {
     %int9223372036854775807 = torch.constant.int 9223372036854775807
     %true = torch.constant.bool true
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %2 = torch.prim.ListConstruct  : () -> !torch.list<int>
     %3 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     %4 = torch.prim.ListConstruct %int9223372036854775807, %3 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -378,17 +378,17 @@ module {
     return %8 : !torch.int
   }
   func.func @"__torch_mlir_shape_fn.aten.any.dim"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__._reduce_along_dim(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.bool) -> !torch.list<int>
+    %0 = call @__torch__._reduce_along_dim(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.bool) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.max.dim"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.bool) -> !torch.tuple<list<int>, list<int>> {
-    %0 = func.call @__torch__._reduce_along_dim(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.bool) -> !torch.list<int>
+    %0 = call @__torch__._reduce_along_dim(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.bool) -> !torch.list<int>
     %1 = torch.prim.TupleConstruct %0, %0 : !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>>
     return %1 : !torch.tuple<list<int>, list<int>>
   }
   func.func @"__torch_mlir_shape_fn.aten.mean.dim"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.optional<int>) -> !torch.list<int> {
     %0 = torch.derefine %arg3 : !torch.optional<int> to !torch.any
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %arg1, %arg2, %0) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %arg1, %arg2, %0) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.any) -> !torch.list<int> {
@@ -432,11 +432,11 @@ module {
   }
   func.func @"__torch_mlir_shape_fn.aten.sum.dim_IntList"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.optional<int>) -> !torch.list<int> {
     %0 = torch.derefine %arg3 : !torch.optional<int> to !torch.any
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %arg1, %arg2, %0) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %arg1, %arg2, %0) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.permute"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.permute(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.permute(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.permute(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -487,14 +487,14 @@ module {
     return %5 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.transpose.int"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.transpose(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.transpose(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.transpose(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
     %true = torch.constant.bool true
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg2, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg2, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %3 = torch.aten.eq.int %1, %2 : !torch.int, !torch.int -> !torch.bool
     %4 = torch.prim.If %3 -> (!torch.list<int>) {
       %5 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
@@ -530,11 +530,11 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.t"(%arg0: !torch.list<int>) -> !torch.list<int> {
     %int1 = torch.constant.int 1
     %int0 = torch.constant.int 0
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.transpose(%arg0, %int0, %int1) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.transpose(%arg0, %int0, %int1) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.matmul"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.matmul(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.matmul(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.matmul(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -731,7 +731,7 @@ module {
     %true = torch.constant.bool true
     %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
     %1 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %3 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     torch.prim.Loop %3, %true, init() {
     ^bb0(%arg2: !torch.int):
@@ -799,8 +799,8 @@ module {
     %true = torch.constant.bool true
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     %1 = torch.aten.add.int %0, %int1 : !torch.int, !torch.int -> !torch.int
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
-    %3 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %1, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
     torch.aten.insert.t %3, %2, %int1 : !torch.list<int>, !torch.int, !torch.int
     return %3 : !torch.list<int>
   }
@@ -871,18 +871,18 @@ module {
     return %3 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.mm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mm(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mm(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.addmm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.float, %arg4: !torch.float) -> !torch.list<int> {
     %0 = torch.derefine %arg3 : !torch.float to !torch.any
     %1 = torch.derefine %arg4 : !torch.float to !torch.any
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.addmm(%arg0, %arg1, %arg2, %0, %1) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.any, !torch.any) -> !torch.list<int>
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.addmm(%arg0, %arg1, %arg2, %0, %1) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.any, !torch.any) -> !torch.list<int>
     return %2 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.addmm(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.any, %arg4: !torch.any) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mm(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mm(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.bmm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -935,7 +935,7 @@ module {
     return %13 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.embedding"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.embedding(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.int, !torch.bool, !torch.bool) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.embedding(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.int, !torch.bool, !torch.bool) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.embedding(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {
@@ -972,8 +972,8 @@ module {
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.multiply_integers(%arg2) : (!torch.list<int>) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.multiply_integers(%arg2) : (!torch.list<int>) -> !torch.int
     %3 = torch.aten.len.t %arg2 : !torch.list<int> -> !torch.int
     %4 = torch.aten.le.int %3, %int1 : !torch.int, !torch.int -> !torch.bool
     torch.prim.If %4 -> () {
@@ -1026,7 +1026,7 @@ module {
     return %1 : !torch.int
   }
   func.func @"__torch_mlir_shape_fn.aten.expand"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -1101,20 +1101,20 @@ module {
     return %6 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.expand_as"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.broadcast_to"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.expand(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.view"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.numel(%arg0) : (!torch.list<int>) -> !torch.int
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.infer_size_impl(%arg1, %0) : (!torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.numel(%arg0) : (!torch.list<int>) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.infer_size_impl(%arg1, %0) : (!torch.list<int>, !torch.int) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.infer_size_impl(%arg0: !torch.list<int>, %arg1: !torch.int) -> !torch.list<int> {
@@ -1188,7 +1188,7 @@ module {
     } else {
       torch.prim.If.yield
     }
-    %7 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %7 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
     %8 = torch.aten.__isnot__ %3#1, %none : !torch.optional<int>, !torch.none -> !torch.bool
     torch.prim.If %8 -> () {
       %9 = torch.prim.unchecked_cast %3#1 : !torch.optional<int> -> !torch.int
@@ -1213,11 +1213,11 @@ module {
     return %1 : !torch.int
   }
   func.func @"__torch_mlir_shape_fn.aten.reshape"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._reshape_alias"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.view(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._unsafe_view"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -1227,7 +1227,7 @@ module {
     return %arg1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.max_pool2d"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_pool2d(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.bool) -> !torch.list<int> {
@@ -1390,9 +1390,9 @@ module {
     %37 = torch.aten.__getitem__.t %arg0, %int-3 : !torch.list<int>, !torch.int -> !torch.int
     %38 = torch.aten.__getitem__.t %arg0, %int-2 : !torch.list<int>, !torch.int -> !torch.int
     %39 = torch.aten.__getitem__.t %arg0, %int-1 : !torch.list<int>, !torch.int -> !torch.int
-    %40 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%38, %3, %20, %13, %27, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
-    %41 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%39, %6, %23, %16, %30, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
-    %42 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pool2d_shape_check(%arg0, %3, %6, %13, %16, %20, %23, %27, %30, %37, %38, %39, %40, %41) : (!torch.list<int>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.none
+    %40 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%38, %3, %20, %13, %27, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
+    %41 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%39, %6, %23, %16, %30, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
+    %42 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pool2d_shape_check(%arg0, %3, %6, %13, %16, %20, %23, %27, %30, %37, %38, %39, %40, %41) : (!torch.list<int>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.none
     %43 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     %44 = torch.aten.eq.int %43, %int3 : !torch.int, !torch.int -> !torch.bool
     %45 = torch.prim.If %44 -> (!torch.list<int>) {
@@ -1415,7 +1415,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape_pad_lr(%arg0, %arg1, %arg2, %arg2, %arg3, %arg4, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape_pad_lr(%arg0, %arg1, %arg2, %arg2, %arg3, %arg4, %arg5) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
     return %1 : !torch.int
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape_pad_lr(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int, %arg4: !torch.int, %arg5: !torch.int, %arg6: !torch.bool) -> !torch.int {
@@ -1434,7 +1434,7 @@ module {
       torch.prim.If.yield %int0 : !torch.int
     }
     %7 = torch.aten.add.int %5, %6 : !torch.int, !torch.int -> !torch.int
-    %8 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.div_rtn(%7, %arg4) : (!torch.int, !torch.int) -> !torch.int
+    %8 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.div_rtn(%7, %arg4) : (!torch.int, !torch.int) -> !torch.int
     %9 = torch.aten.add.int %8, %int1 : !torch.int, !torch.int -> !torch.int
     %10 = torch.prim.If %arg6 -> (!torch.int) {
       %11 = torch.aten.sub.int %9, %int1 : !torch.int, !torch.int -> !torch.int
@@ -1584,7 +1584,7 @@ module {
     return %none : !torch.none
   }
   func.func @"__torch_mlir_shape_fn.aten.max_pool2d_with_indices"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.bool) -> !torch.tuple<list<int>, list<int>> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool) -> !torch.list<int>
     %1 = torch.prim.TupleConstruct %0, %0 : !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>>
     return %1 : !torch.tuple<list<int>, list<int>>
   }
@@ -1592,7 +1592,7 @@ module {
     return %arg1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.avg_pool2d"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.bool, %arg5: !torch.bool, %arg6: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.avg_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.optional<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.avg_pool2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.optional<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.avg_pool2d(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.bool, %arg5: !torch.bool, %arg6: !torch.optional<int>) -> !torch.list<int> {
@@ -1730,9 +1730,9 @@ module {
     %30 = torch.aten.__getitem__.t %arg0, %int-3 : !torch.list<int>, !torch.int -> !torch.int
     %31 = torch.aten.__getitem__.t %arg0, %int-2 : !torch.list<int>, !torch.int -> !torch.int
     %32 = torch.aten.__getitem__.t %arg0, %int-1 : !torch.list<int>, !torch.int -> !torch.int
-    %33 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%31, %3, %20, %13, %int1, %arg4) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
-    %34 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%32, %6, %23, %16, %int1, %arg4) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
-    %35 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pool2d_shape_check(%arg0, %3, %6, %13, %16, %20, %23, %int1, %int1, %30, %31, %32, %33, %34) : (!torch.list<int>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.none
+    %33 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%31, %3, %20, %13, %int1, %arg4) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
+    %34 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pooling_output_shape(%32, %6, %23, %16, %int1, %arg4) : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.bool) -> !torch.int
+    %35 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pool2d_shape_check(%arg0, %3, %6, %13, %16, %20, %23, %int1, %int1, %30, %31, %32, %33, %34) : (!torch.list<int>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.none
     %36 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     %37 = torch.aten.eq.int %36, %int3 : !torch.int, !torch.int -> !torch.bool
     %38 = torch.prim.If %37 -> (!torch.list<int>) {
@@ -1745,7 +1745,7 @@ module {
     return %38 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.adaptive_avg_pool2d"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.adaptive_avg_pool2d(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.adaptive_avg_pool2d(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.adaptive_avg_pool2d(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -1816,7 +1816,7 @@ module {
     return %7 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.flatten.using_ints"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.flatten(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.flatten(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.flatten(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
@@ -1826,9 +1826,9 @@ module {
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %2 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-    %3 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg2, %2, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg2, %2, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %4 = torch.aten.le.int %1, %3 : !torch.int, !torch.int -> !torch.bool
     torch.prim.If %4 -> () {
       torch.prim.If.yield
@@ -1888,14 +1888,14 @@ module {
     return %7 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.linear"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.linear(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.linear(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.linear(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>) -> !torch.list<int> {
     %none = torch.constant.none
     %str = torch.constant.str "AssertionError: "
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.t(%arg1) : (!torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.matmul(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.t(%arg1) : (!torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.matmul(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     %2 = torch.aten.__isnot__ %arg2, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
     torch.prim.If %2 -> () {
       %3 = torch.prim.unchecked_cast %arg2 : !torch.optional<list<int>> -> !torch.list<int>
@@ -1964,15 +1964,15 @@ module {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.zeros_like"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.ones_like"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.empty_like"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.new_zeros"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<int>, %arg4: !torch.optional<Device>, %arg5: !torch.optional<bool>) -> !torch.list<int> {
@@ -1985,11 +1985,11 @@ module {
     return %arg1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._to_copy"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.bool, %arg6: !torch.optional<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.masked_fill.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.zero"(%arg0: !torch.list<int>) -> !torch.list<int> {
@@ -1999,7 +1999,7 @@ module {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.copy"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.uniform"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float, %arg3: !torch.any) -> !torch.list<int> {
@@ -2012,7 +2012,7 @@ module {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index_put_impl"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.bernoulli"(%arg0: !torch.list<int>, %arg1: !torch.any) -> !torch.list<int> {
@@ -2026,7 +2026,7 @@ module {
     %1 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
     %2 = torch.derefine %arg5 : !torch.optional<Device> to !torch.any
     %3 = torch.derefine %arg6 : !torch.optional<bool> to !torch.any
-    %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start_step(%arg0, %arg1, %arg2, %0, %1, %2, %3) : (!torch.float, !torch.float, !torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
+    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start_step(%arg0, %arg1, %arg2, %0, %1, %2, %3) : (!torch.float, !torch.float, !torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
     return %4 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start_step(%arg0: !torch.float, %arg1: !torch.float, %arg2: !torch.float, %arg3: !torch.any, %arg4: !torch.any, %arg5: !torch.any, %arg6: !torch.any) -> !torch.list<int> {
@@ -2071,7 +2071,7 @@ module {
     %1 = torch.derefine %arg3 : !torch.optional<int> to !torch.any
     %2 = torch.derefine %arg4 : !torch.optional<Device> to !torch.any
     %3 = torch.derefine %arg5 : !torch.optional<bool> to !torch.any
-    %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start(%arg0, %arg1, %0, %1, %2, %3) : (!torch.float, !torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
+    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start(%arg0, %arg1, %0, %1, %2, %3) : (!torch.float, !torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
     return %4 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_start(%arg0: !torch.float, %arg1: !torch.float, %arg2: !torch.any, %arg3: !torch.any, %arg4: !torch.any, %arg5: !torch.any) -> !torch.list<int> {
@@ -2102,7 +2102,7 @@ module {
     %1 = torch.derefine %arg2 : !torch.optional<int> to !torch.any
     %2 = torch.derefine %arg3 : !torch.optional<Device> to !torch.any
     %3 = torch.derefine %arg4 : !torch.optional<bool> to !torch.any
-    %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_end(%arg0, %0, %1, %2, %3) : (!torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
+    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_end(%arg0, %0, %1, %2, %3) : (!torch.float, !torch.any, !torch.any, !torch.any, !torch.any) -> !torch.list<int>
     return %4 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.arange_end(%arg0: !torch.float, %arg1: !torch.any, %arg2: !torch.any, %arg3: !torch.any, %arg4: !torch.any) -> !torch.list<int> {
@@ -2121,63 +2121,63 @@ module {
     return %2 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.add.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.sub.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.mul.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.div.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.__and__.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.minimum"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.maximum"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.bitwise_and.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.threshold"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.threshold_backward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.eq.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.gt.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.lt.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.unsqueeze"(%arg0: !torch.list<int>, %arg1: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unsqueeze(%arg0, %arg1) : (!torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unsqueeze(%arg0, %arg1) : (!torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.squeeze"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.squeeze_nodim(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.squeeze_nodim(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.squeeze_nodim(%arg0: !torch.list<int>) -> !torch.list<int> {
@@ -2201,7 +2201,7 @@ module {
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.squeeze.dim"(%arg0: !torch.list<int>, %arg1: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.squeeze(%arg0, %arg1) : (!torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.squeeze(%arg0, %arg1) : (!torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.prim.NumToTensor.Scalar"(%arg0: !torch.float) -> !torch.list<int> {
@@ -2226,35 +2226,35 @@ module {
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.where.self"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.where.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.where.ScalarOther"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.where.ScalarSelf"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.lerp.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.addcmul"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.addcdiv"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.broadcast(%arg0, %0) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.topk"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.tuple<list<int>, list<int>> {
@@ -2277,7 +2277,7 @@ module {
     return %3 : !torch.tuple<list<int>, list<int>>
   }
   func.func @"__torch_mlir_shape_fn.aten.conv2d"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv2d(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.int) -> !torch.list<int> {
@@ -2300,7 +2300,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv_output_size(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
+    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv_output_size(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
     return %4 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv_output_size(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.int) -> !torch.list<int> {
@@ -2308,7 +2308,7 @@ module {
     %int2 = torch.constant.int 2
     %int0 = torch.constant.int 0
     %true = torch.constant.bool true
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_shape_forward(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.none
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_shape_forward(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.none
     %1 = torch.aten.len.t %arg5 : !torch.list<int> -> !torch.int
     %2 = torch.aten.gt.int %1, %int0 : !torch.int, !torch.int -> !torch.bool
     %3 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
@@ -2357,7 +2357,7 @@ module {
     %false = torch.constant.bool false
     %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
     %1 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_non_negative(%arg4) : (!torch.list<int>) -> !torch.bool
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_non_negative(%arg4) : (!torch.list<int>) -> !torch.bool
     %3 = torch.aten.__not__ %2 : !torch.bool -> !torch.bool
     torch.prim.If %3 -> () {
       torch.prim.If.yield
@@ -2365,7 +2365,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_non_negative(%arg3) : (!torch.list<int>) -> !torch.bool
+    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_non_negative(%arg3) : (!torch.list<int>) -> !torch.bool
     %5 = torch.aten.__not__ %4 : !torch.bool -> !torch.bool
     torch.prim.If %5 -> () {
       torch.prim.If.yield
@@ -2475,7 +2475,7 @@ module {
     return %1 : !torch.bool
   }
   func.func @"__torch_mlir_shape_fn.aten.convolution"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.bool, %arg7: !torch.list<int>, %arg8: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv_output_size(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg8) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.conv_output_size(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg8) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.flip"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -2485,7 +2485,7 @@ module {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.slice.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.optional<int>, %arg3: !torch.optional<int>, %arg4: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.slice(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.int, !torch.optional<int>, !torch.optional<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.slice(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.int, !torch.optional<int>, !torch.optional<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.slice(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.optional<int>, %arg3: !torch.optional<int>, %arg4: !torch.int) -> !torch.list<int> {
@@ -2502,7 +2502,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %3 = torch.aten.__isnot__ %arg2, %none : !torch.optional<int>, !torch.none -> !torch.bool
     %4 = torch.prim.If %3 -> (!torch.int) {
       %25 = torch.prim.unchecked_cast %arg2 : !torch.optional<int> -> !torch.int
@@ -2525,7 +2525,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %8 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_int() : () -> !torch.int
+    %8 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.max_int() : () -> !torch.int
     %9 = torch.aten.eq.int %4, %8 : !torch.int, !torch.int -> !torch.bool
     %10 = torch.prim.If %9 -> (!torch.int) {
       torch.prim.If.yield %int0 : !torch.int
@@ -2577,7 +2577,7 @@ module {
       torch.prim.If.yield %27 : !torch.int
     }
     %19 = torch.aten.sub.int %18, %16 : !torch.int, !torch.int -> !torch.int
-    %20 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %20 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers._copy(%arg0) : (!torch.list<int>) -> !torch.list<int>
     %21 = torch.aten.add.int %19, %arg4 : !torch.int, !torch.int -> !torch.int
     %22 = torch.aten.sub.int %21, %int1 : !torch.int, !torch.int -> !torch.int
     %23 = torch.aten.floordiv.int %22, %arg4 : !torch.int, !torch.int -> !torch.int
@@ -2589,7 +2589,7 @@ module {
     return %int9223372036854775807 : !torch.int
   }
   func.func @"__torch_mlir_shape_fn.aten.select.int"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.select(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.select(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.select(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
@@ -2605,7 +2605,7 @@ module {
       torch.prim.RaiseException %str, %none : !torch.str, !torch.none
       torch.prim.If.yield
     }
-    %2 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
+    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.maybe_wrap_dim(%arg1, %0, %true) : (!torch.int, !torch.int, !torch.bool) -> !torch.int
     %3 = torch.aten.__getitem__.t %arg0, %2 : !torch.list<int>, !torch.int -> !torch.int
     %4 = torch.aten.neg.int %3 : !torch.int -> !torch.int
     %5 = torch.aten.lt.int %arg2, %4 : !torch.int, !torch.int -> !torch.bool
@@ -2638,15 +2638,19 @@ module {
     return %8 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index_select"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.index_select(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.index_select(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.int, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index_put"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>, %arg2: !torch.list<int>, %arg3: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index_put.hacked_twin"(%arg0: !torch.list<int>, %arg1: !torch.list<list<int>>, %arg2: !torch.list<int>, %arg3: !torch.bool) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func.func @"__torch_mlir_shape_fn.aten.index_add"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.list<int>, %arg3: !torch.list<int>, %arg4: !torch.float) -> !torch.list<int> {
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.nll_loss_forward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.int, %arg4: !torch.int) -> !torch.tuple<list<int>, list<int>> {
@@ -2744,7 +2748,7 @@ module {
     return %14 : !torch.tuple<list<int>, list<int>>
   }
   func.func @"__torch_mlir_shape_fn.aten.nll_loss_backward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.optional<list<int>>, %arg4: !torch.int, %arg5: !torch.int, %arg6: !torch.list<int>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.unary(%arg1) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.native_layer_norm"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.float) -> !torch.tuple<list<int>, list<int>, list<int>> {
@@ -2799,7 +2803,7 @@ module {
     return %0 : !torch.tuple<list<int>, list<int>, list<int>>
   }
   func.func @"__torch_mlir_shape_fn.aten.constant_pad_nd"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -2849,7 +2853,7 @@ module {
     return %arg0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.pad"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.str, %arg3: !torch.optional<float>) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.pad(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>) -> !torch.list<int> {
@@ -2883,7 +2887,7 @@ module {
     return %5 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.cat"(%arg0: !torch.list<list<int>>, %arg1: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.cat(%arg0, %arg1) : (!torch.list<list<int>>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.cat(%arg0, %arg1) : (!torch.list<list<int>>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.cat(%arg0: !torch.list<list<int>>, %arg1: !torch.int) -> !torch.list<int> {
@@ -2891,8 +2895,8 @@ module {
     %str = torch.constant.str "AssertionError: "
     %none = torch.constant.none
     %true = torch.constant.bool true
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_cat_no_zero_dim(%arg0) : (!torch.list<list<int>>) -> !torch.none
-    %1 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.legacy_cat_wrap_dim(%arg1, %arg0) : (!torch.int, !torch.list<list<int>>) -> !torch.int
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.check_cat_no_zero_dim(%arg0) : (!torch.list<list<int>>) -> !torch.none
+    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.legacy_cat_wrap_dim(%arg1, %arg0) : (!torch.int, !torch.list<list<int>>) -> !torch.int
     %2 = torch.aten.len.t %arg0 : !torch.list<list<int>> -> !torch.int
     %3 = torch.aten.gt.int %2, %int0 : !torch.int, !torch.int -> !torch.bool
     torch.prim.If %3 -> () {
@@ -3013,7 +3017,7 @@ module {
     %int1 = torch.constant.int 1
     %int0 = torch.constant.int 0
     %false = torch.constant.bool false
-    %0 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.numel(%arg0) : (!torch.list<int>) -> !torch.int
+    %0 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.numel(%arg0) : (!torch.list<int>) -> !torch.int
     %1 = torch.aten.eq.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
     %2 = torch.prim.If %1 -> (!torch.bool) {
       %3 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
@@ -3064,7 +3068,7 @@ module {
     return %none : !torch.none
   }
   func.func @"__torch_mlir_shape_fn.aten.bincount"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.int) -> !torch.list<int> {
-    %0 = func.call @__torch__.hacky_get_unknown_dimension_size() : () -> !torch.int
+    %0 = call @__torch__.hacky_get_unknown_dimension_size() : () -> !torch.int
     %1 = torch.prim.ListConstruct %0 : (!torch.int) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
@@ -3081,25 +3085,23 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.linalg_vector_norm"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.optional<list<int>>, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.list<int> {
     %none = torch.constant.none
     %true = torch.constant.bool true
-    %0 = torch.aten.__isnot__ %arg2, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %0 = torch.aten.__is__ %arg2, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
     %1 = torch.prim.If %0 -> (!torch.list<int>) {
-      %2 = torch.prim.unchecked_cast %arg2 : !torch.optional<list<int>> -> !torch.list<int>
-      %3 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
-      %4 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %2, %arg3, %3) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
-      torch.prim.If.yield %4 : !torch.list<int>
-    } else {
-      %2 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
-      %3 = torch.prim.ListConstruct  : () -> !torch.list<int>
-      torch.prim.Loop %2, %true, init() {
+      %4 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+      %5 = torch.prim.ListConstruct  : () -> !torch.list<int>
+      torch.prim.Loop %4, %true, init() {
       ^bb0(%arg5: !torch.int):
-        %6 = torch.aten.append.t %3, %arg5 : !torch.list<int>, !torch.int -> !torch.list<int>
+        %6 = torch.aten.append.t %5, %arg5 : !torch.list<int>, !torch.int -> !torch.list<int>
         torch.prim.Loop.condition %true, iter()
       } : (!torch.int, !torch.bool) -> ()
-      %4 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
-      %5 = func.call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %3, %arg3, %4) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
       torch.prim.If.yield %5 : !torch.list<int>
+    } else {
+      %4 = torch.prim.unchecked_cast %arg2 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %4 : !torch.list<int>
     }
-    return %1 : !torch.list<int>
+    %2 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
+    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.upstream_shape_helpers.mean_dim(%arg0, %1, %arg3, %2) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
+    return %3 : !torch.list<int>
   }
 }
 )mlir");
