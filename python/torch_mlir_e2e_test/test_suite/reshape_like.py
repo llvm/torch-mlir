@@ -29,6 +29,25 @@ def ViewExpandModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewExpandOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 3], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 3, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewExpandOnesModule())
+def ViewExpandOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3))
+
+# ==============================================================================
+
 class ViewDynamicExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

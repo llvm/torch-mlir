@@ -321,19 +321,23 @@ public:
           reassociation[collapsedDim].push_back(expandedDim++);
         } else {
           int64_t remainingSizeToExpand = collapsedShape[collapsedDim];
-          // A do-while loop is used here to handle the cases where the
-          // collapsed shape tensor has a dimension of size 1.
-          do {
-            int64_t expandedDimSize = expandedShape[expandedDim];
-            if (expandedDim >= expandedDimNext ||
-                expandedShape[expandedDim] == kUnknownSize ||
-                remainingSizeToExpand % expandedDimSize != 0) {
+          for (int64_t i = expandedDim; i < expandedDimNext; i++) {
+            int64_t expandedDimSize = expandedShape[i];
+            if (expandedDimSize == kUnknownSize) {
+              return rewriter.notifyMatchFailure(
+                  op, "expected expanded dim sizes to be known");
+            }
+            if (remainingSizeToExpand % expandedDimSize != 0) {
+              if (expandedDimSize > remainingSizeToExpand &&
+                  remainingSizeToExpand == 1)
+                break;
               return rewriter.notifyMatchFailure(
                   op, "total number of elements mismatch in the expansion");
             }
-            reassociation[collapsedDim].push_back(expandedDim++);
+
             remainingSizeToExpand /= expandedDimSize;
-          } while (remainingSizeToExpand != 1);
+            reassociation[collapsedDim].push_back(expandedDim++);
+          }
         }
       }
     }
