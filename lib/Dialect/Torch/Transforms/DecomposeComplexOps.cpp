@@ -1637,6 +1637,56 @@ public:
 };
 } // namespace
 
+
+namespace {
+// Decompose `aten.index_add` op into `valsem.aten.index_put_impl` op. with
+// accumulate set to True
+class DecomposeAtenIndexAddOp : public OpRewritePattern<AtenIndexAddOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexAddOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value input = op.self();
+    int inputRank = getTensorRank(input);
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    Value updates = op.source();
+
+    if (inputRank < 0) {
+      return rewriter.notifyMatchFailure(op, "Invalid Input: Unranked tensor");
+    }
+
+    if (getTensorRank(updates) != inputRank) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: Ranks of input and updates do not match");
+    }
+
+    inputType = input.getType().cast<BaseTensorType>();
+    SmallVector<int64_t> empty;
+    Type expandUpdatesType = inputType.getWithSizesAndDtype(
+        llvm::makeArrayRef(empty), rewriter.getF64Type());
+
+    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
+        op.getLoc(), rewriter.getI64IntegerAttr(1));
+
+    Value expandedUpdates = rewriter.create<AtenUnsqueezeOp>(
+        op.getLoc(), expandUpdatesType, updates, torchCstOne);
+
+    Value indicesAsTensorList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(updates.getType()),
+        Value(op.index()));
+
+    Value accumulateTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+
+    rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
+        op, op.getType(), op.self(), indicesAsTensorList, expandedUpdates, accumulateTrue,
+        /*unsafe=*/cstFalse);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenExpandAsOp : public OpRewritePattern<AtenExpandAsOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -2101,6 +2151,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenFullLikeOp>();
     patterns.add<DecomposeAtenIndexPutOp>(context);
     target.addIllegalOp<AtenIndexPutOp>();
+    patterns.add<DecomposeAtenIndexAddOp>(context);
+    target.addIllegalOp<AtenIndexAddOp>();
     patterns.add<DecomposeAtenExpandAsOp>(context);
     target.addIllegalOp<AtenExpandAsOp>();
     patterns.add<DecomposeAten_ToCopyOp>(context);
