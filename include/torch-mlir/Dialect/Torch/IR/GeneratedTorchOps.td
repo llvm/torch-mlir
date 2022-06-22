@@ -6159,6 +6159,31 @@ def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
   let hasFolder = 1;
 }
 
+def Torch_Aten__Contains__IntListOp : Torch_Op<"aten.__contains__.int_list", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__contains__.int_list : (int[], int) -> (bool)`";
+  let arguments = (ins
+    AnyTorchListOfTorchIntType:$l,
+    Torch_IntType:$item
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten__Contains__IntListOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten__Contains__IntListOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_Aten__Getitem__DictStrOp : Torch_Op<"aten.__getitem__.Dict_str", [
     AllowsTypeRefinement,
     ReadOnly
