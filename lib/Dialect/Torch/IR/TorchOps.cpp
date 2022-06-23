@@ -1529,6 +1529,37 @@ OpFoldResult Aten__Contains__StrOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// Aten__Contains__IntListOp
+//===----------------------------------------------------------------------===//
+
+static bool isListConstructNotModified(Value torchList) {
+  return llvm::all_of(torchList.getUsers(), [](Operation *op) {
+        return isa<Aten__Contains__IntListOp>(op);
+      });
+}
+
+OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
+  auto itemConstruct = item();
+  if (!isListConstructNotModified(l()))
+    return nullptr;
+
+  int64_t item;
+  SmallVector<int64_t> list;
+
+  if (!matchPattern(itemConstruct, m_TorchConstantInt(&item)))
+    return nullptr;
+
+  if (!matchPattern(l(), m_TorchConstantIntList(list)))
+    return nullptr;
+
+  for (auto elem : list) {
+    if (elem == item)
+      return getI1IntegerAttr(getContext(), true);
+  }
+  return getI1IntegerAttr(getContext(), false);
+}
+
 using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
 template <typename OpTy>
 static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,

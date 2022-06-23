@@ -472,6 +472,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
+    emit("aten::__contains__.int_list : (int[], int) -> (bool)", has_folder=True)
     emit("aten::__getitem__.Dict_str : (Dict(str, t), str) -> (t)", has_folder=True)
     emit("aten::_set_item.str : (Dict(str, t), str, t) -> ()")
     emit("aten::keys.str : (Dict(str, t)) -> (str[])")
