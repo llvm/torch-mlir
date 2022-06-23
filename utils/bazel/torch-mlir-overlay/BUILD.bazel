@@ -336,8 +336,8 @@ cc_library(
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Transforms",
         "@llvm-project//mlir:ArithmeticDialect",
-        "@llvm-project//mlir:ControlFlowOps",
-        "@llvm-project//mlir:LinalgOps"
+        "@llvm-project//mlir:ControlFlowDialect",
+        "@llvm-project//mlir:LinalgDialect"
     ]
 )
 
@@ -371,8 +371,8 @@ cc_library(
         ":TorchMLIRTorchConversionDialect",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:ArithmeticDialect",
-        "@llvm-project//mlir:ControlFlowOps",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:ControlFlowDialect",
+        "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:TensorUtils",
         "@llvm-project//mlir:TransformUtils"
@@ -395,8 +395,8 @@ cc_library(
         ":TorchMLIRConversionPassesIncGen",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:ArithmeticDialect",
-        "@llvm-project//mlir:ControlFlowOps",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:ControlFlowDialect",
+        "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:TensorUtils",
         "@llvm-project//mlir:TransformUtils"
@@ -438,7 +438,7 @@ cc_library(
         ":TorchMLIRConversionPassesIncGen",
         ":TorchMLIRTMTensorDialect",
         ":TorchMLIRConversionUtils",
-        "@llvm-project//mlir:LinalgOps"
+        "@llvm-project//mlir:LinalgDialect"
     ]
 )
 
@@ -488,7 +488,7 @@ cc_library(
         ":TorchMLIRTorchToTMTensor",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:Pass",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:LinalgTransforms",
         "@llvm-project//mlir:TosaDialect",
         "@llvm-project//mlir:MemRefDialect",
@@ -664,8 +664,8 @@ cc_library(
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:ViewLikeInterface",
         "@llvm-project//mlir:ControlFlowInterfaces",
-        "@llvm-project//mlir:Affine",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:LinalgDialect",
     ]
 )
 
@@ -720,7 +720,7 @@ cc_library(
         ":TorchMLIRTMTensorTransformsPassesIncGen",
         ":TorchMLIRTMTensorDialect",
         "@llvm-project//mlir:Pass",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:Transforms",
         "@llvm-project//mlir:BufferizationTransforms",
         "@llvm-project//mlir:FuncTransforms",
@@ -779,7 +779,7 @@ cc_library(
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:MemRefDialect",
         "@llvm-project//mlir:ArithmeticTransforms",
-        "@llvm-project//mlir:LinalgOps",
+        "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:LinalgTransforms",
         "@llvm-project//mlir:MathTransforms",
     ]
