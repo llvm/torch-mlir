@@ -13,6 +13,8 @@ add_mlir_library(TorchMLIRConversionPasses
 
   DEPENDS
   TorchMLIRConversionPassIncGen
+  MLIRTorchOpsIncGen
+  MLIRTorchTypesIncGen
 
   LINK_COMPONENTS
   Core
