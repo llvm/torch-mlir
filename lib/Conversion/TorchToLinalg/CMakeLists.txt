@@ -25,8 +25,8 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRLinalg
-  MLIRMath
+  MLIRLinalgDialect
+  MLIRMathDialect
   TorchMLIRTorchDialect
 )
 

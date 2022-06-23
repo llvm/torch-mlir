@@ -8,16 +8,16 @@ add_mlir_library(TorchMLIRTMTensorPasses
 
   LINK_LIBS PUBLIC
   TorchMLIRTMTensorDialect
-  MLIRAffine
+  MLIRAffineDialect
   MLIRIR
-  MLIRLinalg
+  MLIRLinalgDialect
   MLIRLinalgTransforms
-  MLIRMath
-  MLIRMemRef
+  MLIRMathDialect
+  MLIRMemRefDialect
   MLIRPass
-  MLIRSCF
-  MLIRFunc
+  MLIRSCFDialect
+  MLIRFuncDialect
   MLIRSupport
-  MLIRTensor
+  MLIRTensorDialect
   MLIRTransforms
 )

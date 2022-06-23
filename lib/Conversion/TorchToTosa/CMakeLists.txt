@@ -15,7 +15,7 @@ add_mlir_conversion_library(TorchMLIRTorchToTosa
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRTosa
+  MLIRTosaDialect
   TorchMLIRTorchDialect
 )
 

@@ -13,8 +13,8 @@ TorchToTMTensor.cpp
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
-  MLIRLinalg
-  MLIRMath
+  MLIRLinalgDialect
+  MLIRMathDialect
   TorchMLIRTorchDialect
   TorchMLIRTMTensorDialect
 )
