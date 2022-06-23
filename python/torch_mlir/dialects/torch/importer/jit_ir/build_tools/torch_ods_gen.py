@@ -429,6 +429,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)")
     emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
     emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)")
+    emit_with_mutating_variants("aten::index_add : (Tensor, int, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::_index_put_impl_ : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)")
     emit("aten::item : (Tensor) -> (Scalar)")
     emit("aten::masked_select : (Tensor, Tensor) -> (Tensor)")

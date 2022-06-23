@@ -457,6 +457,9 @@ def aten〇leaky_relu(self: List[int], negative_slope: float = 0.01) -> List[int
 def aten〇gather(self: List[int], dim: int, index: List[int], sparse_grad: bool = False) -> List[int]:
     return upstream_shape_functions.unary(index)
 
+def aten〇index_add(self: List[int], dim: int, index: List[int], source: List[int], alpha: float = 1) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> List[int]:
     return upstream_shape_functions.unary(input)
 
