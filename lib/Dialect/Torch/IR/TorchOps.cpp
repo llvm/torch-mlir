@@ -787,6 +787,17 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenLenStrOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenLenStrOp::fold(ArrayRef<Attribute> operands) {
+  if(auto stringConstruct = s().getDefiningOp<ConstantStrOp>())
+    return getI64IntegerAttr(getContext(), stringConstruct.valueAttr().getValue().size());
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddTensorOp
 //===----------------------------------------------------------------------===//
 

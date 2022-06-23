@@ -6560,6 +6560,30 @@ def Torch_AtenEqStrOp : Torch_Op<"aten.eq.str", [
   let hasFolder = 1;
 }
 
+def Torch_AtenLenStrOp : Torch_Op<"aten.len.str", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::len.str : (str) -> (int)`";
+  let arguments = (ins
+    Torch_StringType:$s
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLenStrOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenLenStrOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenStrOp : Torch_Op<"aten.str", [
     AllowsTypeRefinement,
     HasValueSemantics,

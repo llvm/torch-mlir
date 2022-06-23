@@ -493,6 +493,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")
     emit("aten::eq.str : (str, str) -> (bool)", has_folder=True)
+    emit("aten::len.str : (str) -> (int)", has_folder=True)
     emit("aten::str : (t) -> (str)")
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
