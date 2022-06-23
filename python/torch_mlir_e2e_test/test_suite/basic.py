@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import torch
+import warnings
 
 from torch_mlir_e2e_test.torchscript.framework import TestUtils
 from torch_mlir_e2e_test.torchscript.registry import register_test_case
@@ -153,6 +154,26 @@ class MmTanhModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MmTanhModule())
 def MmTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 2), tu.rand(2, 4))
+
+# ==============================================================================
+
+
+class PrintWarning(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None
+    ])
+    def forward(self):
+        warnings.warn("TESTING WARNING FUNCTION?")
+
+
+@register_test_case(module_factory=lambda: PrintWarning())
+def PrintWarnTest(module, tu: TestUtils):
+    module.forward()
 
 
 # ==============================================================================

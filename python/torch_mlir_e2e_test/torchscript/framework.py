@@ -281,6 +281,7 @@ def compile_and_run_test(test: Test, config: TestConfig) -> Any:
     try:
         golden_trace = generate_golden_trace(test)
         compiled = config.compile(test.program_factory())
+        print(compiled)
     except Exception as e:
         return TestResult(unique_name=test.unique_name,
                           compilation_error="".join(

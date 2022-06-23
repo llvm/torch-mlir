@@ -19,6 +19,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
+#include <iostream>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -948,6 +949,25 @@ OpFoldResult AtenNeIntOp::fold(ArrayRef<Attribute> operands) {
 OpFoldResult AtenEqIntOp::fold(ArrayRef<Attribute> operands) {
   return intComparatorFoldHelper(*this,
                                  [](int64_t a, int64_t b) { return a == b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenWarnOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenWarnOp::fold(ArrayRef<Attribute> operands, SmallVectorImpl<OpFoldResult> &inferredReturnTypes) {
+
+  // String: $message
+  // Int:    $stacklevel
+
+  auto messageStr = message().getDefiningOp<ConstantStrOp>();
+  auto stacklevelInt = stacklevel().getDefiningOp<ConstantIntOp>();
+
+  std::string message = messageStr.value().str();
+
+  std::cout << message << std::endl;
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
