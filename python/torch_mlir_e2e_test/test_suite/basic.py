@@ -169,6 +169,7 @@ class PrintWarning(torch.nn.Module):
     ])
     def forward(self):
         warnings.warn("TESTING WARNING FUNCTION?")
+        return None
 
 
 @register_test_case(module_factory=lambda: PrintWarning())

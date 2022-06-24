@@ -6272,30 +6272,6 @@ def Torch_AtenDeleteDictStrOp : Torch_Op<"aten.Delete.Dict_str", [
   }];
 }
 
-def Torch_AtenWarnOp : Torch_Op<"aten.warn", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::warn : (str, int) -> ()`";
-  let arguments = (ins
-    Torch_StringType:$message,
-    Torch_IntType:$stacklevel
-  );
-  let results = (outs
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenWarnOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 0);
-    }
-    void AtenWarnOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 0);
-    }
-  }];
-  let hasFolder = 1;
-}
-
 def Torch_AtenCatOp : Torch_Op<"aten.cat", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -6615,6 +6591,29 @@ def Torch_AtenJoinOp : Torch_Op<"aten.join", [
     }
     void AtenJoinOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenWarnOp : Torch_Op<"aten.warn", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::warn : (str, int) -> ()`";
+  let arguments = (ins
+    Torch_StringType:$message,
+    Torch_IntType:$stacklevel
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenWarnOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 0);
+    }
+    void AtenWarnOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 0);
     }
   }];
 }
