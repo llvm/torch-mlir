@@ -337,6 +337,8 @@ public:
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
     target.addIllegalOp<AtenIsFloatingPointOp>();
     patterns.add<ConvertAtenIsFloatingPointOp>(typeConverter, context);
+    target.addIllegalOp<AtenIsGradEnabledOp>();
+    patterns.add<ConvertAtenIsGradEnabledOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp>();
