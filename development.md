@@ -201,3 +201,29 @@ $TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonic
 ```
 
 Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
+# Updating the LLVM submodule
+
+Torch-MLIR maintains `llvm-project` (which contains, among other things,
+upstream MLIR) as a submodule in `externals/llvm-project`. We aim to update this
+at least weekly to new LLVM revisions to bring in the latest features and spread
+out over time the effort of updating our code for MLIR API breakages.
+
+Updating the LLVM submodule is done by:
+
+1. In the `externals/llvm-project` directory, run `git pull` to update to the
+   upstream revision of interest (such as a particular upstream change that is
+   needed for your Torch-MLIR PR).
+2. Rebuild and test Torch-MLIR (see above), fixing any issues that arise. This
+   might involve fixing various API breakages introduced upstream (they are
+   likely unrelated to what you are working on). If these fixes are too complex,
+   please file a work-in-progress PR explaining the issues you are running into
+   asking for help so that someone from the community can help.
+3. Run `build_tools/update_shape_lib.sh` to update the shape library -- this is
+   sometimes needed because upstream changes can affect canonicalization and
+   other minor details of the IR in the shape library. See [docs/shape_lib.md](docs/shape_lib.md) for more details on the shape library.
+
+
+Here are some examples of PR's updating the LLVM submodule:
+
+- https://github.com/llvm/torch-mlir/pull/958
+- https://github.com/llvm/torch-mlir/pull/856
