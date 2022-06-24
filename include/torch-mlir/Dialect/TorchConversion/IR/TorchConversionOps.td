@@ -114,6 +114,7 @@ def TorchConversion_ToI64Op : TorchConversion_Op<"to_i64", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_FromI64Op : TorchConversion_Op<"from_i64", [
@@ -132,6 +133,7 @@ def TorchConversion_FromI64Op : TorchConversion_Op<"from_i64", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_ToF64Op : TorchConversion_Op<"to_f64", [

@@ -8,10 +8,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -49,4 +52,26 @@ void TorchConversionDialect::initialize() {
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.cpp.inc"
       >();
   addInterfaces<TorchConversionInlinerInterface>();
+}
+
+
+//===----------------------------------------------------------------------===//
+// Constant materializer.
+//===----------------------------------------------------------------------===//
+
+Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
+                                             Attribute value, Type type,
+                                             Location loc) {
+  if (auto integerType = type.dyn_cast<Torch::IntType>())
+    return builder.create<Torch::ConstantIntOp>(loc, value.cast<IntegerAttr>());
+
+  if (auto floatType = type.dyn_cast<Torch::FloatType>())
+    return builder.create<Torch::ConstantFloatOp>(loc, value.cast<FloatAttr>());
+
+  if (type.isa<Torch::BoolType>()) {
+    return builder.create<Torch::ConstantBoolOp>(loc,
+                                                 value.cast<IntegerAttr>());
+  }
+
+  return builder.create<arith::ConstantOp>(loc, value, type);
 }
