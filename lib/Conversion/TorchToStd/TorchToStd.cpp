@@ -69,6 +69,22 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenIsGradEnabledOp
+    : public OpConversionPattern<AtenIsGradEnabledOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIsGradEnabledOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    //bool result = something here
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, BoolAttr::get(getContext(), result));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
