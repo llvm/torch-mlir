@@ -976,11 +976,14 @@ def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) ->
 def aten〇pad(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
+# See https://numpy.org/doc/stable/user/basics.indexing.html
 @check_shape_function([
     Invocation(TensorOfShape(2), [LongTensorOfShape(4)]), # Basic case.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4)]), # More dimensions.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(6, 4)]), # Multidimensional index tensor along a dimension.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), None]), # Explicit None value.
+    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), LongTensorOfShape(4)]), # Indexing tensors on consecutive dimensions.
+    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), None, LongTensorOfShape(4)]), # Indexing tensors on non-consecutive dimensions.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4, 5, 6), LongTensorOfShape(1, 5, 1)]), # Broadcasting of index tensors.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4)]), # Fewer index tensors than dimensions.
     ErrorInvocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4), LongTensorOfShape(4)]), # More index tensors than dimensions.
@@ -988,10 +991,44 @@ def aten〇pad(self: List[int], pad: List[int], mode: str = "constant", value: O
 def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
     assert len(indices) <= len(self), "More indices than dimensions to index"
     broadcasted_shape: List[int] = []
-    for index_tensor_shape in indices:
+    unused_dim_sizes: List[int] = []
+    for i in range(len(self)):
+        if i >= len(indices):
+            unused_dim_sizes.append(self[i])
+        else:
+            index_tensor_shape = indices[i]
+            if index_tensor_shape is not None:
+                broadcasted_shape = upstream_shape_functions.broadcast(broadcasted_shape, index_tensor_shape)
+            else:
+                unused_dim_sizes.append(self[i])
+
+    if len(unused_dim_sizes) == 0:
+        return broadcasted_shape
+
+    prev_index_tensor_location = -1
+    first_index_tensor_location = -1
+    index_tensors_are_together = True
+    for e, index_tensor_shape in enumerate(indices):
         if index_tensor_shape is not None:
-            broadcasted_shape = upstream_shape_functions.broadcast(broadcasted_shape, index_tensor_shape)
-    return broadcasted_shape
+            if first_index_tensor_location == -1:
+                first_index_tensor_location = e
+                prev_index_tensor_location = e
+            elif e - prev_index_tensor_location != 1:
+                index_tensors_are_together = False
+
+    if not index_tensors_are_together:
+        return broadcasted_shape + unused_dim_sizes
+
+    # If index tensors are all in consecutive dimensions, the broadcasted
+    # shape is inserted in the location of the consecutive index tensors.
+    result_shape: List[int] = []
+    for i in range(first_index_tensor_location):
+        result_shape.append(unused_dim_sizes[i])
+    for broadcasted_size in broadcasted_shape:
+        result_shape.append(broadcasted_size)
+    for i in range(first_index_tensor_location, len(unused_dim_sizes)):
+        result_shape.append(unused_dim_sizes[i])
+    return result_shape
 
 def aten〇cat(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
