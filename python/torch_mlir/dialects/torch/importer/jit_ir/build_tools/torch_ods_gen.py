@@ -393,6 +393,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
     emit("aten::Bool.Tensor : (Tensor) -> (bool)")
     emit("aten::is_floating_point : (Tensor) -> (bool)")
+    emit("aten::is_grad_enabled : () -> (bool)")
     emit("aten::ones : (int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::new_ones : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros : (int[], int?, int?, Device?, bool?) -> (Tensor)")
