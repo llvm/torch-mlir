@@ -262,61 +262,74 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: the indices list is not from a list construct");
     }
+    if (indicesTuple.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only one index tensor is supported");
+    }
 
     SmallVector<Value> indicesVal =
         getTypeConvertedValues(rewriter, loc, getTypeConverter(), indicesTuple);
+    Value indexTensor = indicesVal[0];
+    if (failed(checkNotNone(rewriter, op, indexTensor))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: index tensor must not be None");
+    }
 
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType indexTensorType =
+        indexTensor.getType().cast<RankedTensorType>();
     RankedTensorType resultType = getTypeConverter()
                                       ->convertType(op->getResult(0).getType())
                                       .cast<RankedTensorType>();
     Type elementType = resultType.getElementType();
-    unsigned inputRank = inputType.getRank();
-    unsigned numIndexTensors = indicesTuple.size();
-    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+    int inputRank = inputType.getRank();
+    int indexTensorRank = indexTensorType.getRank();
 
-    // Case 1 : When numIndexTensors == 1 and `input` is a 1-d tensor.
-    // TODO: generalize the implementation for other cases.
-    if (numIndexTensors == 1 && inputRank == 1) {
-      if (failed(checkNotNone(rewriter, op, indicesVal[0])))
-        return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
-      unsigned resultRank =
-          indicesVal[0].getType().cast<RankedTensorType>().getRank();
-      SmallVector<Value> resultShape;
-      SmallVector<AffineExpr> indicesExpr, resultExpr;
-      SmallVector<StringRef> iteratorTypes;
-      for (unsigned i = 0; i < resultRank; i++)
-        resultShape.push_back(getDimOp(rewriter, loc, indicesVal[0], i));
-      Value initTensor =
-          rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
-      for (unsigned i = 0; i < resultRank; i++) {
-        indicesExpr.push_back(rewriter.getAffineDimExpr(i));
-        resultExpr.push_back(rewriter.getAffineDimExpr(i));
-        iteratorTypes.push_back(getParallelIteratorTypeName());
-      }
-      auto indexingMaps =
-          AffineMap::inferFromExprList({indicesExpr, resultExpr});
+    // This result shape calculation assumes that there is only one
+    // index tensor and that it is indexing the first dimension of the
+    // input tensor. The calculation for arbitrary inputs is much more complex.
+    SmallVector<Value> resultShape;
+    for (auto i : llvm::seq(0, indexTensorRank)) {
+      resultShape.push_back(getDimOp(rewriter, loc, indexTensor, i));
+    }
+    for (auto i : llvm::seq(1, inputRank)) {
+      resultShape.push_back(getDimOp(rewriter, loc, input, i));
+    }
+    int resultRank = resultShape.size();
 
-      Value finalRes =
-          rewriter
-              .create<linalg::GenericOp>(
-                  loc, initTensor.getType(), ValueRange{indicesVal[0]},
-                  initTensor,
-                  /*indexingMaps=*/indexingMaps,
-                  /*iteratorTypes=*/iteratorTypes,
-                  [&](OpBuilder &b, Location loc, ValueRange args) {
-                    Value indexTarget = castIntToIndex(b, loc, args[0]);
-                    Value extractedElement =
-                        b.create<tensor::ExtractOp>(loc, input, indexTarget);
-                    b.create<linalg::YieldOp>(loc, extractedElement);
-                  })
-              .getResult(0);
+    Value initTensor =
+        rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
+    SmallVector<AffineExpr> indicesExpr, resultExpr;
+    SmallVector<StringRef> iteratorTypes;
 
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
-      return success();
-    } else
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: support for this set of inputs not present");
+    for (auto i : llvm::seq(0, indexTensorRank))
+      indicesExpr.push_back(rewriter.getAffineDimExpr(i));
+    for (auto i : llvm::seq(0, resultRank)) {
+      resultExpr.push_back(rewriter.getAffineDimExpr(i));
+      iteratorTypes.push_back(getParallelIteratorTypeName());
+    }
+    auto indexingMaps = AffineMap::inferFromExprList({indicesExpr, resultExpr});
+
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initTensor.getType(), indexTensor, initTensor,
+                indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  SmallVector<Value> extractionIndices{
+                      castIntToIndex(b, loc, args[0])};
+                  for (auto i : llvm::seq(1, inputRank)) {
+                    extractionIndices.push_back(b.create<linalg::IndexOp>(
+                        loc, i + indexTensorRank - 1));
+                  }
+                  Value extractedElement = b.create<tensor::ExtractOp>(
+                      loc, input, extractionIndices);
+                  b.create<linalg::YieldOp>(loc, extractedElement);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
   }
 };
 } // namespace
