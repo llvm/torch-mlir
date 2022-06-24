@@ -857,6 +857,33 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::SelectOp>(loc, mask, fillValue, input);
   }
 
+  if (auto triu = dyn_cast<AtenTriuOp>(op)) {
+    // Check if the rank of the input tensor is valid.
+    AtenTriuOp::Adaptor adaptor(operands);
+    auto inputType = adaptor.self().getType().cast<RankedTensorType>();
+    uint64_t inputRank = inputType.getRank();
+    if (inputRank < 2) {
+      triu.emitError("too few dimensions to compute triangular part of matrix");
+      return nullptr;
+    }
+
+    // Use the indices of the two innermost dimensions.
+    auto rowIndex = b.create<linalg::IndexOp>(loc, inputRank - 2);
+    Value rowIndexI64 = castIndexToInt64(b, loc, rowIndex);
+    auto colIndex = b.create<linalg::IndexOp>(loc, inputRank - 1);
+    Value colIndexI64 = castIndexToInt64(b, loc, colIndex);
+
+    // columnIndex >= rowIndex + diagonal?
+    auto sum = b.create<arith::AddIOp>(loc, rowIndexI64, adaptor.diagonal());
+    auto pred = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                        colIndexI64, sum);
+
+    Value scalar = payloadArgs[0];
+    Type elementType = inputType.getElementType();
+    Value zero = getConstant(b, loc, 0, elementType);
+    return b.create<arith::SelectOp>(loc, pred, scalar, zero);
+  }
+
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
   return nullptr;
@@ -902,7 +929,7 @@ public:
              AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
              AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
              AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
-             AtenLogicalOrOp>(op))
+             AtenLogicalOrOp, AtenTriuOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1640,7 +1667,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
       AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
-      AtenLogicalOrOp>();
+      AtenLogicalOrOp, AtenTriuOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

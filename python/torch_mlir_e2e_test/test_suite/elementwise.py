@@ -1806,3 +1806,69 @@ class ElementwiseAtenFloorDivideBroadcastModule(torch.nn.Module):
     module_factory=lambda: ElementwiseAtenFloorDivideBroadcastModule())
 def ElementwiseAtenFloorDivideBroadcastModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3), tu.rand(4, 3))
+
+
+# ==============================================================================
+
+
+class AtenTriuModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.triu(x)
+
+
+@register_test_case(module_factory=lambda: AtenTriuModule())
+def AtenTriuModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 8, 3, 4, 3))
+
+
+# ==============================================================================
+
+
+class AtenTriuWithPosDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.triu(x, diagonal=2)
+
+
+@register_test_case(module_factory=lambda: AtenTriuWithPosDiagonalModule())
+def AtenTriuWithPosDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 3))
+
+
+# ==============================================================================
+
+
+class AtenTriuWithNegDiagonalModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.triu(x, diagonal=-4)
+
+
+@register_test_case(module_factory=lambda: AtenTriuWithNegDiagonalModule())
+def AtenTriuWithNegDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 5, 9))
