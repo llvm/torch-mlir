@@ -22,6 +22,8 @@ class TestModule(torch.nn.Module):
         self.ones_f64 = torch.ones(1, dtype=torch.float64)
         self.ones_bool = torch.ones(1, dtype=torch.bool)
         self.ones_bf16 = torch.ones(1, dtype=torch.bfloat16)
+        self.ones_qint8 =  torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.qint8)
+        self.ones_quint8 =  torch.quantize_per_tensor(torch.ones(1), 1.0, 0, torch.quint8)
         self.arange = torch.nn.Parameter(torch.arange(3.0))
 
 # CHECK: %[[ARANGE:.*]] = torch.tensor.literal(dense<[0.000000e+00, 1.000000e+00, 2.000000e+00]> : tensor<3xf32>) : !torch.tensor<[3],f32>
@@ -32,6 +34,12 @@ class TestModule(torch.nn.Module):
 # CHECK: %[[ONES_F64:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf64>) : !torch.tensor<[1],f64>
 # CHECK: %[[ONES_BOOL:.*]] = torch.tensor.literal(dense<true> : tensor<1xi1>) : !torch.tensor<[1],i1>
 # CHECK: %[[ONES_BF16:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xbf16>) : !torch.tensor<[1],bf16>
+# CHECK: %[[ONES_QINT8_DATA:.*]] = torch.tensor.literal(dense<1> : tensor<1xsi8>) : !torch.tensor<[1],si8>
+# CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+# CHECK: %[[ZERO_POINT:.*]] = torch.constant.int 0
+# CHECK: %[[ONES_QINT8:.*]] = torch.per_tensor_affine.create %[[ONES_QINT8_DATA]], %[[SCALE]], %[[ZERO_POINT]] : !torch.tensor<[1],si8>, !torch.float, !torch.int -> !torch.tensor<[1],!torch.qint8>
+# CHECK: %[[ONES_QUINT8_DATA:.*]] = torch.tensor.literal(dense<1> : tensor<1xui8>) : !torch.tensor<[1],ui8>
+# CHECK: %[[ONES_QUINT8:.*]] = torch.per_tensor_affine.create %[[ONES_QUINT8_DATA]], %[[SCALE]], %[[ZERO_POINT]] : !torch.tensor<[1],ui8>, !torch.float, !torch.int -> !torch.tensor<[1],!torch.quint8>
 # CHECK: %[[ROOT:.*]] = torch.nn_module  {
 # CHECK:   torch.slot "arange", %[[ARANGE]] : !torch.tensor<[3],f32>
 # CHECK:   torch.slot "ones", %[[ONES]] : !torch.tensor<[1],f32>
@@ -41,6 +49,8 @@ class TestModule(torch.nn.Module):
 # CHECK:   torch.slot "ones_f64", %[[ONES_F64]] : !torch.tensor<[1],f64>
 # CHECK:   torch.slot "ones_bool", %[[ONES_BOOL]] : !torch.tensor<[1],i1>
 # CHECK:   torch.slot "ones_bf16", %[[ONES_BF16]] : !torch.tensor<[1],bf16>
+# CHECK:   torch.slot "ones_qint8", %[[ONES_QINT8]] : !torch.tensor<[1],!torch.qint8>
+# CHECK:   torch.slot "ones_quint8", %[[ONES_QUINT8]] : !torch.tensor<[1],!torch.quint8>
 # CHECK: }
 
 

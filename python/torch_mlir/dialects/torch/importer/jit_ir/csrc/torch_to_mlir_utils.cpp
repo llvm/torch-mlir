@@ -52,6 +52,8 @@ static MlirType getMlirTypeForTorchScalarTypeRaw(MlirContext context,
     return mlirF16TypeGet(context);
   case ScalarType::QInt8:
     return torchMlirTorchQInt8TypeGet(context);
+  case ScalarType::QUInt8:
+    return torchMlirTorchQUInt8TypeGet(context);
   default: {
     return {nullptr};
   }
@@ -327,6 +329,9 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
   case ScalarType::QInt8:
     return mlirDenseElementsAttrInt8Get(
         shapedType, numElements, static_cast<const int8_t *>(tensorData));
+  case ScalarType::QUInt8:
+    return mlirDenseElementsAttrUInt8Get(
+        shapedType, numElements, static_cast<const uint8_t *>(tensorData));
   case ScalarType::BFloat16:
     return mlirDenseElementsAttrBFloat16Get(
         shapedType, numElements, static_cast<const uint16_t *>(tensorData));

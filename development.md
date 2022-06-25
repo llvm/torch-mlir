@@ -201,6 +201,7 @@ $TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonic
 ```
 
 Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
+
 # Updating the LLVM submodule
 
 Torch-MLIR maintains `llvm-project` (which contains, among other things,

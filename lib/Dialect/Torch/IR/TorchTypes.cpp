@@ -147,7 +147,7 @@ void Torch::UnionType::print(AsmPrinter &printer) const {
 
 static bool isValidTorchDtype(Type dtype) {
   // Torch quantized types.
-  if (dtype.isa<Torch::QInt8Type>())
+  if (dtype.isa<Torch::QInt8Type, Torch::QUInt8Type>())
     return true;
   // Builtin floating point types.
   if (dtype.isa<Float16Type, BFloat16Type, Float32Type, Float64Type>())

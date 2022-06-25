@@ -146,6 +146,16 @@ MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchQInt8(MlirType t);
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchQInt8TypeGet(MlirContext context);
 
 //===----------------------------------------------------------------------===//
+// torch.quint8 type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.quint8 type
+MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchQUInt8(MlirType t);
+
+/// Gets the !torch.quint8 type.
+MLIR_CAPI_EXPORTED MlirType torchMlirTorchQUInt8TypeGet(MlirContext context);
+
+//===----------------------------------------------------------------------===//
 // torch.tensor type.
 //===----------------------------------------------------------------------===//
 

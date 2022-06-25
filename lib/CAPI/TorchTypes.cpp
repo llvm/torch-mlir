@@ -175,6 +175,18 @@ MlirType torchMlirTorchQInt8TypeGet(MlirContext context) {
 }
 
 //===----------------------------------------------------------------------===//
+// torch.quint8 type.
+//===----------------------------------------------------------------------===//
+
+bool torchMlirTypeIsATorchQUInt8(MlirType t) {
+  return unwrap(t).isa<Torch::QUInt8Type>();
+}
+
+MlirType torchMlirTorchQUInt8TypeGet(MlirContext context) {
+  return wrap(Torch::QUInt8Type::get(unwrap(context)));
+}
+
+//===----------------------------------------------------------------------===//
 // torch.tensor type.
 //===----------------------------------------------------------------------===//
 

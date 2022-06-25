@@ -130,6 +130,7 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     | torch.int64       | si64               |
     | torch.bool        | i1                 |
     | torch.qint8       | !torch.qint8       |
+    | torch.quint8      | !torch.quint8      |
     |-------------------|--------------------|
     ```
 
@@ -286,6 +287,17 @@ def Torch_StringType : Torch_Type<"String", "str"> {
 
 def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
   let summary = "Type modeling `ScalarType::QInt8`";
+  let description = [{
+    This is intended to be a 1:1 match for the Torch `ScalarType` types.
+
+    Looking at the variety / ad-hocness (e.g. `QUInt4x2`) of that set of
+    types, it is deemed preferable to import them as one-off ad-hoc types
+    instead of a single parameterized type.
+  }];
+}
+
+def Torch_QUInt8Type : Torch_Type<"QUInt8", "quint8"> {
+  let summary = "Type modeling `ScalarType::QUInt8`";
   let description = [{
     This is intended to be a 1:1 match for the Torch `ScalarType` types.
 
