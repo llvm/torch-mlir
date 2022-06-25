@@ -146,3 +146,6 @@ func.func @number_type_subtypes(%arg0: !torch.tensor, %arg1: !torch.list<int>, %
   %0 = torch.aten.constant_pad_nd %arg0, %arg1, %arg2 : !torch.tensor, !torch.list<int>, !torch.union<float, int> -> !torch.tensor
   return
 }
+
+func.func private @tensor_legal_dtype$torch.qint8() -> !torch.tensor<*,!torch.qint8>
+func.func private @tensor_legal_dtype$torch.quint8() -> !torch.tensor<*,!torch.quint8>
