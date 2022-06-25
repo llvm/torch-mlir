@@ -53,6 +53,7 @@ class DropShapeCalculationsPass
     RewritePatternSet patterns(context);
     patterns.insert<DropShapeCalculateOp>(context);
     ConversionTarget target(*context);
+    target.addLegalDialect<Torch::TorchDialect>();
     target.addIllegalOp<ShapeCalculateOp>();
     target.addLegalOp<func::FuncOp>();
 
