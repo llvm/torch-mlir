@@ -4173,6 +4173,28 @@ def Torch_AtenIsFloatingPointOp : Torch_Op<"aten.is_floating_point", [
   }];
 }
 
+def Torch_AtenIsGradEnabledOp : Torch_Op<"aten.is_grad_enabled", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::is_grad_enabled : () -> (bool)`";
+  let arguments = (ins
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIsGradEnabledOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 0, 1);
+    }
+    void AtenIsGradEnabledOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 0, 1);
+    }
+  }];
+}
+
 def Torch_AtenOnesOp : Torch_Op<"aten.ones", [
     AllowsTypeRefinement,
     HasValueSemantics,

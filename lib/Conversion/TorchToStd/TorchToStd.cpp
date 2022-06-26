@@ -69,6 +69,23 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenIsGradEnabledOp
+    : public OpConversionPattern<AtenIsGradEnabledOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIsGradEnabledOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    //bool result = something here that checks if grad mode is enabled or not.
+    bool result = true; // just so things will pass for now.
+    rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+        op, BoolAttr::get(getContext(), result));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertRuntimeAssertOp : public OpConversionPattern<RuntimeAssertOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -321,6 +338,8 @@ public:
     patterns.add<ConvertAtenDimOp>(typeConverter, context);
     target.addIllegalOp<AtenIsFloatingPointOp>();
     patterns.add<ConvertAtenIsFloatingPointOp>(typeConverter, context);
+    target.addIllegalOp<AtenIsGradEnabledOp>();
+    patterns.add<ConvertAtenIsGradEnabledOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
     target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp>();

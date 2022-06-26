@@ -103,6 +103,27 @@ class IsFloatingPointFloat(torch.nn.Module):
 @register_test_case(module_factory=lambda: IsFloatingPointFloat())
 def IsFloatingPointFloat_True(module, tu: TestUtils):
     module.forward(tu.rand(3))
+
+
+# ==============================================================================
+
+
+class IsGradEnabled(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.is_grad_enabled()
+
+
+@register_test_case(module_factory=lambda: IsGradEnabled())
+def IsGradEnabled_True(module, tu: TestUtils):
+    module.forward()
         
 
 # ==============================================================================
