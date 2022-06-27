@@ -137,6 +137,138 @@ class ContainsIntListFalse(torch.nn.Module):
 @register_test_case(module_factory=lambda: ContainsIntListFalse())
 def ContainsIntList_False(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindNegativeBoundsModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "a", -6, -2)
+
+
+@register_test_case(module_factory=lambda: StrFindNegativeBoundsModule())
+def StrFindNegativeBoundsModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindNegativeEdgeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "exam", 0, -4)
+
+
+@register_test_case(module_factory=lambda: StrFindNegativeEdgeModule())
+def StrFindNegativeEdgeModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindEmptyModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "", 100, 100)
+
+
+@register_test_case(module_factory=lambda: StrFindEmptyModule())
+def StrFindEmptyModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindBoundedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "amp", 2, 6)
+
+
+@register_test_case(module_factory=lambda: StrFindBoundedModule())
+def StrFindBoundedModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindNotPresentModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "nothere", 0, -1)
+
+
+@register_test_case(module_factory=lambda: StrFindNotPresentModule())
+def StrFindNotPresentModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class StrFindBadBoundsModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "example"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.find(self.str, "amp", 7, 2)
+
+
+@register_test_case(module_factory=lambda: StrFindBadBoundsModule())
+def StrFindBadBoundsModule_basic(module, tu: TestUtils):
+    module.forward()
         
 
 # ==============================================================================

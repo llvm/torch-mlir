@@ -496,6 +496,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::str : (t) -> (str)")
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
+    emit("aten::find : (str, str, int, int) -> (int)", has_folder=True)
 
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)

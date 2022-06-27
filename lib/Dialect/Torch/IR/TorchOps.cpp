@@ -1628,6 +1628,38 @@ static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFindOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFindOp::fold(ArrayRef<Attribute> operands) {
+  int64_t startConstant, endConstant;
+  if (!matchPattern(start(), m_TorchConstantInt(&startConstant)) ||
+      !matchPattern(end(), m_TorchConstantInt(&endConstant)))
+    return nullptr;
+
+  std::string selfStr, targetStr;
+  if (!matchPattern(self(), m_TorchConstantStr(selfStr)) ||
+      !matchPattern(substr(), m_TorchConstantStr(targetStr)))
+    return nullptr;
+
+  int64_t selfLen = selfStr.size();
+  startConstant = startConstant < 0 ? selfLen + startConstant : startConstant;
+  endConstant = endConstant < 0 ? selfLen + endConstant + 1 : endConstant;
+
+  if (startConstant >= endConstant) {
+    if (targetStr.size() == 0)
+      return getI64IntegerAttr(getContext(), startConstant);
+    return getI64IntegerAttr(getContext(), -1);
+  }
+
+  size_t loc;
+  if ((loc = selfStr.substr(startConstant, endConstant - startConstant)
+                 .find(targetStr)) != std::string::npos)
+    return getI64IntegerAttr(getContext(), loc + startConstant);
+  return getI64IntegerAttr(getContext(), -1);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloordivIntOp
 //===----------------------------------------------------------------------===//
 
