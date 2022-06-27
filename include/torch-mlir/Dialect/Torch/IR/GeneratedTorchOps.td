@@ -6159,6 +6159,7 @@ def Torch_AtenUpsampleBilinear2dVecOp : Torch_Op<"aten.upsample_bilinear2d.vec",
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
