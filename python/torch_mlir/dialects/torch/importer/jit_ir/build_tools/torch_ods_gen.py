@@ -33,7 +33,9 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "bool[]": "AnyTorchListOfTorchBoolType",
     "bool?": "AnyTorchOptionalBoolType",
     "float": "Torch_FloatType",
+    "float[]": "AnyTorchListOfTorchFloatType",
     "float?": "AnyTorchOptionalFloatType",
+    "float[]?": "AnyTorchOptionalListOfTorchFloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",
@@ -469,6 +471,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::full : (int[], Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit_with_mutating_variants("aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
+    emit("aten::upsample_bilinear2d.vec : (Tensor, int[]?, bool, float[]?) -> (Tensor)")
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
