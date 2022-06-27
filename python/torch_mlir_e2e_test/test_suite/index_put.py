@@ -828,17 +828,17 @@ class IndexAddModule(torch.nn.Module):
   @annotate_args([
       None,
       ([-1, -1, -1], torch.float32, True),
+      ([], torch.int64, True),
+      ([-1], torch.int64, True),
       ([-1], torch.float32, True),
-      ([-1], torch.float32, True),
-      ([-1, -1], torch.float32, True),
   ])
   def forward(self, input, dim, index, value):
-    return torch.ops.aten.index_add(input, dim, index, value)
+    return torch.ops.aten.index_add(input, dim, index, value, alpha=1)
 
 
 @register_test_case(module_factory=lambda: IndexAddModule())
 def IndexAddModule_basic(module, tu: TestUtils):
   module.forward(torch.rand((3, 5, 2), dtype=torch.float32),
-          torch.tensor(0.0),
+          torch.tensor(0),
           torch.tensor([0, 1]),
           torch.rand((2, )))
