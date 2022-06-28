@@ -150,12 +150,11 @@ class Upsample_Bilinear2D_Vec(torch.nn.Module):
         ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, lhs):
-        return torch.ops.aten.upsample_bilinear2d(lhs, [4,4], False, None )
+        return torch.ops.aten.upsample_bilinear2d(lhs, [2,2], False, None )
 @register_test_case(module_factory=lambda: Upsample_Bilinear2D_Vec())
 def Upsample_Bilinear2D_Vec_Test1(module, tu: TestUtils):
-    module.forward(tu.rand(2, 1, 3, 4))
+    module.forward(tu.rand(2, 4, 2, 2))
         
-
 # ==============================================================================
 
 

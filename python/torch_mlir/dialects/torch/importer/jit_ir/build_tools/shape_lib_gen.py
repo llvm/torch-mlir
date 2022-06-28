@@ -928,6 +928,16 @@ def aten〇nll_loss_backward(grad_output: List[int], self: List[int], target: Li
     return upstream_shape_functions.unary(self)
 
 @check_shape_function([
+    Invocation(TensorOfShape(2, 4, 2, 2), [2, 2], True, None), # Basic case.
+])
+def aten〇upsample_bilinear2d〇vec(input: List[int], output_size: Optional[List[int]], align_corners: bool, scale_factors: Optional[List[float]]) -> List[int]:
+    #input_dim = len(input)
+    #output_dim = len(output_size)
+    #if (output_dim > 0):
+
+    return input
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
 ])
 def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weight: Optional[List[int]], bias: Optional[List[int]], eps: float) -> Tuple[List[int], List[int], List[int]]:
