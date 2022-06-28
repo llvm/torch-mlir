@@ -685,20 +685,20 @@ public:
 //
 // def aten_repeat(self, repeats):
 //     sizes = self.size()
-//     new_sizes0 = []
-//     new_sizes1 = []
-//     new_sizes2 = []
+//     unsqueezed_sizes = []
+//     expanded_sizes = []
+//     reshape_sizes = []
 //     leading_rank = repeats.size() - sizes.size()
 //     for r in range(leading_rank):
-//         new_sizes0.append(1)
-//         new_sizes1.append(repeats[r])
-//         new_sizes2.append(repeats[r])
+//         unsqueezed_sizes.append(1)
+//         expanded_sizes.append(repeats[r])
+//         reshaped_sizes.append(repeats[r])
 //
 //     for s, m in zip(sizes, repeats[leading_rank:]):
-//         n_sizes0 += [1, s]
-//         n_sizes1 += [m, s]
-//         n_sizes2 += [m * s]
-//     return self.view(new_sizes0).expand(new_sizes1).view(n_sizes2)
+//         unsqueezed_sizes += [1, s]
+//         expanded_sizes += [m, s]
+//         reshaped_sizes += [m * s]
+//     return self.view(unsqueezed_sizes).expand(expanded_sizes).view(reshaped_sizes)
 //
 namespace {
 class DecomposeAtenRepeatOp : public OpRewritePattern<AtenRepeatOp> {
@@ -741,14 +741,14 @@ public:
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
 
-    SmallVector<Value> newSizes0, newSizes1, newSizes2;
-    SmallVector<int64_t> newShape0, newShape1;
-    // leadingRank >= 0
+    SmallVector<Value> unsqueezedSizes, expandedSizes, reshapedSizes;
+    SmallVector<int64_t> unsqueezedIntSizes, expandedIntSizes;
     auto leadingRank = repeats.size() - rank;
+    assert(leadingRank >= 0 && "leadingRank should greater than 0");
     for (size_t i = 0; i < leadingRank; ++i) {
-      insertDimSizes(newSizes0, newShape0, ArrayRef<Value>{one});
-      insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{repeats[i]});
-      newSizes2.push_back(repeats[i]);
+      insertDimSizes(unsqueezedSizes, unsqueezedIntSizes, ArrayRef<Value>{one});
+      insertDimSizes(expandedSizes, expandedIntSizes, ArrayRef<Value>{repeats[i]});
+      reshapedSizes.push_back(repeats[i]);
     }
 
     auto selfType = self.getType().dyn_cast<BaseTensorType>();
@@ -765,33 +765,33 @@ public:
             loc, rewriter.getI64IntegerAttr(selfShape[i]));
       }
 
-      insertDimSizes(newSizes0, newShape0, ArrayRef<Value>{one, dimSize});
-      insertDimSizes(newSizes1, newShape1, ArrayRef<Value>{scale, dimSize});
+      insertDimSizes(unsqueezedSizes, unsqueezedIntSizes, ArrayRef<Value>{one, dimSize});
+      insertDimSizes(expandedSizes, expandedIntSizes, ArrayRef<Value>{scale, dimSize});
 
       Value scaledSize = rewriter.create<AtenMulIntOp>(loc, dimSize, scale);
-      newSizes2.push_back(scaledSize);
+      reshapedSizes.push_back(scaledSize);
     }
 
     Type dtype = self.getType().cast<ValueTensorType>().getDtype();
-    Type reshapeType0 =
-        ValueTensorType::get(context, llvm::makeArrayRef(newShape0), dtype);
-    Type reshapeType1 =
-        ValueTensorType::get(context, llvm::makeArrayRef(newShape1), dtype);
+    Type unsqueezedType =
+        ValueTensorType::get(context, llvm::makeArrayRef(unsqueezedIntSizes), dtype);
+    Type expandedType =
+        ValueTensorType::get(context, llvm::makeArrayRef(expandedIntSizes), dtype);
 
     auto listType = Torch::ListType::get(Torch::IntType::get(op.getContext()));
-    Value newDims0 =
-        rewriter.create<PrimListConstructOp>(loc, listType, newSizes0);
-    Value newDims1 =
-        rewriter.create<PrimListConstructOp>(loc, listType, newSizes1);
-    Value newDims2 =
-        rewriter.create<PrimListConstructOp>(loc, listType, newSizes2);
+    Value unsqueezedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, unsqueezedSizes);
+    Value expandedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, expandedSizes);
+    Value reshapedDims =
+        rewriter.create<PrimListConstructOp>(loc, listType, reshapedSizes);
     auto reshaped =
-        rewriter.create<AtenViewOp>(loc, reshapeType0, op.self(), newDims0);
-    auto expanded = rewriter.create<AtenBroadcastToOp>(loc, reshapeType1,
-                                                       reshaped, newDims1);
+        rewriter.create<AtenViewOp>(loc, unsqueezedType, op.self(), unsqueezedDims);
+    auto expanded = rewriter.create<AtenBroadcastToOp>(loc, expandedType,
+                                                       reshaped, expandedDims);
 
     rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), expanded,
-                                            newDims2);
+                                            reshapedDims);
     return success();
   }
 };
