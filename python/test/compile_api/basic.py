@@ -37,7 +37,7 @@ print(torch_mlir.compile(TanhModule(), placeholder))
 # Basic smoke test for the raw output type.
 print(torch_mlir.compile(TanhModule(), tanh_example_input, output_type=torch_mlir.OutputType.RAW))
 # CHECK: torch.nn_module {
-# CHECK: } : !torch.nn.Module<"__torch__.TanhModule">
+# CHECK: } : !torch.nn.Module<"{{.*}}.TanhModule">
 
 class MmModule(torch.nn.Module):
     def __init__(self):

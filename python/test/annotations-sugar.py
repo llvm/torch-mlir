@@ -29,7 +29,7 @@ extract_annotations(module, torch.jit.script(module), annotator)
 print(annotator)
 
 # CHECK: ClassAnnotator {
-# CHECK:   ClassAnnotation('__torch__.MmModule') {
+# CHECK:   ClassAnnotation('{{.*}}.MmModule') {
 # CHECK:     MethodAnnotation('forward') {
 # CHECK:       isExported = true
 # CHECK:       argAnnotations =
