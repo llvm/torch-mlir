@@ -2265,6 +2265,48 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
+    AtenTransposeIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a ranked tensor type
+  auto selfType = adaptor.self().getType().dyn_cast<RankedTensorType>();
+  if (!selfType)
+    return op.emitError(
+        "Only ranked tensor types with static shapes are currently supported");
+
+  int64_t dim0, dim1;
+  if (!matchPattern(op.dim0(), m_TorchConstantInt(&dim0)))
+    return op->emitError("dim must be a Scalar constant");
+  if (!matchPattern(op.dim1(), m_TorchConstantInt(&dim1)))
+    return op->emitError("dim must be a Scalar constant");
+
+  int64_t selfRank = selfType.getRank();
+  dim0 = toPositiveDim(dim0, selfRank);
+  if (!isValidDim(dim0, selfRank))
+    return op.emitError("Not all dims are valid");
+  dim1 = toPositiveDim(dim1, selfRank);
+  if (!isValidDim(dim1, selfRank))
+    return op.emitError("Not all dims are valid");
+
+  SmallVector<int64_t> dimListInt;
+  for ( int64_t i = 0; i < selfRank; ++i ) {
+    dimListInt.push_back( i );
+  }
+  //swap dimensions to be transposed  
+  std::swap( dimListInt[ dim0 ], dimListInt[ dim1 ] );
+
+  auto transposeDimsConst = mlir::tosa::getConstTensor<int64_t>(
+      rewriter, op.getOperation(), dimListInt, { selfRank });
+
+  rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
+      transposeDimsConst.getValue());
+
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
     AtenLog2Op op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -3305,6 +3347,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
     INSERT_ATENOP_PATTERN(AtenFlattenUsingIntsOp);
     INSERT_ATENOP_PATTERN(AtenPermuteOp);
+    INSERT_ATENOP_PATTERN(AtenTransposeIntOp);
     INSERT_ATENOP_PATTERN(AtenLog2Op);
     INSERT_ATENOP_PATTERN(AtenThresholdOp);
     INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
