@@ -61,6 +61,13 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 ################################################################################
 
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
+  # Build or Download libtorch
+  # if a libtorch/ exists we respect and don't override it. End user can
+  # unpack any released variant (shared/static | cxx11) of libtorch there. 
+  execute_process(
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+  )
+  set(TORCH_INSTALL_PREFIX "libtorch")
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
   add_subdirectory(torch_mlir_e2e_test)
 endif()

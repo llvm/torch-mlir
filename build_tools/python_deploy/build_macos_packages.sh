@@ -105,7 +105,7 @@ function run_audit_wheel() {
     python${python_version} -m pip install -U pip
     python${python_version} -m pip install -r $repo_root/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     python${python_version} -m pip install $generic_wheel --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-    DYLD_LIBRARY_PATH=$output_dir/test_venv/lib/python${python_version}/site-packages/torch/lib delocate-wheel -v $generic_wheel
+    DYLD_LIBRARY_PATH=$repo_root/libtorch/lib delocate-wheel -v $generic_wheel
     deactivate
     rm -rf $output_dir/test_venv
   fi
