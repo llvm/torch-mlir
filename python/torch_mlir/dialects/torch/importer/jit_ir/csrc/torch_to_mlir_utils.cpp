@@ -302,7 +302,8 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
   // TODO: Support bool tensors.
   // TODO: More import formats in C-API.
   auto numElements = tensor.numel();
-  auto tensorData = tensor.data_ptr();
+  auto tensor_cpu = tensor.cpu().contiguous();
+  auto tensorData = tensor_cpu.data_ptr();
   switch (tensor.scalar_type()) {
   case ScalarType::Int:
     return mlirDenseElementsAttrInt32Get(
