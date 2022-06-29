@@ -131,6 +131,14 @@ manually `source`'d in a shell.
 
 ## Bazel Build
 
+> **NOTE** Our Bazel build follows LLVM's Bazel build policy: only the
+> subcommunity interested in Bazel is responsible for fixing it. Average
+> Torch-MLIR developers should not be notified of any Bazel build issues and are
+> not responsible for fixing any breakages (though any help is, of course,
+> welcome). For more info, see LLVM's
+> [Peripheral Support Tier](https://llvm.org/docs/SupportPolicy.html#peripheral-tier)
+> definition.
+
 Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
 
 1. Install [Bazel](https://docs.bazel.build/versions/main/install.html) if you don't already have it
@@ -228,3 +236,9 @@ Here are some examples of PR's updating the LLVM submodule:
 
 - https://github.com/llvm/torch-mlir/pull/958
 - https://github.com/llvm/torch-mlir/pull/856
+
+
+# Other docs
+
+- GitHub wiki: https://github.com/llvm/torch-mlir/wiki
+- Of particular interest in the [How to add end-to-end support for new Torch ops](https://github.com/llvm/torch-mlir/wiki/Torch-ops-E2E-implementation) doc.
