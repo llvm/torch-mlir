@@ -153,6 +153,11 @@ class GenTorchMlirLTC:
         native_yaml_path = native_path.joinpath("native_functions.yaml")
         tags_yaml_path = native_path.joinpath("tags.yaml")
 
+        ts_native_yaml_path = TORCH_DIR.joinpath("aten", "src", "ATen", "native", "ts_native_functions.yaml")
+        ts_native_yaml = None
+        if ts_native_yaml_path.exists():
+            ts_native_yaml = yaml.load(ts_native_yaml_path.read_text(), yaml.CLoader)
+
         parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path)
         self.native_functions = parsed_yaml.native_functions
         self.backend_indices = parsed_yaml.backend_indices
@@ -269,6 +274,26 @@ class GenTorchMlirLTC:
                     skipped=os.linesep.join(f"#  - {op}" for op in sorted(skipped)),
                 )
             )
+
+        if ts_native_yaml:
+            ts_full_codegen = set(ts_native_yaml["full_codegen"])
+            mlir_full_codegen = set(self.ops)
+
+            if ts_full_codegen - mlir_full_codegen:
+                logging.debug(
+                    "Full Codegen ops supported by the TorchScript backend "
+                    "but not by the Torch-MLIR backend:\n    {}".format(
+                        "\n    ".join(sorted(ts_full_codegen - mlir_full_codegen))
+                    )
+                )
+
+            if mlir_full_codegen - ts_full_codegen:
+                logging.debug(
+                    "Full Codegen ops supported by the Torch-MLIR backend "
+                    "but not by the TorchScript backend:\n    {}".format(
+                        "\n    ".join(sorted(mlir_full_codegen - ts_full_codegen))
+                    )
+                )
 
     def generate_shape_inference(self):
         parsed_backend_yaml = parse_backend_yaml(
