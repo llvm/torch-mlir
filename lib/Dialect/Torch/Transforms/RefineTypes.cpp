@@ -900,7 +900,7 @@ ChangeResult TypeAnalyzer::visitOperation(
   } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
     Type dtype = operands[0]->getValue().dtype;
     return visitReductionAlongAllDimsOp(max, dtype, operands);
-  } else if (isa<AtenStdOp, AtenVarOp>(op)) {
+  } else if (isa<AtenStdOp, AtenVarOp, AtenVarDimOp>(op)) {
     auto input = operands[0]->getValue();
     return visitReductionAlongAllDimsOp(op, input.dtype, operands);
   }

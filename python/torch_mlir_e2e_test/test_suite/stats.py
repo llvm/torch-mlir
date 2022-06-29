@@ -251,3 +251,179 @@ class StdBiasedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: StdBiasedModule())
 def StdBiasedModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
+class VarDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=(0, 2), keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimModule())
+def VarDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarDimUnbiasedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=(0, 2), unbiased=True, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimUnbiasedModule())
+def VarDimUnbiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarDimBiasedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=0, unbiased=False, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimBiasedModule())
+def VarDimBiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+# ==============================================================================
+
+
+class VarDimSingleDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=0, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimSingleDimModule())
+def VarDimSingleDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+# ==============================================================================
+
+
+class VarDimMultiDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=[0, 2], keepdim=False)
+
+
+@register_test_case(module_factory=lambda: VarDimMultiDimModule())
+def VarDimMultiDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+# ==============================================================================
+
+
+class VarDimAllDimReduceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=(0, 1, 2), keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimAllDimReduceModule())
+def VarDimAllDimReduceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class VarDimNegativeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=(-1, 1), keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarDimNegativeModule())
+def VarDimNegativeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class VarDimKeepDimFalseModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=(0, 1, 2), keepdim=False)
+
+
+@register_test_case(module_factory=lambda: VarDimKeepDimFalseModule())
+def VarDimKeepDimFalseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
