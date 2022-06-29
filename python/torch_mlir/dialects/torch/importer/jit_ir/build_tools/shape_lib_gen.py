@@ -481,6 +481,9 @@ def aten〇mean(self: List[int], dtype: Optional[int] = None) -> List[int]:
 def aten〇var(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
+def aten〇var〇dim(self: List[int], dim: List[int], unbiased: bool = True, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
+
 def aten〇std(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 

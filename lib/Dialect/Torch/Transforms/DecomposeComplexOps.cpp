@@ -40,8 +40,8 @@ static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
 // `dim` specifies the dimension to reduce and `keepDim` preserves the rank of
 // the input tensor.
 static Type computeReductionType(PatternRewriter &rewriter, Operation *op,
-                                 Value input, Value dim, bool keepDim) {
-  BaseTensorType tensorType = input.getType().cast<BaseTensorType>();
+                                 BaseTensorType tensorType, Value dim,
+                                 bool keepDim) {
   SmallVector<int64_t> sizes;
   int64_t dimInt;
   if (tensorType.hasSizes()) {
@@ -81,7 +81,8 @@ static Value createSumAlongDimension(PatternRewriter &rewriter, Location loc,
       loc, Torch::ListType::get(dim.getType()), dim);
   Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
   Value dtype = rewriter.create<ConstantNoneOp>(loc);
-  Type resultType = computeReductionType(rewriter, op, input, dim, keepDim);
+  Type resultType = computeReductionType(
+      rewriter, op, input.getType().cast<BaseTensorType>(), dim, keepDim);
   if (!resultType)
     return nullptr;
   return rewriter.create<AtenSumDimIntListOp>(loc, resultType, input, dimList,
@@ -94,7 +95,8 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
                                      bool keepDim) {
   Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
   BaseTensorType valueType =
-      computeReductionType(rewriter, op, input, dim, keepDim)
+      computeReductionType(rewriter, op, input.getType().cast<BaseTensorType>(),
+                           dim, keepDim)
           .cast<BaseTensorType>();
   if (!valueType)
     return nullptr;
@@ -211,7 +213,10 @@ public:
     Value startPlusOne =
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, one);
     Value slice = rewriter.create<AtenSliceTensorOp>(
-        loc, computeReductionType(rewriter, op, self, dim, /*keepDim=*/true),
+        loc,
+        computeReductionType(rewriter, op,
+                             self.getType().cast<BaseTensorType>(), dim,
+                             /*keepDim=*/true),
         op.self(), dim, start, startPlusOne, /*step=*/one);
 
     // `aten.slice.tensor` doesn't squeeze the dim even when it's size 1 after
@@ -1112,8 +1117,7 @@ public:
 };
 } // namespace
 
-// Decompose aten.var into: sum(square(x - mean))/(numTensorElements-1)
-// for unbiased and mean(square(x - mean)) for biased case.
+// Decompose aten.var into: aten.var.dim op.
 namespace {
 class DecomposeAtenVarOp : public OpRewritePattern<AtenVarOp> {
 public:
@@ -1122,12 +1126,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value self = op.self();
-    BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
-    if (!inputTensorTy.hasDtype() ||
-        !inputTensorTy.getDtype().isa<mlir::FloatType>()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "Only aten.var support floating type");
-    }
+    unsigned inputRank = getTensorRank(self);
     BaseTensorType rank0FloatTensorTy = op.getType().cast<BaseTensorType>();
     if (!rank0FloatTensorTy.hasSizes() ||
         rank0FloatTensorTy.getSizes().size() != 0) {
@@ -1135,34 +1134,17 @@ public:
           op, "expected aten.var to have a rank 0 tensor type");
     }
 
-    bool unbiased;
-    if (!matchPattern(op.unbiased(), m_TorchConstantBool(&unbiased))) {
-      return rewriter.notifyMatchFailure(
-          op, "Only support constant unbiased for aten.var");
-    }
+    SmallVector<Value> dims;
+    for (unsigned i = 0; i < inputRank; i++)
+      dims.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i)));
+    Value dimList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())), dims);
 
-    Value dtype = rewriter.create<ConstantNoneOp>(loc);
-    Value mean =
-        rewriter.create<AtenMeanOp>(loc, rank0FloatTensorTy, self, dtype);
-    Value subMean = createTensorSub(rewriter, loc, inputTensorTy, self, mean);
-    Value square = rewriter.create<AtenSquareOp>(loc, inputTensorTy, subMean);
-    Value var;
-    if (unbiased) {
-      // Bessel’s correction is used. Divide the square sum by
-      // numTensorElements-1.
-      Value squareSum =
-          rewriter.create<AtenSumOp>(loc, rank0FloatTensorTy, square, dtype);
-      Value numTensorElements = rewriter.create<AtenNumelOp>(loc, square);
-      Value cst1 = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(1));
-      Value numTensorElementsSub1 =
-          rewriter.create<AtenSubIntOp>(loc, numTensorElements, cst1);
-      var = rewriter.replaceOpWithNewOp<AtenDivScalarOp>(
-          op, rank0FloatTensorTy, squareSum, numTensorElementsSub1);
-    } else {
-      var = rewriter.replaceOpWithNewOp<AtenMeanOp>(op, rank0FloatTensorTy,
-                                                    square, dtype);
-    }
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<AtenVarDimOp>(op, rank0FloatTensorTy, self,
+                                              dimList, op.unbiased(),
+                                              /*keepdim=*/cstFalse);
     return success();
   }
 };
@@ -2122,6 +2104,88 @@ class DecomposeAtenNumpyTOp : public OpRewritePattern<AtenNumpyTOp> {
 };
 } // namespace
 
+// Decompose aten.var(x, dims) into:
+// sub = aten.sub(x, aten.mean(x, dims))
+// square = aten.square(sub)
+// For Unbiased case:
+// out = aten.sum(square, dims) / (productDimSize-1)
+// For Biased case:
+// out = aten.mean(square, dims)
+namespace {
+class DecomposeAtenVarDimOp : public OpRewritePattern<AtenVarDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarDimOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value dimList = op.dim();
+    Value keepDim = op.keepdim();
+    Type outputType = op.getType();
+    BaseTensorType inputTensorTy = self.getType().cast<BaseTensorType>();
+    if (!inputTensorTy.hasDtype() ||
+        !inputTensorTy.getDtype().isa<mlir::FloatType>()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "support floating type input only");
+    }
+
+    auto dimListConstruct = dimList.getDefiningOp<PrimListConstructOp>();
+    if (!dimListConstruct) {
+      return rewriter.notifyMatchFailure(
+          op, "expect dimList to be constructed from list construct");
+    }
+
+    bool unbiased;
+    if (!matchPattern(op.unbiased(), m_TorchConstantBool(&unbiased))) {
+      return rewriter.notifyMatchFailure(
+          op, "Only support constant unbiased for aten.var");
+    }
+
+    SmallVector<Value> dimListElements = dimListConstruct.elements();
+    Type meanDimResultType = inputTensorTy;
+    for (unsigned i = 0; i < dimListElements.size(); i++)
+      meanDimResultType = computeReductionType(
+          rewriter, op, meanDimResultType.cast<BaseTensorType>(),
+          dimListElements[i],
+          /*keepDim=*/true);
+
+    Value constantNone = rewriter.create<ConstantNoneOp>(loc);
+    Value constantTrue = rewriter.create<ConstantBoolOp>(loc, true);
+    Value meanAlongDims = rewriter.create<AtenMeanDimOp>(
+        loc, meanDimResultType, self, dimList, /*keepDim=*/constantTrue,
+        /*dtype=*/constantNone);
+    Value subMean =
+        createTensorSub(rewriter, loc, inputTensorTy, self, meanAlongDims);
+    Value square = rewriter.create<AtenSquareOp>(loc, inputTensorTy, subMean);
+    if (unbiased) {
+      // Bessel’s correction is used. Divide the square sum by
+      // productDimSize-1.
+      Value squareSum = rewriter.create<AtenSumDimIntListOp>(
+          loc, outputType, square, dimList, keepDim, /*dtype=*/constantNone);
+
+      // `productDimSize` is product of sizes of dimensions to be reduced.
+      Value productDimSize = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      for (Value dim : dimListConstruct.elements()) {
+        Value dimSize = rewriter.create<AtenSizeIntOp>(loc, self, dim);
+        productDimSize =
+            rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
+      }
+      Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      Value productDimSizeSubOne =
+          rewriter.create<AtenSubIntOp>(loc, productDimSize, constantOne);
+      rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, squareSum,
+                                                   productDimSizeSubOne);
+    } else {
+      rewriter.replaceOpWithNewOp<AtenMeanDimOp>(
+          op, outputType, square, dimList, keepDim, /*dtype=*/constantNone);
+    }
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Decompose the `aten.select_scatter` operation into `aten.slice_scatter` op.
 class DecomposeAtenSelectScatterOp
@@ -2324,6 +2388,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenNumpyTOp>();
     patterns.add<DecomposeAtenSelectScatterOp>(context);
     target.addIllegalOp<AtenSelectScatterOp>();
+    patterns.add<DecomposeAtenVarDimOp>(context);
+    target.addIllegalOp<AtenVarDimOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
