@@ -13,6 +13,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Transforms/SideEffectUtils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -142,8 +143,39 @@ private:
       if (slotIt == nameToSlot.end())
         op->emitError() << "Reference to non-existing module slot " << slotName
                         << "in " << moduleType.getClassName();
-      usedSlots.insert(slotIt->getValue());
+      slotUses[slotIt->getValue()].insert(op);
     });
+    return success();
+  }
+
+  LogicalResult isSlotInitializerUsedOnlyWithValueSemantics(Value root) {
+    for (auto &use : root.getUses()) {
+      auto owner = use.getOwner();
+
+      // For non-slot operations, simply trace the value's uses.
+      if (!isa<SlotOp>(owner)) {
+        auto status = llvm::all_of(owner->getResults(), [&](OpResult result) {
+          return succeeded(isSlotInitializerUsedOnlyWithValueSemantics(result));
+        });
+        return success(status);
+      }
+
+      // For `torch.slot` operations, lookup uses of the slot using the
+      // `slotUses` map, before checking whether each use is either free of side
+      // effects (e.g. a list constructor) or has value semantics.
+      auto traitCheck = [](Operation *operation) {
+        return llvm::all_of(operation->getUses(), [](OpOperand &operand) {
+          auto owner = operand.getOwner();
+          return mlir::isSideEffectFree(owner) ||
+                 owner->hasTrait<Torch::OpTrait::HasValueSemantics>();
+        });
+      };
+
+      auto useSlot = cast<SlotOp>(owner);
+      if (!llvm::all_of(slotUses[useSlot], traitCheck))
+        return failure();
+    }
+
     return success();
   }
 
@@ -215,15 +247,26 @@ private:
     BlockAndValueMapping mapping;
     for (Operation *op : worklist) {
       builder.clone(*op, mapping);
-      for (Value result : op->getResults()) {
+      for (auto resultAndIndex : llvm::enumerate(op->getResults())) {
+        Value result = resultAndIndex.value();
         if (!hasMeaningfulObjectIdentity(result.getType()))
           continue;
-        if (usedSlots.find(slot) == usedSlots.end())
+        if (slotUses.find(slot) == slotUses.end())
           continue;
         if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
                  .second) {
-          return op->emitError() << "potentially-aliased value used to "
-                                    "initialize multiple slots";
+          // Check whether the value's uses ever create aliases or mutate.
+          if (failed(isSlotInitializerUsedOnlyWithValueSemantics(result)))
+            return op->emitError()
+                   << "unsafe initializer used to initialize multiple slots";
+
+          // Create a deep clone of the `result` value before inserting it.
+          Operation *clonedOp = op->clone();
+          Value clonedValue = clonedOp->getResult(resultAndIndex.index());
+
+          // We expect the following insertion to succeed, since we're inserting
+          // a newly created value.
+          objectsWithIdentityAlreadyCopiedIntoInitializers.insert(clonedValue);
         }
       }
     }
@@ -258,9 +301,9 @@ private:
   // which cannot be used in multiple initializers because their object
   // identity is important.
   DenseSet<Value> objectsWithIdentityAlreadyCopiedIntoInitializers;
-  // Used to keep track of all the used torch slots so that the restrictions can
-  // be applied to those slots only.
-  DenseSet<SlotOp> usedSlots;
+  // Used to keep track of the users of all torch slots so that we can determine
+  // object identities before cloning the slot identifier.
+  DenseMap<SlotOp, DenseSet<Operation *>> slotUses;
 };
 } // namespace
 
