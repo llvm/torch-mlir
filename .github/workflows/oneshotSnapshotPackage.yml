@@ -31,7 +31,7 @@ jobs:
         uses: ad-m/github-push-action@v0.6.0
         with:
           github_token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-          branch: main
+          branch: libtorch-build
           tags: true
 
       - name: Create Release
