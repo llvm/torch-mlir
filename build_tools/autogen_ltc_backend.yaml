@@ -15,6 +15,7 @@ blacklist:
 - copy_
 
 # Disabled for consistency with TS backend
+- new_empty
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
 
