@@ -474,6 +474,31 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::full_like : (Tensor, Scalar, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit_with_mutating_variants("aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
 
+    # Functionalization ops
+    emit("aten::alias_copy : (Tensor) -> (Tensor)")
+    emit("aten::as_strided_copy : (Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::expand_copy : (Tensor, int[], bool) -> (Tensor)")
+    emit("aten::permute_copy : (Tensor, int[]) -> (Tensor)")
+    emit("aten::_reshape_alias_copy : (Tensor, int[], int[]) -> (Tensor)")
+    emit("aten::select_copy.int : (Tensor, int, int) -> (Tensor)")
+    emit("aten::detach_copy : (Tensor) -> (Tensor)")
+    emit("aten::slice_copy.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)")
+    emit("aten::squeeze_copy : (Tensor) -> (Tensor)")
+    emit("aten::squeeze_copy.dim : (Tensor, int) -> (Tensor)")
+    emit("aten::t_copy : (Tensor) -> (Tensor)")
+    emit("aten::transpose_copy.int : (Tensor, int, int) -> (Tensor)")
+    emit("aten::unsqueeze_copy : (Tensor, int) -> (Tensor)")
+    emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")
+    emit("aten::view_copy.dtype : (Tensor, int) -> (Tensor)")
+    emit("aten::unfold_copy : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)")
+    emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
+    emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
+    emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::_unsafe_view_copy : (Tensor, int[]) -> (Tensor)")
+
+
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)
     emit("aten::__contains__.int_list : (int[], int) -> (bool)", has_folder=True)
