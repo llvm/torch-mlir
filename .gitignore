@@ -6,6 +6,8 @@
 .ipynb_checkpoints
 *.venv/
 mlir_venv/
+externals/pytorch/
+libtorch*
 
 /build/
 __pycache__
