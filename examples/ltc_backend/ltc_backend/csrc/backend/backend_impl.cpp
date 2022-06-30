@@ -71,7 +71,7 @@ public:
   }
 
   std::vector<BackendDataPtr>
-  ExecuteComputation(Computation &computation,
+  ExecuteComputation(torch::lazy::ComputationPtr computation,
                      c10::ArrayRef<BackendDataPtr> arguments,
                      const BackendDevice &device) const override {
     PRINT_FUNCTION();
@@ -80,7 +80,7 @@ public:
     // function, we will generate a list of BackendData that corresponds to the
     // return values in the MLIR.
 
-    auto mlir_computation = static_cast<TorchMlirComputation *>(&computation);
+    auto mlir_computation = static_cast<TorchMlirComputation *>(computation.get());
 
     // Vendor backend specific execution can be inserted here.
     //

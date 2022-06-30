@@ -149,6 +149,7 @@ if __name__ == "__main__":
 
         elif args.device == "MLIR_EXAMPLE":
             import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+
             ltc_backend._initialize()
 
         device = "lazy"
