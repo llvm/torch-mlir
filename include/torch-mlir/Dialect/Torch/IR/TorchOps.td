@@ -549,6 +549,53 @@ def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
   }];
 }
 
+def Torch_PrimStoreOp : Torch_Op<"prim.Store", []> {
+  let summary = "store operation";
+  let description = [{
+    This op represents a prim::Store node in the Python object graph.
+  }];
+  let arguments = (ins StrAttr:$name, AnyTorchType:$value);
+  let assemblyFormat = [{
+    $name `,` $value attr-dict `:` qualified(type($value))
+  }];
+}
+
+def Torch_PrimLoadOp : Torch_Op<"prim.Load", []> {
+  let summary = "load operation";
+  let description = [{
+    This op represents a prim::Load node in the Python object graph.
+  }];
+  let arguments = (ins StrAttr:$name);
+  let results = (outs AnyTorchType:$result);
+  let assemblyFormat = [{
+    $name attr-dict `:` qualified(type($result))
+  }];
+}
+
+def Torch_PrimEnterOp : Torch_Op<"prim.Enter", []> {
+  let summary = "enter operation";
+  let description = [{
+    This op represents a prim::Enter node in the Python object graph.
+  }];
+  let arguments = (ins AnyTorchType:$inp);
+  let results = (outs Torch_NoneType:$result);
+  let assemblyFormat = [{
+    $inp attr-dict `:` qualified(type($inp))
+  }];
+}
+
+def Torch_PrimExitOp : Torch_Op<"prim.Exit", []> {
+  let summary = "exit operation";
+  let description = [{
+    This op represents a prim::Exit node in the Python object graph.
+  }];
+  let arguments = (ins AnyTorchType:$inp);
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $inp attr-dict `:` qualified(type($inp)) `->` qualified(type($result))
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Ops corresponding to prim::Constant
 //===----------------------------------------------------------------------===//
