@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import importlib
+import logging
 import os
 import re
 import subprocess
@@ -23,6 +24,7 @@ from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.gen_backend_stubs import parse_backend_yaml
 
 TORCH_DIR = Path(importlib.util.find_spec("torch").origin).resolve().parent.parent
+TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -92,7 +94,9 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
 
 class GenTorchMlirLTC:
-    def __init__(self):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
         self.script_path = Path(__file__).resolve()
         self.config_path = (
             Path(__file__).resolve().parent.joinpath("autogen_ltc_backend.yaml")
@@ -106,17 +110,17 @@ class GenTorchMlirLTC:
             "GeneratedTorchOps.td",
         )
         assert self.torch_ops_file.exists()
-        self.source_yaml = TORCH_MLIR_DIR.joinpath(
-            "build", "generated_native_functions.yaml"
+        self.build_dir = TORCH_MLIR_DIR.joinpath(
+            os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR", "build")
         )
+        self.build_dir.mkdir(exist_ok=True)
+        self.source_yaml = self.build_dir.joinpath("generated_native_functions.yaml")
         self.backend_path = TORCH_MLIR_DIR.joinpath(
             "python", "torch_mlir", "csrc", "base_lazy_backend"
         )
         assert self.backend_path.is_dir()
-        self.backend_path.joinpath("generated").mkdir(exist_ok=True)
-
-        self.torchgen_path = Path(torchgen.__path__[0]).resolve()
-        assert self.torchgen_path.is_dir()
+        self.generated_path = self.backend_path.joinpath("generated")
+        self.generated_path.mkdir(exist_ok=True)
 
         self.tensor_class = "torch::lazy::LazyTensor"
 
@@ -133,9 +137,9 @@ class GenTorchMlirLTC:
             self.torch_ops_file,
             self.source_yaml,
             self.backend_path.joinpath("shape_inference.cpp"),
-            self.torchgen_path.joinpath("dest", "lazy_ir.py"),
-            self.torchgen_path.joinpath("api", "lazy.py"),
-            self.torchgen_path.joinpath("model.py"),
+            TORCHGEN_DIR.joinpath("dest", "lazy_ir.py"),
+            TORCHGEN_DIR.joinpath("api", "lazy.py"),
+            TORCHGEN_DIR.joinpath("model.py"),
         ):
             if path.exists():
                 m.update(path.read_bytes())
@@ -143,11 +147,16 @@ class GenTorchMlirLTC:
         return m.hexdigest().strip()
 
     def generate_native_functions(self):
-        print("Generating Native Functions Yaml")
+        logging.info("Generating Native Functions Yaml")
 
-        native_path = self.torchgen_path.joinpath("packaged", "ATen", "native")
+        native_path = TORCHGEN_DIR.joinpath("packaged", "ATen", "native")
         native_yaml_path = native_path.joinpath("native_functions.yaml")
         tags_yaml_path = native_path.joinpath("tags.yaml")
+
+        ts_native_yaml_path = TORCH_DIR.joinpath("aten", "src", "ATen", "native", "ts_native_functions.yaml")
+        ts_native_yaml = None
+        if ts_native_yaml_path.exists():
+            ts_native_yaml = yaml.load(ts_native_yaml_path.read_text(), yaml.CLoader)
 
         parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path)
         self.native_functions = parsed_yaml.native_functions
@@ -232,6 +241,9 @@ class GenTorchMlirLTC:
 
         skipped = set(torch_ops) - ops - supported - composite_implicit
 
+        # List of ops autogen even if not explicitly supported by Torch-MLIR explicitly
+        ops |= set(config.get("whitelist", []))
+
         # Additional ops to support that are not supported by Torch-MLIR explicitly
         supported |= set(config.get("additional_ops", []))
 
@@ -263,6 +275,26 @@ class GenTorchMlirLTC:
                 )
             )
 
+        if ts_native_yaml:
+            ts_full_codegen = set(ts_native_yaml["full_codegen"])
+            mlir_full_codegen = set(self.ops)
+
+            if ts_full_codegen - mlir_full_codegen:
+                logging.debug(
+                    "Full Codegen ops supported by the TorchScript backend "
+                    "but not by the Torch-MLIR backend:\n    {}".format(
+                        "\n    ".join(sorted(ts_full_codegen - mlir_full_codegen))
+                    )
+                )
+
+            if mlir_full_codegen - ts_full_codegen:
+                logging.debug(
+                    "Full Codegen ops supported by the Torch-MLIR backend "
+                    "but not by the TorchScript backend:\n    {}".format(
+                        "\n    ".join(sorted(mlir_full_codegen - ts_full_codegen))
+                    )
+                )
+
     def generate_shape_inference(self):
         parsed_backend_yaml = parse_backend_yaml(
             self.source_yaml,
@@ -292,7 +324,7 @@ class GenTorchMlirLTC:
             shape_sig = shape_gen(f)
             shape_inference_decls.extend(shape_sig)
 
-        self.backend_path.joinpath("generated", "shape_inference.h").write_text(
+        self.generated_path.joinpath("shape_inference.h").write_text(
             dedent(
                 """
                 // This file contains autogenerated Lazy Shape Inference declarations
@@ -318,7 +350,7 @@ class GenTorchMlirLTC:
         )
 
         shape_inference_decls = extract_signatures(
-            self.backend_path.joinpath("generated", "shape_inference.h").read_text()
+            self.generated_path.joinpath("shape_inference.h").read_text()
         )
         assert len(shape_inference_decls) > 0
         upstream_shape_inference_decls = extract_signatures(
@@ -338,7 +370,7 @@ class GenTorchMlirLTC:
             - shape_inference_defs
         )
         if missing_defs:
-            self.backend_path.joinpath("generated", "shape_inference.cpp").write_text(
+            self.generated_path.joinpath("shape_inference.cpp").write_text(
                 dedent(
                     """
                     // This file contains autogenerated Lazy Shape Inference placeholders
@@ -379,7 +411,7 @@ class GenTorchMlirLTC:
             )
 
     def generate_backend(self):
-        print("Running Lazy Tensor Autogen")
+        logging.info("Running Lazy Tensor Autogen")
 
         # No fallback code allowed
         def gen_fallback_code(*args, **kwargs):
@@ -391,16 +423,14 @@ class GenTorchMlirLTC:
             backend_name="TorchMlir",
             aten_path=str(TORCH_DIR.joinpath("aten", "src", "ATen")),
             source_yaml=str(self.source_yaml),
-            output_dir=str(self.backend_path.joinpath("generated")),
+            output_dir=str(self.generated_path),
             dry_run=False,
             impl_path=str(self.backend_path.joinpath("mlir_native_functions.cpp")),
             node_base="torch::lazy::TorchMlirNode",
             node_base_hdr=str(self.backend_path.joinpath("mlir_node.h")),
             tensor_class=self.tensor_class,
             tensor_class_hdr="torch/csrc/lazy/core/tensor.h",
-            shape_inference_hdr=str(
-                self.backend_path.joinpath("generated", "shape_inference.h")
-            ),
+            shape_inference_hdr=str(self.generated_path.joinpath("shape_inference.h")),
             lazy_ir_generator=GenMlirLazyIr,
         )
 
@@ -423,8 +453,9 @@ class GenTorchMlirLTC:
 def main(args):
     generator = GenTorchMlirLTC()
 
+    hash_file = generator.build_dir.joinpath("generated_backend.hash")
+
     prev_hash = None
-    hash_file = TORCH_MLIR_DIR.joinpath("build", "generated_backend.hash")
     if hash_file.exists():
         prev_hash = hash_file.read_text().strip()
 
@@ -442,4 +473,23 @@ if __name__ == "__main__":
         "--force",
         action="store_true",
     )
-    main(parser.parse_args())
+    parser.add_argument(
+        "-d",
+        "--debug",
+        help="Print lots of debugging statements",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+        default=logging.WARNING,
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Be verbose",
+        action="store_const",
+        dest="loglevel",
+        const=logging.INFO,
+    )
+    args = parser.parse_args()
+    logging.basicConfig(level=args.loglevel)
+    main(args)
