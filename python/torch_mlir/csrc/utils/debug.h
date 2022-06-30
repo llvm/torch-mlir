@@ -13,8 +13,9 @@
 
 #include "sys_utils.h"
 
-static const bool verbose_print_function =
-    sys_util::GetEnvBool("VERBOSE_PRINT_FUNCTION", false);
+#define PRINT_DEBUG(msg)                                                       \
+  std::cout << msg << "    (" << __FILE__ << ":" << __LINE__ << ")"            \
+            << std::endl;
 
 #define PRINT_FUNCTION()                                                       \
   if (verbose_print_function) {                                                \
@@ -22,6 +23,5 @@ static const bool verbose_print_function =
               << ")" << std::endl;                                             \
   }
 
-#define PRINT_DEBUG(msg)                                                       \
-  std::cout << msg << "    (" << __FILE__ << ":" << __LINE__ << ")"            \
-            << std::endl;
+static const bool verbose_print_function =
+    sys_util::GetEnvBool("VERBOSE_PRINT_FUNCTION", false);
