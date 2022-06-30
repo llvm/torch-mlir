@@ -36,15 +36,53 @@ class ViewExpandOnesModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
+        ([1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1, 1, 1, 1, 1)
+
+@register_test_case(module_factory=lambda: ViewExpandOnesModule())
+def ViewExpandOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1))
+
+# ==============================================================================
+
+class ViewExpandOnesBeforeAndAfterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
         ([1, 3], torch.float32, True),
     ])
 
     def forward(self, a):
         return a.view(1, 1, 3, 1, 1)
 
-@register_test_case(module_factory=lambda: ViewExpandOnesModule())
-def ViewExpandOnesModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ViewExpandOnesBeforeAndAfterModule())
+def ViewExpandOnesBeforeAndAfterModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3))
+
+# ==============================================================================
+
+class ViewExpandOnesMiddleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 2], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(3, 1, 1, 1, 1, 2)
+
+@register_test_case(module_factory=lambda: ViewExpandOnesMiddleModule())
+def ViewExpandOnesMiddleModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 2))
 
 # ==============================================================================
 
