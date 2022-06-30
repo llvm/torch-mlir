@@ -2609,6 +2609,102 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
+    AtenEmbeddingOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Value weight = adaptor.weight();
+  Value indices = adaptor.indices();
+  RankedTensorType outType =
+      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+
+  auto indicesType = indices.getType().dyn_cast<RankedTensorType>();
+  if (!indicesType || !indicesType.getElementType().isa<IntegerType>())
+    return op.emitError("Indices must be of integer tensor type");
+
+  if (indicesType.getRank() != 2)
+    return op.emitError("indices must be of rank 2");
+
+  auto weightType = weight.getType().cast<RankedTensorType>();
+  if (weightType.getRank() != 2)
+    return op.emitError("weight must be of rank 2");
+
+  // FIXME: padding_idx, scale_grad_by_freq and sparse are not handled yet.
+  int64_t paddingIdx;
+  if (!matchPattern(op.padding_idx(), m_TorchConstantInt(&paddingIdx)))
+    return rewriter.notifyMatchFailure(
+        op, "only supports constant int padding_idx for embedding op");
+
+  bool scaleGradByFreq;
+  if (!matchPattern(op.scale_grad_by_freq(),
+                    m_TorchConstantBool(&scaleGradByFreq)))
+    return rewriter.notifyMatchFailure(
+        op, "only supports constant bool scale_grad_by_freq for embedding op");
+  if (scaleGradByFreq)
+    return rewriter.notifyMatchFailure(
+        op,
+        "only supports scale_grad_by_freq equals to False for embedding op");
+
+  bool isSparse;
+  if (!matchPattern(op.sparse(), m_TorchConstantBool(&isSparse)))
+    return rewriter.notifyMatchFailure(
+        op, "only supports constant bool sparse for embedding op");
+  if (isSparse)
+    return rewriter.notifyMatchFailure(
+        op, "only support sparse equals to False for embedding op");
+
+  // For inference:
+  //    Weights [num_embeddings, embedding_dim], Indices [X, Y]
+  //    Output [X, Y, embedding_dim] = Weights[Indices[x, y]] forall x in X, y
+  //    in Y
+  //
+  //    Condition: num_embeddings > Indices [x, y] forall x in X, y in Y
+
+  // Reshape the weight, since tosa.gather expects a 3D tensor
+  auto indicesShape = indicesType.getShape();
+  auto weightShape = weightType.getShape();
+
+  SmallVector<int64_t> newWeightShape = {1};
+  for (auto s : weightShape)
+    newWeightShape.push_back(s);
+
+  auto reshapedWeight = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(),
+      RankedTensorType::get(newWeightShape, weightType.getElementType()),
+      weight, rewriter.getI64ArrayAttr(newWeightShape));
+
+  int64_t numIndices = 1;
+  if (indicesType.hasStaticShape()) {
+    for (auto s : indicesShape)
+      numIndices *= s;
+  } else {
+    numIndices = ShapedType::kDynamicSize;
+  }
+
+  SmallVector<int64_t> newIndicesShape = {1, numIndices};
+  auto reshapedIndices = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(),
+      RankedTensorType::get(newIndicesShape, indicesType.getElementType()),
+      indices, rewriter.getI64ArrayAttr(newIndicesShape));
+
+  auto castIndices = rewriter.create<tosa::CastOp>(
+      op->getLoc(),
+      RankedTensorType::get(newIndicesShape, rewriter.getIntegerType(32)),
+      reshapedIndices);
+
+  SmallVector<int64_t> intermediateOutShape = {1, numIndices, weightShape[1]};
+  auto gatherOp = rewriter.create<tosa::GatherOp>(
+      op->getLoc(),
+      RankedTensorType::get(intermediateOutShape, weightType.getElementType()),
+      reshapedWeight, castIndices);
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, outType, gatherOp, rewriter.getI64ArrayAttr(outType.getShape()));
+
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3173,11 +3269,11 @@ public:
                                            tosa::AvgPool2dOp);
 #undef INSERT_ADAPTIVE_POOLING_ATEMOP_PATTERN
 
-target.addIllegalOp<AtenMaxPool2dOp>();
-patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
+    target.addIllegalOp<AtenMaxPool2dOp>();
+    patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
 
-target.addIllegalOp<AtenAvgPool2dOp>();
-patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
+    target.addIllegalOp<AtenAvgPool2dOp>();
+    patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -3217,6 +3313,7 @@ patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
     INSERT_ATENOP_PATTERN(AtenViewOp);
     INSERT_ATENOP_PATTERN(AtenGeluOp);
     INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
+    INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,

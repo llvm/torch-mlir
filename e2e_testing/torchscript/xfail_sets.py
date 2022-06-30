@@ -166,4 +166,5 @@ TOSA_PASS_SET = {
     "NumpyTRank2Module_basic",
     "NumpyTRankNStaticModule_basic",
     "NumpyTRankNDynamicModule_basic",
+    "EmbeddingModuleI32Static_basic",
 }
