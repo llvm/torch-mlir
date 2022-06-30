@@ -73,7 +73,7 @@ torch-mlir prediction
 
 ### LazyTensorCore
 
-Lazy Tensor Core support is provided through an abstract [`TorchMlirBackendImpl` class](python/torch_mlir/csrc/base_lazy_backend/backend_impl.h). An example implementation is avalable [here](examples/ltc_backend/ltc_backend).
+Lazy Tensor Core support is provided through an abstract [`TorchMlirBackendImpl`](python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class. An example implementation is available [here](examples/ltc_backend/ltc_backend).
 
 There are also examples of a [Huggingface BERT](torch_mlir_ltc_backend/examples/ltc_backend_bert.py) and [MNIST model](torch_mlir_ltc_backend/examples/ltc_backend_mnist.py) running on the example LTC backend.
 
