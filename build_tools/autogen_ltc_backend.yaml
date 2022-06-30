@@ -19,6 +19,18 @@ blacklist:
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
 
+# Disabled in favour of functionalized alternatives
+- _reshape_alias
+- expand
+- permute
+- select.int
+- squeeze
+- squeeze.dim
+- t
+- transpose.int
+- unsqueeze
+- view
+
 # whitelist:
 # List of ops to autogen even if not supported by Torch-MLIR explicitly
 #- split_copy.Tensor
