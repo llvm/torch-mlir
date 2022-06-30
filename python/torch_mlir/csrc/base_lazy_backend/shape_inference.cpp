@@ -29,12 +29,5 @@ compute_shape_mul(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
-std::vector<torch::lazy::Shape> compute_shape_new_empty(const at::Tensor & self, at::IntArrayRef size, c10::optional<at::ScalarType> dtype, c10::optional<at::Layout> layout, c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
-  if (dtype.has_value()) {
-    return {Shape(*dtype, size)};
-  }
-  return {Shape(self.scalar_type(), size)};
-}
-
 } // namespace lazy
 } // namespace torch
