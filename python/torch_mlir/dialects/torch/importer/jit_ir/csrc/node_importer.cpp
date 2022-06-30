@@ -115,6 +115,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
 
   // Builtin interpreter ops with no operator/schema.
   switch (kind) {
+  case c10::prim::Enter:
+  case c10::prim::Exit:
   case c10::prim::ListUnpack:
   case c10::prim::ListConstruct:
   case c10::prim::CreateObject: {
@@ -150,6 +152,8 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock) {
                             rearrangeDictConstructInputs);
     return;
   }
+  case c10::prim::Load:
+  case c10::prim::Store:
   case c10::prim::GetAttr:
   case c10::prim::SetAttr: {
     createAndMapNodeWithAttribute(
