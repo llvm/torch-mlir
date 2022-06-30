@@ -15,38 +15,65 @@ blacklist:
 - copy_
 
 # Disabled for consistency with TS backend
+- new_empty
 - rsub
+- slice.Tensor  # Disabled in favour of slice_copy.Tensor
 
-# List of supported ops that we don't want to do the full codegen for
-# primarily view ops
-supported:
-# - bernoulli
-# - bernoulli_
-- as_strided
-- as_strided_
-- _to_copy
-- cat
-- clone
-- empty.memory_format
-- empty_strided
+# Disabled in favour of functionalized alternatives
+- _reshape_alias
 - expand
-- fill_.Scalar
 - permute
 - select.int
-- slice.Tensor
 - squeeze
 - squeeze.dim
 - t
 - transpose.int
 - unsqueeze
 - view
+
+# whitelist:
+# List of ops to autogen even if not supported by Torch-MLIR explicitly
+#- split_copy.Tensor
+#- split_with_sizes_copy
+#- unbind_copy.int
+
+# List of supported ops that we don't want to do the full codegen for
+supported:
+# - bernoulli
+# - bernoulli_
+- _to_copy
+- cat
+- clone
+- empty.memory_format
+- empty_strided
+- fill_.Scalar
 - _unsafe_view
+
+# ops required for functionalization
+- lift
+# Below are all operators that are "composite" in core,
+# but require us to explicitly re-enable functionalization in order to use them.
+# Why? These operators are all CompositeExplicitAutograd, which mean that they run
+# after functionalization,
+# but their implementations call view operators (which we need to functionalize away).
+- block_diag
+- new_empty_strided
+- narrow_copy
+- pixel_shuffle
+- pixel_unshuffle
+- select_backward
+- slice_backward
+- diagonal_backward
+- _trilinear
+- linalg_inv_ex
+- linalg_pinv.atol_rtol_tensor
+- logsumexp.out
+
 
 additional_ops:
 # Additional ops to support that are not supported by Torch-MLIR explicitly
 - _copy_from
 - _copy_from_and_resize
-# - native_batch_norm_backward
 
 # List of non native ops that we only want to do IR node class generation for
 non_native:
@@ -55,33 +82,7 @@ non_native:
     properties:
       - ShapeCompute
       - TreatScalarsAsConstants
-  - func: expand(Tensor input, int[] size, bool is_scalar_expand) -> Tensor
-  - func: view(Tensor input, int[] output_size) -> Tensor
-    properties:
-      - ShapeCompute
   - func: cast(Tensor input, ScalarType dtype, ScalarType? stype) -> Tensor
     opkind: ltc_cast
     properties:
       - ShapeCompute
-
-  # View ops only required until proper functionalization pass is introduced into LTC
-  - func: as_strided_view_update(Tensor target, Tensor input, int[] size, int[] stride, int storage_offset) -> Tensor
-    opkind: ltc_as_strided_view_update
-  - func: as_strided(Tensor input, int[] size, int[] stride, int storage_offset) -> Tensor
-  - func: diagonal_view_update(Tensor target, Tensor input, int offset, int dim1, int dim2) -> Tensor
-    opkind: ltc_diagonal_view_update
-    properties:
-      - ShapeCompute
-  - func: diagonal(Tensor input, int offset, int dim1, int dim2) -> Tensor
-  - func: narrow_view_update(Tensor input, Tensor source, int[] base_indices) -> Tensor
-    opkind: ltc_narrow_view_update
-  - func: narrow(Tensor input, int[] base_indices, int[] sizes) -> Tensor
-  - func: permute(Tensor input, int[] dims) -> Tensor
-  - func: resize(Tensor input, int[] size) -> Tensor
-  - func: select_view_update(Tensor target, Tensor source, int dim, int start, int end, int stride) -> Tensor
-    opkind: ltc_select_view_update
-    properties:
-      - ShapeCompute
-  - func: select(Tensor input, int dim, int start, int end, int stride) -> Tensor
-  - func: squeeze(Tensor input, int dim) -> Tensor
-  - func: unsqueeze(Tensor input, int dim) -> Tensor
