@@ -709,7 +709,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.self();
     MLIRContext *context = op.getContext();
-    auto rank = getTensorRank(self);
+    int rank = getTensorRank(self);
     if (rank < 0)
       return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
 
@@ -718,7 +718,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: repeats not list of Scalar");
 
-    if (rank > repeats.size()) {
+    if (rank > (int)repeats.size()) {
       return rewriter.notifyMatchFailure(
           op, "repeats are not matched with self's rank");
     }
@@ -753,7 +753,7 @@ public:
 
     auto selfType = self.getType().dyn_cast<BaseTensorType>();
     auto selfShape = selfType.getSizes();
-    for (size_t i = 0; i < rank; i++) {
+    for (int i = 0; i < rank; i++) {
       auto scale = repeats[i + leadingRank];
       Value dimSize;
       if (selfShape[i] == ShapedType::kDynamicSize) {
