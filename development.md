@@ -65,6 +65,18 @@ The following additional quality of life flags can be used to reduce build time:
   -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
 # Use --ld-path= instead of -fuse-ld=lld for clang > 13
 ```
+* Enabling libtorch binary cache
+By default we download the latest version of libtorch everytime you build so we are always on the latest version. Set `-DLIBTORCH_CACHE=ON` to
+not download the latest version everytime. If libtorch gets out of date and you test against a newer PyTorch you may notice failures.
+```shell
+  -DLIBTORCH_CACHE=ON
+```
+* Enabling building libtorch as part of your build
+By default we download the latest version of libtorch. We have an experimental path to build libtorch (and PyTorch wheels) from source.
+```shell
+  -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
+  -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
+```
 
 ### Building against a pre-built LLVM
 
