@@ -60,12 +60,23 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 # Optionally handle JIT IR importer.
 ################################################################################
 
+option(LIBTORCH_SRC_BUILD "Build libtorch from source" OFF)
+option(LIBTORCH_CACHE "Cache libtorch downloads" OFF)
+option(LIBTORCH_VARIANT "libtorch variant [shared|static]-[cxx11]" "libtorch-shared")
+
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   # Build or Download libtorch
-  # if a libtorch/ exists we respect and don't override it. End user can
-  # unpack any released variant (shared/static | cxx11) of libtorch there. 
+  # if a libtorch/ exists we use it if LIBTORCH_CACHE is set
+  # User can unpack any released variant (shared/static | cxx11) there.
+  # We build from source if LIBTORCH_SRC_BUILD is set
+  # We build the requested LIBTORCH_VARIANT shared/static cxx11/pre-cxx11
   execute_process(
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+    COMMAND ${CMAKE_COMMAND} -E env
+      LIBTORCH_SRC_BUILD=${LIBTORCH_SRC_BUILD}
+      LIBTORCH_CACHE=${LIBTORCH_CACHE}
+      LIBTORCH_VARIANT=${LIBTORCH_VARIANT}
+      CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+      ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
   )
   set(TORCH_INSTALL_PREFIX "libtorch")
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
