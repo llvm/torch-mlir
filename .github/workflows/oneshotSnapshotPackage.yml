@@ -19,7 +19,7 @@ jobs:
         run: |
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
           package_version="$(printf '%(%Y%m%d)T.${{ github.run_number }}')"
-          tag_name="snapshot-${package_version}"
+          tag_name="oneshot-${package_version}"
           echo "package_version=${package_version}" >> $GITHUB_ENV
           echo "tag_name=${tag_name}" >> $GITHUB_ENV
 
@@ -31,7 +31,7 @@ jobs:
         uses: ad-m/github-push-action@v0.6.0
         with:
           github_token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-          branch: main
+          branch: ${{ github.ref_name }}
           tags: true
 
       - name: Create Release
