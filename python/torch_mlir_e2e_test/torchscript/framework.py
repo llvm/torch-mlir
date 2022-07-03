@@ -321,7 +321,7 @@ def run_workers_in_parallel(task_queue: mp.Queue, worker):
 
     processes = []
     for i in range(NUMBER_OF_PROCESSES):
-        p = mp.Process(target=worker, args=(task_queue, ))
+        p = mp.get_context("fork").Process(target=worker, args=(task_queue, ))
         p.start()
         processes.append(p)
     for i in range(NUMBER_OF_PROCESSES):
