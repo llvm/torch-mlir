@@ -1,16 +1,6 @@
--f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
---pre
-torch
-
-numpy
-torchvision
-
 # Build requirements.
 pybind11
 wheel
 setuptools
 cmake
 ninja
-
-# Test Requirements
-pillow
