@@ -6,14 +6,25 @@ SRC_ROOT="$( cd "$(dirname "$0")" ; pwd -P)/.."
 PYTORCH_ROOT=${PYTORCH_ROOT:-$SRC_ROOT/externals/pytorch}
 PYTORCH_INSTALL_PATH=${PYTORCH_INSTALL_PATH:-$SRC_ROOT/libtorch}
 PYTORCH_BRANCH="${PYTORCH_BRANCH:-master}"
-LIBTORCH_VARIANT="${LIBTORCH_VARIANT:-static-without-deps}"
+LIBTORCH_VARIANT="${LIBTORCH_VARIANT:-shared}"
 PT_C_COMPILER="${PT_C_COMPILER:-clang}"
 PT_CXX_COMPILER="${PT_CXX_COMPILER:-clang++}"
+WHEELHOUSE="${WHEELHOUSE:-$SRC_ROOT/build_tools/python_deploy/wheelhouse}"
+
+Red='\033[0;31m'
+Green='\033[0;32m'
+Yellow='\033[1;33m'
+White='\033[1;37m'
+NC='\033[0m'
 
 echo "SRC_ROOT=${SRC_ROOT}"
 echo "PYTORCH_ROOT=${PYTORCH_ROOT}"
 echo "PYTORCH_BRANCH=${PYTORCH_BRANCH}"
 echo "LIBTORCH_VARIANT=${LIBTORCH_VARIANT}"
+echo "LIBTORCH_SRC_BUILD=${LIBTORCH_SRC_BUILD}"
+echo "LIBTORCH_CACHE=${LIBTORCH_CACHE}"
+echo "CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+export CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
 
 if [[ "$LIBTORCH_VARIANT" == *"cxx11-abi"* ]]; then
   echo _GLIBCXX_USE_CXX11_ABI=1
@@ -64,7 +75,7 @@ download_libtorch() {
   if [[ $(uname -s) = 'Darwin' ]]; then
   echo "Apple macOS detected"
   if [[ $(uname -m) == 'arm64' ]]; then
-    echo "${Red}Apple M1 Detected...no libtorch/ binaries available"
+    echo "${Red}Apple M1 Detected...no libtorch/ binaries available${NC}"
     return 1
   else
     echo "Apple x86_64 Detected"
@@ -77,8 +88,11 @@ else
   echo "OS not detected. Pray and Play"
   return 1
 fi
+  echo "Deleting any old libtorch*.."
+  rm -rf libtorch*
   curl -O ${DOWNLOAD_URL}
-  unzip -o libtorch-*.zip
+  unzip -q -o libtorch-*.zip
+  rm libtorch-*.zip
   if [[ -f "$PYTORCH_INSTALL_PATH/lib/libtorch.so" ]]; then
     echo "Verifying Pytorch install -- libtorch.so found"
     return 0
@@ -95,32 +109,41 @@ checkout_pytorch() {
   fi
   cd $PYTORCH_ROOT
   git fetch --all
-  git checkout ${PYTORCH_BRANCH}
+  git checkout origin/${PYTORCH_BRANCH}
   git submodule update --init --recursive
 }
 
 build_pytorch() {
-  BUILD_SHARED_VAR="ON"
-  if [[ $LIBTORCH_VARIANT = *"static"* ]]; then
-    BUILD_SHARED_VAR="OFF"
-  fi
   cd $PYTORCH_ROOT
-  BUILD_SHARED_LIBS=${BUILD_SHARED_VAR} BUILD_TESTS=OFF USE_GLOO=OFF USE_PYTORCH_QNNPACK=OFF USE_OPENMP=OFF  USE_OBSERVERS=OFF USE_KINETO=OFF USE_EIGEN_FOR_BLAS=OFF _GLIBCXX_USE_CXX11_ABI=${CXX_ABI} USE_NCCL=OFF INTERN_DISABLE_ONNX=OFF BUILD_PYTHONLESS=1 USE_CUDA=OFF USE_MKL=OFF USE_XNNPACK=OFF USE_DISTRIBUTED=OFF USE_BREAKPAD=OFF USE_MKLDNN=OFF USE_QNNPACK=OFF USE_NNPACK=OFF ONNX_ML=OFF python setup.py build
+  # Uncomment the next line if you want to iterate on source builds
+  python setup.py clean
+
+
+  BUILD_SHARED_LIBS=ON
+  USE_LIGHTWEIGHT_DISPATCH=OFF
+  STATIC_DISPATCH_BACKEND=OFF
+  BUILD_LITE_INTERPRETER=OFF
+  if [[ $LIBTORCH_VARIANT = *"static"* ]]; then
+    BUILD_SHARED_LIBS=OFF
+    # Enable after more testing.
+    # USE_LIGHTWEIGHT_DISPATCH=ON
+    # STATIC_DISPATCH_BACKEND=ON
+    # BUILD_LITE_INTERPRETER=OFF
+  fi
+  BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} USE_LIGHTWEIGHT_DISPATCH=${USE_LIGHTWEIGHT_DISPATCH} STATIC_DISPATCH_BACKEND=${STATIC_DISPATCH_BACKEND} BUILD_LITE_INTERPRETER=${BUILD_LITE_INTERPRETER} BUILD_TEST=OFF USE_GLOO=OFF USE_MPS=OFF USE_PYTORCH_QNNPACK=OFF USE_OPENMP=OFF  USE_OBSERVERS=OFF USE_KINETO=OFF USE_EIGEN_FOR_BLAS=OFF CMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=${CXX_ABI}" USE_FBGEMM=OFF USE_NCCL=OFF INTERN_DISABLE_ONNX=OFF USE_CUDA=OFF USE_MKL=OFF USE_XNNPACK=OFF USE_DISTRIBUTED=OFF USE_BREAKPAD=OFF USE_MKLDNN=OFF USE_QNNPACK=OFF USE_NNPACK=OFF ONNX_ML=OFF CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} python setup.py  bdist_wheel -d $WHEELHOUSE
 }
 
 package_pytorch() {
   mkdir -p libtorch/{lib,bin,include,share}
 
-  # Copy over all lib files
-  cp -rv build/lib/*                libtorch/lib/
-  cp -rv build/lib*/torch/lib/*     libtorch/lib/
-
-  # Copy over all include files
-  cp -rv build/include/*            libtorch/include/
-  cp -rv build/lib*/torch/include/* libtorch/include/
-
   # Copy over all of the cmake files
-  cp -rv build/lib*/torch/share/*   libtorch/share/
+  mv build/lib*/torch/share     libtorch/
+  mv build/lib*/torch/include   libtorch/
+  mv build/lib*/torch/lib       libtorch/
+  # Copy over all lib files
+  mv build/lib/*                libtorch/lib/
+  # Copy over all include files
+  mv build/include/*            libtorch/include/
 
   echo "${PYTORCH_BUILD_VERSION}" > libtorch/build-version
   echo "$(pushd $PYTORCH_ROOT && git rev-parse HEAD)" > libtorch/build-hash
@@ -131,18 +154,25 @@ package_pytorch() {
 }
 
 #main
-if check_existing_libtorch; then
-  echo "Found libtorch"
-  echo "Remove libtorch/ if you want to re-download or rebuild"
+if [[ $LIBTORCH_SRC_BUILD = "ON" ]]; then
+  echo "Building libtorch from source"
+  checkout_pytorch
+  install_requirements
+  build_pytorch
+  package_pytorch
 else
-  if [ $SRC_BUILD ]; then
-    echo "Building libtorch from source"
-    checkout_pytorch
-    install_requirements
-    build_pytorch
-    package_pytorch
+  if check_existing_libtorch; then
+    echo "Found existing libtorch"
+    if [[ $LIBTORCH_CACHE = "ON" ]]; then
+      echo "${Yellow} libtorch is being cached. If you have a different PyTorch version pip installed unset LIBTORCH_CACHE ${NC}"
+    else
+      echo "${Red}Updating libtorch to the latest version. Set -DLIBTORCH_CACHE=ON to prevent autoupdating ${NC}"
+      echo "Downloading libtorch..."
+      download_libtorch
+    fi
   else
-    echo "Downloading libtorch"
+    echo "${Green}Installing latest version of libtorch. Set -DLIBTORCH_CACHE=ON in your next run to prevent autoupdating ${NC}"
+    echo "Downloading libtorch..."
     download_libtorch
   fi
 fi
