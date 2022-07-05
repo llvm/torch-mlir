@@ -41,8 +41,9 @@ this_dir="$(cd $(dirname $0) && pwd)"
 script_name="$(basename $0)"
 repo_root="$(cd $this_dir/../../ && pwd)"
 script_name="$(basename $0)"
-manylinux_docker_image="${manylinux_docker_image:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
-python_versions="${TM_PYTHON_VERSIONS:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310}"
+#manylinux_docker_image="${manylinux_docker_image:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
+manylinux_docker_image="${manylinux_docker_image:-quay.io/pypa/manylinux_2_28_x86_64:latest}"
+python_versions="${TM_PYTHON_VERSIONS:-cp39-cp39 cp310-cp310 cp311-cp311}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
@@ -61,7 +62,7 @@ function run_on_host() {
     -v "${output_dir}:/wheelhouse" \
     -e __MANYLINUX_BUILD_WHEELS_IN_DOCKER=1 \
     -e "TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION}" \
-    -e "python_versions=${python_versions}" \
+    -e "TM_PYTHON_VERSIONS=${python_versions}" \
     -e "packages=${packages}" \
     ${manylinux_docker_image} \
     -- bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
@@ -86,6 +87,7 @@ function run_in_docker() {
       echo ":::: Python version $(python --version)"
       case "$package" in
         torch-mlir)
+          #install_clang #Use for 2.24 manylinux
           clean_wheels torch_mlir $python_version
           build_torch_mlir
           #run_audit_wheel torch_mlir $python_version
@@ -99,12 +101,24 @@ function run_in_docker() {
   done
 }
 
+function install_clang() {
+  #manylinux 2.24 is debian based
+  apt update
+  apt install -y lsb-release wget software-properties-common apt-transport-https
+  bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+  wget https://apt.llvm.org/llvm.sh
+  chmod +x llvm.sh
+  ./llvm.sh 12
+  clang-12 --version
+}
+
 function build_torch_mlir() {
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  git config --global --add safe.directory /main_checkout/torch-mlir/externals/pytorch
+  python -m pip install -r /main_checkout/torch-mlir/requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
-    --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  CC=`which clang` CXX=`which clang++` \
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/
 }
 
 function run_audit_wheel() {
