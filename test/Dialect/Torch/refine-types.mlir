@@ -196,3 +196,47 @@ func.func @propagate_scalar_type(%arg0: !torch.int) -> !torch.number {
   %1 = torch.prim.abs.Scalar %num: !torch.number -> !torch.number
   return %1 : !torch.number
 }
+
+// -----
+// CHECK-LABEL:   func.func @prim.dtype(
+// CHECK-SAME:        %[[arg:.*]]: !torch.vtensor<*,bf16>) -> !torch.vtensor {
+
+// CHECK:           %[[zero:.*]] = torch.constant.int 0
+// CHECK:           %[[false:.*]] = torch.constant.bool false
+
+// CHECK:           %[[neg:.*]] = torch.aten.neg %[[arg]] : !torch.vtensor<*,bf16> -> !torch.vtensor<*,bf16>
+// CHECK:           %[[dtype0:.*]] = torch.prim.dtype %[[neg]] : !torch.vtensor<*,bf16> -> !torch.int
+// CHECK:           %[[device0:.*]] = torch.prim.device %[[neg]] : !torch.vtensor<*,bf16> -> !torch.Device
+// CHECK:           %[[tensor:.*]] = torch.aten.tensor.int %[[zero]], %[[dtype0]], %[[device0]], %[[false]] : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.vtensor<*,bf16>
+
+// CHECK:           %[[dtype1:.*]] = torch.prim.dtype %[[tensor]] : !torch.vtensor<*,bf16> -> !torch.int
+// CHECK:           %[[device1:.*]] = torch.prim.device %[[tensor]] : !torch.vtensor<*,bf16> -> !torch.Device
+// CHECK:           %[[result:.*]] = torch.aten.tensor.int %[[zero]], %[[dtype1]], %[[device1]], %[[false]] : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.vtensor<*,bf16>
+
+// CHECK:           %[[cast:.*]] = torch.tensor_static_info_cast %[[result]] : !torch.vtensor<*,bf16> to !torch.vtensor
+// CHECK:           return %[[cast]] : !torch.vtensor
+// CHECK:         }
+
+func.func @prim.dtype(%arg: !torch.vtensor<*,bf16>) -> !torch.vtensor<*,unk> {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+
+  // Op that requires type refinement
+  %neg = torch.aten.neg %arg : !torch.vtensor<*,bf16> -> !torch.vtensor<*,unk>
+
+  // Op whose processing requires type refinement on its source argument.
+  %dtype = torch.prim.dtype %neg : !torch.vtensor<*,unk> -> !torch.int
+  %device = torch.prim.device %neg : !torch.vtensor<*,unk> -> !torch.Device
+
+  // Another op that requires type refinement
+  %result = torch.aten.tensor.int %zero, %dtype, %device, %false : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.vtensor<*,unk>
+
+  // Repeat the above three ops a second time to ensure that the type refinement
+  // code works regardless of the number of alternating refinement+prim.dtype
+  // sequences.
+  %dtype2 = torch.prim.dtype %result : !torch.vtensor<*,unk> -> !torch.int
+  %device2 = torch.prim.device %result : !torch.vtensor<*,unk> -> !torch.Device
+  %result2 = torch.aten.tensor.int %zero, %dtype2, %device2, %false : !torch.int, !torch.int, !torch.Device, !torch.bool -> !torch.vtensor<*,unk>
+
+  return %result2 : !torch.vtensor<*,unk>
+}
