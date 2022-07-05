@@ -1301,3 +1301,15 @@ func.func @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
     %2 = torch.aten.add.Tensor %0, %1, %int3 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
     return %2 : !torch.vtensor<[],si64>
 }
+
+// CHECK-LABEL:   func.func @torch.aten.find() -> !torch.int {
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           return %[[INT2]] : !torch.int
+func.func @torch.aten.find() -> !torch.int {
+  %int2 = torch.constant.int 0
+  %int3 = torch.constant.int -1
+  %str4 = torch.constant.str "example"
+  %str5 = torch.constant.str "amp"
+  %2 = torch.aten.find %str4, %str5, %int2, %int3 : !torch.str, !torch.str, !torch.int, !torch.int -> !torch.int
+  return %2 : !torch.int
+}

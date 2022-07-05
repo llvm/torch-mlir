@@ -6621,6 +6621,33 @@ def Torch_AtenJoinOp : Torch_Op<"aten.join", [
   }];
 }
 
+def Torch_AtenFindOp : Torch_Op<"aten.find", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::find : (str, str, int, int) -> (int)`";
+  let arguments = (ins
+    Torch_StringType:$self,
+    Torch_StringType:$substr,
+    Torch_IntType:$start,
+    Torch_IntType:$end
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFindOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenFindOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
     AllowsTypeRefinement,
     HasValueSemantics,
