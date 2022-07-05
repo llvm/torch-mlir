@@ -37,6 +37,7 @@ jobs:
           -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
           -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLIBTORCH_SRC_BUILD=ON \
           -DLLVM_TARGETS_TO_BUILD=host
         ninja check-torch-mlir-all
     - name: RefBackend - TorchScript end-to-end tests

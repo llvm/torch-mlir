@@ -41,8 +41,8 @@ this_dir="$(cd $(dirname $0) && pwd)"
 script_name="$(basename $0)"
 repo_root="$(cd $this_dir/../../ && pwd)"
 script_name="$(basename $0)"
-manylinux_docker_image="${manylinux_docker_image:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
-python_versions="${TM_PYTHON_VERSIONS:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310}"
+manylinux_docker_image="${manylinux_docker_image:-quay.io/pypa/manylinux_2_28_x86_64:latest}"
+python_versions="${TM_PYTHON_VERSIONS:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310 cp311-cp311}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
@@ -88,7 +88,7 @@ function run_in_docker() {
         torch-mlir)
           clean_wheels torch_mlir $python_version
           build_torch_mlir
-          #run_audit_wheel torch_mlir $python_version
+          run_audit_wheel torch_mlir $python_version
           ;;
         *)
           echo "Unrecognized package '$package'"
@@ -100,11 +100,11 @@ function run_in_docker() {
 }
 
 function build_torch_mlir() {
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip install -r /main_checkout/torch-mlir/requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
-    --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  CC=`which clang` CXX=`which clang++` \
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/
 }
 
 function run_audit_wheel() {
