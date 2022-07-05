@@ -71,11 +71,9 @@ torch-mlir prediction
 [('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
 ```
 
-### LazyTensorCore
+### Lazy Tensor Core
 
-Lazy Tensor Core support is provided through an abstract [`TorchMlirBackendImpl`](python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class. An example implementation is available [here](examples/ltc_backend/ltc_backend).
-
-There are also examples of a [HuggingFace BERT](examples/ltc_backend_bert.py) and [MNIST model](examples/ltc_backend_mnist.py) running on the example/reference LTC backend.
+Read more details [here](docs/ltc_backend.md).
 
 ### Eager Mode
 
