@@ -37,6 +37,7 @@ jobs:
           -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
           -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLIBTORCH_SRC_BUILD=ON \
           -DLLVM_TARGETS_TO_BUILD=host
         ninja check-torch-mlir-all
     - name: RefBackend - TorchScript end-to-end tests
@@ -81,6 +82,7 @@ jobs:
           -DLLVM_ENABLE_PROJECTS=mlir \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DLLVM_TARGETS_TO_BUILD=host \
+          -DLIBTORCH_SRC_BUILD=ON \
           externals/llvm-project/llvm
         ninja -Cllvm-build
 
@@ -94,6 +96,7 @@ jobs:
           -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
           -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLIBTORCH_SRC_BUILD=ON \
           -DPython3_EXECUTABLE=$(which python) \
           .
         ninja -Cbuild check-torch-mlir-all
