@@ -7,8 +7,6 @@ include(TorchMLIRPyTorch)
 set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../libtorch/share/cmake/Torch")
 find_package(Torch 1.11 REQUIRED)
 
-TorchMLIRConfigureLibTorch()
-
 message(STATUS "libtorch_python CXXFLAGS is ...${TORCH_CXXFLAGS}")
 #-------------------------------------------------------------------------------
 # Subdirectories
