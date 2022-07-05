@@ -41,8 +41,6 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
-import torch
-
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
@@ -82,6 +80,7 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
+                f"-DLIBTORCH_SRC_BUILD=ON",
             ]
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
@@ -146,12 +145,6 @@ setup(
         CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
     ],
     install_requires=[
-        "numpy",
-        # To avoid issues with drift for each nightly build, we pin to the
-        # exact version we built against.
-        # TODO: This includes the +cpu specifier which is overly
-        # restrictive and a bit unfortunate.
-        f"torch=={torch.__version__}",
     ],
     zip_safe=False,
 )
