@@ -119,7 +119,7 @@ Generated files are created in this directory, which is ignored by version contr
 
 ## Architecture
 
-### Tracing LTC graph (PyTorch)
+### Tracing LTC graph
 
 The journey begins with a tensor in PyTorch on the `lazy` device, which may undergo a number of operations during its lifetime.
 ```python
@@ -136,7 +136,7 @@ These nodes are then tracked internally by LTC as the computation graph is trace
 
 ![Tracing Tensors](ltc_images/tracing_tensors.jpg)
 
-### Syncing Tensors (Base Torch-MLIR LTC Backend)
+### Syncing Tensors
 
 At some point, the tensors will be synced in order to execute the computation -- either explicitly via `mark_step`, or implicitly through some operation that requires the contents of the tensors (e.g. printing to console).
 
@@ -152,7 +152,7 @@ At this point, a `TorchMlirComputation` is created containing the final `mlir::O
 
 ![Syncing Tensors](ltc_images/syncing_tensors.jpg)
 
-### Final Compilation and Execution (Vendor Specific Custom Backend)
+### Final Compilation and Execution
 
 The `TorchMlirComputation` handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
 
