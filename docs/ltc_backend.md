@@ -5,13 +5,14 @@
 - [Code Structure](#code-structure)
 - [Architecture](#architecture)
 - [Implementing a custom backend](#implementing-a-custom-backend)
+- [Future Expansion](#future-expansion)
 
 ## Introduction
 [Lazy Tensor Core](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/tutorial.md) is a tracing system in PyTorch which is supported as an entry point to Torch-MLIR.
 After registering an LTC backend, all operations performed on lazy tensors are recorded and handed off to the backend implementation.
 
-Lazy Tensor Core support is provided through an abstract [`TorchMlirBackendImpl`](../python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class, which handles the conversion to MLIR.
-Implementations based on this abstract class will be able to configure their own compile and execution workflows.
+LTC support is provided through an abstract [`TorchMlirBackendImpl`](../python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class, which handles the conversion to MLIR.
+Implementations based on this abstract class will be able to specify their own compile and execution workflows.
 An example implementation is available [here](../examples/ltc_backend/ltc_backend), and additional details about how to implement a custom backend is available [below](#Implementing-a-custom-backend).
 
 ### Example Usage
@@ -63,7 +64,7 @@ In Mark Step: true
 ```
 
 ### Example Models
-There are also examples of a [HuggingFace BERT](../examples/ltc_backend_bert.py) and [MNIST model](../examples/ltc_backend_mnist.py) running on the example/reference LTC backend.
+There are also examples of a [HuggingFace BERT](../examples/ltc_backend_bert.py) and [MNIST](../examples/ltc_backend_mnist.py) model running on the example LTC backend.
 
 ## Code Structure
 
@@ -82,24 +83,24 @@ Generated files are created in this directory, which is ignored by version contr
 - `LazyNonNativeIr.h`
   - Non-native `torch::lazy:TorchMlirNode` subclasses
 - `RegisterLazy.cpp`
-  - Registers PyTorch kernels under the `lazy` dispatch key for all supported ops, which map to native functions
+  - Registers PyTorch kernels under the `lazy` dispatch key for all supported ops, which map to our native functions
 - `shape_inference.{cpp,h}`
-  - Shape inference headers for supported ops, and autogen'd placeholder functions
+  - Shape inference headers for supported ops and autogen'd placeholders for unimplemented functions
 
 ### Base Backend ([`python/torch_mlir/csrc/base_lazy_backend`](../python/torch_mlir/csrc/base_lazy_backend))
 
 - `backend_impl.{cpp,h}`
-  - Base LTC backend to setup Torch MLIR lowering context
+  - Base LTC backend to setup Torch-MLIR lowering context
 - `dynamic_ir.{cpp,h}`
   - Manually implemented "dynamic" nodes
 - `ir_builder.h`
-  - Torch MLIR implementation of `torch::lazy::IrBuilder`
+  - Torch-MLIR implementation of `torch::lazy::IrBuilder`
 - `mlir_lowering_context.h`
-  - Handles conversion from `torch::lazy::Node` to MLIR via JIT and Torch MLIR infrastructure
+  - Handles conversion from `torch::lazy::Node` to MLIR via JIT and Torch-MLIR infrastructure
 - `mlir_native_functions.cpp`
   - Manually implemented native functions
 - `mlir_node.{cpp,h}`
-  - Torch MLIR implementation of `torch::lazy::Node`
+  - Torch-MLIR implementation of `torch::lazy::Node`
 - `mlir_node_lowering.{cpp,h}`
   - Lower a `torch::lazy::Node` to JIT graph in preparation for MLIR generation
 - `shape_inference.cpp`
@@ -108,9 +109,9 @@ Generated files are created in this directory, which is ignored by version contr
 ### Examples ([`examples`](../examples))
 
 - `examples/ltc_backend/ltc_backend/csrc/backend/backend_impl.{cpp,h}`
-  - Example Torch MLIR LTC backend implementation, which simply stores the MLIR as a string
+  - Example Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
 - `examples/ltc_backend/ltc_backend/csrc/example_mlir_backend_pybind.cpp`
-  - PyBind for example Torch MLIR LTC backend
+  - PyBind for example Torch-MLIR LTC backend
 - `ltc_backend_bert.py`
   - Example HuggingFace BERT model traced by LTC to MLIR
 - `ltc_backend_mnist.py`
@@ -118,7 +119,9 @@ Generated files are created in this directory, which is ignored by version contr
 
 ## Architecture
 
-The journey begins with an LTC tensor in PyTorch, which may undergo a number of operations during its lifetime.
+### Tracing LTC graph (PyTorch)
+
+The journey begins with a tensor in PyTorch on the `lazy` device, which may undergo a number of operations during its lifetime.
 ```python
 >>> ltc_backend._initialize()
 >>> x = torch.tensor(..., device='lazy')
@@ -128,8 +131,10 @@ The journey begins with an LTC tensor in PyTorch, which may undergo a number of 
 The call to `torch.tanh` triggers a chain of events. PyTorch checks the dispatch table under the `lazy` key and finds the kernel for `tanh`
 previously registered in `RegisterLazy.cpp`.
 
-Next, `LazyNativeFunctions::tanh` from `LazyNativeFunctions.cpp` is called, which triggers the creation of a `Tanh` node (subclass of `TorchMlirNode` and `torch::lazy::Node`) -- defined in `LazyIr.h`.
-These nodes are then stored internally by LTC as the computation graph is traced out.
+Next, `LazyNativeFunctions::tanh` from `LazyNativeFunctions.cpp` is called, which triggers the creation of a `Tanh` node, which is a subclass of `TorchMlirNode` and `torch::lazy::Node`, defined in `LazyIr.h`.
+These nodes are then tracked internally by LTC as the computation graph is traced out.
+
+### Syncing Tensors (Base Torch-MLIR LTC Backend)
 
 At some point, the tensors will be synced in order to execute the computation -- either explicitly via `mark_step`, or implicitly through some operation that requires the contents of the tensors (e.g. printing to console).
 
@@ -137,15 +142,21 @@ At some point, the tensors will be synced in order to execute the computation --
 >>> torch._lazy.mark_step()
 ```
 
-This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` in LTC, which collects all the `TorchMlirNode`s (technically `torch::lazy::Node`s at this point) from the current trace and 
+This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` somewhere in the guts of LTC, which collects all the `TorchMlirNode`s (technically `torch::lazy::Node`s at this point) from the current trace and 
 creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s are lowered to JIT via `mlir_node_lowering.cpp` and inserted into a `jit::Graph`.
 
-Next, `TorchMlirLoweringContext::Build` is executed and the `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate the MLIR using existing infrastructure from Torch MLIR.
+Next, `TorchMlirLoweringContext::Build` is executed and the final `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate MLIR using the existing infrastructure from Torch-MLIR.
 
-At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`, which gets handed off to the final implementation of `TorchMlirBackendImpl::Compile`, which is vendor specific, for additional mutations.
+### Final Compilation and Execution (Vendor Specific Custom Backend)
+
+At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`, which gets handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
 
 Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteComputation` to be executed on the vendor device, which produces some results to be send back to PyTorch.
 
 ## Implementing a custom backend
+
+TODO
+
+## Future Expansion
 
 TODO
