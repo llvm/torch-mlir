@@ -106,8 +106,8 @@ The use of the full operator signature such as
 `def aten〇add〇Tensor(self: List[int], other: List[int], alpha: float = 1) -> List[int]:`
 for defining shape functions is somewhat verbose and repetitive, especially when
 there are multiple identical shape functions. Upstream uses a map with key-value
-pairs like `"aten.add.Tensor": upstream_shape_helpers.broadcast`, which is more
-compact and less repetitive in some ways (upstream also allows trailing
+pairs like `"aten.add.Tensor": upstream_shape_functions.broadcast`, which is
+more compact and less repetitive in some ways (upstream also allows trailing
 arguments beyond those accepted by the shape function to be ignored, allowing
 further deduplication). The decision to do it the more verbose way in Torch-MLIR
 was based on the following goals:
