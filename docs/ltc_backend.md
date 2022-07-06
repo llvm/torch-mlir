@@ -13,7 +13,7 @@ After registering an LTC backend, all operations performed on lazy tensors are r
 
 LTC support is provided through an abstract [`TorchMlirBackendImpl`](../python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class, which handles the conversion to MLIR.
 Implementations based on this abstract class will be able to specify their own compile and execution workflows.
-An example implementation is available [here](../examples/ltc_backend/ltc_backend), and additional details about how to implement a custom backend is available [below](#Implementing-a-custom-backend).
+Additional details about how to implement a custom backend is available [below](#Implementing-a-custom-backend).
 
 ### Example Usage
 ```python
@@ -155,7 +155,11 @@ Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteCompu
 
 ## Implementing a custom backend
 
-TODO
+An example implementation of a custom backend is available [here](../examples/ltc_backend/ltc_backend). 
+All the work involved with generating MLIR is handled in the base LTC backend, so vendors only need to worry about implementing `Compile`, `ExecuteComputation`, and some other minor methods to interface with the device.
+
+A pybind is needed to invoke C++ code to register the autogen PyTorch kernels and the custom backend itself.
+Most of the code in the example implementation should be reusable, excluding some debug related function (e.g. `get_latest_computation`).
 
 ## Future Expansion
 
