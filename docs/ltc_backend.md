@@ -78,10 +78,38 @@ Generated files are created in this directory, which is ignored by version contr
 - `RegisterLazy.cpp`
   - Registers PyTorch kernels under the `lazy` dispatch key for all supported ops, which map to native functions
 - `shape_inference.{cpp,h}`
-  - Implementation of select shape inference functions (many other functions are [implemented upstream](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/core/shape_inference.cpp))
+  - Shape inference headers for supported ops, and autogen'd placeholder functions
 
 ### Base Backend ([`python/torch_mlir/csrc/base_lazy_backend`](../python/torch_mlir/csrc/base_lazy_backend))
 
+- `backend_impl.{cpp,h}`
+  - Base LTC backend to setup Torch MLIR lowering context
+- `dynamic_ir.{cpp,h}`
+  - Manually implemented "dynamic" nodes
+- `ir_builder.h`
+  - Torch MLIR implementation of `torch::lazy::IrBuilder`
+- `mlir_lowering_context.h`
+  - Handles conversion from `torch::lazy::Node` to MLIR via JIT and Torch MLIR infrastructure
+- `mlir_native_functions.cpp`
+  - Manually implemented native functions
+- `mlir_node.{cpp,h}`
+  - Torch MLIR implementation of `torch::lazy::Node`
+- `mlir_node_lowering.{cpp,h}`
+  - Lower a `torch::lazy::Node` to JIT graph in preparation for MLIR generation
+- `shape_inference.cpp`
+  - Implementation of select shape inference functions (most functions are [implemented upstream](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/core/shape_inference.cpp))
+
 ### Examples ([`examples`](../examples))
+
+- `examples/ltc_backend/ltc_backend/csrc/backend/backend_impl.{cpp,h}`
+  - Example Torch MLIR LTC backend implementation, which simply stores the MLIR as a string
+- `examples/ltc_backend/ltc_backend/csrc/example_mlir_backend_pybind.cpp`
+  - PyBind for example Torch MLIR LTC backend
+- `ltc_backend_bert.py`
+  - Example HuggingFace BERT model traced by LTC to MLIR
+- `ltc_backend_mnist.py`
+  - Example MNIST model traced by LTC to MLIR
+
+## Architecture
 
 ## Implementing a custom backend
