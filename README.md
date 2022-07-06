@@ -26,9 +26,8 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
  - TorchScript
     This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
- - LazyTensorCore (Based on the PyTorch [`lazy_tensor_staging` branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
-	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing `torch/xla` derivatives.
-
+ - LazyTensorCore
+    Read more details [here](docs/ltc_backend.md).
 ## Project Communication
 
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
