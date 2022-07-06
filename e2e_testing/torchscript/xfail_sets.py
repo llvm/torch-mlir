@@ -169,4 +169,7 @@ TOSA_PASS_SET = {
     "NumpyTRankNStaticModule_basic",
     "NumpyTRankNDynamicModule_basic",
     "EmbeddingModuleI32Static_basic",
+    "TModuleRank2_basic",
+    "TransposeIntModule_basic",
+    "TransposeIntNegDimsModule_basic",
 }
