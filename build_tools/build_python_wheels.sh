@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu -o pipefail
 
 if [ -z "$PYTHON" ]; then
   PYTHON="$(which python)"
@@ -7,11 +7,11 @@ fi
 version="$("$PYTHON" --version)"
 echo "Using python: $PYTHON (version $version)"
 
-repo_root="$(cd $(dirname $0)/.. && pwd)"
+repo_root="$(cd "$(dirname "$0")"/.. && pwd)"
 wheelhouse="$repo_root/wheelhouse"
 package_test_venv="$wheelhouse/package-test.venv"
-mkdir -p $wheelhouse
-cd $wheelhouse
+mkdir -p "$wheelhouse"
+cd "$wheelhouse"
 
 echo "---- BUILDING torch-mlir ----"
 CMAKE_GENERATOR=Ninja \

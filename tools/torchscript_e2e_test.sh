@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-src_dir="$(realpath $(dirname $0)/..)"
+src_dir="$(realpath "$(dirname "$0")"/..)"
 
 cd "$src_dir"
 

@@ -9,9 +9,9 @@
 # For more information on supporting custom operators, see:
 #   ${TORCH_MLIR}/python/torch_mlir/_torch_mlir_custom_op_example/README.md
 
-set -eo pipefail
+set -euo pipefail
 
-src_dir="$(realpath $(dirname $0)/..)"
+src_dir="$(realpath "$(dirname "$0")"/..)"
 build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build}")"
 torch_ir_include_dir="${src_dir}/include/torch-mlir/Dialect/Torch/IR"
 python_packages_dir="${build_dir}/tools/torch-mlir/python_packages"

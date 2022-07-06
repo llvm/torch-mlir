@@ -4,12 +4,14 @@
 # For arbitrary build/install directories, set the env variables:
 # - TORCH_MLIR_BUILD_DIR
 
+set -eu -o pipefail
+
 portable_realpath() {
   # Create the directory if needed so that the `cd` doesn't fail.
-  mkdir -p $1 && cd $1 && pwd
+  mkdir -p "$1" && cd "$1" && pwd
 }
 
-td="$(portable_realpath $(dirname $0)/..)"
+td="$(portable_realpath "$(dirname "$0")"/..)"
 build_dir="$(portable_realpath "${TORCH_MLIR_BUILD_DIR:-$td/build}")"
 python_packages_dir="$build_dir/tools/torch-mlir/python_packages"
 

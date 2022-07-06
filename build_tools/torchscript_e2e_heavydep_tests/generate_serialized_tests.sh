@@ -13,13 +13,13 @@ fi
 
 venv_dir=$1
 serialized_test_dir=$2
-here="$(realpath $(dirname $0))"
+here="$(realpath "$(dirname "$0")")"
 torch_mlir_src_root="$here/../../"
 
-mkdir -p $venv_dir
-mkdir -p $serialized_test_dir
-python3 -m venv $venv_dir
-source $venv_dir/bin/activate
+mkdir -p "$venv_dir"
+mkdir -p "$serialized_test_dir"
+python3 -m venv "$venv_dir"
+source "$venv_dir"/bin/activate
 
 # latest torch-version and torch-vision module is required.
 python3 -m pip install --upgrade -r "$torch_mlir_src_root/requirements.txt"
@@ -38,4 +38,4 @@ cd "$torch_mlir_src_root"
 export PYTHONPATH=${PYTHONPATH-}
 source "$torch_mlir_src_root/.env"
 
-python3 -m build_tools.torchscript_e2e_heavydep_tests.main --output_dir=$serialized_test_dir
+python3 -m build_tools.torchscript_e2e_heavydep_tests.main --output_dir="$serialized_test_dir"
