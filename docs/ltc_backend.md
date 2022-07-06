@@ -170,4 +170,9 @@ Most of the code in the example implementation should be reusable, excluding som
 
 ## Future Expansion
 
-TODO
+There are a number of areas for future improvement:
+- Generate source information in `jit::Graph` so it can be embedded in the MLIR
+- Currently the example backend implementation executes via the `jit::Graph` instead of the MLIR since we currently lack lowerings for many ops, which would make it difficult to run models such as HF BERT
+  - In the future, we should change the implementation to lower the MLIR to linalg and execute on a reference backend
+- As new models get tested, we will inevitably run into errors related to unimplemented shape inference functions.
+This problem is simply solved by implementing the missing function, or adding a structured kernel to PyTorch.
