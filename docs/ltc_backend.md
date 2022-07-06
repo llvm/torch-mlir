@@ -32,7 +32,7 @@ outputs = torch.tanh(inputs)
 
 # Mark end of training iteration and trace graph.
 torch._lazy.mark_step()
-print('Results: ', outputs)
+print('Results:', outputs)
 
 # Dump MLIR graph generated from LTC trace. 
 computation = ltc_backend.get_latest_computation()
