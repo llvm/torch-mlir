@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -xe pipefail
+set -xeu -o pipefail
 
 SRC_ROOT="$( cd "$(dirname "$0")" ; pwd -P)/.."
 PYTORCH_ROOT=${PYTORCH_ROOT:-$SRC_ROOT/externals/pytorch}
@@ -14,7 +14,6 @@ WHEELHOUSE="${WHEELHOUSE:-$SRC_ROOT/build_tools/python_deploy/wheelhouse}"
 Red='\033[0;31m'
 Green='\033[0;32m'
 Yellow='\033[1;33m'
-White='\033[1;37m'
 NC='\033[0m'
 
 echo "SRC_ROOT=${SRC_ROOT}"
@@ -30,20 +29,18 @@ if [[ "$LIBTORCH_VARIANT" == *"cxx11-abi"* ]]; then
   echo _GLIBCXX_USE_CXX11_ABI=1
   export _GLIBCXX_USE_CXX11_ABI=1
   CXX_ABI=1
-  LIBTORCH_ABI="cxx11-abi-"
 else
   echo _GLIBCXX_USE_CXX11_ABI=0
   export _GLIBCXX_USE_CXX11_ABI=0
   CXX_ABI=0
-  LIBTORCH_ABI=
 fi
 
 retry () {
-  $* || (sleep 1 && $*) || (sleep 2 && $*) || (sleep 4 && $*) || (sleep 8 && $*)
+  "$@" || (sleep 1 && "$@") || (sleep 2 && "$@") || (sleep 4 && "$@") || (sleep 8 && "$@")
 }
 
 install_requirements() {
-  pip install -qr $PYTORCH_ROOT/requirements.txt
+  pip install -qr "$PYTORCH_ROOT/requirements.txt"
   pip list
 }
 
@@ -71,7 +68,7 @@ MACOS_X86_URL="https://download.pytorch.org/libtorch/nightly/cpu/libtorch-macos-
 LINUX_X86_URL="https://download.pytorch.org/libtorch/nightly/cpu/libtorch-static-without-deps-latest.zip"
 
 download_libtorch() {
-  cd $SRC_ROOT
+  cd "$SRC_ROOT"
   if [[ $(uname -s) = 'Darwin' ]]; then
   echo "Apple macOS detected"
   if [[ $(uname -m) == 'arm64' ]]; then
@@ -82,7 +79,7 @@ download_libtorch() {
     DOWNLOAD_URL=${MACOS_X86_URL}
   fi
 elif [[ $(uname -s) = 'Linux' ]]; then
-  echo "$Linux detected"
+  echo "Linux detected"
   DOWNLOAD_URL=${LINUX_X86_URL}
 else
   echo "OS not detected. Pray and Play"
@@ -105,16 +102,16 @@ fi
 
 checkout_pytorch() {
   if [[ ! -d "$PYTORCH_ROOT" ]]; then
-    git clone https://github.com/pytorch/pytorch $PYTORCH_ROOT
+    git clone https://github.com/pytorch/pytorch "$PYTORCH_ROOT"
   fi
-  cd $PYTORCH_ROOT
+  cd "$PYTORCH_ROOT"
   git fetch --all
-  git checkout origin/${PYTORCH_BRANCH}
+  git checkout origin/"${PYTORCH_BRANCH}"
   git submodule update --init --recursive
 }
 
 build_pytorch() {
-  cd $PYTORCH_ROOT
+  cd "$PYTORCH_ROOT"
   # Uncomment the next line if you want to iterate on source builds
   python setup.py clean
 
@@ -130,7 +127,7 @@ build_pytorch() {
     # STATIC_DISPATCH_BACKEND=ON
     # BUILD_LITE_INTERPRETER=OFF
   fi
-  BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} USE_LIGHTWEIGHT_DISPATCH=${USE_LIGHTWEIGHT_DISPATCH} STATIC_DISPATCH_BACKEND=${STATIC_DISPATCH_BACKEND} BUILD_LITE_INTERPRETER=${BUILD_LITE_INTERPRETER} BUILD_TEST=OFF USE_GLOO=OFF USE_MPS=OFF USE_PYTORCH_QNNPACK=OFF USE_OPENMP=OFF  USE_OBSERVERS=OFF USE_KINETO=OFF USE_EIGEN_FOR_BLAS=OFF CMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=${CXX_ABI}" USE_FBGEMM=OFF USE_NCCL=OFF INTERN_DISABLE_ONNX=OFF USE_CUDA=OFF USE_MKL=OFF USE_XNNPACK=OFF USE_DISTRIBUTED=OFF USE_BREAKPAD=OFF USE_MKLDNN=OFF USE_QNNPACK=OFF USE_NNPACK=OFF ONNX_ML=OFF CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} python setup.py  bdist_wheel -d $WHEELHOUSE
+  BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} USE_LIGHTWEIGHT_DISPATCH=${USE_LIGHTWEIGHT_DISPATCH} STATIC_DISPATCH_BACKEND=${STATIC_DISPATCH_BACKEND} BUILD_LITE_INTERPRETER=${BUILD_LITE_INTERPRETER} BUILD_TEST=OFF USE_GLOO=OFF USE_MPS=OFF USE_PYTORCH_QNNPACK=OFF USE_OPENMP=OFF  USE_OBSERVERS=OFF USE_KINETO=OFF USE_EIGEN_FOR_BLAS=OFF CMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=${CXX_ABI}" USE_FBGEMM=OFF USE_NCCL=OFF INTERN_DISABLE_ONNX=OFF USE_CUDA=OFF USE_MKL=OFF USE_XNNPACK=OFF USE_DISTRIBUTED=OFF USE_BREAKPAD=OFF USE_MKLDNN=OFF USE_QNNPACK=OFF USE_NNPACK=OFF ONNX_ML=OFF CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} python setup.py  bdist_wheel -d "$WHEELHOUSE"
 }
 
 package_pytorch() {
@@ -146,11 +143,11 @@ package_pytorch() {
   mv build/include/*            libtorch/include/
 
   echo "${PYTORCH_BUILD_VERSION}" > libtorch/build-version
-  echo "$(pushd $PYTORCH_ROOT && git rev-parse HEAD)" > libtorch/build-hash
+  (pushd "$PYTORCH_ROOT" && git rev-parse HEAD) > libtorch/build-hash
   echo "Installing libtorch in ${PYTORCH_ROOT}/../../"
   echo "deleteing old ${PYTORCH_ROOT}/../../libtorch"
-  rm -rf ${PYTORCH_ROOT}/../../libtorch
-  mv libtorch ${PYTORCH_ROOT}/../../
+  rm -rf "${PYTORCH_ROOT}"/../../libtorch
+  mv libtorch "${PYTORCH_ROOT}"/../../
 }
 
 #main

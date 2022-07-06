@@ -81,7 +81,11 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
       LIBTORCH_VARIANT=${LIBTORCH_VARIANT}
       CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
       ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+      RESULT_VARIABLE _result
   )
+  if(_result)
+    message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
+  endif()
   set(TORCH_INSTALL_PREFIX "libtorch")
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
   add_subdirectory(torch_mlir_e2e_test)

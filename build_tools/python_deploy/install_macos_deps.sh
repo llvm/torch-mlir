@@ -11,7 +11,7 @@
 # Usage:
 #   sudo install_macos_deps.sh
 
-set -e -o pipefail
+set -eu -o pipefail
 
 if [[ "$(whoami)" != "root" ]]; then
   echo "ERROR: Must setup deps as root"
@@ -37,11 +37,11 @@ for python_spec in $PYTHON_SPECS; do
 
   # Install Python.
   if ! [ -x "$python_exe" ]; then
-    package_basename="$(basename $url)"
+    package_basename="$(basename "$url")"
     download_path="/tmp/torch_mlir_python_install/$package_basename"
-    mkdir -p "$(dirname $download_path)"
+    mkdir -p "$(dirname "$download_path")"
     echo "Downloading $url -> $download_path"
-    curl $url -o "$download_path"
+    curl "$url" -o "$download_path"
 
     echo "Installing $download_path"
     installer -pkg "$download_path" -target /
