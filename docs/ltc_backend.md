@@ -134,6 +134,8 @@ previously registered in `RegisterLazy.cpp`.
 Next, `LazyNativeFunctions::tanh` from `LazyNativeFunctions.cpp` is called, which triggers the creation of a `Tanh` node, which is a subclass of `TorchMlirNode` and `torch::lazy::Node`, defined in `LazyIr.h`.
 These nodes are then tracked internally by LTC as the computation graph is traced out.
 
+![Tracing Tensors](ltc_images/tracing_tensors.jpg)
+
 ### Syncing Tensors (Base Torch-MLIR LTC Backend)
 
 At some point, the tensors will be synced in order to execute the computation -- either explicitly via `mark_step`, or implicitly through some operation that requires the contents of the tensors (e.g. printing to console).
@@ -146,12 +148,17 @@ This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` somewhere in t
 creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s are lowered to JIT via `mlir_node_lowering.cpp` and inserted into a `jit::Graph`.
 
 Next, `TorchMlirLoweringContext::Build` is executed and the final `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate MLIR using the existing infrastructure from Torch-MLIR.
+At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`.
+
+![Syncing Tensors](ltc_images/syncing_tensors.jpg)
 
 ### Final Compilation and Execution (Vendor Specific Custom Backend)
 
-At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`, which gets handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
+The `TorchMlirComputation` handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
 
 Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteComputation` to be executed on the vendor device, which produces some results to be send back to PyTorch.
+
+![Vendor Execution](ltc_images/vendor_execution.jpg)
 
 ## Implementing a custom backend
 
