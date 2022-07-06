@@ -154,7 +154,7 @@ At this point, a `TorchMlirComputation` is created containing the final `mlir::O
 
 ### Final Compilation and Execution
 
-The `TorchMlirComputation` handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
+The `TorchMlirComputation` is handed off to the vendor specific implementation of `TorchMlirBackendImpl::Compile` in preparation for execution on the vendor device.
 
 Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteComputation` to be executed on the vendor device, which produces some results to be send back to PyTorch.
 
