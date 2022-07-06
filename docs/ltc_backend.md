@@ -1,5 +1,11 @@
 # Torch-MLIR Lazy Tensor Core Backend
 
+## Table of Contents
+- [Introduction](#introduction)
+- [Code Structure](#code-structure)
+- [Architecture](#architecture)
+- [Implementing a custom backend](#implementing-a-custom-backend)
+
 ## Introduction
 [Lazy Tensor Core](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/tutorial.md) is a tracing system in PyTorch which is supported as an entry point to Torch-MLIR.
 After registering an LTC backend, all operations performed on lazy tensors are recorded and handed off to the backend implementation.
@@ -112,4 +118,34 @@ Generated files are created in this directory, which is ignored by version contr
 
 ## Architecture
 
+The journey begins with an LTC tensor in PyTorch, which may undergo a number of operations during its lifetime.
+```python
+>>> ltc_backend._initialize()
+>>> x = torch.tensor(..., device='lazy')
+>>> y = torch.tanh(x)
+...
+```
+The call to `torch.tanh` triggers a chain of events. PyTorch checks the dispatch table under the `lazy` key and finds the kernel for `tanh`
+previously registered in `RegisterLazy.cpp`.
+
+Next, `LazyNativeFunctions::tanh` from `LazyNativeFunctions.cpp` is called, which triggers the creation of a `Tanh` node (subclass of `TorchMlirNode` and `torch::lazy::Node`) -- defined in `LazyIr.h`.
+These nodes are then stored internally by LTC as the computation graph is traced out.
+
+At some point, the tensors will be synced in order to execute the computation -- either explicitly via `mark_step`, or implicitly through some operation that requires the contents of the tensors (e.g. printing to console).
+
+```python
+>>> torch._lazy.mark_step()
+```
+
+This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` in LTC, which collects all the `TorchMlirNode`s (technically `torch::lazy::Node`s at this point) from the current trace and 
+creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s are lowered to JIT via `mlir_node_lowering.cpp` and inserted into a `jit::Graph`.
+
+Next, `TorchMlirLoweringContext::Build` is executed and the `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate the MLIR using existing infrastructure from Torch MLIR.
+
+At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`, which gets handed off to the final implementation of `TorchMlirBackendImpl::Compile`, which is vendor specific, for additional mutations.
+
+Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteComputation` to be executed on the vendor device, which produces some results to be send back to PyTorch.
+
 ## Implementing a custom backend
+
+TODO
