@@ -2063,6 +2063,28 @@ def DetachModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LenStrModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.str = "test"
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ops.aten.len(self.str)
+
+
+@register_test_case(module_factory=lambda: LenStrModule())
+def LenStrModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class ScalarImplicitFloatModule(torch.nn.Module):
 
     def __init__(self):

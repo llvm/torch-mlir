@@ -457,6 +457,24 @@ func.func @torch.aten.eq.str$same_value() -> !torch.bool {
   return %2 : !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.aten.len.str() -> !torch.int {
+// CHECK:           %[[INT7:.*]] = torch.constant.int 7
+// CHECK:           return %[[INT7]] : !torch.int
+func.func @torch.aten.len.str() -> !torch.int {
+  %str = torch.constant.str "example"
+  %2 = torch.aten.len.str %str : !torch.str -> !torch.int
+  return %2 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.len.str$empty() -> !torch.int {
+// CHECK:           %[[INT0:.*]] = torch.constant.int 0
+// CHECK:           return %[[INT0]] : !torch.int
+func.func @torch.aten.len.str$empty() -> !torch.int {
+  %str = torch.constant.str ""
+  %2 = torch.aten.len.str %str : !torch.str -> !torch.int
+  return %2 : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__not__
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
