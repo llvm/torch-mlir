@@ -884,6 +884,15 @@ func.func @torch.aten.remainder.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.prim.dtype$bfloat16(
+// CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,bf16>) -> !torch.int {
+// CHECK:           %[[CST:.*]] = torch.constant.int 15
+// CHECK:           return %[[CST]] : !torch.int
+func.func @torch.prim.dtype$bfloat16(%t : !torch.tensor<*,bf16>) -> !torch.int {
+    %ret = torch.prim.dtype %t: !torch.tensor<*,bf16> -> !torch.int
+    return %ret : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.prim.dtype$float(
 // CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,f32>) -> !torch.int {
 // CHECK:           %[[CST:.*]] = torch.constant.int 6

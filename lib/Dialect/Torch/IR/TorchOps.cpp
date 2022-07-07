@@ -29,6 +29,9 @@ static int64_t getDtypeIntegerFromMlirType(Type dtype) {
   if (dtype.isa<Float32Type>())
     return 6;
 
+  if (dtype.isa<BFloat16Type>())
+    return 15;
+
   if (auto integerType = dtype.dyn_cast<IntegerType>()) {
     if (integerType.isSignedInteger(64))
       return 4;
