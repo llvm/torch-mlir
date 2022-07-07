@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Introduction](#introduction)
+- [Demo](#demo)
 - [Code Structure](#code-structure)
 - [Architecture](#architecture)
 - [Implementing a custom backend](#implementing-a-custom-backend)
@@ -15,6 +16,7 @@ LTC support is provided through an abstract [`TorchMlirBackendImpl`](../python/t
 Implementations based on this abstract class will be able to specify their own compile and execution workflows.
 Additional details about how to implement a custom backend is available [below](#Implementing-a-custom-backend).
 
+## Demo
 ### Example Usage
 ```python
 import torch

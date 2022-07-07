@@ -72,7 +72,7 @@ torch-mlir prediction
 
 ### Lazy Tensor Core
 
-Read more details [here](docs/ltc_backend.md).
+Read more details [here](docs/ltc_backend.md#demo).
 
 ### Eager Mode
 
