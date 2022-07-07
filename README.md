@@ -26,9 +26,8 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
  - TorchScript
     This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
- - LazyTensorCore (Based on the PyTorch [`lazy_tensor_staging` branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
-	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing `torch/xla` derivatives.
-
+ - LazyTensorCore
+    Read more details [here](docs/ltc_backend.md).
 ## Project Communication
 
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
@@ -71,11 +70,9 @@ torch-mlir prediction
 [('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
 ```
 
-### LazyTensorCore
+### Lazy Tensor Core
 
-Lazy Tensor Core support is provided through an abstract [`TorchMlirBackendImpl`](python/torch_mlir/csrc/base_lazy_backend/backend_impl.h) class. An example implementation is available [here](examples/ltc_backend/ltc_backend).
-
-There are also examples of a [HuggingFace BERT](examples/ltc_backend_bert.py) and [MNIST model](examples/ltc_backend_mnist.py) running on the example/reference LTC backend.
+View examples [here](docs/ltc_examples.md).
 
 ### Eager Mode
 
