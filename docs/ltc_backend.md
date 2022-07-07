@@ -149,7 +149,7 @@ This triggers a call to `LazyGraphExecutor::SyncLiveTensorsGraph` somewhere in t
 creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s are lowered to JIT via `mlir_node_lowering.cpp` and inserted into a `jit::Graph`.
 
 Next, `TorchMlirLoweringContext::Build` is executed and the final `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate MLIR using the existing infrastructure from Torch-MLIR.
-At this point, a `TorchMlirComputation` is created containing the final `mlir::Operation`.
+At this point, a `TorchMlirComputation` is created containing the final `mlir::FuncOp`.
 
 ![Syncing Tensors](ltc_images/syncing_tensors.jpg)
 
