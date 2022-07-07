@@ -65,7 +65,7 @@ Generated files are created in this directory, which is ignored by version contr
 - `examples/ltc_backend/ltc_backend/csrc/backend/backend_impl.{cpp,h}`
   - Example Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
 - `examples/ltc_backend/ltc_backend/csrc/example_mlir_backend_pybind.cpp`
-  - PyBind for example Torch-MLIR LTC backend
+  - pybind for example Torch-MLIR LTC backend
 - `ltc_backend_bert.py`
   - Example HuggingFace BERT model traced by LTC to MLIR
 - `ltc_backend_mnist.py`
