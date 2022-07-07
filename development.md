@@ -230,10 +230,10 @@ skew in your tests like (https://github.com/llvm/torch-mlir/issues/1007). If you
 ```
 rm -rf libtorch* # note the asterisk after libtorch, since there is also a .zip file that needs to be removed
 rm -rf build/   
-python -m pip install -r requirements.txt --upgrade to get the latest pytorch 
+python -m pip install -r requirements.txt --upgrade # to get the latest pytorch 
 # Then rebuild and test torch-mlir
 ```
-We expect this to be fixed once we take on a dependency on PyTorch and build it from source. That work is being tracked in [this](https://github.com/llvm/torch-mlir/tree/release-src-build) branch
+We expect this to be fixed once we take on a dependency on PyTorch and build it from source. That work is being tracked in [this](https://github.com/llvm/torch-mlir/tree/release-src-build) branch.
 
 # Updating the LLVM submodule
 
