@@ -231,6 +231,19 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
+def DecomposeComplexOpsEarly : Pass<"torch-decompose-complex-ops-early", "func::FuncOp"> {
+  let summary = "Decompose complicated torch operations before shape inference";
+  let constructor = "mlir::torch::Torch::createDecomposeComplexOpsEarlyPass()";
+  let description = [{
+    Decompose torch operation that are losslessly represented as combinations of
+    other operations, modulo appropropriate compiler fusion before shape inference.
+
+    An example of the transformations done in this pass is:
+    - convert aten.softmax to softmax(x, dim)
+            => tmp=exp(x); tmp / sum(tmp, dim, keepdim=True)
+  }];
+}
+
 def ReifyShapeCalculations : Pass<"torch-reify-shape-calculations", "ModuleOp"> {
   let summary = "Decompose complicated torch operations";
   let constructor = "mlir::torch::Torch::createReifyShapeCalculationsPass()";
