@@ -1315,11 +1315,11 @@ public:
                 matmulLhs, matmulRhs)
             .getResult();
 
-    // Perform the reshape to output shape. This is always required unless both
-    // inputs are rank=3, in which case the tosa.matmul output itself is
+    // Perform the reshape to output shape. This is always required unless max
+    // input rank=3 and there was no broadcasting, in which case the tosa.matmul output itself is
     // correctly shaped.
     bool performOpReshape =
-        !(lhsRank == 3 && rhsRank == 3 && lhsShape[0] == rhsShape[0]);
+        !(maxInputRank == 3 && !performBatchDimBroadcast);
 
     if (performOpReshape) {
       // Since the output shape may be unknown, we construct it
