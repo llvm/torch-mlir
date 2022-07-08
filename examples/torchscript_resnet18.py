@@ -67,7 +67,7 @@ labels = load_labels()
 
 resnet18 = models.resnet18(pretrained=True)
 resnet18.train(False)
-module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type=torch_mlir.OutputType.LINALG_ON_TENSORS)
+module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="linalg-on-tensors")
 backend = refbackend.RefBackendLinalgOnTensorsBackend()
 compiled = backend.compile(module)
 jit_module = backend.load(compiled)
