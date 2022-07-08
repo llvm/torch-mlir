@@ -120,13 +120,34 @@ func.func @torch.tensor.literal() -> !torch.tensor {
 // CHECK-SAME:         (!torch.tensor<[2,3],si64>) -> !torch.list<optional<tensor<[2,3],si64>>>
 // CHECK:           %[[SELF_VTENSOR:.*]] = torch.copy.to_vtensor %[[SELF]] : !torch.vtensor<[5],f32>
 // CHECK:           %[[INDICES_VTENSOR:.*]] = torch.copy.to_vtensor %[[INDICES]] : !torch.vtensor<[2,3],si64>
-// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDICES_VTENSOR]] : (!torch.vtensor<[2,3],si64>) -> !torch.list<vtensor<[2,3],si64>>
-// CHECK:           %[[VRET:.*]] = torch.aten.index.Tensor %[[SELF_VTENSOR]], %[[INDICES_LIST]] : !torch.vtensor<[5],f32>, !torch.list<vtensor<[2,3],si64>> -> !torch.vtensor
+// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDICES_VTENSOR]] : (!torch.vtensor<[2,3],si64>) -> !torch.list<optional<vtensor<[2,3],si64>>>
+// CHECK:           %[[VRET:.*]] = torch.aten.index.Tensor %[[SELF_VTENSOR]], %[[INDICES_LIST]] : !torch.vtensor<[5],f32>, !torch.list<optional<vtensor<[2,3],si64>>> -> !torch.vtensor
 // CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
 // CHECK:           return %[[RET]] : !torch.tensor
 func.func @convert_to_value_semantic_tensors_optional_list(%self: !torch.tensor<[5],f32>, %indices: !torch.tensor<[2,3],si64>) -> !torch.tensor {
   %tensor_optional_list = torch.prim.ListConstruct %indices : (!torch.tensor<[2,3],si64>) -> !torch.list<optional<tensor<[2,3],si64>>>
   %ret = torch.aten.index.Tensor %self, %tensor_optional_list : !torch.tensor<[5],f32>, !torch.list<optional<tensor<[2,3],si64>>> -> !torch.tensor
+  return %ret : !torch.tensor
+}
+
+// CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_optional_list_nones_and_tensors(
+// CHECK-SAME:         %[[SELF:.*]]: !torch.tensor<[5],f32>,
+// CHECK-SAME:         %[[INDICES_0:.*]]: !torch.tensor<[2,3],si64>,
+// CHECK-SAME:         %[[INDICES_1:.*]]: !torch.tensor<[3],si64>) -> !torch.tensor {
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[INDICES_OPTIONAL_LIST:.*]] = torch.prim.ListConstruct %[[NONE]], %[[INDICES_0]], %[[INDICES_1]] :
+// CHECK-SAME:         (!torch.none, !torch.tensor<[2,3],si64>, !torch.tensor<[3],si64>) -> !torch.list<optional<tensor>>
+// CHECK:           %[[SELF_VTENSOR:.*]] = torch.copy.to_vtensor %[[SELF]] : !torch.vtensor<[5],f32>
+// CHECK:           %[[INDICES_VTENSOR_0:.*]] = torch.copy.to_vtensor %[[INDICES_0]] : !torch.vtensor<[2,3],si64>
+// CHECK:           %[[INDICES_VTENSOR_1:.*]] = torch.copy.to_vtensor %[[INDICES_1]] : !torch.vtensor<[3],si64>
+// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[NONE]], %[[INDICES_VTENSOR_0]], %[[INDICES_VTENSOR_1]] : (!torch.none, !torch.vtensor<[2,3],si64>, !torch.vtensor<[3],si64>) -> !torch.list<optional<vtensor>>
+// CHECK:           %[[VRET:.*]] = torch.aten.index.Tensor %[[SELF_VTENSOR]], %[[INDICES_LIST]] : !torch.vtensor<[5],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor
+// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
+// CHECK:           return %[[RET]] : !torch.tensor
+func.func @convert_to_value_semantic_tensors_optional_list_nones_and_tensors(%self: !torch.tensor<[5],f32>, %indices0: !torch.tensor<[2,3],si64>, %indices1: !torch.tensor<[3],si64>) -> !torch.tensor {
+  %none = torch.constant.none
+  %tensor_optional_list = torch.prim.ListConstruct %none, %indices0, %indices1 : (!torch.none, !torch.tensor<[2,3],si64>, !torch.tensor<[3],si64>) -> !torch.list<optional<tensor>>
+  %ret = torch.aten.index.Tensor %self, %tensor_optional_list : !torch.tensor<[5],f32>, !torch.list<optional<tensor>> -> !torch.tensor
   return %ret : !torch.tensor
 }
 
@@ -184,9 +205,9 @@ func.func @torch.aten.fill_.Scalar(%t: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[INDICES_OPTIONAL_LIST:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.tensor) -> !torch.list<optional<tensor>>
 // CHECK:           %[[SELF_VTENSOR:.*]] = torch.copy.to_vtensor %[[SELF]] : !torch.vtensor
 // CHECK:           %[[INDEX_VTENSOR:.*]] = torch.copy.to_vtensor %[[INDEX]] : !torch.vtensor
-// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDEX_VTENSOR]] : (!torch.vtensor) -> !torch.list<vtensor>
+// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDEX_VTENSOR]] : (!torch.vtensor) -> !torch.list<optional<vtensor>>
 // CHECK:           %[[VALUES_VTENSOR:.*]] = torch.copy.to_vtensor %[[VALUES]] : !torch.vtensor
-// CHECK:           %[[VRET:.*]] = torch.valsem.aten.index_put_impl %[[SELF_VTENSOR]], %[[INDICES_LIST]], %[[VALUES_VTENSOR]], %[[TRUE]], %[[FALSE]] : !torch.vtensor, !torch.list<vtensor>, !torch.vtensor, !torch.bool, !torch.bool -> !torch.vtensor
+// CHECK:           %[[VRET:.*]] = torch.valsem.aten.index_put_impl %[[SELF_VTENSOR]], %[[INDICES_LIST]], %[[VALUES_VTENSOR]], %[[TRUE]], %[[FALSE]] : !torch.vtensor, !torch.list<optional<vtensor>>, !torch.vtensor, !torch.bool, !torch.bool -> !torch.vtensor
 // CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
 // CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
 // CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[SELF]] : !torch.vtensor, !torch.tensor

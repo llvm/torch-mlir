@@ -36,6 +36,22 @@ static void createOverwriteTensorContents(PatternRewriter &rewriter,
                                              overwrittenTensor);
 }
 
+static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
+  if (auto optionalType = type.dyn_cast<OptionalType>()) {
+    Type newContainedType = getContainerOrTensorTypeWithValueSemantics(
+        optionalType.getContainedType());
+    return OptionalType::get(newContainedType);
+  } else if (auto listType = type.dyn_cast<ListType>()) {
+    Type newContainedType =
+        getContainerOrTensorTypeWithValueSemantics(listType.getContainedType());
+    return ListType::get(newContainedType);
+  } else if (auto tensorType = type.dyn_cast<NonValueTensorType>()) {
+    return tensorType.getWithValueSemantics();
+  } else {
+    return nullptr;
+  }
+}
+
 namespace {
 // Convert value semantic ops operating on mutable arrays to instead operate on
 // immutable tensors.
@@ -76,23 +92,35 @@ public:
           continue;
 
         // TODO: Handle optional type in list type.
-        if (listType.getContainedType().isa<OptionalType>()) {
+        if (auto optionalType =
+                listType.getContainedType().dyn_cast<OptionalType>()) {
           if (!llvm::all_of(listConstruct.elements(), [](Value val) {
-                return val.getType().isa<NonValueTensorType>();
-              }))
+                return val.getType().isa<NonValueTensorType, Torch::NoneType>();
+              })) {
+            rewriter.cancelRootUpdate(op);
             return rewriter.notifyMatchFailure(
                 op, "unimplemented: list containing optional type is not "
                     "handled.");
+          }
         }
 
-        auto newListElements = llvm::to_vector<4>(llvm::map_range(
+        auto newListElements = llvm::to_vector(llvm::map_range(
             listConstruct.elements(), [&](Value tensor) -> Value {
-              return rewriter.create<CopyToValueTensorOp>(op->getLoc(), tensor);
+              if (tensor.getType().isa<NonValueTensorType>()) {
+                return rewriter.create<CopyToValueTensorOp>(op->getLoc(),
+                                                            tensor);
+              }
+              return tensor;
             }));
+
+        Type newListType = getContainerOrTensorTypeWithValueSemantics(listType);
+        if (!newListType) {
+          rewriter.cancelRootUpdate(op);
+          return rewriter.notifyMatchFailure(
+              op, "Unable to convert list type to value semantics.");
+        }
         opOperand.set(rewriter.create<PrimListConstructOp>(
-            op->getLoc(),
-            Torch::ListType::get(newListElements.front().getType()),
-            newListElements));
+            op->getLoc(), newListType, newListElements));
       } else if (auto optionalType = operandType.dyn_cast<OptionalType>()) {
         // TODO: A more general way to handle the optional type is to
         // introduce a `copy.to_optional_vtensor` op.
