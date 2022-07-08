@@ -18,21 +18,50 @@ class OutputType(Enum):
 
     In MLIR terminology, this describes the mix of dialects that will be
     produced by the conversion process.
+
+    In user-facing API's, this type can always be passed interchangeably with an
+    appropriate string specifying the output type. The allowed strings are
+    the set of enum vales, allowed to be case insensitive and with `-` allowed
+    in place of `_`. The `OutputType.get` static method can be used to convert
+    from a string to an `OutputType` instance.
     """
+
     # This output type consists of `torch` dialect ops that have been converted
     # maximally to value semantics, decomposed, and shapes have been inferred.
     TORCH = 0
+
     # This output type consists of `tosa` dialect ops. It can be thought of
     # as taking the `TORCH` output type and lowering it to TOSA.
     TOSA = 1
+
     # The output type contains a mix of `linalg`-on-tensors ops, `scf`, and
     # `arith` ops (and also `math` and `tm_tensor`). It can be thought of
     # as taking the `TORCH` output type and lowering it so that tensor
     # computations are done with `linalg`-on-tensors ops.
     LINALG_ON_TENSORS = 2
+
     # Raw output of the JIT IR importer. This is not expected to be useful
     # for end-users, but can be convenient for development or reporting bugs.
     RAW = 3
+
+    @staticmethod
+    def get(spec: Union[str, "OutputType"]) -> "OutputType":
+        """Gets an OutputType from allowed way to specify one.
+
+        Args:
+          spec: An OutputType instance or the case-insensitive name of one of the
+            enum values.
+        Returns:
+          An OutputType instance.
+        """
+        if isinstance(spec, OutputType):
+            return spec
+        spec = spec.upper().replace("-", "_")
+        if spec not in OutputType.__members__:
+            raise ValueError(f"For output_type= argument, expected one of: "
+                             f"{', '.join(OutputType.__members__.keys())}")
+        return OutputType[spec]
+
 
 
 class TensorPlaceholder:
@@ -88,7 +117,7 @@ _example_arg = Union[TensorPlaceholder, torch.Tensor]
 
 def compile(model: torch.nn.Module,
             example_args: Union[_example_arg, Sequence[_example_arg]],
-            output_type: OutputType = OutputType.TORCH,
+            output_type: Union[str, "OutputType"] = OutputType.TORCH,
             use_tracing=False):
     """Convert a PyTorch model to MLIR.
 
@@ -108,6 +137,7 @@ def compile(model: torch.nn.Module,
         An MLIR module that contains the converted model in the specified
         output type.
     """
+    output_type = OutputType.get(output_type)
 
     # Special case -- many models have just one input, so canonicalize a single
     # tensor to a list of a single tensor to make the API more ergonomic.
