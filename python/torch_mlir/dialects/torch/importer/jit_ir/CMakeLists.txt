@@ -4,12 +4,13 @@
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(TorchMLIRPyTorch)
-set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../libtorch/share/cmake/Torch")
 
 option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
 
 if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
   TorchMLIRProbeForPyTorchInstall()
+else()  
+  set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../libtorch/share/cmake/Torch")
 endif()
 
 find_package(Torch 1.11 REQUIRED)
