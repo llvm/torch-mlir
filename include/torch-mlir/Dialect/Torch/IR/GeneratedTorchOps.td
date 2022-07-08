@@ -3146,6 +3146,41 @@ def Torch_AtenConvolutionOverrideableOp : Torch_Op<"aten.convolution_overrideabl
   }];
 }
 
+def Torch_Aten_ConvolutionOp : Torch_Op<"aten._convolution", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_convolution : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int, bool, bool, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchListOfTorchIntType:$stride,
+    AnyTorchListOfTorchIntType:$padding,
+    AnyTorchListOfTorchIntType:$dilation,
+    Torch_BoolType:$transposed,
+    AnyTorchListOfTorchIntType:$output_padding,
+    Torch_IntType:$groups,
+    Torch_BoolType:$benchmark,
+    Torch_BoolType:$deterministic,
+    Torch_BoolType:$cudnn_enabled,
+    Torch_BoolType:$allow_tf32
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ConvolutionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 13, 1);
+    }
+    void Aten_ConvolutionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 13, 1);
+    }
+  }];
+}
+
 def Torch_AtenFlipOp : Torch_Op<"aten.flip", [
     AllowsTypeRefinement,
     HasValueSemantics,

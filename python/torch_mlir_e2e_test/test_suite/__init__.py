@@ -11,8 +11,8 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "TableBatchEmbeddingModule_basic",
     "MobilenetV2Module_basic",
     "MobilenetV3Module_basic",
-    "ConvolutionModule3D_basic",
-    "ConvolutionModule1D_basic",
+    "Convolution3DModule_basic",
+    "Convolution1DModule_basic",
     "MaxPool2dWith3dInputModule_basic",
     "MaxPool2dWithIndicesWith3dInputModule_basic",
 }

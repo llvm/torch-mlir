@@ -691,7 +691,7 @@ ChangeResult TypeAnalyzer::visitOperation(
 
   // Promote the two dtypes assuming non-zero rank.
   if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          AtenConvolutionOverrideableOp>(op)) {
+          Aten_ConvolutionOp, AtenConvolutionOverrideableOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultTypeAssumingNonZeroRank(
