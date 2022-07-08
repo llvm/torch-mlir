@@ -153,7 +153,7 @@ TOSA_PASS_SET = {
     "GeluBackwardModule_basic",
     "ElementwiseNeIntScalarModule_basic",
     "ElementwiseNeFloatTensorModule_basic",
-    "ConvolutionModule2DStatic_basic",
+    "Convolution2DStaticModule_basic",
     "ElementwiseNegModule_basic",
     "TestMultipleTensorReturn_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",

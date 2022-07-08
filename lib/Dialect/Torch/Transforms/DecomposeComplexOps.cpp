@@ -890,6 +890,25 @@ public:
 };
 } // namespace
 
+// Decompose aten.convolution_overrideable to aten.convolution
+namespace {
+class DecomposeAten_ConvolutionOp
+    : public OpRewritePattern<Aten_ConvolutionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_ConvolutionOp op,
+                                PatternRewriter &rewriter) const override {
+
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.input(), op.weight(), op.bias(),
+        op.stride(), op.padding(), op.dilation(), op.transposed(),
+        op.output_padding(), op.groups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.conv2d to aten.convolution
 namespace {
 class DecomposeAtenConv2dOp : public OpRewritePattern<AtenConv2dOp> {
@@ -2176,6 +2195,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
     target.addIllegalOp<AtenConvolutionOverrideableOp>();
     patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
+    target.addIllegalOp<Aten_ConvolutionOp>();
+    patterns.add<DecomposeAten_ConvolutionOp>(context);
     target.addIllegalOp<AtenConv2dOp>();
     patterns.add<DecomposeAtenConv2dOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);

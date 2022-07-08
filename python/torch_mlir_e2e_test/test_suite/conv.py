@@ -136,7 +136,7 @@ def Conv2dWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ConvolutionModule1D(torch.nn.Module):
+class Convolution1DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -157,11 +157,11 @@ class ConvolutionModule1D(torch.nn.Module):
                                            output_padding=[0],
                                            groups=1)
 
-@register_test_case(module_factory=lambda: ConvolutionModule1D())
-def ConvolutionModule1D_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution1DModule())
+def Convolution1DModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10), torch.randn(3, 3, 2))
 
-class ConvolutionModule2D(torch.nn.Module):
+class Convolution2DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -182,11 +182,11 @@ class ConvolutionModule2D(torch.nn.Module):
                                           output_padding=[0, 0],
                                           groups=1)
 
-@register_test_case(module_factory=lambda: ConvolutionModule2D())
-def ConvolutionModule2D_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution2DModule())
+def Convolution2DModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class ConvolutionModule3D(torch.nn.Module):
+class Convolution3DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -207,11 +207,11 @@ class ConvolutionModule3D(torch.nn.Module):
                                            output_padding=[0, 0, 0],
                                            groups=1)
 
-@register_test_case(module_factory=lambda: ConvolutionModule3D())
-def ConvolutionModule3D_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution3DModule())
+def Convolution3DModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10, 10), torch.randn(3, 3, 2, 2, 2))
 
-class ConvolutionModule2DStatic(torch.nn.Module):
+class Convolution2DStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -232,11 +232,11 @@ class ConvolutionModule2DStatic(torch.nn.Module):
                                           output_padding=[0, 0],
                                           groups=1)
 
-@register_test_case(module_factory=lambda: ConvolutionModule2DStatic())
-def ConvolutionModule2DStatic_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution2DStaticModule())
+def Convolution2DStaticModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class ConvolutionModule2DStrided(torch.nn.Module):
+class Convolution2DStridedModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -257,6 +257,151 @@ class ConvolutionModule2DStrided(torch.nn.Module):
                                           output_padding=[0, 0],
                                           groups=1)
 
-@register_test_case(module_factory=lambda: ConvolutionModule2DStrided())
-def ConvolutionModule2DStrided_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution2DStridedModule())
+def Convolution2DStridedModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class _Convolution2DAllFalseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten._convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1,
+                                          benchmark=False,
+                                          deterministic=False,
+                                          cudnn_enabled=False,
+                                          allow_tf32=False)
+
+@register_test_case(module_factory=lambda: _Convolution2DAllFalseModule())
+def _Convolution2DAllFalseModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class _Convolution2DBenchmarkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten._convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1,
+                                          benchmark=True,
+                                          deterministic=False,
+                                          cudnn_enabled=False,
+                                          allow_tf32=False)
+
+@register_test_case(module_factory=lambda: _Convolution2DBenchmarkModule())
+def _Convolution2DBenchmarkModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class _Convolution2DDeterministicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten._convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1,
+                                          benchmark=False,
+                                          deterministic=True,
+                                          cudnn_enabled=False,
+                                          allow_tf32=False)
+
+@register_test_case(module_factory=lambda: _Convolution2DDeterministicModule())
+def _Convolution2DDeterministicModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class _Convolution2DCudnnModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten._convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1,
+                                          benchmark=False,
+                                          deterministic=False,
+                                          cudnn_enabled=True,
+                                          allow_tf32=False)
+
+@register_test_case(module_factory=lambda: _Convolution2DCudnnModule())
+def _Convolution2DCudnnModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class _Convolution2DTF32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten._convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=1,
+                                          benchmark=False,
+                                          deterministic=False,
+                                          cudnn_enabled=False,
+                                          allow_tf32=True)
+
+@register_test_case(module_factory=lambda: _Convolution2DTF32Module())
+def _Convolution2DTF32Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
