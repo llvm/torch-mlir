@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+import torch_mlir.reference_ltc_backend._REFERENCE_LTC_BACKEND as ltc_backend
 import torch
 from torch.utils._pytree import tree_map
 

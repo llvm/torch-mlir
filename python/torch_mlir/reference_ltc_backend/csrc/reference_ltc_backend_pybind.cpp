@@ -1,4 +1,4 @@
-//===- example_mlir_backend_pybind.cpp ------------------------------------===//
+//===- reference_ltc_backend_pybind.cpp ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -34,12 +34,12 @@ struct NoGilSection {
  * @brief Install the plugin
  */
 void Initialize() {
-  // Initialize the Example MLIR LTC Backend
-  torch::lazy::InitExampleMlirBackend();
+  // Initialize the reference MLIR LTC Backend
+  torch::lazy::InitReferenceLtcBackend();
 
   // sanity check
   const torch::lazy::BackendImplInterface *mlir_backend =
-      torch::lazy::GetExampleMlirBackendImpl();
+      torch::lazy::GetReferenceLtcBackendImpl();
   const torch::lazy::BackendImplInterface *lazy_backend =
       torch::lazy::getBackend();
   if (lazy_backend != mlir_backend) {
@@ -62,12 +62,12 @@ void Shutdown() {
 }
 } // anonymous namespace
 
-PYBIND11_MODULE(_EXAMPLE_MLIR_BACKEND, m) {
+PYBIND11_MODULE(_REFERENCE_LTC_BACKEND, m) {
   py::class_<torch::lazy::TorchMlirComputation>(m, "TorchMlirComputation")
       .def("to_string", &torch::lazy::TorchMlirComputation::to_string)
       .def("debug_string", &torch::lazy::TorchMlirComputation::debug_string);
 
-  m.doc() = ("pybind11 for example MLIR LTC backend.");
+  m.doc() = ("pybind11 for the reference MLIR LTC backend.");
   m.def("get_latest_computation", []() {
     auto computation = static_cast<torch::lazy::TorchMlirComputation *>(
         torch::lazy::GetLatestComputation().get());

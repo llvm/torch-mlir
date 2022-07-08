@@ -6,7 +6,7 @@ Refer to the main documentation [here](ltc_backend.md).
 ```python
 import torch
 import torch._lazy
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+import torch_mlir.reference_ltc_backend._REFERENCE_LTC_BACKEND as ltc_backend
 
 # Register the example LTC backend.
 ltc_backend._initialize()

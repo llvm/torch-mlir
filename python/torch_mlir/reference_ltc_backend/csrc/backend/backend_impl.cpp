@@ -25,8 +25,8 @@ using namespace torch::lazy;
 namespace torch {
 namespace lazy {
 
-struct ExampleMlirBackendDeviceType : public BackendDeviceType {
-  ExampleMlirBackendDeviceType(std::string device_type)
+struct ReferenceLtcBackendDeviceType : public BackendDeviceType {
+  ReferenceLtcBackendDeviceType(std::string device_type)
       : device_type_(device_type) {}
 
   std::string toString() const override { return device_type_; }
@@ -34,9 +34,9 @@ struct ExampleMlirBackendDeviceType : public BackendDeviceType {
   std::string device_type_;
 };
 
-class ExampleMlirBackendImpl : public torch::lazy::TorchMlirBackendImpl {
+class ReferenceLtcBackendImpl : public torch::lazy::TorchMlirBackendImpl {
 public:
-  ExampleMlirBackendImpl() : default_device_type_("Magic") {}
+  ReferenceLtcBackendImpl() : default_device_type_("Magic") {}
 
   /**
    * Configuration
@@ -80,7 +80,8 @@ public:
     // function, we will generate a list of BackendData that corresponds to the
     // return values in the MLIR.
 
-    auto mlir_computation = static_cast<TorchMlirComputation *>(computation.get());
+    auto mlir_computation =
+        static_cast<TorchMlirComputation *>(computation.get());
 
     // Vendor backend specific execution can be inserted here.
     //
@@ -128,7 +129,7 @@ public:
   }
 
   void SetDefaultDeviceType(std::string device_type) {
-    default_device_type_ = ExampleMlirBackendDeviceType(device_type);
+    default_device_type_ = ReferenceLtcBackendDeviceType(device_type);
   }
 
   /**
@@ -146,19 +147,19 @@ public:
   }
 
 private:
-  ExampleMlirBackendDeviceType default_device_type_;
+  ReferenceLtcBackendDeviceType default_device_type_;
 };
 
-BackendImplInterface *GetExampleMlirBackendImpl() {
-  static ExampleMlirBackendImpl *example_mlir_backend_impl =
-      new ExampleMlirBackendImpl();
-  return example_mlir_backend_impl;
+BackendImplInterface *GetReferenceLtcBackendImpl() {
+  static ReferenceLtcBackendImpl *reference_ltc_backend_impl =
+      new ReferenceLtcBackendImpl();
+  return reference_ltc_backend_impl;
 }
 
-void InitExampleMlirBackend() {
+void InitReferenceLtcBackend() {
   at::RegisterTorchMlirLazyNativeFunctions();
   static std::unique_ptr<BackendRegistrar> g_registrar;
-  g_registrar.reset(new BackendRegistrar(GetExampleMlirBackendImpl()));
+  g_registrar.reset(new BackendRegistrar(GetReferenceLtcBackendImpl()));
 }
 
 ComputationPtr &GetLatestComputation() {

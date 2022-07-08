@@ -61,6 +61,7 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 ################################################################################
 
 add_subdirectory(torch_mlir/csrc)
+add_subdirectory(torch_mlir/reference_ltc_backend)
 
 ################################################################################
 # Optionally handle JIT IR importer.
@@ -164,4 +165,3 @@ endif()
 add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
 
 add_subdirectory(test)
-
