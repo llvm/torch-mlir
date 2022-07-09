@@ -819,14 +819,55 @@ void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 // AtenSizeOp
 //===----------------------------------------------------------------------===//
 
+// Traces at most 6 parents of `value` to determine the tensor type with known
+// dimension size or returns failure if such a type was not found.  If `dim` is
+// `None`, then all dimension's sizes must be known.
+static FailureOr<BaseTensorType>
+traceKnownSizeTensorType(Value value, llvm::Optional<int64_t> dim) {
+  // Function to check if we found a type that contains the queried information.
+  auto foundType = [](BaseTensorType tensorType, llvm::Optional<int64_t>(dim)) {
+    if (!tensorType.hasSizes())
+      return false;
+
+    if (dim == llvm::None)
+      return tensorType.areAllSizesKnown();
+
+    // If the dimension value is negative, then convert it to a positive value.
+    ArrayRef<int64_t> sizes = tensorType.getSizes();
+    *dim = toPositiveDim(*dim, sizes.size());
+    return isValidDim(*dim, sizes.size()) && sizes[*dim] != kUnknownSize;
+  };
+
+  // Limit the loop count to 6 to avoid indefinite compilation times from
+  // unbounded IR traversals.
+  for (auto idx = 0; idx < 6; ++idx) {
+    if (!value || !value.getType().isa<BaseTensorType>())
+      return failure();
+
+    auto tensorType = value.getType().cast<BaseTensorType>();
+    if (foundType(tensorType, dim))
+      return tensorType;
+
+    auto op = value.getDefiningOp();
+    if (!op || !isa<CopyToValueTensorOp, CopyToNonValueTensorOp,
+                    TensorStaticInfoCastOp>(op))
+      return failure();
+
+    // In all ops of interest to us, the source tensor is operand #0.
+    value = op->getOperand(0);
+  }
+
+  return failure();
+}
+
 void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
-    auto type = op.getOperand().getType().dyn_cast<BaseTensorType>();
-    if (!type || !type.areAllSizesKnown())
+    auto type = traceKnownSizeTensorType(op.getOperand(), llvm::None);
+    if (failed(type))
       return rewriter.notifyMatchFailure(op, "all sizes not known");
     SmallVector<Value> listElements;
-    for (int64_t size : type.getSizes()) {
+    for (int64_t size : type->getSizes()) {
       listElements.push_back(rewriter.create<Torch::ConstantIntOp>(
           op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
@@ -853,18 +894,15 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSizeIntOp::fold(ArrayRef<Attribute> operands) {
-  auto type = getOperand(0).getType().dyn_cast<BaseTensorType>();
-  if (!type || !type.hasSizes())
+  int64_t dim;
+  if (!matchPattern(this->dim(), m_TorchConstantInt(&dim)))
     return nullptr;
-
-  llvm::Optional<int64_t> dimOpt = matchLegalConstantIndexIntoListOfSize(
-      this->dim(), type.getSizes().size());
-  if (!dimOpt)
+  auto type = traceKnownSizeTensorType(this->self(), dim);
+  if (failed(type))
     return nullptr;
-  if (type.getSizes()[*dimOpt] == kUnknownSize)
-    return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 64),
-                          type.getSizes()[*dimOpt]);
+  ArrayRef<int64_t> sizes = type->getSizes();
+  dim = toPositiveDim(dim, sizes.size());
+  return IntegerAttr::get(IntegerType::get(getContext(), 64), sizes[dim]);
 }
 
 //===----------------------------------------------------------------------===//
