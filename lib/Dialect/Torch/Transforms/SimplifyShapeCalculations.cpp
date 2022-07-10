@@ -350,7 +350,7 @@ static void refineShapeCalculateResult(ShapeCalculateOp op, int resultNum,
   // a TensorStaticInfoCastOp for any users that might require the exact
   // previous type.
   Value originalTypedValue;
-  for (OpOperand &use : result.getUses()) {
+  for (OpOperand &use : llvm::make_early_inc_range(result.getUses())) {
     if (use.getOwner()
             ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
       continue;
