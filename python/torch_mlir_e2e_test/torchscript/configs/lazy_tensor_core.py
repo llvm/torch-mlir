@@ -23,12 +23,33 @@ class LazyTensorCoreTestConfig(TestConfig):
 
         for item in trace:
             # We need to move all the inputs to the lazy device before running in LTC.
-            lazy_inputs = [arg.to('lazy') for arg in item.inputs]
+            lazy_inputs = to_device(item.inputs, device='lazy')
             output = getattr(artifact, item.symbol)(*lazy_inputs)
+            cpu_outputs = to_device(output, device='cpu')
 
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
-                          output=output.to('cpu')))
+                          output=cpu_outputs))
 
         return result
+
+
+def to_device(value, device):
+    """
+    Recursively move Tensor values wrapped in a TorchScriptValue to a new device.
+
+    :param value: TorchScriptValue to move to to new device.
+    :param device: device to move to.
+    :return:
+    """
+
+    # It's possible for the output to be non-tensor, so we need to check first.
+    if isinstance(value, (list, tuple)):
+        return type(value)(to_device(v, device) for v in value)
+    elif isinstance(value, dict):
+        return {to_device(k, device): to_device(v, device) for k, v in value.items()}
+    elif isinstance(value, torch.Tensor):
+        return value.to(device)
+    else:
+        return value
