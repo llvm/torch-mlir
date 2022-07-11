@@ -2346,12 +2346,12 @@ def Torch_AtenUnsqueeze_Op : Torch_Op<"aten.unsqueeze_", [
   }];
 }
 
-def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
+def Torch_AtenZeroOp : Torch_Op<"aten.zero", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::zero.functional : (Tensor) -> (Tensor)`";
+  let summary = "Generated op for `aten::zero : (Tensor) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self
   );
@@ -2360,16 +2360,17 @@ def Torch_AtenZeroFunctionalOp : Torch_Op<"aten.zero.functional", [
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
-    ParseResult AtenZeroFunctionalOp::parse(OpAsmParser &parser, OperationState &result) {
+    ParseResult AtenZeroOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 1, 1);
     }
-    void AtenZeroFunctionalOp::print(OpAsmPrinter &printer) {
+    void AtenZeroOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
 }
 
 def Torch_AtenZero_Op : Torch_Op<"aten.zero_", [
+    IsTrailingUnderscoreInplaceVariant,
     AllowsTypeRefinement
   ]> {
   let summary = "Generated op for `aten::zero_ : (Tensor) -> (Tensor)`";
@@ -5396,10 +5397,10 @@ def Torch_AtenSumDimIntListOp : Torch_Op<"aten.sum.dim_IntList", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)`";
+  let summary = "Generated op for `aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$dim,
+    AnyTorchOptionalListOfTorchIntType:$dim,
     Torch_BoolType:$keepdim,
     AnyTorchOptionalIntType:$dtype
   );
