@@ -519,9 +519,11 @@ def aten〇max〇dim(self: List[int], dim: int, keepdim: bool = False) -> Tuple[
 def aten〇mean〇dim(self: List[int], dim: List[int], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
 
-def aten〇sum〇dim_IntList(self: List[int], dim: List[int], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
-
+def aten〇sum〇dim_IntList(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    if dim is None:
+        return upstream_shape_functions.mean_dim(self, [], keepdim, dtype)
+    else:
+        return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
 
 def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
@@ -717,11 +719,7 @@ def aten〇_to_copy(self: List[int], dtype: Optional[int] = None, layout: Option
 def aten〇masked_fill〇Scalar(self: List[int], mask: List[int], value: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-@not_present_in_registry
 def aten〇zero(self: List[int]) -> List[int]:
-    return self
-
-def aten〇zero〇functional(self: List[int]) -> List[int]:
     return self
 
 @not_present_in_registry
