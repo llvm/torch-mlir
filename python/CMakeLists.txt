@@ -74,14 +74,15 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   #   if LIBTORCH_VARIANT=*cxx11abi*  we build with the new CXX11 ABI similar to upstream pytorch/builder
   #   if LIBTORCH_VARIANT=*shared*   (default) we build a shared library (and pytorch .whl)
   #     else if LIBTORCH_VARIANT=*static*   we build a static libtorch
+  set(ENV{LIBTORCH_SRC_BUILD} ${LIBTORCH_SRC_BUILD})
+  set(ENV{LIBTORCH_CACHE} ${LIBTORCH_CACHE})
+  set(ENV{LIBTORCH_VARIANT} ${LIBTORCH_VARIANT})
+  set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
+  set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
+  set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E env
-      LIBTORCH_SRC_BUILD=${LIBTORCH_SRC_BUILD}
-      LIBTORCH_CACHE=${LIBTORCH_CACHE}
-      LIBTORCH_VARIANT=${LIBTORCH_VARIANT}
-      CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
-      ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
-      RESULT_VARIABLE _result
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+    RESULT_VARIABLE _result
   )
   if(_result)
     message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
