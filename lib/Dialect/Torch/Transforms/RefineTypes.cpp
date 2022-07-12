@@ -57,6 +57,7 @@
 #include "PassDetail.h"
 
 #include "mlir/Analysis/DataFlowAnalysis.h"
+#include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinDialect.h"
