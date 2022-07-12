@@ -1134,9 +1134,9 @@ public:
     auto runningVarType = runningVar.getType().cast<RankedTensorType>();
 
     auto inputRank = inputType.getRank();
-    if (inputRank <= 2)
+    if (inputRank < 2)
       return rewriter.notifyMatchFailure(
-          op, "input should have rank larger than 2");
+          op, "input should have rank larger than 1");
 
     if (weightType.getRank() != 1 || biasType.getRank() != 1 ||
         runningMeanType.getRank() != 1 || runningVarType.getRank() != 1) {
