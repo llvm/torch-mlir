@@ -65,8 +65,8 @@ def main(device='lazy'):
             torch._lazy.mark_step()
 
     # Get debug information from LTC
-    if 'ltc_backend' in sys.modules:
-        computation = ltc_backend.get_latest_computation()
+    if 'torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND' in sys.modules:
+        computation = lazy_backend.get_latest_computation()
         if computation:
             print(computation.debug_string())
 
@@ -93,9 +93,9 @@ if __name__ == "__main__":
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
-            import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+            import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
 
-            ltc_backend._initialize()
+            lazy_backend._initialize()
 
         device = "lazy"
         print("Initialized backend")

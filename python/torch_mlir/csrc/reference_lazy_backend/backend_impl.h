@@ -19,11 +19,11 @@ TORCH_API void RegisterTorchMlirLazyNativeFunctions();
 namespace torch {
 namespace lazy {
 
-torch::lazy::BackendImplInterface *GetExampleMlirBackendImpl();
+torch::lazy::BackendImplInterface* GetReferenceLazyBackendImpl();
 
-void InitExampleMlirBackend();
+void InitReferenceLazyBackend();
 
-ComputationPtr &GetLatestComputation();
+ComputationPtr& GetLatestComputation();
 
 } // namespace lazy
 } // namespace torch

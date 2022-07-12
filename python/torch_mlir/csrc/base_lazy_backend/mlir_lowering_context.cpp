@@ -17,13 +17,13 @@
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
-#include "../utils/debug.h"
-#include "../utils/exception.h"
 #include "backend_impl.h"
 #include "mlir-c/Registration.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
 #include "torch-mlir-c/Registration.h"
+#include "utils/debug.h"
+#include "utils/exception.h"
 
 namespace torch {
 namespace lazy {
