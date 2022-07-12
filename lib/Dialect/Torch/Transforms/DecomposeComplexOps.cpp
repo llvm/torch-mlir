@@ -222,11 +222,11 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenZeroFunctionalOp
-    : public OpRewritePattern<AtenZeroFunctionalOp> {
+class DecomposeAtenZeroOp
+    : public OpRewritePattern<AtenZeroOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenZeroFunctionalOp op,
+  LogicalResult matchAndRewrite(AtenZeroOp op,
                                 PatternRewriter &rewriter) const override {
     Value zero = rewriter.create<ConstantIntOp>(op.getLoc(),
                                                 rewriter.getI64IntegerAttr(0));
@@ -2200,8 +2200,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
     patterns.add<DecomposeValsemVariantAtenBernoulliTensorOp>(context);
     target.addIllegalOp<ValsemVariantAtenBernoulliTensorOp>();
-    patterns.add<DecomposeAtenZeroFunctionalOp>(context);
-    target.addIllegalOp<AtenZeroFunctionalOp>();
+    patterns.add<DecomposeAtenZeroOp>(context);
+    target.addIllegalOp<AtenZeroOp>();
     patterns.add<DecomposeAtenRandLikeOp>(context);
     target.addIllegalOp<AtenRandLikeOp>();
     patterns.add<DecomposeAtenHardsigmoidOp>(context);

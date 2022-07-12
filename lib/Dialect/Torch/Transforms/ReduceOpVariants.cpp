@@ -184,7 +184,7 @@ public:
       newOp = rewriter.create<ValsemVariantAtenBernoulliTensorOp>(
           loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenZero_Op>(op)) {
-      newOp = rewriter.create<AtenZeroFunctionalOp>(
+      newOp = rewriter.create<AtenZeroOp>(
           loc, op->getResultTypes(), op->getOperands());
     } else if (isa<AtenFill_ScalarOp>(op)) {
       newOp = rewriter.create<ValsemVariantAtenFillScalarOp>(

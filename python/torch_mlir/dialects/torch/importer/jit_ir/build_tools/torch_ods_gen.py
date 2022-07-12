@@ -288,7 +288,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
-            "aten::zero.functional : (Tensor) -> (Tensor)",
+            "aten::zero : (Tensor) -> (Tensor)",
     ]:
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
@@ -492,7 +492,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
-    emit("aten::_unsafe_view_copy : (Tensor, int[]) -> (Tensor)")
 
 
     # Dict ops.

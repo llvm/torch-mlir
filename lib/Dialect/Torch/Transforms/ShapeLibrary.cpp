@@ -6057,9 +6057,6 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.zero"(%arg0: !torch.list<int>) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
-  func.func @"__torch_mlir_shape_fn.aten.zero.functional"(%arg0: !torch.list<int>) -> !torch.list<int> {
-    return %arg0 : !torch.list<int>
-  }
   func.func @"__torch_mlir_shape_fn.aten.fill.Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
