@@ -6,10 +6,10 @@ Refer to the main documentation [here](ltc_backend.md).
 ```python
 import torch
 import torch._lazy
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
 
 # Register the example LTC backend.
-ltc_backend._initialize()
+lazy_backend._initialize()
 
 device = 'lazy'
 
@@ -22,7 +22,7 @@ torch._lazy.mark_step()
 print('Results:', outputs)
 
 # Optionally dump MLIR graph generated from LTC trace.
-computation = ltc_backend.get_latest_computation()
+computation = lazy_backend.get_latest_computation()
 if computation:
     print(computation.debug_string())
 ```
