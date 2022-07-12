@@ -20,15 +20,15 @@ include_directories(BEFORE
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 set(LTC_GENERATED
-  base_lazy_backend/generated/LazyNativeFunctions.cpp
-  base_lazy_backend/generated/RegisterLazy.cpp
-  base_lazy_backend/generated/shape_inference.cpp
+  generated/LazyNativeFunctions.cpp
+  generated/RegisterLazy.cpp
+  generated/shape_inference.cpp
 )
 set(LTC_BACKEND_DEPENDS
-  base_lazy_backend/mlir_lowering_context.cpp
-  base_lazy_backend/mlir_native_functions.cpp
-  base_lazy_backend/mlir_node_lowering.cpp
-  base_lazy_backend/shape_inference.cpp
+  mlir_lowering_context.cpp
+  mlir_native_functions.cpp
+  mlir_node_lowering.cpp
+  shape_inference.cpp
 )
 
 # Generate Lazy IR Nodes
@@ -57,10 +57,10 @@ add_custom_target(
 add_library(torch_mlir_ltc_backend SHARED
   ${LTC_GENERATED}
   ${LTC_BACKEND_DEPENDS}
-  base_lazy_backend/backend_impl.cpp
-  base_lazy_backend/mlir_node.cpp
-  base_lazy_backend/ops/device_data.cpp
-  base_lazy_backend/ops/generic.cpp
+  backend_impl.cpp
+  mlir_node.cpp
+  ops/device_data.cpp
+  ops/generic.cpp
 )
 target_compile_features(torch_mlir_ltc_backend PRIVATE cxx_std_17)
 

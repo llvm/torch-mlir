@@ -11,8 +11,8 @@
 #include <c10/util/Optional.h>
 #include <cmath>
 
-#include "../utils/exception.h"
 #include "generated/shape_inference.h"
+#include "utils/exception.h"
 
 namespace torch {
 namespace lazy {
@@ -20,7 +20,7 @@ namespace lazy {
 // TODO(henrytu): Upstream these shape inference functions to PyTorch in the future.
 
 std::vector<torch::lazy::Shape>
-compute_shape_div(const at::Tensor& self, const at::Scalar & other) {
+compute_shape_div(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 

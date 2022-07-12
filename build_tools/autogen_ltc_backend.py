@@ -377,7 +377,7 @@ class GenTorchMlirLTC:
                     // for ops that dont have a corresponding structured kernel or shape definition
 
                     #include "shape_inference.h"
-                    #include "../../utils/exception.h"
+                    #include "../utils/exception.h"
                     namespace torch {{
                     namespace lazy {{
                     {}

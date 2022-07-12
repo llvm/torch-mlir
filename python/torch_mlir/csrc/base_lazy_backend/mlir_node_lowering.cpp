@@ -209,16 +209,16 @@ GenerateClone(torch::jit::Value* val, TorchMlirFunction function) {
   return cloned.front();
 }
 
-
-void GenerateCopy(torch::jit::Value* destination, torch::jit::Value* source, TorchMlirFunction function) {
-    std::vector<torch::jit::NamedValue> arguments;
-    arguments.emplace_back(destination);
-    arguments.emplace_back(source);
-    LowerBuiltin(
-        at::aten::copy_,
-        c10::ArrayRef<Shape>(compute_shape_copy(source->type())), function, arguments);
+void GenerateCopy(
+    torch::jit::Value* destination, torch::jit::Value* source,
+    TorchMlirFunction function) {
+  std::vector<torch::jit::NamedValue> arguments;
+  arguments.emplace_back(destination);
+  arguments.emplace_back(source);
+  LowerBuiltin(
+      at::aten::copy_, c10::ArrayRef<Shape>(compute_shape_copy(source->type())),
+      function, arguments);
 }
-
 
 torch::jit::Value* GenerateSlice(
     torch::jit::Value* base, int64_t dim, int64_t start, int64_t end,
@@ -234,8 +234,7 @@ torch::jit::Value* GenerateSlice(
       at::aten::slice,
       c10::ArrayRef<Shape>(
           compute_shape_slice(base->type(), dim, start, end, step)),
-      function,
-      arguments);
+      function, arguments);
   CHECK_EQ(selected.size(), 1);
   return selected.front();
 }
