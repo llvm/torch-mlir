@@ -9,7 +9,7 @@ import torch._lazy
 import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
 
 # Register the example LTC backend.
-ltc_backend._initialize()
+lazy_backend._initialize()
 
 device = 'lazy'
 

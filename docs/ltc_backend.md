@@ -80,7 +80,7 @@ Generated files are created in this directory, which is ignored by version contr
 
 The journey begins with a tensor in PyTorch on the `lazy` device, which may undergo a number of operations during its lifetime.
 ```python
->>> ltc_backend._initialize()
+>>> lazy_backend._initialize()
 >>> x = torch.tensor(..., device='lazy')
 >>> y = torch.tanh(x)
 ...
