@@ -15,8 +15,8 @@
 #include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
 #include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
-#include <torch_mlir/csrc/utils/debug.h>
-#include <torch_mlir/csrc/utils/exception.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
 
 #include "backend_impl.h"
 
@@ -25,8 +25,8 @@ using namespace torch::lazy;
 namespace torch {
 namespace lazy {
 
-struct ExampleMlirBackendDeviceType : public BackendDeviceType {
-  ExampleMlirBackendDeviceType(std::string device_type)
+struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
+  ReferenceLazyBackendDeviceType(std::string device_type)
       : device_type_(device_type) {}
 
   std::string toString() const override { return device_type_; }
@@ -34,9 +34,9 @@ struct ExampleMlirBackendDeviceType : public BackendDeviceType {
   std::string device_type_;
 };
 
-class ExampleMlirBackendImpl : public torch::lazy::TorchMlirBackendImpl {
+class ReferenceLazyBackendImpl : public torch::lazy::TorchMlirBackendImpl {
 public:
-  ExampleMlirBackendImpl() : default_device_type_("Magic") {}
+  ReferenceLazyBackendImpl() : default_device_type_("Magic") {}
 
   /**
    * Configuration
@@ -48,9 +48,9 @@ public:
   /**
    * Lowering, Compilation, Execution
    * */
-  std::vector<std::string>
-  GetCompilationDevices(const std::string &device,
-                        c10::ArrayRef<std::string> devices) const override {
+  std::vector<std::string> GetCompilationDevices(
+      const std::string& device,
+      c10::ArrayRef<std::string> devices) const override {
     return std::vector<std::string>(devices.begin(), devices.end());
   };
 
@@ -59,7 +59,7 @@ public:
     PRINT_FUNCTION();
 
     // Vendor backend specific lowering can be exec here before returning.
-    for (const auto &instance : instances) {
+    for (const auto& instance : instances) {
       // Store computation instance for external access after compilation.
       GetLatestComputation() = instance;
     }
@@ -70,17 +70,18 @@ public:
     return instances;
   }
 
-  std::vector<BackendDataPtr>
-  ExecuteComputation(torch::lazy::ComputationPtr computation,
-                     c10::ArrayRef<BackendDataPtr> arguments,
-                     const BackendDevice &device) const override {
+  std::vector<BackendDataPtr> ExecuteComputation(
+      torch::lazy::ComputationPtr computation,
+      c10::ArrayRef<BackendDataPtr> arguments,
+      const BackendDevice& device) const override {
     PRINT_FUNCTION();
 
     // `arguments` maps 1:1 with the parameters in the generated MLIR. In this
     // function, we will generate a list of BackendData that corresponds to the
     // return values in the MLIR.
 
-    auto mlir_computation = static_cast<TorchMlirComputation *>(computation.get());
+    auto mlir_computation =
+        static_cast<TorchMlirComputation*>(computation.get());
 
     // Vendor backend specific execution can be inserted here.
     //
@@ -91,7 +92,7 @@ public:
     // https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
     torch::jit::GraphExecutor graph_executor(mlir_computation->graph(), "");
     std::vector<torch::jit::IValue> stack;
-    for (const auto &argument : arguments) {
+    for (const auto& argument : arguments) {
       const auto mlir_data =
           std::static_pointer_cast<TorchMlirBackendData>(argument);
       if (mlir_data->mlir_info()->scalar.has_value()) {
@@ -128,7 +129,7 @@ public:
   }
 
   void SetDefaultDeviceType(std::string device_type) {
-    default_device_type_ = ExampleMlirBackendDeviceType(device_type);
+    default_device_type_ = ReferenceLazyBackendDeviceType(device_type);
   }
 
   /**
@@ -146,22 +147,22 @@ public:
   }
 
 private:
-  ExampleMlirBackendDeviceType default_device_type_;
+  ReferenceLazyBackendDeviceType default_device_type_;
 };
 
-BackendImplInterface *GetExampleMlirBackendImpl() {
-  static ExampleMlirBackendImpl *example_mlir_backend_impl =
-      new ExampleMlirBackendImpl();
-  return example_mlir_backend_impl;
+BackendImplInterface* GetReferenceLazyBackendImpl() {
+  static ReferenceLazyBackendImpl* reference_lazy_backend_impl =
+      new ReferenceLazyBackendImpl();
+  return reference_lazy_backend_impl;
 }
 
-void InitExampleMlirBackend() {
+void InitReferenceLazyBackend() {
   at::RegisterTorchMlirLazyNativeFunctions();
   static std::unique_ptr<BackendRegistrar> g_registrar;
-  g_registrar.reset(new BackendRegistrar(GetExampleMlirBackendImpl()));
+  g_registrar.reset(new BackendRegistrar(GetReferenceLazyBackendImpl()));
 }
 
-ComputationPtr &GetLatestComputation() {
+ComputationPtr& GetLatestComputation() {
   // Store the computation from the most recent compile.
   static ComputationPtr computation;
   return computation;

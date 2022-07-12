@@ -60,12 +60,15 @@ Generated files are created in this directory, which is ignored by version contr
 - `shape_inference.cpp`
   - Implementation of select shape inference functions (most functions are [implemented upstream](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/core/shape_inference.cpp))
 
+### Reference Backend ([`python/torch_mlir/csrc/reference_lazy_backend`](../python/torch_mlir/csrc/reference_lazy_backend))
+
+- `backend_impl.{cpp,h}`
+  - Reference Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
+- `reference_lazy_backend_pybind.cpp`
+  - pybind for reference Torch-MLIR LTC backend
+
 ### Examples ([`examples`](../examples))
 
-- `examples/ltc_backend/ltc_backend/csrc/backend/backend_impl.{cpp,h}`
-  - Example Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
-- `examples/ltc_backend/ltc_backend/csrc/example_mlir_backend_pybind.cpp`
-  - pybind for example Torch-MLIR LTC backend
 - `ltc_backend_bert.py`
   - Example HuggingFace BERT model traced by LTC to MLIR
 - `ltc_backend_mnist.py`
@@ -77,7 +80,7 @@ Generated files are created in this directory, which is ignored by version contr
 
 The journey begins with a tensor in PyTorch on the `lazy` device, which may undergo a number of operations during its lifetime.
 ```python
->>> ltc_backend._initialize()
+>>> lazy_backend._initialize()
 >>> x = torch.tensor(..., device='lazy')
 >>> y = torch.tanh(x)
 ...
@@ -116,17 +119,17 @@ Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteCompu
 
 ## Implementing a custom backend
 
-An example implementation of a custom backend is available [here](../examples/ltc_backend/ltc_backend). 
+A reference implementation of a custom backend is available [here](../python/torch_mlir/csrc/reference_lazy_backend/). 
 All the work involved with generating MLIR is handled in the base LTC backend, so vendors only need to worry about implementing `Compile`, `ExecuteComputation`, and some other minor methods to interface with the device.
 
 A pybind is needed to invoke C++ code to register the autogen PyTorch kernels and the custom backend itself.
-Most of the code in the example implementation should be reusable, excluding some debug related function (e.g. `get_latest_computation`).
+Most of the code in the reference implementation should be reusable, excluding some debug related function (e.g. `get_latest_computation`).
 
 ## Future Expansion
 
 There are a number of areas for future improvement:
 - Generate source information in `jit::Graph` so it can be embedded in the MLIR
-- Currently the example backend implementation executes via the `jit::Graph` instead of the MLIR since we currently lack lowerings for many ops, which would make it difficult to run models such as HF BERT
+- Currently the reference backend implementation executes via the `jit::Graph` instead of the MLIR since we currently lack lowerings for many ops, which would make it difficult to run models such as HF BERT
   - In the future, we should change the implementation to lower the MLIR to linalg and execute on a reference backend
 - As new models get tested, we will inevitably run into errors related to unimplemented shape inference functions.
 This problem is simply solved by implementing the missing function, or adding a structured kernel to PyTorch.

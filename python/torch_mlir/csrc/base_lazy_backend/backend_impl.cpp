@@ -15,12 +15,12 @@
 #include <torch/csrc/lazy/backend/lowering_context.h>
 #include <torch/csrc/lazy/core/shape.h>
 
-#include "../utils/debug.h"
-#include "../utils/exception.h"
 #include "backend_impl.h"
 #include "ir_builder.h"
 #include "mlir_lowering_context.h"
 #include "ops/device_data.h"
+#include "utils/debug.h"
+#include "utils/exception.h"
 
 namespace torch {
 namespace lazy {

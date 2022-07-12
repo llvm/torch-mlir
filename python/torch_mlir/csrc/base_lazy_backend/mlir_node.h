@@ -18,9 +18,9 @@
 #include <torch/csrc/lazy/core/ir.h>
 #include <torch/csrc/lazy/core/shape.h>
 
-#include "../utils/debug.h"
-#include "../utils/exception.h"
 #include "mlir_lowering_context.h"
+#include "utils/debug.h"
+#include "utils/exception.h"
 
 namespace torch {
 namespace lazy {
@@ -59,7 +59,6 @@ private:
   // is enabled and use the dag hash WITH size info otherwise.
   hash_t dag_hash_;
 };
-
 
 // TensorList represents an at::TensorList which is a vector[Tensor] but is also
 // a first-class IValue and can be fed as a single input to a TS program.  It is
