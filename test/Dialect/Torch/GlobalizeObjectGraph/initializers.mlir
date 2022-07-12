@@ -19,3 +19,8 @@ torch.class_type @c {
 torch.nn_module {
   torch.slot "l", %l2 : !torch.list<list<list<tensor>>>
 } : !torch.nn.Module<"c">
+
+func.func private @ensure_all_slots_are_used(%arg0: !torch.nn.Module<"c">) {
+  %0 = torch.prim.GetAttr %arg0["l"] : !torch.nn.Module<"c"> -> !torch.list<list<list<tensor>>>
+  return
+}
