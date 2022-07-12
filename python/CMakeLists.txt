@@ -61,7 +61,7 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 ################################################################################
 
 add_subdirectory(torch_mlir/csrc/base_lazy_backend)
-add_subdirectory(torch_mlir/csrc/reference_ltc_backend)
+add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
 
 ################################################################################
 # Optionally handle JIT IR importer.

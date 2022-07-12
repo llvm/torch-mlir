@@ -25,8 +25,8 @@ using namespace torch::lazy;
 namespace torch {
 namespace lazy {
 
-struct ReferenceLtcBackendDeviceType : public BackendDeviceType {
-  ReferenceLtcBackendDeviceType(std::string device_type)
+struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
+  ReferenceLazyBackendDeviceType(std::string device_type)
       : device_type_(device_type) {}
 
   std::string toString() const override { return device_type_; }
@@ -34,9 +34,9 @@ struct ReferenceLtcBackendDeviceType : public BackendDeviceType {
   std::string device_type_;
 };
 
-class ReferenceLtcBackendImpl : public torch::lazy::TorchMlirBackendImpl {
+class ReferenceLazyBackendImpl : public torch::lazy::TorchMlirBackendImpl {
 public:
-  ReferenceLtcBackendImpl() : default_device_type_("Magic") {}
+  ReferenceLazyBackendImpl() : default_device_type_("Magic") {}
 
   /**
    * Configuration
@@ -129,7 +129,7 @@ public:
   }
 
   void SetDefaultDeviceType(std::string device_type) {
-    default_device_type_ = ReferenceLtcBackendDeviceType(device_type);
+    default_device_type_ = ReferenceLazyBackendDeviceType(device_type);
   }
 
   /**
@@ -147,19 +147,19 @@ public:
   }
 
 private:
-  ReferenceLtcBackendDeviceType default_device_type_;
+  ReferenceLazyBackendDeviceType default_device_type_;
 };
 
-BackendImplInterface* GetReferenceLtcBackendImpl() {
-  static ReferenceLtcBackendImpl* reference_ltc_backend_impl =
-      new ReferenceLtcBackendImpl();
-  return reference_ltc_backend_impl;
+BackendImplInterface* GetReferenceLazyBackendImpl() {
+  static ReferenceLazyBackendImpl* reference_lazy_backend_impl =
+      new ReferenceLazyBackendImpl();
+  return reference_lazy_backend_impl;
 }
 
-void InitReferenceLtcBackend() {
+void InitReferenceLazyBackend() {
   at::RegisterTorchMlirLazyNativeFunctions();
   static std::unique_ptr<BackendRegistrar> g_registrar;
-  g_registrar.reset(new BackendRegistrar(GetReferenceLtcBackendImpl()));
+  g_registrar.reset(new BackendRegistrar(GetReferenceLazyBackendImpl()));
 }
 
 ComputationPtr& GetLatestComputation() {

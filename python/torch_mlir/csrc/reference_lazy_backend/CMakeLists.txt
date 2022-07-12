@@ -33,15 +33,15 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_link_options(-Wl,-rpath,$ORIGIN/lib)
 
-set(LTC_BACKEND_CSRC
+set(REFERENCE_LAZY_BACKEND_CSRC
         backend_impl.cpp
-        reference_ltc_backend_pybind.cpp
+        reference_lazy_backend_pybind.cpp
         )
-add_library(reference_ltc_backend SHARED ${LTC_BACKEND_CSRC})
-add_dependencies(reference_ltc_backend
+add_library(reference_lazy_backend SHARED ${REFERENCE_LAZY_BACKEND_CSRC})
+add_dependencies(reference_lazy_backend
         torch_mlir_ltc_backend
         )
-target_link_libraries(reference_ltc_backend
+target_link_libraries(reference_lazy_backend
         ${TORCH_LIBRARIES}
         ${Python3_LIBRARIES}
         torch_python
@@ -49,9 +49,9 @@ target_link_libraries(reference_ltc_backend
         )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
-set_target_properties(reference_ltc_backend PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/reference_ltc_backend"
-        OUTPUT_NAME _REFERENCE_LTC_BACKEND
+set_target_properties(reference_lazy_backend PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/reference_lazy_backend"
+        OUTPUT_NAME _REFERENCE_LAZY_BACKEND
         PREFIX "${PYTHON_MODULE_PREFIX}"
         SUFFIX "${PYTHON_MODULE_EXTENSION}"
         CXX_VISIBILITY_PRESET "hidden"

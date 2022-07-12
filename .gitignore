@@ -28,4 +28,4 @@ bazel-*
 /python/torch_mlir/csrc/base_lazy_backend/generated
 
 # Example backend
-/python/torch_mlir/reference_ltc_backend/_REFERENCE_LTC_BACKEND.cpython-37m-x86_64-linux-gnu.so
+/python/torch_mlir/reference_lazy_backend/_REFERENCE_LAZY_BACKEND.cpython-37m-x86_64-linux-gnu.so

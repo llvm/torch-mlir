@@ -60,11 +60,11 @@ Generated files are created in this directory, which is ignored by version contr
 - `shape_inference.cpp`
   - Implementation of select shape inference functions (most functions are [implemented upstream](https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/core/shape_inference.cpp))
 
-### Reference Backend ([`python/torch_mlir/csrc/reference_ltc_backend`](../python/torch_mlir/csrc/reference_ltc_backend))
+### Reference Backend ([`python/torch_mlir/csrc/reference_lazy_backend`](../python/torch_mlir/csrc/reference_lazy_backend))
 
 - `csrc/backend/backend_impl.{cpp,h}`
   - Reference Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
-- `csrc/reference_ltc_backend_pybind.cpp`
+- `csrc/reference_lazy_backend_pybind.cpp`
   - pybind for reference Torch-MLIR LTC backend
 
 ### Examples ([`examples`](../examples))
@@ -119,7 +119,7 @@ Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteCompu
 
 ## Implementing a custom backend
 
-A reference implementation of a custom backend is available [here](../python/torch_mlir/csrc/reference_ltc_backend/). 
+A reference implementation of a custom backend is available [here](../python/torch_mlir/csrc/reference_lazy_backend/). 
 All the work involved with generating MLIR is handled in the base LTC backend, so vendors only need to worry about implementing `Compile`, `ExecuteComputation`, and some other minor methods to interface with the device.
 
 A pybind is needed to invoke C++ code to register the autogen PyTorch kernels and the custom backend itself.
