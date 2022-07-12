@@ -62,9 +62,9 @@ Generated files are created in this directory, which is ignored by version contr
 
 ### Reference Backend ([`python/torch_mlir/csrc/reference_lazy_backend`](../python/torch_mlir/csrc/reference_lazy_backend))
 
-- `csrc/backend/backend_impl.{cpp,h}`
+- `backend_impl.{cpp,h}`
   - Reference Torch-MLIR LTC backend implementation, which simply stores the MLIR as a string and executes computation on CPU
-- `csrc/reference_lazy_backend_pybind.cpp`
+- `reference_lazy_backend_pybind.cpp`
   - pybind for reference Torch-MLIR LTC backend
 
 ### Examples ([`examples`](../examples))
