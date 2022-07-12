@@ -64,6 +64,16 @@ struct LinkageInfo {
   bool isPrivate;
 };
 } // namespace
+
+namespace {
+// Information about a value that has been copied into an initializer already.
+// If it is the initializing value of a global slot, then globalSlotName is
+// non-null and refer to the GlobalSlotOp that it initializes.
+struct AlreadyCopiedIntoInitializerValueInfo {
+  StringAttr globalSlotName = nullptr;
+};
+} // namespace
+
 namespace {
 /// Calculates the linkage names of all the potentially exported objects in the
 /// module and also creates GlobalSlotOp's for each SlotOp and tracks their
@@ -224,19 +234,50 @@ private:
     });
     BlockAndValueMapping mapping;
     for (Operation *op : worklist) {
-      builder.clone(*op, mapping);
-      for (Value result : op->getResults()) {
-        if (!hasMeaningfulObjectIdentity(result.getType()))
-          continue;
-        if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
-                 .second) {
-          return op->emitError() << "potentially-aliased value used to "
-                                    "initialize multiple slots";
-        }
-      }
+      bool wasHandled = false;
+      if (failed(handlePotentiallyAliasedInitializer(
+              op, globalSlot, slot, builder, mapping, wasHandled)))
+        return failure();
+      if (!wasHandled)
+        builder.clone(*op, mapping);
     }
     builder.create<GlobalSlotInitOp>(globalSlot->getLoc(),
                                      mapping.lookup(initialValue));
+    return success();
+  }
+  LogicalResult handlePotentiallyAliasedInitializer(
+      Operation *originalOp, GlobalSlotOp globalSlot, SlotOp slot,
+      OpBuilder &builder, BlockAndValueMapping &mapping, bool &wasHandled) {
+    for (Value result : originalOp->getResults()) {
+      if (!hasMeaningfulObjectIdentity(result.getType()))
+        continue;
+
+      AlreadyCopiedIntoInitializerValueInfo info;
+      if (result == slot.value())
+        info.globalSlotName = globalSlot.sym_nameAttr();
+      auto itAndWasInserted =
+          alreadyCopiedIntoInitializerValues.insert({result, info});
+      // If the value was already copied into an initializer, then we need
+      // to either reference the existing GlobalSlotOp that is initialized to
+      // it, or raise an error.
+      if (!itAndWasInserted.second) {
+        const AlreadyCopiedIntoInitializerValueInfo &existingInfo =
+            itAndWasInserted.first->second;
+        if (!existingInfo.globalSlotName) {
+          return originalOp->emitError() << "potentially-aliased value used to "
+                                            "initialize multiple slots";
+        }
+        // If this value initializes another GlobalSlotOp, then we can
+        // reference it.
+        auto globalSlotGet = builder.create<GlobalSlotGetOp>(
+            originalOp->getLoc(), result.getType(),
+            FlatSymbolRefAttr::get(existingInfo.globalSlotName));
+        mapping.map(result, globalSlotGet);
+        wasHandled = true;
+        continue;
+      }
+    }
+
     return success();
   }
   // Builder for creating GlobalSlotOp's in the module.
@@ -262,10 +303,11 @@ private:
   DenseMap<std::pair<NnModuleOp, func::FuncOp>, LinkageInfo> funcLinkageInfo;
   // The corresponding GlobalSlotOp for each SlotOp in the program.
   DenseMap<SlotOp, GlobalSlotOp> slotToGlobalSlot;
-  // A set of values that we have copied into torch.global_slot initializers,
-  // which cannot be used in multiple initializers because their object
-  // identity is important.
-  DenseSet<Value> objectsWithIdentityAlreadyCopiedIntoInitializers;
+  // Information about values that we have copied into GlobalSlotOp intializers.
+  // This information is used to correctly handle the same Value being
+  // transitively used to initialize two slots.
+  DenseMap<Value, AlreadyCopiedIntoInitializerValueInfo>
+      alreadyCopiedIntoInitializerValues;
   // Used to keep track of all the used torch slots so that the restrictions can
   // be applied to those slots only.
   DenseSet<SlotOp> usedSlots;
