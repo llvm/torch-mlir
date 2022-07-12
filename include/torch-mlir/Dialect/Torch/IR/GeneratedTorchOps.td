@@ -5674,6 +5674,7 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
 
 def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [
     AllowsTypeRefinement,
+    HasValueSemantics,
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::_unsafe_view : (Tensor, int[]) -> (Tensor)`";
@@ -6793,30 +6794,6 @@ def Torch_AtenAsStridedScatterOp : Torch_Op<"aten.as_strided_scatter", [
     }
     void AtenAsStridedScatterOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 1);
-    }
-  }];
-}
-
-def Torch_Aten_UnsafeViewCopyOp : Torch_Op<"aten._unsafe_view_copy", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::_unsafe_view_copy : (Tensor, int[]) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$size
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult Aten_UnsafeViewCopyOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void Aten_UnsafeViewCopyOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
 }
