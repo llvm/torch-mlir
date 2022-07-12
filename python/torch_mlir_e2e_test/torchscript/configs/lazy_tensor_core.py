@@ -5,7 +5,14 @@
 
 import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import torch
+from torch.utils._pytree import tree_map
+
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+
+
+def to_device(device):
+    """Returns a lambda that maps `torch.Tensor` objects to `device`, and ignores other types"""
+    return lambda e: e.to(device) if isinstance(e, torch.Tensor) else e
 
 
 class LazyTensorCoreTestConfig(TestConfig):
@@ -23,12 +30,13 @@ class LazyTensorCoreTestConfig(TestConfig):
 
         for item in trace:
             # We need to move all the inputs to the lazy device before running in LTC.
-            lazy_inputs = [arg.to('lazy') for arg in item.inputs]
+            lazy_inputs = tree_map(to_device('lazy'), item.inputs)
             output = getattr(artifact, item.symbol)(*lazy_inputs)
+            cpu_outputs = tree_map(to_device('cpu'), output)
 
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,
-                          output=output.to('cpu')))
+                          output=cpu_outputs))
 
         return result

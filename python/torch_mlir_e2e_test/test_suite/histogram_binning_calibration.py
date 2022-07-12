@@ -38,7 +38,7 @@ class HistogramBinningCalibrationByFeature(torch.nn.Module):
             torch.empty([_num_interval], dtype=torch.float64).fill_(0.0),
         )
         self.register_buffer("_bin_ids", torch.arange(_num_interval))
-        self.positive_weight = torch.tensor([0.4])
+        self.register_buffer("positive_weight", torch.tensor([0.4]))
         self.bin_ctr_in_use_after = 0
         self.bin_ctr_weight_value = 0.9995
         self.oneminusbin_ctr_weight_value = 0.0005
@@ -54,6 +54,9 @@ class HistogramBinningCalibrationByFeature(torch.nn.Module):
     def forward(self, segment_value, segment_lengths, logit):
         origin_prediction = torch.sigmoid(
             logit + torch.log(self.positive_weight))
+        # TODO: If in the future this test is removed from xfail for LTC, we will probably hit some device related
+        #       issues below when new tensors are created on the CPU, which is currently the default behaviour.
+        #       The solution would be to move these tensors to ensure they are on the same device as the existing ones.
         dense_segment_value = torch.zeros(logit.numel(), dtype=torch.int32)
         validoffsets = torch.gt(
             segment_lengths[1:self._num_logits+1], segment_lengths[0:self._num_logits])
