@@ -1328,3 +1328,32 @@ func.func @torch.aten.add.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
     %2 = torch.aten.add.Tensor %0, %1, %int3 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
     return %2 : !torch.vtensor<[],si64>
 }
+
+// CHECK-LABEL:   @torch.aten.size$copy(
+// CHECK-SAME:        %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.list<int> {
+// CHECK:           %[[TWO:.*]] = torch.constant.int 2
+// CHECK:           %[[THREE:.*]] = torch.constant.int 3
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[TWO]], %[[THREE]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[LIST]] : !torch.list<int>
+// CHECK:         }
+func.func @torch.aten.size$copy(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.list<int> {
+    %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3],f32> to !torch.vtensor
+    %non_value_tensor = torch.copy.to_tensor %cast : !torch.tensor
+    %value_tensor = torch.copy.to_vtensor %non_value_tensor : !torch.vtensor
+    %size = torch.aten.size %value_tensor : !torch.vtensor -> !torch.list<int>
+    return %size : !torch.list<int>
+}
+
+// CHECK-LABEL:   @torch.aten.size.int$copy(
+// CHECK-SAME:        %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.int {
+// CHECK:           %[[TWO:.*]] = torch.constant.int 2
+// CHECK:           return %[[TWO]] : !torch.int
+// CHECK:         }
+func.func @torch.aten.size.int$copy(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.int {
+  %cast = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3],f32> to !torch.vtensor
+  %non_value_tensor = torch.copy.to_tensor %cast : !torch.tensor
+  %value_tensor = torch.copy.to_vtensor %non_value_tensor : !torch.vtensor
+  %zero = torch.constant.int 0
+  %size = torch.aten.size.int %value_tensor, %zero : !torch.vtensor, !torch.int -> !torch.int
+  return %size : !torch.int
+}
