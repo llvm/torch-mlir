@@ -362,6 +362,27 @@ class SplitTensorModule(torch.nn.Module):
 def SplitTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 6, 8))
 
+
+class SplitTensorNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_size = 2
+        dim = -1
+        splits = torch.ops.aten.split(x.view(9, 6, 8), split_size, dim)
+        return splits[0], splits[1], splits[2], splits[3]
+
+@register_test_case(module_factory=lambda: SplitTensorModule())
+def SplitTensorNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+
 class ChunkModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

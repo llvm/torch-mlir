@@ -102,6 +102,9 @@ public:
       return failure();
     SmallVector<Value> sizes = sizesListOp.elements();
 
+    if (dim < 0)
+        dim = sizes.size() + dim;
+
     auto constantDimSizeOp =
         dyn_cast<ConstantIntOp>(sizes[dim].getDefiningOp());
     if (!constantDimSizeOp)
