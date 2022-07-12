@@ -5,7 +5,14 @@
 
 import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
 import torch
+from torch.utils._pytree import tree_map
+
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+
+
+def to_device(device):
+    """Returns a lambda that maps `torch.Tensor` objects to `device`, and ignores other types"""
+    return lambda e: e.to(device) if isinstance(e, torch.Tensor) else e
 
 
 class LazyTensorCoreTestConfig(TestConfig):
@@ -23,9 +30,9 @@ class LazyTensorCoreTestConfig(TestConfig):
 
         for item in trace:
             # We need to move all the inputs to the lazy device before running in LTC.
-            lazy_inputs = to_device(item.inputs, device='lazy')
+            lazy_inputs = tree_map(to_device('lazy'), item.inputs)
             output = getattr(artifact, item.symbol)(*lazy_inputs)
-            cpu_outputs = to_device(output, device='cpu')
+            cpu_outputs = tree_map(to_device('cpu'), output)
 
             result.append(
                 TraceItem(symbol=item.symbol,
@@ -33,23 +40,3 @@ class LazyTensorCoreTestConfig(TestConfig):
                           output=cpu_outputs))
 
         return result
-
-
-def to_device(value, device):
-    """
-    Recursively move Tensor values wrapped in a TorchScriptValue to a new device.
-
-    :param value: TorchScriptValue to move to to new device.
-    :param device: device to move to.
-    :return:
-    """
-
-    # It's possible for the output to be non-tensor, so we need to check first.
-    if isinstance(value, (list, tuple)):
-        return type(value)(to_device(v, device) for v in value)
-    elif isinstance(value, dict):
-        return {to_device(k, device): to_device(v, device) for k, v in value.items()}
-    elif isinstance(value, torch.Tensor):
-        return value.to(device)
-    else:
-        return value
