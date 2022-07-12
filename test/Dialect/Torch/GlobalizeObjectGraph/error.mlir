@@ -29,6 +29,13 @@ torch.class_type @parent {
   torch.slot "m2", %child : !torch.nn.Module<"child">
 } : !torch.nn.Module<"parent">
 
+func.func private @ensure_all_slots_are_used(%arg0: !torch.nn.Module<"parent">, %arg1: !torch.nn.Module<"child">) {
+  %0 = torch.prim.GetAttr %arg0["m"] : !torch.nn.Module<"parent"> -> !torch.nn.Module<"child">
+  %1 = torch.prim.GetAttr %arg0["m2"] : !torch.nn.Module<"parent"> -> !torch.nn.Module<"child">
+  %2 = torch.prim.GetAttr %arg1["float"] : !torch.nn.Module<"child"> -> !torch.float
+  return
+}
+
 // -----
 
 torch.class_type @c {

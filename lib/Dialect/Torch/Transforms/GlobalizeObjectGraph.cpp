@@ -104,12 +104,20 @@ public:
 private:
   LogicalResult collectUsedSlots() {
     // Collect all the slots in each module.
-    llvm::StringMap<llvm::StringMap<SlotOp>> moduleClassNameToSlots;
+    // moduleClassNameToSlots tracks, for each class, for each attribute, the
+    // set of slot instances that belong to that attribute. E.g. if there are
+    // two instances of a class "Foo" with an attribute "a", then there will be
+    // two SlotOps in the inner vector of moduleClassNameToSlots["Foo"]["a"].
+    // This is not precise -- in the code below it effectively results in the
+    // conservative assumption that all instances of a class might reach all
+    // GetAttr ops on that type.
+    llvm::StringMap<llvm::StringMap<std::vector<SlotOp>>>
+        moduleClassNameToSlots;
     symbolTable.getOp()->walk([&](NnModuleOp moduleOp) {
       llvm::StringMap<SlotOp> nameToSlot;
-      for (auto attrOp : moduleOp.getOps<SlotOp>())
-        nameToSlot[attrOp.name()] = attrOp;
-      moduleClassNameToSlots[moduleOp.getClassName()] = nameToSlot;
+      auto &slotNameToSlots = moduleClassNameToSlots[moduleOp.getClassName()];
+      for (auto slotOp : moduleOp.getOps<SlotOp>())
+        slotNameToSlots[slotOp.name()].push_back(slotOp);
     });
 
     // Find all the module slots that are accessed through `PrimGetAttrOp` or
@@ -136,13 +144,14 @@ private:
         op->emitError() << "Reference to non-existing module type "
                         << moduleType.getClassName();
 
-      llvm::StringMap<SlotOp> nameToSlot = slots->getValue();
-      auto slotIt = nameToSlot.find(slotName);
+      auto &slotNameToSlots = slots->getValue();
+      auto slotIt = slotNameToSlots.find(slotName);
       // TODO: Improve verifier so that this can never happen
-      if (slotIt == nameToSlot.end())
+      if (slotIt == slotNameToSlots.end())
         op->emitError() << "Reference to non-existing module slot " << slotName
                         << "in " << moduleType.getClassName();
-      usedSlots.insert(slotIt->getValue());
+      for (SlotOp slotOp : slotIt->getValue())
+        usedSlots.insert(slotOp);
     });
     return success();
   }
@@ -167,7 +176,8 @@ private:
         if (failed(
                 recursivelyTraverse(slot.value().getDefiningOp<NnModuleOp>())))
           return failure();
-      } else {
+      } else if (usedSlots.find(slot) != usedSlots.end()) {
+        // Only create the GlobalSlotOp if the slot is used at all.
         std::string linkageName = llvm::join(nameStack, ".");
         auto globalSlot = globalSlotBuilder.create<GlobalSlotOp>(
             slot.getLoc(), linkageName,
@@ -217,8 +227,6 @@ private:
       builder.clone(*op, mapping);
       for (Value result : op->getResults()) {
         if (!hasMeaningfulObjectIdentity(result.getType()))
-          continue;
-        if (usedSlots.find(slot) == usedSlots.end())
           continue;
         if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
                  .second) {

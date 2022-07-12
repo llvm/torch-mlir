@@ -70,5 +70,6 @@ func.func private @__torch__.free_function(%arg0: !torch.nn.Module<"__torch__.Su
 // CHECK-LABEL:   func.func private @s1.forward() {
 // CHECK:           return
 func.func private @__torch__.Submodule.forward(%arg0: !torch.nn.Module<"__torch__.Submodule">) {
+  %0 = torch.prim.GetAttr %arg0["n"] : !torch.nn.Module<"__torch__.Submodule"> -> !torch.int
   return
 }
