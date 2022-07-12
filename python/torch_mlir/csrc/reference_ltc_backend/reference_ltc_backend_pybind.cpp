@@ -11,13 +11,13 @@
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/sys_utils.h>
 
 #include <exception>
 #include <iostream>
 #include <string>
 
 #include "backend_impl.h"
-#include "utils/sys_utils.h"
 
 namespace py = pybind11;
 
