@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir_node.h"
-#include "../utils/exception.h"
+#include "utils/exception.h"
 
 namespace torch {
 namespace lazy {
@@ -74,7 +74,8 @@ hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 OpKind TorchMlirTensorList::ClassOpKind() {
   // Note: this OpKind is separate from ltc_ops.h since it would be a circular
   // import otherwise
-  static const OpKind tensor_list_opkind = OpKind::Get("lazy_tensors::tensor_list");
+  static const OpKind tensor_list_opkind =
+      OpKind::Get("lazy_tensors::tensor_list");
   return tensor_list_opkind;
 }
 

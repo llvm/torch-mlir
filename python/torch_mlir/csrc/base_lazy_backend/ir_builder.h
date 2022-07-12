@@ -22,7 +22,7 @@
 #include "mlir_node.h"
 #include "ops/device_data.h"
 #include "ops/generic.h"
-#include "../utils/exception.h"
+#include "utils/exception.h"
 
 // This file contains the TorchMlir IrBuilder
 

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-import ltc_backend.ltc_backend._EXAMPLE_MLIR_BACKEND as ltc_backend
+import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
 import torch
 from torch.utils._pytree import tree_map
 
@@ -20,7 +20,7 @@ class LazyTensorCoreTestConfig(TestConfig):
 
     def __init__(self):
         super().__init__()
-        ltc_backend._initialize()
+        lazy_backend._initialize()
 
     def compile(self, program: torch.nn.Module) -> torch.nn.Module:
         return program.to('lazy')
