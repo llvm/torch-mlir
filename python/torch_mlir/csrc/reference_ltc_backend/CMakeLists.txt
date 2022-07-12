@@ -34,8 +34,8 @@ link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_link_options(-Wl,-rpath,$ORIGIN/lib)
 
 set(LTC_BACKEND_CSRC
-        csrc/backend/backend_impl.cpp
-        csrc/reference_ltc_backend_pybind.cpp
+        backend_impl.cpp
+        reference_ltc_backend_pybind.cpp
         )
 add_library(reference_ltc_backend SHARED ${LTC_BACKEND_CSRC})
 add_dependencies(reference_ltc_backend

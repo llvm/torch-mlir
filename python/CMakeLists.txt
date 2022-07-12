@@ -60,8 +60,8 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 # Lazy Tensor Core
 ################################################################################
 
-add_subdirectory(torch_mlir/csrc)
-add_subdirectory(torch_mlir/reference_ltc_backend)
+add_subdirectory(torch_mlir/csrc/base_lazy_backend)
+add_subdirectory(torch_mlir/csrc/reference_ltc_backend)
 
 ################################################################################
 # Optionally handle JIT IR importer.

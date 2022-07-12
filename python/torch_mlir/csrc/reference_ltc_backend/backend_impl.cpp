@@ -15,8 +15,8 @@
 #include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
 #include <torch_mlir/csrc/base_lazy_backend/generated/LazyNativeFunctions.h>
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
-#include <torch_mlir/csrc/utils/debug.h>
-#include <torch_mlir/csrc/utils/exception.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
 
 #include "backend_impl.h"
 
@@ -48,9 +48,9 @@ public:
   /**
    * Lowering, Compilation, Execution
    * */
-  std::vector<std::string>
-  GetCompilationDevices(const std::string &device,
-                        c10::ArrayRef<std::string> devices) const override {
+  std::vector<std::string> GetCompilationDevices(
+      const std::string& device,
+      c10::ArrayRef<std::string> devices) const override {
     return std::vector<std::string>(devices.begin(), devices.end());
   };
 
@@ -59,7 +59,7 @@ public:
     PRINT_FUNCTION();
 
     // Vendor backend specific lowering can be exec here before returning.
-    for (const auto &instance : instances) {
+    for (const auto& instance : instances) {
       // Store computation instance for external access after compilation.
       GetLatestComputation() = instance;
     }
@@ -70,10 +70,10 @@ public:
     return instances;
   }
 
-  std::vector<BackendDataPtr>
-  ExecuteComputation(torch::lazy::ComputationPtr computation,
-                     c10::ArrayRef<BackendDataPtr> arguments,
-                     const BackendDevice &device) const override {
+  std::vector<BackendDataPtr> ExecuteComputation(
+      torch::lazy::ComputationPtr computation,
+      c10::ArrayRef<BackendDataPtr> arguments,
+      const BackendDevice& device) const override {
     PRINT_FUNCTION();
 
     // `arguments` maps 1:1 with the parameters in the generated MLIR. In this
@@ -81,7 +81,7 @@ public:
     // return values in the MLIR.
 
     auto mlir_computation =
-        static_cast<TorchMlirComputation *>(computation.get());
+        static_cast<TorchMlirComputation*>(computation.get());
 
     // Vendor backend specific execution can be inserted here.
     //
@@ -92,7 +92,7 @@ public:
     // https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/ts_backend_impl.cpp
     torch::jit::GraphExecutor graph_executor(mlir_computation->graph(), "");
     std::vector<torch::jit::IValue> stack;
-    for (const auto &argument : arguments) {
+    for (const auto& argument : arguments) {
       const auto mlir_data =
           std::static_pointer_cast<TorchMlirBackendData>(argument);
       if (mlir_data->mlir_info()->scalar.has_value()) {
@@ -150,8 +150,8 @@ private:
   ReferenceLtcBackendDeviceType default_device_type_;
 };
 
-BackendImplInterface *GetReferenceLtcBackendImpl() {
-  static ReferenceLtcBackendImpl *reference_ltc_backend_impl =
+BackendImplInterface* GetReferenceLtcBackendImpl() {
+  static ReferenceLtcBackendImpl* reference_ltc_backend_impl =
       new ReferenceLtcBackendImpl();
   return reference_ltc_backend_impl;
 }
@@ -162,7 +162,7 @@ void InitReferenceLtcBackend() {
   g_registrar.reset(new BackendRegistrar(GetReferenceLtcBackendImpl()));
 }
 
-ComputationPtr &GetLatestComputation() {
+ComputationPtr& GetLatestComputation() {
   // Store the computation from the most recent compile.
   static ComputationPtr computation;
   return computation;

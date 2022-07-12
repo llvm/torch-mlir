@@ -16,7 +16,7 @@
 #include <iostream>
 #include <string>
 
-#include "backend/backend_impl.h"
+#include "backend_impl.h"
 #include "utils/sys_utils.h"
 
 namespace py = pybind11;
@@ -27,7 +27,7 @@ bool verbose = sys_util::GetEnv("VERBOSE", false);
 struct NoGilSection {
   NoGilSection() : state(PyEval_SaveThread()) {}
   ~NoGilSection() { PyEval_RestoreThread(state); }
-  PyThreadState *state = nullptr;
+  PyThreadState* state = nullptr;
 };
 
 /**
@@ -38,9 +38,9 @@ void Initialize() {
   torch::lazy::InitReferenceLtcBackend();
 
   // sanity check
-  const torch::lazy::BackendImplInterface *mlir_backend =
+  const torch::lazy::BackendImplInterface* mlir_backend =
       torch::lazy::GetReferenceLtcBackendImpl();
-  const torch::lazy::BackendImplInterface *lazy_backend =
+  const torch::lazy::BackendImplInterface* lazy_backend =
       torch::lazy::getBackend();
   if (lazy_backend != mlir_backend) {
     std::cout << "Failed to initialize MLIR Lazy Backend" << std::endl;
@@ -69,7 +69,7 @@ PYBIND11_MODULE(_REFERENCE_LTC_BACKEND, m) {
 
   m.doc() = ("pybind11 for the reference MLIR LTC backend.");
   m.def("get_latest_computation", []() {
-    auto computation = static_cast<torch::lazy::TorchMlirComputation *>(
+    auto computation = static_cast<torch::lazy::TorchMlirComputation*>(
         torch::lazy::GetLatestComputation().get());
     return py::cast(computation);
   });
