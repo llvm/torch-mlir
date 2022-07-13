@@ -181,6 +181,11 @@ TOSA_PASS_SET = {
 }
 
 LTC_XFAIL_SET = {
+    "_Convolution2DAllFalseModule_basic",
+    "_Convolution2DBenchmarkModule_basic",
+    "_Convolution2DCudnnModule_basic",
+    "_Convolution2DDeterministicModule_basic",
+    "_Convolution2DTF32Module_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AddIntModule_basic",

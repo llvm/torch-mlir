@@ -5341,32 +5341,6 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
   }];
 }
 
-def Torch_AtenSelectScatterOp : Torch_Op<"aten.select_scatter", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
-    Torch_IntType:$dim,
-    Torch_IntType:$index
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSelectScatterOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 4, 1);
-    }
-    void AtenSelectScatterOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 4, 1);
-    }
-  }];
-}
-
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -5818,34 +5792,6 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
     }
     void AtenSliceTensorOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 1);
-    }
-  }];
-}
-
-def Torch_AtenSliceScatterOp : Torch_Op<"aten.slice_scatter", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
-    Torch_IntType:$dim,
-    AnyTorchOptionalIntType:$start,
-    AnyTorchOptionalIntType:$end,
-    Torch_IntType:$step
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSliceScatterOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 1);
-    }
-    void AtenSliceScatterOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 1);
     }
   }];
 }
