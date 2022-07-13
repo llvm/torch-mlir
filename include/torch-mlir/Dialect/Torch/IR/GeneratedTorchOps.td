@@ -5293,32 +5293,6 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
   }];
 }
 
-def Torch_AtenSelectScatterOp : Torch_Op<"aten.select_scatter", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
-    Torch_IntType:$dim,
-    Torch_IntType:$index
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSelectScatterOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 4, 1);
-    }
-    void AtenSelectScatterOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 4, 1);
-    }
-  }];
-}
-
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
     AllowsTypeRefinement,
     HasValueSemantics,
