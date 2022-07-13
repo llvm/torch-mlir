@@ -24,6 +24,8 @@ from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.gen_backend_stubs import parse_backend_yaml
 
 TORCH_DIR = Path(importlib.util.find_spec("torch").origin).resolve().parent.parent
+if TORCH_DIR.joinpath("torch", "include").is_dir():
+    TORCH_DIR = TORCH_DIR.joinpath("torch", "include")
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
@@ -119,8 +121,18 @@ class GenTorchMlirLTC:
             "python", "torch_mlir", "csrc", "base_lazy_backend"
         )
         assert self.backend_path.is_dir()
-        self.generated_path = self.backend_path.joinpath("generated")
+        self.generated_path = self.build_dir.joinpath(
+            "tools/torch-mlir/python/torch_mlir/csrc/base_lazy_backend/generated"
+        )
         self.generated_path.mkdir(exist_ok=True)
+
+        # Create symlink to match doc structure
+        generated_path = self.backend_path.joinpath("generated").resolve()
+        if not generated_path.exists():
+            generated_path.symlink_to(
+                os.path.relpath(self.generated_path, generated_path.parent),
+                target_is_directory=True,
+            )
 
         self.tensor_class = "torch::lazy::LazyTensor"
 
@@ -153,7 +165,9 @@ class GenTorchMlirLTC:
         native_yaml_path = native_path.joinpath("native_functions.yaml")
         tags_yaml_path = native_path.joinpath("tags.yaml")
 
-        ts_native_yaml_path = TORCH_DIR.joinpath("aten", "src", "ATen", "native", "ts_native_functions.yaml")
+        ts_native_yaml_path = TORCH_DIR.joinpath(
+            "aten", "src", "ATen", "native", "ts_native_functions.yaml"
+        )
         ts_native_yaml = None
         if ts_native_yaml_path.exists():
             ts_native_yaml = yaml.load(ts_native_yaml_path.read_text(), yaml.CLoader)
@@ -377,7 +391,7 @@ class GenTorchMlirLTC:
                     // for ops that dont have a corresponding structured kernel or shape definition
 
                     #include "shape_inference.h"
-                    #include "../utils/exception.h"
+                    #include "torch_mlir/csrc/base_lazy_backend/utils/exception.h"
                     namespace torch {{
                     namespace lazy {{
                     {}
@@ -421,7 +435,7 @@ class GenTorchMlirLTC:
 
         torchgen.gen_lazy_tensor.run_gen_lazy_tensor(
             backend_name="TorchMlir",
-            aten_path=str(TORCH_DIR.joinpath("aten", "src", "ATen")),
+            aten_path=str(TORCHGEN_DIR.joinpath("packaged", "ATen")),
             source_yaml=str(self.source_yaml),
             output_dir=str(self.generated_path),
             dry_run=False,
@@ -440,7 +454,7 @@ class GenTorchMlirLTC:
                 "sed",
                 "-i",
                 "/lazy_tensor_core/d",
-                str(self.backend_path.joinpath("generated", "LazyNativeFunctions.cpp")),
+                str(self.generated_path.joinpath("LazyNativeFunctions.cpp")),
             ]
         )
 

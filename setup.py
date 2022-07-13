@@ -69,6 +69,7 @@ class CMakeBuild(build_py):
             src_dir = os.path.abspath(os.path.dirname(__file__))
             llvm_dir = os.path.join(
                 src_dir, "externals", "llvm-project", "llvm")
+            cache_libtorch = os.getenv("LIBTORCH_CACHE", "OFF")
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython3_EXECUTABLE={sys.executable}",
@@ -82,6 +83,8 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
+                # libtorch cache
+                f"-DLIBTORCH_CACHE={cache_libtorch}"
             ]
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
