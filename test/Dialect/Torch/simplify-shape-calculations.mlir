@@ -439,29 +439,29 @@ func.func @fold_prim_unchecked_cast_op(%arg0: !torch.vtensor, %arg1: !torch.vten
 }
 
 // CHECK-LABEL: func.func @shape_calc_with_two_uses(
-// CHECK-SAME:      %[[arg:.*]]: !torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32> {
-// CHECK:         %[[shape_list:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32> {
+// CHECK:         %[[SHAPE_LIST:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
 
-// CHECK:         %[[cast_0:.*]] = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2],f32> to !torch.vtensor
-// CHECK:         %[[shape_calc_0:.*]] = torch.shape.calculate {
-// CHECK:           %[[neg_0:.*]] = torch.aten.neg %[[cast_0]] : !torch.vtensor -> !torch.tensor<[],unk>
-// CHECK:           torch.shape.calculate.yield %[[neg_0]] : !torch.tensor<[],unk>
+// CHECK:         %[[CAST_0:.*]] = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2],f32> to !torch.vtensor
+// CHECK:         %[[SHAPE_CALC_0:.*]] = torch.shape.calculate {
+// CHECK:           %[[NEG_0:.*]] = torch.aten.neg %[[CAST_0]] : !torch.vtensor -> !torch.tensor<[],unk>
+// CHECK:           torch.shape.calculate.yield %[[NEG_0]] : !torch.tensor<[],unk>
 // CHECK:         } shapes {
-// CHECK:           torch.shape.calculate.yield.shapes %[[shape_list]] : !torch.list<int>
+// CHECK:           torch.shape.calculate.yield.shapes %[[SHAPE_LIST]] : !torch.list<int>
 // CHECK:         } : !torch.tensor<[],unk>
-// CHECK:         %[[cast_1:.*]] = torch.tensor_static_info_cast %[[shape_calc_0]] : !torch.tensor<[],unk> to !torch.tensor
+// CHECK:         %[[CAST_1:.*]] = torch.tensor_static_info_cast %[[SHAPE_CALC_0]] : !torch.tensor<[],unk> to !torch.tensor
 
-// CHECK:         %[[value_tensor:.*]] = torch.copy.to_vtensor %[[cast_1]] : !torch.vtensor
-// CHECK:         %[[shape_calc_1:.*]] = torch.shape.calculate {
-// CHECK:           %[[neg_1:.*]] = torch.aten.neg %[[value_tensor]] : !torch.vtensor -> !torch.vtensor<[],unk>
-// CHECK:           torch.shape.calculate.yield %[[neg_1]] : !torch.vtensor<[],unk>
+// CHECK:         %[[VALUE_TENSOR:.*]] = torch.copy.to_vtensor %[[CAST_1]] : !torch.vtensor
+// CHECK:         %[[SHAPE_CALC_1:.*]] = torch.shape.calculate {
+// CHECK:           %[[NEG_1:.*]] = torch.aten.neg %[[VALUE_TENSOR]] : !torch.vtensor -> !torch.vtensor<[],unk>
+// CHECK:           torch.shape.calculate.yield %[[NEG_1]] : !torch.vtensor<[],unk>
 // CHECK:         } shapes {
-// CHECK:           torch.shape.calculate.yield.shapes %[[shape_list]] : !torch.list<int>
+// CHECK:           torch.shape.calculate.yield.shapes %[[SHAPE_LIST]] : !torch.list<int>
 // CHECK:         } : !torch.vtensor<[],unk>
 
-// CHECK:         %[[cast_2:.*]] = torch.tensor_static_info_cast %[[shape_calc_1]] : !torch.vtensor<[],unk> to !torch.vtensor
-// CHECK:         torch.overwrite.tensor.contents %[[cast_2]] overwrites %[[cast_1]] : !torch.vtensor, !torch.tensor
-// CHECK:         return %[[arg]] : !torch.vtensor<[2],f32>
+// CHECK:         %[[CAST_2:.*]] = torch.tensor_static_info_cast %[[SHAPE_CALC_1]] : !torch.vtensor<[],unk> to !torch.vtensor
+// CHECK:         torch.overwrite.tensor.contents %[[CAST_2]] overwrites %[[CAST_1]] : !torch.vtensor, !torch.tensor
+// CHECK:         return %[[ARG]] : !torch.vtensor<[2],f32>
 // CHECK:       }
 func.func @shape_calc_with_two_uses(%arg0: !torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32> {
   %shape_list = torch.prim.ListConstruct : () -> !torch.list<int>
