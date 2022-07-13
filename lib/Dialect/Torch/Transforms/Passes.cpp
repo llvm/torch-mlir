@@ -91,6 +91,9 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Incorporate user annotations and remove signature Python-isms.
   pm.addPass(createAdjustCallingConventionsPass());
 
+  // TODO: Remove options.optimize and this OPT-ONLY stuff -- we are already way
+  // past the point of no return for it being necessary for functional
+  // correctness.
   if (options.optimize) {
     // Eliminate the PrimTupleIndexOp generated from the
     // adjustCallingConventions
@@ -102,6 +105,22 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     // Also don't rely on this pass to expose constants into the program to
     // simplify handling of "optional".
     pm.addPass(createInlineGlobalSlotsPass());
+    // After doing a first round of inlining global slots, canonicalize again to
+    // take advantage of optimization opportunities exposed by the inlined
+    // global slots. In particular, this is functionally necessary now because
+    // large amounts of control flow are guarded by an "is training" flag, so
+    // inlining removes certain mutating operations done on the slots enabling
+    // them to be deleted.
+    // TODO: In full generality, we need to do a fixed-point iteration of
+    // shape inference, maximizing value semantics, decomposition, inling global
+    // slots, and canonicalization.
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    // Inline again, cleaning up any remaining global slots that might be dead
+    // now.
+    pm.addPass(createInlineGlobalSlotsPass());
+    // Erase the module initializers (or fail compilation), since they aren't
+    // permitted in our backend contract at the moment.
+    pm.addPass(Torch::createEraseModuleInitializerPass());
   }
 
   // Reduce variants of ops to a smaller set of primitives.

@@ -2,26 +2,22 @@
 
 // Basic case.
 
-// CHECK-LABEL:   torch.global_slot @b : !torch.bool  {
-// CHECK:           %[[INIT:.*]] = torch.constant.bool true
-// CHECK:           torch.global_slot.init %[[INIT]] : !torch.bool
+// CHECK-LABEL:   torch.global_slot.module_initializer {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[INT3:.*]] = torch.constant.int 3
+// CHECK:           %[[FLOAT4:.*]] = torch.constant.float 4.250000e+01
+// CHECK:           %[[TENSOR:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
+// CHECK:           torch.initialize.global_slots [
+// CHECK:             @b(%[[TRUE]] : !torch.bool)
+// CHECK:             @i(%[[INT3]] : !torch.int)
+// CHECK:             @f(%[[FLOAT4]] : !torch.float)
+// CHECK:             @t(%[[TENSOR]] : !torch.tensor)
+// CHECK:           ]
 // CHECK:         }
-
-// CHECK-LABEL:   torch.global_slot @i : !torch.int  {
-// CHECK:           %[[INIT:.*]] = torch.constant.int 3
-// CHECK:           torch.global_slot.init %[[INIT]] : !torch.int
-// CHECK:         }
-
-// CHECK-LABEL:   torch.global_slot @f : !torch.float  {
-// CHECK:           %[[INIT:.*]] = torch.constant.float 4.250000e+01
-// CHECK:           torch.global_slot.init %[[INIT]] : !torch.float
-// CHECK:         }
-
-// CHECK-LABEL:   torch.global_slot @t : !torch.tensor  {
-// CHECK:           %[[T:.*]] = torch.tensor.literal(dense<1.000000e+00> : tensor<1xf32>) : !torch.tensor
-// CHECK:           torch.global_slot.init %[[T]] : !torch.tensor
-// CHECK:         }
-
+// CHECK-LABEL:   torch.global_slot @b : !torch.bool
+// CHECK-LABEL:   torch.global_slot @i : !torch.int
+// CHECK-LABEL:   torch.global_slot @f : !torch.float
+// CHECK-LABEL:   torch.global_slot @t : !torch.tensor
 torch.class_type @c {
   torch.attr "b" : !torch.bool
   torch.attr "i" : !torch.int

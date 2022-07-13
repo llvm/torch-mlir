@@ -2,6 +2,7 @@ add_mlir_library(TorchMLIRTorchPasses
   AdjustCallingConventions.cpp
   DecomposeComplexOps.cpp
   DropShapeCalculations.cpp
+  EraseModuleInitializer.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp

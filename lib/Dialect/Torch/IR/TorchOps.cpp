@@ -28,6 +28,49 @@ using namespace mlir::torch::Torch;
 // Utilities
 //===----------------------------------------------------------------------===//
 
+Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
+                                                  Location loc, Value value,
+                                                  Type desiredType,
+                                                  bool userAllowsRefinement) {
+  Type type = value.getType();
+
+  // If the value is already of the desired type, we're done.
+  if (type == desiredType)
+    return value;
+
+  // If the type is a tensor, then adjust the static information.
+  if ((type.isa<ValueTensorType>() && desiredType.isa<ValueTensorType>()) ||
+      (type.isa<NonValueTensorType>() &&
+       desiredType.isa<NonValueTensorType>())) {
+    Value adjusted = builder.create<TensorStaticInfoCastOp>(value.getLoc(),
+                                                            desiredType, value);
+    return adjusted;
+  }
+
+  // If the type is a subtype of desiredType, then we need to derefine it to
+  // desiredType, unless the user allows refinement.
+  if (isValidSubtype(type, desiredType)) {
+    if (!userAllowsRefinement) {
+      Value adjusted =
+          builder.create<DerefineOp>(value.getLoc(), desiredType, value);
+      return adjusted;
+    } else {
+      return value;
+    }
+  }
+
+  // If the desiredType is subtype of type, then we assume that the desiredType
+  // is dynamically valid, so we do an unchecked cast.
+  if (isValidSubtype(desiredType, type)) {
+    Value adjusted =
+        builder.create<PrimUncheckedCastOp>(value.getLoc(), desiredType, value);
+    return adjusted;
+  }
+
+  // No known adjustment.
+  return Value();
+}
+
 Value mlir::torch::Torch::copyTensorToType(OpBuilder &builder, Location loc,
                                            BaseTensorType newType,
                                            Value tensor) {
@@ -1934,5 +1977,156 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   auto parent = cast<ShapeCalculateOp>(getOperation()->getParentOp());
   if (parent.getNumResults() != getNumOperands())
     return emitOpError("expected number of shapes to match number of results");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// GlobalSlotModuleInitializerOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult GlobalSlotModuleInitializerOp::verify() {
+  // We centralize all verification of the global slots and the
+  // InitializeGlobalSlotsOp into here, since it requires processing the whole
+  // module.
+
+  // TODO: We should really have a `torch.module` and have this initializer be
+  // a region attached to it.
+
+  ModuleOp module = cast<ModuleOp>(getOperation()->getParentOp());
+  for (auto op : module.getOps<GlobalSlotModuleInitializerOp>()) {
+    if (op.getOperation() != getOperation())
+      return op.emitError("there must be only one global slot initializer");
+  }
+
+  // Collect the relevant symbol names we will verify.
+  DenseSet</*StringAttr*/ Attribute> knownGlobalSlots;
+  for (auto op : module.getOps<GlobalSlotOp>())
+    knownGlobalSlots.insert(op.sym_nameAttr());
+  DenseSet</*StringAttr*/ Attribute> initializedGlobalSlots;
+  auto initialize = cast<InitializeGlobalSlotsOp>(getBody()->getTerminator());
+  for (Attribute symName : initialize.slotSymNames()) {
+    auto wasInserted = initializedGlobalSlots
+                           .insert(symName.cast<FlatSymbolRefAttr>().getAttr())
+                           .second;
+    if (!wasInserted)
+      return initialize.emitError("duplicate initialization of global slot: ")
+             << symName;
+  }
+  auto lessThanByStringValue = [](Attribute lhs, Attribute rhs) {
+    return lhs.cast<StringAttr>().getValue() <
+           rhs.cast<StringAttr>().getValue();
+  };
+  auto known = llvm::to_vector(knownGlobalSlots);
+  llvm::sort(known, lessThanByStringValue);
+  auto initialized = llvm::to_vector(initializedGlobalSlots);
+  llvm::sort(initialized, lessThanByStringValue);
+
+  // Check that the global slots in the module are all initialized.
+  SymbolTable symbolTable(module);
+  if (initializedGlobalSlots != knownGlobalSlots) {
+    InFlightDiagnostic diag = initialize.emitOpError(
+        "must have one initializer for each global slot in the module");
+    for (auto knownGlobalSlot : known) {
+      auto symName = FlatSymbolRefAttr::get(knownGlobalSlot.cast<StringAttr>());
+      if (!initializedGlobalSlots.count(knownGlobalSlot)) {
+        diag.attachNote(
+                symbolTable.lookup<GlobalSlotOp>(symName.getAttr()).getLoc())
+            .append("missing global slot initializer for ", symName);
+      }
+    }
+    for (auto initializedGlobalSlot : initialized) {
+      if (!knownGlobalSlots.count(initializedGlobalSlot)) {
+        diag.attachNote().append(
+            "unexpected global slot initializer for non-existent global slot ",
+            FlatSymbolRefAttr::get(initializedGlobalSlot.cast<StringAttr>()));
+      }
+    }
+    return diag;
+  }
+
+  // Check that initial values satisfy type bounds.
+  for (int i = 0, e = initialize.getNumOperands(); i < e; ++i) {
+    auto symName = initialize.slotSymNames()[i].cast<FlatSymbolRefAttr>();
+    auto initialValue = initialize.getOperand(i);
+    auto globalSlotOp = symbolTable.lookup<GlobalSlotOp>(symName.getValue());
+    if (!isValidSubtype(initialValue.getType(), globalSlotOp.typeBound())) {
+      return initialize.emitOpError().append(
+          "initial value for global slot ", symName, " has type ",
+          initialValue.getType(), " which is not within the bound ",
+          globalSlotOp.typeBound());
+    }
+  }
+
+  auto walkResult = getOperation()->walk([](Operation *op) {
+    // We only permit a small set of ops in the module initializer.
+    // These ops are essentially those which can be produced by the IValue
+    // importer.
+    if (isa<GlobalSlotModuleInitializerOp, InitializeGlobalSlotsOp,
+            PrimListConstructOp, PrimDictConstructOp, PrimTupleConstructOp,
+            ConstantBoolOp, ConstantStrOp, ConstantIntOp, ConstantFloatOp,
+            ConstantNoneOp, NonValueTensorLiteralOp, PerTensorAffineCreateOp,
+            LinearParamsCreateOp>(op))
+      return WalkResult::advance();
+    op->emitOpError() << "is not allowed in a module initializer";
+    return WalkResult::interrupt();
+  });
+  if (walkResult.wasInterrupted())
+    return failure();
+
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// InitializeGlobalSlotsOp
+//===----------------------------------------------------------------------===//
+
+ParseResult InitializeGlobalSlotsOp::parse(OpAsmParser &parser,
+                                           OperationState &result) {
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  if (parser.parseLSquare())
+    return failure();
+  SmallVector<Attribute> slotSymNames;
+  while (!succeeded(parser.parseOptionalRSquare())) {
+    NamedAttrList dummy;
+    StringAttr slotSymName;
+    if (parser.parseSymbolName(slotSymName, "dummy", dummy))
+      return failure();
+    slotSymNames.push_back(FlatSymbolRefAttr::get(slotSymName));
+    if (parser.parseLParen())
+      return failure();
+    OpAsmParser::UnresolvedOperand initialValue;
+    if (parser.parseOperand(initialValue))
+      return failure();
+    Type initialValueType;
+    if (parser.parseColonType(initialValueType))
+      return failure();
+    if (parser.parseRParen())
+      return failure();
+    if (parser.resolveOperand(initialValue, initialValueType, result.operands))
+      return failure();
+  }
+  result.addAttribute("slotSymNames",
+                      ArrayAttr::get(parser.getContext(), slotSymNames));
+  return success();
+}
+
+void InitializeGlobalSlotsOp::print(OpAsmPrinter &p) {
+  p.printOptionalAttrDict(getOperation()->getAttrs(),
+                          /*elidedAttrs=*/{"slotSymNames"});
+  p << " [";
+  p.printNewline();
+  for (int i = 0, e = getNumOperands(); i < e; ++i) {
+    p << "  " << slotSymNames()[i] << "(" << initialValues()[i] << " : "
+      << initialValues()[i].getType() << ")";
+    p.printNewline();
+  }
+  p << "]";
+}
+
+LogicalResult InitializeGlobalSlotsOp::verify() {
+  if (initialValues().size() != slotSymNames().size())
+    return emitOpError("expected number of operands to match number of slots");
   return success();
 }

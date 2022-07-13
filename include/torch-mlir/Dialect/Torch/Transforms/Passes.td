@@ -143,7 +143,7 @@ def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
 
     Note: This pass inlines everything that is safe to inline. That is, it
     doesn't have a cost model. This is likely to pessimize programs with
-    significant amounts of computation inside torch.global_slot initializer
+    significant amounts of computation inside torch.initialize.global_slotsr
     regions (but this currently doesn't happen due to how TorchScript modules
     are imported -- the contents are just constants).
   }];
@@ -262,6 +262,19 @@ def VerifyConversionToValueSemantics
     Prior passes in the pipeline may have missed converting all tensors to value
     semantics and we wish to catch such failures early instead of fixing
     individual cases downstream.
+  }];
+}
+
+def EraseModuleInitializer
+    : Pass<"torch-erase-module-initializer", "ModuleOp"> {
+  let summary = "Erase the `torch.global_slot.module_initializer` op.";
+  let constructor =
+    "mlir::torch::Torch::createEraseModuleInitializerPass()";
+  let description = [{
+    Backends cannot currently handle module initializers, so we omit them from
+    our backend contract. This pass removes the
+    `torch.global_slot.module_initializer` op from the module if legal, or
+    raises an error.
   }];
 }
 
