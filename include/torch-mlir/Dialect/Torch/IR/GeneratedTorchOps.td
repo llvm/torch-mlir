@@ -5748,34 +5748,6 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
   }];
 }
 
-def Torch_AtenSliceScatterOp : Torch_Op<"aten.slice_scatter", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
-    Torch_IntType:$dim,
-    AnyTorchOptionalIntType:$start,
-    AnyTorchOptionalIntType:$end,
-    Torch_IntType:$step
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSliceScatterOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 1);
-    }
-    void AtenSliceScatterOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 1);
-    }
-  }];
-}
-
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
     AllowsTypeRefinement,
     HasValueSemantics,
