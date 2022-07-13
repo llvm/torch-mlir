@@ -1316,10 +1316,9 @@ public:
             .getResult();
 
     // Perform the reshape to output shape. This is always required unless max
-    // input rank=3 and there was no broadcasting, in which case the tosa.matmul output itself is
-    // correctly shaped.
-    bool performOpReshape =
-        !(maxInputRank == 3 && !performBatchDimBroadcast);
+    // input rank=3 and there was no broadcasting, in which case the tosa.matmul
+    // output itself is correctly shaped.
+    bool performOpReshape = !(maxInputRank == 3 && !performBatchDimBroadcast);
 
     if (performOpReshape) {
       // Since the output shape may be unknown, we construct it
@@ -2746,6 +2745,129 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
+    AtenMaxDimOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are supported");
+
+  auto indicesType =
+      getTypeConverter()->convertType(op.getType(1)).dyn_cast<TensorType>();
+  if (!indicesType)
+    return op.emitError("Only tensor types are supported");
+
+  auto selfElemType = selfType.getElementType();
+  auto indicesElemType = indicesType.getElementType();
+
+  // Only statically deducible values are currently supported
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return op->emitError("dim must be a Scalar constant");
+
+  dim = toPositiveDim(dim, selfType.getRank());
+
+  if (!isValidDim(dim, selfType.getRank()))
+    return op->emitError("dim must be less than tensor rank");
+
+  bool keepDim;
+  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim)))
+    return op->emitError("keepdim must be a Scalar constant");
+
+  SmallVector<int64_t> reducedShape, prunedShape;
+  for (auto en : llvm::enumerate(selfType.getShape())) {
+    if (static_cast<int64_t>(en.index()) == dim) {
+      reducedShape.push_back(1);
+      continue;
+    }
+    reducedShape.push_back(en.value());
+    prunedShape.push_back(en.value());
+  }
+
+  auto dimAttr = rewriter.getIntegerAttr(rewriter.getI64Type(), dim);
+  auto prunedShapeAttr = rewriter.getI64ArrayAttr(prunedShape);
+
+  Value reduceMax = rewriter.create<tosa::ReduceMaxOp>(
+      op->getLoc(), RankedTensorType::get(reducedShape, selfElemType),
+      adaptor.self(), dimAttr);
+
+  Value argMax = rewriter.create<tosa::ArgMaxOp>(
+      op->getLoc(), RankedTensorType::get(prunedShape, indicesElemType),
+      adaptor.self(), dimAttr);
+
+  if (argMax.getType() != indicesType) {
+    argMax = rewriter.create<tosa::ReshapeOp>(op->getLoc(), indicesType, argMax,
+                                              prunedShapeAttr);
+  }
+
+  if (!keepDim) {
+    reduceMax = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(), RankedTensorType::get(prunedShape, selfElemType),
+        reduceMax, prunedShapeAttr);
+  }
+
+  rewriter.replaceOp(op, {reduceMax, argMax});
+
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
+    AtenSliceTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return op.emitError("Only tensor types with static shape are supported");
+
+  // Only statically deducible values are currently supported
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return op->emitError("dim must be a Scalar constant");
+
+  dim = toPositiveDim(dim, selfType.getRank());
+
+  if (!isValidDim(dim, selfType.getRank()))
+    return op->emitError("dim must less than tensor rank");
+
+  int64_t start;
+  if (!matchPattern(op.start(), m_TorchConstantInt(&start)))
+    return op->emitError("start must be a Scalar constant");
+
+  if (start < 0)
+    return op->emitError("Currently unsupported: start < 0");
+
+  int64_t end;
+  if (!matchPattern(op.end(), m_TorchConstantInt(&end)))
+    return op->emitError("end must be a Scalar constant");
+
+  // FIXME: add support for start/end < 0 and end < start
+  if (end < start)
+    return op->emitError("Currently unsupported: end < start");
+
+  int64_t step;
+  if (!matchPattern(op.step(), m_TorchConstantInt(&step)))
+    return op->emitError("step must be a Scalar constant");
+
+  if (step != 1)
+    return op->emitError("step value other than 1 is currently unsupported");
+
+  SmallVector<int64_t> startSlice(selfType.getRank(), 0);
+  SmallVector<int64_t> sizeSlice = llvm::to_vector(selfType.getShape());
+
+  startSlice[dim] = start;
+  sizeSlice[dim] = end - start;
+
+  rewriter.replaceOpWithNewOp<tosa::SliceOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
+      rewriter.getI64ArrayAttr(startSlice),
+      rewriter.getI64ArrayAttr(sizeSlice));
+
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3356,6 +3478,8 @@ public:
     INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
     INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
     INSERT_ATENOP_PATTERN(AtenTransposeIntOp);
+    INSERT_ATENOP_PATTERN(AtenMaxDimOp);
+    INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,

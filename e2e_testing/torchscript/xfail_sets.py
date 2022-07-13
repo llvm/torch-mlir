@@ -172,4 +172,7 @@ TOSA_PASS_SET = {
     "TModuleRank2_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
+    "ArgmaxModule_keepDim",
+    "ArgmaxModule_with_dim",
+    "_LogSoftmaxModuleStable_basic",    
 }
