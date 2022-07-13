@@ -126,6 +126,13 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
   pm.addNestedPass<func::FuncOp>(Torch::createMaximizeValueSemanticsPass());
 
+  // Update the return op to return value tensors and remove dead ops.
+  pm.addPass(Torch::createRefinePublicReturnPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
+  // Ensure that all tensors have been converted to value semantics.
+  pm.addPass(Torch::createVerifyConversionToValueSemanticsPass());
+
   // Do shape refinement.
   // This must be run before RefineTypes (which primarily does dtype inference),
   // because Torch type promotion rules actually depend on the shape of the
