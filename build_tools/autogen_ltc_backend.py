@@ -104,12 +104,9 @@ class GenTorchMlirLTC:
             Path(__file__).resolve().parent.joinpath("autogen_ltc_backend.yaml")
         )
         self.torch_ops_file = TORCH_MLIR_DIR.joinpath(
-            "include",
-            "torch-mlir",
-            "Dialect",
-            "Torch",
-            "IR",
-            "GeneratedTorchOps.td",
+            # fmt: off
+            "include", "torch-mlir", "Dialect", "Torch", "IR", "GeneratedTorchOps.td",
+            # fmt: on
         )
         assert self.torch_ops_file.exists()
         self.build_dir = TORCH_MLIR_DIR.joinpath(
@@ -122,7 +119,9 @@ class GenTorchMlirLTC:
         )
         assert self.backend_path.is_dir()
         self.generated_path = self.build_dir.joinpath(
-            "tools/torch-mlir/python/torch_mlir/csrc/base_lazy_backend/generated"
+            # fmt: off
+            "tools", "torch-mlir", "python", "torch_mlir", "csrc", "base_lazy_backend", "generated"
+            # fmt: on
         )
         self.generated_path.mkdir(exist_ok=True)
 
