@@ -288,7 +288,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
-            "aten::zero.functional : (Tensor) -> (Tensor)",
     ]:
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
@@ -439,7 +438,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::size.int : (Tensor, int) -> (int)", has_folder=True)
     emit("aten::stack : (Tensor[], int) -> (Tensor)")
     emit("aten::sum : (Tensor, int?) -> (Tensor)")
-    emit("aten::sum.dim_IntList : (Tensor, int[], bool, int?) -> (Tensor)")
+    emit("aten::sum.dim_IntList : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::max : (Tensor) -> (Tensor)")
     emit("aten::max.dim : (Tensor, int, bool) -> (Tensor, Tensor)")
     emit("aten::to.dtype : (Tensor, int, bool, bool, int?) -> (Tensor)", has_folder=True)
