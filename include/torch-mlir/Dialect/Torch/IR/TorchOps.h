@@ -187,6 +187,15 @@ m_TorchTensorSizeInt(Value tensor, int64_t *dim) {
 Value copyTensorToType(OpBuilder &builder, Location loc, BaseTensorType newType,
                        Value tensor);
 
+/// Adjusts the static information in the type of `value` to `desiredType`.
+///
+/// Returns null if such an adjustment is not possible.
+///
+/// If `userAllowsRefinement` is true, then the original value will be returned
+/// if it is a subtype of `desiredType`.
+Value adjustStaticInformation(OpBuilder &builder, Location loc, Value value,
+                              Type desiredType, bool userAllowsRefinement);
+
 /// Returns true if `list` is potentially mutated.
 bool isListPotentiallyMutated(Value list);
 

@@ -26,3 +26,11 @@ func.func @unresolved_operator(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.int)
   torch.operator "aten.mul.Scalar"(%arg0, %arg1) : (!torch.vtensor<[],f32>, !torch.int) -> !torch.vtensor<[],f32>
   return
 }
+
+// -----
+
+// expected-error@+1 {{unsupported by backend lowering: module initializers}}
+torch.global_slot.module_initializer {
+  torch.initialize.global_slots [
+  ]
+}

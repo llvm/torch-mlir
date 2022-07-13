@@ -179,3 +179,89 @@ func.func @torch.overwrite.tensor.contents(%arg0: !torch.vtensor<[1],f32>, %arg1
   %1 = torch.copy.to_vtensor %0 : !torch.vtensor<[1],f32>
   return %1 : !torch.vtensor<[1],f32>
 }
+
+// -----
+
+// There must be only one module initialize.
+
+torch.global_slot.module_initializer {
+  torch.initialize.global_slots [
+  ]
+}
+
+// expected-error @+1 {{there must be only one global slot initializer}}
+torch.global_slot.module_initializer {
+  torch.initialize.global_slots [
+  ]
+}
+
+// -----
+
+// Initialized slot missing, or or non-existent slots initialized.
+
+// expected-note @+1 {{missing global slot initializer for @slot0}}
+torch.global_slot @slot0 : !torch.int
+// expected-note @+1 {{missing global slot initializer for @slot1}}
+torch.global_slot @slot1 : !torch.int
+
+torch.global_slot.module_initializer {
+  %0 = torch.constant.int 1
+  %1 = torch.tensor.literal(dense<0.0> : tensor<f32>) : !torch.tensor
+  %2 = torch.tensor.literal(dense<0.0> : tensor<f32>) : !torch.tensor<[],unk>
+  // expected-error @below {{must have one initializer for each global slot in the module}}
+  // expected-note @below {{unexpected global slot initializer for non-existent global slot @nonexistent_slot0}}
+  // expected-note @below {{unexpected global slot initializer for non-existent global slot @nonexistent_slot1}}
+  torch.initialize.global_slots [
+    @nonexistent_slot0(%0 : !torch.int)
+    @nonexistent_slot1(%0 : !torch.int)
+  ]
+}
+
+// -----
+
+// Duplicate initialization of global slot.
+
+torch.global_slot @slot0 : !torch.int
+
+torch.global_slot.module_initializer {
+  %0 = torch.constant.int 1
+  // expected-error @+1 {{duplicate initialization of global slot: @slot0}}
+  torch.initialize.global_slots [
+    @slot0(%0 : !torch.int)
+    @slot0(%0 : !torch.int)
+  ]
+}
+
+// -----
+
+// Subtyping checks.
+
+torch.global_slot @tensor : !torch.tensor
+torch.global_slot @initialized_with_refined : !torch.tensor
+torch.global_slot @error_initialized_with_derefined : !torch.tensor<[],unk>
+
+torch.global_slot.module_initializer {
+  %1 = torch.tensor.literal(dense<0.0> : tensor<f32>) : !torch.tensor
+  %2 = torch.tensor.literal(dense<0.0> : tensor<f32>) : !torch.tensor<[],unk>
+  // expected-error @below {{initial value for global slot @error_initialized_with_derefined has type '!torch.tensor' which is not within the bound '!torch.tensor<[],unk>'}}
+  torch.initialize.global_slots [
+    @tensor(%1 : !torch.tensor)
+    @initialized_with_refined(%2 : !torch.tensor<[],unk>)
+    @error_initialized_with_derefined(%1 : !torch.tensor)
+  ]
+}
+
+// -----
+
+// Restricted set of ops in the module initializer.
+
+torch.global_slot @tensor : !torch.tensor
+
+torch.global_slot.module_initializer {
+  %0 = torch.tensor.literal(dense<0.0> : tensor<f32>) : !torch.tensor
+  // expected-error @+1 {{'torch.aten.mul.Tensor' op is not allowed in a module initializer}}
+  %1 = torch.aten.mul.Tensor %0, %0 : !torch.tensor, !torch.tensor -> !torch.tensor
+  torch.initialize.global_slots [
+    @tensor(%1 : !torch.tensor)
+  ]
+}

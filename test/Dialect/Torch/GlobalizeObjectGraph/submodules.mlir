@@ -2,10 +2,13 @@
 
 // Check that linkage names consist of the dotted path from the root. 
 
-// CHECK-LABEL:   torch.global_slot @m.float : !torch.float  {
-// CHECK:           %[[INIT:.*]] = torch.constant.float 4.200000e+01
-// CHECK:           torch.global_slot.init %[[INIT]] : !torch.float
+// CHECK-LABEL:   torch.global_slot.module_initializer {
+// CHECK:           %[[FLOAT:.*]] = torch.constant.float 4.200000e+01
+// CHECK:           torch.initialize.global_slots [
+// CHECK:             @m.float(%[[FLOAT]] : !torch.float)
+// CHECK:           ]
 // CHECK:         }
+// CHECK-LABEL:   torch.global_slot @m.float : !torch.float
 
 
 torch.class_type @child {

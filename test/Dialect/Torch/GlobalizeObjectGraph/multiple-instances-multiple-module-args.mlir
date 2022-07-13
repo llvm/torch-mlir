@@ -12,20 +12,22 @@ torch.class_type @__torch__.Submodule  {
   torch.method private "forward", @__torch__.Submodule.forward
 }
 
+// CHECK-LABEL:   torch.global_slot.module_initializer {
+// CHECK:           %[[INT1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT2:.*]] = torch.constant.int 2
+// CHECK:           torch.initialize.global_slots [
+// CHECK:             @s1.n(%[[INT1]] : !torch.int)
+// CHECK:             @s2.n(%[[INT2]] : !torch.int)
+// CHECK:           ]
+// CHECK:         }
+// CHECK-LABEL:   torch.global_slot "private" @s1.n : !torch.int
+// CHECK-LABEL:   torch.global_slot "private" @s2.n : !torch.int
 %int1 = torch.constant.int 1
 %s1 = torch.nn_module  {
-  // CHECK-LABEL:   torch.global_slot "private" @s1.n : !torch.int  {
-  // CHECK:           %[[C1:.*]] = torch.constant.int 1
-  // CHECK:           torch.global_slot.init %[[C1]] : !torch.int
-  // CHECK:         }
   torch.slot "n", %int1 : !torch.int
 } : !torch.nn.Module<"__torch__.Submodule">
 %int2 = torch.constant.int 2
 %s2 = torch.nn_module  {
-  // CHECK-LABEL:   torch.global_slot "private" @s2.n : !torch.int  {
-  // CHECK:           %[[C2:.*]] = torch.constant.int 2
-  // CHECK:           torch.global_slot.init %[[C2]] : !torch.int
-  // CHECK:         }
   torch.slot "n", %int2 : !torch.int
 } : !torch.nn.Module<"__torch__.Submodule">
 %3 = torch.nn_module  {

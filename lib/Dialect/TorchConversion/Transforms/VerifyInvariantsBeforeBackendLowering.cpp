@@ -42,6 +42,14 @@ class VerifyInvariantsBeforeBackendLoweringPass
     : public VerifyInvariantsBeforeBackendLoweringBase<
           VerifyInvariantsBeforeBackendLoweringPass> {
   void runOnOperation() override {
+    if (getOperation()
+            .walk([](Torch::GlobalSlotModuleInitializerOp op) {
+              op.emitError()
+                  << "unsupported by backend lowering: module initializers";
+              return WalkResult::interrupt();
+            })
+            .wasInterrupted())
+      return signalPassFailure();
     auto walkResult = getOperation().walk([&](Block *block) {
       // Check invariants on all the Value's in the program.
       // That is, check all BlockArgument's and OpResult's.

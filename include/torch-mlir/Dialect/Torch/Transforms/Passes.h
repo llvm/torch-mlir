@@ -80,6 +80,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createDropShapeCalculationsPass();
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyConversionToValueSemanticsPass();
 
+std::unique_ptr<OperationPass<ModuleOp>>
+createEraseModuleInitializerPass();
+
 StringRef getShapeLibrary();
 
 } // namespace Torch

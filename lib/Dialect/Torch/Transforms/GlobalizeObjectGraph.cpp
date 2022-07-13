@@ -48,12 +48,6 @@ static FailureOr<NnModuleOp> findRootNnModule(ModuleOp module) {
   return rootNnModule;
 }
 
-static bool hasMeaningfulObjectIdentity(Type type) {
-  return !type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-                   Torch::StringType, Torch::NoneType,
-                   Torch::ValueTensorType>();
-}
-
 //===----------------------------------------------------------------------===//
 // Object graph recursive traversal.
 //===----------------------------------------------------------------------===//
@@ -99,6 +93,9 @@ public:
     auto it = slotToGlobalSlot.find(slot);
     assert(it != slotToGlobalSlot.end() && "didn't create global slot");
     return it->second;
+  }
+  llvm::MapVector<StringAttr, Value> &getGlobalSlotInitialValues() {
+    return globalSlotInitialValues;
   }
 
 private:
@@ -187,8 +184,7 @@ private:
         assert(slotToGlobalSlot.find(slot) == slotToGlobalSlot.end());
         slotToGlobalSlot[slot] = globalSlot;
         slotLinkageInfo[slot] = LinkageInfo{linkageName, attr.isPrivate()};
-        if (failed(populateGlobalSlotInitializer(globalSlot, slot)))
-          return failure();
+        globalSlotInitialValues[globalSlot.sym_nameAttr()] = slot.value();
       }
       nameStack.pop_back();
     }
@@ -199,44 +195,6 @@ private:
           LinkageInfo{llvm::join(nameStack, "."), method.isPrivate()};
       nameStack.pop_back();
     }
-    return success();
-  }
-  LogicalResult populateGlobalSlotInitializer(GlobalSlotOp globalSlot,
-                                              SlotOp slot) {
-    OpBuilder builder(globalSlot.getContext());
-    builder.createBlock(&globalSlot.getRegion());
-
-    SmallPtrSet<Operation *, 6> needToClone;
-    Value initialValue = slot.value();
-    SmallVector<Operation *> worklist = {initialValue.getDefiningOp()};
-    while (!worklist.empty()) {
-      Operation *op = worklist.pop_back_val();
-      if (!needToClone.insert(op).second)
-        continue;
-      for (Value operand : op->getOperands()) {
-        if (auto def = operand.getDefiningOp())
-          worklist.push_back(def);
-      }
-    }
-    worklist.assign(needToClone.begin(), needToClone.end());
-    llvm::sort(worklist, [](Operation *lhs, Operation *rhs) {
-      return lhs->isBeforeInBlock(rhs);
-    });
-    BlockAndValueMapping mapping;
-    for (Operation *op : worklist) {
-      builder.clone(*op, mapping);
-      for (Value result : op->getResults()) {
-        if (!hasMeaningfulObjectIdentity(result.getType()))
-          continue;
-        if (!objectsWithIdentityAlreadyCopiedIntoInitializers.insert(result)
-                 .second) {
-          return op->emitError() << "potentially-aliased value used to "
-                                    "initialize multiple slots";
-        }
-      }
-    }
-    builder.create<GlobalSlotInitOp>(globalSlot->getLoc(),
-                                     mapping.lookup(initialValue));
     return success();
   }
   // Builder for creating GlobalSlotOp's in the module.
@@ -262,15 +220,49 @@ private:
   DenseMap<std::pair<NnModuleOp, func::FuncOp>, LinkageInfo> funcLinkageInfo;
   // The corresponding GlobalSlotOp for each SlotOp in the program.
   DenseMap<SlotOp, GlobalSlotOp> slotToGlobalSlot;
-  // A set of values that we have copied into torch.global_slot initializers,
-  // which cannot be used in multiple initializers because their object
-  // identity is important.
-  DenseSet<Value> objectsWithIdentityAlreadyCopiedIntoInitializers;
+  // The initializing value for each GlobalSlotOp.
+  // This is a MapVector to keep the order deterministic.
+  llvm::MapVector<StringAttr, Value> globalSlotInitialValues;
   // Used to keep track of all the used torch slots so that the restrictions can
   // be applied to those slots only.
   DenseSet<SlotOp> usedSlots;
 };
 } // namespace
+
+LogicalResult
+createGlobalSlotModuleInitializer(ModuleOp module, SymbolTable &symbolTable,
+                                  ObjectGraphInfo &objectGraphInfo) {
+  auto builder = OpBuilder::atBlockBegin(module.getBody());
+  auto moduleInitializer =
+      builder.create<GlobalSlotModuleInitializerOp>(module.getLoc());
+  Block *body = builder.createBlock(&moduleInitializer.initializer());
+  builder.setInsertionPointToEnd(body);
+  SmallVector<Operation *> opsToMove;
+  for (Operation &op : *module.getBody()) {
+    if (isa<ClassTypeOp, NnModuleOp, GlobalSlotOp, func::FuncOp,
+            GlobalSlotModuleInitializerOp>(op))
+      continue;
+    opsToMove.push_back(&op);
+  }
+  BlockAndValueMapping mapping;
+  for (Operation *op : opsToMove) {
+    // The ops are used by `torch.slot` ops in the enclosing module.
+    // Cloning avoids needing to handle those uses specially.
+    builder.clone(*op, mapping);
+  }
+  SmallVector<Attribute> slotSymNames;
+  SmallVector<Value> initialValues;
+  for (auto &kv : objectGraphInfo.getGlobalSlotInitialValues()) {
+    StringAttr symName = kv.first;
+    Value initializer = kv.second;
+    slotSymNames.push_back(FlatSymbolRefAttr::get(symName));
+    initialValues.push_back(mapping.lookup(initializer));
+  }
+  builder.create<InitializeGlobalSlotsOp>(
+      moduleInitializer.getLoc(),
+      ArrayAttr::get(module.getContext(), slotSymNames), initialValues);
+  return success();
+}
 
 //===----------------------------------------------------------------------===//
 // Monomorphization.
@@ -596,7 +588,13 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
     instances[classType].push_back(nnModule);
   }
 
-  // Step 2: Verify all functions are suitable to be analyzed by our later code.
+  // Step 2: Create the torch.global_slot.module_initializer op.
+
+  if (failed(createGlobalSlotModuleInitializer(module, symbolTable,
+                                               objectGraphInfo)))
+    return failure();
+
+  // Step 3: Verify all functions are suitable to be analyzed by our later code.
   // This eliminates special handling / error code later.
   //
   // This is important, because in principle, we can perform arbitrarily complex
@@ -608,7 +606,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
       return failure();
   }
 
-  // Step 3: Calculate the set of monomorphized functions that need to be
+  // Step 4: Calculate the set of monomorphized functions that need to be
   // created. For each call that passes !torch.nn.Module to a function, we need
   // to create a specialized version of that function just for that instance (or
   // combination of instances in the case of multiple arguments).
@@ -633,7 +631,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
     return failure();
   }
 
-  // Step 4: Clone/rewrite functions to implement the necessary
+  // Step 5: Clone/rewrite functions to implement the necessary
   // monomorphizations.
   DenseMap<Monomorphization, func::FuncOp> newFuncs;
   int uniquifier = 0;
@@ -672,13 +670,13 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
       return failure();
   }
 
-  // Step 5: Clean up object graph.
+  // Step 6: Clean up object graph.
   DenseSet<func::FuncOp> liveFuncs;
   for (auto &kv : newFuncs) {
     liveFuncs.insert(kv.second);
   }
   for (auto &op : llvm::make_early_inc_range(module.getOps())) {
-    if (isa<GlobalSlotOp>(&op))
+    if (isa<GlobalSlotOp, GlobalSlotModuleInitializerOp>(&op))
       continue;
     if (auto func = dyn_cast<func::FuncOp>(op)) {
       if (liveFuncs.contains(func))
