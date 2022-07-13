@@ -29,6 +29,47 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
+class PropagateSizeInfo : public OpRewritePattern<TensorStaticInfoCastOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(TensorStaticInfoCastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto dstType = op.result().getType().cast<BaseTensorType>();
+    auto srcType = op.operand().getType().cast<BaseTensorType>();
+
+    // Only handle cases where the cast operation drops size information.
+    if (!srcType.hasSizes() || dstType.hasSizes())
+      return failure();
+
+    bool updated = false;
+    using OpOperandRefs = SmallVector<std::reference_wrapper<OpOperand>>;
+    OpOperandRefs workList{op.result().getUses()};
+
+    // Limit the loop count to 6 to avoid indefinite compilation times from
+    // unbounded IR traversals.
+    for (auto idx = 0; idx < 6 && !workList.empty(); ++idx) {
+      OpOperand &operand = workList.pop_back_val();
+      Operation *owner = operand.getOwner();
+
+      if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp>(owner)) {
+        llvm::append_range(workList, owner->getResult(0).getUses());
+      } else if (!isa<TensorStaticInfoCastOp, func::ReturnOp>(owner)) {
+        // Skip return ops since changing their operand type will require
+        // changing other return ops as well as the function return type.
+        rewriter.setInsertionPoint(owner);
+        auto richTypedValue = rewriter.create<TensorStaticInfoCastOp>(
+            op.getLoc(), srcType, operand.get());
+        operand.set(richTypedValue);
+        updated = true;
+      }
+    }
+
+    return success(updated);
+  }
+};
+} // namespace
+
+namespace {
 // TODO: Only unroll inside the shape calculation region.
 // Maybe do this by only applying patterns and folding greedily on the ops
 // inside the region + the shape.calculate op itself?
@@ -408,6 +449,7 @@ class SimplifyShapeCalculationsPass
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);
+    patterns.insert<PropagateSizeInfo>(context);
     patterns.insert<FullyUnrollPrimLoopOp>(context);
     patterns.insert<AbstractlyInterpretListOpsWithinABlock>(context);
     patterns.insert<DecomposeAtenSizeOp>(context);
