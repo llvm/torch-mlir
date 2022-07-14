@@ -1054,6 +1054,41 @@ def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -
 def aten〇cat(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
+def split_fn(input: List[int], split_sizes: List[int], dim: int = 0):
+    dim = upstream_shape_functions.maybe_wrap_dim(dim, len(input))
+    num_indices = len(split_sizes)
+    results: List[List[int]] = []
+    start = 0
+    for i in range(num_indices):
+        end = split_sizes[i]
+        results[i] = upstream_shape_functions.slice(input, dim, start, end, 1)
+        start = end
+    return results
+
+def aten〇split(self: List[int], split_sizes: List[int], dim: int = 0) -> List[List[int]]:
+    return split_fn(self, split_sizes, dim)
+    #return upstream_shape_helpers.split(self, split_sizes, dim)
+
+def aten〇split〇sizes(self: List[int], split_size: List[int], dim: int = 0) -> List[List[int]]:
+    return split_fn(self, split_size, dim)
+    #return upstream_shape_helpers.split(self, split_size, dim)
+
+def aten〇split_with_sizes(self: List[int], split_sizes: List[int], dim: int = 0) -> List[List[int]]:
+    return split_fn(self, split_sizes, dim)
+    #return upstream_shape_helpers.split(self, split_sizes, dim)
+
+def aten〇split〇Tensor(self: List[int], split_size: int, dim: int = 0) -> List[List[int]]:
+    dim_size = self[dim]
+    chunks = (dim_size + split_size - 1) // split_size
+    split_sizes = [split_size for i in range(chunks)]
+    split_sizes[chunks - 1] = split_size - (split_size * chunks - dim_size)
+    return split_fn(self, split_sizes, dim)
+    #return upstream_shape_helpers.split(self, split_sizes, dim)
+
+def aten〇chunk(self: List[int], chunks: int, dim: int = 0) -> List[List[int]]:
+    split_size = self[dim] // chunks
+    return aten〇split〇Tensor(self, split_size, dim)
+
 class DummyClassType:
     def __init__(self):
         pass
