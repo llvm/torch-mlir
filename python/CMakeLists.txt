@@ -60,34 +60,23 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 # Optionally handle JIT IR importer.
 ################################################################################
 
-option(LIBTORCH_SRC_BUILD "Build libtorch from source" OFF)
-option(LIBTORCH_CACHE "Cache libtorch downloads" OFF)
-option(LIBTORCH_VARIANT "libtorch variant [shared|static]-[cxx11]" "libtorch-shared")
+option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
 
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
-  # if LIBTORCH_SRC_BUILD=OFF (default) we link against a binary libtorch :
-  #   if LIBTORCH_CACHE=OFF (default) the build downloads the latest released version of libtorch
-  #   if LIBTORCH_CACHE=ON the build uses an available libtorch/ in the root directory.
-  #   In either case if there is no libtorch/ the latest released version for the platform is downloaded
-  #   A developer could unpack their own libtorch/ and it would be respected
-  # if LIBTORCH_SRC_BUILD=ON we build libtorch/pytorch and link against it
-  #   if LIBTORCH_VARIANT=*cxx11abi*  we build with the new CXX11 ABI similar to upstream pytorch/builder
-  #   if LIBTORCH_VARIANT=*shared*   (default) we build a shared library (and pytorch .whl)
-  #     else if LIBTORCH_VARIANT=*static*   we build a static libtorch
-  set(ENV{LIBTORCH_SRC_BUILD} ${LIBTORCH_SRC_BUILD})
-  set(ENV{LIBTORCH_CACHE} ${LIBTORCH_CACHE})
-  set(ENV{LIBTORCH_VARIANT} ${LIBTORCH_VARIANT})
-  set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
-  set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
-  set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
-  execute_process(
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
-    RESULT_VARIABLE _result
-  )
-  if(_result)
-    message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
+  if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
+    # Source builds
+    set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
+    set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
+    set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
+    execute_process(
+      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+      RESULT_VARIABLE _result
+    )
+    if(_result)
+      message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
+    endif()
+    set(TORCH_INSTALL_PREFIX "libtorch")
   endif()
-  set(TORCH_INSTALL_PREFIX "libtorch")
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
   add_subdirectory(torch_mlir_e2e_test)
 endif()
