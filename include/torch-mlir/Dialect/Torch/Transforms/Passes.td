@@ -253,4 +253,16 @@ def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "func::FuncOp"
   }];
 }
 
+def VerifyConversionToValueSemantics
+    : Pass<"torch-verify-conversion-to-value-semantics", "ModuleOp"> {
+  let summary = "Verify that all tensors have been converted to value semantics";
+  let constructor =
+    "mlir::torch::Torch::createVerifyConversionToValueSemanticsPass()";
+  let description = [{
+    Prior passes in the pipeline may have missed converting all tensors to value
+    semantics and we wish to catch such failures early instead of fixing
+    individual cases downstream.
+  }];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES
