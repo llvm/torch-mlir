@@ -87,7 +87,12 @@ download_libtorch() {
   fi
 elif [[ $(uname -s) = 'Linux' ]]; then
   echo "Linux detected"
-  DOWNLOAD_URL=${LINUX_X86_URL}
+  if [[ $(uname -m) == 'x86_64' ]]; then
+    DOWNLOAD_URL=${LINUX_X86_URL}
+  else
+    echo "${Red} Non x86_64 Linux platform detected... No libtorch/ binaries available${NC}"
+    return 1
+  fi
 else
   echo "OS not detected. Pray and Play"
   return 1
