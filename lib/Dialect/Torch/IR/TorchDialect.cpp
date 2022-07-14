@@ -63,17 +63,8 @@ struct TorchInlinerInterface : public DialectInlinerInterface {
 Type Torch::parseTorchDialectType(AsmParser &parser) {
   SMLoc typeLoc = parser.getCurrentLocation();
   StringRef mnemonic;
-  if (parser.parseOptionalKeyword(&mnemonic)) {
-    parser.emitError(parser.getCurrentLocation())
-        .append("expected type mnemonic")
-        .attachNote()
-        .append("for types like `!torch.list<int>`, you must omit the "
-                "`!torch.` prefix for the nested types");
-    return Type();
-  }
-
   Type genType;
-  auto parseResult = generatedTypeParser(parser, mnemonic, genType);
+  auto parseResult = generatedTypeParser(parser, &mnemonic, genType);
   if (parseResult.hasValue())
     return genType;
   parser.emitError(typeLoc) << "unknown  type `" << mnemonic << "` in dialect `"

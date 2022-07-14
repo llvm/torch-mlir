@@ -108,5 +108,13 @@ def main():
     failed = report_results(results, xfail_set, args.verbose)
     sys.exit(1 if failed else 0)
 
+def _suppress_warnings():
+    import warnings
+    # Ignore warning due to Python bug:
+    # https://stackoverflow.com/questions/4964101/pep-3118-warning-when-using-ctypes-array-as-numpy-array
+    warnings.filterwarnings("ignore",
+                            message="A builtin ctypes object gave a PEP3118 format string that does not match its itemsize")
+
 if __name__ == '__main__':
+    _suppress_warnings()
     main()
