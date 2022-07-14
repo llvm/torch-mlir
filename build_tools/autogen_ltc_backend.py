@@ -1,6 +1,6 @@
 import argparse
 import hashlib
-import importlib
+import importlib.util
 import logging
 import os
 import re
@@ -24,6 +24,8 @@ from torchgen.gen import get_grouped_native_functions, parse_native_yaml
 from torchgen.gen_backend_stubs import parse_backend_yaml
 
 TORCH_DIR = Path(importlib.util.find_spec("torch").origin).resolve().parent.parent
+if TORCH_DIR.joinpath("torch", "include").is_dir():
+    TORCH_DIR = TORCH_DIR.joinpath("torch", "include")
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
@@ -94,33 +96,36 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
 
 
 class GenTorchMlirLTC:
-    def __init__(self, verbose=False):
-        self.verbose = verbose
-
+    def __init__(self, binary_dir):
         self.script_path = Path(__file__).resolve()
         self.config_path = (
             Path(__file__).resolve().parent.joinpath("autogen_ltc_backend.yaml")
         )
         self.torch_ops_file = TORCH_MLIR_DIR.joinpath(
-            "include",
-            "torch-mlir",
-            "Dialect",
-            "Torch",
-            "IR",
-            "GeneratedTorchOps.td",
+            # fmt: off
+            "include", "torch-mlir", "Dialect", "Torch", "IR", "GeneratedTorchOps.td",
+            # fmt: on
         )
         assert self.torch_ops_file.exists()
-        self.build_dir = TORCH_MLIR_DIR.joinpath(
-            os.getenv("TORCH_MLIR_CMAKE_BUILD_DIR", "build")
-        )
-        self.build_dir.mkdir(exist_ok=True)
-        self.source_yaml = self.build_dir.joinpath("generated_native_functions.yaml")
+        self.binary_dir = Path(binary_dir)
+        assert self.binary_dir.is_dir(), f"Binary directory not found: {self.binary_dir}"
+        self.source_yaml = self.binary_dir.joinpath("generated_native_functions.yaml")
         self.backend_path = TORCH_MLIR_DIR.joinpath(
             "python", "torch_mlir", "csrc", "base_lazy_backend"
         )
         assert self.backend_path.is_dir()
-        self.generated_path = self.backend_path.joinpath("generated")
-        self.generated_path.mkdir(exist_ok=True)
+        self.generated_path = self.binary_dir.joinpath(
+            "python", "torch_mlir", "csrc", "base_lazy_backend", "generated"
+        )
+        self.generated_path.mkdir(parents=True, exist_ok=True)
+
+        # Create symlink to match doc structure
+        generated_path = self.backend_path.joinpath("generated").resolve()
+        if not generated_path.exists():
+            generated_path.symlink_to(
+                os.path.relpath(self.generated_path, generated_path.parent),
+                target_is_directory=True,
+            )
 
         self.tensor_class = "torch::lazy::LazyTensor"
 
@@ -153,7 +158,9 @@ class GenTorchMlirLTC:
         native_yaml_path = native_path.joinpath("native_functions.yaml")
         tags_yaml_path = native_path.joinpath("tags.yaml")
 
-        ts_native_yaml_path = TORCH_DIR.joinpath("aten", "src", "ATen", "native", "ts_native_functions.yaml")
+        ts_native_yaml_path = TORCH_DIR.joinpath(
+            "aten", "src", "ATen", "native", "ts_native_functions.yaml"
+        )
         ts_native_yaml = None
         if ts_native_yaml_path.exists():
             ts_native_yaml = yaml.load(ts_native_yaml_path.read_text(), yaml.CLoader)
@@ -377,7 +384,7 @@ class GenTorchMlirLTC:
                     // for ops that dont have a corresponding structured kernel or shape definition
 
                     #include "shape_inference.h"
-                    #include "../utils/exception.h"
+                    #include "torch_mlir/csrc/base_lazy_backend/utils/exception.h"
                     namespace torch {{
                     namespace lazy {{
                     {}
@@ -421,7 +428,7 @@ class GenTorchMlirLTC:
 
         torchgen.gen_lazy_tensor.run_gen_lazy_tensor(
             backend_name="TorchMlir",
-            aten_path=str(TORCH_DIR.joinpath("aten", "src", "ATen")),
+            aten_path=str(TORCHGEN_DIR.joinpath("packaged", "ATen")),
             source_yaml=str(self.source_yaml),
             output_dir=str(self.generated_path),
             dry_run=False,
@@ -440,7 +447,7 @@ class GenTorchMlirLTC:
                 "sed",
                 "-i",
                 "/lazy_tensor_core/d",
-                str(self.backend_path.joinpath("generated", "LazyNativeFunctions.cpp")),
+                str(self.generated_path.joinpath("LazyNativeFunctions.cpp")),
             ]
         )
 
@@ -451,9 +458,9 @@ class GenTorchMlirLTC:
 
 
 def main(args):
-    generator = GenTorchMlirLTC()
+    generator = GenTorchMlirLTC(args.binary_dir)
 
-    hash_file = generator.build_dir.joinpath("generated_backend.hash")
+    hash_file = generator.binary_dir.joinpath("generated_backend.hash")
 
     prev_hash = None
     if hash_file.exists():
@@ -468,6 +475,15 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-b",
+        "--binary_dir",
+        type=str,
+        default=os.getenv(
+            "TORCH_MLIR_BINARY_DIR",
+            TORCH_MLIR_DIR.joinpath("build"),
+        ),
+    )
     parser.add_argument(
         "-f",
         "--force",
