@@ -181,6 +181,7 @@ cc_library(
         "lib/Dialect/Torch/Transforms/ShapeLibrary.cpp",
         "lib/Dialect/Torch/Transforms/SimplifyShapeCalculations.cpp",
         "lib/Dialect/Torch/Transforms/PassDetail.h",
+        "lib/Dialect/Torch/Transforms/VerifyConversionToValueSemantics.cpp",
     ],
     hdrs = [
         "include/torch-mlir/Dialect/Torch/Transforms/Passes.h",
