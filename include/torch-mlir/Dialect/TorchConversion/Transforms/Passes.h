@@ -34,6 +34,13 @@ void createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
 
+// Do not register the torch-to-mhlo pipeline if mhlo target is disabled
+#ifdef TORCH_MLIR_ENABLE_MHLO
+void createTorchBackendToMhloBackendPipeline(
+    OpPassManager &pm,
+    const torch::Torch::TorchLoweringPipelineOptions &options);
+#endif
+
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyInvariantsBeforeBackendLoweringPass();
 
