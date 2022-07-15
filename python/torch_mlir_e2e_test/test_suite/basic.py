@@ -1656,6 +1656,28 @@ def IndexTensorModule3dInput_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorSelectDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, a, ind):
+        return torch.ops.aten.index(a, (None, ind, None))
+
+
+@register_test_case(module_factory=lambda: IndexTensorSelectDimModule())
+def IndexTensorSelectDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6), torch.randint(3, (2, 3)))
+
+# ==============================================================================
+
+
 class SquareModule(torch.nn.Module):
 
     def __init__(self):

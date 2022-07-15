@@ -262,19 +262,28 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: the indices list is not from a list construct");
     }
-    if (indicesTuple.size() != 1) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only one index tensor is supported");
-    }
 
     SmallVector<Value> indicesVal =
         getTypeConvertedValues(rewriter, loc, getTypeConverter(), indicesTuple);
-    Value indexTensor = indicesVal[0];
-    if (failed(checkNotNone(rewriter, op, indexTensor))) {
+
+    int indexTensorDim = -1;
+    for (auto i : llvm::seq(0, (int)indicesVal.size())) {
+      Value index = indicesVal[i];
+      if (!index || failed(checkNotNone(rewriter, op, index)))
+        continue;
+      if (indexTensorDim >= 0) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only one index tensor allowed");
+      }
+      indexTensorDim = i;
+    }
+
+    if (indexTensorDim == -1) {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: index tensor must not be None");
     }
 
+    Value indexTensor = indicesVal[indexTensorDim];
     RankedTensorType inputType = input.getType().cast<RankedTensorType>();
     RankedTensorType indexTensorType =
         indexTensor.getType().cast<RankedTensorType>();
@@ -286,13 +295,16 @@ public:
     int indexTensorRank = indexTensorType.getRank();
 
     // This result shape calculation assumes that there is only one
-    // index tensor and that it is indexing the first dimension of the
-    // input tensor. The calculation for arbitrary inputs is much more complex.
+    // index tensor of the input tensor. The calculation for arbitrary inputs is
+    // much more complex.
     SmallVector<Value> resultShape;
+    for (auto i : llvm::seq(0, indexTensorDim)) {
+      resultShape.push_back(getDimOp(rewriter, loc, input, i));
+    }
     for (auto i : llvm::seq(0, indexTensorRank)) {
       resultShape.push_back(getDimOp(rewriter, loc, indexTensor, i));
     }
-    for (auto i : llvm::seq(1, inputRank)) {
+    for (auto i : llvm::seq(indexTensorDim + 1, inputRank)) {
       resultShape.push_back(getDimOp(rewriter, loc, input, i));
     }
     int resultRank = resultShape.size();
@@ -302,7 +314,7 @@ public:
     SmallVector<AffineExpr> indicesExpr, resultExpr;
     SmallVector<StringRef> iteratorTypes;
 
-    for (auto i : llvm::seq(0, indexTensorRank))
+    for (auto i : llvm::seq(indexTensorDim, indexTensorDim + indexTensorRank))
       indicesExpr.push_back(rewriter.getAffineDimExpr(i));
     for (auto i : llvm::seq(0, resultRank)) {
       resultExpr.push_back(rewriter.getAffineDimExpr(i));
@@ -316,11 +328,17 @@ public:
                 loc, initTensor.getType(), indexTensor, initTensor,
                 indexingMaps, iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> extractionIndices{
-                      castIntToIndex(b, loc, args[0])};
-                  for (auto i : llvm::seq(1, inputRank)) {
-                    extractionIndices.push_back(b.create<linalg::IndexOp>(
-                        loc, i + indexTensorRank - 1));
+                  Value index = castIntToIndex(b, loc, args[0]);
+                  SmallVector<Value> extractionIndices;
+                  int extra_dims = 0;
+                  for (auto i : llvm::seq(0, inputRank)) {
+                    if (i == indexTensorDim) {
+                      extractionIndices.push_back(index);
+                      extra_dims += indexTensorRank - 1;
+                    } else {
+                      extractionIndices.push_back(
+                          b.create<linalg::IndexOp>(loc, i + extra_dims));
+                    }
                   }
                   Value extractedElement = b.create<tensor::ExtractOp>(
                       loc, input, extractionIndices);
