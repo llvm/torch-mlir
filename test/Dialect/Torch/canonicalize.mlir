@@ -1357,3 +1357,13 @@ func.func @torch.aten.size.int$copy(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.
   %size = torch.aten.size.int %value_tensor, %zero : !torch.vtensor, !torch.int -> !torch.int
   return %size : !torch.int
 }
+
+// CHECK-LABEL:   func.func @prim.ListUnpack$fold_list(
+// CHECK-SAME:        %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>,
+// CHECK-SAME:        %[[ARG1:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>,  !torch.vtensor<[2,3],f32>) {
+// CHECK:           return %[[ARG0]], %[[ARG1]] : !torch.vtensor<[2,3],f32>,  !torch.vtensor<[2,3],f32>
+func.func @prim.ListUnpack$fold_list(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) {
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor>
+  %1:2 = torch.prim.ListUnpack %0 : !torch.list<vtensor> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
+  return %1#0, %1#1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
+}
