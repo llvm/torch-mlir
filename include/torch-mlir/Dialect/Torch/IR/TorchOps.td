@@ -310,8 +310,10 @@ def Torch_GlobalSlotSetOp : Torch_Op<"global_slot.set", []> {
 // See `torch/csrc/jit/runtime/instruction.h`.
 
 
-def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
-    [AllowsTypeRefinement]> {
+def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", [
+  AllowsTypeRefinement,
+  ReadOnly
+  ]> {
   let summary = "TorchScript prim::ListUnpack op";
   let arguments = (ins AnyTorchType:$operand);
   let results = (outs Variadic<AnyTorchType>:$results);
@@ -319,6 +321,7 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack",
   let assemblyFormat = [{
     $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($results))
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [

@@ -1574,6 +1574,27 @@ void PrimTupleUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+//===----------------------------------------------------------------------===//
+// PrimListUnpackOp
+//===----------------------------------------------------------------------===//
+
+void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](PrimListUnpackOp op, PatternRewriter &rewriter) {
+    auto torchList = op.operand();
+    if (isListPotentiallyMutated(torchList)) {
+      return failure();
+    }
+
+    auto listConstruct = torchList.getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listConstruct)
+      return failure();
+
+    rewriter.replaceOp(op, listConstruct.elements());
+    return success();
+  });
+}
+
 static PrimDictConstructOp getDictConstructIfNotModified(Value torchDict) {
   if (!llvm::all_of(torchDict.getUsers(), [](Operation *op) {
         return isa<Aten__Getitem__DictStrOp, Aten__Contains__StrOp,
