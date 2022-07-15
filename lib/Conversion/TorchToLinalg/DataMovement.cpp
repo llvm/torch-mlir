@@ -76,6 +76,11 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
     return op->emitError("unimplemented: dim is not constant");
 
+  int64_t inputRank = inputType.getRank();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
   SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
   Value dimSize = inputShape[dim];
 
@@ -892,6 +897,10 @@ public:
 
     for (int i = 0; i < rank; ++i)
       sizes.push_back(rewriter.createOrFold<tensor::DimOp>(loc, tensors[0], i));
+
+    dim = toPositiveDim(dim, rank);
+    if (!isValidDim(dim, rank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     // Calculate the size of the `dim` result dimension by adding the dim size
     // of each tensor together.
