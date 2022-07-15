@@ -7596,7 +7596,6 @@ def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
 
 def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
     AllowsTypeRefinement,
-    HasValueSemantics,
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::__is__ : (t1, t2) -> (bool)`";
@@ -7621,7 +7620,6 @@ def Torch_Aten__Is__Op : Torch_Op<"aten.__is__", [
 
 def Torch_Aten__Isnot__Op : Torch_Op<"aten.__isnot__", [
     AllowsTypeRefinement,
-    HasValueSemantics,
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::__isnot__ : (t1, t2) -> (bool)`";
