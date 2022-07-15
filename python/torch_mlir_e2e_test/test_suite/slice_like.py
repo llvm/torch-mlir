@@ -46,7 +46,7 @@ class SliceOutOfUpperBoundIndexModule(torch.nn.Module):
         result =  x[:8, :5, 8:]
         cat_tensor = torch.ones((6,4,1), dtype=torch.float32)
         return torch.cat((result,cat_tensor), dim=2)
-        
+
 
 @register_test_case(module_factory=lambda: SliceOutOfUpperBoundIndexModule())
 def SliceOutOfUpperBoundIndexModule_basic(module, tu: TestUtils):
@@ -268,6 +268,31 @@ class SliceScatterZeroDimModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SliceScatterZeroDimModule())
 def SliceScatterZeroDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 8), tu.rand(1, 8))
+
+
+class SliceScatterNegativeDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, src):
+        return torch.ops.aten.slice_scatter(x,
+                                            src,
+                                            dim=-2,
+                                            start=0,
+                                            end=1,
+                                            step=1)
+
+
+@register_test_case(module_factory=lambda: SliceScatterNegativeDimModule())
+def SliceScatterNegativeDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 8), tu.rand(1, 8))
 
 class SliceScatterStepVariationModule(torch.nn.Module):
