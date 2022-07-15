@@ -4984,6 +4984,40 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
   }];
 }
 
+def Torch_AtenEmbeddingBagPaddingIdxOp : Torch_Op<"aten.embedding_bag.padding_idx", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::embedding_bag.padding_idx : (Tensor, Tensor, Tensor, bool, int, bool, Tensor?, bool, int?) -> (Tensor, Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$weight,
+    AnyTorchTensorType:$indices,
+    AnyTorchTensorType:$offsets,
+    Torch_BoolType:$scale_grad_by_freq,
+    Torch_IntType:$mode,
+    Torch_BoolType:$sparse,
+    AnyTorchOptionalTensorType:$per_sample_weights,
+    Torch_BoolType:$include_last_offset,
+    AnyTorchOptionalIntType:$padding_idx
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2,
+    AnyTorchTensorType:$result3
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenEmbeddingBagPaddingIdxOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 4);
+    }
+    void AtenEmbeddingBagPaddingIdxOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 4);
+    }
+  }];
+}
+
 def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
     AllowsTypeRefinement,
     HasValueSemantics,

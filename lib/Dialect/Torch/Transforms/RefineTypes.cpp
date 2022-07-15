@@ -1036,6 +1036,28 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  // case for Embedding bag padding idx.
+  if (auto embedding_bag_padding_idx =
+          dyn_cast<AtenEmbeddingBagPaddingIdxOp>(op)) {
+
+    auto resultFloatKnowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
+
+    incorporateKnowledge(embedding_bag_padding_idx.getResult(0),
+                         resultFloatKnowledge);
+    auto resultIntKnowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    resultIntKnowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+
+    for (int64_t i = 1; i < 4; i++) {
+      incorporateKnowledge(embedding_bag_padding_idx.getResult(i),
+                           resultIntKnowledge);
+    }
+    return;
+  }
+
   if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
     visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
     return;
