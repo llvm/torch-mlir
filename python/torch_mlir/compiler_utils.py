@@ -7,8 +7,10 @@ from io import StringIO
 import os
 import sys
 import tempfile
+
 from torch_mlir.passmanager import PassManager
 from torch_mlir.ir import StringAttr
+
 
 def get_module_name_for_debug_dump(module):
     """Gets a name suitable for a debug dump.
@@ -19,13 +21,23 @@ def get_module_name_for_debug_dump(module):
         return "UnnammedModule"
     return StringAttr(module.operation.attributes["torch.debug_module_name"]).value
 
+
+class TorchMlirCompilerError(Exception):
+    def __init__(self, value: str):
+        super().__init__()
+        self.value = value
+
+    def __str__(self) -> str:
+        return self.value
+
+
 def run_pipeline_with_repro_report(module,
                                    pipeline: str,
                                    description: str):
     """Runs `pipeline` on `module`, with a nice repro report if it fails."""
     module_name = get_module_name_for_debug_dump(module)
     try:
-        original_stderr = sys.stderr 
+        original_stderr = sys.stderr
         sys.stderr = StringIO()
         asm_for_error_report = module.operation.get_asm(
             large_elements_limit=10, enable_debug_info=True)
@@ -46,13 +58,18 @@ def run_pipeline_with_repro_report(module,
         with open(filename, 'w') as f:
             f.write(asm_for_error_report)
         debug_options="-mlir-print-ir-after-all -mlir-disable-threading"
-        raise Exception(f"""
-{description} failed with the following diagnostics:
-{sys.stderr.getvalue()}
+        # Put something descriptive here even if description is empty.
+        description = description or f"{module_name} compile"
 
-Error can be reproduced with:
-$ torch-mlir-opt -pass-pipeline='{pipeline}' {filename}
-Add '{debug_options}' to get the IR dump for debugging purpose.
-""") from None
+        message = f"""\
+            {description} failed with the following diagnostics:
+            {sys.stderr.getvalue()}
+
+            Error can be reproduced with:
+            $ torch-mlir-opt -pass-pipeline='{pipeline}' {filename}
+            Add '{debug_options}' to get the IR dump for debugging purpose.
+            """
+        trimmed_message = '\n'.join([m.lstrip() for m in message.split('\n')])
+        raise TorchMlirCompilerError(trimmed_message) from None
     finally:
         sys.stderr = original_stderr
