@@ -37,6 +37,32 @@ def BatchNorm1DModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class BatchNorm1DWith2DInputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.bn1d = torch.nn.BatchNorm1d(4)
+        self.bn1d.eval()
+        self.bn1d.running_mean = torch.tensor([0.5, 0.4, 0.3, 0.6])
+        self.bn1d.running_var = torch.tensor([3.0, 2.0, 4.0, 5.0])
+        self.bn1d.weight = torch.nn.Parameter(
+            torch.tensor([3.0, 2.0, 4.0, 5.0]))
+        self.bn1d.bias = torch.nn.Parameter(torch.tensor([0.5, 0.4, 0.3, 0.6]))
+
+    @export
+    @annotate_args([
+        None,
+        ([10, 4], torch.float32, True),
+    ])
+    def forward(self, x):
+        return self.bn1d(x)
+
+
+@register_test_case(module_factory=lambda: BatchNorm1DWith2DInputModule())
+def BatchNorm1DWith2DInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4))
+
+# ==============================================================================
+
 class BatchNorm2DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
