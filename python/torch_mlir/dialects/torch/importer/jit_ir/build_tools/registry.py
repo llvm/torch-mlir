@@ -251,6 +251,11 @@ class JitOperator:
         # but the alias annotation is empty.
         if self.unique_key == "prim::unchecked_cast : (t) -> (t)":
             return False
+        # The `is` operator compares object identity, so it does not have
+        # value semantics.
+        if self.unique_key in ("aten::__is__ : (t1, t2) -> (bool)",
+                               "aten::__isnot__ : (t1, t2) -> (bool)"):
+            return False
         return True
 
     def is_readonly(self):
