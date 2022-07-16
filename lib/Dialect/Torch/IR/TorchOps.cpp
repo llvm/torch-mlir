@@ -542,6 +542,19 @@ OpFoldResult Aten__RangeLengthOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__UpsampleBilinear2dVecOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenUpsampleBilinear2dVecOp::fold(ArrayRef<Attribute> operands) {
+  auto constructInput = input();
+  auto constructOutputSize = output_size();
+  auto constructAlignCorners = align_corners();
+  auto constructScaleFactors = scale_factors();
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // Aten__DeriveIndexOp
 //===----------------------------------------------------------------------===//
 
