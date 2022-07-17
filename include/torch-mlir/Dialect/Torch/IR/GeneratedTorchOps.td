@@ -2024,6 +2024,51 @@ def Torch_AtenLog2_Op : Torch_Op<"aten.log2_", [
   }];
 }
 
+def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sqrt : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSqrtOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenSqrtOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenSqrt_Op : Torch_Op<"aten.sqrt_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::sqrt_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSqrt_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenSqrt_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenRsqrtOp : Torch_Op<"aten.rsqrt", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -3760,29 +3805,6 @@ def Torch_Aten__And__TensorOp : Torch_Op<"aten.__and__.Tensor", [
     }
     void Aten__And__TensorOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
-def Torch_AtenSqrtOp : Torch_Op<"aten.sqrt", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::sqrt : (Tensor) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSqrtOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 1, 1);
-    }
-    void AtenSqrtOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
 }
