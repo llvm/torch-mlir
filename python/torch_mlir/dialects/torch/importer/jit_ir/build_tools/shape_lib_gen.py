@@ -300,6 +300,9 @@ def aten〇sigmoid(self: List[int]) -> List[int]:
 def aten〇hardsigmoid(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇softplus(self: List[int], beta: float = 1, threshold: float = 20) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇square(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -334,6 +337,9 @@ def aten〇detach(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇log2(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇log1p(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇rsqrt(self: List[int]) -> List[int]:

@@ -959,6 +959,28 @@ def _LogSoftmaxModuleStable_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SoftplusModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.softplus(x)
+
+
+@register_test_case(module_factory=lambda: SoftplusModule())
+def SoftplusModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3))
+
+
+# ==============================================================================
+
+
 class HardsigmoidModule(torch.nn.Module):
 
     def __init__(self):

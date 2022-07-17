@@ -1172,6 +1172,40 @@ public:
 };
 } // namespace
 
+// Softplus(x, beta, threshold) =
+//   x * beta > threshold ? x : log(1 + exp(x * beta)) / beta
+namespace {
+class DecomposeAtenSoftplusOp : public OpRewritePattern<AtenSoftplusOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSoftplusOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+
+    Value inputTimesBeta = rewriter.create<AtenMulScalarOp>(
+        loc, inputType, input, op.beta());
+
+    // out = log1p(exp(input * beta)) / beta
+    Value exp = rewriter.create<AtenExpOp>(loc, inputType, inputTimesBeta);
+    Value log1p = rewriter.create<AtenLog1pOp>(loc, inputType, exp);
+    Value out = rewriter.create<AtenDivScalarOp>(
+        loc, inputType, log1p, op.beta());
+
+    // Select where x * beta > threshold
+    auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                      rewriter.getI1Type());
+    Value condition = rewriter.create<AtenGtScalarOp>(
+        loc, boolResType, inputTimesBeta, op.threshold());
+
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(
+        op, op.getType(), condition, input, out);
+    return success();
+  }
+};
+} // namespace
+
 // Hardsigmoid(x) = max(0, min(1, (x+3)/6))
 namespace {
 class DecomposeAtenHardsigmoidOp : public OpRewritePattern<AtenHardsigmoidOp> {
@@ -2344,6 +2378,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenHardsigmoidOp>();
     patterns.add<DecomposeAtenHardswishOp>(context);
     target.addIllegalOp<AtenHardswishOp>();
+    patterns.add<DecomposeAtenSoftplusOp>(context);
+    target.addIllegalOp<AtenSoftplusOp>();
     patterns.add<DecomposeAtenSiluOp>(context);
     target.addIllegalOp<AtenSiluOp>();
     patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(

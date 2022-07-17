@@ -282,6 +282,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
             "aten::sqrt : (Tensor) -> (Tensor)",
+            "aten::log1p : (Tensor) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
@@ -304,6 +305,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
 
     # Ops without value semantics but the corresponding without trailing
     # underscore variant doesn't exist.
