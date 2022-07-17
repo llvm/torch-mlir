@@ -31,6 +31,7 @@ runs:
     run: echo "::set-output name=hash::$(md5sum $(git submodule status))"
     shell: bash
   - name: Ccache for C++ compilation
-    uses: hendrikmuhs/ccache-action@4687d037e4d7cf725512d9b819137a3af34d39b3
+    uses: hendrikmuhs/ccache-action@85bd285251b831e5a761d26e3dbfdbccbca1b23f
     with:
       key: ${{ runner.os }}-clangreleaseasserts-${{ steps.get-submodule-hash.outputs.hash }}${{ inputs.cache-suffix }}
+      max-size: 2G
