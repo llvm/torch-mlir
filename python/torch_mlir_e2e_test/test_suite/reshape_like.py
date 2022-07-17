@@ -55,15 +55,15 @@ class ViewExpandOnesBeforeAndAfterModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([1, 3], torch.float32, True),
+        ([2, 1, 16, 1, 1], torch.float32, True),
     ])
 
     def forward(self, a):
-        return a.view(1, 1, 3, 1, 1)
+        return a.view(1, 2, 1, 16, 1, 1, 1, 1)
 
 @register_test_case(module_factory=lambda: ViewExpandOnesBeforeAndAfterModule())
 def ViewExpandOnesBeforeAndAfterModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 3))
+    module.forward(tu.rand(2, 1, 16, 1, 1))
 
 # ==============================================================================
 
@@ -161,6 +161,82 @@ class ViewCollapseDynamicWithAtenSizeIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ViewCollapseDynamicWithAtenSizeIntModule())
 def ViewCollapseDynamicWithAtenSizeIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 5, 4, 12, 32), torch.tensor(3), torch.tensor(5))
+
+# ==============================================================================
+
+class ViewExpandCollapseWithOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 8, 8], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 1, 1, 4, 64)
+
+@register_test_case(module_factory=lambda: ViewExpandCollapseWithOnesModule())
+def ViewExpandCollapseWithOnesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 8, 8))
+
+# ==============================================================================
+
+class ViewExpandCollapseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 4, 8, 16, 4], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(8, 2, 4, 16, 2, 2)
+
+@register_test_case(module_factory=lambda: ViewExpandCollapseModule())
+def ViewExpandCollapseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 8, 16, 4))
+
+# ==============================================================================
+
+class ViewDynamicExpandCollapseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 4, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 1, 4, 64)
+
+@register_test_case(module_factory=lambda: ViewDynamicExpandCollapseModule())
+def ViewDynamicExpandCollapseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 8, 8))
+
+# ==============================================================================
+
+class ViewDynamicExpandCollapseWithAtenIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 1, a.size(1), 64)
+
+@register_test_case(module_factory=lambda: ViewDynamicExpandCollapseWithAtenIntModule())
+def ViewDynamicExpandCollapseWithAtenIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 8, 8))
 
 # ==============================================================================
 

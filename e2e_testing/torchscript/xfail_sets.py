@@ -145,6 +145,8 @@ TOSA_PASS_SET = {
     "ViewExpandOnesModule_basic",
     "ViewExpandOnesBeforeAndAfterModule_basic",
     "ViewExpandOnesMiddleModule_basic",
+    "ViewExpandCollapseModule_basic",
+    "ViewExpandCollapseWithOnesModule_basic",
     "ViewCollapseInferredDimModule_basic",
     "ViewExpandInferredDimModule_basic",
     "ViewNoChangeStaticModule_basic",
