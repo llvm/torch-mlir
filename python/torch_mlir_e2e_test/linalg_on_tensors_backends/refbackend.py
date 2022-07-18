@@ -10,8 +10,6 @@ from torch_mlir.ir import *
 from torch_mlir.passmanager import *
 from torch_mlir.execution_engine import *
 from torch_mlir.runtime import *
-# Imported for side effects.
-import torch_mlir.all_passes_registration
 import torch_mlir.dialects.torch
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 

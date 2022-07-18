@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir-c/Bindings/Python/Interop.h"
-#include "mlir-c/Registration.h"
 #include "mlir/Bindings/Python/PybindAdaptors.h"
 #include "torch-mlir-c/Dialects.h"
 #include "torch-mlir-c/Registration.h"
