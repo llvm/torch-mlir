@@ -5,14 +5,15 @@
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
 include(TorchMLIRPyTorch)
 
-TorchMLIRProbeForPyTorchInstall()
 if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
+  TorchMLIRProbeForPyTorchInstall()
+  find_package(Torch 1.11 REQUIRED)
   TorchMLIRConfigurePyTorch()
 else()  
   set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../libtorch/share/cmake/Torch")
+  find_package(Torch 1.11 REQUIRED)
 endif()
 
-find_package(Torch 1.11 REQUIRED)
 
 message(STATUS "libtorch_python CXXFLAGS is ...${TORCH_CXXFLAGS}")
 #-------------------------------------------------------------------------------
