@@ -192,5 +192,13 @@ BackendDevice TorchMlirBackendImpl::GetBackendDevice(c10::Device device) const {
   return BackendDevice(GetDefaultDeviceType(), device.index());
 }
 
+int64_t TorchMlirBackendImpl::GetDefaultDeviceOrdinal() const {
+  return default_device_ordinal;
+}
+
+void TorchMlirBackendImpl::SetDefaultDeviceOrdinal(int64_t ordinal) {
+  default_device_ordinal = ordinal;
+}
+
 } // namespace lazy
 } // namespace torch
