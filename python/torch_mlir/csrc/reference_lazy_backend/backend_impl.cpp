@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <c10/core/DeviceType.h>
 #include <torch/csrc/lazy/backend/backend_data.h>
 #include <torch/csrc/lazy/backend/backend_device.h>
 #include <torch/csrc/lazy/backend/lowering_context.h>
@@ -26,17 +27,19 @@ namespace torch {
 namespace lazy {
 
 struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
-  ReferenceLazyBackendDeviceType(std::string device_type)
+  ReferenceLazyBackendDeviceType(c10::DeviceType device_type)
       : device_type_(device_type) {}
+  ReferenceLazyBackendDeviceType(int8_t device_type)
+      : device_type_(static_cast<c10::DeviceType>(device_type)) {}
 
-  std::string toString() const override { return device_type_; }
+  std::string toString() const override { return c10::DeviceTypeName(device_type_); }
 
-  std::string device_type_;
+  c10::DeviceType device_type_;
 };
 
 class ReferenceLazyBackendImpl : public torch::lazy::TorchMlirBackendImpl {
 public:
-  ReferenceLazyBackendImpl() : default_device_type_("Magic") {}
+  ReferenceLazyBackendImpl() : default_device_type_(c10::DeviceType::Lazy) {}
 
   /**
    * Configuration
@@ -128,7 +131,8 @@ public:
     return std::make_shared<BackendDeviceType>(default_device_type_);
   }
 
-  void SetDefaultDeviceType(std::string device_type) {
+
+  void SetDefaultDeviceType(int8_t device_type) override {
     default_device_type_ = ReferenceLazyBackendDeviceType(device_type);
   }
 
