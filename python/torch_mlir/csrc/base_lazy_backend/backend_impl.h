@@ -153,6 +153,10 @@ public:
   // identity mappings.
   virtual BackendDevice GetBackendDevice(c10::Device device) const override;
 
+  virtual int64_t GetDefaultDeviceOrdinal() const override;
+
+  virtual void SetDefaultDeviceOrdinal(int64_t ordinal) override;
+
   /**
    * Debug/Metrics
    * */
@@ -164,6 +168,9 @@ public:
   // virtual std::string GetComputationBackendText(
   //     const ComputationPtr computation
   // ) const = 0;
+
+protected:
+  int64_t default_device_ordinal = 0;
 };
 
 } // namespace lazy
