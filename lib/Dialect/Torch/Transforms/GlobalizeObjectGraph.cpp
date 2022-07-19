@@ -464,26 +464,17 @@ static LogicalResult verifyNnModuleValueUses(Value value) {
 // Verify that `func` conforms to the subset of allowable method bodies
 // that we can convert.
 static LogicalResult verifyFuncConformsToSubset(func::FuncOp func) {
-  // TODO: Investingate why WalkResult::interrupt() doesn't propagate properly.
-  LogicalResult ret = success();
-  func.walk([&](Block *block) {
-    for (Value arg : block->getArguments()) {
-      if (failed(verifyNnModuleValueUses(arg))) {
-        ret = failure();
+  auto walkResult = func.walk([&](Block *block) {
+    for (Value arg : block->getArguments())
+      if (failed(verifyNnModuleValueUses(arg)))
         return WalkResult::interrupt();
-      }
-    }
-    for (Operation &op : *block) {
-      for (Value result : op.getResults()) {
-        if (failed(verifyNnModuleValueUses(result))) {
-          ret = failure();
+    for (Operation &op : *block)
+      for (Value result : op.getResults())
+        if (failed(verifyNnModuleValueUses(result)))
           return WalkResult::interrupt();
-        }
-      }
-    }
     return WalkResult::advance();
   });
-  return ret;
+  return success(!walkResult.wasInterrupted());
 }
 
 static LogicalResult

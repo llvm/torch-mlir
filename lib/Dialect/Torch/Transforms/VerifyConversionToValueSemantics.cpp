@@ -30,28 +30,20 @@ class VerifyConversionToValueSemanticsPass
     : public VerifyConversionToValueSemanticsBase<
           VerifyConversionToValueSemanticsPass> {
   void runOnOperation() override {
-    bool didFail = false;
     auto walkResult = getOperation().walk([&](Block *block) {
-      for (BlockArgument arg : block->getArguments()) {
-        if (failed(checkValueType(block->getParentOp(), arg))) {
-          didFail = true;
+      for (BlockArgument arg : block->getArguments())
+        if (failed(checkValueType(block->getParentOp(), arg)))
           return WalkResult::interrupt();
-        }
-      }
 
-      for (Operation &op : *block) {
-        for (OpResult result : op.getResults()) {
-          if (failed(checkValueType(&op, result))) {
-            didFail = true;
+      for (Operation &op : *block)
+        for (OpResult result : op.getResults())
+          if (failed(checkValueType(&op, result)))
             return WalkResult::interrupt();
-          }
-        }
-      }
 
       return WalkResult::advance();
     });
 
-    if (didFail || walkResult.wasInterrupted())
+    if (walkResult.wasInterrupted())
       signalPassFailure();
   }
 };
