@@ -281,6 +281,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::clamp_min : (Tensor, Scalar) -> (Tensor)",
             "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
             "aten::log2 : (Tensor) -> (Tensor)",
+            "aten::sqrt : (Tensor) -> (Tensor)",
             "aten::rsqrt : (Tensor) -> (Tensor)",
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
@@ -374,7 +375,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mean.dim : (Tensor, int[], bool, int?) -> (Tensor)")
     emit("aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)")
-    emit("aten::sqrt : (Tensor) -> (Tensor)")
     emit("aten::_softmax : (Tensor, int, bool) -> (Tensor)")
     emit("aten::mean : (Tensor, int?) -> (Tensor)")
     emit("aten::std : (Tensor, bool) -> (Tensor)")
