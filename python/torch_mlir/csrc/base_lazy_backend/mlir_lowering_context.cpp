@@ -18,7 +18,6 @@
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
 #include "backend_impl.h"
-#include "mlir-c/Registration.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
 #include "torch-mlir-c/Registration.h"
@@ -277,7 +276,6 @@ TorchMlirLoweringContext::generate_jit_fn() const {
 
 void TorchMlirLoweringContext::RegisterMlirDialects() {
   // https://reviews.llvm.org/D88162
-  mlirRegisterAllDialects(mlir_context_);
   torchMlirRegisterAllDialects(mlir_context_);
 }
 

@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
 #include <torch/csrc/lazy/core/ir.h>
 #include <torch/csrc/lazy/core/ir_builder.h>
 #include <torch/csrc/lazy/core/shape_inference.h>

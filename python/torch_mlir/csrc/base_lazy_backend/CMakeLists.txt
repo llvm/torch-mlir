@@ -16,6 +16,7 @@ include_directories(BEFORE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${Python3_INCLUDE_DIRS}
+  ${PROJECT_SOURCE_DIR}/python
 )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
@@ -34,9 +35,10 @@ set(LTC_BACKEND_DEPENDS
 # Generate Lazy IR Nodes
 
 add_custom_command(
-  COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/build_tools/autogen_ltc_backend.py
+  COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/build_tools/autogen_ltc_backend.py -b ${TORCH_MLIR_BINARY_DIR}
   OUTPUT
-  ${CMAKE_BINARY_DIR}/generated_backend.hash
+  ${TORCH_MLIR_BINARY_DIR}/generated_backend.hash
+  ${LTC_GENERATED}
   DEPENDS
   ${PROJECT_SOURCE_DIR}/build_tools/autogen_ltc_backend.py
   ${PROJECT_SOURCE_DIR}/build_tools/autogen_ltc_backend.yaml
@@ -51,7 +53,8 @@ add_custom_command(
 add_custom_target(
   torch_mlir_ltc_backend_generated ALL
   DEPENDS
-  ${CMAKE_BINARY_DIR}/generated_backend.hash
+  ${TORCH_MLIR_BINARY_DIR}/generated_backend.hash
+  ${LTC_GENERATED}
 )
 
 add_library(torch_mlir_ltc_backend SHARED
