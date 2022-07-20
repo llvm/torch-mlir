@@ -21,9 +21,28 @@ using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
 using namespace mlir::torch;
 
+static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
+  if (lhs.hasRank() != rhs.hasRank())
+    return false;
+  bool sameSize = lhs.hasRank() ? lhs.getShape().equals(rhs.getShape()) : true;
+  bool sameElementType = lhs.getElementType() == rhs.getElementType();
+  return sameElementType && sameSize;
+}
+
 //===----------------------------------------------------------------------===//
 // ToBuiltinTensorOp
 //===----------------------------------------------------------------------===//
+
+LogicalResult ToBuiltinTensorOp::verify() {
+  auto resultType = getResult().getType().cast<TensorType>();
+  auto operandType =
+      getOperand().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
+  if (!haveSameSizeAndElementType(resultType, operandType)) {
+    return emitError()
+           << "operand and result must have the same size and dtype";
+  }
+  return success();
+}
 
 LogicalResult ToBuiltinTensorOp::inferReturnTypes(
     MLIRContext *context, Optional<Location> location, ValueRange operands,
@@ -37,6 +56,25 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// FromBuiltinTensorOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult FromBuiltinTensorOp::verify() {
+  auto resultType =
+      getResult().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
+  auto operandType = getOperand().getType().cast<TensorType>();
+  if (!haveSameSizeAndElementType(resultType, operandType)) {
+    return emitError()
+           << "operand and result must have the same size and dtype";
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// FromI64Op
+//===----------------------------------------------------------------------===//
+
 OpFoldResult FromI64Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
@@ -45,6 +83,10 @@ OpFoldResult FromI64Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
     return nullptr;
   }
 }
+
+//===----------------------------------------------------------------------===//
+// ToI64Op
+//===----------------------------------------------------------------------===//
 
 OpFoldResult ToI64Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
   auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
