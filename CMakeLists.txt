@@ -36,12 +36,18 @@ macro(torch_mlir_add_llvm_external_project name identifier location)
   set(LLVM_EXTERNAL_PROJECTS ${LLVM_EXTERNAL_PROJECTS} CACHE STRING "" FORCE)
 endmacro()
 
+option(TORCH_MLIR_ENABLE_MHLO "Add mhlo dialect" ON)
+if(TORCH_MLIR_ENABLE_MHLO)
+  add_definitions(-DTORCH_MLIR_ENABLE_MHLO)
+endif()
+
 torch_mlir_add_llvm_external_project(
   torch-mlir-dialects
   TORCH_MLIR_DIALECTS
   ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  message(STATUS "Torch-MLIR out-of-tree build.")
   # Out-of-tree build
 
   #-------------------------------------------------------------------------------
@@ -82,10 +88,14 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
   add_subdirectory(externals/llvm-external-projects/torch-mlir-dialects)
 else()
+  message(STATUS "Torch-MLIR in-tree build.")
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
   # FIXME: This should really be inherited from the LLVM tree.  In particular,
   # it's going to change when cross-compiling.
   set(MLIR_TABLEGEN_EXE mlir-tblgen)
+  if (TORCH_MLIR_ENABLE_MHLO)
+    set(MLIR_PDLL_TABLEGEN_EXE mlir-pdll)
+  endif()
 
   option(MLIR_ENABLE_BINDINGS_PYTHON "Enables MLIR Python Bindings" OFF)
   option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON)
@@ -95,6 +105,15 @@ else()
   set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include)
   set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
+endif()
+
+if (TORCH_MLIR_ENABLE_MHLO)
+  set(MHLO_BUILD_EMBEDDED ON)
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo
+    ${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo
+    EXCLUDE_FROM_ALL)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/mlir-hlo/include)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/mlir-hlo/include)
 endif()
 
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")

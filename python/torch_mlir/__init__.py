@@ -44,6 +44,10 @@ class OutputType(Enum):
     # for end-users, but can be convenient for development or reporting bugs.
     RAW = 3
 
+    # This output type consists of `mhlo` dialect ops. It can be thought of 
+    # as taking the `TORCH` output type and lowering it to MHLO.
+    MHLO = 4
+
     @staticmethod
     def get(spec: Union[str, "OutputType"]) -> "OutputType":
         """Gets an OutputType from allowed way to specify one.
@@ -118,7 +122,8 @@ _example_arg = Union[TensorPlaceholder, torch.Tensor]
 def compile(model: torch.nn.Module,
             example_args: Union[_example_arg, Sequence[_example_arg]],
             output_type: Union[str, "OutputType"] = OutputType.TORCH,
-            use_tracing=False):
+            use_tracing: bool = False,
+            verbose: bool = False):
     """Convert a PyTorch model to MLIR.
 
     Args:
@@ -180,6 +185,11 @@ def compile(model: torch.nn.Module,
                                    "torchscript-module-to-torch-backend-pipeline",
                                    "Lowering TorchScript IR -> Torch Backend IR")
 
+    if verbose:
+        print("\n====================")
+        print("Torch Backend IR")
+        print(mb.module)
+
     if output_type == OutputType.TORCH:
         return mb.module
 
@@ -188,6 +198,10 @@ def compile(model: torch.nn.Module,
             mb.module,
             "torch-backend-to-tosa-backend-pipeline",
             "Lowering Torch Backend IR -> TOSA Backend IR")
+        if verbose:
+            print("\n====================")
+            print("TOSA Backend IR")
+            print(mb.module)
         return mb.module
 
     if output_type == OutputType.LINALG_ON_TENSORS:
@@ -195,6 +209,20 @@ def compile(model: torch.nn.Module,
             mb.module,
             "torch-backend-to-linalg-on-tensors-backend-pipeline",
             "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
+        if verbose:
+            print("\n====================")
+            print("LINALG Backend IR")
+            print(mb.module)
         return mb.module
 
+    elif output_type == OutputType.MHLO:
+        run_pipeline_with_repro_report(
+            mb.module,
+            "torch-backend-to-mhlo-backend-pipeline",
+            "Lowering Torch Backend IR -> MHLO Backend IR")
+        if verbose:
+            print("\n====================")
+            print("MHLO Backend IR")
+            print(mb.module)
+        return mb.module
     raise Exception(f"Unknown OutputType: {output_type}")
