@@ -40,21 +40,6 @@ jobs:
           -DTORCH_MLIR_ENABLE_MHLO=ON \
           -DLLVM_TARGETS_TO_BUILD=host
         ninja check-torch-mlir-all
-    - name: RefBackend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-    - name: EagerMode - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
-    - name: TOSA backend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
     - name: Lazy Tensor Core - TorchScript end-to-end tests
       run: |
         cd $GITHUB_WORKSPACE
