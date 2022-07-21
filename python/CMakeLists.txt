@@ -26,6 +26,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   SOURCES
     __init__.py
     compiler_utils.py
+    _mlir_libs/_site_initialize_0.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Dialects
@@ -102,16 +103,10 @@ add_subdirectory(torch_mlir/eager_mode)
 ################################################################################
 
 set(_source_components
-  # TODO: Core is now implicitly building/registering all dialects, increasing
-  # build burden by ~5x. Make it stop.
-  # TODO: Reduce dependencies. We need ExecutionEngine and a bunch of passes
-  # for the reference backend, but logically they can be separate. But seemingly
-  # the only way to handle that is to create a separate mlir python package
-  # tree, which seems excessive.
-  MLIRPythonSources
+  MLIRPythonSources.Core
+  MLIRPythonSources.Dialects.func
+  MLIRPythonSources.ExecutionEngine
   MLIRPythonExtension.Core
-  MLIRPythonExtension.RegisterEverything
-  MLIRPythonExtension.ExecutionEngine
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 )

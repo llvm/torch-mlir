@@ -22,6 +22,9 @@ extern "C" {
  */
 MLIR_CAPI_EXPORTED void torchMlirRegisterAllDialects(MlirContext context);
 
+/** Registers upstream (MLIR) dialects used in Torch-MLIR IRs. */
+MLIR_CAPI_EXPORTED void torchMlirRegisterRequiredDialects(MlirContext context);
+
 /** Registers all passes for symbolic access with the global registry. */
 MLIR_CAPI_EXPORTED void torchMlirRegisterAllPasses();
 

@@ -4,4 +4,4 @@
 # Also available under a BSD-style license. See LICENSE.
 
 from .._torch_ops_gen import *
-from ..._mlir_libs._torchMlir import register_dialect
+from ..._mlir_libs._torchMlir import register_required_dialects
