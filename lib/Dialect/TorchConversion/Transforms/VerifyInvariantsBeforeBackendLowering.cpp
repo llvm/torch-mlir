@@ -31,7 +31,7 @@ static LogicalResult checkValueInvariants(Operation *errorReportOp, Value v) {
                   "or dtype")
           .attachNote()
           .append("this is likely due to a missing shape transfer function in "
-                  "shape_lib_gen.py");
+                  "shape_lib_gen.py or missing case in RefineTypes");
   }
   return success();
 }
