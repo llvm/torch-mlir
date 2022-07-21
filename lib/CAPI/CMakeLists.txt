@@ -13,23 +13,6 @@ add_mlir_public_c_api_library(TorchMLIRCAPI
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRAffineToStandard
-  MLIRArithmeticToLLVM
-  MLIRArithmeticTransforms
-  MLIRBufferizationTransforms
-  MLIRControlFlowToLLVM
-  MLIRFuncToLLVM
-  MLIRFuncTransforms
-  MLIRLinalgToLLVM
-  MLIRLinalgTransforms
-  MLIRMathToLLVM
-  MLIRMemRefToLLVM
-  MLIRReconcileUnrealizedCasts
-  MLIRSCFToControlFlow
-  MLIRSCFTransforms
-  MLIRTensorTransforms
-  MLIRTosaToArith
-  MLIRTosaToLinalg
   MLIRSupport
   TorchMLIRTorchDialect
   TorchMLIRInitAll
