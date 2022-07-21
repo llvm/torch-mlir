@@ -9,7 +9,8 @@ PYTORCH_REPO="${PYTORCH_REPO:-pytorch/pytorch}"
 PYTORCH_BRANCH="${PYTORCH_BRANCH:-master}"
 PT_C_COMPILER="${PT_C_COMPILER:-clang}"
 PT_CXX_COMPILER="${PT_CXX_COMPILER:-clang++}"
-CMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:-arm64;x86_64}"
+CMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:-x86_64}"
+MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-12.0}"
 WHEELHOUSE="${WHEELHOUSE:-$SRC_ROOT/build_tools/python_deploy/wheelhouse}"
 PYTHON_BIN="${TORCH_MLIR_PYTHON_VERSION:-python3}"
 PIP_BIN="${TORCH_MLIR_PIP_VERSION:-pip3}"
@@ -25,8 +26,11 @@ echo "SRC_ROOT=${SRC_ROOT}"
 echo "PYTORCH_ROOT=${PYTORCH_ROOT}"
 echo "PYTORCH_REPO=${PYTORCH_REPO}"
 echo "PYTORCH_BRANCH=${PYTORCH_BRANCH}"
+echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
 echo "CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+
 export CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}
 export CMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
 export CMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
 
@@ -46,11 +50,7 @@ checkout_pytorch() {
   cd "$PYTORCH_ROOT"
   git reset --hard HEAD
   git clean -df
-  for dep in protobuf pocketfft cpuinfo FP16 psimd fmt sleef pybind11 onnx flatbuffers foxi; do
-    git submodule update --init --depth 1 -- third_party/$dep
-  done
-  # setup.py will try to re-fetch
-  sed -i.bak -E 's/^[[:space:]]+check_submodules()/#check_submodules()/g' setup.py
+  git submodule update --init --depth 1 --recursive
 }
 
 build_pytorch() {
@@ -68,9 +68,14 @@ build_pytorch() {
   fi
 
   BUILD_SHARED_LIBS=ON \
+  BUILD_CAFFE2_OPS=OFF \
+  INTERN_BUILD_ATEN_OPS=OFF \
+  ATEN_NO_TEST=OFF \
+  USE_LITE_INTERPRETER_PROFILER=OFF \
   BUILD_TEST=OFF \
   GLIBCXX_USE_CXX11_ABI=1 \
   CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} \
+  MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
   INTERN_BUILD_ATEN_OPS=OFF \
   INTERN_DISABLE_ONNX=ON \
   INTERN_USE_EIGEN_BLAS=ON \
@@ -78,11 +83,12 @@ build_pytorch() {
   ONNX_ML=OFF \
   USE_BREAKPAD=OFF \
   USE_CUDA=OFF \
+  USE_ITT=OFF \
   USE_DISTRIBUTED=OFF \
   USE_EIGEN_FOR_BLAS=OFF \
-  USE_FBGEMM=OFF \
+  USE_FBGEMM=ON \
   USE_GLOO=OFF \
-  USE_KINETO=OFF \
+  USE_KINETO=ON \
   USE_MKL=OFF \
   USE_MKLDNN=OFF \
   USE_MPS=OFF \
@@ -90,7 +96,7 @@ build_pytorch() {
   USE_NNPACK=OFF \
   USE_OBSERVERS=OFF \
   USE_OPENMP=OFF \
-  USE_PYTORCH_QNNPACK=OFF \
+  USE_PYTORCH_QNNPACK=ON \
   USE_QNNPACK=OFF \
   USE_XNNPACK=OFF \
   ${PYTHON_BIN} setup.py  bdist_wheel -d "$WHEELHOUSE"
@@ -123,10 +129,24 @@ install_pytorch() {
   ${PIP_BIN} install  --force-reinstall $WHEELHOUSE/*
 }
 
+unpack_pytorch() {
+  PYTHON_SITE=`${PYTHON_BIN} -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'`
+  pip uninstall torch
+  echo "wheel unpacking Pytorch..into ${PYTHON_SITE}"
+  wheel unpack -d "$WHEELHOUSE"/unpack_tmp "$WHEELHOUSE"/*.whl
+  mv "$WHEELHOUSE"/unpack_tmp/* "$PYTHON_SITE"/
+}
+
 #main
 echo "Building libtorch from source"
 checkout_pytorch
 install_requirements
 build_pytorch
 package_pytorch
-install_pytorch
+if [[ $CMAKE_OSX_ARCHITECTURES = "arm64" ]]; then
+  echo "${Yellow} Cross compiling for arm64 so unpacking PyTorch wheel for libs${NC}"
+  unpack_pytorch
+else
+  echo "${Green} Installing the built PyTorch wheel ${NC}"
+  install_pytorch
+fi

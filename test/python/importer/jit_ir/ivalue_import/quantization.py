@@ -7,6 +7,7 @@ import typing
 import torch
 from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
+# UNSUPPORTED: system-darwin
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
 mb = ModuleBuilder()
