@@ -1,5 +1,6 @@
 add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchToMhlo.cpp
+  MhloLegalizeUtils.cpp
   BasicOp.cpp
 
   ADDITIONAL_HEADER_DIRS
