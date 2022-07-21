@@ -51,7 +51,7 @@ public:
 
     torch_to_mhlo::populateBasicOpPatternsAndLegality(typeConverter, patterns,
                                                       target);
-    torch_to_mhlo::populateSliceLikeOpPatternsAndLegality(typeConverter, patterns,
+    torch_to_mhlo::populateViewLikeOpPatternsAndLegality(typeConverter, patterns,
                                                       target);
  
     if (failed(applyPartialConversion(getOperation(), target,

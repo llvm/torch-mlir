@@ -1,13 +1,14 @@
 add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchToMhlo.cpp
   BasicOp.cpp
-  SliceLikeOps.cpp
+  ViewLikeOps.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToMhlo
 
   DEPENDS
   MhloDialect
+  ChloDialect
   TorchMLIRConversionPassIncGen
 
   LINK_COMPONENTS
@@ -17,6 +18,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   MLIRIR
   MLIRPass
   MhloDialect
+  ChloDialect
   TorchMLIRTorchDialect
 )
 
