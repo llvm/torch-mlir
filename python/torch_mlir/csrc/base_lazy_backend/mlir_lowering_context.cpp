@@ -133,6 +133,8 @@ ComputationPtr TorchMlirLoweringContext::Build() {
     graph_->block()->registerOutput(output);
   }
 
+  std::cout << graph_->toString() << std::endl;
+
   // Generate MLIR.
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
       /*context=*/mlir_context_,
