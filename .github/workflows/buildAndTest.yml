@@ -40,154 +40,169 @@ jobs:
           -DTORCH_MLIR_ENABLE_MHLO=ON \
           -DLLVM_TARGETS_TO_BUILD=host
         ninja check-torch-mlir-all
+#    - name: RefBackend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=refbackend -v
+#    - name: EagerMode - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=eager_mode -v
+#    - name: TOSA backend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=tosa -v
     - name: Lazy Tensor Core - TorchScript end-to-end tests
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
 
-  build-out-of-tree:
-    name: Build out-of-tree (Release Asserts)
-    runs-on: ubuntu-20.04
-    steps:
-    - name: Get torch-mlir
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: '-out-of-tree'
-    - name: Build LLVM (standalone)
-      # This build takes a while but is expected to almost always be cached.
-      # A cache invalidation occurs when the committed LLVM version is changed.
-      run: |
-        cd $GITHUB_WORKSPACE
-        cmake -Bllvm-build -GNinja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DLLVM_TARGETS_TO_BUILD=host \
-          -DTORCH_MLIR_ENABLE_MHLO=ON \
-          externals/llvm-project/llvm
-        ninja -Cllvm-build
-
-    - name: Build and test torch-mlir (out-of-tree)
-      run: |
-        cd $GITHUB_WORKSPACE
-        cmake -GNinja -Bbuild \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
-          -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_MHLO=ON \
-          -DPython3_EXECUTABLE=$(which python) \
-          .
-        ninja -Cbuild check-torch-mlir-all
-
-    # Don't run python tests, as check-torch-mlir-all already checks
-    # what we want.
-
-  build-from-src:
-    name: Build and Test Source Build (Release Asserts)
-    runs-on: ubuntu-20.04
-    steps:
-    - name: Get torch-mlir
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: 'src-linux'
-    - name: Build and Test torch-mlir (Assert)
-      run: |
-        cd $GITHUB_WORKSPACE
-        mkdir build
-        cd build
-        cmake $GITHUB_WORKSPACE/externals/llvm-project/llvm -GNinja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
-          -DTORCH_MLIR_ENABLE_MHLO=ON \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF \
-          -DLLVM_TARGETS_TO_BUILD=host
-        ninja check-torch-mlir-all
-    - name: RefBackend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-    - name: EagerMode - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
-    - name: TOSA backend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
-
-  macOS-x86_64:
-    name: Build and Test macOS(x86_64) Build (Release Asserts)
-    runs-on: macos-latest
-    steps:
-    - name: Get torch-mlir
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-    - uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: '-macos-x86_64'
-    - name: Build and Test torch-mlir (Assert)
-      run: |
-        cd $GITHUB_WORKSPACE
-        mkdir build
-        cd build
-        cmake $GITHUB_WORKSPACE/externals/llvm-project/llvm -GNinja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_MHLO=ON \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF \
-          -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-          -DMACOSX_DEPLOYMENT_TARGET=10.15 \
-          -DLLVM_TARGETS_TO_BUILD=host
-        ninja check-torch-mlir-all
-    - name: RefBackend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-    - name: EagerMode - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
-    - name: TOSA backend - TorchScript end-to-end tests
-      run: |
-        cd $GITHUB_WORKSPACE
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
+#  build-out-of-tree:
+#    name: Build out-of-tree (Release Asserts)
+#    runs-on: ubuntu-20.04
+#    steps:
+#    - name: Get torch-mlir
+#      uses: actions/checkout@v2
+#      with:
+#        submodules: 'true'
+#    - uses: ./.github/actions/setup-build
+#      with:
+#        cache-suffix: '-out-of-tree'
+#    - name: Build LLVM (standalone)
+#      # This build takes a while but is expected to almost always be cached.
+#      # A cache invalidation occurs when the committed LLVM version is changed.
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        cmake -Bllvm-build -GNinja \
+#          -DCMAKE_BUILD_TYPE=Release \
+#          -DCMAKE_LINKER=lld \
+#          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+#          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+#          -DPython3_EXECUTABLE=$(which python) \
+#          -DLLVM_ENABLE_ASSERTIONS=ON \
+#          -DLLVM_ENABLE_PROJECTS=mlir \
+#          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+#          -DLLVM_TARGETS_TO_BUILD=host \
+#          -DTORCH_MLIR_ENABLE_MHLO=ON \
+#          externals/llvm-project/llvm
+#        ninja -Cllvm-build
+#
+#    - name: Build and test torch-mlir (out-of-tree)
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        cmake -GNinja -Bbuild \
+#          -DCMAKE_LINKER=lld \
+#          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+#          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+#          -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
+#          -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
+#          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+#          -DTORCH_MLIR_ENABLE_MHLO=ON \
+#          -DPython3_EXECUTABLE=$(which python) \
+#          .
+#        ninja -Cbuild check-torch-mlir-all
+#
+#    # Don't run python tests, as check-torch-mlir-all already checks
+#    # what we want.
+#
+#  build-from-src:
+#    name: Build and Test Source Build (Release Asserts)
+#    runs-on: ubuntu-20.04
+#    steps:
+#    - name: Get torch-mlir
+#      uses: actions/checkout@v2
+#      with:
+#        submodules: 'true'
+#    - uses: ./.github/actions/setup-build
+#      with:
+#        cache-suffix: 'src-linux'
+#    - name: Build and Test torch-mlir (Assert)
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        mkdir build
+#        cd build
+#        cmake $GITHUB_WORKSPACE/externals/llvm-project/llvm -GNinja \
+#          -DCMAKE_BUILD_TYPE=Release \
+#          -DCMAKE_LINKER=lld \
+#          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+#          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+#          -DPython3_EXECUTABLE=$(which python) \
+#          -DLLVM_ENABLE_ASSERTIONS=ON \
+#          -DLLVM_ENABLE_PROJECTS=mlir \
+#          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+#          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
+#          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
+#          -DTORCH_MLIR_ENABLE_MHLO=ON \
+#          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+#          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF \
+#          -DLLVM_TARGETS_TO_BUILD=host
+#        ninja check-torch-mlir-all
+#    - name: RefBackend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=refbackend -v
+#    - name: EagerMode - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=eager_mode -v
+#    - name: TOSA backend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=tosa -v
+#
+#  macOS-x86_64:
+#    name: Build and Test macOS(x86_64) Build (Release Asserts)
+#    runs-on: macos-latest
+#    steps:
+#    - name: Get torch-mlir
+#      uses: actions/checkout@v2
+#      with:
+#        submodules: 'true'
+#    - uses: ./.github/actions/setup-build
+#      with:
+#        cache-suffix: '-macos-x86_64'
+#    - name: Build and Test torch-mlir (Assert)
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        mkdir build
+#        cd build
+#        cmake $GITHUB_WORKSPACE/externals/llvm-project/llvm -GNinja \
+#          -DCMAKE_BUILD_TYPE=Release \
+#          -DCMAKE_LINKER=lld \
+#          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+#          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+#          -DPython3_EXECUTABLE=$(which python) \
+#          -DLLVM_ENABLE_ASSERTIONS=ON \
+#          -DLLVM_ENABLE_PROJECTS=mlir \
+#          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+#          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
+#          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
+#          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+#          -DTORCH_MLIR_ENABLE_MHLO=ON \
+#          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF \
+#          -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+#          -DMACOSX_DEPLOYMENT_TARGET=10.15 \
+#          -DLLVM_TARGETS_TO_BUILD=host
+#        ninja check-torch-mlir-all
+#    - name: RefBackend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=refbackend -v
+#    - name: EagerMode - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=eager_mode -v
+#    - name: TOSA backend - TorchScript end-to-end tests
+#      run: |
+#        cd $GITHUB_WORKSPACE
+#        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+#        python -m e2e_testing.torchscript.main --config=tosa -v
