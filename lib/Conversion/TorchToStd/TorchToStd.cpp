@@ -323,7 +323,7 @@ public:
     patterns.add<ConvertAtenIsFloatingPointOp>(typeConverter, context);
     target.addIllegalOp<RuntimeAssertOp>();
     patterns.add<ConvertRuntimeAssertOp>(typeConverter, context);
-    target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp>();
+    target.addIllegalOp<AtenNeIntOp, AtenEqIntOp, AtenGtIntOp, AtenGeIntOp>();
     patterns
         .add<ConvertAtenIntComparisonOp<AtenNeIntOp, arith::CmpIPredicate::ne>>(
             typeConverter, context);
@@ -332,6 +332,9 @@ public:
             typeConverter, context);
     patterns.add<
         ConvertAtenIntComparisonOp<AtenGtIntOp, arith::CmpIPredicate::sgt>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenIntComparisonOp<AtenGeIntOp, arith::CmpIPredicate::sge>>(
         typeConverter, context);
     target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp,
                         AtenGtFloatIntOp>();
