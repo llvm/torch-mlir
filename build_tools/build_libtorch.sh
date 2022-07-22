@@ -55,10 +55,14 @@ checkout_pytorch() {
 
 build_pytorch() {
   sed -i.bak 's/INTERN_USE_EIGEN_BLAS ON/INTERN_USE_EIGEN_BLAS OFF/g' "${PYTORCH_ROOT}"/CMakeLists.txt
-  sed -i.bak 's/${cpu_kernel_cpp}//g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
-  # around line 150 (under if(BUILD_LITE_INTERPRETER))
-  sed -i.bak 's/append_filelist("aten_cpu_source_non_codegen_list" all_cpu_cpp)/# append_filelist("aten_cpu_source_non_codegen_list" all_cpu_cpp)/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
-  sed -i.bak 's/append_filelist("aten_native_source_non_codegen_list" all_cpu_cpp)/# append_filelist("aten_native_source_non_codegen_list" all_cpu_cpp)/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/set(BUILD_PYTHON OFF)/set(BUILD_PYTHON ON)/g' "${PYTORCH_ROOT}"/CMakeLists.txt
+  sed -i.bak 's/set(INTERN_DISABLE_ONNX ON)/set(INTERN_DISABLE_ONNX OFF)/g' "${PYTORCH_ROOT}"/CMakeLists.txt
+#  # around line 150 (under if(BUILD_LITE_INTERPRETER))
+#  sed -i.bak 's/set(all_cpu_cpp ${generated_sources} ${core_generated_sources} ${cpu_kernel_cpp})/set(all_cpu_cpp "${${CMAKE_PROJECT_NAME}_SOURCE_DIR}\/build\/aten\/src\/ATen\/RegisterSchema.cpp")/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/set(all_cpu_cpp ${generated_sources} ${core_generated_sources} ${cpu_kernel_cpp})/set(all_cpu_cpp ${generated_sources} ${core_generated_sources})/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/append_filelist("aten_native_source_non_codegen_list" all_cpu_cpp)/append_filelist("core_sources_full" all_cpu_cpp)/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/PyTorchBackendDebugInfo/PyTorchBackendDebugInfoDummy/g' "${PYTORCH_ROOT}"/torch/csrc/jit/backends/backend_detail.cpp
+  sed -i.bak 's/backend_debug_info->setDebugInfoMap(std::move(debug_info_map));/\/\/backend_debug_info->setDebugInfoMap(std::move(debug_info_map));/g' "${PYTORCH_ROOT}"/torch/csrc/jit/backends/backend_detail.cpp
 
   CMAKE_ARGS=()
   if [ -x "$(command -v ninja)" ]; then
@@ -71,9 +75,15 @@ build_pytorch() {
   # Necessary flags to hit minimal path
   export BUILD_PYTORCH_MOBILE_WITH_HOST_TOOLCHAIN=1
   CMAKE_ARGS+=("-DBUILD_LITE_INTERPRETER:BOOL=TRUE")
-  CMAKE_ARGS+=("-DBUILD_SHARED_LIBS:BOOL=TRUE")
+  CMAKE_ARGS+=("-DBUILD_SHARED_LIBS:BOOL=FALSE")
   # torch/csrc/jit/mobile/profiler_edge.cpp includes KinetoEdgeCPUProfiler::~KinetoEdgeCPUProfiler
   CMAKE_ARGS+=("-DUSE_KINETO:BOOL=TRUE")
+  CMAKE_ARGS+=("-DUSE_LIGHTWEIGHT_DISPATCH:BOOL=TRUE")
+  CMAKE_ARGS+=("-DSTATIC_DISPATCH_BACKEND=CPU")
+
+#  CMAKE_ARGS+=("-DCMAKE_CXX_FLAGS=-Wl,--unresolved-symbols=ignore-all")
+#  CMAKE_ARGS+=("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--unresolved-symbols=ignore-all")
+#  CMAKE_ARGS+=("-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--unresolved-symbols=ignore-all")
 
   # Disable unused dependencies
   CMAKE_ARGS+=("-DBUILD_CUSTOM_PROTOBUF:BOOL=FALSE")
@@ -106,8 +116,11 @@ build_pytorch() {
   CMAKE_ARGS+=("-DUSE_VALGRIND:BOOL=FALSE")
   CMAKE_ARGS+=("-DUSE_XNNPACK:BOOL=FALSE")
 
-  CMAKE_ARGS+=("-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}")
-  CMAKE_ARGS+=("-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}")
+  CMAKE_ARGS+=("-DCMAKE_C_COMPILER=$(which clang)")
+  CMAKE_ARGS+=("-DCMAKE_CXX_COMPILER=$(which clang++)")
+
+#  CMAKE_ARGS+=("-DCMAKE_INSTALL_RPATH=${PYTORCH_INSTALL_PATH}/lib")
+
 
   BUILD_ROOT=${BUILD_ROOT:-"$PYTORCH_ROOT/build"}
   mkdir -p $BUILD_ROOT
