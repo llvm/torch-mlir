@@ -59,7 +59,9 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+
+        # python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+        gdb --batch -q python -ex 'python3 examples/ltc_backend_simple.py' -ex 'back'
 
 #  build-out-of-tree:
 #    name: Build out-of-tree (Release Asserts)
