@@ -20,9 +20,8 @@ void populateBasicOpPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target);
 void populateViewLikeOpPatternsAndLegality(TypeConverter &typeConverter,
-                                        RewritePatternSet &patterns,
-                                        ConversionTarget &target);
-
+                                           RewritePatternSet &patterns,
+                                           ConversionTarget &target);
 
 } // namespace torch_to_mhlo
 } // namespace torch

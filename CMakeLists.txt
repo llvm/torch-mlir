@@ -39,6 +39,9 @@ endmacro()
 option(TORCH_MLIR_ENABLE_MHLO "Add mhlo dialect" ON)
 if(TORCH_MLIR_ENABLE_MHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_MHLO)
+  # The i64 calculation is much slower than i32 on some devices, such as Nvidia GPU.
+  # One can truncate from i64 to i32 since dimension sizes are unlikely to exceed
+  # the range of i32(4GiB)
   option(TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32 
 	 "Enable truncate dimension size from i64 to i32(unsafely)" OFF)
   if(TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32)
