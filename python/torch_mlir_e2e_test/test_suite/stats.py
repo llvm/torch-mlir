@@ -427,3 +427,160 @@ class VarDimKeepDimFalseModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: VarDimKeepDimFalseModule())
 def VarDimKeepDimFalseModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class VarCorrectionModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=None, correction=2)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionModule())
+def VarCorrectionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionSingleDimReduceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=[1], correction=1)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionSingleDimReduceModule())
+def VarCorrectionSingleDimReduceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionAllDimReduceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x,
+                                  dim=[0, 1, 2],
+                                  correction=10,
+                                  keepdim=False)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionAllDimReduceModule())
+def VarCorrectionAllDimReduceModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionKeepDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=[0, 1], correction=None, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionKeepDimModule())
+def VarCorrectionKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=None, correction=None)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionNoneModule())
+def VarCorrectionNoneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionEmptyDimModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=[], correction=2)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionEmptyDimModule())
+def VarCorrectionEmptyDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarCorrectionLargeInputModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var(x, dim=[2, 3], correction=2)
+
+
+@register_test_case(module_factory=lambda: VarCorrectionLargeInputModule())
+def VarCorrectionLargeInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 1024, 8192))

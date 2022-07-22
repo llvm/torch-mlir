@@ -4047,6 +4047,32 @@ def Torch_AtenVarDimOp : Torch_Op<"aten.var.dim", [
   }];
 }
 
+def Torch_AtenVarCorrectionOp : Torch_Op<"aten.var.correction", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::var.correction : (Tensor, int[]?, int?, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalListOfTorchIntType:$dim,
+    AnyTorchOptionalIntType:$correction,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenVarCorrectionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenVarCorrectionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenNllLossForwardOp : Torch_Op<"aten.nll_loss_forward", [
     AllowsTypeRefinement,
     HasValueSemantics,
