@@ -6590,30 +6590,30 @@ module {
       %10 = torch.aten.len.t %arg1 : !torch.list<optional<list<int>>> -> !torch.int
       %11 = torch.prim.ListConstruct %int9223372036854775807, %10 : (!torch.int, !torch.int) -> !torch.list<int>
       %12 = torch.prim.min.self_int %11 : !torch.list<int> -> !torch.int
-      %13:3 = torch.prim.Loop %12, %true, init(%true, %int-1, %int-1) {
-      ^bb0(%arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.int, %arg5: !torch.int):
+      %13:2 = torch.prim.Loop %12, %true, init(%true, %int-1) {
+      ^bb0(%arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.int):
         %16 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<optional<list<int>>>, !torch.int -> !torch.optional<list<int>>
         %17 = torch.aten.__isnot__ %16, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
-        %18:3 = torch.prim.If %17 -> (!torch.bool, !torch.int, !torch.int) {
+        %18:2 = torch.prim.If %17 -> (!torch.bool, !torch.int) {
           %19 = torch.aten.eq.int %arg4, %int-1 : !torch.int, !torch.int -> !torch.bool
-          %20:3 = torch.prim.If %19 -> (!torch.bool, !torch.int, !torch.int) {
-            torch.prim.If.yield %arg3, %arg2, %arg2 : !torch.bool, !torch.int, !torch.int
+          %20:2 = torch.prim.If %19 -> (!torch.bool, !torch.int) {
+            torch.prim.If.yield %arg3, %arg2 : !torch.bool, !torch.int
           } else {
-            %21 = torch.aten.sub.int %arg2, %arg5 : !torch.int, !torch.int -> !torch.int
+            %21 = torch.aten.sub.int %arg2, %arg4 : !torch.int, !torch.int -> !torch.int
             %22 = torch.aten.ne.int %21, %int1 : !torch.int, !torch.int -> !torch.bool
             %23 = torch.prim.If %22 -> (!torch.bool) {
               torch.prim.If.yield %false : !torch.bool
             } else {
               torch.prim.If.yield %arg3 : !torch.bool
             }
-            torch.prim.If.yield %23, %arg4, %arg5 : !torch.bool, !torch.int, !torch.int
+            torch.prim.If.yield %23, %arg4 : !torch.bool, !torch.int
           }
-          torch.prim.If.yield %20#0, %20#1, %20#2 : !torch.bool, !torch.int, !torch.int
+          torch.prim.If.yield %20#0, %20#1 : !torch.bool, !torch.int
         } else {
-          torch.prim.If.yield %arg3, %arg4, %arg5 : !torch.bool, !torch.int, !torch.int
+          torch.prim.If.yield %arg3, %arg4 : !torch.bool, !torch.int
         }
-        torch.prim.Loop.condition %true, iter(%18#0, %18#1, %18#2 : !torch.bool, !torch.int, !torch.int)
-      } : (!torch.int, !torch.bool, !torch.bool, !torch.int, !torch.int) -> (!torch.bool, !torch.int, !torch.int)
+        torch.prim.Loop.condition %true, iter(%18#0, %18#1 : !torch.bool, !torch.int)
+      } : (!torch.int, !torch.bool, !torch.bool, !torch.int) -> (!torch.bool, !torch.int)
       %14 = torch.aten.__not__ %13#0 : !torch.bool -> !torch.bool
       %15 = torch.prim.If %14 -> (!torch.list<int>) {
         %16 = torch.aten.add.t %6, %4 : !torch.list<int>, !torch.list<int> -> !torch.list<int>

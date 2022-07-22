@@ -635,6 +635,53 @@ func.func @torch.aten.__getitem__.t$invalid_index() -> !torch.int {
   return %1 : !torch.int
 }
 
+// Not canonicalized because of mutated lhs list
+// CHECK-LABEL: func.func @torch.aten.add.t$no_canonicalize_lhs_mutated()
+func.func @torch.aten.add.t$no_canonicalize_lhs_mutated() -> !torch.list<int> {
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %1 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %2 = torch.aten.append.t %0, %int4 : !torch.list<int>, !torch.int -> !torch.list<int>
+  // CHECK: torch.aten.add.t
+  %3 = torch.aten.add.t %0, %1 : !torch.list<int>, !torch.list<int> -> !torch.list<int>
+  return %3 : !torch.list<int>
+}
+
+// Not canonicalized because of mutated rhs list
+// CHECK-LABEL: func.func @torch.aten.add.t$no_canonicalize_rhs_mutated()
+func.func @torch.aten.add.t$no_canonicalize_rhs_mutated() -> !torch.list<int> {
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %1 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %2 = torch.aten.append.t %1, %int4 : !torch.list<int>, !torch.int -> !torch.list<int>
+  // CHECK: torch.aten.add.t
+  %3 = torch.aten.add.t %0, %1 : !torch.list<int>, !torch.list<int> -> !torch.list<int>
+  return %3 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.add.t$concat(
+// CHECK-SAME:           %[[ARG0:.*]]: !torch.int,
+// CHECK-SAME:           %[[ARG1:.*]]: !torch.int) -> !torch.list<int> {
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[ARG0]], %[[ARG1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[LIST]] : !torch.list<int>
+func.func @torch.aten.add.t$concat(%arg0: !torch.int, %arg1: !torch.int) -> !torch.list<int> {
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %arg1 : (!torch.int) -> !torch.list<int>
+  %2 = torch.aten.add.t %0, %1 : !torch.list<int>, !torch.list<int> -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.add.t$concat_empty(
+// CHECK-SAME:           %[[ARG0:.*]]: !torch.int) -> !torch.list<int> {
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[ARG0]] : (!torch.int) -> !torch.list<int>
+// CHECK:           return %[[LIST]] : !torch.list<int>
+func.func @torch.aten.add.t$concat_empty(%arg0: !torch.int) -> !torch.list<int> {
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct : () -> !torch.list<int>
+  %2 = torch.aten.add.t %0, %1 : !torch.list<int>, !torch.list<int> -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.eq.int_list$fold$literals_of_different_sizes
 // CHECK:           %[[RET:.*]] = torch.constant.bool false
 // CHECK:           return %[[RET]] : !torch.bool
