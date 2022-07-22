@@ -10,12 +10,12 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H
 #define TORCHMLIR_CONVERSION_TORCHTOMHLO_MHLOLEGALIZEUTILS_H
 
-#include "mlir/IR/BuiltinAttributes.h"            // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"                 // from @llvm-project
-#include "mlir/IR/PatternMatch.h"                 // from @llvm-project
-#include "mlir/Interfaces/InferTypeOpInterface.h" // from @llvm-project
-#include "mlir/Support/LLVM.h"                    // from @llvm-project
-#include "mlir/Transforms/DialectConversion.h"    // from @llvm-project
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
+#include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 namespace mlir {
 namespace mhlo {
