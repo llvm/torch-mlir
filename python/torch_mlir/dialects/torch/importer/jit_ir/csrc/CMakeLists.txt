@@ -25,7 +25,6 @@ add_library(TorchMLIRJITIRImporter MODULE
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
-  torch_python
 )
 
 # On static Python builds, there may not be Python libraries to link against
