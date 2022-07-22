@@ -36,8 +36,18 @@ static constexpr size_t kMhloDimSizeBits = 64;
 
 namespace {
 
+SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
+  SmallVector<size_t> posDims;
+  posDims.reserve(rank);
+  std::transform(
+      dims.begin(), dims.end(), std::back_inserter(posDims),
+      [rank](int64_t d) -> size_t { return toPositiveDim(d, rank); });
+  return posDims;
+}
+
 SmallVector<Value, 4> getDimSizesOfTensor(PatternRewriter &rewriter,
-                                          Operation *op, Value value) {
+                                          Operation *op, Value value,
+                                          ArrayRef<int64_t> inpDims) {
   auto valueTy = value.getType().dyn_cast<RankedTensorType>();
   if (!valueTy) {
     op->emitOpError("getDimSizesOfTensor(): the input is not a ranked tensor");
@@ -49,15 +59,31 @@ SmallVector<Value, 4> getDimSizesOfTensor(PatternRewriter &rewriter,
     return {};
   }
 
+  auto dims = toPositiveDims(inpDims, rank);
   SmallVector<Value, 4> dimSizes;
-  dimSizes.reserve(rank);
+  dimSizes.reserve(dims.size());
   auto loc = op->getLoc();
-  for (auto d = 0; d < rank; ++d) {
+  for (auto d : dims) {
     dimSizes.emplace_back(rewriter.create<arith::IndexCastOp>(
         loc, rewriter.getIntegerType(kMhloDimSizeBits),
         rewriter.create<tensor::DimOp>(loc, value, d)));
   }
   return dimSizes;
+}
+
+SmallVector<Value, 4> getDimSizesOfTensor(PatternRewriter &rewriter,
+                                          Operation *op, Value value) {
+  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  if (!valueTy) {
+    op->emitOpError("getDimSizesOfTensor(): the input is not a ranked tensor");
+    return {};
+  }
+
+  auto rank = valueTy.getRank();
+  // Get int vector [0, 1, ..., rank-1]
+  std::vector<int64_t> dims(rank);
+  std::iota(dims.begin(), dims.end(), 0);
+  return getDimSizesOfTensor(rewriter, op, value, dims);
 }
 
 // A dimension index from torch.dialect might outside the range [0, dimSize].
@@ -316,6 +342,150 @@ bool ConvertAtenViewOp<AtenReshapeOp>::getAtenViewOpSizes(
   return getListConstructElements(adaptor.shape(), dimSizes);
 }
 
+llvm::Optional<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                      Value tensor,
+                                      ArrayRef<int64_t> inputUnsqzDims) {
+  // Returns a new tensor with dims of size 1 inserted at the specified
+  // position.
+  //
+  // The position indices (must be high to low dimension number of the returned
+  // tensor) are specified with unsqzDims. Indices must be in-order, and in
+  // range of tensor rank. Thus, unsqueeze a rank 1 tensor with {0, 2}, {0, 1,
+  // 3}, {0, 1, 2} are all valid dimension sets, but {0, 3}, {2} are not.
+  auto dimSizes = getDimSizesOfTensor(rewriter, op, tensor);
+  auto rank = dimSizes.size();
+  size_t newRank = rank + inputUnsqzDims.size();
+  auto unsqzDims = toPositiveDims(inputUnsqzDims, newRank);
+  for (size_t k = 0; k < unsqzDims.size(); ++k) {
+    if (k > 1 && unsqzDims[k] <= unsqzDims[k - 1]) {
+      op->emitOpError("Unsqueeze dimensions must be specified in order.");
+      return llvm::None;
+    }
+  }
+
+  auto loc = op->getLoc();
+  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto oldShape = rankTy.getShape();
+  Type intType = rewriter.getIntegerType(kMhloDimSizeBits);
+  auto one = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIntegerAttr(intType, 1));
+
+  std::vector<Value> newDimSizes;
+  std::vector<int64_t> newShape;
+  newDimSizes.reserve(newRank);
+  newShape.reserve(newRank);
+  for (size_t k = 0, i = 0, j = 0; k < newRank; ++k) {
+    if (j < unsqzDims.size() && unsqzDims[j] == k) {
+      newDimSizes.push_back(one);
+      newShape.push_back(1);
+      j++;
+    } else {
+      newDimSizes.push_back(dimSizes[i]);
+      newShape.push_back(oldShape[i]);
+      i++;
+    }
+  }
+
+  auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());
+  auto mhloShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+  return rewriter.create<mhlo::DynamicReshapeOp>(loc, outTy, tensor, mhloShape)
+      .getResult();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
+    AtenSqueezeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.self();
+  auto selfTy = self.getType().template cast<RankedTensorType>();
+  if (!selfTy)
+    return op.emitError("Only ranked tensor types supported in MHLO");
+
+  auto rank = selfTy.getRank();
+  if (rank == 0) {
+    return rewriter.notifyMatchFailure(
+        op, "The rank of tensor must be greater than 0");
+  }
+
+  SmallVector<int64_t, 4> dims;
+  dims.reserve(rank);
+  for (int r = 0; r < rank; ++r) {
+    auto dSize = selfTy.getShape()[r];
+    if (dSize == ShapedType::kDynamicSize) {
+      return rewriter.notifyMatchFailure(
+          op, "The size of the dimension being squeezed can't be unknown");
+    }
+    if (dSize != 1) {
+      dims.push_back(r);
+    }
+  }
+
+  auto newDimSizes = getDimSizesOfTensor(rewriter, op, self, dims);
+  auto mhloShape =
+      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+  rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
+    AtenSqueezeDimOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.self();
+  auto selfTy = self.getType().template cast<RankedTensorType>();
+  if (!selfTy)
+    return op.emitError("Only ranked tensor types supported in MHLO");
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant dim is currently supported");
+
+  auto rank = selfTy.getRank();
+  if (rank == 0) {
+    return rewriter.notifyMatchFailure(
+        op, "The rank of tensor must be greater than 0");
+  }
+
+  dim = toPositiveDim(dim, rank);
+  if (selfTy.getShape()[dim] != 1) {
+    if (selfTy.getShape()[dim] == ShapedType::kDynamicSize) {
+      return rewriter.notifyMatchFailure(
+          op, "The size of the dimension being squeezed is can't be unknown");
+    } else {
+      rewriter.replaceOp(op, adaptor.self());
+      return success();
+    }
+  }
+
+  SmallVector<int64_t, 4> dims(rank);
+  std::iota(dims.begin(), dims.end(), 0);
+  dims.erase(dims.begin() + dim);
+  auto newDimSizes = getDimSizesOfTensor(rewriter, op, self, dims);
+  auto mhloShape =
+      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+  rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), self, mhloShape);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
+    AtenUnsqueezeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("Only tensor types are currently supported");
+  }
+
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return op->emitError("dim must be a Scalar constant");
+
+  auto unsqzTensor = unsqueezeTensor(rewriter, op, adaptor.self(), {dim});
+  rewriter.replaceOp(op, *unsqzTensor);
+  return success();
+}
 } // namespace
 
 void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
@@ -327,6 +497,9 @@ void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
   INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
+  INSERT_ATENOP_PATTERN(AtenSqueezeOp);
+  INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
+  INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp) \
