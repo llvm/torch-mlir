@@ -1,7 +1,7 @@
 add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchToMhlo.cpp
   BasicOp.cpp
-  SliceLikeOps.cpp
+  ViewLikeOps.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToMhlo
