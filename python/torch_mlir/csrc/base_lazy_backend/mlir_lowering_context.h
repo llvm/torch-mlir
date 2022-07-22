@@ -137,7 +137,7 @@ public:
 
   const std::string debug_string() const;
 
-  const std::string to_string() const;
+  const std::string to_string() const override;
 
 private:
   std::vector<std::string> parameter_names_;
