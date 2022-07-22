@@ -19,6 +19,10 @@ namespace torch_to_mhlo {
 void populateBasicOpPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target);
+void populateSliceLikeOpPatternsAndLegality(TypeConverter &typeConverter,
+                                        RewritePatternSet &patterns,
+                                        ConversionTarget &target);
+
 
 } // namespace torch_to_mhlo
 } // namespace torch
