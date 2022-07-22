@@ -81,6 +81,29 @@ def GtIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GeIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.ops.aten.ge(int(lhs), int(rhs))
+
+
+@register_test_case(module_factory=lambda: GeIntModule())
+def GeIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
+
+
+# ==============================================================================
+
+
 class GeFloatModule(torch.nn.Module):
 
     def __init__(self):
