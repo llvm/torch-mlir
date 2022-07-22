@@ -127,7 +127,7 @@ public:
   /**
    * Device Configuration
    * */
-  std::shared_ptr<torch::lazy::BackendDeviceType> GetDefaultDeviceType() const {
+  std::shared_ptr<torch::lazy::BackendDeviceType> GetDefaultDeviceType() const override {
     return std::make_shared<BackendDeviceType>(default_device_type_);
   }
 
