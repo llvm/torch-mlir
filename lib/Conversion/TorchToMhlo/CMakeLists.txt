@@ -1,6 +1,7 @@
 add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchToMhlo.cpp
   BasicOp.cpp
+  GatherOp.cpp
   ViewLikeOps.cpp
 
   ADDITIONAL_HEADER_DIRS
