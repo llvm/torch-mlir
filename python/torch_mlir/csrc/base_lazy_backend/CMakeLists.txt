@@ -81,11 +81,30 @@ target_link_libraries(torch_mlir_ltc_backend
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
 set_target_properties(torch_mlir_ltc_backend PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/"
-  OUTPUT_NAME lib_mlir_ltc
+  LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend"
+  OUTPUT_NAME lib_torch_mlir_ltc
   PREFIX ""
   SUFFIX ".so"
   CXX_VISIBILITY_PRESET "hidden"
   COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
   LINK_FLAGS "-rdynamic"
 )
+
+# Copy header files into python package
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND mkdir -p
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/generated/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND cp
+                ${PROJECT_SOURCE_DIR}/python/torch_mlir/csrc/base_lazy_backend/*.h
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND cp
+                ${PROJECT_SOURCE_DIR}/python/torch_mlir/csrc/base_lazy_backend/generated/*.h
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/generated/)
