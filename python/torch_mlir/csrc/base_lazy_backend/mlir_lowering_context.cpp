@@ -133,8 +133,6 @@ ComputationPtr TorchMlirLoweringContext::Build() {
     graph_->block()->registerOutput(output);
   }
 
-  std::cout << graph_->toString() << std::endl;
-
   // Generate MLIR.
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
       /*context=*/mlir_context_,
@@ -278,12 +276,7 @@ TorchMlirLoweringContext::generate_jit_fn() const {
 
 void TorchMlirLoweringContext::RegisterMlirDialects() {
   // https://reviews.llvm.org/D88162
-  std::cout << "Before: " << mlirContextGetNumRegisteredDialects(mlir_context_) << std::endl;
-
   torchMlirRegisterAllDialects(mlir_context_);
-
-  std::cout << "After: " << mlirContextGetNumRegisteredDialects(mlir_context_) << std::endl;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
