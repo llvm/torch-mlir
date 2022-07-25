@@ -60,9 +60,11 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
 
-        sudo apt-get install gdb
+        #sudo apt-get install gdb
         # python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
-        gdb --batch -q python -ex 'run $GITHUB_WORKSPACE/examples/ltc_backend_simple.py' -ex 'back'
+        #gdb --batch -q python -ex 'run $GITHUB_WORKSPACE/examples/ltc_backend_simple.py' -ex 'back'
+
+        python $GITHUB_WORKSPACE/examples/ltc_backend_simple.py
 
 #  build-out-of-tree:
 #    name: Build out-of-tree (Release Asserts)
