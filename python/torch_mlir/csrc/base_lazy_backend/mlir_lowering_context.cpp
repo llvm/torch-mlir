@@ -38,7 +38,6 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
       function_(
           std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
-  mlirContextSetAllowUnregisteredDialects(mlir_context_, true);
   RegisterMlirDialects();
 }
 
@@ -53,7 +52,6 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
       function_(
           std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
-  mlirContextSetAllowUnregisteredDialects(mlir_context_, true);
   for (auto node : post_order) {
     Lower(node);
   }
@@ -280,7 +278,12 @@ TorchMlirLoweringContext::generate_jit_fn() const {
 
 void TorchMlirLoweringContext::RegisterMlirDialects() {
   // https://reviews.llvm.org/D88162
+  std::cout << "Before: " << mlirContextGetNumRegisteredDialects(mlir_context_) << std::endl;
+
   torchMlirRegisterAllDialects(mlir_context_);
+
+  std::cout << "After: " << mlirContextGetNumRegisteredDialects(mlir_context_) << std::endl;
+
 }
 
 ///////////////////////////////////////////////////////////////////////////////
