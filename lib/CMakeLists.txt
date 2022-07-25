@@ -10,6 +10,7 @@ add_mlir_library(TorchMLIRInitAll
   Core
 
   LINK_LIBS PUBLIC
+  MLIRFuncDialect
   MLIRIR
   MLIRSupport
 

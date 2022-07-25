@@ -156,6 +156,11 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
+    - name: Lazy Tensor Core - TorchScript end-to-end tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
 
   macOS-x86_64:
     name: Build and Test macOS(x86_64) Build (Release Asserts)
@@ -206,3 +211,8 @@ jobs:
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
+    - name: Lazy Tensor Core - TorchScript end-to-end tests
+      run: |
+        cd $GITHUB_WORKSPACE
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v

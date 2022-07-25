@@ -9,6 +9,7 @@
 
 #include "torch-mlir/InitAll.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
@@ -20,6 +21,7 @@
 #include "torch-mlir/RefBackend/Passes.h"
 
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
+  registry.insert<mlir::func::FuncDialect>();
   registry.insert<mlir::torch::Torch::TorchDialect>();
   registry.insert<mlir::torch::TorchConversion::TorchConversionDialect>();
   registry.insert<mlir::torch::TMTensor::TMTensorDialect>();
