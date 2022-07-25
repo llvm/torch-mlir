@@ -38,6 +38,7 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
       function_(
           std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
+  mlir_context_.allowUnregisteredDialects();
   RegisterMlirDialects();
 }
 
