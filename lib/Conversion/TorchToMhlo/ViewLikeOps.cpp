@@ -59,9 +59,6 @@ getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value,
   SmallVector<Value, 4> dimSizes;
   dimSizes.reserve(dims.size());
 
-  if (rank == 0) {
-    return dimSizes;
-  }
   auto loc = op->getLoc();
   for (auto d : dims) {
     dimSizes.emplace_back(rewriter.create<arith::IndexCastOp>(
@@ -247,14 +244,14 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   llvm::Optional<Value> end = getOptionalVal(adaptor.end());
   llvm::Optional<Value> step = getOptionalVal(adaptor.step());
 
-  FailureOr<Value> slicedInfo =
+  FailureOr<Value> sliceInfo =
       getDynamicSlice(rewriter, op, self, start, end, step, dim);
-  if (failed(slicedInfo))
+  if (failed(sliceInfo))
     return op.emitError("can not create a dynmaic slice");
 
-  auto sliced = *slicedInfo;
+  auto slice = *sliceInfo;
   rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
-      op, getTypeConverter()->convertType(op.getType()), sliced);
+      op, getTypeConverter()->convertType(op.getType()), slice);
 
   return success();
 }
