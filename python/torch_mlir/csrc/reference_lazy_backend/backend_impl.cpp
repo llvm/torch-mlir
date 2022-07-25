@@ -32,7 +32,9 @@ struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
   ReferenceLazyBackendDeviceType(int8_t device_type)
       : device_type_(static_cast<c10::DeviceType>(device_type)) {}
 
-  std::string toString() const override { return c10::DeviceTypeName(device_type_); }
+  std::string toString() const override {
+    return c10::DeviceTypeName(device_type_);
+  }
 
   c10::DeviceType device_type_;
 };
@@ -127,10 +129,10 @@ public:
   /**
    * Device Configuration
    * */
-  std::shared_ptr<torch::lazy::BackendDeviceType> GetDefaultDeviceType() const override {
+  std::shared_ptr<torch::lazy::BackendDeviceType>
+  GetDefaultDeviceType() const override {
     return std::make_shared<BackendDeviceType>(default_device_type_);
   }
-
 
   void SetDefaultDeviceType(int8_t device_type) override {
     default_device_type_ = ReferenceLazyBackendDeviceType(device_type);
