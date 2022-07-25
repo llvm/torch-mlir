@@ -222,18 +222,14 @@ $TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonic
 
 Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
 
-# Unexpected test failures with PyTorch / Libtorch skew
+# PyTorch source builds and custom PyTorch versions
 
-Torch-MLIR currently by default links to libtorch binaries and tests are run with the PyTorch nightlies. This can cause version / api
-skew in your tests like (https://github.com/llvm/torch-mlir/issues/1007). If you notice any unexpected test failures please follow the steps below:
-
+Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with 
 ```
-rm -rf libtorch* # note the asterisk after libtorch, since there is also a .zip file that needs to be removed
-rm -rf build/   
-python -m pip install -r requirements.txt --upgrade # to get the latest pytorch 
-# Then rebuild and test torch-mlir
+-DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
+-DPYTORCH_REPO=vivekkhandelwal1/pytorch # Optional Github path. Defaults to pytorch/pytorch
+-DPYTORCH_BRANCH=master #Optional. Defaults to PyTorch's main branch
 ```
-We expect this to be fixed once we take on a dependency on PyTorch and build it from source. That work is being tracked in [this](https://github.com/llvm/torch-mlir/tree/release-src-build) branch.
 
 # Updating the LLVM submodule
 
