@@ -10,7 +10,7 @@
 // https://github.com/pytorch/pytorch/blob/master/torch/csrc/lazy/ts_backend/dynamic_ir.cpp
 //===----------------------------------------------------------------------===//
 
-#include <torch/csrc/lazy/ts_backend/dynamic_ir.h>
+#include "dynamic_ir.h"
 
 namespace torch {
 namespace lazy {
