@@ -52,11 +52,11 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
       function_(
           std::make_shared<torch::jit::GraphFunction>(name, graph_, nullptr)),
       mlir_context_(mlirContextCreate()) {
+  RegisterMlirDialects();
+
   for (auto node : post_order) {
     Lower(node);
   }
-
-  RegisterMlirDialects();
 }
 
 void TorchMlirLoweringContext::Lower(const Node* node) {
