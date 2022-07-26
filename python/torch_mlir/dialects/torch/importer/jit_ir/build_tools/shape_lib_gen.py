@@ -502,6 +502,9 @@ def aten〇var〇correction(self: List[int], dim: Optional[List[int]], correctio
 def aten〇std(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
+def aten〇std〇dim(self: List[int], dim: List[int], unbiased: bool = True, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
+
 def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
     dim = upstream_shape_functions.maybe_wrap_dim(dim, len(self))
     out: List[int] = []
