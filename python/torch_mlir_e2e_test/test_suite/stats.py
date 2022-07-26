@@ -276,6 +276,72 @@ def StdBiasedModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class StdDimKeepDimFalseModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=(1, 2), keepdim=False)
+
+
+@register_test_case(module_factory=lambda: StdDimKeepDimFalseModule())
+def StdDimKeepDimFalseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class StdDimKeepDimTrueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=(0, 1, 2), keepdim=True)
+
+
+@register_test_case(module_factory=lambda: StdDimKeepDimFalseModule())
+def StdDimKeepDimTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class StdDimBiasedModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.std(x, dim=(0, 2), unbiased=False)
+
+
+@register_test_case(module_factory=lambda: StdDimBiasedModule())
+def StdDimBiasedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
 class VarDimModule(torch.nn.Module):
 
     def __init__(self):
