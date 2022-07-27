@@ -48,8 +48,6 @@ add_dependencies(reference_lazy_backend
         )
 target_link_libraries(reference_lazy_backend
         ${TORCH_LIBRARIES}
-        ${Python3_LIBRARIES}
-        torch_python
         torch_mlir_ltc_backend
         )
 
