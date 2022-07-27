@@ -86,7 +86,7 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
                 {emplace_arguments_str}
                 {emplace_kwarguments}
                 torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
-                CHECK_EQ({schema.aten_name}_out.size(), {len(schema.returns)});
+                TORCH_CHECK_EQ({schema.aten_name}_out.size(), {len(schema.returns)});
 
                 return {schema.aten_name}_out;
             }}
