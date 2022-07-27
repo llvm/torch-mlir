@@ -14,13 +14,6 @@ blacklist:
 - size
 - where
 - copy_
-- empty_like
-- ones_like
-- full_like
-- zeros_like
-- rand_like
-- randn_like
-- randint_like
 
 # Disabled for consistency with TS backend
 - new_empty
