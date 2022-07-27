@@ -56,6 +56,30 @@ LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
 
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
                           TensorType outType);
+
+Value broadcastZeroRankTensorToTensorLike(PatternRewriter &rewriter,
+                                          Operation *op, Value input,
+                                          Value tensor, Type elementType);
+
+template <typename T>
+Value getConstTensorLike(PatternRewriter &rewriter, Operation *op, T val,
+                         Value tensor, Type elementType);
+
+Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
+
+Value broadcastUnaryOperandStatic(PatternRewriter &rewriter, Operation *op,
+                                  Value input, TensorType outType);
+
+void broadcastBinaryOperandsStatic(PatternRewriter &rewriter, Operation *op,
+                                   Value lhs, Value rhs,
+                                   RankedTensorType outType, Value &bcastLhs,
+                                   Value &bcastRhs);
+
+void broadcastBinaryOperandsDynamic(PatternRewriter &rewriter, Operation *op,
+                                    Value lhs, Value rhs,
+                                    RankedTensorType outType, Value &bcastLhs,
+                                    Value &bcastRhs, Value &bcastShape);
+
 } // namespace mhlo
 } // namespace mlir
 

@@ -13,6 +13,7 @@
 #include "./PopulatePatterns.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
@@ -35,13 +36,15 @@ public:
     registry.insert<mhlo::MhloDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithmeticDialect>();
+    registry.insert<shape::ShapeDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<mhlo::MhloDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect, Torch::TorchDialect>();
+                           arith::ArithmeticDialect, shape::ShapeDialect,
+                           Torch::TorchDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
