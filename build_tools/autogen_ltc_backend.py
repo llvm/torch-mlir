@@ -441,16 +441,6 @@ class GenTorchMlirLTC:
             lazy_ir_generator=GenMlirLazyIr,
         )
 
-        # Remove lazy_tensor_core imports
-        subprocess.check_call(
-            [
-                "sed",
-                "-i",
-                "/lazy_tensor_core/d",
-                str(self.generated_path.joinpath("LazyNativeFunctions.cpp")),
-            ]
-        )
-
     def __call__(self):
         self.generate_native_functions()
         self.generate_shape_inference()
