@@ -733,6 +733,23 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  // Dtype is always float32, except for bfloat16, float64 and nullptr after
+  // promotion and assuming possible-zero rank.
+  if (isa<AtenAtan2Op>(op)) {
+    ValueKnowledge knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type promotedDtype = getPromotedResultType(
+        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()},
+        getRankIsNonZeroArray(op->getOperands()));
+    if (promotedDtype) {
+      knowledge.dtype = Float32Type::get(op->getContext());
+      if (promotedDtype.isa<BFloat16Type, Float64Type>())
+        knowledge.dtype = promotedDtype;
+    }
+    incorporateKnowledge(op->getResult(0), knowledge);
+    return;
+  }
+
   // Promote three dtypes.
   if (isa<AtenAddmmOp, AtenLerpTensorOp, AtenAddcmulOp, AtenAddcdivOp>(op)) {
     auto knowledge =

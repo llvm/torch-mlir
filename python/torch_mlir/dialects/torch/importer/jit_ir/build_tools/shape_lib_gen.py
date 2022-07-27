@@ -807,6 +807,9 @@ def aten〇div〇Tensor_mode(self: List[int], other: List[int], rounding_mode: O
 def aten〇floor_divide(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇atan2(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇__and__〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 

@@ -142,6 +142,8 @@ LOWERING_PIPELINE = ",".join([
     "func.func(refback-expand-ops-for-llvm)",
     "func.func(arith-expand)",
     "func.func(convert-math-to-llvm)",
+    # Handle some complex mlir::math ops (e.g. atan2)
+    "convert-math-to-libm",
     "convert-linalg-to-llvm",
     "convert-memref-to-llvm",
     "func.func(convert-arith-to-llvm)",
