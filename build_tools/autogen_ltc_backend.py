@@ -236,6 +236,9 @@ class GenTorchMlirLTC:
                 continue
             if base in supported or op in supported:
                 continue
+            # Blacklist new_/_like ops since they are non-differentiable.
+            if any(o.startswith("new_") or o.endswith("_like") for o in (base, op)):
+                continue
 
             if func.has_composite_implicit_autograd_kernel:
                 composite_implicit.add(op)
