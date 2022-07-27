@@ -82,8 +82,6 @@ target_link_libraries(torch_mlir_ltc_backend
   TorchMLIRAggregateCAPI
   TorchMLIRJITIRImporter
   ${TORCH_LIBRARIES}
-  ${Python3_LIBRARIES}
-  torch_python
 )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
