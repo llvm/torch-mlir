@@ -1528,6 +1528,50 @@ def ElementwiseExpIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseExpm1Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseExpm1Module())
+def ElementwiseExpm1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseExpm1IntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseExpm1IntModule())
+def ElementwiseExpm1IntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseSinModule(torch.nn.Module):
 
     def __init__(self):

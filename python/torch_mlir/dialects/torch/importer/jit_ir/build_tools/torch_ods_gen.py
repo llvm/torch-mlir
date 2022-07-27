@@ -250,6 +250,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::silu : (Tensor) -> (Tensor)",
             "aten::sin : (Tensor) -> (Tensor)",
             "aten::exp : (Tensor) -> (Tensor)",
+            "aten::expm1 : (Tensor) -> (Tensor)",
             "aten::cos : (Tensor) -> (Tensor)",
             "aten::neg : (Tensor) -> (Tensor)",
             "aten::floor : (Tensor) -> (Tensor)",

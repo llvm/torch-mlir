@@ -315,6 +315,9 @@ def aten〇silu(self: List[int]) -> List[int]:
 def aten〇exp(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇expm1(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇sin(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
