@@ -96,6 +96,7 @@ jobs:
           -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
+          -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DPython3_EXECUTABLE=$(which python) \
           .
 

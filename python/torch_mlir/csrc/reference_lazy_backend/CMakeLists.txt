@@ -38,11 +38,10 @@ link_directories("${TORCH_INSTALL_PREFIX}/lib")
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 add_link_options(-Wl,-rpath,$ORIGIN/lib)
 
-set(REFERENCE_LAZY_BACKEND_CSRC
+add_library(reference_lazy_backend SHARED
         backend_impl.cpp
         reference_lazy_backend_pybind.cpp
         )
-add_library(reference_lazy_backend SHARED ${REFERENCE_LAZY_BACKEND_CSRC})
 add_dependencies(reference_lazy_backend
         torch_mlir_ltc_backend
         )

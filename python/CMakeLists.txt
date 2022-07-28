@@ -84,8 +84,10 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 # Lazy Tensor Core
 ################################################################################
 
-add_subdirectory(torch_mlir/csrc/base_lazy_backend)
-add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
+if(TORCH_MLIR_ENABLE_LTC)
+  add_subdirectory(torch_mlir/csrc/base_lazy_backend)
+  add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
+endif()
 
 ################################################################################
 # Optionally handle JIT IR importer.
@@ -159,8 +161,10 @@ endif()
 # TODO: Add after macOS builds are fixed
 #add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
 
-# Add Torch-MLIR LTC backend as dependency
-add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
-add_dependencies(TorchMLIRPythonModules reference_lazy_backend)
+if(TORCH_MLIR_ENABLE_LTC)
+  # Add Torch-MLIR LTC backend as dependency
+  add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
+  add_dependencies(TorchMLIRPythonModules reference_lazy_backend)
+endif()
 
 add_subdirectory(test)
