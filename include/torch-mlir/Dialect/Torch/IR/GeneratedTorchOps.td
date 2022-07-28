@@ -6619,6 +6619,7 @@ def Torch_AtenAddTOp : Torch_Op<"aten.add.t", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenEqIntListOp : Torch_Op<"aten.eq.int_list", [

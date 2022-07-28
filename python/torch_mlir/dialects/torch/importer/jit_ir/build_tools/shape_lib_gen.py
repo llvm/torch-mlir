@@ -1016,6 +1016,7 @@ def aten〇pad(self: List[int], pad: List[int], mode: str = "constant", value: O
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), None]), # Explicit None value.
     Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), LongTensorOfShape(4)]), # Indexing tensors on consecutive dimensions.
     Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), None, LongTensorOfShape(4)]), # Indexing tensors on non-consecutive dimensions.
+    Invocation(TensorOfShape(2, 3, 4, 5), [LongTensorOfShape(4, 2), None, LongTensorOfShape(2)]), # Indexing tensors on non-consecutive dimensions.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4, 5, 6), LongTensorOfShape(1, 5, 1)]), # Broadcasting of index tensors.
     Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4)]), # Fewer index tensors than dimensions.
     ErrorInvocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4), LongTensorOfShape(4)]), # More index tensors than dimensions.
@@ -1037,15 +1038,13 @@ def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -
     if len(unused_dim_sizes) == 0:
         return broadcasted_shape
 
-    prev_index_tensor_location = -1
     first_index_tensor_location = -1
     index_tensors_are_together = True
     for e, index_tensor_shape in enumerate(indices):
         if index_tensor_shape is not None:
             if first_index_tensor_location == -1:
                 first_index_tensor_location = e
-                prev_index_tensor_location = e
-            elif e - prev_index_tensor_location != 1:
+            elif e - first_index_tensor_location != 1:
                 index_tensors_are_together = False
 
     if not index_tensors_are_together:
