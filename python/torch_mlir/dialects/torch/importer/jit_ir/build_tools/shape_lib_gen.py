@@ -490,6 +490,8 @@ def aten〇var(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
 def aten〇var〇dim(self: List[int], dim: List[int], unbiased: bool = True, keepdim: bool = False) -> List[int]:
+    if len(dim)==0:
+        dim = list(range(len(self)))
     return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
 
 def aten〇var〇correction(self: List[int], dim: Optional[List[int]], correction: Optional[int], keepdim: bool = False) -> List[int]:
@@ -533,13 +535,14 @@ def aten〇max〇dim(self: List[int], dim: int, keepdim: bool = False) -> Tuple[
     return reduced_shape, reduced_shape
 
 def aten〇mean〇dim(self: List[int], dim: List[int], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
+    if len(dim)==0:
+        dim = list(range(len(self)))
     return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
 
 def aten〇sum〇dim_IntList(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
-    if dim is None:
-        return upstream_shape_functions.mean_dim(self, [], keepdim, dtype)
-    else:
-        return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
+    if dim is None or len(dim)==0:
+        dim = list(range(len(self)))
+    return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
 
 def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)

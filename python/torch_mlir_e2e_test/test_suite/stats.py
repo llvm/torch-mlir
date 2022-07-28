@@ -180,6 +180,26 @@ class MeanDimNegativeModule(torch.nn.Module):
 def MeanDimNegativeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
+
+# ==============================================================================
+
+class MeanDimEmptyDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.mean(x, dim=[])
+
+
+@register_test_case(module_factory=lambda: MeanDimEmptyDimModule())
+def MeanDimEmptyDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
 # ==============================================================================
 
 class VarUnbiasedModule(torch.nn.Module):
@@ -410,7 +430,7 @@ def VarDimNegativeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class VarDimKeepDimFalseModule(torch.nn.Module):
+class VarDimEmptyDimModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -421,11 +441,11 @@ class VarDimKeepDimFalseModule(torch.nn.Module):
         ([-1, -1, -1], torch.float32, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.var(x, dim=(0, 1, 2), keepdim=False)
+        return torch.ops.aten.var(x, dim=[], keepdim=False)
 
 
-@register_test_case(module_factory=lambda: VarDimKeepDimFalseModule())
-def VarDimKeepDimFalseModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: VarDimEmptyDimModule())
+def VarDimEmptyDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 

@@ -270,6 +270,8 @@ private:
                                          "`keepdim` must be a constant bool");
 
     SmallVector<int64_t> dimList;
+    bool isNoneOrEmptyDimList =
+        op.dim().getType().template isa<Torch::NoneType>();
     if (matchPattern(op.dim(), m_TorchConstantIntList(dimList))) {
       // Fix negative dimensions, if any, before adding to the list.
       for (int64_t dim : dimList) {
@@ -278,13 +280,16 @@ private:
         if (isValidDim(dim, inputType.getRank()))
           opInfo.dimSet.insert(dim);
       }
-    } else if (op.dim().getType().template isa<Torch::NoneType>()) {
+      if (dimList.empty())
+        isNoneOrEmptyDimList = true;
+    } else if (!isNoneOrEmptyDimList) {
+      return rewriter.notifyMatchFailure(
+          op, "`dim` argument must be a constant int list or None");
+    }
+    if (isNoneOrEmptyDimList) {
       // If no dimensions were specified, reduce along all dimensions
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
-    } else {
-      return rewriter.notifyMatchFailure(
-          op, "`dim` argument must be a constant int list or None");
     }
 
     return opInfo;
