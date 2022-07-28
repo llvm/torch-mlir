@@ -102,6 +102,7 @@ jobs:
           -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
+          -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DPython3_EXECUTABLE=$(which python) \
           .
         ninja -Cbuild check-torch-mlir-all
