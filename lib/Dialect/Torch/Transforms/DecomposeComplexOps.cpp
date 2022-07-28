@@ -1012,6 +1012,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
+    unsigned inputRank = getTensorRank(input);
     Value dimList = op.dim();
     Value keepDim = op.keepdim();
     Value dtype = op.dtype();
@@ -1036,12 +1037,18 @@ public:
         loc, outputType, input, dimList, keepDim, dtype);
 
     // `productDimSize` is product of sizes of dimensions to be reduced.
-    Value productDimSize = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    for (Value dim : dimListConstruct.elements()) {
-      Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
-      productDimSize =
-          rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
+    Value productDimSize;
+    // Case: Reduce along all dims.
+    if (dimListConstruct.elements().empty() && inputRank != 0) {
+      productDimSize = rewriter.create<AtenNumelOp>(loc, input);
+    } else {
+      productDimSize = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      for (Value dim : dimListConstruct.elements()) {
+        Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+        productDimSize =
+            rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
+      }
     }
     rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, sumAlongDims,
                                                  productDimSize);

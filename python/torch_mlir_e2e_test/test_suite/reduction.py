@@ -106,6 +106,25 @@ def ReduceSumDimIntListKeepDimFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ReduceSumDimIntListEmptyDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, a):
+        return torch.sum(a, dim=[])
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListEmptyDimModule())
+def ReduceSumDimIntListEmptyDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
 class ReduceSumUnsignedIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
