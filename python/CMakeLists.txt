@@ -86,8 +86,9 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 
 if(TORCH_MLIR_ENABLE_LTC)
   add_subdirectory(torch_mlir/csrc/base_lazy_backend)
-  add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
 endif()
+# Reference backend has a separate check for TORCH_MLIR_ENABLE_LTC.
+add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
 
 ################################################################################
 # Optionally handle JIT IR importer.
