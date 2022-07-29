@@ -366,3 +366,128 @@ class SelectScatterStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: SelectScatterStaticModule())
 def SelectScattertStaticModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(6, 8, 5), torch.rand(6, 5))
+
+
+# ==============================================================================
+
+class SplitModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_sizes = [1, 3, 5]
+        dim = 0
+        splits = torch.ops.aten.split(x, split_sizes, dim)
+        return splits[0], splits[1], splits[2]
+
+@register_test_case(module_factory=lambda: SplitModule())
+def SplitModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+# ==============================================================================
+
+class SplitStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([9, 6, 8], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_sizes = [1, 3, 2]
+        dim = 1
+        splits = torch.ops.aten.split(x, split_sizes, dim)
+        return splits[0], splits[1], splits[2]
+
+@register_test_case(module_factory=lambda: SplitStaticModule())
+def SplitStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+# ==============================================================================
+
+class SplitWithSizesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_sizes = [1, 3, 4]
+        dim = 2
+        splits = torch.ops.aten.split_with_sizes(x, split_sizes, dim)
+        return splits[0], splits[1], splits[2]
+
+@register_test_case(module_factory=lambda: SplitWithSizesModule())
+def SplitWithSizestModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+# ==============================================================================
+
+class SplitTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_size = 2
+        dim = 2
+        splits = torch.ops.aten.split(x.view(9, 6, 8), split_size, dim)
+        return splits[0], splits[1], splits[2], splits[3]
+
+@register_test_case(module_factory=lambda: SplitTensorModule())
+def SplitTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+
+class SplitTensorNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        split_size = 2
+        dim = -1
+        splits = torch.ops.aten.split(x.view(9, 6, 8), split_size, dim)
+        return splits[0], splits[1], splits[2], splits[3]
+
+@register_test_case(module_factory=lambda: SplitTensorModule())
+def SplitTensorNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
+
+
+class ChunkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        chunks = 4
+        dim = 2
+        splits = torch.ops.aten.chunk(x.view(9, 6, 8), chunks, dim)
+        return splits[0], splits[1], splits[2], splits[3]
+
+@register_test_case(module_factory=lambda: ChunkModule())
+def ChunkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 6, 8))
