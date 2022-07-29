@@ -100,22 +100,28 @@ jobs:
           .
 
     - name: Build and run check-torch-mlir-all
+      if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         cmake --build build --target check-torch-mlir-all
 
     - name: RefBackend - TorchScript end-to-end tests
+      if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=refbackend -v
+        
     - name: EagerMode - TorchScript end-to-end tests
+      if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=eager_mode -v
+        
     - name: TOSA backend - TorchScript end-to-end tests
+      if: matrix.llvmtype == 'binary'
       run: |
         cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
