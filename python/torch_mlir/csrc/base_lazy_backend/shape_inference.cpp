@@ -29,5 +29,12 @@ compute_shape_mul(const at::Tensor& self, const at::Scalar& other) {
   return {Shape(self.scalar_type(), self.sizes().vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_var(
+    const at::Tensor& self, at::OptionalIntArrayRef dim,
+    c10::optional<int64_t> correction, bool keepdim) {
+  // Result of variance is scalar tensor.
+  return {Shape(self.scalar_type(), {})};
+}
+
 } // namespace lazy
 } // namespace torch
