@@ -97,7 +97,7 @@ class MeanDimDtypeModule(torch.nn.Module):
         ([-1, -1, -1], torch.float64, True),
     ])
     def forward(self, x):
-        return torch.ops.aten.mean(x, 0, dtype=torch.float32)
+        return torch.ops.aten.mean(x, (0,), dtype=torch.float32)
 
 
 @register_test_case(module_factory=lambda: MeanDimDtypeModule())
