@@ -84,7 +84,7 @@ class ToCopy : public torch::lazy::TorchMlirNode {
     kwarguments.emplace_back("non_blocking", non_blocking);
     kwarguments.emplace_back("memory_format", memory_format);
     torch::lazy::TorchMlirOpVector _to_copy_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
-    CHECK_EQ(_to_copy_out.size(), 1);
+    TORCH_CHECK_EQ(_to_copy_out.size(), 1);
 
     return _to_copy_out;
 
