@@ -205,7 +205,7 @@ GenerateClone(torch::jit::Value* val, TorchMlirFunction function) {
   // Type of cloned value should be identical to the original one.
   TorchMlirOpVector cloned =
       LowerBuiltin(at::aten::clone, {val->type()}, function, clone_arguments);
-  CHECK_EQ(cloned.size(), 1);
+  TORCH_CHECK_EQ(cloned.size(), 1);
   return cloned.front();
 }
 
@@ -235,7 +235,7 @@ torch::jit::Value* GenerateSlice(
       c10::ArrayRef<Shape>(
           compute_shape_slice(base->type(), dim, start, end, step)),
       function, arguments);
-  CHECK_EQ(selected.size(), 1);
+  TORCH_CHECK_EQ(selected.size(), 1);
   return selected.front();
 }
 

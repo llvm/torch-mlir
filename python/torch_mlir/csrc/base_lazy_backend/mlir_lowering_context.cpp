@@ -64,7 +64,7 @@ void TorchMlirLoweringContext::Lower(const Node* node) {
           dynamic_cast<const torch::lazy::TorchMlirNode*>(node)) {
     TorchMlirOpVector ops = torch_mlir_node->Lower(function_, this);
     CHECK(!ops.empty()) << "Failed to lower: " << *node;
-    CHECK_EQ(node->num_outputs(), ops.size());
+    TORCH_CHECK_EQ(node->num_outputs(), ops.size());
     for (size_t i = 0; i < ops.size(); ++i) {
       AssignOutputOp(torch::lazy::Output(node, i), ops[i]);
     }

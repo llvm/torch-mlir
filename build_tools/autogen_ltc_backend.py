@@ -86,7 +86,7 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
                 {emplace_arguments_str}
                 {emplace_kwarguments}
                 torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
-                CHECK_EQ({schema.aten_name}_out.size(), {len(schema.returns)});
+                TORCH_CHECK_EQ({schema.aten_name}_out.size(), {len(schema.returns)});
 
                 return {schema.aten_name}_out;
             }}
@@ -235,6 +235,9 @@ class GenTorchMlirLTC:
             if base in blacklist or op in blacklist:
                 continue
             if base in supported or op in supported:
+                continue
+            # Blacklist new_/_like ops since they are non-differentiable.
+            if any(o.startswith("new_") or o.endswith("_like") for o in (base, op)):
                 continue
 
             if func.has_composite_implicit_autograd_kernel:

@@ -5,10 +5,16 @@
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
 include(TorchMLIRPyTorch)
+
 TorchMLIRProbeForPyTorchInstall()
+if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
+  TorchMLIRConfigurePyTorch()
+else()
+  set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../libtorch/share/cmake/Torch")
+endif()
+
 find_package(Torch 1.11 REQUIRED)
 
-TorchMLIRConfigurePyTorch()
 set(TORCHGEN_DIR ${Torch_ROOT}/../../../torchgen)
 
 include_directories(BEFORE
@@ -76,8 +82,6 @@ target_link_libraries(torch_mlir_ltc_backend
   TorchMLIRAggregateCAPI
   TorchMLIRJITIRImporter
   ${TORCH_LIBRARIES}
-  ${Python3_LIBRARIES}
-  torch_python
 )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")

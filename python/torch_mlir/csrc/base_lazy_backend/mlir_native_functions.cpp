@@ -154,25 +154,6 @@ void copy_(torch::lazy::LazyTensorPtr& input, torch::lazy::LazyTensorPtr& src) {
 //   // return self;
 // }
 
-at::Tensor LazyNativeFunctions::cat(at::TensorList tensors, int64_t dim) {
-  TORCH_LAZY_FN_COUNTER("lazy::");
-  auto lazy_tensors = torch::lazy::GetLtcTensors(tensors);
-  std::vector<torch::lazy::Value> values;
-  values.reserve(lazy_tensors.size());
-  for (auto& tensor : lazy_tensors) {
-    values.emplace_back(tensor->GetIrValue());
-  }
-
-  auto shapes = torch::lazy::compute_shape_cat(tensors, dim);
-  UNIMPLEMENTED_FUNCTION_ERROR();
-  // auto node =
-  //     torch::lazy::MakeNode<ir::ops::Cat>(values, dim, std::move(shapes));
-  // auto result = torch::lazy::CreateAtenFromLtcTensor(
-  //     torch::lazy::LazyTensor::Create(torch::lazy::Value(node, 0),
-  // lazy_tensors[0]->GetDevice()));
-  // return result;
-}
-
 // clone is special in LT because we make it a no-op.
 // This should be safe to do, because every operator in the LT is functional.
 at::Tensor LazyNativeFunctions::clone(
