@@ -43,7 +43,6 @@ supported:
 # - bernoulli
 # - bernoulli_
 - _to_copy
-- cat
 - clone
 - empty.memory_format
 - empty_strided
