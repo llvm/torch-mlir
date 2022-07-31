@@ -408,6 +408,15 @@ public:
       bcastShapeVec.push_back(newD);
     }
 
+#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
+    for (auto &dsize : bcastShapeVec) {
+      auto dsizeI64 = rewriter.create<mlir::arith::IndexCastOp>(
+          op->getLoc(), rewriter.getI64Type(), dsize);
+      dsize = rewriter.create<arith::TruncIOp>(op->getLoc(),
+                                               rewriter.getI32Type(), dsizeI64);
+    }
+#endif
+
     Value bcastShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), ValueRange{bcastShapeVec});
     auto dimensionNumbers =
@@ -664,6 +673,14 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   auto inputElemTy = inputTy.getElementType().cast<mlir::FloatType>();
 
   Value channelDim = rewriter.create<tensor::DimOp>(op->getLoc(), input, 1);
+
+#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
+  auto channelDimI64 = rewriter.create<mlir::arith::IndexCastOp>(
+      op->getLoc(), rewriter.getI64Type(), channelDim);
+  channelDim = rewriter.create<arith::TruncIOp>(
+      op->getLoc(), rewriter.getI32Type(), channelDimI64);
+#endif
+
   Value channelShape = rewriter.create<tensor::FromElementsOp>(
       op->getLoc(), ValueRange{channelDim});
   if (failed(checkNotNone(rewriter, op, weight))) {
