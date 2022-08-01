@@ -424,6 +424,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)")
     emit("aten::detach : (Tensor) -> (Tensor)")
     emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")
+    emit("aten::embedding_bag.padding_idx : (Tensor, Tensor, Tensor, bool, int, bool, Tensor?, bool, int?) -> (Tensor, Tensor, Tensor, Tensor)")
     emit("aten::empty_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
     emit("aten::new_empty : (Tensor, int[], int?, int?, Device?, bool?) -> (Tensor)")
     emit("aten::zeros_like : (Tensor, int?, int?, Device?, bool?, int?) -> (Tensor)")
