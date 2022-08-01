@@ -924,6 +924,9 @@ def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optio
 def aten〇slice〇Tensor(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
+def aten〇narrow(self: List[int], dim: int, start: int, length: int) -> List[int]:
+    return upstream_shape_functions.slice(self, dim, start, start + length, 1)
+
 def aten〇slice_scatter(self: List[int], src: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return self
 

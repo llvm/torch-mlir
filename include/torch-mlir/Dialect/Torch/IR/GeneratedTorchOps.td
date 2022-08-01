@@ -8567,6 +8567,31 @@ def Torch_AtenCeilFloatOp : Torch_Op<"aten.ceil.float", [
   let hasFolder = 1;
 }
 
+def Torch_AtenNarrowOp : Torch_Op<"aten.narrow", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::narrow : (Tensor, int, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_IntType:$start,
+    Torch_IntType:$length
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNarrowOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenNarrowOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenScalarImplicitOp : Torch_Op<"aten.ScalarImplicit", [
     AllowsTypeRefinement,
     HasValueSemantics,

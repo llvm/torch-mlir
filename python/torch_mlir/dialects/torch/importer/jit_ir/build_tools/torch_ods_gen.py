@@ -582,6 +582,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit("aten::eq.device : (Device, Device) -> (bool)")
     emit("aten::ceil.float : (float) -> (int)", has_folder=True)
+    emit("aten::narrow : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::ScalarImplicit : (Tensor) -> (Scalar)")
 
     # backprop ops
