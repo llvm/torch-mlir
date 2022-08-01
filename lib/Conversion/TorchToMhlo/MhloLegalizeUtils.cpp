@@ -174,6 +174,7 @@ Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
+// TODO: Support for variable scalar.
 LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
                                       Operation *op, Value torchScalarValue,
                                       Value &mhloTensor, Type dtype,
