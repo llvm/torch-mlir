@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -32,6 +33,7 @@ namespace {
 class ConvertTorchToMhlo : public ConvertTorchToMhloBase<ConvertTorchToMhlo> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<chlo::ChloDialect>();
     registry.insert<mhlo::MhloDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithmeticDialect>();
@@ -41,7 +43,8 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<mhlo::MhloDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect, Torch::TorchDialect>();
+                           arith::ArithmeticDialect, Torch::TorchDialect,
+                           chlo::ChloDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

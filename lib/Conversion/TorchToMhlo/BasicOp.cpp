@@ -19,6 +19,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include <iostream>
 #include <numeric>
 
@@ -66,11 +67,9 @@ public:
     }
   }
 };
-} // namespace
 
 // aten.ones & aten.zeros
 // Ref: Error checking based on the Torch to TOSA lowering
-namespace {
 template <typename AtenOpT, int fillVal>
 class ConvertAtenConstPatternOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -123,11 +122,9 @@ public:
   }
 };
 
-} // namespace
 
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
-namespace {
 template <typename AtenOpT, typename MhloOpT>
 class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -192,10 +189,8 @@ public:
     return success();
   }
 };
-} // namespace
 
 // Binary op legalizations for Mul variants.
-namespace {
 template <typename AtenOpT>
 class ConvertAtenMulOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -248,10 +243,8 @@ public:
     return success();
   }
 };
-} // namespace
 
 // Binary op legalizations for Div variants.
-namespace {
 template <typename AtenOpT>
 class ConvertAtenDivOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -299,10 +292,7 @@ public:
   }
 };
 
-} // namespace
-
 // Binary op legalizations for comparator ops.
-namespace {
 template <typename AtenOpT>
 class ConvertAtenCompareOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -379,10 +369,8 @@ public:
   }
 };
 
-} // namespace
 
 // AtenTransposeIntOp
-namespace {
 class ConvertAtenTransposeIntOp
     : public OpConversionPattern<AtenTransposeIntOp> {
 public:
@@ -427,10 +415,8 @@ public:
     return success();
   }
 };
-} // namespace
 
 // AtenBroadcastToOp
-namespace {
 class ConvertAtenBroadcastToOp : public OpConversionPattern<AtenBroadcastToOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -447,10 +433,8 @@ public:
     return success();
   }
 };
-} // namespace
 
 // AtenPermuteOp
-namespace {
 class ConvertAtenPermuteOp : public OpConversionPattern<AtenPermuteOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -489,9 +473,7 @@ public:
   }
 };
 
-} // namespace
 
-namespace {
 template <typename AtenOpT>
 class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -501,10 +483,8 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
-} // namespace
 
 // AtenTanhOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
     AtenTanhOp op, OpAdaptor adaptor,
@@ -520,10 +500,8 @@ LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
         "Only floating-point datatype legalization currently supported");
   }
 }
-} // namespace
 
 // ValueTensorLiteralOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
@@ -552,11 +530,9 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   return success();
 }
 
-} // namespace
 
 // AtenReciprocalOp
 // Reciprocal(x) = Div(1, x)
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenReciprocalOp>::matchAndRewrite(
     AtenReciprocalOp op, OpAdaptor adaptor,
@@ -576,10 +552,8 @@ LogicalResult ConvertAtenOp<AtenReciprocalOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<mhlo::DivOp>(op, outTy, oneTensor, input);
   return success();
 }
-} // namespace
 
 // PrimNumToTensorScalarOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     PrimNumToTensorScalarOp op, OpAdaptor adaptor,
@@ -598,11 +572,9 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   rewriter.replaceOp(op, mhloTensor);
   return success();
 }
-} // namespace
 
 // AtenContiguousOp
 // Ref: TosaToTosa.cpp for implementation details
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
     AtenContiguousOp op, OpAdaptor adaptor,
@@ -620,11 +592,8 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
   return success();
 }
 
-} // namespace
-
 // AtenReluOp
 // Relu(x) = Max(0, x)
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     AtenReluOp op, OpAdaptor adaptor,
@@ -657,10 +626,34 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   return success();
 }
 
-} // namespace
+// Convert a Aten::GELU to HLO
+// Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
+template <>
+LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
+    AtenGeluOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  Location loc = op.getLoc();
+  Value input = adaptor.self();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  Value one = chlo::getConstantLike(rewriter, loc, 1.0, input);
+  Value two = chlo::getConstantLike(rewriter, loc, 2.0, input);
+  Value half = chlo::getConstantLike(rewriter, loc, 0.5, input);
+  auto rsqrtTwo = rewriter.create<mlir::mhlo::RsqrtOp>(loc, two);
+  auto erfElement = rewriter.create<mhlo::MulOp>(loc, input, rsqrtTwo);
+  auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
+  auto erfAdd = rewriter.create<mhlo::AddOp>(loc, erf, one);
+  auto halfMul = rewriter.create<mhlo::MulOp>(loc, erfAdd, half);
+  rewriter.replaceOpWithNewOp<mhlo::MulOp>(op, input, halfMul);
+  return success();
+}
+
 
 // AtenErfOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
     AtenErfOp op, OpAdaptor adaptor,
@@ -735,10 +728,8 @@ LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
   return success();
 }
 
-} // namespace
 
 // AtenBatchNormOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     AtenBatchNormOp op, OpAdaptor adaptor,
@@ -843,10 +834,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   }
 }
 
-} // namespace
 
 // AtenNativeLayerNormOp
-namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
     AtenNativeLayerNormOp op, OpAdaptor adaptor,
@@ -1062,6 +1051,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
+  INSERT_ATENOP_PATTERN(AtenGeluOp);
   INSERT_ATENOP_PATTERN(AtenErfOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
