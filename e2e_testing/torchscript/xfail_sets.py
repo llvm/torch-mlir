@@ -333,4 +333,5 @@ LTC_XFAIL_SET = {
     "UniformStaticModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
 }
