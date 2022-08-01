@@ -229,7 +229,34 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenZeroOp : public OpRewritePattern<AtenZeroOp> {
+class DecomposeAtenNarrowOp : public OpRewritePattern<AtenNarrowOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNarrowOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value start = op.start();
+    Value dim = op.dim();
+    Value length = op.length();
+
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value startPlusLength =
+        rewriter.create<AtenAddIntOp>(loc, one.getType(), start, length);
+    
+    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
+        op, op.getResult().getType(), op.self(), /*dim=*/dim, /*start=*/start,
+        /*end=*/startPlusLength, /*step=*/one);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenZeroOp
+    : public OpRewritePattern<AtenZeroOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenZeroOp op,
@@ -2539,6 +2566,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenVarCorrectionOp>();
     patterns.add<DecomposeAtenStdDimOp>(context);
     target.addIllegalOp<AtenStdDimOp>();
+    patterns.add<DecomposeAtenNarrowOp>(context);
+    target.addIllegalOp<AtenNarrowOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

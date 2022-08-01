@@ -651,15 +651,14 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
           AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
           AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
-          AtenSelectScatterOp, AtenSliceTensorOp, AtenSliceScatterOp,
-          AtenGatherOp, AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp,
-          AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp, AtenZero_Op,
-          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp, AtenZeroOp, AtenIndexPutHackedTwinOp,
-          AtenMaskedFillScalarOp, AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp,
-          AtenTriuOp>(op)) {
-    incorporateKnowledge(op->getResult(0), operands[0]->getValue());
-    return;
+          AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
+          AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
+          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
+          AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
+          AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
+          AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
+          PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp>(op)) {
+    return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float64 and nullptr.

@@ -6394,6 +6394,14 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.slice(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.list<int>, !torch.int, !torch.optional<int>, !torch.optional<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.narrow"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {
+    %int1 = torch.constant.int 1
+    %0 = torch.aten.add.int %arg2, %arg3 : !torch.int, !torch.int -> !torch.int
+    %1 = torch.derefine %arg2 : !torch.int to !torch.optional<int>
+    %2 = torch.derefine %0 : !torch.int to !torch.optional<int>
+    %3 = call @__torch__.torch.jit._shape_functions.slice(%arg0, %arg1, %1, %2, %int1) : (!torch.list<int>, !torch.int, !torch.optional<int>, !torch.optional<int>, !torch.int) -> !torch.list<int>
+    return %3 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.slice_scatter"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.optional<int>, %arg4: !torch.optional<int>, %arg5: !torch.int) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
