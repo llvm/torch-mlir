@@ -7,11 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "./MhloLegalizeUtils.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
-#include "./MhloLegalizeUtils.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -314,5 +317,106 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter,
       rewriter.create<mhlo::BroadcastInDimOp>(op->getLoc(), outType, input, bcast_attr);
   return bcast_op.getResult();
 }
+
+SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
+  SmallVector<size_t> posDims;
+  posDims.reserve(rank);
+  std::transform(
+      dims.begin(), dims.end(), std::back_inserter(posDims),
+      [rank](int64_t d) -> size_t { return toPositiveDim(d, rank); });
+  return posDims;
+}
+
+FailureOr<SmallVector<Value, 4>>
+getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value,
+                    ArrayRef<int64_t> inpDims) {
+  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  if (!valueTy) {
+    return rewriter.notifyMatchFailure(
+        op, "getDimSizesOfTensor(): the input is not a ranked tensor");
+  }
+
+  auto rank = valueTy.getRank();
+  auto dims = toPositiveDims(inpDims, rank);
+  SmallVector<Value, 4> dimSizes;
+  dimSizes.reserve(dims.size());
+
+  auto loc = op->getLoc();
+  for (auto d : dims) {
+    dimSizes.emplace_back(rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIntegerType(kMhloDimSizeBits),
+        rewriter.create<tensor::DimOp>(loc, value, d)));
+  }
+  return dimSizes;
+}
+
+FailureOr<SmallVector<Value, 4>>
+getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
+  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  if (!valueTy) {
+    return rewriter.notifyMatchFailure(
+        op, "getDimSizesOfTensor(): the input is not a ranked tensor");
+  }
+
+  auto rank = valueTy.getRank();
+  // Get int vector [0, 1, ..., rank-1]
+  std::vector<int64_t> dims(rank);
+  std::iota(dims.begin(), dims.end(), 0);
+  return getDimSizesOfTensor(rewriter, op, value, dims);
+}
+
+FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                 Value tensor,
+                                 ArrayRef<int64_t> inputUnsqzDims) {
+  // Returns a new tensor with dims of size 1 inserted at the specified
+  // position.
+  //
+  // The position indices (must be high to low dimension number of the returned
+  // tensor) are specified with unsqzDims. Indices must be in-order, and in
+  // range of tensor rank. Thus, unsqueeze a rank 1 tensor with {0, 2}, {0, 1,
+  // 3}, {0, 1, 2} are all valid dimension sets, but {0, 3}, {2} are not.
+  auto dimSizesInfo = getDimSizesOfTensor(rewriter, op, tensor);
+  if (failed(dimSizesInfo))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+
+  auto dimSizes = *dimSizesInfo;
+  auto rank = dimSizes.size();
+  size_t newRank = rank + inputUnsqzDims.size();
+  auto unsqzDims = toPositiveDims(inputUnsqzDims, newRank);
+  for (size_t k = 0, sz = unsqzDims.size(); k < sz; ++k)
+    if (k > 1 && unsqzDims[k] <= unsqzDims[k - 1])
+      return rewriter.notifyMatchFailure(
+          op, "unsqueeze dimensions must be specified in order");
+
+  auto loc = op->getLoc();
+  auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
+  auto oldShape = rankTy.getShape();
+  Type intType = rewriter.getIntegerType(kMhloDimSizeBits);
+  auto one = rewriter.create<arith::ConstantOp>(
+      loc, rewriter.getIntegerAttr(intType, 1));
+
+  std::vector<Value> newDimSizes;
+  std::vector<int64_t> newShape;
+  newDimSizes.reserve(newRank);
+  newShape.reserve(newRank);
+  for (size_t k = 0, i = 0, j = 0; k < newRank; ++k) {
+    if (j < unsqzDims.size() && unsqzDims[j] == k) {
+      newDimSizes.push_back(one);
+      newShape.push_back(1);
+      j++;
+    } else {
+      newDimSizes.push_back(dimSizes[i]);
+      newShape.push_back(oldShape[i]);
+      i++;
+    }
+  }
+
+  auto outTy = RankedTensorType::get(newShape, rankTy.getElementType());
+  auto mhloShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+  return rewriter.create<mhlo::DynamicReshapeOp>(loc, outTy, tensor, mhloShape)
+      .getResult();
+}
+
 } // namespace mhlo
 } // namespace mlir
