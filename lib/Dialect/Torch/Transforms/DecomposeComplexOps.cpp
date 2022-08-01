@@ -1053,10 +1053,11 @@ public:
           op, "only floating-point type is supported");
     }
 
-    auto dimListConstruct = dimList.getDefiningOp<PrimListConstructOp>();
-    if (!dimListConstruct) {
+    SmallVector<Value> dimListElements;
+    if (!getListConstructElements(dimList, dimListElements) &&
+        !dimList.getType().isa<Torch::NoneType>()) {
       return rewriter.notifyMatchFailure(
-          op, "expect dimList to be constructed from list construct");
+          op, "expected `dim` to be `None` or constructed from list construct");
     }
 
     // Compute sum along dimensions specified in `dimList`.
@@ -1066,12 +1067,12 @@ public:
     // `productDimSize` is product of sizes of dimensions to be reduced.
     Value productDimSize;
     // Case: Reduce along all dims.
-    if (dimListConstruct.elements().empty() && inputRank != 0) {
+    if (dimListElements.empty() && inputRank != 0) {
       productDimSize = rewriter.create<AtenNumelOp>(loc, input);
     } else {
       productDimSize = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(1));
-      for (Value dim : dimListConstruct.elements()) {
+      for (Value dim : dimListElements) {
         Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
         productDimSize =
             rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);

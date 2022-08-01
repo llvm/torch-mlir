@@ -3879,10 +3879,10 @@ def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::mean.dim : (Tensor, int[], bool, int?) -> (Tensor)`";
+  let summary = "Generated op for `aten::mean.dim : (Tensor, int[]?, bool, int?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$dim,
+    AnyTorchOptionalListOfTorchIntType:$dim,
     Torch_BoolType:$keepdim,
     AnyTorchOptionalIntType:$dtype
   );

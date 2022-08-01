@@ -202,6 +202,25 @@ def MeanDimEmptyDimModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class MeanDimNoneDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.mean(x, dim=None)
+
+
+@register_test_case(module_factory=lambda: MeanDimNoneDimModule())
+def MeanDimNoneDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+# ==============================================================================
+
 class VarUnbiasedModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
