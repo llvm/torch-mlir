@@ -123,8 +123,8 @@ public:
     return success();
   }
 };
-} // namespace
 
+} // namespace
 
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
@@ -299,6 +299,7 @@ public:
     return success();
   }
 };
+
 } // namespace
 
 // Binary op legalizations for comparator ops.
@@ -378,8 +379,8 @@ public:
     return success();
   }
 };
-} // namespace
 
+} // namespace
 
 // AtenTransposeIntOp
 namespace {
@@ -488,6 +489,7 @@ public:
     return success();
   }
 };
+
 } // namespace
 
 namespace {
@@ -550,8 +552,8 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
                                                 adaptor.value());
   return success();
 }
-} // namespace
 
+} // namespace
 
 // AtenReciprocalOp
 // Reciprocal(x) = Div(1, x)
@@ -618,6 +620,7 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
 
   return success();
 }
+
 } // namespace
 
 // AtenReluOp
@@ -654,6 +657,7 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   rewriter.replaceOpWithNewOp<mhlo::MaxOp>(op, lhs, rhs);
   return success();
 }
+
 } // namespace
 
 // Convert a Aten::GELU to HLO
@@ -760,8 +764,8 @@ LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
                                               negaErf);
   return success();
 }
-} // namespace
 
+} // namespace
 
 // AtenBatchNormOp
 namespace {
@@ -868,8 +872,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     return success();
   }
 }
-} // namespace
 
+} // namespace
 
 // AtenNativeLayerNormOp
 namespace {
