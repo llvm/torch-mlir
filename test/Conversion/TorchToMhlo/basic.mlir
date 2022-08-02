@@ -41,11 +41,15 @@ func.func @torch.vtensor.literal$signed() -> !torch.vtensor<[2],si64> {
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.prim.NumToTensor.Scalar$basic() -> !torch.vtensor<[],si64> {
-// CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[VAL_0:.*]] = mhlo.constant dense<1> : tensor<i64>
-// CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<i64> -> !torch.vtensor<[],si64>
-// CHECK:           return %[[VAL_1]] : !torch.vtensor<[],si64>
+// CHECK-LABEL:  func.func @torch.prim.NumToTensor.Scalar$basic(
+// CHECK-SAME:         ) -> !torch.vtensor<[],si64> {
+// CHECK:         %[[INT1:.*]] = torch.constant.int 1
+// CHECK:         %[[T0:.*]] = torch_c.to_i64 %[[INT1]]
+// CHECK:         %[[T1:.*]] = tensor.from_elements %[[T0]] : tensor<1xi64>
+// CHECK:         %[[T2:.*]] = mhlo.convert %[[T1]] : tensor<1xi64>
+// CHECK:         %[[T3:.*]] = "mhlo.reshape"(%[[T2]]) : (tensor<1xi64>) -> tensor<i64>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:         return %[[T4]] : !torch.vtensor<[],si64>
 func.func @torch.prim.NumToTensor.Scalar$basic() -> !torch.vtensor<[], si64> {
   %int1 = torch.constant.int 1
   %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[], si64>

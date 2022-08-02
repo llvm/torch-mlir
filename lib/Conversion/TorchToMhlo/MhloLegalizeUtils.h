@@ -47,17 +47,8 @@ template <typename T>
 Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
                           T val, Type dtype, llvm::ArrayRef<int64_t> dshape);
 
-LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
-                                      Operation *op, Value torchScalarValue,
-                                      Value &mhloTensor, Type dtype,
-                                      llvm::ArrayRef<int64_t> dshape,
-                                      bool doBroadcast = true);
-
-LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
-                                     Operation *op, Value alphaScalar,
-                                     Value &alphaTensor, Type dtype,
-                                     llvm::ArrayRef<int64_t> dshape,
-                                     bool checkForUnity);
+Value scalarToMhloTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                         Value scalarValue, Type dtype);
 
 Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
 

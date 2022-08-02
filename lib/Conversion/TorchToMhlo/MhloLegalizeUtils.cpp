@@ -174,93 +174,15 @@ Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
-// TODO: Support for variable scalar.
-LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
-                                      Operation *op, Value torchScalarValue,
-                                      Value &mhloTensor, Type dtype,
-                                      llvm::ArrayRef<int64_t> dshape,
-                                      bool doBroadcast) {
-  // Retrieve a const float or int value but create the out Tensor with dtype.
-  double doubleValue;
-  auto isFloat =
-      matchPattern(torchScalarValue, m_TorchConstantFloat(&doubleValue));
-
-  int64_t intValue;
-  auto isInt = matchPattern(torchScalarValue, m_TorchConstantInt(&intValue));
-
-  if (!isFloat && !isInt)
-    return op->emitError("Unable to extract the scalar constant");
-
-  if (dtype.isa<mlir::FloatType>()) {
-    if (doBroadcast) {
-      mhloTensor = getSplatConstTensor<float>(
-          rewriter, op, (isFloat ? doubleValue : intValue), dtype, dshape);
-    } else {
-      mhloTensor = mhlo::getConstTensor<float>(
-                       rewriter, op, (isFloat ? doubleValue : intValue), dshape)
-                       .getValue();
-    }
-  } else if (auto intType = dtype.dyn_cast<mlir::IntegerType>()) {
-    auto w = intType.getWidth();
-    if (w != 32 && w != 64)
-      return op->emitError("Unsupported integer type") << intType;
-
-    if (w == 32) {
-      if (!isInValidRange<int32_t>(isFloat, doubleValue, isInt, intValue)) {
-        return op->emitError("Supplied value of scalar constant exceeds limits "
-                             "of destination type");
-      }
-      int32_t d = isFloat ? static_cast<int32_t>(doubleValue)
-                          : static_cast<int32_t>(intValue);
-      if (doBroadcast) {
-        mhloTensor =
-            getSplatConstTensor<int32_t>(rewriter, op, d, dtype, dshape);
-      } else {
-        mhloTensor =
-            mhlo::getConstTensor<int32_t>(rewriter, op, {d}, dshape).getValue();
-      }
-    } else if (w == 64) {
-      if (!isInValidRange<int64_t>(isFloat, doubleValue, isInt, intValue)) {
-        return op->emitError("Supplied value of scalar constant exceeds limits "
-                             "of destination type");
-      }
-      int64_t d = (isFloat ? static_cast<int64_t>(doubleValue) : intValue);
-      if (doBroadcast) {
-        mhloTensor =
-            getSplatConstTensor<int64_t>(rewriter, op, d, dtype, dshape);
-      } else {
-        mhloTensor =
-            mhlo::getConstTensor<int64_t>(rewriter, op, {d}, dshape).getValue();
-      }
-    }
-  } else
-    return op->emitError("Usupported element type");
-
-  return success();
-}
-
-LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
-                                     Operation *op, Value alphaScalar,
-                                     Value &alphaTensor, Type dtype,
-                                     llvm::ArrayRef<int64_t> dshape,
-                                     bool checkForUnity) {
-  if (succeeded(torchScalarToMhloTensor(rewriter, op, alphaScalar, alphaTensor,
-                                        dtype, dshape)))
-    return success();
-
-  // `alpha` has not been specified.
-  int64_t alphaValue;
-  if (!matchPattern(alphaScalar, m_TorchConstantInt(&alphaValue)))
-    return op->emitError("Currently only scalar constants are supported for "
-                         "alpha in MHLO operation");
-  // When no alpha has been specified, this must be 1.
-  if (checkForUnity && alphaValue != 1)
-    return op->emitError("Unsupported integer value for alpha");
-
-  alphaTensor =
-      mlir::mhlo::getMhloConstTensorSingleF32(rewriter, op, alphaValue);
-
-  return success();
+Value scalarToMhloTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                         Value scalarValue, Type dtype) {
+  auto tensor = rewriter.create<tensor::FromElementsOp>(
+      op->getLoc(), ArrayRef<Value>{scalarValue});
+  auto dtype_tensor =
+      rewriter.create<mhlo::ConvertOp>(op->getLoc(), tensor, dtype);
+  return rewriter.create<mhlo::ReshapeOp>(
+      op->getLoc(), RankedTensorType::get(mlir::ArrayRef<int64_t>{}, dtype),
+      dtype_tensor);
 }
 
 Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
