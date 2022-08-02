@@ -58,6 +58,8 @@ public:
                                                       target);
     torch_to_mhlo::populateGatherOpPatternsAndLegality(typeConverter, patterns,
                                                        target);
+    torch_to_mhlo::populateReductionOpPatternsAndLegality(typeConverter,
+                                                          patterns, target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

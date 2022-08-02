@@ -25,7 +25,9 @@ void populateViewLikeOpPatternsAndLegality(TypeConverter &typeConverter,
 void populateGatherOpPatternsAndLegality(TypeConverter &typeConverter,
                                          RewritePatternSet &patterns,
                                          ConversionTarget &target);
-
+void populateReductionOpPatternsAndLegality(TypeConverter &typeConverter,
+                                        RewritePatternSet &patterns,
+                                        ConversionTarget &target);
 } // namespace torch_to_mhlo
 } // namespace torch
 } // namespace mlir

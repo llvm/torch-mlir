@@ -4,6 +4,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   BasicOp.cpp
   GatherOp.cpp
   ViewLikeOps.cpp
+  ReductionOp.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/TorchToMhlo
