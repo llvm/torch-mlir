@@ -258,7 +258,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("Only Tensor types supported in MHLO");
+    return op.emitError("only Tensor types supported in MHLO");
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -462,7 +462,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("Only Tensor types supported in MHLO");
+    return op.emitError("only Tensor types supported in MHLO");
   }
   auto dtype = adaptor.dtype();
   if (!dtype.getType().isa<Torch::NoneType>()) {
@@ -495,7 +495,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   for (auto d : inputDims) {
     d = toPositiveDim(d, inputTy.getRank());
-    // Drop invaid dim
+    // Drop invaid dims
     if (isValidDim(d, inputTy.getRank())) {
       dims.push_back(d);
     }
