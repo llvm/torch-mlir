@@ -51,5 +51,3 @@ def register_all_tests():
     from . import return_types
     from . import control_flow
     from . import stats
-    # TODO: Re-enable after MacOS support is fixed for the extension.
-    #from . import custom_op_example
