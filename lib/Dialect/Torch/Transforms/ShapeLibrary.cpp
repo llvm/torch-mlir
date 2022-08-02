@@ -5678,11 +5678,19 @@ module {
     %1 = torch.prim.TupleConstruct %0, %0 : !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>>
     return %1 : !torch.tuple<list<int>, list<int>>
   }
-  func.func @"__torch_mlir_shape_fn.aten.mean.dim"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.optional<int>) -> !torch.list<int> {
+  func.func @"__torch_mlir_shape_fn.aten.mean.dim"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.bool, %arg3: !torch.optional<int>) -> !torch.list<int> {
     %true = torch.constant.bool true
+    %none = torch.constant.none
     %int0 = torch.constant.int 0
-    %0 = torch.aten.len.t %arg1 : !torch.list<int> -> !torch.int
-    %1 = torch.aten.eq.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+    %0 = torch.aten.__is__ %arg1, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %1 = torch.prim.If %0 -> (!torch.bool) {
+      torch.prim.If.yield %true : !torch.bool
+    } else {
+      %5 = torch.prim.unchecked_cast %arg1 : !torch.optional<list<int>> -> !torch.list<int>
+      %6 = torch.aten.len.t %5 : !torch.list<int> -> !torch.int
+      %7 = torch.aten.eq.int %6, %int0 : !torch.int, !torch.int -> !torch.bool
+      torch.prim.If.yield %7 : !torch.bool
+    }
     %2 = torch.prim.If %1 -> (!torch.list<int>) {
       %5 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
       %6 = torch.prim.ListConstruct  : () -> !torch.list<int>
@@ -5693,7 +5701,8 @@ module {
       } : (!torch.int, !torch.bool) -> ()
       torch.prim.If.yield %6 : !torch.list<int>
     } else {
-      torch.prim.If.yield %arg1 : !torch.list<int>
+      %5 = torch.prim.unchecked_cast %arg1 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %5 : !torch.list<int>
     }
     %3 = torch.derefine %arg3 : !torch.optional<int> to !torch.any
     %4 = call @__torch__.torch.jit._shape_functions.mean_dim(%arg0, %2, %arg2, %3) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
