@@ -3,6 +3,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   MhloLegalizeUtils.cpp
   BasicOp.cpp
   GatherOp.cpp
+  MatmulOp.cpp
   ViewLikeOps.cpp
   ReductionOp.cpp
 
