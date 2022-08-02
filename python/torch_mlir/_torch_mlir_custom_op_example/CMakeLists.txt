@@ -1,5 +1,5 @@
 # Setup PyTorch
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../dialects/torch/importer/jit_ir/cmake/modules")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/modules")
 include(TorchMLIRPyTorch)
 TorchMLIRProbeForPyTorchInstall()
 find_package(Torch 1.8 REQUIRED)

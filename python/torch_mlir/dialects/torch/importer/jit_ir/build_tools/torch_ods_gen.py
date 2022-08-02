@@ -629,16 +629,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "quantized::linear : (Tensor, __torch__.torch.classes.quantized.LinearPackedParamsBase, float, int) -> (Tensor)",
         traits=["HasValueSemantics"])
 
-    # ==========================================================================
-    # `_torch_mlir_custom_op_example::` namespace.
-    #
-    # This is a demonstration of supporting an operation defined in a PyTorch
-    # extension.
-    # ==========================================================================
-
-    # TODO: Re-enable after MacOS support is fixed for the extension.
-    #emit("_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)")
-
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):

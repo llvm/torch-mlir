@@ -16,20 +16,19 @@ build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build}")"
 torch_ir_include_dir="${src_dir}/include/torch-mlir/Dialect/Torch/IR"
 python_packages_dir="${build_dir}/tools/torch-mlir/python_packages"
 
+TORCH_MLIR_EXT_PYTHONPATH="${TORCH_MLIR_EXT_PYTHONPATH:-""}"
 pypath="${python_packages_dir}/torch_mlir"
-# TODO: Re-enable once custom op support is back.
-#if [ ! -z ${TORCH_MLIR_EXT_PYTHONPATH} ]; then
-#  pypath="${pypath}:${TORCH_MLIR_EXT_PYTHONPATH}"
-#fi
-#ext_module="torch_mlir._torch_mlir_custom_op_example"
-#if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
-#  ext_module="${ext_module},${TORCH_MLIR_EXT_MODULES}"
-#fi
+if [ ! -z ${TORCH_MLIR_EXT_PYTHONPATH} ]; then
+  pypath="${pypath}:${TORCH_MLIR_EXT_PYTHONPATH}"
+fi
+TORCH_MLIR_EXT_MODULES="${TORCH_MLIR_EXT_MODULES:-""}"
+ext_module="${ext_module:-""}"
+if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
+  ext_module="${TORCH_MLIR_EXT_MODULES}"
+fi
 
 PYTHONPATH="${pypath}" python \
   -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.torch_ods_gen \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
+  --pytorch_op_extensions="${ext_module}" \
   --debug_registry_dump="${torch_ir_include_dir}/JITOperatorRegistryDump.txt"
-
-# TODO: Add back to torch_ods_gen invocation once custom op support is back.
-#  --pytorch_op_extensions="${ext_module}" \
