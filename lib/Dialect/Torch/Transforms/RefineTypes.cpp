@@ -651,15 +651,14 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
           AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
           AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
-          AtenSelectScatterOp, AtenSliceTensorOp, AtenSliceScatterOp,
-          AtenGatherOp, AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp,
-          AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp, AtenZero_Op,
-          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp, AtenZeroOp, AtenIndexPutHackedTwinOp,
-          AtenMaskedFillScalarOp, AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp,
-          AtenTriuOp>(op)) {
-    incorporateKnowledge(op->getResult(0), operands[0]->getValue());
-    return;
+          AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
+          AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
+          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
+          AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
+          AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
+          AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
+          PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp>(op)) {
+    return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float64 and nullptr.
@@ -1034,6 +1033,28 @@ void TypeAnalysis::visitOperation(Operation *op,
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = Float32Type::get(op->getContext());
     incorporateKnowledge(embedding.getResult(), knowledge);
+    return;
+  }
+
+  // case for Embedding bag padding idx.
+  if (auto embedding_bag_padding_idx =
+          dyn_cast<AtenEmbeddingBagPaddingIdxOp>(op)) {
+
+    auto resultFloatKnowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
+
+    incorporateKnowledge(embedding_bag_padding_idx.getResult(0),
+                         resultFloatKnowledge);
+    auto resultIntKnowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    resultIntKnowledge.dtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+
+    for (int64_t i = 1; i < 4; i++) {
+      incorporateKnowledge(embedding_bag_padding_idx.getResult(i),
+                           resultIntKnowledge);
+    }
     return;
   }
 

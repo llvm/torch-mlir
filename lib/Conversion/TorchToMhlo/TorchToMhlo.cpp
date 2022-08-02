@@ -12,6 +12,7 @@
 #include "../PassDetail.h"
 #include "./PopulatePatterns.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
@@ -42,9 +43,8 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<mhlo::MhloDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect, Torch::TorchDialect,
-                           chlo::ChloDialect>();
+    target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect, tensor::TensorDialect,
+                           arith::ArithmeticDialect, Torch::TorchDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

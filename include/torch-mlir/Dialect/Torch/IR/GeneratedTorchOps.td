@@ -5036,6 +5036,40 @@ def Torch_AtenEmbeddingOp : Torch_Op<"aten.embedding", [
   }];
 }
 
+def Torch_AtenEmbeddingBagPaddingIdxOp : Torch_Op<"aten.embedding_bag.padding_idx", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::embedding_bag.padding_idx : (Tensor, Tensor, Tensor, bool, int, bool, Tensor?, bool, int?) -> (Tensor, Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$weight,
+    AnyTorchTensorType:$indices,
+    AnyTorchTensorType:$offsets,
+    Torch_BoolType:$scale_grad_by_freq,
+    Torch_IntType:$mode,
+    Torch_BoolType:$sparse,
+    AnyTorchOptionalTensorType:$per_sample_weights,
+    Torch_BoolType:$include_last_offset,
+    AnyTorchOptionalIntType:$padding_idx
+  );
+  let results = (outs
+    AnyTorchTensorType:$result0,
+    AnyTorchTensorType:$result1,
+    AnyTorchTensorType:$result2,
+    AnyTorchTensorType:$result3
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenEmbeddingBagPaddingIdxOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 4);
+    }
+    void AtenEmbeddingBagPaddingIdxOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 4);
+    }
+  }];
+}
+
 def Torch_AtenEmptyLikeOp : Torch_Op<"aten.empty_like", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -8565,6 +8599,31 @@ def Torch_AtenCeilFloatOp : Torch_Op<"aten.ceil.float", [
     }
   }];
   let hasFolder = 1;
+}
+
+def Torch_AtenNarrowOp : Torch_Op<"aten.narrow", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::narrow : (Tensor, int, int, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_IntType:$start,
+    Torch_IntType:$length
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenNarrowOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenNarrowOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
 }
 
 def Torch_AtenScalarImplicitOp : Torch_Op<"aten.ScalarImplicit", [

@@ -1,3 +1,19 @@
+set(LinkedLibs  MLIRIR
+                MLIRPass
+                MLIRFuncTransforms
+                TorchMLIRTorchConversionDialect
+                TorchMLIRTorchDialect
+                TorchMLIRTorchPasses
+                TorchMLIRTorchToLinalg
+                TorchMLIRTorchToTMTensor
+                TorchMLIRTorchToStd
+                TorchMLIRTorchToSCF
+                MLIRMemRefTransforms)
+                
+if(TORCH_MLIR_ENABLE_MHLO)
+  list(APPEND LinkedLibs ChloPasses)
+endif()
+
 add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
   BackendTypeConversionPasses.cpp  
@@ -17,15 +33,5 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   Core
 
   LINK_LIBS PUBLIC
-  MLIRIR
-  MLIRPass
-  MLIRFuncTransforms
-  TorchMLIRTorchConversionDialect
-  TorchMLIRTorchDialect
-  TorchMLIRTorchPasses
-  TorchMLIRTorchToLinalg
-  TorchMLIRTorchToTMTensor
-  TorchMLIRTorchToStd
-  TorchMLIRTorchToSCF
-  MLIRMemRefTransforms
+  ${LinkedLibs}
 )

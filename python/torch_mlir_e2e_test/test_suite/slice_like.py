@@ -366,3 +366,81 @@ class SelectScatterStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: SelectScatterStaticModule())
 def SelectScattertStaticModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(6, 8, 5), torch.rand(6, 5))
+
+# ==============================================================================
+
+class NarrowHorizontalTest(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.narrow(x, dim=0, start=0, length=2)
+        
+
+@register_test_case(module_factory=lambda: NarrowHorizontalTest())
+def NarrowHorizontalTest_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4,3))
+
+# ==============================================================================
+
+
+class NarrowVerticalTest(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.narrow(x, dim=1, start=0, length=2)
+
+
+@register_test_case(module_factory=lambda: NarrowVerticalTest())
+def NarrowVerticalTest_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4,3))
+
+# ==============================================================================
+
+class NarrowHorizontalTest2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.narrow(x, dim=0, start=0, length=2)
+        
+
+@register_test_case(module_factory=lambda: NarrowHorizontalTest2())
+def NarrowHorizontalTest2_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4))
+
+# ==============================================================================
+
+
+class NarrowVerticalTest2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.narrow(x, dim=1, start=0, length=2)
+
+
+@register_test_case(module_factory=lambda: NarrowVerticalTest2())
+def NarrowVerticalTest2_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4))

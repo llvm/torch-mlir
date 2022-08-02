@@ -153,6 +153,13 @@ enum MemoryFormat {
 //===----------------------------------------------------------------------===//
 enum Layout { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
 
+//===----------------------------------------------------------------------===//
+// Possible value for `EmbeddingBag Mode` argument for Embedding bag ops.
+// Source:
+// https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
+//===-----------------------------------------------------------------------===//
+enum EmbeddingBagMode { MODE_SUM, MODE_MEAN, MODE_MAX };
+
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir
