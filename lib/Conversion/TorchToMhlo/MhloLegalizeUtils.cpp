@@ -328,7 +328,6 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
   return bcast_op.getResult();
 }
 
-<<<<<<< HEAD
 SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
   SmallVector<size_t> posDims;
   posDims.reserve(rank);
@@ -429,7 +428,6 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
       .getResult();
 }
 
-=======
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType) {
@@ -440,6 +438,5 @@ Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                                              rewriter.getI64TensorAttr({}))
       .getResult();
 }
->>>>>>> [MHLO] Support for dynamic shape in basic op conversion by introducing CHLO dialect
 } // namespace mhlo
 } // namespace mlir
