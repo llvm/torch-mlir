@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include <iostream>
 #include <numeric>
 
@@ -628,6 +629,35 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 
 } // namespace
 
+// Convert a Aten::GELU to HLO
+// Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
+namespace {
+template <>
+LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
+    AtenGeluOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  Location loc = op.getLoc();
+  Value input = adaptor.self();
+  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  Value one = chlo::getConstantLike(rewriter, loc, 1.0, input);
+  Value two = chlo::getConstantLike(rewriter, loc, 2.0, input);
+  Value half = chlo::getConstantLike(rewriter, loc, 0.5, input);
+  auto rsqrtTwo = rewriter.create<mlir::mhlo::RsqrtOp>(loc, two);
+  auto erfElement = rewriter.create<mhlo::MulOp>(loc, input, rsqrtTwo);
+  auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
+  auto erfAdd = rewriter.create<mhlo::AddOp>(loc, erf, one);
+  auto halfMul = rewriter.create<mhlo::MulOp>(loc, erfAdd, half);
+  rewriter.replaceOpWithNewOp<mhlo::MulOp>(op, input, halfMul);
+  return success();
+}
+} // namespace
+
+
 // AtenErfOp
 namespace {
 template <>
@@ -984,6 +1014,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
+  INSERT_ATENOP_PATTERN(AtenGeluOp);
   INSERT_ATENOP_PATTERN(AtenErfOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);

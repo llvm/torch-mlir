@@ -23,6 +23,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 
 using namespace mlir;
 using namespace mlir::torch;
