@@ -83,9 +83,10 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   auto inputShape = inputTy.getShape();
   auto inputElemTy = inputTy.getElementType();
 
-  Value init_val = createInitialValueForReduceOp(op, inputElemTy, rewriter);
+  Value initValue = createInitialValueForReduceOp(op, inputElemTy, rewriter);
+  if (!initValue) return llvm::None;
 
-  Value init_idx =
+  Value initIndex =
       mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
 
   DenseIntElementsAttr dimensions = DenseIntElementsAttr::get(
@@ -100,8 +101,8 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op->getLoc(), ValueRange{input, indexTensor},
       ValueRange{
-          init_val,
-          init_idx,
+          initValue,
+          initIndex,
       },
       dimensions);
 
@@ -139,8 +140,6 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
                                          mhlo::ComparisonDirection::EQ);
 
   {
-    mlir::IRRewriter::InsertPoint prevIP = rewriter.saveInsertionPoint();
-
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
 
@@ -163,8 +162,6 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
 
     rewriter.create<mhlo::ReturnOp>(
         op->getLoc(), mlir::ValueRange{retValResult, retIdxResult});
-
-    rewriter.restoreInsertionPoint(prevIP);
   }
   return mhloReduceOp.getResults();
 }
@@ -190,7 +187,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().template cast<RankedTensorType>();
   if (!inputTy) {
-    op.emitError("only Tensor types supported in MHLO");
+    return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
   }
 
   auto inputElemTy = inputTy.getElementType();
@@ -258,7 +255,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("only Tensor types supported in MHLO");
+    return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -336,7 +333,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("only Tensor types supported in MHLO");
+    return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
   }
   auto dtype = adaptor.dtype();
   if (!dtype.getType().isa<Torch::NoneType>()) {
@@ -365,11 +362,12 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
     dims.push_back(i);
   }
 
-  Value init_value =
+  Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
+  if (!initValue) return failure();
 
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
-      op.getLoc(), input, init_value, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
   Block &block = mhloReduceOp.body().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -381,13 +379,11 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
   auto secondArgument = block.args_rbegin();
 
   {
-    mlir::IRRewriter::InsertPoint prevIP = rewriter.saveInsertionPoint();
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
     Value addResult = rewriter.create<mhlo::AddOp>(
         op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
     rewriter.create<mhlo::ReturnOp>(op->getLoc(), addResult);
-    rewriter.restoreInsertionPoint(prevIP);
   }
 
   rewriter.replaceOp(op, mhloReduceOp.getResults());
@@ -404,7 +400,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("only Tensor types supported in MHLO");
+    return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
   }
   auto inputElemTy = inputTy.getElementType();
   if (!inputElemTy.isIntOrFloat()) {
@@ -424,10 +420,11 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     dims.push_back(i);
   }
 
-  Value init_value =
+  Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
+  if (!initValue) return failure();
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
-      op.getLoc(), input, init_value, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
   Block &block = mhloReduceOp.body().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
@@ -439,13 +436,11 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
   auto secondArgument = block.args_rbegin();
 
   {
-    mlir::IRRewriter::InsertPoint prevIP = rewriter.saveInsertionPoint();
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
     Value maxResult = rewriter.create<mhlo::MaxOp>(
         op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
     rewriter.create<mhlo::ReturnOp>(op->getLoc(), maxResult);
-    rewriter.restoreInsertionPoint(prevIP);
   }
 
   rewriter.replaceOp(op, mhloReduceOp.getResults());
@@ -462,7 +457,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   Value input = adaptor.self();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   if (!inputTy) {
-    return op.emitError("only Tensor types supported in MHLO");
+    return rewriter.notifyMatchFailure(op, "only Tensor types supported in MHLO");
   }
   auto dtype = adaptor.dtype();
   if (!dtype.getType().isa<Torch::NoneType>()) {
@@ -495,7 +490,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 
   for (auto d : inputDims) {
     d = toPositiveDim(d, inputTy.getRank());
-    // Drop invaid dims
+    // Drop invalid dims
     if (isValidDim(d, inputTy.getRank())) {
       dims.push_back(d);
     }
@@ -505,11 +500,12 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
     return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
   }
-  Value init_value =
+  Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
+  if (!initValue) return failure();
 
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
-      op.getLoc(), input, init_value, rewriter.getI64TensorAttr(dims));
+      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
   Region &region = mhloReduceOp.body();
   Block &block = region.emplaceBlock();
@@ -522,13 +518,11 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   auto secondArgument = block.args_rbegin();
 
   {
-    mlir::IRRewriter::InsertPoint prevIP = rewriter.saveInsertionPoint();
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
     Value addResult = rewriter.create<mhlo::AddOp>(
         op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
     rewriter.create<mhlo::ReturnOp>(op->getLoc(), addResult);
-    rewriter.restoreInsertionPoint(prevIP);
   }
 
   if (keepDim) {
@@ -541,7 +535,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     auto one = rewriter.create<mlir::arith::ConstantOp>(
         op->getLoc(), rewriter.getIntegerAttr(
                           rewriter.getIntegerType(mhlo::kMhloDimSizeBits), 1));
-    for (int64_t &i : dims) {
+    for (int64_t i : dims) {
       outShapeVec[i] = one;
     }
     auto outShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
