@@ -6438,6 +6438,10 @@ module {
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.embedding_bag.padding_idx"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.int, %arg5: !torch.bool, %arg6: !torch.optional<list<int>>, %arg7: !torch.bool, %arg8: !torch.optional<int>) -> !torch.tuple<list<int>, list<int>, list<int>, list<int>> {
+    %0 = call @__torch__._embedding_bag_helper(%arg0, %arg1, %arg2, %arg7, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.int) -> !torch.tuple<list<int>, list<int>, list<int>, list<int>>
+    return %0 : !torch.tuple<list<int>, list<int>, list<int>, list<int>>
+  }
+  func.func @__torch__._embedding_bag_helper(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.int) -> !torch.tuple<list<int>, list<int>, list<int>, list<int>> {
     %none = torch.constant.none
     %str = torch.constant.str "AssertionError: "
     %int2 = torch.constant.int 2
@@ -6469,7 +6473,7 @@ module {
     }
     %6 = torch.prim.ListConstruct  : () -> !torch.list<int>
     %7 = torch.aten.__getitem__.t %arg2, %int0 : !torch.list<int>, !torch.int -> !torch.int
-    %8 = torch.prim.If %arg7 -> (!torch.int) {
+    %8 = torch.prim.If %arg3 -> (!torch.int) {
       %19 = torch.aten.sub.int %7, %int1 : !torch.int, !torch.int -> !torch.int
       torch.prim.If.yield %19 : !torch.int
     } else {
@@ -6498,6 +6502,10 @@ module {
     }
     %18 = torch.prim.TupleConstruct %6, %14, %15, %17 : !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>, list<int>>
     return %18 : !torch.tuple<list<int>, list<int>, list<int>, list<int>>
+  }
+  func.func @"__torch_mlir_shape_fn.aten._embedding_bag"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.int, %arg5: !torch.bool, %arg6: !torch.optional<list<int>>, %arg7: !torch.bool, %arg8: !torch.int) -> !torch.tuple<list<int>, list<int>, list<int>, list<int>> {
+    %0 = call @__torch__._embedding_bag_helper(%arg0, %arg1, %arg2, %arg7, %arg4) : (!torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.int) -> !torch.tuple<list<int>, list<int>, list<int>, list<int>>
+    return %0 : !torch.tuple<list<int>, list<int>, list<int>, list<int>>
   }
   func.func @"__torch_mlir_shape_fn.aten.nll_loss_forward"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.int, %arg4: !torch.int) -> !torch.tuple<list<int>, list<int>> {
     %int-1 = torch.constant.int -1

@@ -2605,3 +2605,25 @@ def AtenEmbeddingBagSumExample_basic(module, tu: TestUtils):
     indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
+
+class Aten_EmbeddingBagExample(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None, 
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten._embedding_bag(weight, indices, offsets)
+
+@register_test_case(module_factory=lambda: Aten_EmbeddingBagExample())
+def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
+    weight  = torch.rand(100, 10)
+    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
+    module.forward(weight, indices, offsets)
