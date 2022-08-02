@@ -59,6 +59,8 @@ LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
                                      llvm::ArrayRef<int64_t> dshape,
                                      bool checkForUnity);
 
+Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
+
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
                           TensorType outType);
 
@@ -78,6 +80,10 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value tensor,
                                  ArrayRef<int64_t> inputUnsqzDims);
 
+                          
+Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
+                         const APFloat &constant, Value shape,
+                         TensorType outType);
 } // namespace mhlo
 } // namespace mlir
 

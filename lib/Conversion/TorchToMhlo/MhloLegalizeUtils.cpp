@@ -117,9 +117,9 @@ llvm::Optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 }
 
 template <>
-llvm::Optional<Value> getConstTensor<double>(PatternRewriter &rewriter,
-                                            Operation *op, ArrayRef<double> vec,
-                                            ArrayRef<int64_t> shape) {
+llvm::Optional<Value>
+getConstTensor<double>(PatternRewriter &rewriter, Operation *op,
+                       ArrayRef<double> vec, ArrayRef<int64_t> shape) {
   uint64_t num_total_elements = 1;
   for (int64_t a : shape) {
     num_total_elements *= a;
@@ -149,7 +149,6 @@ template llvm::Optional<Value> getConstTensor<int64_t>(PatternRewriter &,
                                                        ArrayRef<int64_t> vec,
                                                        ArrayRef<int64_t> shape);
 
-
 template <typename T>
 static bool isInValidRange(bool isFloat, const double &doubleValue, bool isInt,
                            const int64_t &intValue) {
@@ -166,20 +165,16 @@ static bool isInValidRange(bool isFloat, const double &doubleValue, bool isInt,
 }
 
 template <typename T>
-Value getSplatConstTensor(ConversionPatternRewriter &rewriter,
-                          Operation *op,
-                          T val,
-                          Type dtype,
-                          llvm::ArrayRef<int64_t> dshape) {
-  auto const_type = RankedTensorType::get(
-      dshape, dtype);
+Value getSplatConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                          T val, Type dtype, llvm::ArrayRef<int64_t> dshape) {
+  auto const_type = RankedTensorType::get(dshape, dtype);
   auto const_attr = SplatElementsAttr::get(const_type, val);
   auto const_op =
       rewriter.create<mhlo::ConstantOp>(op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
-
+// TODO: Support for variable scalar.
 LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
                                       Operation *op, Value torchScalarValue,
                                       Value &mhloTensor, Type dtype,
@@ -198,9 +193,8 @@ LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
 
   if (dtype.isa<mlir::FloatType>()) {
     if (doBroadcast) {
-      mhloTensor = getSplatConstTensor<float>(rewriter, op,
-                       (isFloat ? doubleValue : intValue),
-                       dtype, dshape);
+      mhloTensor = getSplatConstTensor<float>(
+          rewriter, op, (isFloat ? doubleValue : intValue), dtype, dshape);
     } else {
       mhloTensor = mhlo::getConstTensor<float>(
                        rewriter, op, (isFloat ? doubleValue : intValue), dshape)
@@ -219,7 +213,8 @@ LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
       int32_t d = isFloat ? static_cast<int32_t>(doubleValue)
                           : static_cast<int32_t>(intValue);
       if (doBroadcast) {
-        mhloTensor = getSplatConstTensor<int32_t>(rewriter, op, d, dtype, dshape);
+        mhloTensor =
+            getSplatConstTensor<int32_t>(rewriter, op, d, dtype, dshape);
       } else {
         mhloTensor =
             mhlo::getConstTensor<int32_t>(rewriter, op, {d}, dshape).getValue();
@@ -231,7 +226,8 @@ LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
       }
       int64_t d = (isFloat ? static_cast<int64_t>(doubleValue) : intValue);
       if (doBroadcast) {
-        mhloTensor = getSplatConstTensor<int64_t>(rewriter, op, d, dtype, dshape);
+        mhloTensor =
+            getSplatConstTensor<int64_t>(rewriter, op, d, dtype, dshape);
       } else {
         mhloTensor =
             mhlo::getConstTensor<int64_t>(rewriter, op, {d}, dshape).getValue();
@@ -242,7 +238,6 @@ LogicalResult torchScalarToMhloTensor(ConversionPatternRewriter &rewriter,
 
   return success();
 }
-
 
 LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
                                      Operation *op, Value alphaScalar,
@@ -268,20 +263,33 @@ LogicalResult torchAlphaToMhloTensor(ConversionPatternRewriter &rewriter,
   return success();
 }
 
-
-Value promoteAndBroadcast(ConversionPatternRewriter &rewriter,
-                          Value input, TensorType outType) {
-  // Two tensors are “broadcastable” if the following rules hold:
-  //   - Each tensor has at least one dimension.
-  //   - When iterating over the dimension sizes, starting at the trailing dimension,
-  //   the dimension sizes must either be equal, one of them is 1, or one of them
-  //   does not exist.
-  Operation* op = input.getDefiningOp();
+Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
+  Operation *op = input.getDefiningOp();
   TensorType in_type = input.getType().dyn_cast<TensorType>();
 
   if (in_type.getElementType() != outType.getElementType()) {
-    TensorType promoted_type = in_type.cloneWith(in_type.getShape(), outType.getElementType());
-    input = rewriter.create<mhlo::ConvertOp>(op->getLoc(), promoted_type, input);
+    TensorType promotedType =
+        in_type.cloneWith(in_type.getShape(), outType.getElementType());
+    return rewriter.create<mhlo::ConvertOp>(op->getLoc(), promotedType, input);
+  }
+  return input;
+}
+
+Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
+                          TensorType outType) {
+  // Two tensors are “broadcastable” if the following rules hold:
+  //   - Each tensor has at least one dimension.
+  //   - When iterating over the dimension sizes, starting at the trailing
+  //   dimension, the dimension sizes must either be equal, one of them is 1, or
+  //   one of them does not exist.
+  Operation *op = input.getDefiningOp();
+  TensorType in_type = input.getType().dyn_cast<TensorType>();
+
+  if (in_type.getElementType() != outType.getElementType()) {
+    TensorType promoted_type =
+        in_type.cloneWith(in_type.getShape(), outType.getElementType());
+    input =
+        rewriter.create<mhlo::ConvertOp>(op->getLoc(), promoted_type, input);
   }
 
   ArrayRef<int64_t> inShape = in_type.getShape();
@@ -301,7 +309,8 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter,
       bcastDims.push_back(outPos);
       do_bcast = true;
     } else {
-      op->emitError("The size of tensor a (") << inDim << ")"
+      op->emitError("The size of tensor a (")
+          << inDim << ")"
           << "must match the size of tensor b (" << outDim << ")"
           << "at non-singleton dimension " << inPos;
     }
@@ -311,10 +320,11 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter,
     return input;
   }
   DenseIntElementsAttr bcast_attr = DenseIntElementsAttr::get(
-      RankedTensorType::get({static_cast<long int>(bcastDims.size())}, rewriter.getI64Type()),
+      RankedTensorType::get({static_cast<long int>(bcastDims.size())},
+                            rewriter.getI64Type()),
       bcastDims);
-  auto bcast_op =
-      rewriter.create<mhlo::BroadcastInDimOp>(op->getLoc(), outType, input, bcast_attr);
+  auto bcast_op = rewriter.create<mhlo::BroadcastInDimOp>(op->getLoc(), outType,
+                                                          input, bcast_attr);
   return bcast_op.getResult();
 }
 
@@ -418,5 +428,15 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
       .getResult();
 }
 
+Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
+                         const APFloat &constant, Value shape,
+                         TensorType outType) {
+  auto constAttr = rewriter.getFloatAttr(outType.getElementType(), constant);
+  auto constTensor = rewriter.create<mhlo::ConstantOp>(loc, constAttr);
+  return rewriter
+      .create<mhlo::DynamicBroadcastInDimOp>(loc, outType, constTensor, shape,
+                                             rewriter.getI64TensorAttr({}))
+      .getResult();
+}
 } // namespace mhlo
 } // namespace mlir
