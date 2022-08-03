@@ -28,7 +28,7 @@ void populateGatherOpPatternsAndLegality(TypeConverter &typeConverter,
 void populateReductionOpPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target);
-void populateMatmulOpPatternsAndLegality(TypeConverter &typeConverter,
+void populateLinearOpPatternsAndLegality(TypeConverter &typeConverter,
                                          RewritePatternSet &patterns,
                                          ConversionTarget &target);
 

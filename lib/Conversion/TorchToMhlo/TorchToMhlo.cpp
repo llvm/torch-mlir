@@ -61,7 +61,7 @@ public:
                                                        target);
     torch_to_mhlo::populateReductionOpPatternsAndLegality(typeConverter,
                                                           patterns, target);
-    torch_to_mhlo::populateMatmulOpPatternsAndLegality(typeConverter, patterns,
+    torch_to_mhlo::populateLinearOpPatternsAndLegality(typeConverter, patterns,
                                                        target);
 
     if (failed(applyPartialConversion(getOperation(), target,

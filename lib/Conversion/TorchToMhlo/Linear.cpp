@@ -626,7 +626,7 @@ public:
 
 } // namespace
 
-void mlir::torch::torch_to_mhlo::populateMatmulOpPatternsAndLegality(
+void mlir::torch::torch_to_mhlo::populateLinearOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
