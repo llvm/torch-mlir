@@ -688,4 +688,4 @@ class VarCorrectionLargeInputModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: VarCorrectionLargeInputModule())
 def VarCorrectionLargeInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 1024, 8192))
+    module.forward(100 + tu.rand(3, 4, 1024, 8192))
