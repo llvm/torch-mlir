@@ -131,6 +131,13 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
                                  ? torchMlirTorchValueTensorTypeGet
                                  : torchMlirTorchNonValueTensorTypeGet;
 
+    if (importOptions.ignoreExistingTensorShapesAndDtypes) {
+      return getMlirTensorType(context,
+                               /*numSizes=*/-1,
+                               /*optionalSizes=*/nullptr,
+                               /*optionalDtype=*/{nullptr});
+    }
+
     // Element type.
     MlirType elementType = {nullptr};
     if (tensorType->scalarType()) {

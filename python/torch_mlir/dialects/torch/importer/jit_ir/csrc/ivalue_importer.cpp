@@ -101,8 +101,9 @@ namespace {
 class IValueImporter {
 public:
   IValueImporter(MlirBlock importBlock, MlirContext context,
-                 ClassAnnotator &annotator)
-      : importBlock(importBlock), context(context), annotator(annotator) {}
+                 ClassAnnotator &annotator, const ImportOptions &importOptions)
+      : importBlock(importBlock), context(context), annotator(annotator),
+        importOptions(importOptions) {}
 
   MlirValue importIValue(c10::IValue ivalue);
 
@@ -118,6 +119,7 @@ private:
   MlirBlock importBlock;
   MlirContext context;
   ClassAnnotator &annotator;
+  const ImportOptions &importOptions;
 
   // Map tracking already-imported values.
   std::unordered_map<c10::IValue, MlirValue, IValueHasher, IValueEq> valueMap;
@@ -503,7 +505,8 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
     MethodAnnotation *annotation =
         annotator.getMethodAnnotationForFunction(function);
     MlirOperation func = importJitFunctionAsFuncOp(
-        context, function, [&](int argIndex) -> MlirAttribute {
+        context, function,
+        [&](int argIndex) -> MlirAttribute {
           if (!annotation || !annotation->argAnnotations.has_value()) {
             return {nullptr};
           }
@@ -541,7 +544,8 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
           MlirNamedAttribute typeBoundAttr = toMlirNamedAttribute(
               "torch.type_bound", mlirTypeAttrGet(typeBound));
           return mlirDictionaryAttrGet(context, 1, &typeBoundAttr);
-        });
+        },
+        importOptions);
     // For IValue importing, the logical linkage structure of the module
     // is determined by the object graph.
     //
@@ -560,10 +564,12 @@ void IValueImporter::importCompilationUnit(torch::jit::CompilationUnit *cu) {
 }
 
 MlirValue torch_mlir::importIValue(c10::IValue ivalue, MlirBlock block,
-                              MlirContext context, ClassAnnotator &annotator) {
+                                   MlirContext context,
+                                   ClassAnnotator &annotator,
+                                   const ImportOptions &importOptions) {
   // When debugging module importing, it can be useful to dump as so:
   // if (ivalue.isModule())
   //   ivalue.toModule().dump(true, false, false);
-  IValueImporter importer(block, context, annotator);
+  IValueImporter importer(block, context, annotator, importOptions);
   return importer.importIValue(ivalue);
 }

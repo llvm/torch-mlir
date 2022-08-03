@@ -133,12 +133,18 @@ ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
 }
 
 void ModuleBuilder::importModule(torch::jit::Module jitModule,
-                                 py::object maybeClassAnnotator) {
+                                 py::object maybeClassAnnotator,
+                                 py::object maybeImportOptions) {
   ClassAnnotator dummyAnnotator;
   ClassAnnotator *classAnnotator = &dummyAnnotator;
   if (!maybeClassAnnotator.is_none()) {
     classAnnotator = py::cast<ClassAnnotator *>(maybeClassAnnotator);
   }
+  ImportOptions importOptions;
+  if (!maybeImportOptions.is_none()) {
+    importOptions = py::cast<ImportOptions>(maybeImportOptions);
+  }
+
   // Set a debugging name for the MLIR Module based on the jitModule's class
   // name.
   // This is a bit hacky, because we are mutating the enclosing ModuleOp
@@ -163,7 +169,7 @@ void ModuleBuilder::importModule(torch::jit::Module jitModule,
                                   toMlirStringRef("torch.debug_module_name"),
                                   debugModuleNameAttr);
   importIValue(jitModule._ivalue(), mlirModuleGetBody(module),
-               mlirModuleGetContext(module), *classAnnotator);
+               mlirModuleGetContext(module), *classAnnotator, importOptions);
 }
 
 MlirBlock ModuleBuilder::getBodyBlock() {
@@ -178,5 +184,6 @@ void ModuleBuilder::bind(py::module &m) {
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
       .def("import_function", &ModuleBuilder::importFunction)
       .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
-           py::arg("classAnnotator") = py::none());
+           py::arg("classAnnotator") = py::none(),
+           py::arg("importOptions") = py::none());
 }
