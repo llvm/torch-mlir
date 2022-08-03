@@ -24,6 +24,7 @@ add_library(TorchMLIRJITIRImporter ${LIBRARY_TYPE}
   function_importer.cpp
   module_builder.cpp
   node_importer.cpp
+  import_options_pybind.cpp
   ivalue_importer.cpp
   init_python_bindings.cpp
   torch_to_mlir_utils.cpp

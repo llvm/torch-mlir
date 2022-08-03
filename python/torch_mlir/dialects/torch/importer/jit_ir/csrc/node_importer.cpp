@@ -221,8 +221,9 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
               mlirFlatSymbolRefAttrGet(context, toMlirStringRef(symName))));
     } else if (output->type()->cast<c10::ListType>()) {
       ClassAnnotator dummyAnnotator;
-      MlirValue listValue = importIValue(
-          node->ival(c10::attr::value), appendToBlock, context, dummyAnnotator);
+      MlirValue listValue =
+          importIValue(node->ival(c10::attr::value), appendToBlock, context,
+                       dummyAnnotator, importOptions);
       mapResults(node, mlirOpResultGetOwner(listValue));
       return; // Early return, since `importIValue` already added op to block.
     } else {
