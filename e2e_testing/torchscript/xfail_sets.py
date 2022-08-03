@@ -17,7 +17,8 @@ REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
 EAGER_MODE_XFAIL_SET = {
     # RefBackend fails
     "TableBatchEmbeddingModule_basic",
-    "QuantizedMLP_basic"
+    "QuantizedMLP_basic",
+    "Matmul_vecmat"
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -275,7 +276,6 @@ LTC_XFAIL_SET = {
     "IndexTensorSelectDimModule_basic",
     "Matmul_dot",
     "Matmul_matvec",
-    "Matmul_vecmat",
     "MulIntModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
