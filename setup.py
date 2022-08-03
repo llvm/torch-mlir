@@ -75,6 +75,7 @@ class CMakeBuild(build_py):
                 f"-DLLVM_TARGETS_TO_BUILD=host",
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
+                f"-DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF",
                 f"-DTORCH_MLIR_ENABLE_MHLO=ON",
                 f"-DTORCH_MLIR_ENABLE_LTC=OFF",
                 f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects",
