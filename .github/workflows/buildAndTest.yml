@@ -42,7 +42,7 @@ jobs:
         submodules: 'true'
     - uses: ./.github/actions/setup-build
       with:
-        cache-suffix: ${{ matrix.os }}-${{ matrix.targetarch }}-${{ matrix.buildtype }}
+        cache-suffix: ${{ matrix.os }}-${{ matrix.targetarch }}-${{ matrix.llvmtype }}-${{ matrix.llvmbuildtype }}
 
     - name: llvm-binary-torch-src-or-binary
       # Should be the fastest builds for CI and fails fast
