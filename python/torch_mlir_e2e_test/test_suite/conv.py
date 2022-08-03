@@ -405,3 +405,28 @@ class _Convolution2DTF32Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: _Convolution2DTF32Module())
 def _Convolution2DTF32Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
+
+class ConvolutionModule2DGroups(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(inputVec,
+                                          weight,
+                                          bias=None,
+                                          stride=[3, 3],
+                                          padding=[2, 2],
+                                          dilation=[1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0],
+                                          groups=4)
+
+@register_test_case(module_factory=lambda: ConvolutionModule2DGroups())
+def ConvolutionModule2DGroups_basic(module, tu: TestUtils):
+    module.forward(torch.randn(1, 32, 4, 4), torch.randn(32, 8, 3, 3))
