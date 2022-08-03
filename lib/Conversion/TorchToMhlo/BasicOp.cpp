@@ -22,7 +22,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include <iostream>
 #include <numeric>
 
@@ -618,9 +617,8 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 namespace {
 template <>
 LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
-    AtenGeluOp op,
-    OpAdaptor adaptor,
-    ConversionPatternRewriter& rewriter) const {
+    AtenGeluOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
   Value input = adaptor.self();
   auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
@@ -640,7 +638,6 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
   return success();
 }
 } // namespace
-
 
 // AtenErfOp
 namespace {

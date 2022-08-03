@@ -13,7 +13,6 @@
 #include "./PopulatePatterns.h"
 #include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
-#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
@@ -24,7 +23,6 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
-#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -44,8 +42,9 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect, Torch::TorchDialect>();
+    target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect,
+                           tensor::TensorDialect, arith::ArithmeticDialect,
+                           Torch::TorchDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -55,14 +54,19 @@ public:
 
     torch_to_mhlo::populateBasicOpPatternsAndLegality(typeConverter, patterns,
                                                       target);
-    torch_to_mhlo::populateViewLikeOpPatternsAndLegality(typeConverter, patterns,
-                                                      target);
+    torch_to_mhlo::populateViewLikeOpPatternsAndLegality(typeConverter,
+                                                         patterns, target);
     torch_to_mhlo::populateGatherOpPatternsAndLegality(typeConverter, patterns,
                                                        target);
     torch_to_mhlo::populateReductionOpPatternsAndLegality(typeConverter,
                                                           patterns, target);
+<<<<<<< HEAD
     torch_to_mhlo::populateLinearOpPatternsAndLegality(typeConverter, patterns,
                                                        target);
+=======
+    torch_to_mhlo::populatePoolingOpPatternsAndLegality(typeConverter, patterns,
+                                                        target);
+>>>>>>> [MHLO] Init MHLO pooling-like op conversion
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
