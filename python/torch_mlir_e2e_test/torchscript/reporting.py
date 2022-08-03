@@ -24,9 +24,10 @@ class TensorSummary:
         self.max = torch.max(tensor.type(torch.float64))
         self.mean = torch.mean(tensor.type(torch.float64))
         self.shape = list(tensor.shape)
+        self.dtype = tensor.dtype
 
     def __str__(self):
-        return f'Tensor with shape={self.shape} min={self.min:+0.4}, max={self.max:+0.4}, mean={self.mean:+0.4}'
+        return f'Tensor with shape={self.shape}, dtype={self.dtype}, min={self.min:+0.4}, max={self.max:+0.4}, mean={self.mean:+0.4}'
 
 
 class ErrorContext:
