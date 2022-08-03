@@ -159,23 +159,15 @@ public:
     }
 
     if (!rhsType) {
-      if (failed(mhlo::torchScalarToMhloTensor(rewriter, op, op.other(), rhs,
-                                               outElemTy, {})))
-        return op.emitError("currently only scalar constants are supported for "
-                            "conversion in MHLO operation");
+      rhs = mhlo::scalarToMhloTensor(rewriter, op, adaptor.other(), outElemTy);
     }
 
     lhs = mhlo::promoteType(rewriter, lhs, outType);
     rhs = mhlo::promoteType(rewriter, rhs, outType);
 
     if (!skipMultiplyAlpha(op.alpha())) {
-      Value alpha;
-      if (failed(mhlo::torchAlphaToMhloTensor(rewriter, op.getOperation(),
-                                              op.alpha(), alpha, outElemTy, {},
-                                              /*checkForUnity=*/false))) {
-        return op.emitError("currently only scalar constants are supported for "
-                            "alpha in conversion to MHLO operation");
-      }
+      Value alpha =
+          mhlo::scalarToMhloTensor(rewriter, op, adaptor.alpha(), outElemTy);
       DenseIntElementsAttr bcastDimensions;
       rhs = rewriter.create<chlo::BroadcastMulOp>(op->getLoc(), rhs, alpha,
                                                   bcastDimensions);
@@ -216,13 +208,13 @@ public:
       return op.emitError(
           "only floating-point or integer datatype legalization supported");
     }
-    if (!rhsType) {
-      if (failed(mhlo::torchScalarToMhloTensor(rewriter, op, op.other(), rhs,
-                                               outElemTy, {})))
-        return op.emitError("currently only scalar constants are supported for "
-                            "conversion in MHLO operation");
-    }
 
+    Value lhsTensor = lhs;
+    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+      rhs = lhs;
+    } else if (!rhsType) {
+      rhs = mhlo::scalarToMhloTensor(rewriter, op, adaptor.other(), outElemTy);
+    }
     DenseIntElementsAttr bcastDimensions;
     lhs = mhlo::promoteType(rewriter, lhs, outType);
     rhs = mhlo::promoteType(rewriter, rhs, outType);
@@ -263,11 +255,7 @@ public:
     }
 
     if (!rhsTy) {
-      if (failed(mhlo::torchScalarToMhloTensor(rewriter, op, op.other(), rhs,
-                                               lhsElemTy, {}))) {
-        return op.emitError("currently only scalar constants are supported for "
-                            "conversion in MHLO operation");
-      }
+      rhs = mhlo::scalarToMhloTensor(rewriter, op, adaptor.other(), lhsElemTy);
     }
 
     // TODO: what is the PyTorch default type promotion?
@@ -569,12 +557,8 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
                                     .cast<RankedTensorType>();
   auto outputShape = outputType.getShape();
   auto outputElemType = outputType.getElementType();
-  Value mhloTensor;
-  if (failed(mhlo::torchScalarToMhloTensor(rewriter, op, op.a(), mhloTensor,
-                                           outputElemType, outputShape,
-                                           false))) {
-    return op->emitError("failed lowering PrimNumToTensorScalarOp to MHLO");
-  }
+  Value mhloTensor =
+      mhlo::scalarToMhloTensor(rewriter, op, adaptor.a(), outputElemType);
   rewriter.replaceOp(op, mhloTensor);
   return success();
 }
