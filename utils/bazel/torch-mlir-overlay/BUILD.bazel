@@ -453,6 +453,7 @@ cc_library(
         "lib/Conversion/TorchToMhlo/Linear.cpp",
         "lib/Conversion/TorchToMhlo/ViewLikeOps.cpp",
         "lib/Conversion/TorchToMhlo/ReductionOp.cpp",
+        "lib/Conversion/TorchToMhlo/Pooling.cpp",
         "lib/Conversion/TorchToMhlo/MhloLegalizeUtils.h",
         "lib/Conversion/TorchToMhlo/PopulatePatterns.h",
         "lib/Conversion/PassDetail.h",
