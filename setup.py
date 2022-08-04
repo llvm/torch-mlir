@@ -76,6 +76,7 @@ class CMakeBuild(build_py):
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DTORCH_MLIR_ENABLE_MHLO=ON",
+                # TODO(henrytu): Reenable LTC once JIT importer linkage issue is fixed (https://github.com/llvm/torch-mlir/issues/1154)
                 f"-DTORCH_MLIR_ENABLE_LTC=OFF",
                 f"-DLLVM_EXTERNAL_PROJECTS=torch-mlir;torch-mlir-dialects",
                 f"-DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR={src_dir}",
