@@ -1103,6 +1103,40 @@ func.func @torch.tensor_static_info_cast$refine_allowed_ops(%arg0: !torch.vtenso
   return %2 : !torch.tuple<vtensor, vtensor>
 }
 
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$refine_copy_to_ops(
+// CHECK-SAME:                                                                %[[ARG_0:.*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                                                                %[[ARG_1:.*]]: !torch.tensor<[],f32>) -> (!torch.tensor, !torch.vtensor) {
+// CHECK:           %[[TO_TENSOR:.*]] = torch.copy.to_tensor %[[ARG_0]] : !torch.tensor<[],f32>
+// CHECK:           %[[TO_VTENSOR:.*]] = torch.copy.to_vtensor %[[ARG_1]] : !torch.vtensor<[],f32>
+// CHECK:           %[[TENSOR_CAST:.*]] = torch.tensor_static_info_cast %[[TO_TENSOR]] : !torch.tensor<[],f32> to !torch.tensor
+// CHECK:           %[[VTENSOR_CAST:.*]] = torch.tensor_static_info_cast %[[TO_VTENSOR]] : !torch.vtensor<[],f32> to !torch.vtensor
+// CHECK:           return %[[TENSOR_CAST]], %[[VTENSOR_CAST]] : !torch.tensor, !torch.vtensor
+func.func @torch.tensor_static_info_cast$refine_copy_to_ops(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.tensor<[],f32>) -> (!torch.tensor, !torch.vtensor) {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor
+  %1 = torch.tensor_static_info_cast %arg1 : !torch.tensor<[],f32> to !torch.tensor
+  %2 = torch.copy.to_tensor %0 : !torch.tensor
+  %3 = torch.copy.to_vtensor %1 : !torch.vtensor
+  %4 = torch.tensor_static_info_cast %2 : !torch.tensor to !torch.tensor
+  %5 = torch.tensor_static_info_cast %3 : !torch.vtensor to !torch.vtensor
+  return %4, %5 : !torch.tensor, !torch.vtensor
+}
+
+// CHECK-LABEL:   func.func @torch.tensor_static_info_cast$no_refine_copy_to_ops(
+// CHECK-SAME:                                                                   %[[ARG_0:.*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                                                                   %[[ARG_1:.*]]: !torch.tensor<[],f32>) -> (!torch.tensor, !torch.vtensor) {
+// CHECK:           %[[VTENSOR_CAST:.*]] = torch.tensor_static_info_cast %[[ARG_0]] : !torch.vtensor<[],f32> to !torch.vtensor
+// CHECK:           %[[TENSOR_CAST:.*]] = torch.tensor_static_info_cast %[[ARG_1]] : !torch.tensor<[],f32> to !torch.tensor
+// CHECK:           %[[TO_TENSOR:.*]] = torch.copy.to_tensor %[[VTENSOR_CAST]] : !torch.tensor
+// CHECK:           %[[TO_VTENSOR:.*]] = torch.copy.to_vtensor %[[TENSOR_CAST]] : !torch.vtensor
+// CHECK:           return %[[TO_TENSOR]], %[[TO_VTENSOR]] : !torch.tensor, !torch.vtensor
+func.func @torch.tensor_static_info_cast$no_refine_copy_to_ops(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.tensor<[],f32>) -> (!torch.tensor, !torch.vtensor) {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor
+  %1 = torch.tensor_static_info_cast %arg1 : !torch.tensor<[],f32> to !torch.tensor
+  %2 = torch.copy.to_tensor %0 : !torch.tensor
+  %3 = torch.copy.to_vtensor %1 : !torch.vtensor
+  return %2, %3 : !torch.tensor, !torch.vtensor
+}
+
 // CHECK-LABEL:   func.func @torch.prim.TupleIndex(
 // CHECK-SAME:            %[[T0:.*]]: !torch.tensor, %[[T1:.*]]: !torch.tensor, %[[T2:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           return %[[T1]] : !torch.tensor
@@ -1414,3 +1448,4 @@ func.func @prim.ListUnpack$fold_list(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !t
   %1:2 = torch.prim.ListUnpack %0 : !torch.list<vtensor> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
   return %1#0, %1#1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
 }
+

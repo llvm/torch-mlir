@@ -1235,8 +1235,16 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
     if (isValidSubtype(op.getOperand().getType(), op.getType())) {
       SmallVector<std::reference_wrapper<OpOperand>> usesToChange(
           llvm::make_filter_range(op->getUses(), [](OpOperand &operand) {
-            return operand.getOwner()
-                ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>();
+            Operation *operandOwner = operand.getOwner();
+            if (isa<CopyToNonValueTensorOp, CopyToValueTensorOp>(
+                    operandOwner)) {
+              return true || llvm::all_of(
+                  operandOwner->getUses(), [](OpOperand &operand) {
+                    return operand.getOwner()
+                        ->hasTrait<OpTrait::AllowsTypeRefinement>();
+                  });
+            }
+            return operandOwner->hasTrait<OpTrait::AllowsTypeRefinement>();
           }));
 
       if (usesToChange.empty())
@@ -1245,6 +1253,21 @@ void TensorStaticInfoCastOp::getCanonicalizationPatterns(
       for (OpOperand &use : usesToChange) {
         Operation *user = use.getOwner();
         user->setOperand(use.getOperandNumber(), op.operand());
+
+        if (isa<CopyToNonValueTensorOp, CopyToValueTensorOp>(user)) {
+          Type newOperandType = op.operand().getType();
+          Type newResultType;
+          if (auto valueTensorType =
+                  newOperandType.dyn_cast<ValueTensorType>()) {
+            newResultType = valueTensorType.getWithoutValueSemantics();
+          } else if (auto nonValueTensorType =
+                         newOperandType.dyn_cast<NonValueTensorType>()) {
+            newResultType = nonValueTensorType.getWithValueSemantics();
+          } else {
+            llvm_unreachable("not a BaseTensorType!");
+          }
+          user->getResult(0).setType(newResultType);
+        }
       }
 
       return success();
