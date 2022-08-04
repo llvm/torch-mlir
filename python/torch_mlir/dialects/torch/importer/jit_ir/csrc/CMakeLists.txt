@@ -10,7 +10,8 @@ include_directories(BEFORE
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-# Hack! Currently out-of-tree build fails when this is set to SHARED, so we have this toggle
+# TODO(henrytu): Currently, out-of-tree build fails when LIBRARY_TYPE is set to SHARED, so we have this toggle.
+#                See https://github.com/llvm/torch-mlir/issues/1154 for more details.
 if(TORCH_MLIR_ENABLE_LTC)
   set(LIBRARY_TYPE "SHARED")
 else()
