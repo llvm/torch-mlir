@@ -379,6 +379,172 @@ public:
 
 } // namespace
 
+
+// AtenConvolutionOp
+namespace {
+class ConvertAtenConvlutionOp : public OpConversionPattern<AtenConvolutionOp> {
+public:
+  using OpConversionPattern<AtenConvolutionOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenConvolutionOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenConvolutionOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value input = adaptor.input();
+    Value weight = adaptor.weight();
+
+    // The input shape is [N, C, H, W]
+    auto inputTy = input.getType().template cast<RankedTensorType>();
+    // The weight shape is [OC, (IC // groups), KH, KW]
+    // If tranposed is set to true, the weight shape changes to [IC, (OC //
+    // groups), KH, KW]
+    auto weightTy = weight.getType().template cast<RankedTensorType>();
+    auto outTy = getTypeConverter()
+                     ->convertType(op.getType())
+                     .template cast<RankedTensorType>();
+
+    if (!inputTy || !weightTy || !outTy) {
+      return op.emitError("input, weight and output must be ranked tensors");
+    }
+
+    if (inputTy.getRank() < 3)
+      return op.emitError("only input with at least 3 dims valid");
+
+    SmallVector<int64_t> stride;
+    if (!matchPattern(op.stride(), m_TorchConstantIntList(stride))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const stride list unsupported");
+    }
+
+    SmallVector<int64_t> padding;
+    if (!matchPattern(op.padding(), m_TorchConstantIntList(padding))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const padding list unsupported");
+    }
+
+    SmallVector<int64_t> dilation;
+    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilation))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dilation list unsupported");
+    }
+    SmallVector<int64_t> outputPadding;
+    if (!matchPattern(op.output_padding(),
+                      m_TorchConstantIntList(outputPadding))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const output_padding list unsupported");
+    }
+    // Just ignore the outputPadding attribute
+    for (int64_t item : outputPadding) {
+      if (item != 0)
+        return rewriter.notifyMatchFailure(
+            op, "only zero output_padding list supported");
+    }
+
+    int64_t groups;
+    if (!matchPattern(op.groups(), m_TorchConstantInt(&groups))) {
+      return rewriter.notifyMatchFailure(op, "non-int groups unsupported");
+    }
+
+    bool transposed;
+    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed))) {
+      return rewriter.notifyMatchFailure(op, "non-bool transposed unsupported");
+    }
+    if (transposed) {
+      return rewriter.notifyMatchFailure(
+          op, "only param tranposed of value 'false' supported!");
+    }
+
+    assert(padding.size() == dilation.size() &&
+           padding.size() == stride.size() &&
+           padding.size() == inputTy.getRank() - 2);
+    int64_t nSpatialDims = padding.size();
+    // Get mhlo::ConvolutionOp attributes
+    DenseIntElementsAttr mhloWindowStride = DenseIntElementsAttr::get(
+        RankedTensorType::get({static_cast<long int>(stride.size())},
+                              rewriter.getI64Type()),
+        stride);
+    std::vector<int64_t> mhloPaddingVec;
+    for (size_t i = 0; i < padding.size(); i++) {
+      mhloPaddingVec.emplace_back(padding[i]);
+      mhloPaddingVec.emplace_back(padding[i]);
+    }
+
+    DenseIntElementsAttr mhloPadding = DenseIntElementsAttr::get(
+        RankedTensorType::get(
+            {static_cast<long int>(padding.size()), static_cast<long int>(2)},
+            rewriter.getI64Type()),
+        mhloPaddingVec);
+
+    DenseIntElementsAttr mhloRhsDilation = DenseIntElementsAttr::get(
+        RankedTensorType::get({static_cast<long int>(dilation.size())},
+                              rewriter.getI64Type()),
+        dilation);
+
+    SmallVector<int64_t> spatialDimensions;
+    for (int64_t i = 2; i < inputTy.getRank(); i++) {
+      spatialDimensions.emplace_back(i);
+    }
+    mhlo::ConvDimensionNumbersAttr dimensionNumbers =
+        mhlo::ConvDimensionNumbersAttr::get(
+            /*context=*/rewriter.getContext(), /*inputBatchDimension=*/0,
+            /*inputFeatureDimension=*/1,
+            /*inputSpatialDimensions=*/spatialDimensions,
+            /*kernelInputFeatureDimension=*/1,
+            /*kernelOutputFeatureDimension=*/0,
+            /*kernelSpatialDimensions=*/spatialDimensions,
+            /*outputBatchDimension=*/0, /*outputFeatureDimension=*/1,
+            /*outputSpatialDimensions=*/spatialDimensions);
+
+    IntegerAttr featureGroupCount =
+        IntegerAttr::get(rewriter.getI64Type(), groups);
+    IntegerAttr batchGroupCount = IntegerAttr::get(rewriter.getI64Type(), 1);
+
+    // mhlo::ConvolutionOp optional attributes, leave them as default
+    DenseIntElementsAttr mhloLhsDilation;
+    DenseElementsAttr windowReversal;
+    ArrayAttr precisionConfig;
+
+    auto mhloConvOp = rewriter.create<mhlo::ConvolutionOp>(
+        op->getLoc(), outTy, input, weight, mhloWindowStride, mhloPadding,
+        mhloLhsDilation, mhloRhsDilation, windowReversal, dimensionNumbers,
+        featureGroupCount, batchGroupCount, precisionConfig);
+
+    auto bias = adaptor.bias();
+
+    // No bias provided
+    if (failed(checkNotNone(rewriter, op, op.bias()))) {
+      rewriter.replaceOp(op, mhloConvOp.getResult());
+      return success();
+    }
+
+    // Handle bias
+    if (!bias.getType().cast<RankedTensorType>()) {
+      return op.emitError("bias provided but not a ranked tensor");
+    }
+
+    auto biasTy = bias.getType().template cast<RankedTensorType>();
+    if (!biasTy.getElementType().isIntOrFloat()) {
+      return op.emitError("only floating-point or integer datatype "
+                          "legalization for bias supported");
+    }
+
+    assert(biasTy.getRank() <= 1);
+
+    // Reshape and promote bias
+    auto inputUnsqzDims =
+        llvm::to_vector<4>(llvm::seq<int64_t>(-nSpatialDims, 0));
+    bias = *mhlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims);
+    bias = mhlo::promoteType(rewriter, bias, outTy);
+
+    DenseIntElementsAttr bcastDimensions;
+    rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(
+        op, outTy, mhloConvOp.getResult(), bias, bcastDimensions);
+    return success();
+  }
+};
+} // namespace
+
+
 void mlir::torch::torch_to_mhlo::populateLinearOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -402,4 +568,10 @@ void mlir::torch::torch_to_mhlo::populateLinearOpPatternsAndLegality(
   patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATEMOP_PATTERN
+
+#define INSERT_CONVOLUTION_ATENOP_PATTERN(AtenOp)                              \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenConvlutionOp>(typeConverter, context);
+  INSERT_CONVOLUTION_ATENOP_PATTERN(AtenConvolutionOp);
+#undef INSERT_CONVOLUTION_ATENOP_PATTERN
 }
