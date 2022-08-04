@@ -8,6 +8,28 @@ cd torch-mlir
 git submodule update --init
 ```
 
+## Minimal Docker Setup for CMake Builds
+
+We provide a minimal self-contained docker setup with the required dependencies
+for a CMake build of torch-mlir. This allows easy and consistent setup for local
+validation of PRs using unit tests and python regression tests. It is not meant to
+be used for testing builds on multiple platforms / architectures (aka matrix testing)
+or for out-of-tree builds.
+
+```shell
+# Build an image and launch a docker container
+./run_docker.sh
+
+# Run CMake build
+./run_cmake_build.sh
+
+# Run unit tests (+ python + dialect LIT tests)
+./run_unit_test.sh
+
+# Run integration tests
+./run_integration_test.sh
+```
+
 ## Setup your Python VirtualEnvironment and Dependencies
 
 Also, ensure that you have the appropriate `python-dev` package installed
