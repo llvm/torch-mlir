@@ -1152,7 +1152,7 @@ void TypeAnalysis::visitAtenEmbeddingBagOp(Operation *op) {
   resultIntKnowledge.dtype =
       IntegerType::get(op->getContext(), 64, IntegerType::Signed);
 
-  for (int64_t i = 1; i < 4; i++) {
+  for (int64_t i = 1, e = op->getNumResults(); i < e; i++) {
     incorporateKnowledge(op->getResult(i), resultIntKnowledge);
   }
   return;
@@ -1258,6 +1258,12 @@ void TypeAnalysis::visitAtenTensorOp(AtenTensorOp op) {
   Type type = data.getType();
   while (auto listType = type.dyn_cast<ListType>()) {
     type = listType.getContainedType();
+  }
+  // TODO: Support tensor as the contained type of the list.
+  // These are the only types handled by fillInDTypeGivenDTypeAndDataType below.
+  if (!type.isa<Torch::FloatType, Torch::IntType, Torch::BoolType>()) {
+    incorporateKnowledge(op.getResult(), knowledge);
+    return;
   }
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, type);
   incorporateKnowledge(op.getResult(), knowledge);
@@ -1418,13 +1424,13 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
   };
   if (auto tensorType = v.getType().dyn_cast<BaseTensorType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement)
+    if (!latticeElement || latticeElement->isUninitialized())
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     return getRefinedTensorType(tensorType, knowledge);
   } else if (auto optionalType = v.getType().dyn_cast<OptionalType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement)
+    if (!latticeElement || latticeElement->isUninitialized())
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     if (knowledge.optional == OptionalKnowledge::isNone)
@@ -1438,7 +1444,7 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     }
   } else if (auto scalarType = v.getType().dyn_cast<NumberType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement)
+    if (!latticeElement || latticeElement->isUninitialized())
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     if (knowledge.kind == torch_upstream::TypeKind::IntType)
