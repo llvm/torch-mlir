@@ -36,7 +36,7 @@ public:
     Info() {}
     Info(const Info& other)
         : tensor{other.tensor}, scalar{other.scalar},
-          requires_grad{other.requires_grad}, name{name} {}
+          requires_grad{other.requires_grad}, name{other.name} {}
     Info(const at::Tensor& tensor)
         : tensor{tensor}, requires_grad{tensor.requires_grad()} {
       static int num_tensors = 0;
