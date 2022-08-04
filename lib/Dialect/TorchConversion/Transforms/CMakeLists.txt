@@ -6,7 +6,7 @@ set(LinkedLibs  MLIRIR
                 TorchMLIRTorchPasses
                 TorchMLIRTorchToLinalg
                 TorchMLIRTorchToTMTensor
-                TorchMLIRTorchToStd
+                TorchMLIRTorchToArith
                 TorchMLIRTorchToSCF
                 MLIRMemRefTransforms)
                 

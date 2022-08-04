@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+#include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -293,7 +293,7 @@ public:
 // -----------------------------------------------------------------------------
 
 namespace {
-class ConvertTorchToStd : public ConvertTorchToStdBase<ConvertTorchToStd> {
+class ConvertTorchToArith : public ConvertTorchToArithBase<ConvertTorchToArith> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
@@ -402,6 +402,6 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToStdPass() {
-  return std::make_unique<ConvertTorchToStd>();
+mlir::torch::createConvertTorchToArithPass() {
+  return std::make_unique<ConvertTorchToArith>();
 }
