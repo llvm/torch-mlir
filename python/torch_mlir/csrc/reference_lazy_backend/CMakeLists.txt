@@ -29,7 +29,6 @@ mlir_configure_python_dev_packages()
 set(LIBRARY_OUTPUT_PATH  "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/reference_lazy_backend")
 set(OUTPUT_NAME "_REFERENCE_LAZY_BACKEND")
 
-# TODO(henrytu): See https://github.com/llvm/torch-mlir/issues/1154 for more details about why this is needed.
 if(TORCH_MLIR_ENABLE_LTC)
   include_directories(BEFORE
           ${TORCH_INCLUDE_DIRS}
