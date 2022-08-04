@@ -240,3 +240,17 @@ func.func @prim.dtype(%arg: !torch.vtensor<*,bf16>) -> !torch.vtensor<*,unk> {
 
   return %result2 : !torch.vtensor<*,unk>
 }
+
+// -----
+
+// Check that we don't crash on this input.
+
+// CHECK-LABEL: func.func @forward
+func.func @forward() -> !torch.vtensor {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<tensor>
+  // CHECK: torch.aten.tensor
+  %1 = torch.aten.tensor %0, %none, %none, %false : !torch.list<tensor>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor
+  return %1 : !torch.vtensor
+}

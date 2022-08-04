@@ -28,15 +28,21 @@ createPrepareForGlobalizeObjectGraphPass();
 
 struct TorchLoweringPipelineOptions
     : public PassPipelineOptions<TorchLoweringPipelineOptions> {
-  // If this option is true, then perform optimizations.
-  // If this option is false, only do the bare minimum for correctness.
-  Option<bool> optimize{*this, "optimize", llvm::cl::desc("Do optimizations."),
-                        llvm::cl::init(true)};
-  
+  // The maximum number of invocations of the simplification pipeline in
+  // LowerToBackendContract.
+  Option<int> maxIterations{
+      *this, "max-iterations",
+      llvm::cl::desc(
+          "Maximum number of invocations of the simplification pipeline."),
+      llvm::cl::init(10)};
   // If this option is false, decompose complex operations.
   // If this option is true, skip decomposition of complex operations.
-  Option<bool> decompose{*this, "decompose-complex-ops", llvm::cl::desc("Decompose complex operations."),
-                        llvm::cl::init(true)};                      
+  // TODO: This should be replaced with a list of operations to decompose.
+  // (or some other way to specify the set of allowed ops in the backend
+  // contract)
+  Option<bool> decompose{*this, "decompose-complex-ops",
+                         llvm::cl::desc("Decompose complex operations."),
+                         llvm::cl::init(true)};
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
@@ -50,9 +56,15 @@ void createTorchScriptModuleToTorchBackendPipeline(
 void createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
-/// Creates a pipeline that refines shapes of tensor operations in the program.
-void createTorchShapeRefinementPipeline(
+/// Creates a pipeline that simplifies the computations in the program.
+/// This pass does not do any global program restructuring -- it works entirely
+/// within a single semantic model of a `builtin.module` with
+/// `torch.global_slot` ops and `func.func` ops.
+void createTorchSimplificationPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
+
+/// Creates a pipeline that refines shapes of tensor operations in the program.
+void createTorchShapeRefinementPipeline(OpPassManager &pm);
 
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
@@ -82,6 +94,9 @@ createVerifyConversionToValueSemanticsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createEraseModuleInitializerPass();
+
+std::unique_ptr<OperationPass<ModuleOp>>
+createLowerToBackendContractPass(int maxIterations, bool decompose);
 
 StringRef getShapeLibrary();
 

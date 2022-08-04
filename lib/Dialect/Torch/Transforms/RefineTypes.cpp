@@ -1259,6 +1259,12 @@ void TypeAnalysis::visitAtenTensorOp(AtenTensorOp op) {
   while (auto listType = type.dyn_cast<ListType>()) {
     type = listType.getContainedType();
   }
+  // TODO: Support tensor as the contained type of the list.
+  // These are the only types handled by fillInDTypeGivenDTypeAndDataType below.
+  if (!type.isa<Torch::FloatType, Torch::IntType, Torch::BoolType>()) {
+    incorporateKnowledge(op.getResult(), knowledge);
+    return;
+  }
   fillInDTypeGivenDTypeAndDataType(knowledge, dtype, type);
   incorporateKnowledge(op.getResult(), knowledge);
 }

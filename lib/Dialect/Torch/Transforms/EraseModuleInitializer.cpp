@@ -27,18 +27,15 @@ namespace {
 class EraseModuleInitializerPass
     : public EraseModuleInitializerBase<EraseModuleInitializerPass> {
   void runOnOperation() override {
-    auto walkResult = getOperation().walk([](GlobalSlotModuleInitializerOp op) {
+    for (auto initializer :
+         getOperation().getOps<GlobalSlotModuleInitializerOp>()) {
       auto intialize =
-          cast<InitializeGlobalSlotsOp>(op.getBody()->getTerminator());
-      if (intialize.getNumOperands() != 0) {
-        op.emitError("could not erase non-empty module initializer");
-        return WalkResult::interrupt();
+          cast<InitializeGlobalSlotsOp>(initializer.getBody()->getTerminator());
+      if (intialize.getNumOperands() == 0) {
+        initializer.erase();
       }
-      op.erase();
-      return WalkResult::advance();
-    });
-    if (walkResult.wasInterrupted()) {
-      return signalPassFailure();
+      // The verifier ensures there is only one GlobalSlotModuleInitializerOp.
+      break;
     }
   }
 };
