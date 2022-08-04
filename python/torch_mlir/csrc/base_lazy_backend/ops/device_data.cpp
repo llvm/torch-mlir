@@ -3,6 +3,7 @@
 #include <torch/csrc/lazy/core/ir_builder.h>
 
 #include "device_data.h"
+#include "../backend_impl.h"
 
 namespace torch {
 namespace lazy {
@@ -13,11 +14,37 @@ DeviceData::DeviceData(std::shared_ptr<BackendData> data)
           data->shape(),
           /*num_outputs=*/1,
           /*hash_seed=*/static_cast<uint32_t>(101)),
-      data_(std::move(data)) {}
+      data_(std::move(data)) {
+  propagate_name();
+}
+
+void DeviceData::propagate_name() {
+  if (data_ && name_ != "") {
+    // Add device data name to backend data
+    TorchMlirBackendData* mlir_data = dynamic_cast<TorchMlirBackendData*>(data_.get());
+    TORCH_CHECK(mlir_data);
+    TorchMlirBackendData::Info* info = mlir_data->mlir_info();
+    TORCH_CHECK(info);
+    info->name = name_;
+  }
+}
+
+void DeviceData::SetData(std::shared_ptr<BackendData> data) {
+  data_ = data;
+  propagate_name();
+}
+
+void DeviceData::SetName(const std::string& name) {
+  name_ = name;
+  propagate_name();
+}
 
 std::string DeviceData::ToString() const {
   std::stringstream ss;
   ss << TorchMlirNode::ToString() << ", device=" << data_->device();
+  if (name_ != "") {
+     ss << ", name=" << name_;
+  }
   return ss.str();
 }
 

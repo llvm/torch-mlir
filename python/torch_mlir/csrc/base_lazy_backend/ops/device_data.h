@@ -27,13 +27,9 @@ class TORCH_API DeviceData : public TorchMlirNode {
 
   std::string ToString() const override;
 
-  const std::shared_ptr<BackendData>& data() const {
-    return data_;
-  }
+  const std::shared_ptr<BackendData>& data() const { return data_; }
 
-  void SetData(std::shared_ptr<BackendData> data) {
-    data_ = data;
-  }
+  void SetData(std::shared_ptr<BackendData> data);
 
   TorchMlirOpVector Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const override;
 
@@ -43,8 +39,14 @@ class TORCH_API DeviceData : public TorchMlirNode {
   // instead of calling the constructor directly.
   static NodePtr Create(std::shared_ptr<BackendData> data);
 
+  const std::string& GetName() const { return name_; }
+  void SetName(const std::string& name);
+
  private:
+  void propagate_name();
+
   std::shared_ptr<BackendData> data_;
+  std::string name_;
 };
 
 } // namespace lazy

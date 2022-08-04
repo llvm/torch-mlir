@@ -113,3 +113,25 @@ add_custom_command(
         COMMAND cp
                 ${PROJECT_SOURCE_DIR}/python/torch_mlir/csrc/base_lazy_backend/generated/*.h
                 ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/generated/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND mkdir -p
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/ops/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND cp
+                ${PROJECT_SOURCE_DIR}/python/torch_mlir/csrc/base_lazy_backend/ops/*.h
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/ops/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND mkdir -p
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/utils/)
+
+add_custom_command(
+        TARGET torch_mlir_ltc_backend POST_BUILD
+        COMMAND cp
+                ${PROJECT_SOURCE_DIR}/python/torch_mlir/csrc/base_lazy_backend/utils/*.h
+                ${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/base_lazy_backend/utils/)
