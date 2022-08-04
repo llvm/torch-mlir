@@ -11,6 +11,7 @@
 
 #include "../PassDetail.h"
 #include "./PopulatePatterns.h"
+#include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
 #include "mlir-hlo/Dialect/mhlo/IR/chlo_ops.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
@@ -60,6 +61,8 @@ public:
                                                        target);
     torch_to_mhlo::populateReductionOpPatternsAndLegality(typeConverter,
                                                           patterns, target);
+    torch_to_mhlo::populateLinearOpPatternsAndLegality(typeConverter, patterns,
+                                                       target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
