@@ -60,13 +60,10 @@ public:
                                                        target);
     torch_to_mhlo::populateReductionOpPatternsAndLegality(typeConverter,
                                                           patterns, target);
-<<<<<<< HEAD
     torch_to_mhlo::populateLinearOpPatternsAndLegality(typeConverter, patterns,
                                                        target);
-=======
     torch_to_mhlo::populatePoolingOpPatternsAndLegality(typeConverter, patterns,
                                                         target);
->>>>>>> [MHLO] Init MHLO pooling-like op conversion
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

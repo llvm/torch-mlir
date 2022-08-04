@@ -1,11 +1,11 @@
 add_mlir_conversion_library(TorchMLIRTorchToMhlo
   TorchToMhlo.cpp
   MhloLegalizeUtils.cpp
-  BasicOp.cpp
-  GatherOp.cpp
+  Basic.cpp
+  Gather.cpp
   Linear.cpp
-  ViewLikeOps.cpp
-  ReductionOp.cpp
+  ViewLike.cpp
+  Reduction.cpp
   Pooling.cpp
 
   ADDITIONAL_HEADER_DIRS
