@@ -32,6 +32,10 @@ void populateLinearOpPatternsAndLegality(TypeConverter &typeConverter,
                                          RewritePatternSet &patterns,
                                          ConversionTarget &target);
 
+void populatePoolingOpPatternsAndLegality(TypeConverter &typeConverter,
+                                          RewritePatternSet &patterns,
+                                          ConversionTarget &target);
+
 } // namespace torch_to_mhlo
 } // namespace torch
 } // namespace mlir
