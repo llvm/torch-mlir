@@ -379,7 +379,6 @@ public:
 
 } // namespace
 
-
 // AtenConvolutionOp
 namespace {
 class ConvertAtenConvlutionOp : public OpConversionPattern<AtenConvolutionOp> {
@@ -456,8 +455,9 @@ public:
 
     assert(padding.size() == dilation.size() &&
            padding.size() == stride.size() &&
-           padding.size() == inputTy.getRank() - 2);
+           padding.size() == static_cast<size_t>(inputTy.getRank()) - 2);
     int64_t nSpatialDims = padding.size();
+
     // Get mhlo::ConvolutionOp attributes
     DenseIntElementsAttr mhloWindowStride = DenseIntElementsAttr::get(
         RankedTensorType::get({static_cast<long int>(stride.size())},
@@ -499,7 +499,7 @@ public:
         IntegerAttr::get(rewriter.getI64Type(), groups);
     IntegerAttr batchGroupCount = IntegerAttr::get(rewriter.getI64Type(), 1);
 
-    // mhlo::ConvolutionOp optional attributes, leave them as default
+    // mhlo::ConvolutionOp's optional attributes, leave them as default
     DenseIntElementsAttr mhloLhsDilation;
     DenseElementsAttr windowReversal;
     ArrayAttr precisionConfig;
@@ -543,7 +543,6 @@ public:
   }
 };
 } // namespace
-
 
 void mlir::torch::torch_to_mhlo::populateLinearOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
