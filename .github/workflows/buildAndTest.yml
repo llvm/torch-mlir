@@ -87,7 +87,7 @@ jobs:
           externals/llvm-project/llvm
         cmake --build llvm-build
 
-        # TODO(henrytu): Reenable LTC once OOT build is successful (https://github.com/llvm/torch-mlir/issues/1154)
+        # TODO: Reenable LTC once OOT build is successful (https://github.com/llvm/torch-mlir/issues/1154)
         cmake -GNinja -Bbuild \
           -DCMAKE_LINKER=lld \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
