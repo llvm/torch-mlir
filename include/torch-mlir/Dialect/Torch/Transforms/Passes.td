@@ -253,18 +253,6 @@ def DropShapeCalculations : Pass<"torch-drop-shape-calculations", "func::FuncOp"
   }];
 }
 
-def VerifyConversionToValueSemantics
-    : Pass<"torch-verify-conversion-to-value-semantics", "ModuleOp"> {
-  let summary = "Verify that all tensors have been converted to value semantics";
-  let constructor =
-    "mlir::torch::Torch::createVerifyConversionToValueSemanticsPass()";
-  let description = [{
-    Prior passes in the pipeline may have missed converting all tensors to value
-    semantics and we wish to catch such failures early instead of fixing
-    individual cases downstream.
-  }];
-}
-
 def EraseModuleInitializer
     : Pass<"torch-erase-module-initializer", "ModuleOp"> {
   let summary = "Erase the `torch.global_slot.module_initializer` op.";
@@ -273,9 +261,64 @@ def EraseModuleInitializer
   let description = [{
     Backends cannot currently handle module initializers, so we omit them from
     our backend contract. This pass removes the
-    `torch.global_slot.module_initializer` op from the module if legal, or
-    raises an error.
+    `torch.global_slot.module_initializer` op from the module if legal.
   }];
+}
+
+def LowerToBackendContract
+    : Pass<"torch-lower-to-backend-contract", "ModuleOp"> {
+  let summary = "Perform simplifications until the backend contract is satisfied.";
+  let constructor = [{
+    mlir::torch::Torch::createLowerToBackendContractPass(
+      /*maxIterations=*/10, /*decompose=*/true)
+  }];
+  let description = [{
+    This pass performs the bulk of the lowering of the program's computations
+    to the backend contract. This pass does not do any global program
+    restructuring -- it works entirely within a single semantic model
+    of a `builtin.module` with `torch.global_slot` ops and `func.func` ops.
+    
+    This pass runs a set of simplifications within that semantic model until
+    the backend contract is satisfied, and fails if it cannot be satisfied.
+    In particular, the backend contract consists of:
+    - Tensors
+      - Have been converted to value semantics.
+      - Have at least a known rank, though ideally a maximally inferred shape.
+      - Have a known dtype.
+    - `torch.global_slot`'s have been eliminated from the program.
+    - Ops have been decomposed.
+
+    This particular choice of backend contract was born out of a common set of
+    requirements from backends, along with aligning with long-term PyTorch
+    direction of being more tracing-based. The set of simplifications performed
+    here can be thought of as simulating the kinds of simplifications that
+    happen naturally as part of tracing, but in a way that is applicable
+    to our TorchScript frontend. For the LazyTensorCore frontend, the backend
+    contract trivially holds (except for certain decompositions).
+
+    Generally it is not desirable to have a compiler where successful
+    compilation depends on "optimizing hard enough", but in this case, there
+    seems to be enough alignment and recognition in the industry that the
+    Python-based programming model in the source program is too dynamic
+    to feasibly handle in totality without a tracing approach that has access
+    to the source program to re-trace in the face of dynamism (e.g. the ability
+    to do what TorchDynamo calls "graph break"). We are attempting to maintain
+    a practical compiler that works well given the current set of constraints
+    of the TorchScript frontend that PyTorch provides us, and are working to
+    co-design PyTorch's direction so that we land in a place where most of this
+    "optimizing hard enough" is not necessary.
+  }];
+  let options = [
+    Option<"maxIterations", "max-iterations", "int", /*default=*/"10",
+           "Maximum number of invocations of the simplification pipeline.">,
+    // TODO: Make this a configurable set of ops.
+    Option<"decompose", "decompose", "bool", /*default=*/"true",
+           "Decompose ops.">
+
+  ];
+  // TODO: Debug why this is needed, even though the input program has func.func
+  // ops in it.
+  let dependentDialects = ["func::FuncDialect"];
 }
 
 #endif // TORCHMLIR_TORCH_PASSES

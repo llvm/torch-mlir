@@ -6,6 +6,7 @@ add_mlir_library(TorchMLIRTorchPasses
   Passes.cpp
   GlobalizeObjectGraph.cpp
   InlineGlobalSlots.cpp
+  LowerToBackendContract.cpp
   MaximizeValueSemantics.cpp
   PrepareForGlobalizeObjectGraph.cpp
   ReduceOpVariants.cpp
@@ -14,7 +15,6 @@ add_mlir_library(TorchMLIRTorchPasses
   ReifyShapeCalculations.cpp
   ShapeLibrary.cpp
   SimplifyShapeCalculations.cpp
-  VerifyConversionToValueSemantics.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/Torch/Transforms

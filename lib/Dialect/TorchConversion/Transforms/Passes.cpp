@@ -77,16 +77,14 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
-  if (options.optimize) {
-    // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-    // Resolve `dim` ops on tensors (which currently live in the `memref`
-    // dialect for some reason -- we don't have memrefs at this level).
-    pm.addNestedPass<func::FuncOp>(
-        memref::createResolveShapedTypeResultDimsPass());
-    // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<func::FuncOp>(createCSEPass());
-  }
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // Resolve `dim` ops on tensors (which currently live in the `memref`
+  // dialect for some reason -- we don't have memrefs at this level).
+  pm.addNestedPass<func::FuncOp>(
+      memref::createResolveShapedTypeResultDimsPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
 
   // Finish the type conversion from `torch` types to the types of the
   // linalg-on-tensors backend contract.
@@ -111,12 +109,10 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
 
-  if (options.optimize) {
-    // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-    // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<func::FuncOp>(createCSEPass());
-  }
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
@@ -140,21 +136,17 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
 
   pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass());
 
-  if (options.optimize) {
-    // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-    // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<func::FuncOp>(createCSEPass());
-  }
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
 
   // Convert CHLO ops to MHLO ops
   pm.addNestedPass<func::FuncOp>(mhlo::createChloLegalizeToHloPass());
-  if (options.optimize) {
-    // Clean up any non-canonical code introduced above..
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-    // The resolution of `dim` ops tends to create identical ops. CSE them.
-    pm.addNestedPass<func::FuncOp>(createCSEPass());
-  }
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
 
   // Finish the type conversion from `torch` types to the types of the
   // MHLO backend contract.
