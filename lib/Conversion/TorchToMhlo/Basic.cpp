@@ -208,7 +208,6 @@ public:
           "only floating-point or integer datatype legalization supported");
     }
 
-    Value lhsTensor = lhs;
     if (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhs = lhs;
     } else if (!rhsType) {
@@ -217,8 +216,37 @@ public:
     DenseIntElementsAttr bcastDimensions;
     lhs = mhlo::promoteType(rewriter, lhs, outType);
     rhs = mhlo::promoteType(rewriter, rhs, outType);
-    rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
-                                         bcastDimensions);
+    auto loc = op.getLoc();
+    Value result =
+        rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
+
+    if (!isa<AtenDivTensorModeOp>(op)) {
+      rewriter.replaceOp(op, result);
+      return success();
+    }
+
+    AtenDivTensorModeOp divTensorModeOp =
+        llvm::dyn_cast<AtenDivTensorModeOp>(op.getOperation());
+    std::string roundingMode;
+    if (!matchPattern(divTensorModeOp.rounding_mode(),
+                      m_TorchConstantStr(roundingMode)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant str rounding mode");
+
+    if (roundingMode == "trunc") {
+      // "trunc" - rounds the results of the division towards zero. Equivalent
+      // to C-style integer division.
+      auto sign = rewriter.create<mhlo::SignOp>(loc, result);
+      auto abs = rewriter.create<mhlo::AbsOp>(loc, result);
+      auto floor = rewriter.create<mhlo::FloorOp>(loc, abs);
+      result = rewriter.create<mhlo::MulOp>(loc, sign, floor).getResult();
+    }
+    if (roundingMode == "floor") {
+      // "floor" - rounds the results of the division down. Equivalent to
+      // floor division in Python (the // operator)
+      result = rewriter.create<mhlo::FloorOp>(loc, result).getResult();
+    }
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -554,7 +582,6 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
   RankedTensorType outputType = getTypeConverter()
                                     ->convertType(op->getResult(0).getType())
                                     .cast<RankedTensorType>();
-  auto outputShape = outputType.getShape();
   auto outputElemType = outputType.getElementType();
   Value mhloTensor =
       mhlo::scalarToMhloTensor(rewriter, op, adaptor.a(), outputElemType);
