@@ -227,8 +227,8 @@ Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandG
 Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with 
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
--DPYTORCH_REPO=vivekkhandelwal1/pytorch # Optional Github path. Defaults to pytorch/pytorch
--DPYTORCH_BRANCH=master #Optional. Defaults to PyTorch's main branch
+-DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
+-DTORCH_MLIR_SRC_PYTORCH_BRANCH=master # Optional. Defaults to PyTorch's main branch
 ```
 
 # Updating the LLVM submodule

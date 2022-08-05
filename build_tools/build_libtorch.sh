@@ -5,8 +5,8 @@ set -xeu -o pipefail
 SRC_ROOT="$( cd "$(dirname "$0")" ; pwd -P)/.."
 PYTORCH_ROOT=${PYTORCH_ROOT:-$SRC_ROOT/externals/pytorch}
 PYTORCH_INSTALL_PATH=${PYTORCH_INSTALL_PATH:-$SRC_ROOT/libtorch}
-PYTORCH_REPO="${PYTORCH_REPO:-pytorch/pytorch}"
-PYTORCH_BRANCH="${PYTORCH_BRANCH:-master}"
+TORCH_MLIR_SRC_PYTORCH_REPO="${TORCH_MLIR_SRC_PYTORCH_REPO:-pytorch/pytorch}"
+TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH:-master}"
 PT_C_COMPILER="${PT_C_COMPILER:-clang}"
 PT_CXX_COMPILER="${PT_CXX_COMPILER:-clang++}"
 CMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:-x86_64}"
@@ -24,8 +24,8 @@ NC='\033[0m'
 
 echo "SRC_ROOT=${SRC_ROOT}"
 echo "PYTORCH_ROOT=${PYTORCH_ROOT}"
-echo "PYTORCH_REPO=${PYTORCH_REPO}"
-echo "PYTORCH_BRANCH=${PYTORCH_BRANCH}"
+echo "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}"
+echo "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
 echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
 echo "CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
 
@@ -45,7 +45,7 @@ install_requirements() {
 
 checkout_pytorch() {
   if [[ ! -d "$PYTORCH_ROOT" ]]; then
-    git clone --depth 1 --single-branch --branch "${PYTORCH_BRANCH}" https://github.com/"$PYTORCH_REPO" "$PYTORCH_ROOT"
+    git clone --depth 1 --single-branch --branch "${TORCH_MLIR_SRC_PYTORCH_BRANCH}" https://github.com/"$TORCH_MLIR_SRC_PYTORCH_REPO" "$PYTORCH_ROOT"
   fi
   cd "$PYTORCH_ROOT"
   git reset --hard HEAD
