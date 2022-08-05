@@ -317,6 +317,8 @@ LTC_XFAIL_SET = {
     "StdDimBiasedModule_basic",
     "StdDimKeepDimFalseModule_basic",
     "StdDimKeepDimTrueModule_basic",
+    "StdDimEmptyDimModule_basic",
+    "StdDimNoneDimModule_basic",
     "StdUnbiasedModule_basic",
     "SubFloatModule_basic",
     "SubIntModule_basic",
