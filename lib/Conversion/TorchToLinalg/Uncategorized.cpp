@@ -796,14 +796,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type newResultType = converter->convertType(remScalar.getType())
                              .cast<RankedTensorType>()
                              .getElementType();
-    Type floatDtype = mlir::FloatType::getF64(context);
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
-    Value other = convertScalarToDtype(b, loc, operands[1], floatDtype);
-    Value division = b.create<arith::DivFOp>(loc, self, other);
-    Value floor = b.create<math::FloorOp>(loc, division);
-    Value multiply = b.create<arith::MulFOp>(loc, floor, other);
-    Value subtract = b.create<arith::SubFOp>(loc, self, multiply);
-    Value result = convertScalarToDtype(b, loc, subtract, newResultType);
+
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
+    Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
+    Value result; 
+
+    if (newResultType.isa<mlir::FloatType>()){
+      result = b.create<arith::RemFOp>(loc, self, other);
+    }
+    else{
+      result = b.create<arith::RemSIOp>(loc, self, other);
+    }
+
+    result = convertScalarToDtype(b, loc, result, newResultType);
     return result;
   }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
@@ -1691,7 +1696,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
       AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
-      AtenLogicalOrOp, AtenTriuOp>();
+      AtenLogicalOrOp, AtenTriuOp, AtenRemainderScalarOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
