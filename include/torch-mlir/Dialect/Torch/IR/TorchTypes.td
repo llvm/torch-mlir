@@ -78,11 +78,8 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     If the type is `!torch.vtensor` then the tensor is restricted to operations
     that have value semantics ("v" = "value semantics"). This helps to maintain
     a strict separation between the value-semantic and potentially-mutating
-    worlds, as one of our main jobs in the compiler is to isolate the mutating
-    parts as much as possible because most lower levels of the compiler stack
-    are expected to require value semantics. E.g. many backend contracts
-    mostly use linalg-on-tensor for compute-heavy ops, which require
-    a conversion to the builtin `tensor` type which has value semantics.
+    worlds, as one of our main jobs in Torch-MLIR is to normalize the program
+    into a form with value semantics.
     Some notes about value semantics:
       - Using the type system described in PEP 483 (which TorchScript and other
         Python systems follow), `!torch.tensor` is a subtype of
