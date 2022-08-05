@@ -258,6 +258,19 @@ Here are some examples of PR's updating the LLVM submodule:
 - https://github.com/llvm/torch-mlir/pull/958
 - https://github.com/llvm/torch-mlir/pull/856
 
+# Enabling Address Sanitizer (ASan)
+
+To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
+work" with all C++ tools like `torch-mlir-opt`. When running a Python script
+such as through `./tools/torchscript_e2e_test.sh`, you will need to do:
+
+```
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/torchscript_e2e_test.sh -s
+# See instructions here for how to get the libasan path for GCC:
+# https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
+```
+
+TODO: Add ASan docs for LTC.
 
 # Other docs
 
