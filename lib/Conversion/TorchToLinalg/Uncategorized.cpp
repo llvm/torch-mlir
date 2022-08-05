@@ -798,15 +798,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
     Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
-    Value result; 
+    Value result;
 
-    if (newResultType.isa<mlir::FloatType>()){
+    if (newResultType.isa<mlir::FloatType>()) {
       result = b.create<arith::RemFOp>(loc, self, other);
-    }
-    else{
+    } else {
       result = b.create<arith::RemSIOp>(loc, self, other);
     }
-    
+
     return result;
   }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
