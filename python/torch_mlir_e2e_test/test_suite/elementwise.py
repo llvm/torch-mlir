@@ -1236,7 +1236,7 @@ def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
+class ElementwiseRemainderScalarModule_Int_Float(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -1250,8 +1250,8 @@ class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
         return torch.remainder(x, 2.0)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int())
-def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float())
+def ElementwiseRemainderScalarModule_Int_Float_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (3,)))
 
 
@@ -1279,7 +1279,7 @@ def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class ElementwiseRemainderScalarModule_Int2(torch.nn.Module):
+class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -1293,8 +1293,8 @@ class ElementwiseRemainderScalarModule_Int2(torch.nn.Module):
         return torch.remainder(x, 2)
 
 
-@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int2())
-def ElementwiseRemainderScalarModule_Int2_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int())
+def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
     module.forward(torch.randint(10, (3, 2)))
 
 

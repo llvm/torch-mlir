@@ -792,7 +792,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto remScalar = dyn_cast<AtenRemainderScalarOp>(op)) {
-    MLIRContext *context = op->getContext();
     Type newResultType = converter->convertType(remScalar.getType())
                              .cast<RankedTensorType>()
                              .getElementType();
@@ -807,8 +806,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     else{
       result = b.create<arith::RemSIOp>(loc, self, other);
     }
-
-    result = convertScalarToDtype(b, loc, result, newResultType);
+    
     return result;
   }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
