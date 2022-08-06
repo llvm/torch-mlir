@@ -10,6 +10,25 @@ from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
 
 # ==============================================================================
 
+class ViewZeroRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+    ])
+
+    def forward(self, a):
+        return a.view(1)
+
+@register_test_case(module_factory=lambda: ViewZeroRankModule())
+def ViewZeroRankModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(3))
+
+# ==============================================================================
+
 class ViewExpandModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -237,6 +256,63 @@ class ViewDynamicExpandCollapseWithAtenIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ViewDynamicExpandCollapseWithAtenIntModule())
 def ViewDynamicExpandCollapseWithAtenIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 8, 8))
+
+# ==============================================================================
+
+class ViewDynamicInferMatchingStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, 512, 1, 1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(-1, 512)
+
+@register_test_case(module_factory=lambda: ViewDynamicInferMatchingStaticModule())
+def ViewDynamicInferMatchingStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 512, 1, 1))
+
+# ==============================================================================
+
+class ViewDynamicInferModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(-1, 64)
+
+@register_test_case(module_factory=lambda: ViewDynamicInferModule())
+def ViewDynamicInferModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4, 8, 16))
+
+# ==============================================================================
+
+class ViewDynamicInferDynamicOutputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(2), -1, a.size(2), 8)
+
+@register_test_case(module_factory=lambda: ViewDynamicInferDynamicOutputModule())
+def ViewDynamicInferDynamicOutputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4, 8, 16))
 
 # ==============================================================================
 
