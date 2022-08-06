@@ -2167,8 +2167,11 @@ class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenFloorDivideOp op,
                                 PatternRewriter &rewriter) const override {
+    // https://pytorch.org/docs/stable/generated/torch.floor_divide.html
+    // PyTorch aten.floor_divide is a misnomer because it actually rounds
+    // the quotient towards zero instead of taking its floor.
     Value cstStrFloor =
-        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "floor");
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "trunc");
     rewriter.replaceOpWithNewOp<AtenDivTensorModeOp>(
         op, op.getType(), op.self(), op.other(),
         /*rounding_mode=*/cstStrFloor);
