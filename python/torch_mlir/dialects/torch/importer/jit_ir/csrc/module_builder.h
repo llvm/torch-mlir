@@ -45,7 +45,8 @@ public:
   // annotations, if not none, provided in `maybeClassAnnotator` which should be
   // a ClassAnnotator.
   void importModule(torch::jit::Module jitModule,
-                    py::object maybeClassAnnotator);
+                    py::object maybeClassAnnotator,
+                    py::object maybeImportOptions);
 
 private:
   MlirBlock getBodyBlock();

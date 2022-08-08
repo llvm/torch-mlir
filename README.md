@@ -26,15 +26,15 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
  - TorchScript
     This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
- - LazyTensorCore (Based on the PyTorch [`lazy_tensor_staging` branch](https://github.com/pytorch/pytorch/tree/lazy_tensor_staging/lazy_tensor_core))
-	This path provides the upcoming LTC path of capture. It is based of an unstable devel branch but is the closest way for you to adapt any existing `torch/xla` derivatives.
-
+ - LazyTensorCore
+    Read more details [here](docs/ltc_backend.md).
 ## Project Communication
 
 - `#torch-mlir` channel on the LLVM [Discord](https://discord.gg/xS7Z362) - this is the most active communication channel
 - Github issues [here](https://github.com/llvm/torch-mlir/issues)
 - [`torch-mlir` section](https://llvm.discourse.group/c/projects-that-want-to-become-official-llvm-projects/torch-mlir/41) of LLVM Discourse
 - Weekly meetings on Mondays 9AM PST. See [here](https://discourse.llvm.org/t/community-meeting-developer-hour-refactoring-recurring-meetings/62575) for more information.
+- Weekly op office hours on Thursdays 8:30-9:30AM PST. See [here](https://discourse.llvm.org/t/announcing-torch-mlir-office-hours/63973/2) for more information.
 
 ## Install torch-mlir snapshot
 
@@ -71,10 +71,9 @@ torch-mlir prediction
 [('Labrador retriever', 70.66320037841797), ('golden retriever', 4.956601619720459), ('Chesapeake Bay retriever', 4.195651531219482)]
 ```
 
-### LazyTensorCore
+### Lazy Tensor Core
 
-The LazyTensorCore integration is still in progress, and is being built on the
-[`torch_mlir_ltc_backend` branch](https://github.com/llvm/torch-mlir/tree/torch_mlir_ltc_backend).
+View examples [here](docs/ltc_examples.md).
 
 ### Eager Mode
 

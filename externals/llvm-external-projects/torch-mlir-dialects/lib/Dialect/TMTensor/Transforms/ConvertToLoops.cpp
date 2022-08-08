@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -40,9 +41,14 @@ static LogicalResult lowerToLoopsImpl(OpBuilder &builder,
     return scalarLoopOp.generateScalarImplementation(builder, loc, ivs);
   }
   LogicalResult status = success();
+  Value offset = getValueOrCreateConstantIndexOp(builder, loc,
+                                                 loopRanges[loopDepth].offset);
+  Value size =
+      getValueOrCreateConstantIndexOp(builder, loc, loopRanges[loopDepth].size);
+  Value stride = getValueOrCreateConstantIndexOp(builder, loc,
+                                                 loopRanges[loopDepth].stride);
   builder.create<scf::ForOp>(
-      loc, loopRanges[loopDepth].offset, loopRanges[loopDepth].size,
-      loopRanges[loopDepth].stride, ValueRange{},
+      loc, offset, size, stride, ValueRange{},
       [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
         ivs.push_back(iv);
         status =

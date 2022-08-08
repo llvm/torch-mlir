@@ -1,0 +1,89 @@
+blacklist:
+# List of unsupported ops in LTC autogen because of some error
+- _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
+- empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
+- index.Tensor  # Error: TODO not sure if there are other valid types to handle here
+- index_put  # Error: TODO not sure if there are other valid types to handle here
+- index_put_  # Error: TODO not sure if there are other valid types to handle here
+- stack  # Error: TODO not sure if there are other valid types to handle here
+
+# Additional ops which autogen is supported for but don't compile yet
+- _convolution
+- detach
+- item
+- size
+- where
+- copy_
+
+# Disabled for consistency with TS backend
+- new_empty
+- rsub
+- slice.Tensor  # Disabled in favour of slice_copy.Tensor
+
+# Disabled in favour of functionalized alternatives
+- _reshape_alias
+- expand
+- permute
+- select.int
+- squeeze
+- squeeze.dim
+- t
+- transpose.int
+- unsqueeze
+- view
+
+# whitelist:
+# List of ops to autogen even if not supported by Torch-MLIR explicitly
+#- split_copy.Tensor
+#- split_with_sizes_copy
+#- unbind_copy.int
+
+# List of supported ops that we don't want to do the full codegen for
+supported:
+# - bernoulli
+# - bernoulli_
+- _to_copy
+- clone
+- empty.memory_format
+- empty_strided
+- fill_.Scalar
+- _unsafe_view
+
+# ops required for functionalization
+- lift
+- lift_fresh
+# Below are all operators that are "composite" in core,
+# but require us to explicitly re-enable functionalization in order to use them.
+# Why? These operators are all CompositeExplicitAutograd, which mean that they run
+# after functionalization,
+# but their implementations call view operators (which we need to functionalize away).
+- block_diag
+- new_empty_strided
+- narrow_copy
+- pixel_shuffle
+- pixel_unshuffle
+- select_backward
+- slice_backward
+- diagonal_backward
+- _trilinear
+- linalg_inv_ex
+- linalg_pinv.atol_rtol_tensor
+- logsumexp.out
+
+
+additional_ops:
+# Additional ops to support that are not supported by Torch-MLIR explicitly
+- _copy_from
+- _copy_from_and_resize
+
+# List of non native ops that we only want to do IR node class generation for
+non_native:
+  - func: scalar(Scalar value, ScalarType type) -> Tensor
+    opkind: at::prim::Constant
+    properties:
+      - ShapeCompute
+      - TreatScalarsAsConstants
+  - func: cast(Tensor input, ScalarType dtype, ScalarType? stype) -> Tensor
+    opkind: ltc_cast
+    properties:
+      - ShapeCompute

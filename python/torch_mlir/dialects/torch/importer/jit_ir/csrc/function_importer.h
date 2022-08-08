@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include "import_options.h"
 #include "node_importer.h"
 
 #include "mlir-c/IR.h"
@@ -38,10 +39,11 @@ namespace torch_mlir {
 /// will be attached as an argument attribute to the func op's argument. If a
 /// null MlirAttribute is returned, no attribute will be attached to that
 /// argument.
-MlirOperation importJitFunctionAsFuncOp(
+TORCH_API MlirOperation importJitFunctionAsFuncOp(
     MlirContext context, torch::jit::Function *function,
     std::function<MlirAttribute(int)> getArgAttribute =
-        [](int) -> MlirAttribute { return {nullptr}; });
+        [](int) -> MlirAttribute { return {nullptr}; },
+    const ImportOptions &importOptions = {});
 
 } // namespace torch_mlir
 

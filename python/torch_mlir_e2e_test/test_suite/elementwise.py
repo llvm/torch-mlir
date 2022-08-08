@@ -804,6 +804,77 @@ def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtan2TensorFloatModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2TensorFloatModule())
+def ElementwiseAtan2TensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4), tu.rand(4, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtan2TensorIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2TensorIntModule())
+def ElementwiseAtan2TensorIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.randint(1, 10, [4]).type(torch.int32), torch.randint(1, 10, [4]))
+
+
+# ==============================================================================
+
+
+class ElementwiseAtan2FloatIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.float64, True),
+    ])
+    def forward(self, a, b):
+        return torch.atan2(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtan2FloatIntModule())
+def ElementwiseAtan2FloatIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(1, 10, [4, 4], dtype=torch.int32),
+        tu.rand(4, 4).double())
+
+
+# ==============================================================================
+
+
 class ElementwiseLogModule(torch.nn.Module):
 
     def __init__(self):

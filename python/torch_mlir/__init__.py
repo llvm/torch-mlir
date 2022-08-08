@@ -10,7 +10,7 @@ import torch
 
 from torch_mlir.passmanager import PassManager
 from .compiler_utils import run_pipeline_with_repro_report
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
+from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
 
 
 class OutputType(Enum):
@@ -123,6 +123,7 @@ def compile(model: torch.nn.Module,
             example_args: Union[_example_arg, Sequence[_example_arg]],
             output_type: Union[str, "OutputType"] = OutputType.TORCH,
             use_tracing: bool = False,
+            ignore_traced_shapes = False,
             verbose: bool = False):
     """Convert a PyTorch model to MLIR.
 
@@ -137,12 +138,22 @@ def compile(model: torch.nn.Module,
             details.
         use_tracing: If True, use `torch.jit.trace` to convert the model to
             JIT IR rather than `torch.jit.script`.
+        ignore_traced_shapes: If True, ignore the shapes that were observed
+            during tracing. This should only be used if one knows that the
+            original traced program would result in the same trace (modulo
+            shapes) for all shape combinations implied by any
+            `TensorPlaceholder`'s used as `example_args`. Also,
+            strictly-speaking, this option covers dtypes too, but we just say
+            "shapes" to be succinct.
+        verbose: If true, print extra information about the conversion.
 
     Returns:
         An MLIR module that contains the converted model in the specified
         output type.
     """
     output_type = OutputType.get(output_type)
+    if ignore_traced_shapes and not use_tracing:
+        raise Exception("`ignore_traced_shapes` requires `use_tracing`")
 
     # Special case -- many models have just one input, so canonicalize a single
     # tensor to a list of a single tensor to make the API more ergonomic.
@@ -152,7 +163,27 @@ def compile(model: torch.nn.Module,
     # TODO: Don't hardcode "forward". See `torch.onnx.export` and
     # `torch.jit.trace_module` for API inspiration.
     if use_tracing:
-        scripted = torch.jit.trace(model, tuple(example_args))
+        example_args_for_trace = []
+        for arg in example_args:
+            if isinstance(arg, TensorPlaceholder):
+                if not ignore_traced_shapes:
+                    # To avoid accidental footguns, we require
+                    # `ignore_traced_shapes` to be true if we're using
+                    # TensorPlaceholder's, as it falls into the same
+                    # "hopefully the trace works for different inputs" bucket
+                    # of concerns.
+                    raise Exception(
+                        "TensorPlaceholder can only be used with tracing when `ignore_traced_shapes=True`")
+                # For any dynamic dimensions, replace them with "7" arbitrarily.
+                # If a user is using dynamic dimensions with tracing, they are
+                # walking on thin ice already -- assume they know what they are
+                # doing.
+                shape = [s if s != -1 else 7 for s in arg.shape]
+                example_args_for_trace.append(
+                    torch.ones(*shape, dtype=arg.dtype))
+            else:
+                example_args_for_trace.append(arg)
+        scripted = torch.jit.trace(model, tuple(example_args_for_trace))
     else:
         scripted = torch.jit.script(model)
 
@@ -176,7 +207,9 @@ def compile(model: torch.nn.Module,
         scripted._c._type(), ["forward"], forward_annotation)
 
     mb = ModuleBuilder()
-    mb.import_module(scripted._c, class_annotator)
+    import_options = ImportOptions()
+    import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
+    mb.import_module(scripted._c, class_annotator, import_options)
 
     if output_type == OutputType.RAW:
         return mb.module

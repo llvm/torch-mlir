@@ -14,6 +14,30 @@ set(TORCH_MLIR_PYTHON_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_mlir")
 add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
 
 ################################################################################
+# PyTorch
+################################################################################
+
+option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
+
+if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
+  # Source builds
+  set(ENV{TORCH_MLIR_SRC_PYTORCH_REPO} ${TORCH_MLIR_SRC_PYTORCH_REPO})
+  set(ENV{TORCH_MLIR_SRC_PYTORCH_BRANCH} ${TORCH_MLIR_SRC_PYTORCH_BRANCH})
+  set(ENV{MACOSX_DEPLOYMENT_TARGET} ${MACOSX_DEPLOYMENT_TARGET})
+  set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
+  set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
+  set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
+  execute_process(
+          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
+          RESULT_VARIABLE _result
+  )
+  if(_result)
+    message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
+  endif()
+  set(TORCH_INSTALL_PREFIX "libtorch")
+endif()
+
+################################################################################
 # Sources
 ################################################################################
 
@@ -57,29 +81,21 @@ declare_mlir_python_extension(TorchMLIRPythonExtensions.Main
 )
 
 ################################################################################
+# Lazy Tensor Core
+################################################################################
+
+if(TORCH_MLIR_ENABLE_LTC)
+  add_subdirectory(torch_mlir/csrc/base_lazy_backend)
+endif()
+# Reference backend has a separate check for TORCH_MLIR_ENABLE_LTC, since it
+# generates a dummy Python library when disabled.
+add_subdirectory(torch_mlir/csrc/reference_lazy_backend)
+
+################################################################################
 # Optionally handle JIT IR importer.
 ################################################################################
 
-option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
-
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
-  if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
-    # Source builds
-    set(ENV{PYTORCH_REPO} ${PYTORCH_REPO})
-    set(ENV{PYTORCH_BRANCH} ${PYTORCH_BRANCH})
-    set(ENV{MACOSX_DEPLOYMENT_TARGET} ${MACOSX_DEPLOYMENT_TARGET})
-    set(ENV{CMAKE_OSX_ARCHITECTURES} ${CMAKE_OSX_ARCHITECTURES})
-    set(ENV{CMAKE_C_COMPILER_LAUNCHER} ${CMAKE_C_COMPILER_LAUNCHER})
-    set(ENV{CMAKE_CXX_COMPILER_LAUNCHER} ${CMAKE_CXX_COMPILER_LAUNCHER})
-    execute_process(
-      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../build_tools/build_libtorch.sh
-      RESULT_VARIABLE _result
-    )
-    if(_result)
-      message(FATAL_ERROR "Failed to run `build_libtorch.sh`")
-    endif()
-    set(TORCH_INSTALL_PREFIX "libtorch")
-  endif()
   add_subdirectory(torch_mlir/dialects/torch/importer/jit_ir)
   add_subdirectory(torch_mlir_e2e_test)
 endif()
@@ -147,5 +163,10 @@ endif()
 # TODO: Add after macOS builds are fixed
 #add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
 
-add_subdirectory(test)
+if(TORCH_MLIR_ENABLE_LTC)
+  # Add Torch-MLIR LTC backend as dependency
+  add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
+  add_dependencies(TorchMLIRPythonModules reference_lazy_backend)
+endif()
 
+add_subdirectory(test)

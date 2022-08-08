@@ -227,8 +227,8 @@ Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandG
 Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with 
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
--DPYTORCH_REPO=vivekkhandelwal1/pytorch # Optional Github path. Defaults to pytorch/pytorch
--DPYTORCH_BRANCH=master #Optional. Defaults to PyTorch's main branch
+-DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
+-DTORCH_MLIR_SRC_PYTORCH_BRANCH=master # Optional. Defaults to PyTorch's main branch
 ```
 
 # Updating the LLVM submodule
@@ -258,6 +258,19 @@ Here are some examples of PR's updating the LLVM submodule:
 - https://github.com/llvm/torch-mlir/pull/958
 - https://github.com/llvm/torch-mlir/pull/856
 
+# Enabling Address Sanitizer (ASan)
+
+To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
+work" with all C++ tools like `torch-mlir-opt`. When running a Python script
+such as through `./tools/torchscript_e2e_test.sh`, you will need to do:
+
+```
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/torchscript_e2e_test.sh -s
+# See instructions here for how to get the libasan path for GCC:
+# https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
+```
+
+TODO: Add ASan docs for LTC.
 
 # Other docs
 

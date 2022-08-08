@@ -10,13 +10,14 @@ include_directories(BEFORE
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-add_library(TorchMLIRJITIRImporter MODULE
+add_library(TorchMLIRJITIRImporter SHARED
   class_annotator.cpp
   class_annotator_pybind.cpp
   get_registered_ops.cpp
   function_importer.cpp
   module_builder.cpp
   node_importer.cpp
+  import_options_pybind.cpp
   ivalue_importer.cpp
   init_python_bindings.cpp
   torch_to_mlir_utils.cpp

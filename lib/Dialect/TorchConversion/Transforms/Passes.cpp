@@ -21,6 +21,7 @@
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #ifdef TORCH_MLIR_ENABLE_MHLO
+#include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -145,6 +146,16 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
     // The resolution of `dim` ops tends to create identical ops. CSE them.
     pm.addNestedPass<func::FuncOp>(createCSEPass());
   }
+
+  // Convert CHLO ops to MHLO ops
+  pm.addNestedPass<func::FuncOp>(mhlo::createChloLegalizeToHloPass());
+  if (options.optimize) {
+    // Clean up any non-canonical code introduced above..
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    // The resolution of `dim` ops tends to create identical ops. CSE them.
+    pm.addNestedPass<func::FuncOp>(createCSEPass());
+  }
+
   // Finish the type conversion from `torch` types to the types of the
   // MHLO backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());

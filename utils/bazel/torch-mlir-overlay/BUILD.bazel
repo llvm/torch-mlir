@@ -284,7 +284,7 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-pass-decls"],
+            ["-gen-pass-decls", "-DTORCH_MLIR_ENABLE_MHLO"],
             "include/torch-mlir/Conversion/Passes.h.inc",
         )
     ],
@@ -444,6 +444,35 @@ cc_library(
 )
 
 cc_library(
+    name = "TorchMLIRTorchToMhlo",
+    srcs = [
+        "lib/Conversion/TorchToMhlo/TorchToMhlo.cpp",
+        "lib/Conversion/TorchToMhlo/MhloLegalizeUtils.cpp",
+        "lib/Conversion/TorchToMhlo/Basic.cpp",
+        "lib/Conversion/TorchToMhlo/Gather.cpp",
+        "lib/Conversion/TorchToMhlo/Linear.cpp",
+        "lib/Conversion/TorchToMhlo/ViewLike.cpp",
+        "lib/Conversion/TorchToMhlo/Reduction.cpp",
+        "lib/Conversion/TorchToMhlo/Pooling.cpp",
+        "lib/Conversion/TorchToMhlo/MhloLegalizeUtils.h",
+        "lib/Conversion/TorchToMhlo/PopulatePatterns.h",
+        "lib/Conversion/PassDetail.h",
+    ],
+    hdrs = [
+        "include/torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+    ],
+    strip_include_prefix = "include",
+    deps = [
+        ":TorchMLIRTorchBackendTypeConversion",
+        ":TorchMLIRConversionPassesIncGen",
+        ":TorchMLIRTorchConversionDialect",
+        ":TorchMLIRConversionUtils",
+        "@mlir-hlo//:mlir_hlo",
+        "@llvm-project//mlir:Dialect"
+    ]
+)
+
+cc_library(
     name = "TorchMLIRConversionPasses",
     srcs = [
         "lib/Conversion/Passes.cpp"
@@ -457,7 +486,8 @@ cc_library(
         ":TorchMLIRTorchToSCF",
         ":TorchMLIRTorchToStd",
         ":TorchMLIRTorchToTosa",
-        ":TorchMLIRTorchToTMTensor"
+        ":TorchMLIRTorchToTMTensor",
+        ":TorchMLIRTorchToMhlo"
     ]
 )
 
@@ -487,6 +517,7 @@ cc_library(
         ":TorchMLIRTorchToStd",
         ":TorchMLIRTorchToTosa",
         ":TorchMLIRTorchToTMTensor",
+        ":TorchMLIRTorchToMhlo",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:Pass",
         "@llvm-project//mlir:LinalgDialect",

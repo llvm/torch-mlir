@@ -10,6 +10,8 @@
 #ifndef TORCHMLIRJITIRIMPORTER_CSRC_NODE_IMPORTER_H
 #define TORCHMLIRJITIRIMPORTER_CSRC_NODE_IMPORTER_H
 
+#include "import_options.h"
+
 #include <memory>
 
 #include "mlir-c/IR.h"
@@ -37,7 +39,8 @@ using CreateTerminatorFn =
 MlirBlock importBlock(
     MlirContext context, torch::jit::Block *jitBlock,
     CreateTerminatorFn createTerminator,
-    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt);
+    c10::optional<c10::ArrayRef<MlirType>> blockArgTypes = c10::nullopt,
+    const ImportOptions &importOptions = {});
 
 } // namespace torch_mlir
 

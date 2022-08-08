@@ -31,3 +31,24 @@ print(torch_mlir.compile(TanhModule(), (tanh_example_input,), use_tracing=True))
 print(torch_mlir.compile(TanhModule(), [tanh_example_input], use_tracing=True))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+
+# TensorPlaceholder support.
+placeholder = torch_mlir.TensorPlaceholder.like(
+    tanh_example_input, dynamic_axes=[1])
+print(torch_mlir.compile(TanhModule(), [placeholder],
+                         use_tracing=True, ignore_traced_shapes=True))
+# CHECK-LABEL: @forward
+# CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[2,?],f32> -> !torch.vtensor<[2,?],f32>
+
+try:
+    # CHECK: `ignore_traced_shapes` requires `use_tracing`
+    torch_mlir.compile(TanhModule(), [placeholder], ignore_traced_shapes=True)
+except Exception as e:
+    print(e)
+
+
+try:
+    # CHECK: TensorPlaceholder can only be used with tracing when `ignore_traced_shapes=True`
+    torch_mlir.compile(TanhModule(), [placeholder], use_tracing=True)
+except Exception as e:
+    print(e)

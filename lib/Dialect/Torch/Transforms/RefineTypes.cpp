@@ -446,6 +446,7 @@ private:
                            ArrayRef<const ValueState *> operands);
   void visitAtenScalarImplicitOp(AtenScalarImplicitOp op,
                                  ArrayRef<const ValueState *> operands);
+  void visitAtenEmbeddingBagOp(Operation *op);
 };
 } // namespace
 
@@ -651,15 +652,14 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
           AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
           AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
-          AtenSelectScatterOp, AtenSliceTensorOp, AtenSliceScatterOp,
-          AtenGatherOp, AtenExpandOp, AtenExpandAsOp, AtenBroadcastToOp,
-          AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp, AtenZero_Op,
-          AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp, AtenIndexPutOp,
-          ValsemVariantAtenCopyOp, AtenZeroOp, AtenIndexPutHackedTwinOp,
-          AtenMaskedFillScalarOp, AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp,
-          AtenTriuOp>(op)) {
-    incorporateKnowledge(op->getResult(0), operands[0]->getValue());
-    return;
+          AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
+          AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
+          AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
+          AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
+          AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
+          AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
+          PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp>(op)) {
+    return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float64 and nullptr.
@@ -730,6 +730,23 @@ void TypeAnalysis::visitOperation(Operation *op,
     knowledge.dtype = getPromotedResultType(
         op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()},
         getRankIsNonZeroArray(op->getOperands()));
+    incorporateKnowledge(op->getResult(0), knowledge);
+    return;
+  }
+
+  // Dtype is always float32, except for bfloat16, float64 and nullptr after
+  // promotion and assuming possible-zero rank.
+  if (isa<AtenAtan2Op>(op)) {
+    ValueKnowledge knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type promotedDtype = getPromotedResultType(
+        op->getContext(), {&operands[0]->getValue(), &operands[1]->getValue()},
+        getRankIsNonZeroArray(op->getOperands()));
+    if (promotedDtype) {
+      knowledge.dtype = Float32Type::get(op->getContext());
+      if (promotedDtype.isa<BFloat16Type, Float64Type>())
+        knowledge.dtype = promotedDtype;
+    }
     incorporateKnowledge(op->getResult(0), knowledge);
     return;
   }
@@ -931,7 +948,8 @@ void TypeAnalysis::visitOperation(Operation *op,
     Type dtype = operands[0]->getValue().dtype;
     visitReductionAlongAllDimsOp(max, dtype, operands);
     return;
-  } else if (isa<AtenStdOp, AtenVarOp, AtenVarDimOp>(op)) {
+  } else if (isa<AtenStdOp, AtenStdDimOp, AtenVarOp, AtenVarDimOp,
+                 AtenVarCorrectionOp>(op)) {
     auto input = operands[0]->getValue();
     visitReductionAlongAllDimsOp(op, input.dtype, operands);
     return;
@@ -1035,6 +1053,11 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
+  
+  if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
+    visitAtenEmbeddingBagOp(op);
+    return;
+  }
 
   if (auto softmaxIntOp = dyn_cast<AtenSoftmaxIntOp>(op)) {
     visitAtenSoftmaxLikeOp(softmaxIntOp, operands);
@@ -1110,6 +1133,23 @@ void TypeAnalysis::visitAtenLinearOp(AtenLinearOp op,
     break;
   }
   incorporateKnowledge(op->getResult(0), knowledge);
+}
+
+void TypeAnalysis::visitAtenEmbeddingBagOp(Operation *op) {
+  auto resultFloatKnowledge =
+      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+  resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
+
+  incorporateKnowledge(op->getResult(0), resultFloatKnowledge);
+  auto resultIntKnowledge =
+      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+  resultIntKnowledge.dtype =
+      IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+
+  for (int64_t i = 1; i < 4; i++) {
+    incorporateKnowledge(op->getResult(i), resultIntKnowledge);
+  }
+  return;
 }
 
 // Arange like ops returns a 1-D tensor of size ceil(end - start).

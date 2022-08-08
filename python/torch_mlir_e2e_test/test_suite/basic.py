@@ -1700,6 +1700,130 @@ def IndexTensorSelectDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorMultiInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([3, 3], torch.int64, True),
+        ([3], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (index1, index2,))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiInput())
+def IndexTensorMultiInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), torch.randint(3, (3, 3)), torch.randint(3, (3,)))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputOneDim(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([6, 1], torch.int64, True),
+        ([3], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (index1, index2,))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiInputOneDim())
+def IndexTensorMultiInputOneDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), torch.randint(4, (6, 1)), torch.randint(3, (3,)))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputNonContiguous(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([4, 2], torch.int64, True),
+        ([4, 2], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (index1, None, index2))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiInputNonContiguous())
+def IndexTensorMultiInputNonContiguous_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2), torch.randint(3, (4, 2)), torch.randint(1, (4, 2,)))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputThreeIndexers(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1, -1, -1], torch.float32, True),
+        ([8, 4, 2], torch.int64, True),
+        ([8, 1, 1], torch.int64, True),
+        ([4, 2], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2, index3):
+        return torch.ops.aten.index(x, (None, None, index1, None, index2, index3))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiInputThreeIndexers())
+def IndexTensorMultiInputThreeIndexers_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 4, 4, 5, 3),
+            torch.randint(3, (8, 4, 2,)),
+            torch.randint(4, (8, 1, 1,)),
+            torch.randint(2, (4, 2,)))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputContiguousCenter(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([2, 2], torch.int64, True),
+        ([2], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (None, index1, index2, None))
+
+
+@register_test_case(module_factory=lambda: IndexTensorMultiInputContiguousCenter())
+def IndexTensorMultiInputContiguousCenter_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2), torch.randint(3, (2, 2)), torch.randint(2, [2]))
+
+
+# ==============================================================================
+
+
 class SquareModule(torch.nn.Module):
 
     def __init__(self):
@@ -2459,3 +2583,47 @@ class NumpyTRank0Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: NumpyTRank0Module())
 def NumpyTRank0Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor(7, dtype=torch.float32))
+
+class AtenEmbeddingBagSumExample(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None, 
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten.embedding_bag(weight, indices, offsets, scale_grad_by_freq=False, mode=0, sparse=False, per_sample_weights=None, include_last_offset=False, padding_idx=None)
+
+@register_test_case(module_factory=lambda: AtenEmbeddingBagSumExample())
+def AtenEmbeddingBagSumExample_basic(module, tu: TestUtils):
+    weight  = torch.rand(100, 10)
+    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
+    module.forward(weight, indices, offsets)
+
+class Aten_EmbeddingBagExample(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None, 
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten._embedding_bag(weight, indices, offsets)
+
+@register_test_case(module_factory=lambda: Aten_EmbeddingBagExample())
+def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
+    weight  = torch.rand(100, 10)
+    indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
+    offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
+    module.forward(weight, indices, offsets)
