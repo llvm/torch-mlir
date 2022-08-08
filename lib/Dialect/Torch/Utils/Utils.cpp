@@ -55,6 +55,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Bool;
   if (type.isBF16())
     return torch_upstream::ScalarType::BFloat16;
+  if (type.isF16())
+    return torch_upstream::ScalarType::Half;
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
@@ -74,6 +76,8 @@ Type Torch::getTypeForScalarType(
     return IntegerType::get(context, 1);
   case torch_upstream::ScalarType::BFloat16:
     return mlir::FloatType::getBF16(context);
+  case torch_upstream::ScalarType::Half:
+    return mlir::FloatType::getF16(context);
   default:
     return Type();
   }
