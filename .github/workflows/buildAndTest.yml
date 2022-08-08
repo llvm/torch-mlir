@@ -87,7 +87,6 @@ jobs:
           externals/llvm-project/llvm
         cmake --build llvm-build
 
-        # TODO: Reenable LTC once OOT build is successful (https://github.com/llvm/torch-mlir/issues/1154)
         cmake -GNinja -Bbuild \
           -DCMAKE_LINKER=lld \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -97,7 +96,6 @@ jobs:
           -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
-          -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DPython3_EXECUTABLE=$(which python) \
           .
 
