@@ -3478,6 +3478,31 @@ def Torch_Aten_ConvolutionDeprecatedOp : Torch_Op<"aten._convolution.deprecated"
   }];
 }
 
+def Torch_AtenRollOp : Torch_Op<"aten.roll", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::roll : (Tensor, int[], int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$shifts,
+    AnyTorchListOfTorchIntType:$dims
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRollOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenRollOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenFlipOp : Torch_Op<"aten.flip", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -1065,7 +1065,6 @@ class RepeatModule(torch.nn.Module):
 def RepeatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
 
-
 # ==============================================================================
 
 

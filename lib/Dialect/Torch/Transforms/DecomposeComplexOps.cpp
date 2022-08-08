@@ -709,6 +709,62 @@ public:
 };
 } // namespace
 
+// Decompose aten.roll into aten.expand and aten.slice and aten.cat ops.
+// https://pytorch.org/docs/stable/generated/torch.roll.html
+namespace {
+class DecomposeAtenRollOp : public OpRewritePattern<AtenRollOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRollOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> shifts;
+    if (!getListConstructElements(op.shifts(), shifts))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: shifts not list of Scalar");
+    SmallVector<Value> dims;
+    if (!getListConstructElements(op.dims(), dims))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: dims not list of Scalar");
+
+    if (shifts.size() != dims.size())
+      return op.emitError("list sizes of shifts and dims are not the same");
+
+    auto loc = op.getLoc();
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    auto self = op.self();
+    Type listType = Torch::ListType::get(self.getType());
+    // roll(input, shift, dim) = cat({
+    //   slice(input, dim, -shift, none),
+    //   slice(input, dim, 0, -shift)}, dim)
+    auto ImitateRoll = [&](Value input, Value shift, Value dim) {
+      Value negShift = rewriter.create<AtenNegIntOp>(loc, shift);
+      Type sliceType = computeReductionType(
+          rewriter, op, self.getType().cast<BaseTensorType>(), dim,
+          /*keepDim=*/true);
+      Value slice0 = rewriter.create<AtenSliceTensorOp>(
+          loc, sliceType, input, dim, negShift, constNone, constOne);
+      Value slice1 = rewriter.create<AtenSliceTensorOp>(
+          loc, sliceType, input, dim, constZero, negShift, constOne);
+
+      Value slices = rewriter.create<PrimListConstructOp>(
+          loc, listType, llvm::ArrayRef<Value>{slice0, slice1});
+      return rewriter.create<AtenCatOp>(loc, self.getType(), slices, dim);
+    };
+    auto output = self;
+    auto nShifts = shifts.size();
+    for (size_t k = 0; k < nShifts; ++k) {
+      output = ImitateRoll(output, shifts[k], dims[k]);
+    }
+    rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.repeat into aten.expand and aten.view ops.
 //
 // Ref: https://pytorch.org/docs/stable/generated/torch.Tensor.repeat.html
@@ -2555,6 +2611,8 @@ public:
     patterns.add<DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(
         context);
     target.addIllegalOp<AtenZerosLikeOp>();
+    patterns.add<DecomposeAtenRollOp>(context);
+    target.addIllegalOp<AtenRollOp>();
     patterns.add<DecomposeAtenRepeatOp>(context);
     target.addIllegalOp<AtenRepeatOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
