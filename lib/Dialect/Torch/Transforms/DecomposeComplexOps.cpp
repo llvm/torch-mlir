@@ -2464,7 +2464,7 @@ private:
         AtenOnesLikeOp, DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(
         context, target, patterns);
     addDecompositionRules<
-        AtenZerosLikeOp, DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 0>>(
+        AtenZerosLikeOp, DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(
         context, target, patterns);
     addDecompositionRules<AtenRepeatOp, DecomposeAtenRepeatOp>(context, target,
                                                                patterns);
