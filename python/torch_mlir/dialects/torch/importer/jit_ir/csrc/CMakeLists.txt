@@ -23,21 +23,14 @@ add_library(TorchMLIRJITIRImporter SHARED
   torch_to_mlir_utils.cpp
   )
 
+find_package(Python REQUIRED COMPONENTS Development)
+
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   torch_python
+  Python::Python
 )
-
-# On static Python builds, there may not be Python libraries to link against
-# (they will late bind at runtime from the executable). We have to condition
-# this because in that case it is set to NOTFOUND and CMake will consider
-# this an error.
-if(Python3_LIBRARIES)
-  target_link_libraries(TorchMLIRJITIRImporter
-    ${Python3_LIBRARIES}
-  )
-endif()
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
 set_target_properties(TorchMLIRJITIRImporter PROPERTIES
