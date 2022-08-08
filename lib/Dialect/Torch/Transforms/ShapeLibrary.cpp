@@ -4213,6 +4213,10 @@ module {
     }
     return %7 : !torch.list<int>
   }
+  func.func @__torch_mlir_shape_fn.aten.roll(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func.func @__torch__.torch.jit._shape_functions.expand(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
     %int-1 = torch.constant.int -1
     %true = torch.constant.bool true

@@ -709,7 +709,7 @@ public:
 };
 } // namespace
 
-// Decompose aten.roll into aten.expand and aten.slice and aten.cat ops.
+// Decompose aten.roll into aten.slice and aten.cat ops.
 // https://pytorch.org/docs/stable/generated/torch.roll.html
 namespace {
 class DecomposeAtenRollOp : public OpRewritePattern<AtenRollOp> {
@@ -736,28 +736,43 @@ public:
     Value constOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
     auto self = op.self();
-    Type listType = Torch::ListType::get(self.getType());
+    auto selfTy = self.getType().cast<BaseTensorType>();
     // roll(input, shift, dim) = cat({
     //   slice(input, dim, -shift, none),
     //   slice(input, dim, 0, -shift)}, dim)
-    auto ImitateRoll = [&](Value input, Value shift, Value dim) {
+    auto imitateRoll = [&](Value input, Value shift, Value dim,
+                           int64_t cstDim) {
       Value negShift = rewriter.create<AtenNegIntOp>(loc, shift);
-      Type sliceType = computeReductionType(
-          rewriter, op, self.getType().cast<BaseTensorType>(), dim,
-          /*keepDim=*/true);
+      ArrayRef<int64_t> inputShape = selfTy.getSizes();
+      SmallVector<int64_t> sizes;
+      sizes.append(inputShape.begin(), inputShape.end());
+      sizes[cstDim] = ShapedType::kDynamicSize;
+      Type sliceTy = selfTy.getWithSizesAndDtype(llvm::makeArrayRef(sizes),
+                                                 selfTy.getDtype());
       Value slice0 = rewriter.create<AtenSliceTensorOp>(
-          loc, sliceType, input, dim, negShift, constNone, constOne);
+          loc, sliceTy, input, dim, negShift, constNone, constOne);
       Value slice1 = rewriter.create<AtenSliceTensorOp>(
-          loc, sliceType, input, dim, constZero, negShift, constOne);
+          loc, sliceTy, input, dim, constZero, negShift, constOne);
 
+      Type listType = Torch::ListType::get(sliceTy);
       Value slices = rewriter.create<PrimListConstructOp>(
           loc, listType, llvm::ArrayRef<Value>{slice0, slice1});
       return rewriter.create<AtenCatOp>(loc, self.getType(), slices, dim);
     };
-    auto output = self;
+    int rank = getTensorRank(self);
+    if (rank < 0)
+      return rewriter.notifyMatchFailure(op, "Unimplemented: unranked tensor");
+    Value output = self;
     auto nShifts = shifts.size();
     for (size_t k = 0; k < nShifts; ++k) {
-      output = ImitateRoll(output, shifts[k], dims[k]);
+      auto dim = dims[k];
+      int64_t cstDim = -1;
+      if (!matchPattern(dim, m_TorchConstantInt(&cstDim)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: dim must be constant");
+
+      cstDim = toPositiveDim(cstDim, rank);
+      output = imitateRoll(output, shifts[k], dim, cstDim);
     }
     rewriter.replaceOp(op, output);
     return success();

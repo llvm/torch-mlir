@@ -635,6 +635,9 @@ def aten〇repeat(self: List[int], repeats: List[int]) -> List[int]:
         out.append(self[i] * repeats[i + leading_rank])
     return out
 
+def aten〇roll(self: List[int], shifts: List[int], dims: List[int] = ()) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇expand(self: List[int], size: List[int], implicit: bool = False) -> List[int]:
     return upstream_shape_functions.expand(self, size)
 
