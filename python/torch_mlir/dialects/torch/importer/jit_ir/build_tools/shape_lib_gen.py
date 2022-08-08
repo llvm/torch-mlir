@@ -777,6 +777,9 @@ def aten〇_to_copy(self: List[int], dtype: Optional[int] = None, layout: Option
 def aten〇masked_fill〇Scalar(self: List[int], mask: List[int], value: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇masked_fill〇Tensor(self: List[int], mask: List[int], value: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇zero(self: List[int]) -> List[int]:
     return self
 
