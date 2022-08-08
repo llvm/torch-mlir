@@ -32,11 +32,20 @@ struct TorchLoweringPipelineOptions
   // If this option is false, only do the bare minimum for correctness.
   Option<bool> optimize{*this, "optimize", llvm::cl::desc("Do optimizations."),
                         llvm::cl::init(true)};
-  
+
   // If this option is false, decompose complex operations.
   // If this option is true, skip decomposition of complex operations.
-  Option<bool> decompose{*this, "decompose-complex-ops", llvm::cl::desc("Decompose complex operations."),
-                        llvm::cl::init(true)};                      
+  Option<bool> decompose{*this, "decompose-complex-ops",
+                         llvm::cl::desc("Decompose complex operations."),
+                         llvm::cl::init(true)};
+
+  // Disable decomposition rules for torch ops. Useless when
+  // decompose-complex-ops set to false.
+  Option<std::string> torchDecompositionSkipOps{
+      *this, "torch-decomposition-skip-ops",
+      llvm::cl::desc("Disable decomposition rules for these torch ops. Useless "
+                     "when decompose-complex-ops set to false."),
+      llvm::cl::init(",")};
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
@@ -67,6 +76,12 @@ std::unique_ptr<OperationPass<func::FuncOp>> createMaximizeValueSemanticsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createDecomposeComplexOpsPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createDecomposeComplexOpsPass(llvm::ArrayRef<std::string> skipOps);
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createDecomposeComplexOpsPass(std::string skipOps);
 
 std::unique_ptr<OperationPass<ModuleOp>> createPreprocessShapeLibraryPass();
 

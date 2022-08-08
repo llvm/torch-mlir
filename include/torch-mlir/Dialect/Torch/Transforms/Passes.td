@@ -217,7 +217,13 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
 
 def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   let summary = "Decompose complicated torch operations";
-  let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
+  let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";  
+  let options = [
+    ListOption<"skipOps", "skipOps", "std::string", 
+               "Disable decompositions rules for these operations", 
+               "llvm::cl::ZeroOrMore">
+  ];
+
   let description = [{
     Decompose torch operation that are losslessly represented as combinations of
     other operations, modulo appropropriate compiler fusion. Note that this pass

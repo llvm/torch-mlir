@@ -244,7 +244,7 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value startPlusLength =
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, length);
-    
+
     rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
         op, op.getResult().getType(), op.self(), /*dim=*/dim, /*start=*/start,
         /*end=*/startPlusLength, /*step=*/one);
@@ -255,8 +255,7 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenZeroOp
-    : public OpRewritePattern<AtenZeroOp> {
+class DecomposeAtenZeroOp : public OpRewritePattern<AtenZeroOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenZeroOp op,
@@ -2412,166 +2411,210 @@ public:
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
+
+public:
+  DecomposeComplexOpsPass() = default;
+  DecomposeComplexOpsPass(llvm::ArrayRef<std::string> skipOps) {
+    this->skipOps = skipOps;
+  }
+
+private:
+  template <typename AtenOp, typename RewritePatternClass>
+  void addDecompositionRules(MLIRContext *context, ConversionTarget &target,
+                             RewritePatternSet &patterns) {
+    AtenOp op;
+    if (llvm::none_of(skipOps, [&](std::string skipOpName) -> bool {
+          return skipOpName == op.getOperationName();
+        })) {
+      target.addIllegalOp<AtenOp>();
+      patterns.add<RewritePatternClass>(context);
+    }
+  }
+
+  template <typename AtenOp, typename RewritePatternClass>
+  void addDecompositionRules(MLIRContext *context, ConversionTarget &target,
+                             RewritePatternSet &patterns,
+                             std::function<bool(AtenOp)> legalFunc) {
+    AtenOp op;
+    if (llvm::none_of(skipOps, [&](std::string skipOpName) -> bool {
+          return skipOpName == op.getOperationName();
+        })) {
+      target.addDynamicallyLegalOp<AtenOp>(legalFunc);
+      patterns.add<RewritePatternClass>(context);
+    }
+  }
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect>();
 
-    patterns.add<DecomposeAtenSoftmaxIntOp>(context);
-    target.addIllegalOp<AtenSoftmaxIntOp>();
-    patterns.add<DecomposeAten_SoftmaxOp>(context);
-    target.addIllegalOp<Aten_SoftmaxOp>();
-    patterns.add<DecomposeAten_LogSoftmaxOp>(context);
-    target.addIllegalOp<Aten_LogSoftmaxOp>();
-    patterns.add<DecomposeAtenLogSoftmaxIntOp>(context);
-    target.addIllegalOp<AtenLogSoftmaxIntOp>();
-    patterns.add<DecomposeAtenEmptyLikeOp>(context);
-    target.addIllegalOp<AtenEmptyLikeOp>();
-    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(
-        context);
-    target.addIllegalOp<AtenOnesLikeOp>();
-    patterns.add<DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(
-        context);
-    target.addIllegalOp<AtenZerosLikeOp>();
-    patterns.add<DecomposeAtenRepeatOp>(context);
-    target.addIllegalOp<AtenRepeatOp>();
-    patterns.add<DecomposeAtenExpandOp>(context);
-    target.addIllegalOp<AtenExpandOp>();
-    patterns.add<DecomposeAtenWhereScalarOp>(context);
-    target.addIllegalOp<AtenWhereScalarOp>();
-    patterns.add<DecomposeAtenWhereScalarOtherOp>(context);
-    target.addIllegalOp<AtenWhereScalarOtherOp>();
-    patterns.add<DecomposeAtenWhereScalarSelfOp>(context);
-    target.addIllegalOp<AtenWhereScalarSelfOp>();
-    patterns.add<DecomposeAtenSizeOp>(context);
-    target.addIllegalOp<AtenSizeOp>();
-    patterns.add<DecomposeAtenReshapeOp>(context);
-    target.addIllegalOp<AtenReshapeOp>();
-    patterns.add<DecomposeAten_SoftmaxBackwardDataOp>(context);
-    target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
-    patterns.add<DecomposeAtenTanhBackwardOp>(context);
-    target.addIllegalOp<AtenTanhBackwardOp>();
-    patterns.add<DecomposeAtenAddmmOp>(context);
-    target.addIllegalOp<AtenAddmmOp>();
-    patterns.add<DecomposeAtenMeanOp>(context);
-    target.addIllegalOp<AtenMeanOp>();
-    patterns.add<DecomposeAtenMeanDimOp>(context);
-    target.addIllegalOp<AtenMeanDimOp>();
-    patterns.add<DecomposeAtenSelectIntOp>(context);
-    target.addIllegalOp<AtenSelectIntOp>();
-    patterns.add<DecomposeAtenMatmulOp>(context);
-    target.addIllegalOp<AtenTOp>();
-    patterns.add<DecomposeAtenTOp>(context);
-    patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
-    target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
-    target.addDynamicallyLegalOp<AtenMatmulOp>([](AtenMatmulOp op) {
+    addDecompositionRules<AtenSoftmaxIntOp, DecomposeAtenSoftmaxIntOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_SoftmaxOp, DecomposeAten_SoftmaxOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_LogSoftmaxOp, DecomposeAten_LogSoftmaxOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenLogSoftmaxIntOp, DecomposeAtenLogSoftmaxIntOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenEmptyLikeOp, DecomposeAtenEmptyLikeOp>(
+        context, target, patterns);
+    addDecompositionRules<
+        AtenOnesLikeOp, DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(
+        context, target, patterns);
+    addDecompositionRules<
+        AtenZerosLikeOp, DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 0>>(
+        context, target, patterns);
+    addDecompositionRules<AtenRepeatOp, DecomposeAtenRepeatOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenExpandOp, DecomposeAtenExpandOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenWhereScalarOp, DecomposeAtenWhereScalarOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenWhereScalarOtherOp,
+                          DecomposeAtenWhereScalarOtherOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenWhereScalarSelfOp,
+                          DecomposeAtenWhereScalarSelfOp>(context, target,
+                                                          patterns);
+    addDecompositionRules<AtenSizeOp, DecomposeAtenSizeOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenReshapeOp, DecomposeAtenReshapeOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_SoftmaxBackwardDataOp,
+                          DecomposeAten_SoftmaxBackwardDataOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenTanhBackwardOp, DecomposeAtenTanhBackwardOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenAddmmOp, DecomposeAtenAddmmOp>(context, target,
+                                                             patterns);
+    addDecompositionRules<AtenMeanOp, DecomposeAtenMeanOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenMeanDimOp, DecomposeAtenMeanDimOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenSelectIntOp, DecomposeAtenSelectIntOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenTOp, DecomposeAtenTOp>(context, target, patterns);
+    addDecompositionRules<Aten_LogSoftmaxBackwardDataOp,
+                          DecomposeAten_LogSoftmaxBackwardDataOp>(
+        context, target, patterns);
+
+    auto legalFunc = [](AtenMatmulOp op) {
       int lhsRank = getTensorRank(op.self());
       int rhsRank = getTensorRank(op.other());
-
       // Make aten.matmul legal if the following condition is satisfied.
       return (lhsRank != 2 || rhsRank != 2) && (lhsRank != 3 || rhsRank != 3);
-    });
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(
-        context);
-    target.addIllegalOp<AtenAddcmulOp>();
-    patterns.add<DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(
-        context);
-    target.addIllegalOp<AtenAddcdivOp>();
-    target.addIllegalOp<AtenLayerNormOp>();
-    patterns.add<DecomposeAtenLayerNormOp>(context);
-    target.addIllegalOp<AtenNativeBatchNormOp>();
-    patterns.add<DecomposeAtenNativeBatchNormOp>(context);
-    target.addIllegalOp<AtenConvolutionOverrideableOp>();
-    patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
-    target.addIllegalOp<Aten_ConvolutionOp>();
-    patterns.add<DecomposeAten_ConvolutionOp>(context);
-    target.addIllegalOp<AtenConv2dOp>();
-    patterns.add<DecomposeAtenConv2dOp>(context);
-    patterns.add<DecomposeAtenArangeOp>(context);
-    target.addIllegalOp<AtenArangeOp>();
-    patterns.add<DecomposeAtenArangeStartOp>(context);
-    target.addIllegalOp<AtenArangeStartOp>();
-    patterns.add<DecomposeAtenArgMaxOp>(context);
-    target.addIllegalOp<AtenArgmaxOp>();
-    patterns.add<DecomposeAtenSquareOp>(context);
-    target.addIllegalOp<AtenSquareOp>();
-    patterns.add<DecomposeAtenVarOp>(context);
-    target.addIllegalOp<AtenVarOp>();
-    patterns.add<DecomposeAtenStdOp>(context);
-    target.addIllegalOp<AtenStdOp>();
-    patterns.add<DecomposeAten_UnsafeViewOp>(context);
-    target.addIllegalOp<Aten_UnsafeViewOp>();
-    patterns.add<DecomposeAten_ReshapeAliasOp>(context);
-    target.addIllegalOp<Aten_ReshapeAliasOp>();
-    patterns.add<DecomposeAtenBernoulliOp>(context);
-    target.addIllegalOp<AtenBernoulliOp>();
-    patterns.add<DecomposeValsemVariantAtenBernoulliFloatOp>(context);
-    target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
-    patterns.add<DecomposeValsemVariantAtenBernoulliTensorOp>(context);
-    target.addIllegalOp<ValsemVariantAtenBernoulliTensorOp>();
-    patterns.add<DecomposeAtenZeroOp>(context);
-    target.addIllegalOp<AtenZeroOp>();
-    patterns.add<DecomposeAtenRandLikeOp>(context);
-    target.addIllegalOp<AtenRandLikeOp>();
-    patterns.add<DecomposeAtenHardsigmoidOp>(context);
-    target.addIllegalOp<AtenHardsigmoidOp>();
-    patterns.add<DecomposeAtenHardswishOp>(context);
-    target.addIllegalOp<AtenHardswishOp>();
-    patterns.add<DecomposeAtenSoftplusOp>(context);
-    target.addIllegalOp<AtenSoftplusOp>();
-    patterns.add<DecomposeAtenSiluOp>(context);
-    target.addIllegalOp<AtenSiluOp>();
-    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
-        context);
-    target.addIllegalOp<AtenNewZerosOp>();
-    patterns.add<DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(
-        context);
-    target.addIllegalOp<AtenNewOnesOp>();
-    patterns.add<DecomposeAtenHardtanhOp>(context);
-    target.addIllegalOp<AtenHardtanhOp>();
-    patterns.add<DecomposeAtenFullOp>(context);
-    target.addIllegalOp<AtenFullOp>();
-    patterns.add<DecomposeAtenFullLikeOp>(context);
-    target.addIllegalOp<AtenFullLikeOp>();
-    patterns.add<DecomposeAtenIndexPutOp>(context);
-    target.addIllegalOp<AtenIndexPutOp>();
-    patterns.add<DecomposeAtenExpandAsOp>(context);
-    target.addIllegalOp<AtenExpandAsOp>();
-    patterns.add<DecomposeAten_ToCopyOp>(context);
-    target.addIllegalOp<Aten_ToCopyOp>();
-    patterns.add<DecomposeAtenDropoutOp>(context);
-    target.addIllegalOp<AtenDropoutOp>();
-    target.addIllegalOp<AtenNewEmptyOp>();
-    patterns.add<DecomposeAtenNewEmptyOp>(context);
-    patterns.add<DecomposeAtenIndexPutHackedTwinOp>(context);
-    target.addIllegalOp<AtenIndexPutHackedTwinOp>();
-    target.addIllegalOp<AtenPadOp>();
-    patterns.add<DecomposeAtenPadOp>(context);
-    patterns.add<DecomposeAtenToDtypeLayoutOp>(context);
-    target.addIllegalOp<AtenToDtypeLayoutOp>();
-    patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
-    target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
-    patterns.add<DecomposeAtenClampMinOp>(context);
-    target.addIllegalOp<AtenClampMinOp>();
-    patterns.add<DecomposeAtenClampMaxOp>(context);
-    target.addIllegalOp<AtenClampMaxOp>();
-    patterns.add<DecomposeAtenBaddbmmOp>(context);
-    target.addIllegalOp<AtenBaddbmmOp>();
-    patterns.add<DecomposeAtenFloorDivideOp>(context);
-    target.addIllegalOp<AtenFloorDivideOp>();
-    patterns.add<DecomposeAtenNumpyTOp>(context);
-    target.addIllegalOp<AtenNumpyTOp>();
-    patterns.add<DecomposeAtenSelectScatterOp>(context);
-    target.addIllegalOp<AtenSelectScatterOp>();
-    patterns.add<DecomposeAtenVarDimOp>(context);
-    target.addIllegalOp<AtenVarDimOp>();
-    patterns.add<DecomposeAtenVarCorrectionOp>(context);
-    target.addIllegalOp<AtenVarCorrectionOp>();
-    patterns.add<DecomposeAtenStdDimOp>(context);
-    target.addIllegalOp<AtenStdDimOp>();
-    patterns.add<DecomposeAtenNarrowOp>(context);
-    target.addIllegalOp<AtenNarrowOp>();
+    };
+    addDecompositionRules<AtenMatmulOp, DecomposeAtenMatmulOp>(
+        context, target, patterns, legalFunc);
+
+    addDecompositionRules<
+        AtenAddcmulOp, DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(
+        context, target, patterns);
+    addDecompositionRules<
+        AtenAddcdivOp, DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(
+        context, target, patterns);
+    addDecompositionRules<AtenLayerNormOp, DecomposeAtenLayerNormOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenNativeBatchNormOp,
+                          DecomposeAtenNativeBatchNormOp>(context, target,
+                                                          patterns);
+    addDecompositionRules<AtenConvolutionOverrideableOp,
+                          DecomposeAtenConvolutionOverrideableOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_ConvolutionOp, DecomposeAten_ConvolutionOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenConv2dOp, DecomposeAtenConv2dOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenArangeOp, DecomposeAtenArangeOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenArangeStartOp, DecomposeAtenArangeStartOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenArgmaxOp, DecomposeAtenArgMaxOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenSquareOp, DecomposeAtenSquareOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenVarOp, DecomposeAtenVarOp>(context, target,
+                                                         patterns);
+    addDecompositionRules<AtenStdOp, DecomposeAtenStdOp>(context, target,
+                                                         patterns);
+    addDecompositionRules<Aten_UnsafeViewOp, DecomposeAten_UnsafeViewOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_ReshapeAliasOp, DecomposeAten_ReshapeAliasOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenBernoulliOp, DecomposeAtenBernoulliOp>(
+        context, target, patterns);
+    addDecompositionRules<ValsemVariantAtenBernoulliFloatOp,
+                          DecomposeValsemVariantAtenBernoulliFloatOp>(
+        context, target, patterns);
+    addDecompositionRules<ValsemVariantAtenBernoulliTensorOp,
+                          DecomposeValsemVariantAtenBernoulliTensorOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenZeroOp, DecomposeAtenZeroOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenRandLikeOp, DecomposeAtenRandLikeOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenHardsigmoidOp, DecomposeAtenHardsigmoidOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenHardswishOp, DecomposeAtenHardswishOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenSiluOp, DecomposeAtenSiluOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenNewZerosOp, DecomposeConstantTensorNewLikeOp<
+                                              AtenNewZerosOp, AtenZerosOp>>(
+        context, target, patterns);
+    addDecompositionRules<AtenNewOnesOp, DecomposeConstantTensorNewLikeOp<
+                                             AtenNewOnesOp, AtenOnesOp>>(
+        context, target, patterns);
+    addDecompositionRules<AtenHardtanhOp, DecomposeAtenHardtanhOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenFullOp, DecomposeAtenFullOp>(context, target,
+                                                           patterns);
+    addDecompositionRules<AtenFullLikeOp, DecomposeAtenFullLikeOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenIndexPutOp, DecomposeAtenIndexPutOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenExpandAsOp, DecomposeAtenExpandAsOp>(
+        context, target, patterns);
+    addDecompositionRules<Aten_ToCopyOp, DecomposeAten_ToCopyOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenDropoutOp, DecomposeAtenDropoutOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenNewEmptyOp, DecomposeAtenNewEmptyOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenIndexPutHackedTwinOp,
+                          DecomposeAtenIndexPutHackedTwinOp>(context, target,
+                                                             patterns);
+    addDecompositionRules<AtenPadOp, DecomposeAtenPadOp>(context, target,
+                                                         patterns);
+    addDecompositionRules<AtenToDtypeLayoutOp, DecomposeAtenToDtypeLayoutOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenAdaptiveAvgPool2dOp,
+                          DecomposeAtenAdaptiveAvgPool2dOp>(context, target,
+                                                            patterns);
+    addDecompositionRules<AtenClampMinOp, DecomposeAtenClampMinOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenClampMaxOp, DecomposeAtenClampMaxOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenBaddbmmOp, DecomposeAtenBaddbmmOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenFloorDivideOp, DecomposeAtenFloorDivideOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenNumpyTOp, DecomposeAtenNumpyTOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenSoftplusOp, DecomposeAtenSoftplusOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenSelectScatterOp, DecomposeAtenSelectScatterOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenVarDimOp, DecomposeAtenVarDimOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenVarCorrectionOp, DecomposeAtenVarCorrectionOp>(
+        context, target, patterns);
+    addDecompositionRules<AtenStdDimOp, DecomposeAtenStdDimOp>(context, target,
+                                                               patterns);
+    addDecompositionRules<AtenNarrowOp, DecomposeAtenNarrowOp>(context, target,
+                                                               patterns);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
@@ -2580,7 +2623,32 @@ class DecomposeComplexOpsPass
   }
 };
 } // namespace
+
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createDecomposeComplexOpsPass() {
   return std::make_unique<DecomposeComplexOpsPass>();
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::torch::Torch::createDecomposeComplexOpsPass(
+    llvm::ArrayRef<std::string> skipOps) {
+  return std::make_unique<DecomposeComplexOpsPass>(skipOps);
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::torch::Torch::createDecomposeComplexOpsPass(std::string skipOps) {
+  std::vector<std::string> skipOpsArr;
+  std::string sep = ",";
+
+  size_t pos = 0;
+  size_t offset = 0;
+  while ((pos = skipOps.find(sep, offset)) != std::string::npos) {
+    auto token = skipOps.substr(offset, pos - offset);
+    skipOpsArr.emplace_back(token);
+    offset = pos + sep.length();
+  }
+  if (offset < skipOps.length()) {
+    skipOpsArr.emplace_back(skipOps.substr(offset));
+  }
+  return std::make_unique<DecomposeComplexOpsPass>(skipOpsArr);
 }
