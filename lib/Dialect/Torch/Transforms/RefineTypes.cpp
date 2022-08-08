@@ -446,6 +446,7 @@ private:
                            ArrayRef<const ValueState *> operands);
   void visitAtenScalarImplicitOp(AtenScalarImplicitOp op,
                                  ArrayRef<const ValueState *> operands);
+  void visitAtenEmbeddingBagOp(Operation *op);
 };
 } // namespace
 
@@ -1052,26 +1053,9 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-
-  // case for Embedding bag padding idx.
-  if (auto embedding_bag_padding_idx =
-          dyn_cast<AtenEmbeddingBagPaddingIdxOp>(op)) {
-
-    auto resultFloatKnowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
-
-    incorporateKnowledge(embedding_bag_padding_idx.getResult(0),
-                         resultFloatKnowledge);
-    auto resultIntKnowledge =
-        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
-    resultIntKnowledge.dtype =
-        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
-
-    for (int64_t i = 1; i < 4; i++) {
-      incorporateKnowledge(embedding_bag_padding_idx.getResult(i),
-                           resultIntKnowledge);
-    }
+  
+  if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
+    visitAtenEmbeddingBagOp(op);
     return;
   }
 
@@ -1149,6 +1133,23 @@ void TypeAnalysis::visitAtenLinearOp(AtenLinearOp op,
     break;
   }
   incorporateKnowledge(op->getResult(0), knowledge);
+}
+
+void TypeAnalysis::visitAtenEmbeddingBagOp(Operation *op) {
+  auto resultFloatKnowledge =
+      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+  resultFloatKnowledge.dtype = Float32Type::get(op->getContext());
+
+  incorporateKnowledge(op->getResult(0), resultFloatKnowledge);
+  auto resultIntKnowledge =
+      ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+  resultIntKnowledge.dtype =
+      IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+
+  for (int64_t i = 1; i < 4; i++) {
+    incorporateKnowledge(op->getResult(i), resultIntKnowledge);
+  }
+  return;
 }
 
 // Arange like ops returns a 1-D tensor of size ceil(end - start).

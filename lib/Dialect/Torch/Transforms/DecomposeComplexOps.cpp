@@ -2410,6 +2410,42 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAten_EmbeddingBagOp
+    : public OpRewritePattern<Aten_EmbeddingBagOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_EmbeddingBagOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value weight = op.weight();
+    Value indices = op.indices();
+    Value offsets = op.offsets();
+    Value scaleGradByFreq = op.scale_grad_by_freq();
+    Value mode = op.mode();
+    Value sparse = op.sparse();
+    Value perSampleWeights = op.per_sample_weights();
+    Value includeLastOffset = op.include_last_offset();
+    Value paddingIdx = op.padding_idx();
+
+    auto resultType0 = op->getResult(0).getType();
+    auto resultType1 = op->getResult(1).getType();
+    auto resultType2 = op->getResult(2).getType();
+    auto resultType3 = op->getResult(3).getType();
+
+    mlir::TypeRange returnTypes{resultType0, resultType1, resultType2,
+                                resultType3};
+
+    rewriter.replaceOpWithNewOp<AtenEmbeddingBagPaddingIdxOp>(
+        op, returnTypes, weight, indices, offsets, scaleGradByFreq, mode,
+        sparse, perSampleWeights, includeLastOffset, paddingIdx);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2572,6 +2608,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenStdDimOp>();
     patterns.add<DecomposeAtenNarrowOp>(context);
     target.addIllegalOp<AtenNarrowOp>();
+    patterns.add<DecomposeAten_EmbeddingBagOp>(context);
+    target.addIllegalOp<Aten_EmbeddingBagOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
