@@ -16,11 +16,11 @@
 using namespace torch_mlir;
 
 static c10::ScalarType convertToC10ScalarType(py::object obj) {
-  if (THPDtype_Check(obj.ptr())) {
-    // Need reinterpret_cast, since no C++-level inheritance is involved.
-    THPDtype *dtype = reinterpret_cast<THPDtype *>(obj.ptr());
-    return dtype->scalar_type;
-  }
+//  if (THPDtype_Check(obj.ptr())) {
+//    // Need reinterpret_cast, since no C++-level inheritance is involved.
+//    THPDtype *dtype = reinterpret_cast<THPDtype *>(obj.ptr());
+//    return dtype->scalar_type;
+//  }
   std::stringstream ss;
   ss << "unsupported scalar type '" << obj << "'";
   throw std::invalid_argument(ss.str());

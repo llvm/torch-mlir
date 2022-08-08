@@ -54,52 +54,91 @@ checkout_pytorch() {
 }
 
 build_pytorch() {
-  cd "$PYTORCH_ROOT"
-  # Uncomment the next line if you want to iterate on source builds
-  # ${PYTHON_BIN} setup.py clean
-  rm -rf "${WHEELHOUSE:?}"/*
+  sed -i.bak 's/INTERN_USE_EIGEN_BLAS ON/INTERN_USE_EIGEN_BLAS OFF/g' "${PYTORCH_ROOT}"/CMakeLists.txt
+  sed -i.bak 's/set(BUILD_PYTHON OFF)/set(BUILD_PYTHON ON)/g' "${PYTORCH_ROOT}"/CMakeLists.txt
+  sed -i.bak 's/set(INTERN_DISABLE_ONNX ON)/set(INTERN_DISABLE_ONNX OFF)/g' "${PYTORCH_ROOT}"/CMakeLists.txt
+#  # around line 150 (under if(BUILD_LITE_INTERPRETER))
+#  sed -i.bak 's/set(all_cpu_cpp ${generated_sources} ${core_generated_sources} ${cpu_kernel_cpp})/set(all_cpu_cpp "${${CMAKE_PROJECT_NAME}_SOURCE_DIR}\/build\/aten\/src\/ATen\/RegisterSchema.cpp")/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/set(all_cpu_cpp ${generated_sources} ${core_generated_sources} ${cpu_kernel_cpp})/set(all_cpu_cpp ${generated_sources} ${core_generated_sources})/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/append_filelist("aten_native_source_non_codegen_list" all_cpu_cpp)/append_filelist("core_sources_full" all_cpu_cpp)/g' "${PYTORCH_ROOT}"/aten/src/ATen/CMakeLists.txt
+  sed -i.bak 's/PyTorchBackendDebugInfo/PyTorchBackendDebugInfoDummy/g' "${PYTORCH_ROOT}"/torch/csrc/jit/backends/backend_detail.cpp
+  sed -i.bak 's/backend_debug_info->setDebugInfoMap(std::move(debug_info_map));/\/\/backend_debug_info->setDebugInfoMap(std::move(debug_info_map));/g' "${PYTORCH_ROOT}"/torch/csrc/jit/backends/backend_detail.cpp
 
-  if [[ -z "${MAX_JOBS:-""}" ]]; then
-    if [[ "$(uname)" == 'Darwin' ]]; then
-      MAX_JOBS=$(sysctl -n hw.ncpu)
-    else
-      MAX_JOBS=$(nproc)
-    fi
+  CMAKE_ARGS=()
+  if [ -x "$(command -v ninja)" ]; then
+    CMAKE_ARGS+=("-GNinja")
   fi
 
-  BUILD_SHARED_LIBS=ON \
-  BUILD_CAFFE2_OPS=OFF \
-  INTERN_BUILD_ATEN_OPS=OFF \
-  ATEN_NO_TEST=OFF \
-  USE_LITE_INTERPRETER_PROFILER=OFF \
-  BUILD_TEST=OFF \
-  GLIBCXX_USE_CXX11_ABI=1 \
-  CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} \
-  MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} \
-  INTERN_BUILD_ATEN_OPS=OFF \
-  INTERN_DISABLE_ONNX=ON \
-  INTERN_USE_EIGEN_BLAS=ON \
-  MAX_JOBS=${MAX_JOBS} \
-  ONNX_ML=OFF \
-  USE_BREAKPAD=OFF \
-  USE_CUDA=OFF \
-  USE_ITT=OFF \
-  USE_DISTRIBUTED=OFF \
-  USE_EIGEN_FOR_BLAS=OFF \
-  USE_FBGEMM=ON \
-  USE_GLOO=OFF \
-  USE_KINETO=ON \
-  USE_MKL=OFF \
-  USE_MKLDNN=OFF \
-  USE_MPS=OFF \
-  USE_NCCL=OFF \
-  USE_NNPACK=OFF \
-  USE_OBSERVERS=OFF \
-  USE_OPENMP=OFF \
-  USE_PYTORCH_QNNPACK=ON \
-  USE_QNNPACK=OFF \
-  USE_XNNPACK=OFF \
-  ${PYTHON_BIN} setup.py  bdist_wheel -d "$WHEELHOUSE"
+  CMAKE_ARGS+=("-DCMAKE_PREFIX_PATH=${PYTHON_BIN}")
+  CMAKE_ARGS+=("-DPYTHON_EXECUTABLE=$($PYTHON_BIN -c 'import sys; print(sys.executable)')")
+
+  # Necessary flags to hit minimal path
+  export BUILD_PYTORCH_MOBILE_WITH_HOST_TOOLCHAIN=1
+  CMAKE_ARGS+=("-DBUILD_LITE_INTERPRETER:BOOL=TRUE")
+  CMAKE_ARGS+=("-DBUILD_SHARED_LIBS:BOOL=FALSE")
+  # torch/csrc/jit/mobile/profiler_edge.cpp includes KinetoEdgeCPUProfiler::~KinetoEdgeCPUProfiler
+  CMAKE_ARGS+=("-DUSE_KINETO:BOOL=TRUE")
+  CMAKE_ARGS+=("-DUSE_LIGHTWEIGHT_DISPATCH:BOOL=TRUE")
+  CMAKE_ARGS+=("-DSTATIC_DISPATCH_BACKEND=CPU")
+
+#  CMAKE_ARGS+=("-DCMAKE_CXX_FLAGS=-Wl,--unresolved-symbols=ignore-all")
+#  CMAKE_ARGS+=("-DCMAKE_EXE_LINKER_FLAGS=-Wl,--unresolved-symbols=ignore-all")
+#  CMAKE_ARGS+=("-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--unresolved-symbols=ignore-all")
+
+  # Disable unused dependencies
+  CMAKE_ARGS+=("-DBUILD_CUSTOM_PROTOBUF:BOOL=FALSE")
+  CMAKE_ARGS+=("-DBUILD_TEST:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_ASAN:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_BLAS:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_BREAKPAD:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_CUDA:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_CUDNN:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_DISTRIBUTED:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_FBGEMM:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_GFLAGS=OFF")
+  CMAKE_ARGS+=("-DUSE_GLOO:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_LAPACK:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_LEVELDB=OFF")
+  CMAKE_ARGS+=("-DUSE_LMDB=OFF")
+  CMAKE_ARGS+=("-DUSE_MKLDNN:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_MPI=OFF")
+  CMAKE_ARGS+=("-DUSE_NCCL:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_NNPACK:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_NUMPY:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_OBSERVERS:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_OPENCV=OFF")
+  CMAKE_ARGS+=("-DUSE_OPENMP:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_OPENMP=OFF")
+  CMAKE_ARGS+=("-DUSE_PYTORCH_QNNPACK:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_QNNPACK:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_ROCM=OFF")
+  CMAKE_ARGS+=("-DUSE_TENSORPIPE:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_VALGRIND:BOOL=FALSE")
+  CMAKE_ARGS+=("-DUSE_XNNPACK:BOOL=FALSE")
+
+  CMAKE_ARGS+=("-DCMAKE_C_COMPILER=$(which clang)")
+  CMAKE_ARGS+=("-DCMAKE_CXX_COMPILER=$(which clang++)")
+
+#  CMAKE_ARGS+=("-DCMAKE_INSTALL_RPATH=${PYTORCH_INSTALL_PATH}/lib")
+
+
+  BUILD_ROOT=${BUILD_ROOT:-"$PYTORCH_ROOT/build"}
+  mkdir -p $BUILD_ROOT
+  cd $BUILD_ROOT
+  cmake --build . --target clean || echo "No build to clean."
+
+  cmake "$PYTORCH_ROOT" \
+      -DCMAKE_INSTALL_PREFIX=$PYTORCH_INSTALL_PATH \
+      -DCMAKE_BUILD_TYPE=Release \
+      "${CMAKE_ARGS[@]}"
+
+  if [ "$(uname)" == 'Darwin' ]; then
+    MAX_JOBS=$(sysctl -n hw.ncpu)
+  else
+    MAX_JOBS=$(nproc)
+  fi
+
+  cmake --build . --target install -- "-j${MAX_JOBS}"
 }
 
 package_pytorch() {
@@ -109,13 +148,11 @@ package_pytorch() {
   fi
 
   # Copy over all of the cmake files
-  mv build/lib*/torch/share     libtorch/
-  mv build/lib*/torch/include   libtorch/
-  mv build/lib*/torch/lib       libtorch/
+  mv "${PYTORCH_ROOT}"/build_minimal/install/share     libtorch/
   # Copy over all lib files
-  mv build/lib/*                libtorch/lib/
+  mv "${PYTORCH_ROOT}"/build_minimal/install/lib       libtorch/lib
   # Copy over all include files
-  mv build/include/*            libtorch/include/
+  mv "${PYTORCH_ROOT}"/build_minimal/install/include   libtorch/include
 
   (pushd "$PYTORCH_ROOT" && git rev-parse HEAD) > libtorch/build-hash
   echo "Installing libtorch in ${PYTORCH_ROOT}/../../"
@@ -129,24 +166,8 @@ install_pytorch() {
   ${PIP_BIN} install  --force-reinstall $WHEELHOUSE/*
 }
 
-unpack_pytorch() {
-  PYTHON_SITE=`${PYTHON_BIN} -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'`
-  pip uninstall torch
-  echo "wheel unpacking Pytorch..into ${PYTHON_SITE}"
-  wheel unpack -d "$WHEELHOUSE"/unpack_tmp "$WHEELHOUSE"/*.whl
-  mv "$WHEELHOUSE"/unpack_tmp/* "$PYTHON_SITE"/
-}
-
 #main
 echo "Building libtorch from source"
 checkout_pytorch
 install_requirements
 build_pytorch
-package_pytorch
-if [[ $CMAKE_OSX_ARCHITECTURES = "arm64" ]]; then
-  echo "${Yellow} Cross compiling for arm64 so unpacking PyTorch wheel for libs${NC}"
-  unpack_pytorch
-else
-  echo "${Green} Installing the built PyTorch wheel ${NC}"
-  install_pytorch
-fi

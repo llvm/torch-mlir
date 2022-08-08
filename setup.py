@@ -41,7 +41,7 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
-import torch
+# import torch
 
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
@@ -152,7 +152,6 @@ setup(
         # exact version we built against.
         # TODO: This includes the +cpu specifier which is overly
         # restrictive and a bit unfortunate.
-        f"torch=={torch.__version__}",
     ],
     zip_safe=False,
 )

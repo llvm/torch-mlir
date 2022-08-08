@@ -6,7 +6,7 @@
 from typing import Sequence, Union, List
 from enum import Enum
 
-import torch
+# import torch
 
 from torch_mlir.passmanager import PassManager
 from .compiler_utils import run_pipeline_with_repro_report
@@ -85,7 +85,7 @@ class TensorPlaceholder:
     ```
     """
 
-    def __init__(self, shape: List[int], dtype: torch.dtype):
+    def __init__(self, shape: List[int], dtype):
         """Create a tensor with shape `shape` and dtype `dtype`.
 
         Args:
@@ -97,7 +97,7 @@ class TensorPlaceholder:
         self.dtype = dtype
 
     @staticmethod
-    def like(tensor: torch.Tensor, dynamic_axes: List[int] = None):
+    def like(tensor, dynamic_axes: List[int] = None):
         """Create a tensor placeholder that is like the given tensor.
 
         Args:
@@ -116,10 +116,10 @@ class TensorPlaceholder:
         return TensorPlaceholder(shape, tensor.dtype)
 
 
-_example_arg = Union[TensorPlaceholder, torch.Tensor]
+_example_arg = Union[TensorPlaceholder]
 
 
-def compile(model: torch.nn.Module,
+def compile(model,
             example_args: Union[_example_arg, Sequence[_example_arg]],
             output_type: Union[str, "OutputType"] = OutputType.TORCH,
             use_tracing: bool = False,

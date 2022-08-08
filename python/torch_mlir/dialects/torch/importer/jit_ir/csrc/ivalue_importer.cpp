@@ -11,6 +11,7 @@
 #include "class_annotator.h"
 #include "function_importer.h"
 #include "torch_to_mlir_utils.h"
+#include "packed_params.h"
 
 #include <unordered_map>
 
@@ -21,7 +22,6 @@
 #include "mlir-c/Diagnostics.h"
 #include "torch-mlir-c/TorchTypes.h"
 
-#include "ATen/native/quantized/PackedParams.h"
 #include "caffe2/core/scope_guard.h"
 
 using namespace torch_mlir;
