@@ -342,7 +342,8 @@ class EmptyLikeMemoryFormatModule(torch.nn.Module):
         ([-1, -1, -1, -1], torch.float32, True),
     ])
     def forward(self, a):
-        return torch.empty_like(a, memory_format=torch.preserve_format).fill_(0)
+        return torch.empty_like(a,
+                                memory_format=torch.preserve_format).fill_(0)
 
 
 @register_test_case(module_factory=lambda: EmptyLikeMemoryFormatModule())
@@ -1421,3 +1422,25 @@ class MaskedFillScalarFloatValueModule(torch.nn.Module):
 def MaskedFillScalarFloatValueModule_basic(module, tu: TestUtils):
     module.forward(torch.randint(-10, 10, (2, 3)),
                    torch.randint(0, 2, (2, 3)).to(dtype=torch.bool))
+
+
+class MaskedFillTensorFloatValueModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.bool, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, mask, value):
+        return torch.ops.aten.masked_fill(x, mask, value=value)
+
+
+@register_test_case(module_factory=lambda: MaskedFillTensorFloatValueModule())
+def MaskedFillTensorFloatValueModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-10, 10, (2, 3)),
+                   torch.randint(0, 2, (2, 3)).to(dtype=torch.bool), tu.rand())
