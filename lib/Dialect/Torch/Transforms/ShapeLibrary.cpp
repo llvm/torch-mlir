@@ -6511,7 +6511,7 @@ module {
     %10 = torch.aten.append.t %6, %8 : !torch.list<int>, !torch.int -> !torch.list<int>
     %11 = torch.aten.append.t %6, %9 : !torch.list<int>, !torch.int -> !torch.list<int>
     %12 = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %13 = torch.aten.eq.int %arg4, %int1 : !torch.int, !torch.int -> !torch.bool
+    %13 = torch.aten.eq.int %arg4, %int0 : !torch.int, !torch.int -> !torch.bool
     %14 = torch.prim.If %13 -> (!torch.list<int>) {
       %19 = torch.aten.append.t %12, %int0 : !torch.list<int>, !torch.int -> !torch.list<int>
       torch.prim.If.yield %12 : !torch.list<int>

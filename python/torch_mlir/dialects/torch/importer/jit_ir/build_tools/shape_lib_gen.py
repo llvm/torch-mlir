@@ -966,7 +966,7 @@ def aten〇embedding_bag〇padding_idx(weight: List[int], indices: List[int], of
     output_bag_shape.append(out_dim1)
 
     offset2bag_shape: List[int] = []
-    if mode == 1:
+    if mode == 0:
         offset2bag_shape.append(0)
     else:
         offset2bag_shape = upstream_shape_functions._copy(indices)
