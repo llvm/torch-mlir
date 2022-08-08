@@ -12,7 +12,18 @@ from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceIt
 
 def to_device(device):
     """Returns a lambda that maps `torch.Tensor` objects to `device`, and ignores other types"""
-    return lambda e: e.to(device) if isinstance(e, torch.Tensor) else e
+    num_inputs = 0
+    def _to_device(e):
+        nonlocal num_inputs
+
+        if isinstance(e, torch.Tensor):
+            e = e.to(device)
+            if device == "lazy":
+                lazy_backend.set_parameter_name(e, f"input_{num_inputs}")
+                num_inputs += 1
+        return e
+
+    return _to_device
 
 
 class LazyTensorCoreTestConfig(TestConfig):

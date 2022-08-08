@@ -18,6 +18,7 @@
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
 
 #include "backend_impl.h"
 
@@ -88,6 +89,8 @@ public:
     auto mlir_computation =
         static_cast<TorchMlirComputation*>(computation.get());
 
+    int num_inputs = 0;
+
     // Vendor backend specific execution can be inserted here.
     //
     // We don't have a way to execute a computation based on the generated MLIR,
@@ -106,7 +109,14 @@ public:
         at::Tensor tensor = mlir_data->mlir_info()->tensor;
         stack.emplace_back(tensor);
       }
+
+      // count number of inputs
+      auto name = mlir_data->mlir_info()->name;
+      if (startswith(name, "input_")) {
+        ++num_inputs;
+      }
     }
+    std::cout << num_inputs << " input tensors found" << std::endl;
     graph_executor.run(stack);
     std::vector<torch::lazy::BackendDataPtr> results;
     for (torch::jit::IValue component : stack) {

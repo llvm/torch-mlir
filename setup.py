@@ -20,6 +20,10 @@
 # prevent this script from attempting to build the directory, and will simply
 # use the (presumed already built) directory as-is.
 #
+# By default the lazy tensor backend is disabled and not built to avoid conflicts
+# with the out-of-tree build. To enable it, set the TORCH_MLIR_ENABLE_LTC
+# environment variable to 1.
+#
 # The package version can be set with the TORCH_MLIR_PYTHON_PACKAGE_VERSION
 # environment variable. For example, this can be "20220330.357" for a snapshot
 # release on 2022-03-30 with build number 357.
