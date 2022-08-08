@@ -49,8 +49,8 @@ class OptionalArrayRefParameter<string arrayOf, string desc = ""> :
     AttrOrTypeParameter<
       "::llvm::Optional<::llvm::ArrayRef<" # arrayOf # ">>", desc> {
   let allocator = [{
-    if ($_self.hasValue()) {
-      $_dst.getValue() = $_allocator.copyInto($_self.getValue());
+    if ($_self.has_value()) {
+      $_dst.value() = $_allocator.copyInto($_self.value());
     }
   }];
 }

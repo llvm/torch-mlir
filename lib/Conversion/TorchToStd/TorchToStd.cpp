@@ -178,7 +178,7 @@ public:
           }));
       return success();
     }
-    if (auto elements = op.valueAttr().dyn_cast<OpaqueElementsAttr>()) {
+    if (auto elements = op.valueAttr().dyn_cast<SparseElementsAttr>()) {
       if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
         if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
           Type builtinTensorElemTy =
@@ -186,8 +186,7 @@ public:
           auto shapedType =
               RankedTensorType::get(type.getShape(), builtinTensorElemTy);
           rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-              op, OpaqueElementsAttr::get(elements.getDialect(), shapedType,
-                                          elements.getValue()));
+              op, DenseElementsAttr::get(shapedType, elements.getValues()));
           return success();
         }
       }

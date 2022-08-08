@@ -54,12 +54,12 @@ public:
   Type getOptionalDtype() const;
 
   /// Return true if this type has a list of sizes.
-  bool hasSizes() const { return getOptionalSizes().hasValue(); }
+  bool hasSizes() const { return getOptionalSizes().has_value(); }
 
   /// Get the list of sizes. Requires `hasSizes()`.
   ArrayRef<int64_t> getSizes() const {
     assert(hasSizes() && "must have sizes");
-    return getOptionalSizes().getValue();
+    return getOptionalSizes().value();
   }
 
   /// Return true if all sizes of this tensor are known.

@@ -213,7 +213,8 @@ MlirType torchMlirTorchNonValueTensorTypeGetWithLeastStaticInformation(
 }
 
 MlirType torchMlirTorchNonValueTensorTypeGetFromAttribute(MlirAttribute attr) {
-  auto attrTensorType = unwrap(attr).getType().cast<RankedTensorType>();
+  auto attrTensorType =
+      unwrap(attr).cast<TypedAttr>().getType().cast<RankedTensorType>();
   return wrap(Torch::NonValueTensorType::get(attrTensorType.getContext(),
                                              attrTensorType.getShape(),
                                              attrTensorType.getElementType()));

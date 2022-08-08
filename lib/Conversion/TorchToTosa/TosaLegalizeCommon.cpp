@@ -297,13 +297,13 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
       reduce_element_type, input_is_qtype, input_scale, input_zp, output_scale,
       output_zp);
 
-  if (!val.hasValue())
+  if (!val.has_value())
     return llvm::None;
 
   if (!input_is_qtype) {
     Value div_const = getTosaConstTensorSingleF32(rewriter, op, div_scale);
     return CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), output_type,
-                                         val.getValue(), div_const, 0)
+                                         val.value(), div_const, 0)
         .getResult();
   }
 

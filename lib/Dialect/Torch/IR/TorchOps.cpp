@@ -247,7 +247,7 @@ LogicalResult ClassTypeOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OperandRange PrimLoopOp::getSuccessorEntryOperands(Optional<unsigned int> index) {
-  assert(index.hasValue() && index.value() == 0);
+  assert(index.has_value() && index.value() == 0);
   return iterArgsInit();
 }
 
@@ -256,7 +256,7 @@ void PrimLoopOp::getSuccessorRegions(
     SmallVectorImpl<RegionSuccessor> &regions) {
   (void)operands;
 
-  if (!index.hasValue()) {
+  if (!index.has_value()) {
     regions.emplace_back(&region(), region().getArguments().slice(1));
     return;
   }
@@ -328,7 +328,7 @@ void PrimIfOp::getSuccessorRegions(Optional<unsigned> index,
                                    ArrayRef<Attribute> operands,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
-  if (index.hasValue()) {
+  if (index.has_value()) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }
@@ -536,7 +536,7 @@ OpFoldResult Aten__RangeLengthOp::fold(ArrayRef<Attribute> operands) {
   // r[i] = lo + step*i such that i >= 0 and r[i] < hi
   // So maximize `i` such that lo + step * i < hi
   // ==> i == ceildiv(hi - lo, step)
-  return IntegerAttr::get(lo.getType(),
+  return IntegerAttr::get(lo.cast<TypedAttr>().getType(),
                           llvm::APIntOps::RoundingSDiv(hiInt - loInt, stepInt,
                                                        APInt::Rounding::UP));
 }
@@ -554,7 +554,8 @@ OpFoldResult Aten__DeriveIndexOp::fold(ArrayRef<Attribute> operands) {
   auto indexInt = index.dyn_cast_or_null<IntegerAttr>().getValue();
   auto startInt = start.dyn_cast_or_null<IntegerAttr>().getValue();
   auto stepInt = step.dyn_cast_or_null<IntegerAttr>().getValue();
-  return IntegerAttr::get(index.getType(), startInt + stepInt * indexInt);
+  return IntegerAttr::get(index.cast<TypedAttr>().getType(),
+                          startInt + stepInt * indexInt);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1903,7 +1904,7 @@ void ShapeCalculateOp::getSuccessorRegions(
     SmallVectorImpl<RegionSuccessor> &regions) {
   (void)operands;
 
-  if (!index.hasValue()) {
+  if (!index.has_value()) {
     // First thing the op does is branch into the shape calculation.
     regions.emplace_back(&shapeCalculation());
     return;

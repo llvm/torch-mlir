@@ -119,7 +119,7 @@ public:
 
     SmallVector<int32_t> values(size, fillVal);
     auto constOp =
-        mhlo::getConstTensor<int32_t>(rewriter, op, values, shape).getValue();
+        mhlo::getConstTensor<int32_t>(rewriter, op, values, shape).value();
 
     rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(op, outType, constOp);
     return success();
@@ -884,7 +884,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
       op->getLoc(), mhloBatchNormOutTy, input,
       mhlo::getConstTensor(rewriter, op, llvm::makeArrayRef(inputFlattenShape),
                            {static_cast<int64_t>(inputFlattenShape.size())})
-          .getValue());
+          .value());
 
   // Generate "scale" and "offset" Value for mhlo.BatchNormTrainingOp.
   SmallVector<APFloat> zeroConstVec(
@@ -920,19 +920,19 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
       op->getLoc(), outputTy, batchNormTrainingResult.getResult(0),
       mhlo::getConstTensor(rewriter, op, outputTy.getShape(),
                            {static_cast<int64_t>(outputTy.getShape().size())})
-          .getValue());
+          .value());
   auto mean = rewriter.create<mhlo::DynamicReshapeOp>(
       op->getLoc(), outputMeanOrVarTy, batchNormTrainingResult.getResult(1),
       mhlo::getConstTensor(
           rewriter, op, outputMeanOrVarTy.getShape(),
           {static_cast<int64_t>(outputMeanOrVarTy.getShape().size())})
-          .getValue());
+          .value());
   auto var = rewriter.create<mhlo::DynamicReshapeOp>(
       op->getLoc(), outputMeanOrVarTy, batchNormTrainingResult.getResult(2),
       mhlo::getConstTensor(
           rewriter, op, outputMeanOrVarTy.getShape(),
           {static_cast<int64_t>(outputMeanOrVarTy.getShape().size())})
-          .getValue());
+          .value());
 
   // Apply affine transform: output x weight + bias [element-wise]
   auto bcastedWeight = mhlo::promoteAndBroadcast(rewriter, weight, outputTy);

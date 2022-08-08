@@ -65,7 +65,7 @@ Type Torch::parseTorchDialectType(AsmParser &parser) {
   StringRef mnemonic;
   Type genType;
   auto parseResult = generatedTypeParser(parser, &mnemonic, genType);
-  if (parseResult.hasValue())
+  if (parseResult.has_value())
     return genType;
   parser.emitError(typeLoc) << "unknown  type `" << mnemonic << "` in dialect `"
                             << TorchDialect::getDialectNamespace() << "`";

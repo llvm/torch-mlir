@@ -310,15 +310,15 @@ struct ValueKnowledge {
                                        const ValueKnowledge &rhs) {
     Optional<ValueKnowledge> knowledge = meetTypes(lhs, rhs);
 
-    if (!knowledge.hasValue())
+    if (!knowledge.has_value())
       return None;
-    ValueKnowledge result = knowledge.getValue();
+    ValueKnowledge result = knowledge.value();
 
     Optional<OptionalKnowledge> optional =
         meetOptionalKnowledge(lhs.optional, rhs.optional);
-    if (!optional.hasValue())
+    if (!optional.has_value())
       return None;
-    result.optional = optional.getValue();
+    result.optional = optional.value();
     return result;
   }
 
@@ -517,13 +517,13 @@ updateResultTypeState(const ValueKnowledge *tensor,
                       Optional<bool> rankIsNonZero,
                       const torch_upstream::ResultTypeState &inState,
                       bool skipRankCheck = false) {
-  if (!rankIsNonZero.hasValue() && !skipRankCheck)
+  if (!rankIsNonZero.has_value() && !skipRankCheck)
     return torch_upstream::ResultTypeState{};
   assert(tensor->dtype && "tensor.dtype must be not none");
 
   torch_upstream::ResultTypeState new_state = inState;
   torch_upstream::ScalarType current = getScalarTypeForType(tensor->dtype);
-  if (skipRankCheck || rankIsNonZero.getValue())
+  if (skipRankCheck || rankIsNonZero.value())
     new_state.dimResult = promote_skip_undefined(inState.dimResult, current);
   else
     new_state.zeroResult = promote_skip_undefined(inState.zeroResult, current);
@@ -1124,8 +1124,8 @@ void TypeAnalysis::incorporateKnowledge(Value v,
                                         const ValueKnowledge &knowledge) {
   auto updatedKnowledge = ValueKnowledge::meet(
       knowledge, ValueKnowledge::getPessimisticValueState(v));
-  assert(updatedKnowledge.hasValue() && "IR has contradictory type!");
-  getLatticeElement(v)->join(updatedKnowledge.getValue());
+  assert(updatedKnowledge.has_value() && "IR has contradictory type!");
+  getLatticeElement(v)->join(updatedKnowledge.value());
 }
 
 void TypeAnalysis::visitAtenLinearOp(AtenLinearOp op,
@@ -1169,9 +1169,9 @@ void TypeAnalysis::visitAtenArangeLikeOpHelper(Operation *op,
     // `dtype` is inferred to be the default dtype, see
     // `torch.get_default_dtype`. Otherwise, the `dtype` is inferred to
     // be `torch.int64`
-    if ((start.hasValue() && (*start).getType().isa<Torch::FloatType>()) ||
+    if ((start.has_value() && (*start).getType().isa<Torch::FloatType>()) ||
         end.getType().isa<Torch::FloatType>() ||
-        (step.hasValue() && (*step).getType().isa<Torch::FloatType>())) {
+        (step.has_value() && (*step).getType().isa<Torch::FloatType>())) {
       // TODO: Should get the dtype from torch.get_default_dtype().
       // For now, use float32 which is the initial default dtype.
       knowledge.dtype = Float32Type::get(op->getContext());
@@ -1263,7 +1263,7 @@ void TypeAnalysis::visitConstantTensorAllocOp(OpTy op,
       ValueKnowledge::getTensorPessimisticValueState(op->getContext());
   if (!dataType)
     dataType = Torch::FloatType::get(op->getContext());
-  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), dataType.getValue());
+  fillInDTypeGivenDTypeAndDataType(knowledge, op.dtype(), dataType.value());
   incorporateKnowledge(op.getResult(), knowledge);
 }
 
@@ -1333,11 +1333,11 @@ void TypeAnalysis::visitAtenCatOp(AtenCatOp op,
       }));
   for (auto tensor : tensors) {
     auto newDtype = meetElementTypes(knowledge.dtype, tensor.dtype);
-    if (!newDtype.hasValue()) {
+    if (!newDtype.has_value()) {
       incorporateKnowledge(op.getResult(), knowledge);
       return;
     }
-    knowledge.dtype = newDtype.getValue();
+    knowledge.dtype = newDtype.value();
   }
   incorporateKnowledge(op.getResult(), knowledge);
 }
