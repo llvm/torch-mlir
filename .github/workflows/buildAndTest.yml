@@ -55,7 +55,7 @@ jobs:
       if: matrix.targetarch == 'arm64'
       run: |
         cd $GITHUB_WORKSPACE
-        cmake -GNinja -Bbuild \
+        cmake -GNinja -Bbuild_${{ matrix.targetarch }} \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_LINKER=lld \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -135,9 +135,14 @@ jobs:
           .
 
     - name: Build torch-mlir
-      # Build step for both in-tree and out-of-tree workflows
+      if: matrix.targetarch == 'x86_64'
       run: |
         cmake --build build
+    
+    - name: Build torch-mlir (cross-compile)
+      if: matrix.targetarch == 'arm64'
+      run: |
+        cmake --build build_${{ matrix.targetarch }}
 
     - name: Run torch-mlir unit tests
       if: matrix.llvmtype == 'binary'
