@@ -120,6 +120,28 @@ cmake --build build
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
 ```
 
+## Testing MLIR output in various dialects
+
+To test the compiler's output to the different MLIR dialects, you can use the example `examples/torchscript_resnet18_all_output_types.py`.
+
+Make sure you have activated the virtualenv and set the `PYTHONPATH` above:
+```shell
+source mlir_venv/bin/activate
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
+python examples/torchscript_resnet18_all_output_types.py
+```
+
+This will display the Resnet18 network example in three dialects: TORCH, LINALG on TENSORS and TOSA.
+
+The main functionality is on `torch_mlir.compile()`'s `output_type`.
+
+Ex:
+```python
+module = torch_mlir.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
+```
+
+Currently, `output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `MHLO`.
+
 ## Jupyter
 
 Jupyter notebook:
