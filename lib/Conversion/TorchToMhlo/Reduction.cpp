@@ -85,9 +85,14 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
 
   Value initValue = createInitialValueForReduceOp(op, inputElemTy, rewriter);
   if (!initValue) return llvm::None;
-
-  Value initIndex =
-      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
+  Value initIndex;
+  if (mlir::mhlo::kMhloDimSizeBits == 32) {
+    initIndex =
+      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
+  } else {
+    initIndex =
+      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
+  }
 
   DenseIntElementsAttr dimensions = DenseIntElementsAttr::get(
       RankedTensorType::get({}, rewriter.getI64Type()), dim);
@@ -95,7 +100,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
       op->getLoc(), inputShapeVec);
   auto indexTensor = rewriter.create<mhlo::DynamicIotaOp>(
-      op->getLoc(), RankedTensorType::get(inputShape, rewriter.getI64Type()),
+      op->getLoc(), RankedTensorType::get(inputShape, rewriter.getIntegerType(mlir::mhlo::kMhloDimSizeBits)),
       inputShapeTensor, static_cast<uint64_t>(dim));
 
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
@@ -111,7 +116,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   // Add block arguments
   auto blockValArgumentType =
       RankedTensorType::get({}, inputTy.getElementType());
-  auto blockIdxArgumentType = RankedTensorType::get({}, rewriter.getI64Type());
+  auto blockIdxArgumentType = RankedTensorType::get({}, rewriter.getIntegerType(mlir::mhlo::kMhloDimSizeBits));
   auto compareResultType = RankedTensorType::get({}, rewriter.getI1Type());
   block.addArgument(blockValArgumentType, op->getLoc());
   block.addArgument(blockIdxArgumentType, op->getLoc());
@@ -231,7 +236,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
 
     outShapeVec[dim] = rewriter.create<mlir::arith::ConstantOp>(
         op->getLoc(), rewriter.getIntegerAttr(
-                          rewriter.getIntegerType(mhlo::kMhloDimSizeBits), 1));
+                          rewriter.getIntegerType(mlir::mhlo::kMhloDimSizeBits), 1));
 
     auto outShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), outShapeVec);
