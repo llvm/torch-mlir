@@ -179,9 +179,6 @@ TOSA_PASS_SET = {
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
-    "ElementwiseRemainderScalarModule_Int_Float_basic",
-    "ElementwiseRemainderScalarModule_Float_basic",
-    "ElementwiseRemainderScalarModule_Int_basic",
 }
 
 LTC_XFAIL_SET = {
