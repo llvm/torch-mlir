@@ -65,7 +65,7 @@ jobs:
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DTORCH_MLIR_ENABLE_MHLO=OFF \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
-          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.taregetarch }} \
+          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.targetarch }} \
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \
           -DLLVM_TARGETS_TO_BUILD="AArch64" \
           -DLLVM_USE_HOST_TOOLS=ON \
