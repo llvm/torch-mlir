@@ -478,9 +478,6 @@ def aten〇mul〇Scalar(self: List[int], other: float) -> List[int]:
 def aten〇div〇Scalar(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-def aten〇remainder〇Scalar(self: List[int], other: float) -> List[int]:
-    return upstream_shape_functions.unary(self)
-
 def aten〇floor_divide〇Scalar(self: List[int], other: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
