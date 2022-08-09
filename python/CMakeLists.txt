@@ -130,7 +130,6 @@ set(_source_components
   MLIRPythonSources
   MLIRPythonExtension.Core
   MLIRPythonExtension.RegisterEverything
-  MLIRPythonExtension.ExecutionEngine
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 )
