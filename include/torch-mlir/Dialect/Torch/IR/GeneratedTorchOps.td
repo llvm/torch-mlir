@@ -6270,6 +6270,7 @@ def Torch_AtenFloatTensorOp : Torch_Op<"aten.Float.Tensor", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenDropoutOp : Torch_Op<"aten.dropout", [

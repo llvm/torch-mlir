@@ -1867,6 +1867,46 @@ OpFoldResult AtenFloatTensorOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+// If a `vtensor.literal` op is passed to `aten.Float.Tensor` op, that can be 
+// canonicalized to a single float constant op.
+
+// For ex: 
+// %0 = torch.vtensor.literal(dense<0.0> : tensor<f64>) : !torch.vtensor<[],f64>
+// %1 = torch.aten.Float.Tensor %0 : !torch.vtensor<[],f64> -> !torch.float
+// can be canonicalized to:
+// %cst_0 = torch.constant.float 0.0
+void AtenFloatTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenFloatTensorOp op, PatternRewriter &rewriter) {
+    auto valueTensor = op.a().getDefiningOp<ValueTensorLiteralOp>();
+    if (!valueTensor)
+      return failure();
+    auto tensorType =
+        valueTensor.getResult().getType().dyn_cast<BaseTensorType>();
+    if (!tensorType)
+      return failure();
+    if (tensorType.getDtype().isa<mlir::Float32Type>()) {
+      auto val = valueTensor.value()
+                     .cast<DenseElementsAttr>()
+                     .getSplatValue<float_t>();
+      Value constFloat = rewriter.create<Torch::ConstantFloatOp>(
+          op.getLoc(), rewriter.getF64FloatAttr(val));
+      rewriter.replaceOp(op, constFloat);
+      return success();
+    }
+    if (tensorType.getDtype().isa<mlir::Float64Type>()) {
+      auto val = valueTensor.value()
+                     .cast<DenseElementsAttr>()
+                     .getSplatValue<double_t>();
+      Value constFloat = rewriter.create<Torch::ConstantFloatOp>(
+          op.getLoc(), rewriter.getF64FloatAttr(val));
+      rewriter.replaceOp(op, constFloat);
+      return success();
+    }
+    return failure();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenDivFloatOp
 //===----------------------------------------------------------------------===//

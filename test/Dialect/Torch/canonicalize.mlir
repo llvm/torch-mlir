@@ -1414,3 +1414,22 @@ func.func @prim.ListUnpack$fold_list(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !t
   %1:2 = torch.prim.ListUnpack %0 : !torch.list<vtensor> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
   return %1#0, %1#1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
 }
+
+
+// CHECK-LABEL:   func.func @torch.aten.Float.Tensor$canonicalize_literal_0df32() -> !torch.float {
+// CHECK:           %[[FLOAT_CST:.*]] = torch.constant.float -3.4028234663852886E+38
+// CHECK:           return %[[FLOAT_CST]] : !torch.float
+func.func @torch.aten.Float.Tensor$canonicalize_literal_0df32() -> !torch.float {
+    %0 = torch.vtensor.literal(dense<-3.40282347E+38> : tensor<f32>) : !torch.vtensor<[],f32>
+    %1 = torch.aten.Float.Tensor %0 : !torch.vtensor<[],f32> -> !torch.float
+    return %1 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.Float.Tensor$canonicalize_literal_0df64() -> !torch.float {
+// CHECK:           %[[FLOAT_CST:.*]] = torch.constant.float -8.000000e+43
+// CHECK:           return %[[FLOAT_CST]] : !torch.float
+func.func @torch.aten.Float.Tensor$canonicalize_literal_0df64() -> !torch.float {
+    %0 = torch.vtensor.literal(dense<-8.0E+43> : tensor<f64>) : !torch.vtensor<[],f64>
+    %1 = torch.aten.Float.Tensor %0 : !torch.vtensor<[],f64> -> !torch.float
+    return %1 : !torch.float
+}
