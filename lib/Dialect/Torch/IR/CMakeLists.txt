@@ -16,6 +16,7 @@ add_mlir_library(TorchMLIRTorchDialect
   Core
 
   LINK_LIBS PUBLIC
+  MLIRFuncDialect
   MLIRIR
   MLIRSupport
   MLIRControlFlowInterfaces
