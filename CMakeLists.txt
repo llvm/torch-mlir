@@ -100,9 +100,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 else()
   message(STATUS "Torch-MLIR in-tree build.")
   # In-tree build with LLVM_EXTERNAL_PROJECTS=torch-mlir
-  # FIXME: This should really be inherited from the LLVM tree.  In particular,
-  # it's going to change when cross-compiling.
-  set(MLIR_TABLEGEN_EXE mlir-tblgen)
   if (TORCH_MLIR_ENABLE_MHLO)
     set(MLIR_PDLL_TABLEGEN_EXE mlir-pdll)
   endif()
