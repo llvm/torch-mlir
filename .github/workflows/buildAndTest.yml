@@ -74,7 +74,7 @@ jobs:
     - name: Configure llvm-binary-torch-src-or-binary
       # Should be the fastest builds for CI and fails fast
       # OSX CMake flags are ignored on Linux
-      if: matrix.llvmtype == 'binary'
+      if: ${{  matrix.llvmtype == 'binary' AND matrix.targetarch == 'x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
         cmake -GNinja -Bbuild \
@@ -99,7 +99,7 @@ jobs:
     - name: Configure llvm-source-out-of-tree-torch-src-or-binary
       # This build takes a while but is expected to almost always be cached.
       # A cache invalidation occurs when the committed LLVM version is changed.
-      if: matrix.llvmtype == 'source'
+      if: ${{  matrix.llvmtype == 'source' AND matrix.targetarch == 'x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
         cmake -GNinja -Bllvm-build \
