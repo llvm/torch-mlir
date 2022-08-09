@@ -123,8 +123,8 @@ public:
                            PatternRewriter &rewriter) {
 
     DenseMap<int, Type> originalReturnTypes;
-    if (ops.returnOp.hasValue()) {
-      auto returnOp = ops.returnOp.getValue();
+    if (ops.returnOp.has_value()) {
+      auto returnOp = ops.returnOp.value();
       for (auto operand : llvm::enumerate(returnOp->getOperands())) {
         auto type = operand.value().getType();
         if (!type.isa<NonValueTensorType>())
@@ -160,8 +160,8 @@ public:
           result.setType(resultType.getWithValueSemantics());
       });
     }
-    if (ops.returnOp.hasValue()) {
-      auto returnOp = ops.returnOp.getValue();
+    if (ops.returnOp.has_value()) {
+      auto returnOp = ops.returnOp.value();
       for (int i = 0, e = returnOp->getNumOperands(); i < e; i++) {
         OpOperand &operand = returnOp->getOpOperand(i);
         auto it = originalReturnTypes.find(i);

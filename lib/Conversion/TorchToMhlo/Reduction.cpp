@@ -87,7 +87,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   if (!initValue) return llvm::None;
 
   Value initIndex =
-      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
+      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
 
   DenseIntElementsAttr dimensions = DenseIntElementsAttr::get(
       RankedTensorType::get({}, rewriter.getI64Type()), dim);
@@ -224,7 +224,7 @@ LogicalResult ConvertAtenReductionOp<AtenArgmaxOp>::matchAndRewrite(
   }
   auto inputShapeVec = *inputShapeInfo;
   auto mhloReduceResults =
-      getMaxInDim(rewriter, op, input, inputShapeVec, dim).getValue();
+      getMaxInDim(rewriter, op, input, inputShapeVec, dim).value();
 
   if (keepDim) {
     auto outShapeVec = inputShapeVec;
@@ -301,7 +301,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
   }
   auto inputShapeVec = *inputShapeInfo;
   auto mhloReduceResults =
-      getMaxInDim(rewriter, op, input, inputShapeVec, dim).getValue();
+      getMaxInDim(rewriter, op, input, inputShapeVec, dim).value();
 
   if (keepDim) {
     auto outShapeVec = inputShapeVec;

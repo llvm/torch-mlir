@@ -342,7 +342,7 @@ public:
           continue;
         }
 
-        if (inferredDimension.hasValue()) {
+        if (inferredDimension.has_value()) {
           return rewriter.notifyMatchFailure(
               op, "at most one element in size list is allowed to be -1");
         }
@@ -363,7 +363,7 @@ public:
     // then we don't need to analyze the static information of the input
     // shape since the reassociation of dimensions only requires rank
     // information.
-    if (inferredDimension.hasValue() && outputShape.size() > 1) {
+    if (inferredDimension.has_value() && outputShape.size() > 1) {
       if (llvm::count(outputShape, kUnknownSize) != 1 ||
           llvm::count(inputShape, kUnknownSize) != 0) {
         return rewriter.notifyMatchFailure(
@@ -585,14 +585,14 @@ public:
       collapsedInput = rewriter
                            .create<tensor::ExpandShapeOp>(
                                loc, adjustedResultType,
-                               expandedInput.hasValue() ? expandedInput.value()
-                                                        : castedInput,
+                               expandedInput.has_value() ? expandedInput.value()
+                                                         : castedInput,
                                outputAssociations)
                            .result();
     }
 
-    Value result = collapsedInput.hasValue() ? collapsedInput.value()
-                                             : expandedInput.value();
+    Value result = collapsedInput.has_value() ? collapsedInput.value()
+                                              : expandedInput.value();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }

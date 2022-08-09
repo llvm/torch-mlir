@@ -646,7 +646,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
           monomorphization.argInstances[0].instance.getDefiningOp<NnModuleOp>(),
           monomorphization.func);
     }
-    if (linkageInfo.hasValue()) {
+    if (linkageInfo.has_value()) {
       // It's a method.
       newFunc.setVisibility(linkageInfo->isPrivate
                                 ? SymbolTable::Visibility::Private

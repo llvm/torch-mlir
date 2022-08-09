@@ -236,7 +236,7 @@ Type parseTensorType(MLIRContext *context, AsmParser &parser,
       }
       int64_t size;
       auto optionalInt = parser.parseOptionalInteger(size);
-      if (optionalInt.hasValue()) {
+      if (optionalInt.has_value()) {
         if (failed(*optionalInt))
           return Type();
         sizes.push_back(size);

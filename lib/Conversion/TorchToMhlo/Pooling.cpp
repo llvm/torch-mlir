@@ -314,8 +314,7 @@ LogicalResult ConvertAtenPoolingOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
               initIndexTensor, inputShapeTensor)
           .getResult();
 
-  Value initIdx =
-      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
+  Value initIdx = mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
 
   auto reduceWindowOp = rewriter.create<mhlo::ReduceWindowOp>(
       op->getLoc(), mlir::TypeRange{outValTy, outIdxTy},
@@ -491,7 +490,7 @@ LogicalResult ConvertAtenPoolingOp<AtenAvgPool2dOp>::matchAndRewrite(
   if (countIncludePad) {
     Value divisor = mhlo::getConstTensor<int64_t>(
                         rewriter, op, {kernelSize[0] * kernelSize[1]}, {})
-                        .getValue();
+                        .value();
     divisor = mhlo::promoteType(rewriter, divisor, outTy);
     DenseIntElementsAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
@@ -501,7 +500,7 @@ LogicalResult ConvertAtenPoolingOp<AtenAvgPool2dOp>::matchAndRewrite(
 
   // Use another mhlo.ReduceWindowOp to get the divisor
   Value windowSizeConst =
-      mhlo::getConstTensor<float>(rewriter, op, {1.0}, {}).getValue();
+      mhlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
   windowSizeConst = mhlo::promoteType(rewriter, windowSizeConst, outTy);
   auto inputShapeVec = *mhlo::getDimSizesOfTensor(rewriter, op, input);
   auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
