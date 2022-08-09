@@ -10,7 +10,15 @@ include_directories(BEFORE
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-add_library(TorchMLIRJITIRImporter SHARED
+# TODO: Currently, out-of-tree build fails when LIBRARY_TYPE is set to SHARED, so we have this toggle.
+#       See https://github.com/llvm/torch-mlir/issues/1154 for more details.
+if(TORCH_MLIR_ENABLE_LTC)
+  set(LIBRARY_TYPE "SHARED")
+else()
+  set(LIBRARY_TYPE "MODULE")
+endif()
+
+add_library(TorchMLIRJITIRImporter ${LIBRARY_TYPE}
   class_annotator.cpp
   class_annotator_pybind.cpp
   get_registered_ops.cpp
