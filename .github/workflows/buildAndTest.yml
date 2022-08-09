@@ -24,6 +24,8 @@ jobs:
             llvmbuildtype: in-tree
           - llvmtype: binary
             llvmbuildtype: out-of-tree
+          - llvmbuildtype: out-of-tree
+            torch-binary: OFF
           # Disable M1 builds until https://github.com/llvm/torch-mlir/issues/1094 is fixed
           - targetarch: AArch64
           # macOS we only do source builds to reduce options
