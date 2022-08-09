@@ -447,6 +447,7 @@ LTC_XFAIL_SET = {
     "QuantizedMLP_basic",
     "RandLikeDtypeModule_basic",
     "RandLikeModule_basic",
+    "RollModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
     "SliceEndSleStartModule_basic",
