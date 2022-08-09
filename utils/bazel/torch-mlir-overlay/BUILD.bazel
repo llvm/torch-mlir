@@ -169,6 +169,7 @@ cc_library(
         "lib/Dialect/Torch/Transforms/AdjustCallingConventions.cpp",
         "lib/Dialect/Torch/Transforms/DecomposeComplexOps.cpp",
         "lib/Dialect/Torch/Transforms/DropShapeCalculations.cpp",
+        "lib/Dialect/Torch/Transforms/EraseModuleInitializer.cpp",
         "lib/Dialect/Torch/Transforms/GlobalizeObjectGraph.cpp",
         "lib/Dialect/Torch/Transforms/InlineGlobalSlots.cpp",
         "lib/Dialect/Torch/Transforms/MaximizeValueSemantics.cpp",
