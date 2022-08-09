@@ -43,8 +43,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect,
-                           tensor::TensorDialect, arith::ArithmeticDialect,
-                           Torch::TorchDialect>();
+                           tensor::TensorDialect, arith::ArithmeticDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
