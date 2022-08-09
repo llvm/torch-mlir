@@ -549,6 +549,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::eq.int : (int, int) -> (bool)", has_folder=True)
     emit("aten::floordiv.int : (int, int) -> (int)", has_folder=True)
     emit("aten::remainder.int : (int, int) -> (int)", has_folder=True)
+    emit("aten::remainder.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
     emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
