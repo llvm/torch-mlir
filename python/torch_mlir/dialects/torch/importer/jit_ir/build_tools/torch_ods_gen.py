@@ -257,19 +257,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::floor : (Tensor) -> (Tensor)",
             "aten::ceil : (Tensor) -> (Tensor)",
             "aten::bitwise_not : (Tensor) -> (Tensor)",
-            "aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
-            "aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
-            "aten::div.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)",
             "aten::lerp.Tensor : (Tensor, Tensor, Tensor) -> (Tensor)",
             "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::gt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::lt.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::ne.Tensor : (Tensor, Tensor) -> (Tensor)",
-            "aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)",
-            "aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)",
-            "aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::div.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::ne.Scalar : (Tensor, Scalar) -> (Tensor)",
             "aten::eq.Scalar : (Tensor, Scalar) -> (Tensor)",
@@ -298,7 +292,14 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
     # variants.
-    emit_with_mutating_variants("aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)    
+    emit_with_mutating_variants("aten::div.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::mul.Tensor : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)  
+    emit_with_mutating_variants("aten::sub.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)  
+    emit_with_mutating_variants("aten::add.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::sub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)", has_canonicalizer=True)
+    emit_with_mutating_variants("aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
+    
     emit("aten::addcmul : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
