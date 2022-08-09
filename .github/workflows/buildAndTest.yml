@@ -27,10 +27,6 @@ jobs:
           # Disable M1 builds until https://github.com/llvm/torch-mlir/issues/1094 is fixed
           - targetarch: arm64
             os: ubuntu-22.04
-          - targetarch: arm64
-            llvmtype: binary
-          - targetarch: arm64
-            llvmtype: source
           # macOS we only do source builds to reduce options
           - os: macos-12
             torch-binary: OFF
