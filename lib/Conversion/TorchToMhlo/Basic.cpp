@@ -947,6 +947,39 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
 } // namespace
 
+// AtenCatOp
+namespace {
+template <>
+LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
+    AtenCatOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "only constant dim param is supported");
+  }
+
+  SmallVector<Value> torchTensors;
+  if (!getListConstructElements(op.tensors(), torchTensors)) {
+    return rewriter.notifyMatchFailure(
+        op, "input should comes from a PrimListConstructOp");
+  }
+  SmallVector<Value> builtinTensors = getTypeConvertedValues(
+      rewriter, op->getLoc(), getTypeConverter(), torchTensors);
+
+  // Promote type
+  for (auto &v : builtinTensors) {
+    v = mhlo::promoteType(rewriter, v, outType);
+  }
+
+  rewriter.replaceOpWithNewOp<mhlo::ConcatenateOp>(
+      op, ValueRange(builtinTensors), static_cast<uint64_t>(dim));
+  return success();
+}
+} // namespace
+
 void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1025,6 +1058,8 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
   INSERT_ATENOP_PATTERN(AtenErfOp);
+
+  INSERT_ATENOP_PATTERN(AtenCatOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
   INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
