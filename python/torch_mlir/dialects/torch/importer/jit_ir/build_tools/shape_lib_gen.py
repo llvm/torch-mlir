@@ -427,6 +427,9 @@ def aten〇to〇dtype(self: List[int], dtype: int, non_blocking: bool = False, c
 def aten〇to〇dtype_layout(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return self
 
+def aten〇to〇device(self: List[int], device: device, dtype: int, non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇to〇other(self: List[int], other: List[int], non_blocking: bool = False, copy: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 

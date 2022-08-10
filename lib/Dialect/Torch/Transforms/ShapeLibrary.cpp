@@ -5448,6 +5448,10 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.to.dtype_layout"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.bool, %arg6: !torch.bool, %arg7: !torch.optional<int>) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.to.device"(%arg0: !torch.list<int>, %arg1: !torch.Device, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool, %arg5: !torch.optional<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.to.other"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool, %arg3: !torch.bool, %arg4: !torch.optional<int>) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>

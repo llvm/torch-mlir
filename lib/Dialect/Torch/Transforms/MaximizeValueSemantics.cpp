@@ -38,7 +38,7 @@ static bool isViewLikeOp(Operation *op) {
              AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
              AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
-             AtenNarrowOp>(op);
+             AtenNarrowOp, AtenToDeviceOp>(op);
 }
 
 namespace {

@@ -1024,6 +1024,11 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto toDtype = dyn_cast<AtenToDeviceOp>(op)) {
+    visitAtenToDtypeLikeOp<AtenToDeviceOp>(toDtype, operands);
+    return;
+  }
+
   if (auto toOther = dyn_cast<AtenToOtherOp>(op)) {
     visitTypeConversionOp<AtenToOtherOp>(toOther, operands);
     return;
