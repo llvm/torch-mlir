@@ -72,7 +72,7 @@ class CMakeBuild(build_py):
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython3_EXECUTABLE={sys.executable}",
-                f"-DLLVM_TARGETS_TO_BUILD=host",
+                f"-DLLVM_TARGETS_TO_BUILD=X86,AArch64",
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DTORCH_MLIR_ENABLE_MHLO=ON",
@@ -85,6 +85,11 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
+                f"-DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF",
+                f"-DMACOSX_DEPLOYMENT_TARGET=12.0",
+                # This is only require when cross compiling but we use the setup.py for native and cross-compile
+                f"-DLLVM_USE_HOST_TOOLS=ON",
+                f"-DCMAKE_OSX_ARCHITECTURES=",
             ]
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")
