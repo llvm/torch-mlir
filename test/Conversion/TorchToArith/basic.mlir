@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt <%s -convert-torch-to-std | FileCheck %s
+// RUN: torch-mlir-opt <%s -convert-torch-to-arith | FileCheck %s
 
 
 // CHECK-LABEL:   func.func @torch.aten.dim(

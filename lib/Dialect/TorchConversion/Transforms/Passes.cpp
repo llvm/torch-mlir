@@ -17,7 +17,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
-#include "torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+#include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #ifdef TORCH_MLIR_ENABLE_MHLO
@@ -70,11 +70,11 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
-  // and those constants get somewhat obscured by TorchToStd.
+  // and those constants get somewhat obscured by TorchToArith.
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToLinalgPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
-  pm.addNestedPass<func::FuncOp>(createConvertTorchToStdPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
   if (options.optimize) {

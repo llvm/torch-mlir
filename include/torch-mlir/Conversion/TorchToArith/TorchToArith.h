@@ -16,7 +16,7 @@
 
 namespace mlir {
 namespace torch {
-std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToStdPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToArithPass();
 }
 } // namespace mlir
 
