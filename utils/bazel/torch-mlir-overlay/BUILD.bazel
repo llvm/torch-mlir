@@ -406,13 +406,13 @@ cc_library(
 )
 
 cc_library(
-    name = "TorchMLIRTorchToStd",
+    name = "TorchMLIRTorchToArith",
     srcs = [
-        "lib/Conversion/TorchToStd/TorchToStd.cpp",
+        "lib/Conversion/TorchToArith/TorchToArith.cpp",
         "lib/Conversion/PassDetail.h"
     ],
     hdrs = [
-        "include/torch-mlir/Conversion/TorchToStd/TorchToStd.h"
+        "include/torch-mlir/Conversion/TorchToArith/TorchToArith.h"
     ],
     strip_include_prefix = "include",
     deps = [
@@ -485,7 +485,7 @@ cc_library(
     deps = [
         ":TorchMLIRTorchToLinalg",
         ":TorchMLIRTorchToSCF",
-        ":TorchMLIRTorchToStd",
+        ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToTosa",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToMhlo"
@@ -515,7 +515,7 @@ cc_library(
         ":TorchMLIRTorchConversionDialect",
         ":TorchMLIRTorchToLinalg",
         ":TorchMLIRTorchToSCF",
-        ":TorchMLIRTorchToStd",
+        ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToTosa",
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToMhlo",
