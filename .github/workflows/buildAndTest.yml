@@ -66,6 +66,7 @@ jobs:
           -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
           -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DTORCH_MLIR_ENABLE_MHLO=OFF \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
           -DCMAKE_OSX_ARCHITECTURES=${{ matrix.targetarch }} \
