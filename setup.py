@@ -72,7 +72,7 @@ class CMakeBuild(build_py):
             cmake_args = [
                 f"-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython3_EXECUTABLE={sys.executable}",
-                f"-DLLVM_TARGETS_TO_BUILD=X86,AArch64",
+                f"-DLLVM_TARGETS_TO_BUILD=X86;AArch64",
                 f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
                 f"-DLLVM_ENABLE_PROJECTS=mlir",
                 f"-DTORCH_MLIR_ENABLE_MHLO=ON",
