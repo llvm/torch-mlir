@@ -1997,6 +1997,25 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.to.device` op into `aten.to.dtype` op.
+class DecomposeAtenToDeviceOp : public OpRewritePattern<AtenToDeviceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToDeviceOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // Device information isn't relevant to torch-mlir, so we can drop that info
+    // here.
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), op.self(),
+                                               op.dtype(), op.non_blocking(),
+                                               op.copy(), op.memory_format());
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.adaptive_avg_pool2d` op into `aten.avg_pool2d` op.
 //
 // For AdaptiveAvgPool2d op, when the input size is an integer multiple of
@@ -2586,6 +2605,8 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAtenPadOp>(context);
     patterns.add<DecomposeAtenToDtypeLayoutOp>(context);
     target.addIllegalOp<AtenToDtypeLayoutOp>();
+    patterns.add<DecomposeAtenToDeviceOp>(context);
+    target.addIllegalOp<AtenToDeviceOp>();
     patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
     target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
     patterns.add<DecomposeAtenClampMinOp>(context);

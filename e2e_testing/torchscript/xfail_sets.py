@@ -53,6 +53,7 @@ TOSA_PASS_SET = {
     "TModuleRank1_basic",
     "TModuleRank0_basic",
     "ElementwiseToDtypeIdentityModule_basic",
+    "AtenToDeviceModule_basic",
     "View1DFoldModule_basic",
     "UnsafeView1DFoldModule_basic",
     "SqueezeDimModule_static",

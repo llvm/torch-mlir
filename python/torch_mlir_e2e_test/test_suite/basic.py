@@ -2627,3 +2627,22 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
     indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
+
+# ==============================================================================
+
+class AtenToDeviceModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+    ])
+
+    def forward(self, val):
+        return torch.ops.aten.to(val, device='cpu', dtype=torch.float, non_blocking=False)
+
+@register_test_case(module_factory=lambda: AtenToDeviceModule())
+def AtenToDeviceModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(2, 4))
