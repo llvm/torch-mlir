@@ -48,8 +48,11 @@ jobs:
         cache-suffix: ${{ matrix.os }}-${{ matrix.targetarch }}-${{ matrix.llvmtype }}-${{ matrix.llvmbuildtype }}
 
     - name: Configure llvm-cross-compile
+      # libzstd on GH Runners are only x86_64 to remove them.
       if: matrix.targetarch == 'arm64'
       run: |
+        sudo rm -rf /usr/local/lib/libzstd.*.dylib
+        sudo rm -rf /usr/local/lib/cmake/zstd/*
         cd $GITHUB_WORKSPACE
         cmake -GNinja -Bbuild_${{ matrix.targetarch }} \
           -DCMAKE_BUILD_TYPE=Release \
