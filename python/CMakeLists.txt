@@ -50,6 +50,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   SOURCES
     __init__.py
     compiler_utils.py
+    _mlir_libs/_site_initialize_0.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Dialects
@@ -127,8 +128,8 @@ set(_source_components
   # the only way to handle that is to create a separate mlir python package
   # tree, which seems excessive.
   MLIRPythonSources
-  MLIRPythonExtension.Core
-  MLIRPythonExtension.RegisterEverything
+  MLIRPythonSources.Core
+  MLIRPythonSources.ExecutionEngine
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
 )
