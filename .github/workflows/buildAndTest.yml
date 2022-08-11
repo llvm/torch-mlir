@@ -10,7 +10,7 @@ on:
 # Provisioned Jobs:
 # ubuntu - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
 # ubuntu - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
-# macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
+# macos  - arm64  - llvm in-tree     - pytorch source - build only    # cross compile, can't test arm64
 
 
 jobs:
@@ -144,9 +144,9 @@ jobs:
         llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON, OFF]
         exclude:
-          # Exclude llvm in-tree and pytorch source
+          # Exclude llvm in-tree and pytorch binary
           - llvm-build: in-tree
-            torch-binary: OFF
+            torch-binary: ON
           # Exclude llvm out-of-tree altogether
           - llvm-build: out-of-tree
 
