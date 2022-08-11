@@ -179,7 +179,7 @@ TOSA_PASS_SET = {
     "TransposeIntNegDimsModule_basic",
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
-    "_LogSoftmaxModuleStable_basic",    
+    "_LogSoftmaxModuleStable_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -338,4 +338,8 @@ LTC_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "Aten_EmbeddingBagExample_basic",
+    "ElementwiseRemainderScalarModule_Int_Float_basic",
+    "ElementwiseRemainderScalarModule_Float_basic",
+    "ElementwiseRemainderScalarModule_Int_basic",
+    "ElementwiseRemainderScalarModule_Bool_basic",
 }

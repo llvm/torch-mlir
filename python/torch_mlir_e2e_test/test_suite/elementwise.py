@@ -1304,6 +1304,90 @@ class ElementwiseDivScalarModule(torch.nn.Module):
 def ElementwiseDivScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Int_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.remainder(x, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float())
+def ElementwiseRemainderScalarModule_Int_Float_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3,), dtype=torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.remainder(x, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Float())
+def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
+    module.forward(torch.rand(10, 3))
+
+
+# ==============================================================================
+
+class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+    ])
+    def forward(self, x):
+        return torch.remainder(x, 2)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int())
+def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
+    module.forward(torch.randint(10, (3, 2), dtype=torch.int32))
+
+# ==============================================================================
+
+class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.bool, True),
+    ])
+    def forward(self, x):
+        return torch.remainder(x, 2)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Bool())
+def ElementwiseRemainderScalarModule_Bool_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([True, False, True, True, True]))
+
 
 # ==============================================================================
 
