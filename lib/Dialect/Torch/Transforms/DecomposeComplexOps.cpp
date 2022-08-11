@@ -2465,6 +2465,46 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenNormScalarOptDimOp
+    : public OpRewritePattern<AtenNormScalarOptDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNormScalarOptDimOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    Value p = op.p();
+    Value dim = op.dim();
+    Value keepdim = op.keepdim();
+    Type outputType = op.getType();
+    Value dtype = rewriter.create<Torch::ConstantNoneOp>(loc);
+    BaseTensorType tensorType = self.getType().cast<BaseTensorType>();
+    Value abs = rewriter.create<AtenAbsOp>(loc, tensorType, self);
+    Value powInner =
+        rewriter.create<AtenPowTensorScalarOp>(loc, tensorType, abs, p);
+    Value sumAlongDims = rewriter.create<AtenSumDimIntListOp>(
+        loc, outputType, powInner, dim, keepdim, dtype);
+    if (p.getType().isa<Torch::FloatType>()) {
+      Value constantOne = rewriter.create<Torch::ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(1.0));
+      Value div = rewriter.create<AtenDivFloatOp>(
+          loc, Torch::FloatType::get(op.getContext()), constantOne, p);
+      rewriter.replaceOpWithNewOp<AtenPowTensorScalarOp>(op, outputType,
+                                                         sumAlongDims, div);
+    } else {
+      Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      Value div = rewriter.create<AtenDivIntOp>(
+          loc, Torch::FloatType::get(op.getContext()), constantOne, p);
+      rewriter.replaceOpWithNewOp<AtenPowTensorScalarOp>(op, outputType,
+                                                         sumAlongDims, div);
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
   void runOnOperation() override {
@@ -2631,6 +2671,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenNarrowOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
+    patterns.add<DecomposeAtenNormScalarOptDimOp>(context);
+    target.addIllegalOp<AtenNormScalarOptDimOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

@@ -374,6 +374,9 @@ public:
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenDivIntOp>();
+    patterns.add<ConvertAtenBinaryOp<AtenDivIntOp, arith::DivFOp>>(
+        typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
     patterns
         .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(

@@ -1884,6 +1884,23 @@ OpFoldResult AtenDivFloatOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// AtenDivIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivIntOp::fold(ArrayRef<Attribute> operands) {
+  int64_t lhs, rhs;
+  bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
+  bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
+  if (lConstant && lhs == 0)
+    return getF64FloatAttr(getContext(), 0.0);
+  if (lConstant && rConstant && rhs == 1.0)
+    return getF64FloatAttr(getContext(), lhs);
+  if (lConstant && rConstant)
+    return getF64FloatAttr(getContext(), (float)lhs / (float)rhs);
+  return nullptr;
+}
+
 // AtenCeilFloatOp
 //===----------------------------------------------------------------------===//
 

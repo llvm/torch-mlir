@@ -1033,6 +1033,8 @@ def aten〇native_layer_norm(input: List[int], normalized_shape: List[int], weig
     for i in range(num_unreduced_dimensions, len(input)):
         reduction_shape.append(1)
     return input, reduction_shape, reduction_shape
+def aten〇norm〇ScalarOpt_dim(self: List[int], p: Optional[float], dim: List[int], keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), None, None, None, None, True, 1e-4, 1e-6), # Training basic case.

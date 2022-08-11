@@ -391,6 +391,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)")
     emit("aten::bincount : (Tensor, Tensor?, int) -> (Tensor)")
     emit("aten::linalg_vector_norm : (Tensor, Scalar, int[]?, bool, int?) -> (Tensor)")
+    emit("aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)")
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
@@ -561,6 +562,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sub.float : (float, float) -> (float)")
     emit("aten::mul.float : (float, float) -> (float)")
     emit("aten::div.float : (float, float) -> (float)", has_folder=True)
+    emit("aten::div.int : (int, int) -> (float)", has_folder=True)
     emit("aten::neg.float : (float) -> (float)")
     emit("aten::eq.float : (float, float) -> (bool)", has_folder=True)
     emit("aten::gt.float : (float, float) -> (bool)", has_folder=True)

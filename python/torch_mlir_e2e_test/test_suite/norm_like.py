@@ -358,3 +358,41 @@ class LayerNormNormalizeOverAllDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LayerNormNormalizeOverAllDimsModule())
 def LayerNormNormalizeOverAllDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 3))
+
+# ==============================================================================
+
+class LayerNormScalarOptDimModuleFloat(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.norm(x, p = 2.0, dim = 2, keepdim = True)
+
+
+@register_test_case(module_factory=lambda: LayerNormScalarOptDimModuleFloat())
+def LayerNormScalarOptDimModuleFloat_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4, 4))
+
+# ==============================================================================
+
+class LayerNormScalarOptDimModuleInt(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.norm(x, p = 2, dim = 2, keepdim = True)
+
+
+@register_test_case(module_factory=lambda: LayerNormScalarOptDimModuleInt())
+def LayerNormScalarOptDimModuleInt_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4, 4))
