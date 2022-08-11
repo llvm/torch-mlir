@@ -131,7 +131,6 @@ install_pytorch() {
 
 unpack_pytorch() {
   PYTHON_SITE=`${PYTHON_BIN} -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])'`
-  pip uninstall torch
   echo "wheel unpacking Pytorch..into ${PYTHON_SITE}"
   wheel unpack -d "$WHEELHOUSE"/unpack_tmp "$WHEELHOUSE"/*.whl
   mv "$WHEELHOUSE"/unpack_tmp/* "$PYTHON_SITE"/

@@ -2,27 +2,30 @@ name: Bazel Build and Test
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build and Test (Release Asserts)
-    runs-on: ubuntu-20.04
+  ubuntu-build:
+    name: ubuntu-x86_64
+    runs-on: ubuntu-22.04
+
     steps:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: 3.9
-    - name: Get torch-mlir
+
+    - name: Checkout torch-mlir
       uses: actions/checkout@v2
       with:
         submodules: 'true'
+
     - name: Build with bazel
       run: |
         cd $GITHUB_WORKSPACE/utils/bazel
         bazel build @torch-mlir//...
+
     - name: Send mail
       if: failure()
       uses: dawidd6/action-send-mail@v3
