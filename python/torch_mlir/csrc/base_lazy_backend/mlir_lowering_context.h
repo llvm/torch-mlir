@@ -135,11 +135,11 @@ public:
 
   MlirOperation func_op() const;
 
-  const std::string debug_string() const;
+  virtual const std::string debug_string() const;
 
-  const std::string to_string() const override;
+  virtual const std::string to_string() const override;
 
-private:
+protected:
   std::vector<std::string> parameter_names_;
   std::vector<Shape> parameter_shapes_;
   Shape result_shape_;
