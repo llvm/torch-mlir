@@ -1,182 +1,193 @@
 name: Build and Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
+# Provisioned Jobs:
+# ubuntu - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
+# ubuntu - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
+# macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
+
+
 jobs:
-  build-validate:
+  ubuntu-build:
+    name: ubuntu-x86_64
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: true
       matrix:
-        os: [macos-12, ubuntu-22.04]
-        targetarch: [x86_64, arm64]
-        python-version: ["3.10"]
+        llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON, OFF]
-        llvmtype: [source, binary]
-        llvmbuildtype: [in-tree, out-of-tree]
         exclude:
-          # No need for "out-of-tree LLVM and PyTorch source"
-          - llvmtype: source
-            llvmbuildtype: in-tree
-          - llvmtype: binary
-            llvmbuildtype: out-of-tree
-          - llvmbuildtype: out-of-tree
+          # Exclude llvm in-tree and pytorch source
+          - llvm-build: in-tree
             torch-binary: OFF
-          # Disable M1 builds until https://github.com/llvm/torch-mlir/issues/1094 is fixed
-          - targetarch: arm64
-            os: ubuntu-22.04
-          # macOS we only do source builds to reduce options
-          - os: macos-12
-            torch-binary: OFF
-          - os: macos-12
-            llvmtype: source
-          - os: macos-12
-            llvmtype: out-of-tree
-          - os: macos-12
-            targetarch: x86_64
-    runs-on: ${{ matrix.os }}
+          # Exclude llvm out-of-tree and pytorch binary
+          - llvm-build: out-of-tree
+            torch-binary: ON
 
     steps:
     - name: Checkout torch-mlir
       uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - uses: ./.github/actions/setup-build
+
+    - name: Setup ccache
+      uses: ./.github/actions/setup-build
       with:
-        cache-suffix: ${{ matrix.os }}-${{ matrix.targetarch }}-${{ matrix.llvmtype }}-${{ matrix.llvmbuildtype }}
+        cache-suffix: ubuntu-x86_64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure llvm-cross-compile
-      # libzstd on GH Runners are only x86_64 to remove them.
-      if: matrix.targetarch == 'arm64'
+    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary}}'
+      # Fastest build, most used dev flow
+      if: matrix.llvm-build == 'in-tree'
       run: |
-        sudo rm -rf /usr/local/lib/libzstd.*.dylib
-        sudo rm -rf /usr/local/lib/cmake/zstd/*
-        cd $GITHUB_WORKSPACE
-        cmake -GNinja -Bbuild_${{ matrix.targetarch }} \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_LTC=OFF \
-          -DTORCH_MLIR_ENABLE_MHLO=OFF \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
-          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.targetarch }} \
-          -DMACOSX_DEPLOYMENT_TARGET=12.0 \
-          -DLLVM_TARGETS_TO_BUILD="AArch64" \
-          -DLLVM_USE_HOST_TOOLS=ON \
-          $GITHUB_WORKSPACE/externals/llvm-project/llvm
-
-    - name: Configure llvm-binary-torch-src-or-binary
-      # Should be the fastest builds for CI and fails fast
-      # OSX CMake flags are ignored on Linux
-      if: matrix.llvmtype == 'binary'
-      run: |
-        cd $GITHUB_WORKSPACE
         cmake -GNinja -Bbuild \
           -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DLLVM_ENABLE_PROJECTS=mlir \
           -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
           -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
           -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
+          -DLLVM_TARGETS_TO_BUILD=host \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
-          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.taregetarch }} \
-          -DMACOSX_DEPLOYMENT_TARGET=10.15 \
-          -DLLVM_TARGETS_TO_BUILD=host \
+          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
+          -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
-    - name: Configure llvm-source-out-of-tree-torch-src-or-binary
-      # This build takes a while but is expected to almost always be cached.
+    - name: Configure llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary}}'
+      # Most elaborate build, but cached
       # A cache invalidation occurs when the committed LLVM version is changed.
-      if: matrix.llvmtype == 'source'
+      if: matrix.llvm-build == 'out-of-tree'
       run: |
-        cd $GITHUB_WORKSPACE
         cmake -GNinja -Bllvm-build \
           -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DPython3_EXECUTABLE=$(which python) \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DLLVM_ENABLE_PROJECTS=mlir \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DLLVM_TARGETS_TO_BUILD=host \
-          externals/llvm-project/llvm
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DPython3_EXECUTABLE="$(which python)" \
+          $GITHUB_WORKSPACE/externals/llvm-project/llvm
         cmake --build llvm-build
 
         # TODO: Reenable LTC once OOT build is successful (https://github.com/llvm/torch-mlir/issues/1154)
         cmake -GNinja -Bbuild \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_LINKER=lld \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-          -DMLIR_DIR="$(pwd)/llvm-build/lib/cmake/mlir/" \
-          -DLLVM_DIR="$(pwd)/llvm-build/lib/cmake/llvm/" \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          -DLLVM_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/llvm/" \
+          -DMLIR_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/mlir/" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
           -DTORCH_MLIR_ENABLE_LTC=OFF \
-          -DPython3_EXECUTABLE=$(which python) \
-          -DLLVM_TARGETS_TO_BUILD=host \
-          .
+          -DPython3_EXECUTABLE="$(which python)" \
+          $GITHUB_WORKSPACE
 
     - name: Build torch-mlir
-      if: matrix.targetarch == 'x86_64'
       run: |
         cmake --build build
     
-    - name: Build torch-mlir (cross-compile)
-      if: matrix.targetarch == 'arm64'
-      run: |
-        cmake --build build_${{ matrix.targetarch }}
-
     - name: Run torch-mlir unit tests
-      if: matrix.llvmtype == 'binary'
       run: |
-        cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         cmake --build build --target check-torch-mlir-all
 
-    - name: Run RefBackend - TorchScript end-to-end tests
-      if: matrix.llvmtype == 'binary'
+    - name: Run refbackend e2e integration tests
+      if: matrix.llvm-build == 'in-tree'
       run: |
-        cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=refbackend -v
 
-    - name: Run EagerMode - TorchScript end-to-end tests
-      if: matrix.llvmtype == 'binary'
+    - name: Run eager_mode e2e integration tests
+      if: matrix.llvm-build == 'in-tree'
       run: |
-        cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=eager_mode -v
 
-    - name: Run TOSA backend - TorchScript end-to-end tests
-      if: matrix.llvmtype == 'binary'
+    - name: Run tosa e2e integration tests
+      if: matrix.llvm-build == 'in-tree'
       run: |
-        cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=tosa -v
 
-    - name: Run Lazy Tensor Core - TorchScript end-to-end tests
-      if: matrix.llvmtype == 'binary'
+    - name: Run lazy_tensor_core e2e integration tests
+      if: matrix.llvm-build == 'in-tree'
       run: |
-        cd $GITHUB_WORKSPACE
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+
+
+  macos-build:
+    name: macos-arm64
+    runs-on: macos-12
+    strategy:
+      fail-fast: true
+      matrix:
+        llvm-build: [in-tree, out-of-tree]
+        torch-binary: [ON, OFF]
+        exclude:
+          # Exclude llvm in-tree and pytorch source
+          - llvm-build: in-tree
+            torch-binary: OFF
+          # Exclude llvm out-of-tree altogether
+          - llvm-build: out-of-tree
+
+    steps:
+    - name: Checkout torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+
+    - name: Setup ccache
+      uses: ./.github/actions/setup-build
+      with:
+        cache-suffix: macos-arm64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
+
+    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary}}'
+      # libzstd on GH Runners are only x86_64 to remove them.
+      run: |
+        cmake -GNinja -Bbuild_arm64 \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_LINKER=lld \
+          -DCMAKE_OSX_ARCHITECTURES=arm64 \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DLLVM_ENABLE_PROJECTS=mlir \
+          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
+          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/external/llvm-external-projects/torch-mlir-dialects" \
+          -DLLVM_TARGETS_TO_BUILD=AArch64 \
+          -DLLVM_USE_HOST_TOOLS=ON \
+          -DLLVM_ENABLE_ZSTD=OFF \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DTORCH_MLIR_ENABLE_LTC=OFF \
+          -DTORCH_MLIR_ENABLE_MHLO=OFF \
+          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
+          -DMACOSX_DEPLOYMENT_TARGET=12.0 \
+          -DPython3_EXECUTABLE="$(which python)" \
+          $GITHUB_WORKSPACE/externals/llvm-project/llvm
+
+    - name: Build torch-mlir (cross-compile)
+      run: |
+        cmake --build build_arm64
