@@ -113,6 +113,7 @@ public:
       // count number of inputs
       auto name = mlir_data->mlir_info()->name;
       if (startswith(name, "input_")) {
+        std::cout << "Input tensor: " << name << std::endl;
         ++num_inputs;
       }
     }
