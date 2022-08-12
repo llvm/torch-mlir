@@ -129,6 +129,10 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
 
 static Value getScalarValue(Value input, Location loc,
                             PatternRewriter &rewriter) {
+  auto inputType = input.getType();
+  if (inputType.isa<Torch::IntType>()) {
+    return input;
+  }
   Value scalar = nullptr;
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     if (valueTensorLiteralOp &&
@@ -829,174 +833,140 @@ OpFoldResult AtenLenStrOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-//===----------------------------------------------------------------------===//
-// AtenSubAddOp
-//===----------------------------------------------------------------------===//
-template <typename AtenOp>
-class AtenAddSubOpCanonicalizationPatterns : public OpRewritePattern<AtenOp> {
-public:
-  using OpRewritePattern<AtenOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenOp op,
-                                PatternRewriter &rewriter) const override {
-    // The lhs and rhs of the add(sub).tensor op should be 0d tensors for the
-    // canonicalization to be carried out.
-    // `aten.add.tensor(self, other, alpha)` is canonicalized to
-    // `aten.add.int(self, aten.mul.int(other, alpha))`.
-    Value lhs = getScalarValue(op.self(), op.getLoc(), rewriter);
-    if (!lhs) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is empty");
-    }
-    if (!lhs.getType().isa<Torch::IntType>()) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is not IntType");
-    }
-
-    Value mul;
-    if (std::is_same<AtenOp, AtenAddScalarOp>() ||
-        std::is_same<AtenOp, AtenSubScalarOp>()) {
-      if (!op.other().getType().template isa<Torch::IntType>() ||
-          !op.alpha().getType().template isa<Torch::IntType>()) {
-        return rewriter.notifyMatchFailure(
-            op, "the rhs scalar or alpha scalar is not IntType");
-      }
-      mul = rewriter.create<AtenMulIntOp>(op->getLoc(), op.other(), op.alpha());
-    } else if (std::is_same<AtenOp, AtenAddTensorOp>() ||
-               std::is_same<AtenOp, AtenSubTensorOp>()) {
-      Value rhs = getScalarValue(op.other(), op.getLoc(), rewriter);
-      if (!rhs) {
-        return rewriter.notifyMatchFailure(op, "rhs scalar is empty");
-      }
-      if (!rhs.getType().isa<Torch::IntType>()) {
-        return rewriter.notifyMatchFailure(op, "rhs scalar is not IntType");
-      }
-      if (!op.alpha().getType().template isa<Torch::IntType>()) {
-        return rewriter.notifyMatchFailure(op, "alpha scalar is not IntType");
-      }
-
-      mul = rewriter.create<AtenMulIntOp>(op->getLoc(), rhs, op.alpha());
-    } else {
-      return rewriter.notifyMatchFailure(op, "unsupported aten.sub(add) op");
-    }
-
-    Value result;
-    if (std::is_same<AtenOp, AtenAddScalarOp>() ||
-        std::is_same<AtenOp, AtenAddTensorOp>()) {
-      result = rewriter.create<AtenAddIntOp>(op->getLoc(), lhs, mul);
-    } else if (std::is_same<AtenOp, AtenSubTensorOp>() ||
-               std::is_same<AtenOp, AtenSubScalarOp>()) {
-      result = rewriter.create<AtenSubIntOp>(op->getLoc(), lhs, mul);
-    }
-
-    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
-        op, op.self().getType(), result);
-    return success();
+LogicalResult rewrite0DBinaryTensorOp(Operation *op,
+                                      PatternRewriter &rewriter) {
+  // dyn_cast `op` to determine the operation.
+  Location loc = op->getLoc();
+  if (op->getNumOperands() < 2) {
+    return failure();
   }
-};
+  auto lhs = getScalarValue(op->getOperand(0), loc, rewriter);
+  auto rhs = getScalarValue(op->getOperand(1), loc, rewriter);
+  auto outType = op->getResult(0).getType();
+  Value alpha =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
 
+  if (!lhs || !rhs) {
+    return rewriter.notifyMatchFailure(
+        op, "only int scalar lhs or rhs is supported");
+  }
+  if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
+          op)) {
+    alpha = getScalarValue(op->getOperand(2), loc, rewriter);
+    if (!alpha) {
+      return rewriter.notifyMatchFailure(op,
+                                         "only int scalar alpha is supported");
+    }
+  }
+  rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
+
+  // AtenDivTensorModeOp
+  if (isa<AtenDivTensorModeOp>(op)) {
+    // None rounding mode
+    if (op->getOperand(2).getType().isa<Torch::NoneType>()) {
+      Value quotient = rewriter.create<AtenDivOp>(loc, lhs, rhs);
+      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
+                                                           quotient);
+      return success();
+    }
+    std::string roundingMode;
+    if (!matchPattern(op->getOperand(2), m_TorchConstantStr(roundingMode))) {
+      return rewriter.notifyMatchFailure(
+          op, "only None, 'floor' or 'trunc' rounding mode is supported");
+    }
+    if (roundingMode == "floor") {
+      Value quotient = rewriter.create<AtenFloordivIntOp>(loc, lhs, rhs);
+      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
+                                                           quotient);
+      return success();
+    }
+    // For now, "trunc" rounding mode is not supported,
+    // as it introduces aten.abs, aten.floor, aten.sign ops,
+    // which adds complexity but helps little in optimization, such as constant
+    // folding
+    return failure();
+  }
+
+  Value result;
+  // Other Add/Sub/Mul ops
+  if (isa<AtenAddTensorOp, AtenAddScalarOp>(op)) {
+    result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
+  } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
+    result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
+  } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
+    result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
+  }
+  rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType, result);
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddTensorOp
+//===----------------------------------------------------------------------===//
 void AtenAddTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns.add<AtenAddSubOpCanonicalizationPatterns<AtenAddTensorOp>>(context);
+  patterns.add(+[](AtenAddTensorOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
 }
-void AtenSubTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                  MLIRContext *context) {
-  patterns.add<AtenAddSubOpCanonicalizationPatterns<AtenSubTensorOp>>(context);
-}
+
+//===----------------------------------------------------------------------===//
+// AtenAddScalarOp
+//===----------------------------------------------------------------------===//
 void AtenAddScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns.add<AtenAddSubOpCanonicalizationPatterns<AtenAddScalarOp>>(context);
+  patterns.add(+[](AtenAddScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
 }
+
+//===----------------------------------------------------------------------===//
+// AtenSubTensorOp
+//===----------------------------------------------------------------------===//
+void AtenSubTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenSubTensorOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSubScalarOp
+//===----------------------------------------------------------------------===//
 void AtenSubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns.add<AtenAddSubOpCanonicalizationPatterns<AtenSubScalarOp>>(context);
+  patterns.add(+[](AtenSubScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
 }
 
 //===----------------------------------------------------------------------===//
-// AtenMulOp
+// AtenMulTensorOp
 //===----------------------------------------------------------------------===//
-
-template <typename AtenOp>
-class AtenMulOpCanonicalizationPatterns : public OpRewritePattern<AtenOp> {
-public:
-  using OpRewritePattern<AtenOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenOp op,
-                                PatternRewriter &rewriter) const override {
-    Value lhs = getScalarValue(op.self(), op.getLoc(), rewriter);
-    if (!lhs) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is empty");
-    }
-    if (!lhs.getType().isa<Torch::IntType>()) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is not IntType");
-    }
-
-    Value rhs;
-    if (std::is_same<AtenOp, AtenMulScalarOp>()) {
-      rhs = op.other();
-      if (!rhs.getType().isa<Torch::IntType>()) {
-        return rewriter.notifyMatchFailure(op, "rhs scalar is not IntType");
-      }
-    } else if (std::is_same<AtenOp, AtenMulTensorOp>()) {
-      rhs = getScalarValue(op.other(), op.getLoc(), rewriter);
-      if (!rhs) {
-        return rewriter.notifyMatchFailure(op, "rhs scalar is empty");
-      }
-      if (!rhs.getType().isa<Torch::IntType>()) {
-        return rewriter.notifyMatchFailure(op, "rhs scalar is not IntType");
-      }
-    } else {
-      return rewriter.notifyMatchFailure(op, "unsupported aten.sub(add) op");
-    }
-
-    Value result = rewriter.create<AtenMulIntOp>(op->getLoc(), lhs, rhs);
-    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
-        op, op.self().getType(), result);
-    return success();
-  }
-};
-
-void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                  MLIRContext *context) {
-  patterns.add<AtenMulOpCanonicalizationPatterns<AtenMulScalarOp>>(context);
-}
 void AtenMulTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
-  patterns.add<AtenMulOpCanonicalizationPatterns<AtenMulTensorOp>>(context);
+  patterns.add(+[](AtenMulTensorOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulScalarOp
+//===----------------------------------------------------------------------===//
+void AtenMulScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add(+[](AtenMulScalarOp op, PatternRewriter &rewriter) {
+    return rewrite0DBinaryTensorOp(op, rewriter);
+  });
 }
 
 //===----------------------------------------------------------------------===//
 // AtenDivTensorModeOp
 //===----------------------------------------------------------------------===//
-
 void AtenDivTensorModeOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
-    Value lhs = getScalarValue(op.self(), op.getLoc(), rewriter);
-    if (!lhs) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is empty");
-    }
-    if (!lhs.getType().isa<Torch::IntType>()) {
-      return rewriter.notifyMatchFailure(op, "lhs scalar is not IntType");
-    }
-
-    Value rhs = getScalarValue(op.other(), op.getLoc(), rewriter);
-    if (!rhs) {
-      return rewriter.notifyMatchFailure(op, "rhs scalar is empty");
-    }
-    if (!rhs.getType().isa<Torch::IntType>()) {
-      return rewriter.notifyMatchFailure(op, "rhs scalar is not IntType");
-    }
-
-    std::string roundingMode;
-    if (!matchPattern(op.rounding_mode(), m_TorchConstantStr(roundingMode))) {
-      return rewriter.notifyMatchFailure(op,
-                                         "rounding mode is not a const string");
-    }
-    if (roundingMode != "floor") {
-      return rewriter.notifyMatchFailure(
-          op, "only 'floor' rounding mode is supported");
-    }
-    Value result = rewriter.create<AtenFloordivIntOp>(op->getLoc(), lhs, rhs);
-    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, op.getType(),
-                                                         result);
-    return success();
+    return rewrite0DBinaryTensorOp(op, rewriter);
   });
 }
 
