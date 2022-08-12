@@ -2435,8 +2435,6 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten_EmbeddingBagOp op,
                                 PatternRewriter &rewriter) const override {
-
-    Location loc = op.getLoc();
     Value weight = op.weight();
     Value indices = op.indices();
     Value offsets = op.offsets();
