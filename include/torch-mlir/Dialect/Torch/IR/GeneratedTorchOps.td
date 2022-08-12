@@ -5977,9 +5977,10 @@ def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
 }
 
 def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
+    Pure,
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
   ]> {
   let summary = "Generated op for `aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
@@ -6506,6 +6507,31 @@ def Torch_AtenMaxOp : Torch_Op<"aten.max", [
     }
     void AtenMaxOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenAmaxOp : Torch_Op<"aten.amax", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::amax : (Tensor, int[]?, bool) -> Tensor`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchOptionalListOfTorchIntType:$dim,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$results
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAmaxOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenAmaxOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
 }

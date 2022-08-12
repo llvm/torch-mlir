@@ -412,17 +412,12 @@ public:
   using BaseT =
       dataflow::SparseDataFlowAnalysis<dataflow::Lattice<ValueKnowledge>>;
   using BaseT::SparseDataFlowAnalysis;
+  void setToEntryState(dataflow::Lattice<ValueKnowledge> *lattice) override {}
 
   // Compute the knowledge for the results of an op, based on the knowledge of
   // the operands and any information intrinsic to `op`.
   void visitOperation(Operation *op, ArrayRef<const ValueState *> operands,
                       ArrayRef<ValueState *> results) final;
-
-  void setToEntryState(ValueState *lattice) override {
-    auto refType = lattice->getPoint().getType();
-    auto knowledge = ValueKnowledge::getKnowledgeFromType(refType);
-    propagateIfChanged(lattice, lattice->join(knowledge));
-  }
 
 private:
   // Get the MLIR type of the tensor dtype given the dtype integer value and the

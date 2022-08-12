@@ -383,13 +383,17 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantOp<Torch::ConstantIntOp>>(typeConverter,
                                                                context);
-    target.addIllegalOp<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>();
+    target.addIllegalOp<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp,
+                        AtenRemainderIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
         typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
+        typeConverter, context);
+
     target.addIllegalOp<AtenSubFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
         typeConverter, context);

@@ -47,7 +47,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
     }
   }
 
-  if (isa<AtenMaxOp, AtenMaxDimOp, AtenArgmaxOp>(op)) {
+  if (isa<AtenMaxOp, AtenMaxDimOp, AtenArgmaxOp, AtenAmaxOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APFloat::getLargest(
@@ -381,6 +381,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
   if (!initValue) return failure();
 
+  llvm::sort(dims.begin(), dims.end());
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
@@ -438,6 +439,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
   Value initValue =
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
   if (!initValue) return failure();
+  llvm::sort(dims.begin(), dims.end());
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
@@ -458,7 +460,112 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
     rewriter.create<mhlo::ReturnOp>(op->getLoc(), maxResult);
   }
 
-  rewriter.replaceOp(op, mhloReduceOp.getResults());
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()),
+      mhloReduceOp.getResults());
+  return success();
+}
+} // namespace
+
+namespace {
+template <>
+LogicalResult ConvertAtenReductionOp<AtenAmaxOp>::matchAndRewrite(
+    AtenAmaxOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.self();
+  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  if (!inputTy) {
+    return rewriter.notifyMatchFailure(op,
+                                       "only Tensor types supported in MHLO");
+  }
+  auto inputElemTy = inputTy.getElementType();
+  if (!inputElemTy.isIntOrFloat()) {
+    return op.emitError(
+        "Only floating-point or integer datatype legalization supported");
+  }
+
+  // Currently, (u)int8 dtype is not supported
+  if (inputElemTy.isa<mlir::IntegerType>() &&
+      inputElemTy.getIntOrFloatBitWidth() == 8) {
+    return rewriter.notifyMatchFailure(
+        op, "IntegerType with bitwidth 8 unsupported in convertion from "
+            "AtenSumDimIntListOp to MHLO");
+  }
+
+  SmallVector<int64_t> inputDims;
+  SmallVector<int64_t> dims;
+  if (!matchPattern(op.dim(), m_TorchConstantIntList(inputDims))) {
+    return rewriter.notifyMatchFailure(op, "non-int dim list unsupported");
+  }
+  if (inputDims.size() == 0) {
+    inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+  }
+
+  for (auto d : inputDims) {
+    d = toPositiveDim(d, inputTy.getRank());
+    // Drop invalid dims
+    if (isValidDim(d, inputTy.getRank())) {
+      dims.push_back(d);
+    }
+  }
+
+  bool keepDim = false;
+  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
+    return rewriter.notifyMatchFailure(op, "non-bool keepdim unsupported");
+  }
+  Value initValue =
+      createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
+  if (!initValue)
+    return failure();
+
+  llvm::sort(dims.begin(), dims.end());
+  auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
+      op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
+
+  Region &region = mhloReduceOp.getBody();
+  Block &block = region.emplaceBlock();
+  auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
+
+  block.addArgument(blockArgumentTy, op->getLoc());
+  block.addArgument(blockArgumentTy, op->getLoc());
+
+  auto *firstArgument = block.args_begin();
+  auto secondArgument = block.args_rbegin();
+
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value addResult = rewriter.create<mhlo::MaxOp>(
+        op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+    rewriter.create<mhlo::ReturnOp>(op->getLoc(), addResult);
+  }
+
+  if (keepDim) {
+    const auto &options = getOptions();
+    auto outShapeInfo = mhlo::getDimSizesOfTensor(rewriter, op, input,
+                                                  options.dimSizeIndexBits);
+    if (failed(outShapeInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to get dimension sizes of the input");
+    }
+    auto outShapeVec = *outShapeInfo;
+    auto one = rewriter.create<mlir::arith::ConstantOp>(
+        op->getLoc(),
+        rewriter.getIntegerAttr(
+            rewriter.getIntegerType(options.dimSizeIndexBits), 1));
+    for (int64_t i : dims) {
+      outShapeVec[i] = one;
+    }
+    auto outShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
+        op->getLoc(), outShapeVec);
+    rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
+        op, getTypeConverter()->convertType(op.getType()),
+        mhloReduceOp.getResult(0), outShapeTensor);
+    return success();
+  }
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()),
+      mhloReduceOp.getResults());
   return success();
 }
 } // namespace
@@ -522,6 +629,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
       createInitialValueForReduceOp(op, inputTy.getElementType(), rewriter);
   if (!initValue) return failure();
 
+  llvm::sort(dims.begin(), dims.end());
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
@@ -566,7 +674,9 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
         mhloReduceOp.getResult(0), outShapeTensor);
     return success();
   }
-  rewriter.replaceOp(op, mhloReduceOp.getResults());
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()),
+      mhloReduceOp.getResults());
   return success();
 }
 } // namespace
@@ -607,7 +717,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     }
   }
 
-  // Sort the dims in ascending order, making the conversion 
+  // Sort the dims in ascending order, making the conversion
   // stable with unordered dims.
   std::sort(dims.begin(), dims.end());
 
@@ -688,6 +798,7 @@ void mlir::torch::torch_to_mhlo::populateReductionOpPatternsAndLegality(
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenArgmaxOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenMaxDimOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumDimIntListOp);
+  INSERT_ATEN_REDUCTION_OP_PATTERN(AtenAmaxOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenMaxOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenFrobeniusNormDimOp);

@@ -21,7 +21,11 @@
 #include "mlir-c/Diagnostics.h"
 #include "torch-mlir-c/TorchTypes.h"
 
+#if TORCH_VERSION_LT(1, 15)
+// do nothing
+#else
 #include "ATen/native/quantized/PackedParams.h"
+#endif
 
 using namespace torch_mlir;
 
@@ -48,14 +52,50 @@ using namespace torch_mlir;
 // which is compatible with the semantics we want (for the subset it doesn't
 // throw an error on).
 namespace {
+#if TORCH_VERSION_LT(1, 7)
+#include "torch/csrc/utils/hash.h"
+#endif
+
+#if TORCH_VERSION_LT(1, 8)
+inline size_t IValueHash(const c10::IValue &v) {
+  using namespace torch;
+  using namespace c10;
+  if (v.isNone()) {
+    return 0;
+  } else if (v.isInt()) {
+    return get_hash(v.toInt());
+  } else if (v.isBool()) {
+    return get_hash(v.toBool());
+  } else if (v.isDouble()) {
+    return get_hash(v.toDouble());
+  } else if (v.isTensor()) {
+    // Tensor __hash__ is equivalent to `id()`, so take the pointer value of
+    // the tensor to emulate it
+    return get_hash(v.toTensor().unsafeGetTensorImpl());
+  } else if (v.isString()) {
+    return get_hash(v.toStringRef());
+  } else if (v.isTuple()) {
+    return get_hash(v.toTuple());
+  } else if (v.isDevice()) {
+    return get_hash(v.toDevice());
+  } else {
+    return std::hash<const void *>()(
+        static_cast<const void *>(v.internalToPointer()));
+  }
+}
+#else
+inline size_t IValueHash(const c10::IValue &v) {
+  return c10::IValue::hash(v);
+}
+#endif
+
 struct IValueHasher {
   size_t operator()(const c10::IValue &ivalue) const {
     if (ivalue.isObject() || ivalue.isList() || ivalue.isGenericDict()) {
       return std::hash<const void *>()(
           static_cast<const void *>(ivalue.internalToPointer()));
     }
-
-    return c10::IValue::hash(ivalue);
+    return IValueHash(ivalue);
   }
 };
 } // namespace
@@ -345,6 +385,9 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
                                  torchMlirTorchNoneTypeGet(context));
     return mlirOperationGetResult(operation, 0);
   }
+#if TORCH_VERSION_LT(1, 15)
+  // do nothing
+#else
   if (ivalue.isCustomClass()) {
     if (ivalue.type().get() ==
         c10::getCustomClassType<c10::intrusive_ptr<LinearPackedParamsBase>>()
@@ -365,6 +408,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
       return mlirOperationGetResult(operation, 0);
     }
   }
+#endif
   std::stringstream msg;
   msg << "Unsupported ivalue: " << ivalue;
   throw std::invalid_argument(msg.str());

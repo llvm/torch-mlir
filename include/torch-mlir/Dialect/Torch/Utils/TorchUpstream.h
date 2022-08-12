@@ -160,6 +160,7 @@ enum Layout { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
 //===-----------------------------------------------------------------------===//
 enum EmbeddingBagMode { MODE_SUM, MODE_MEAN, MODE_MAX };
 
+ScalarType promoteTypes(ScalarType a, ScalarType b);
 } // namespace torch_upstream
 } // namespace torch
 } // namespace mlir
