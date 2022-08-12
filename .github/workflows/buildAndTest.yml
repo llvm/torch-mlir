@@ -14,12 +14,11 @@ on:
 
 
 jobs:
-  ubuntu-build:
-    name: ubuntu-x86_64
-    runs-on: ubuntu-22.04
+  build-test:
     strategy:
       fail-fast: true
       matrix:
+        os-arch: [ubuntu-x86_64, macos-arm64]
         llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON, OFF]
         exclude:
@@ -29,6 +28,16 @@ jobs:
           # Exclude llvm out-of-tree and pytorch binary
           - llvm-build: out-of-tree
             torch-binary: ON
+          # Exclude macos-arm64 and llvm out-of-tree altogether
+          - os-arch: macos-arm64
+            llvm-build: out-of-tree
+        include:
+          # Specify OS versions
+          - os-arch: ubuntu-x86_64
+            os: ubuntu-22.04
+          - os-arch: macos-arm64
+            os: macos-12
+    runs-on: ${{ matrix.os }}
 
     steps:
     - name: Checkout torch-mlir
@@ -39,11 +48,11 @@ jobs:
     - name: Setup ccache
       uses: ./.github/actions/setup-build
       with:
-        cache-suffix: ubuntu-x86_64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
+        cache-suffix: ${{ matrix.os-arch }}-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Configure os-arch='ubuntu-x86_64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # Fastest build, most used dev flow
-      if: matrix.llvm-build == 'in-tree'
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         cmake -GNinja -Bbuild \
           -DCMAKE_BUILD_TYPE=Release \
@@ -64,10 +73,9 @@ jobs:
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
-    - name: Configure llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Configure os-arch='ubuntu-x86_64' llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary }}'
       # Most elaborate build, but cached
-      # A cache invalidation occurs when the committed LLVM version is changed.
-      if: matrix.llvm-build == 'out-of-tree'
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'out-of-tree' }}
       run: |
         cmake -GNinja -Bllvm-build \
           -DCMAKE_BUILD_TYPE=Release \
@@ -100,67 +108,9 @@ jobs:
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE
 
-    - name: Build torch-mlir
-      run: |
-        cmake --build build
-    
-    - name: Run torch-mlir unit tests
-      run: |
-        cmake --build build --target check-torch-mlir-all
-
-    - name: Run refbackend e2e integration tests
-      if: matrix.llvm-build == 'in-tree'
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-
-    - name: Run eager_mode e2e integration tests
-      if: matrix.llvm-build == 'in-tree'
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
-
-    - name: Run tosa e2e integration tests
-      if: matrix.llvm-build == 'in-tree'
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
-
-    - name: Run lazy_tensor_core e2e integration tests
-      if: matrix.llvm-build == 'in-tree'
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
-
-
-  macos-build:
-    name: macos-arm64
-    runs-on: macos-12
-    strategy:
-      fail-fast: true
-      matrix:
-        llvm-build: [in-tree, out-of-tree]
-        torch-binary: [ON, OFF]
-        exclude:
-          # Exclude llvm in-tree and pytorch source
-          - llvm-build: in-tree
-            torch-binary: OFF
-          # Exclude llvm out-of-tree altogether
-          - llvm-build: out-of-tree
-
-    steps:
-    - name: Checkout torch-mlir
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
-
-    - name: Setup ccache
-      uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: macos-arm64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
-
-    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
-      # libzstd on GH Runners are only x86_64 to remove them.
+    - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+      # cross compile, can't test arm64
+      if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
       run: |
         cmake -GNinja -Bbuild_arm64 \
           -DCMAKE_BUILD_TYPE=Release \
@@ -186,6 +136,41 @@ jobs:
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
+    - name: Build torch-mlir
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cmake --build build
+
     - name: Build torch-mlir (cross-compile)
+      if: ${{ matrix.os-arch == 'macos-arm64' }}
       run: |
         cmake --build build_arm64
+
+    - name: Run torch-mlir unit tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        cmake --build build --target check-torch-mlir-all
+
+    - name: Run refbackend e2e integration tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=refbackend -v
+
+    - name: Run eager_mode e2e integration tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=eager_mode -v
+
+    - name: Run tosa e2e integration tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=tosa -v
+
+    - name: Run lazy_tensor_core e2e integration tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
