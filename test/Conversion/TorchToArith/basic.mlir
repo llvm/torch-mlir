@@ -188,7 +188,7 @@ func.func @torch.aten.div.float(%arg0: !torch.float, %arg1: !torch.float) -> !to
 // CHECK:          %[[SUB:.*]] = arith.divf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
 // CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[SUB:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.float
-func.func @torch.aten.div.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.float {
+func.func @torch.aten.div.int(%arg0: !torch.float, %arg1: !torch.float) -> !torch.float {
   %0 = torch.aten.div.int %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
   return %0 : !torch.float
 }
