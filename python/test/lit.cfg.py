@@ -51,6 +51,9 @@ llvm_config.use_default_substitutions()
 # directories.
 config.excludes = ['lit.cfg.py', 'Inputs', 'Examples', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
 
+if not bool(int(os.environ.get("TORCH_MLIR_ENABLE_LTC", 0))):
+   config.excludes.append("lazy_backend")
+
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
 

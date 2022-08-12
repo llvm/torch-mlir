@@ -12,6 +12,7 @@ std::ostream& string_join(std::ostream& out, const std::vector<T>& v, const std:
         if ((i++) > 0) { out << delimiter; }
         out << e;
     }
+    return out;
 }
 
 template <typename T>
