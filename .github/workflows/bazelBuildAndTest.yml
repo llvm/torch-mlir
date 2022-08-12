@@ -5,6 +5,15 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Ensure that only a single job or workflow using the same
+# concurrency group will run at a time. This would cancel
+# any in-progress jobs in the same github workflow and github
+# ref (e.g. refs/heads/main or refs/pull/<pr_number>/merge).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
 jobs:
   ubuntu-build:
     name: ubuntu-x86_64
