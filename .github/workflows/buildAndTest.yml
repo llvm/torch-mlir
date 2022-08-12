@@ -10,7 +10,7 @@ on:
 # Provisioned Jobs:
 # ubuntu - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
 # ubuntu - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
-# macos  - arm64  - llvm in-tree     - pytorch source - build only    # cross compile, can't test arm64
+# macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
 
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
       with:
         cache-suffix: ubuntu-x86_64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary}}'
+    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # Fastest build, most used dev flow
       if: matrix.llvm-build == 'in-tree'
       run: |
@@ -64,7 +64,7 @@ jobs:
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
-    - name: Configure llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary}}'
+    - name: Configure llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary }}'
       # Most elaborate build, but cached
       # A cache invalidation occurs when the committed LLVM version is changed.
       if: matrix.llvm-build == 'out-of-tree'
@@ -91,12 +91,11 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_LINKER=lld \
-          -DLLVM_TARGETS_TO_BUILD=host \
           -DLLVM_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/llvm/" \
           -DMLIR_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/mlir/" \
           -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
           -DTORCH_MLIR_ENABLE_MHLO=ON \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH=${{ matrix.torch-binary }} \
+          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
           -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE
@@ -107,7 +106,6 @@ jobs:
     
     - name: Run torch-mlir unit tests
       run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         cmake --build build --target check-torch-mlir-all
 
     - name: Run refbackend e2e integration tests
@@ -144,9 +142,9 @@ jobs:
         llvm-build: [in-tree, out-of-tree]
         torch-binary: [ON, OFF]
         exclude:
-          # Exclude llvm in-tree and pytorch binary
+          # Exclude llvm in-tree and pytorch source
           - llvm-build: in-tree
-            torch-binary: ON
+            torch-binary: OFF
           # Exclude llvm out-of-tree altogether
           - llvm-build: out-of-tree
 
@@ -161,7 +159,7 @@ jobs:
       with:
         cache-suffix: macos-arm64-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary}}'
+    - name: Configure llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # libzstd on GH Runners are only x86_64 to remove them.
       run: |
         cmake -GNinja -Bbuild_arm64 \
