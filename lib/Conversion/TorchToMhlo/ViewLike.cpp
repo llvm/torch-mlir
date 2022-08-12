@@ -178,12 +178,18 @@ public:
 
     auto loc = op.getLoc();
     auto newRank = dimSizes.size();
+    auto outTy = OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+        op.getType());
+
     if (newRank == 0 || rankType.getRank() == 0) {
-      rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
+      SmallVector<int64_t, 1> newShape(newRank, 1);
+      Value output = rewriter.create<mhlo::ReshapeOp>(
+          loc,
+          RankedTensorType::get(
+              newShape,
+              outTy.template dyn_cast<RankedTensorType>().getElementType()),
           adaptor.getSelf());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outTy, output);
       return success();
     }
 
@@ -207,12 +213,14 @@ public:
 
     Value numel = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(intType, 1));
-    for (auto d : dimSizes) {
-      numel = rewriter.create<arith::MulIOp>(loc, numel, d);
+    auto rank = rankType.getRank();
+    for (size_t d = 0; d < rank; ++d) {
+      Value dimSize = rewriter.create<arith::IndexCastOp>(
+          loc, intType, rewriter.create<tensor::DimOp>(loc, adaptor.self(), d));
+      numel = rewriter.create<arith::MulIOp>(loc, numel, dimSize);
     }
     numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
                                                 numel);
-
     if (dimSizes.size() == 0) {
       rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
         op,
@@ -225,7 +233,7 @@ public:
     Value computedShape = rewriter.create<mhlo::ComputeReshapeShapeOp>(
         loc, mhloShape.getType(), numel, mhloShape);
     rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
-        op,
+        op, outTy,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
         adaptor.getSelf(), computedShape);
@@ -357,7 +365,8 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "the size of the dimension being squeezed is can't be unknown");
 
-    rewriter.replaceOp(op, adaptor.getSelf());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+        op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf());
     return success();
   }
 
@@ -400,8 +409,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,
                                        "failed to create unsqueezed tensor");
-
-  rewriter.replaceOp(op, *unsqzTensorInfo);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), *unsqzTensorInfo);
   return success();
 }
 

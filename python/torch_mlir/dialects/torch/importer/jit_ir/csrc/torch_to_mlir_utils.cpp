@@ -22,6 +22,19 @@
 #include "torch-mlir-c/TorchOps.h"
 #include "torch-mlir-c/TorchTypes.h"
 
+#if TORCH_VERSION_LT(1, 8)
+#include "torch/custom_class.h"
+#endif
+
+std::shared_ptr<torch::jit::Graph>
+torch_mlir::getGraphFromFunction(torch::jit::Function *function) {
+#if TORCH_VERSION_LT(1, 11)
+  return function->graph();
+#else
+  return toGraphFunction(*function).graph();
+#endif
+}
+
 using namespace torch_mlir;
 
 static MlirType getMlirTypeForTorchScalarTypeRaw(MlirContext context,
@@ -162,12 +175,24 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
                                /*optionalDtype=*/
                                elementType);
     }
+
     // Ranked with possibly dynamic dims.
     auto &symbolicShape = tensorType->symbolic_sizes();
+#if TORCH_VERSION_LT(1, 8)
+    auto getSymbolicShape = [&](size_t d) {
+      const auto &dims = symbolicShape.sizes();
+      if (!dims) {
+        throw std::runtime_error("Rank isn't fixed");
+      }
+      return (*dims).at(d);
+    };
+#else
+    auto getSymbolicShape = [&](size_t d) { return symbolicShape[d]; };
+#endif
     std::vector<int64_t> dims;
     dims.resize(*sizes.rank());
     for (size_t i = 0; i < dims.size(); ++i) {
-      auto shapeSymbol = symbolicShape[i];
+      auto shapeSymbol = getSymbolicShape(i);
       dims[i] = shapeSymbol.is_static() ? shapeSymbol.static_size() : -1;
     }
 
@@ -212,6 +237,9 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     return torchMlirTorchTupleTypeGet(context, containedTypes.size(),
                                       containedTypes.data());
   }
+#if TORCH_VERSION_LT(1, 10)
+// do nothing
+#else
   case TypeKind::UnionType: {
     std::vector<MlirType> containedTypes;
     for (const c10::TypePtr &type :
@@ -221,6 +249,7 @@ torch_mlir::getMlirTypeFromTorchType(MlirLocation loc,
     return torchMlirTorchUnionTypeGet(context, containedTypes.size(),
                                       containedTypes.data());
   }
+#endif
   case TypeKind::ListType: {
     return torchMlirTorchListTypeGet(getMlirTypeFromTorchType(
         loc, torchType->cast<c10::ListType>()->getElementType(),

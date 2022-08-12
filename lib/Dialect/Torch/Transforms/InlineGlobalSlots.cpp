@@ -126,6 +126,7 @@ public:
     return setSafe(false);
   }
 
+  bool isUninitialized() const { return true; }
   /// This is an optimistic analysis. We start assuming everything is safe.
   bool isSafe = true;
 };
@@ -135,7 +136,6 @@ public:
   InlineGlobalSlotsAnalysis(DataFlowSolver &solver);
   LogicalResult initialize(Operation *top) override;
   LogicalResult visit(ProgramPoint point) override;
-
 private:
   /// The local transfer function determining the safety of `value`.
   bool isValueSafeTransferFunction(Value value);
@@ -287,6 +287,7 @@ static bool isInitialValueTransitivelySafeToInline(Value initialValue,
 namespace {
 class InlineGlobalSlotsPass
     : public InlineGlobalSlotsBase<InlineGlobalSlotsPass> {
+
   void runOnOperation() override {
 
     ModuleOp module = getOperation();

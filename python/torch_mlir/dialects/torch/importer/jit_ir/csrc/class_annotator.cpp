@@ -8,8 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "class_annotator.h"
-
+#include "torch_to_mlir_utils.h"
 #include <stdexcept>
+
+#if TORCH_VERSION_LT(1, 8)
+#include "ATen/core/function.h"
+#endif
 
 using namespace torch_mlir;
 

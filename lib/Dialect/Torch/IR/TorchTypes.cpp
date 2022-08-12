@@ -370,6 +370,10 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
   if (auto floatType = dtype.dyn_cast<mlir::FloatType>()) {
     return dtype;
   } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
+    if (integerType.isUnsignedInteger()) {
+        return IntegerType::get(context, integerType.getWidth(),
+                            IntegerType::Unsigned);
+    }
     return IntegerType::get(context, integerType.getWidth(),
                             IntegerType::Signless);
   }

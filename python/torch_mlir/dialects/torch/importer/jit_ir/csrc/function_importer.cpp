@@ -69,7 +69,7 @@ MlirOperation torch_mlir::importJitFunctionAsFuncOp(
                                  /*userAllowsRefinement=*/false));
   };
   MlirBlock block = importBlock(
-      context, torch::jit::toGraphFunction(*function).graph()->block(),
+      context, getGraphFromFunction(function)->block(),
       createTerminator, inputTypes, importOptions);
   mlirRegionAppendOwnedBlock(bodyRegion, block);
   return func;

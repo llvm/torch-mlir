@@ -56,6 +56,18 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
   return success();
 }
 
+void ToBuiltinTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](ToBuiltinTensorOp op, PatternRewriter &rewriter) {
+    auto fromBuiltinTensorOp =
+        op.getOperand().getDefiningOp<FromBuiltinTensorOp>();
+    if (!fromBuiltinTensorOp)
+      return rewriter.notifyMatchFailure(op, "operand not FromBuiltinTensorOp");
+    rewriter.replaceOp(op, fromBuiltinTensorOp.getOperand());
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // FromBuiltinTensorOp
 //===----------------------------------------------------------------------===//
@@ -69,6 +81,17 @@ LogicalResult FromBuiltinTensorOp::verify() {
            << "operand and result must have the same size and dtype";
   }
   return success();
+}
+
+void FromBuiltinTensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](FromBuiltinTensorOp op, PatternRewriter &rewriter) {
+    auto toBuiltinTensorOp = op.getOperand().getDefiningOp<ToBuiltinTensorOp>();
+    if (!toBuiltinTensorOp)
+      return rewriter.notifyMatchFailure(op, "operand not ToBuiltinTensorOp");
+    rewriter.replaceOp(op, toBuiltinTensorOp.getOperand());
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -90,6 +113,32 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
   auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
+  if (attr) {
+    return attr;
+  } else {
+    return nullptr;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// FromI1Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult FromI1Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
+  if (attr) {
+    return attr;
+  } else {
+    return nullptr;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// ToI1Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult ToI1Op::fold(llvm::ArrayRef<mlir::Attribute> operands) {
+  auto attr = operands[0].dyn_cast_or_null<mlir::IntegerAttr>();
   if (attr) {
     return attr;
   } else {

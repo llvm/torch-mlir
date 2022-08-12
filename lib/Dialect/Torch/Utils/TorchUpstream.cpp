@@ -26,7 +26,7 @@ static inline bool isQIntType(ScalarType t) {
 // Type promotion related code are copied from
 // aten/src/ATen/native/TypeProperties.*.
 //===----------------------------------------------------------------------===//
-static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
+ScalarType promoteTypes(ScalarType a, ScalarType b) {
   // This is generated according to NumPy's promote_types
   constexpr auto u1 = ScalarType::Byte;
   constexpr auto i1 = ScalarType::Char;

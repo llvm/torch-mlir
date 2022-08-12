@@ -323,7 +323,7 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
   if (kind == c10::prim::CallFunction) {
     auto functionType = node->input(0)->type()->cast<c10::FunctionType>();
     torch::jit::Block *calleeEntryBlock =
-        torch::jit::toGraphFunction(*functionType->function()).graph()->block();
+        getGraphFromFunction(functionType->function())->block();
     auto expectedTypes = c10::fmap(calleeEntryBlock->inputs(), [&](Value *v) {
       return getMlirTypeFromTorchType(loc, v->type(), importOptions);
     });

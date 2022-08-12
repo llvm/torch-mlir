@@ -269,6 +269,7 @@ gentbl_cc_library(
             [
                 "-gen-pass-decls",
                 "-DTORCH_MLIR_ENABLE_MHLO",
+		"-DTORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32",
             ],
             "include/torch-mlir/Conversion/Passes.h.inc",
         ),
@@ -441,6 +442,7 @@ cc_library(
         "lib/Conversion/TorchToMhlo/*.cpp",
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToMhlo/*.h"]),
+    copts = ['-DTORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32'],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
