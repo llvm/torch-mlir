@@ -843,8 +843,6 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   auto lhs = getScalarValue(op->getOperand(0), loc, rewriter);
   auto rhs = getScalarValue(op->getOperand(1), loc, rewriter);
   auto outType = op->getResult(0).getType();
-  Value alpha =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
 
   if (!lhs || !rhs) {
     return rewriter.notifyMatchFailure(
@@ -852,13 +850,13 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   }
   if (isa<AtenSubTensorOp, AtenSubScalarOp, AtenAddTensorOp, AtenAddScalarOp>(
           op)) {
-    alpha = getScalarValue(op->getOperand(2), loc, rewriter);
+    Value alpha = getScalarValue(op->getOperand(2), loc, rewriter);
     if (!alpha) {
       return rewriter.notifyMatchFailure(op,
                                          "only int scalar alpha is supported");
     }
+    rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
-  rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
 
   // AtenDivTensorModeOp
   if (isa<AtenDivTensorModeOp>(op)) {
@@ -880,10 +878,28 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
                                                            quotient);
       return success();
     }
-    // For now, "trunc" rounding mode is not supported,
-    // as it introduces aten.abs, aten.floor, aten.sign ops,
-    // which adds complexity but helps little in optimization, such as constant
-    // folding
+    // For "trunc" rounding mode, insted of canonicalizing it into
+    // aten.abs, aten.floor, aten.sign and aten.mul.int ops, which adds
+    // complexity but helps little in optimization (such as constant folding),
+    // we are trying to fold it.
+    if (roundingMode == "trunc") {
+      int64_t lhsInt;
+      int64_t rhsInt;
+      if (!matchPattern(lhs, m_TorchConstantInt(&lhsInt))) {
+        return failure();
+      }
+      if (!matchPattern(rhs, m_TorchConstantInt(&rhsInt))) {
+        return failure();
+      }
+
+      int64_t result = (int64_t)std::trunc((double)lhsInt / rhsInt);
+      Value resultScalar =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(result));
+      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
+                                                           resultScalar);
+      return success();
+    }
+
     return failure();
   }
 
