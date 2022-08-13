@@ -1,4 +1,4 @@
-[submodule "external/llvm-project"]
+[submodule "externals/llvm-project"]
 	path = externals/llvm-project
 	url = https://github.com/llvm/llvm-project.git
 [submodule "externals/mlir-hlo"]
