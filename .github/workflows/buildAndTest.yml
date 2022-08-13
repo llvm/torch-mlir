@@ -57,62 +57,36 @@ jobs:
       with:
         cache-suffix: ${{ matrix.os-arch }}-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure os-arch='ubuntu-x86_64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Build docker image
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
+      run: |
+        docker build -f build_tools/docker/Dockerfile \
+                     -t torch-mlir-cmake:ci \
+                     .
+
+    - name: Build torch-mlir (os-arch='ubuntu-x86_64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}')
       # Fastest build, most used dev flow
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
-        cmake -GNinja -Bbuild \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_LINKER=lld \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/externals/llvm-external-projects/torch-mlir-dialects" \
-          -DLLVM_TARGETS_TO_BUILD=host \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_LTC=ON \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
-          -DPython3_EXECUTABLE="$(which python)" \
-          $GITHUB_WORKSPACE/externals/llvm-project/llvm
+        docker run --rm \
+                   -v "$(pwd)":/opt/src/torch-mlir \
+                   -e CCACHE_DIR=/opt/src/torch-mlir/.ccache \
+                   -e TORCH_BINARY="${{ matrix.torch-binary }}" \
+                   torch-mlir-cmake:ci \
+                   ./build_tools/docker/run_cmake_build.sh
 
-    - name: Configure os-arch='ubuntu-x86_64' llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Build torch-mlir (os-arch='ubuntu-x86_64' llvm-build='out-of-tree' torch-binary='${{ matrix.torch-binary }}')
       # Most elaborate build, but cached
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'out-of-tree' }}
       run: |
-        cmake -GNinja -Bllvm-build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_LINKER=lld \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_TARGETS_TO_BUILD=host \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DPython3_EXECUTABLE="$(which python)" \
-          $GITHUB_WORKSPACE/externals/llvm-project/llvm
-        cmake --build llvm-build
+        docker run --rm \
+                   -v "$(pwd)":/opt/src/torch-mlir \
+                   -e CCACHE_DIR=/opt/src/torch-mlir/.ccache \
+                   -e TORCH_BINARY="${{ matrix.torch-binary }}" \
+                   torch-mlir-cmake:ci \
+                   ./build_tools/docker/run_cmake_build_oot.sh
 
-        cmake -GNinja -Bbuild \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_LINKER=lld \
-          -DLLVM_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/llvm/" \
-          -DMLIR_DIR="$GITHUB_WORKSPACE/llvm-build/lib/cmake/mlir/" \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
-          -DPython3_EXECUTABLE="$(which python)" \
-          $GITHUB_WORKSPACE
-
-    - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Build torch-mlir (os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}')
       # cross compile, can't test arm64
       if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
       run: |
@@ -138,42 +112,20 @@ jobs:
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \
           -DPython3_EXECUTABLE="$(which python)" \
           $GITHUB_WORKSPACE/externals/llvm-project/llvm
-
-    - name: Build torch-mlir
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
-      run: |
-        cmake --build build
-
-    - name: Build torch-mlir (cross-compile)
-      if: ${{ matrix.os-arch == 'macos-arm64' }}
-      run: |
         cmake --build build_arm64
 
     - name: Run torch-mlir unit tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
-        cmake --build build --target check-torch-mlir-all
+        docker run --rm \
+                   -v "$(pwd)":/opt/src/torch-mlir \
+                   torch-mlir-cmake:ci \
+                   ./build_tools/docker/run_unit_tests.sh
 
-    - name: Run refbackend e2e integration tests
+    - name: Run torch-mlir integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
-
-    - name: Run eager_mode e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
-
-    - name: Run tosa e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
-
-    - name: Run lazy_tensor_core e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+        docker run --rm \
+                   -v "$(pwd)":/opt/src/torch-mlir \
+                   torch-mlir-cmake:ci \
+                   ./build_tools/docker/run_integration_tests.sh
