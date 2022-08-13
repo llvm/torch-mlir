@@ -7,12 +7,19 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Ensure that only a single job or workflow using the same
+# concurrency group will run at a time. This would cancel
+# any in-progress jobs in the same github workflow and github
+# ref (e.g. refs/heads/main or refs/pull/<pr_number>/merge).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
 # Provisioned Jobs:
 # ubuntu - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
 # ubuntu - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
 # macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
-
-
 jobs:
   build-test:
     strategy:
