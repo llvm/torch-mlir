@@ -18,7 +18,7 @@ find_package(Torch 1.11 REQUIRED)
 # Setup Python development
 ###########################################################################
 
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/external/llvm-project/mlir/cmake/modules")
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/externals/llvm-project/mlir/cmake/modules")
 include(MLIRDetectPythonEnv)
 mlir_configure_python_dev_packages()
 
