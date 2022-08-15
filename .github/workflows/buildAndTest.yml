@@ -158,22 +158,22 @@ jobs:
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
+        python -m e2e_testing.torchscript.main --config=refbackend -v -s
 
-    - name: Run eager_mode e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
+    # - name: Run eager_mode e2e integration tests
+    #   if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+    #   run: |
+    #     export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+    #     python -m e2e_testing.torchscript.main --config=eager_mode -v
 
-    - name: Run tosa e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
+    # - name: Run tosa e2e integration tests
+    #   if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+    #   run: |
+    #     export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+    #     python -m e2e_testing.torchscript.main --config=tosa -v
 
-    - name: Run lazy_tensor_core e2e integration tests
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+    # - name: Run lazy_tensor_core e2e integration tests
+    #   if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+    #   run: |
+    #     export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+    #     python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
