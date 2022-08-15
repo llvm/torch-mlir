@@ -2504,6 +2504,23 @@ public:
 };
 } // namespace
 
+// Decompose aten.div.int into aten.div.float
+namespace {
+class DecomposeAtenDivIntOp : public OpRewritePattern<AtenDivIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDivIntOp op,
+                                PatternRewriter &rewriter) const override {
+    // Value a_int = op.a();
+    // Value b_int = op.b();
+    // auto a_float = a_int.getType().cast<mlir::FloatType>();
+    // auto b_float = b_int.getType().cast<mlir::FloatType>();
+    // rewriter.replaceOpWithNewOp<AtenDivFloatOp>(op, a_float, b_float);
+    // return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -2673,6 +2690,8 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<Aten_EmbeddingBagOp>();
     patterns.add<DecomposeAtenNormScalarOptDimOp>(context);
     target.addIllegalOp<AtenNormScalarOptDimOp>();
+    patterns.add<DecomposeAtenDivIntOp>(context);
+    target.addIllegalOp<AtenDivIntOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
