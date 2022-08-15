@@ -1626,7 +1626,6 @@ namespace {
 class RefineTypesPass : public RefineTypesBase<RefineTypesPass> {
   void runOnOperation() override {
     auto func = getOperation();
-    func.dump();
     DataFlowSolver solver;
     solver.load<dataflow::DeadCodeAnalysis>();
     solver.load<dataflow::SparseConstantPropagation>();
