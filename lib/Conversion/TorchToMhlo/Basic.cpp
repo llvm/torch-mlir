@@ -71,6 +71,25 @@ public:
 };
 } // namespace
 
+// ConvertAtenUnaryConvertOp legalize genearl unary ops into Mhlo ConverOp
+namespace {
+template <typename AtenOpT>
+class ConvertAtenUnaryConvertOp: public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()),
+        adaptor.self());
+    return success();
+  }
+};
+} // namespace
+
 // aten.ones & aten.zeros
 // Ref: Error checking based on the Torch to TOSA lowering
 namespace {
@@ -307,6 +326,9 @@ public:
                std::is_same<AtenOpT, AtenGtScalarOp>()) {
       compareDirectionAttr = mhlo::ComparisonDirectionAttr::get(
           op->getContext(), mhlo::ComparisonDirection::GT);
+    } else if (std::is_same<AtenOpT, AtenGeScalarOp>()) {
+      compareDirectionAttr = mhlo::ComparisonDirectionAttr::get(
+          op->getContext(), mhlo::ComparisonDirection::GE);
     } else if (std::is_same<AtenOpT, AtenEqTensorOp>() ||
                std::is_same<AtenOpT, AtenEqScalarOp>()) {
       compareDirectionAttr = mhlo::ComparisonDirectionAttr::get(
@@ -980,6 +1002,75 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
 }
 } // namespace
 
+// AtenSizeIntOp
+namespace {
+template <>
+LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
+    AtenSizeIntOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("Only tensor types are currently supported");
+  auto dim = rewriter.create<arith::IndexCastOp>(
+      op.getLoc(), rewriter.getIndexType(), adaptor.dim());
+  auto dimSize = rewriter.create<tensor::DimOp>(
+      op.getLoc(), rewriter.getIndexType(), adaptor.self(), dim);
+
+  rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
+      op, getTypeConverter()->convertType(op.getType()), dimSize);
+
+  return success();
+}
+} // namespace
+
+// ValsemVariantAtenUniformOp
+namespace {
+template <>
+LogicalResult ConvertAtenOp<ValsemVariantAtenUniformOp>::matchAndRewrite(
+    ValsemVariantAtenUniformOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  auto inputTy = adaptor.self().getType().template cast<RankedTensorType>();
+  auto loc = op.getLoc();
+  if (!inputTy) {
+    op.emitError("input should be ranked tensor type.");
+  }
+  auto definingOp = op.self().getDefiningOp();
+  auto shape = definingOp->getOperand(0);
+  SmallVector<Value, 4> dimSizes;
+  getListConstructElements(shape, dimSizes);
+  std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value& dSize) {
+    dSize = rewriter.create<torch::TorchConversion::ToI64Op>(loc, dSize).getResult();
+    return dSize;
+  });
+
+  auto mhloShape =
+      rewriter.create<tensor::FromElementsOp>(op.getLoc(), dimSizes);
+
+  double fromDoubleValue, toDoubleValue;
+  if (!matchPattern(op.from(), m_TorchConstantFloat(&fromDoubleValue))) {
+    op.emitError("operand #1 should be scalar");
+  }
+  if (!matchPattern(op.to(), m_TorchConstantFloat(&toDoubleValue))) {
+    op.emitError("operand #2 should be scalar");
+  }
+  Value fromTensor = rewriter.create<mhlo::ConstantOp>(
+      op.getLoc(),
+      rewriter.getFloatAttr(inputTy.getElementType(), fromDoubleValue));
+  Value toTensor = rewriter.create<mhlo::ConstantOp>(
+      op.getLoc(),
+      rewriter.getFloatAttr(inputTy.getElementType(), toDoubleValue));
+
+  auto outType = getTypeConverter()
+                     ->convertType(op.getType())
+                     .template dyn_cast<TensorType>();
+  rewriter.replaceOpWithNewOp<mhlo::RngOp>(
+      op, inputTy, fromTensor, toTensor, mhloShape, mhlo::RngDistribution::UNIFORM);
+  return success();
+}
+}
 void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1004,6 +1095,15 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, mhlo::SqrtOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenNegOp, mhlo::NegOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
+
+#define INSERT_UNARY_CONVERT_PATTERN(AtenOp)                                  \
+  target.addIllegalOp<AtenOp>();                                              \
+  patterns.add<ConvertAtenUnaryConvertOp<AtenOp>>(typeConverter,              \
+                                                  context);
+  INSERT_UNARY_CONVERT_PATTERN(AtenContiguousOp);
+  INSERT_UNARY_CONVERT_PATTERN(AtenToDtypeOp);
+  INSERT_UNARY_CONVERT_PATTERN(AtenTypeAsOp);
+#undef INSERT_UNARY_CONVERT_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -1038,6 +1138,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
 
   INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp);
   INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp);
+  INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp);
   INSERT_BINARY_COMPARE_PATTERN(AtenLtTensorOp);
   INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp);
   INSERT_BINARY_COMPARE_PATTERN(AtenEqTensorOp);
@@ -1063,5 +1164,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
   INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
+  INSERT_ATENOP_PATTERN(AtenSizeIntOp);
+  INSERT_ATENOP_PATTERN(ValsemVariantAtenUniformOp);
 #undef INSERT_ATENOP_PATTERN
 }

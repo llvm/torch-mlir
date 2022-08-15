@@ -5313,9 +5313,10 @@ def Torch_AtenOnesLikeOp : Torch_Op<"aten.ones_like", [
 }
 
 def Torch_AtenEmptyMemoryFormatOp : Torch_Op<"aten.empty.memory_format", [
+    NoSideEffect,
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
   ]> {
   let summary = "Generated op for `aten::empty.memory_format : (int[], int?, int?, Device?, bool?, int?) -> (Tensor)`";
   let arguments = (ins
