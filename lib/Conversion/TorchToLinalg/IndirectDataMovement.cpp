@@ -218,10 +218,22 @@ public:
     Value weight = adaptor.weight();
     Value indices = adaptor.indices();
     Value offsets = adaptor.offsets();
-    Value scaleGradByFreq = adaptor.scale_grad_by_freq();
+    Value scaleGradByFreq = op.scale_grad_by_freq();
     Value mode = op.mode();
     Value sparse = op.sparse();
     Value includeLastOffset = op.include_last_offset();
+
+    bool scaleGradByFreqBool;
+    if (!matchPattern(scaleGradByFreq,
+                      m_TorchConstantBool(&scaleGradByFreqBool))) {
+      return rewriter.notifyMatchFailure(
+          op, "scale_grad_by_freq is expected to be a constant boolean value.");
+    }
+
+    if (scaleGradByFreqBool) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: scale_grad_by_freq=True.");
+    }
 
     int64_t modeInt;
     if (!matchPattern(mode, m_TorchConstantInt(&modeInt))) {
