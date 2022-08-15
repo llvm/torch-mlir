@@ -2511,12 +2511,16 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenDivIntOp op,
                                 PatternRewriter &rewriter) const override {
-    // Value a_int = op.a();
-    // Value b_int = op.b();
+    Location loc = op.getLoc();
+    Value a = op.a();
+    Value b = op.b();
     // auto a_float = a_int.getType().cast<mlir::FloatType>();
     // auto b_float = b_int.getType().cast<mlir::FloatType>();
     // rewriter.replaceOpWithNewOp<AtenDivFloatOp>(op, a_float, b_float);
-    // return success();
+    Value div = rewriter.create<AtenDivFloatOp>(
+        loc, Torch::FloatType::get(op.getContext()), a, b);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), div);
+    return success();
   }
 };
 } // namespace
