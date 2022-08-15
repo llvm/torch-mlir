@@ -47,7 +47,7 @@ program capture mechanism in PyTorch -- this could be TorchDynamo, `torch.fx`,
 LazyTensorCore, TorchScript, `torch.jit.trace`, etc. Thankfully, PyTorch is
 factored such that we can handle this with one core import path, which is
 through the PyTorch "[JIT
-IR](https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md)"
+IR](https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md)",
 and lives in
 [torch-mlir/python/torch_mlir/dialects/torch/importer/jit_ir](https://github.com/llvm/torch-mlir/tree/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir).
 The JIT IR is a highly principled IR that faithfully models a Python subset (+
@@ -62,7 +62,7 @@ correspondence with the JIT IR -- this allows the importer to be extremely small
 
 The ops in the `torch` dialect are almost entirely generated based on the
 PyTorch JIT IR operator registry via the script
-[torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/torch_ods_gen.py#L1).
+[torch_ods_gen.py](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir/build_tools/torch_ods_gen.py#L1) (invoked via [update_torch_ods.sh](https://github.com/llvm/torch-mlir/blob/main/build_tools/update_torch_ods.sh)).
 This script queries the registry and generates MLIR
 [ODS](https://mlir.llvm.org/docs/OpDefinitions/) in
 [GeneratedTorchOps.td](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td#L1).
@@ -120,6 +120,22 @@ box. The primary guarantees that we provide Torch-MLIR's backends are:
 See the extensive comments in the function `satisfiesBackendContract` (and its
 callees) in the `LowerToBackendContract` pass for an extended rationale for
 these decisions, and a precise definition of the backend contract.
+
+## The Frontends
+
+Torch-MLIR provides 2 main frontends:
+
+- LazyTensorCore - a frontend that is based around intercepting PyTorch dispater
+  calls and creating a graph that is lazily evaluated on demand.
+- TorchScript - a frontend based around importing TorchScript functions or
+  modules. Such modules or functions can be obtained via `torch.jit.script`,
+  `torch.jit.trace`, or a few other methods in the PyTorch ecosystem.
+
+Internally these share a lot of the core import code.
+
+### LazyTensorCore
+
+Docs: https://github.com/llvm/torch-mlir/blob/main/docs/ltc_backend.md
 
 
 
