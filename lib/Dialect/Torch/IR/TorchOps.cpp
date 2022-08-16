@@ -835,8 +835,9 @@ OpFoldResult AtenLenStrOp::fold(ArrayRef<Attribute> operands) {
 
 LogicalResult rewrite0DBinaryTensorOp(Operation *op,
                                       PatternRewriter &rewriter) {
-  // dyn_cast `op` to determine the operation.
   Location loc = op->getLoc();
+  // This canonicalization pattern also includes aten div/mul/add/sub ops
+  // between tensor and scalar, like aten.add.Scalar op
   if (op->getNumOperands() < 2) {
     return failure();
   }
@@ -858,7 +859,6 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
     rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
   }
 
-  // AtenDivTensorModeOp
   if (isa<AtenDivTensorModeOp>(op)) {
     // None rounding mode
     if (op->getOperand(2).getType().isa<Torch::NoneType>()) {
@@ -893,8 +893,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
       }
 
       int64_t result = (int64_t)std::trunc((double)lhsInt / rhsInt);
-      Value resultScalar =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(result));
+      Value resultScalar = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(result));
       rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
                                                            resultScalar);
       return success();
