@@ -26,6 +26,9 @@ RUN apt-get update                                              && \
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 10
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10
 
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-10 10
+RUN update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-10 10
+
 # Install bazel
 RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
     && chmod a+x /usr/bin/bazel
