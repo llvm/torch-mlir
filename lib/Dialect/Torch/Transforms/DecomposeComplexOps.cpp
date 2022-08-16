@@ -2514,12 +2514,11 @@ public:
     Location loc = op.getLoc();
     Value a = op.a();
     Value b = op.b();
-    // auto a_float = a_int.getType().cast<mlir::FloatType>();
-    // auto b_float = b_int.getType().cast<mlir::FloatType>();
-    // rewriter.replaceOpWithNewOp<AtenDivFloatOp>(op, a_float, b_float);
+    Value a_float = rewriter.create<AtenFloatScalarOp>(loc, a);
+    Value b_float = rewriter.create<AtenFloatScalarOp>(loc, b);
     Value div = rewriter.create<AtenDivFloatOp>(
-        loc, Torch::FloatType::get(op.getContext()), a, b);
-    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), div);
+        loc, Torch::FloatType::get(op.getContext()), a_float, b_float);
+    rewriter.replaceOpWithNewOp<AtenDivFloatOp>(op, div); 
     return success();
   }
 };
