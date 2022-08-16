@@ -137,6 +137,23 @@ Internally these share a lot of the core import code.
 
 Docs: https://github.com/llvm/torch-mlir/blob/main/docs/ltc_backend.md
 
+LazyTensorCore (LTC) is a program capture method provided by PyTorch that does
+device-level tracing. This low-level intercept point sits below gradient
+calculations, and is thus a good choice for training flows. The downside of LTC
+is that it depends on having the whole PyTorch runtime available, so cannot be
+used for ahead-of-time compilation or capturing standalone program artifacts.
+
+From an implementation perspective, the JIT IR that is produced by
+LazyTensorCore has already had a number of transformations performed on it, in
+particular after import from JIT IR to MLIR, the backend contract is trivially
+satisfied. So the Torch-MLIR implementation complexity for LazyTensorCore is
+restricted to build system and PyTorch integration, rather than actual MLIR
+compiler passes.
+
+### TorchScript
+
+TorchScript is a strict Python subset
+
 
 
 
