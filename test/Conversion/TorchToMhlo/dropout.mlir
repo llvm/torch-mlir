@@ -10,7 +10,7 @@
 // CHECK:             %[[CST_2:.*]] = arith.constant 1.000000e+00 : f64
 // CHECK:             %[[CST_3:.*]] = arith.subf %[[CST_2]], %[[ARG1]] : f64
 // CHECK:             %[[T3:.*]] = tensor.from_elements %[[CST_3]] : tensor<1xf64>
-// CHECK:             %[[T4:.*]] = "mhlo.reshape"(%[[T3]]) : (tensor<1xf64>) -> tensor<f64>
+// CHECK:             %[[T4:.*]] = mhlo.reshape %[[T3]] : (tensor<1xf64>) -> tensor<f64>
 // CHECK:             %[[T5:.*]] = mhlo.convert(%[[ARG0]]) : (tensor<?x?xf32>) -> tensor<?x?xf64>
 // CHECK:             %[[DIM_0:.*]] = tensor.dim %[[T5]], %[[CST_1]] : tensor<?x?xf64>
 // CHECK:             %[[CST_I64_0:.*]] = arith.index_cast %[[DIM_0]] : index to i64
@@ -33,7 +33,7 @@
 // CHECK:               shape.assuming_yield %[[T19]] : tensor<?x?xf32>
 // CHECK:             }
 // CHECK:             %[[T20:.*]] = mhlo.convert(%[[T3]]) : (tensor<1xf64>) -> tensor<1xf32>
-// CHECK:             %[[T21:.*]] = "mhlo.reshape"(%[[T20]]) : (tensor<1xf32>) -> tensor<f32>
+// CHECK:             %[[T21:.*]] = mhlo.reshape %[[T20]] : (tensor<1xf32>) -> tensor<f32>
 // CHECK:             %[[T22:.*]] = shape.shape_of %[[T15]] : tensor<?x?xf32> -> tensor<2xindex>
 // CHECK:             %[[T23:.*]] = "mhlo.dynamic_broadcast_in_dim"(%[[T21]], %[[T22]]) {broadcast_dimensions = dense<> : tensor<0xi64>} : (tensor<f32>, tensor<2xindex>) -> tensor<?x?xf32>
 // CHECK:             %[[T24:.*]] = mhlo.multiply %[[T15]], %[[T23]] : tensor<?x?xf32>

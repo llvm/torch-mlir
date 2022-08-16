@@ -94,17 +94,14 @@ static bool isUseTreatedWithValueSemantics(OpOperand &use) {
 ///   unsafe
 class InlineGlobalSlotsAnalysisState : public AnalysisState {
 public:
-  InlineGlobalSlotsAnalysisState(ProgramPoint point) : AnalysisState(point) {}
+  InlineGlobalSlotsAnalysisState(ProgramPoint point) : AnalysisState(point) {
+    setSafe();
+  }
 
   bool isUninitialized() const override {
     // We are an optimistic analysis, so we are always default initialized to
     // the optimistic "assumed safe" state.
     return false;
-  }
-
-  ChangeResult defaultInitialize() override {
-    // We are an optimistic analysis, so the default state is always "safe".
-    return setSafe();
   }
 
   void print(raw_ostream &os) const override {

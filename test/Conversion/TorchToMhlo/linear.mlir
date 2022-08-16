@@ -328,7 +328,7 @@ func.func @torch.aten.convolution(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !
 // CHECK:           %[[T_10:.*]] = arith.index_cast %[[T_9]] : index to i64
 // CHECK:           %[[VAL_0:.*]] = arith.constant 1 : i64
 // CHECK:           %[[T_11:.*]] = tensor.from_elements %[[T_10]], %[[VAL_0]], %[[VAL_0]] : tensor<3xi64>
-// CHECK:           %[[T_12:.*]] = "mhlo.dynamic_reshape"(%[[T_2]], %[[T_11]]) : (tensor<?xf32>, tensor<3xi64>) -> tensor<?x1x1xf32>
+// CHECK:           %[[T_12:.*]] = mhlo.dynamic_reshape %[[T_2]], %[[T_11]] : (tensor<?xf32>, tensor<3xi64>) -> tensor<?x1x1xf32>
 // CHECK:           %[[T_13:.*]] = chlo.broadcast_add %[[T_8]], %[[T_12]] : (tensor<?x?x?x?xf32>, tensor<?x1x1xf32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[T_14:.*]] = torch_c.from_builtin_tensor %[[T_13]] : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
 // CHECK:           return %[[T_14]] : !torch.vtensor<[?,?,?,?],f32>
@@ -479,10 +479,10 @@ func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor
 // CHECK:           %[[T_15:.*]] = arith.divsi %[[T_8]], %[[T_24]] : i64
 // CHECK:           %[[T_16:.*]] = arith.muli %[[T_10]], %[[T_24]] : i64
 // CHECK:           %[[T_17:.*]] = tensor.from_elements %[[T_24]], %[[T_15]], %[[T_10]], %[[T_12]], %[[T_14]] : tensor<5xi64>
-// CHECK:           %[[T_18:.*]] = "mhlo.dynamic_reshape"(%[[T_6]], %[[T_17]]) : (tensor<2x2x3x3xf32>, tensor<5xi64>) -> tensor<2x1x2x3x3xf32>
+// CHECK:           %[[T_18:.*]] = mhlo.dynamic_reshape %[[T_6]], %[[T_17]] : (tensor<2x2x3x3xf32>, tensor<5xi64>) -> tensor<2x1x2x3x3xf32>
 // CHECK:           %[[T_19:.*]] = "mhlo.transpose"(%[[T_18]]) {permutation = dense<[1, 0, 2, 3, 4]> : tensor<5xi64>} : (tensor<2x1x2x3x3xf32>) -> tensor<1x2x2x3x3xf32>
 // CHECK:           %[[T_20:.*]] = tensor.from_elements %[[T_15]], %[[T_16]], %[[T_12]], %[[T_14]] : tensor<4xi64>
-// CHECK:           %[[T_21:.*]] = "mhlo.dynamic_reshape"(%[[T_19]], %[[T_20]]) : (tensor<1x2x2x3x3xf32>, tensor<4xi64>) -> tensor<1x4x3x3xf32>
+// CHECK:           %[[T_21:.*]] = mhlo.dynamic_reshape %[[T_19]], %[[T_20]] : (tensor<1x2x2x3x3xf32>, tensor<4xi64>) -> tensor<1x4x3x3xf32>
 // CHECK:           %[[T_22:.*]] = mhlo.convolution(%[[T_0]], %[[T_21]]) 
 // CHECK{LITERAL}:           dim_numbers = [b, f, 0, 1]x[i, o, 0, 1]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 2 : i64} : (tensor<1x2x7x7xf32>, tensor<1x4x3x3xf32>) -> tensor<1x4x15x15xf32>
 // CHECK:           %[[T_23:.*]] = torch_c.from_builtin_tensor %[[T_22]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>

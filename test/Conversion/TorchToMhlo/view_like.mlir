@@ -42,7 +42,7 @@
 // CHECK:         %[[T26:.*]] = tensor.from_elements %[[T11]], %[[C0_I64_2]], %[[C0_I64_2]] : tensor<3xi64>
 // CHECK:         %[[T27:.*]] = tensor.from_elements %[[T25]], %[[T21]], %[[T23]] : tensor<3xi64>
 // CHECK:         %[[T28:.*]] = tensor.from_elements %[[T2]], %[[C1_I64]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T29:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T26]], %[[T27]], %[[T28]]) : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T29:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T26]], %[[T27]], %[[T28]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
 // CHECK:         %[[T30:.*]] = mhlo.convert %[[T29]] : tensor<?x?x?xf32>
 // CHECK:         %[[T31:.*]] = torch_c.from_builtin_tensor %[[T30]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
 // CHECK:         return %[[T31]] : !torch.vtensor<[?,?,?],f32>
@@ -96,7 +96,7 @@ func.func @torch.aten.slice.strided$slice_like(%arg0: !torch.vtensor<[?,?,?],f32
 // CHECK:         %[[T26:.*]] = tensor.from_elements %[[T11]], %[[C0_I64_2]], %[[C0_I64_2]] : tensor<3xi64>
 // CHECK:         %[[T27:.*]] = tensor.from_elements %[[T25]], %[[T21]], %[[T23]] : tensor<3xi64>
 // CHECK:         %[[T28:.*]] = tensor.from_elements %[[T2]], %[[C1_I64]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T29:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T26]], %[[T27]], %[[T28]]) : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x65x256xf32>
+// CHECK:         %[[T29:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T26]], %[[T27]], %[[T28]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x65x256xf32>
 // CHECK:         %[[T30:.*]] = mhlo.convert(%[[T29]]) : (tensor<?x65x256xf32>) -> tensor<2x65x256xf32>
 // CHECK:         %[[T31:.*]] = torch_c.from_builtin_tensor %[[T30]] : tensor<2x65x256xf32> -> !torch.vtensor<[2,65,256],f32>
 // CHECK:         return %[[T31]] : !torch.vtensor<[2,65,256],f32>
@@ -151,7 +151,7 @@ func.func @torch.aten.slice.strided.static$slice_like(%arg0: !torch.vtensor<[4,6
 // CHECK:         %[[T26:.*]] = tensor.from_elements %[[C0_I64_2]], %[[T11]], %[[C0_I64_2]] : tensor<3xi64>
 // CHECK:         %[[T27:.*]] = tensor.from_elements %[[T19]], %[[T25]], %[[T23]] : tensor<3xi64>
 // CHECK:         %[[T28:.*]] = tensor.from_elements %[[C1_I64]], %[[T2]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T29:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T26]], %[[T27]], %[[T28]]) : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T29:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T26]], %[[T27]], %[[T28]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
 // CHECK:         %[[T30:.*]] = mhlo.convert(%[[T29]]) : (tensor<?x?x?xf32>) -> tensor<?x1x?xf32>
 // CHECK:         %[[T31:.*]] = torch_c.from_builtin_tensor %[[T30]] : tensor<?x1x?xf32> -> !torch.vtensor<[?,1,?],f32>
 // CHECK:         return %[[T31]] : !torch.vtensor<[?,1,?],f32>
@@ -206,7 +206,7 @@ func.func @torch.aten.slice.last$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK:         %[[T26:.*]] = tensor.from_elements %[[C0_I64_2]], %[[T11]], %[[C0_I64_2]] : tensor<3xi64>
 // CHECK:         %[[T27:.*]] = tensor.from_elements %[[T19]], %[[T25]], %[[T23]] : tensor<3xi64>
 // CHECK:         %[[T28:.*]] = tensor.from_elements %[[C1_I64]], %[[T2]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T29:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T26]], %[[T27]], %[[T28]]) : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x?x256xf32>
+// CHECK:         %[[T29:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T26]], %[[T27]], %[[T28]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x?x256xf32>
 // CHECK:         %[[T30:.*]] = mhlo.convert(%[[T29]]) : (tensor<4x?x256xf32>) -> tensor<4x1x256xf32>
 // CHECK:         %[[T31:.*]] = torch_c.from_builtin_tensor %[[T30]] : tensor<4x1x256xf32> -> !torch.vtensor<[4,1,256],f32>
 // CHECK:         return %[[T31]] : !torch.vtensor<[4,1,256],f32>
@@ -246,7 +246,7 @@ func.func @torch.aten.slice.last.static$slice_like(%arg0: !torch.vtensor<[4,65,2
 // CHECK:         %[[T12:.*]] = tensor.from_elements %[[C0_I64_1]], %[[C0_I64]], %[[C0_I64_1]] : tensor<3xi64>
 // CHECK:         %[[T13:.*]] = tensor.from_elements %[[T5]], %[[T11]], %[[T9]] : tensor<3xi64>
 // CHECK:         %[[T14:.*]] = tensor.from_elements %[[C1_I64]], %[[T1]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T15:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T12]], %[[T13]], %[[T14]]) : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T15:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T12]], %[[T13]], %[[T14]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
 // CHECK:         %[[T16:.*]] = mhlo.convert %[[T15]] : tensor<?x?x?xf32>
 // CHECK:         %[[T17:.*]] = torch_c.from_builtin_tensor %[[T16]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
 // CHECK:         return %[[T17]] : !torch.vtensor<[?,?,?],f32>
@@ -285,7 +285,7 @@ func.func @torch.aten.slice.none$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK:         %[[T12:.*]] = tensor.from_elements %[[C0_I64_1]], %[[C0_I64]], %[[C0_I64_1]] : tensor<3xi64>
 // CHECK:         %[[T13:.*]] = tensor.from_elements %[[T5]], %[[T11]], %[[T9]] : tensor<3xi64>
 // CHECK:         %[[T14:.*]] = tensor.from_elements %[[C1_I64]], %[[T1]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T15:.*]] = "mhlo.real_dynamic_slice"(%[[T0]], %[[T12]], %[[T13]], %[[T14]]) : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x?x256xf32>
+// CHECK:         %[[T15:.*]] = mhlo.real_dynamic_slice %[[T0]], %[[T12]], %[[T13]], %[[T14]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x?x256xf32>
 // CHECK:         %[[T16:.*]] = mhlo.convert(%[[T15]]) : (tensor<4x?x256xf32>) -> tensor<4x33x256xf32>
 // CHECK:         %[[T17:.*]] = torch_c.from_builtin_tensor %[[T16]] : tensor<4x33x256xf32> -> !torch.vtensor<[4,33,256],f32>
 // CHECK:         return %[[T17]] : !torch.vtensor<[4,33,256],f32>
@@ -311,7 +311,7 @@ func.func @torch.aten.slice.none.static$slice_like(%arg0: !torch.vtensor<[4,65,2
 // CHECK:         %[[T6:.*]] = arith.index_cast %[[T5]] : i64 to index
 // CHECK:         %[[T7:.*]] = tensor.from_elements %[[T2]], %[[T3]] : tensor<2xi64>
 // CHECK:         %[[T8:.*]] = mhlo.compute_reshape_shape %[[T6]], %[[T7]] : index, tensor<2xi64> -> tensor<2xi64>
-// CHECK:         %[[T9:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T8]]) : (tensor<?x?x?x?xf32>, tensor<2xi64>) -> tensor<?x224xf32>
+// CHECK:         %[[T9:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T8]] : (tensor<?x?x?x?xf32>, tensor<2xi64>) -> tensor<?x224xf32>
 // CHECK:         %[[T10:.*]] = torch_c.from_builtin_tensor %[[T9]] : tensor<?x224xf32> -> !torch.vtensor<[?,224],f32>
 // CHECK:         return %[[T10]] : !torch.vtensor<[?,224],f32>
 func.func @torch.aten.view$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,224],f32> {
@@ -342,7 +342,7 @@ func.func @torch.aten.view$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch
 // CHECK:         %[[T10:.*]] = arith.index_cast %[[T9]] : i64 to index
 // CHECK:         %[[T11:.*]] = tensor.from_elements %[[T2]], %[[T3]], %[[T4]], %[[T5]] : tensor<4xi64>
 // CHECK:         %[[T12:.*]] = mhlo.compute_reshape_shape %[[T10]], %[[T11]] : index, tensor<4xi64> -> tensor<4xi64>
-// CHECK:         %[[T13:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T12]]) : (tensor<?x?x?x?x?xf32>, tensor<4xi64>) -> tensor<?x120x4x64xf32>
+// CHECK:         %[[T13:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T12]] : (tensor<?x?x?x?x?xf32>, tensor<4xi64>) -> tensor<?x120x4x64xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<?x120x4x64xf32> -> !torch.vtensor<[?,120,4,64],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[?,120,4,64],f32>
 func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.vtensor<[?,120,4,64],f32> {
@@ -382,7 +382,7 @@ func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !
 // CHECK:         %[[T10:.*]] = arith.index_cast %[[T9]] : i64 to index
 // CHECK:         %[[T11:.*]] = tensor.from_elements %[[T4]], %[[T5]], %[[T6]] : tensor<3xi64>
 // CHECK:         %[[T12:.*]] = mhlo.compute_reshape_shape %[[T10]], %[[T11]] : index, tensor<3xi64> -> tensor<3xi64>
-// CHECK:         %[[T13:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T12]]) : (tensor<2x3x?x?xf32>, tensor<3xi64>) -> tensor<2x3x?xf32>
+// CHECK:         %[[T13:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T12]] : (tensor<2x3x?x?xf32>, tensor<3xi64>) -> tensor<2x3x?xf32>
 // CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<2x3x?xf32> -> !torch.vtensor<[2,3,?],f32>
 // CHECK:         return %[[T14]] : !torch.vtensor<[2,3,?],f32>
 func.func @torch.aten.view$minus1(%arg0: !torch.vtensor<[2,3,?,?],f32>) -> !torch.vtensor<[2,3,?],f32> {
@@ -401,7 +401,7 @@ func.func @torch.aten.view$minus1(%arg0: !torch.vtensor<[2,3,?,?],f32>) -> !torc
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[],f32> -> tensor<f32>
 // CHECK:         %[[INT1:.*]] = torch.constant.int 1
 // CHECK:         %[[T1:.*]] = torch.prim.ListConstruct %[[INT1]] : (!torch.int) -> !torch.list<int>
-// CHECK:         %[[T2:.*]] = "mhlo.reshape"(%[[T0]]) : (tensor<f32>) -> tensor<1xf32>
+// CHECK:         %[[T2:.*]] = mhlo.reshape %[[T0]] : (tensor<f32>) -> tensor<1xf32>
 // CHECK:         %[[T3:.*]] = torch_c.from_builtin_tensor %[[T2]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
 // CHECK:         return %[[T3]] : !torch.vtensor<[1],f32>
 func.func @torch.aten.view$to_rank1(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[1],f32> {
@@ -414,7 +414,7 @@ func.func @torch.aten.view$to_rank1(%arg0: !torch.vtensor<[],f32>) -> !torch.vte
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1],f32> -> tensor<1xf32>
 // CHECK:         %[[T1:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
-// CHECK:         %[[T2:.*]] = "mhlo.reshape"(%[[T0]]) : (tensor<1xf32>) -> tensor<f32>
+// CHECK:         %[[T2:.*]] = mhlo.reshape %[[T0]] : (tensor<1xf32>) -> tensor<f32>
 // CHECK:         %[[T3:.*]] = torch_c.from_builtin_tensor %[[T2]] : tensor<f32> -> !torch.vtensor<[],f32>
 // CHECK:         return %[[T3]] : !torch.vtensor<[],f32>
 func.func @torch.aten.view$to_rank0(%arg0: !torch.vtensor<[1],f32>) -> !torch.vtensor<[],f32> {
@@ -451,7 +451,7 @@ func.func @torch.aten.squeeze.dim$0$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32
 // CHECK:         %[[T7:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<?x1x?x1x?xf32>
 // CHECK:         %[[T8:.*]] = arith.index_cast %[[T7]] : index to i64
 // CHECK:         %[[T9:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]], %[[T8]] : tensor<4xi64>
-// CHECK:         %[[T10:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T9]]) : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x?x1x?xf32>
+// CHECK:         %[[T10:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T9]] : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x?x1x?xf32>
 // CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<?x?x1x?xf32> -> !torch.vtensor<[?,?,1,?],f32>
 // CHECK:         return %[[T11]] : !torch.vtensor<[?,?,1,?],f32>
 func.func @torch.aten.squeeze.dim$1(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !torch.vtensor<[?,?,1,?],f32> {
@@ -477,7 +477,7 @@ func.func @torch.aten.squeeze.dim$1(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !
 // CHECK:         %[[T7:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<?x1x?x1x?xf32>
 // CHECK:         %[[T8:.*]] = arith.index_cast %[[T7]] : index to i64
 // CHECK:         %[[T9:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]], %[[T8]] : tensor<4xi64>
-// CHECK:         %[[T10:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T9]]) : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x1x?x?xf32>
+// CHECK:         %[[T10:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T9]] : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x1x?x?xf32>
 // CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<?x1x?x?xf32> -> !torch.vtensor<[?,1,?,?],f32>
 // CHECK:         return %[[T11]] : !torch.vtensor<[?,1,?,?],f32>
 func.func @torch.aten.squeeze.dim$from_end(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !torch.vtensor<[?,1,?,?],f32> {
@@ -499,7 +499,7 @@ func.func @torch.aten.squeeze.dim$from_end(%arg0: !torch.vtensor<[?,1,?,1,?],f32
 // CHECK:         %[[T5:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<2x1x2x1x2xf32>
 // CHECK:         %[[T6:.*]] = arith.index_cast %[[T5]] : index to i64
 // CHECK:         %[[T7:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xi64>
-// CHECK:         %[[T8:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T7]]) : (tensor<2x1x2x1x2xf32>, tensor<3xi64>) -> tensor<2x2x2xf32>
+// CHECK:         %[[T8:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T7]] : (tensor<2x1x2x1x2xf32>, tensor<3xi64>) -> tensor<2x2x2xf32>
 // CHECK:         %[[T9:.*]] = torch_c.from_builtin_tensor %[[T8]] : tensor<2x2x2xf32> -> !torch.vtensor<[2,2,2],f32>
 // CHECK:         return %[[T9]] : !torch.vtensor<[2,2,2],f32>
 func.func @torch.aten.squeeze$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,2,2],f32> {
@@ -525,7 +525,7 @@ func.func @torch.aten.squeeze$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> 
 // CHECK:         %[[T8:.*]] = arith.index_cast %[[T7]] : index to i64
 // CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
 // CHECK:         %[[T9:.*]] = tensor.from_elements %[[C1_I64]], %[[T2]], %[[T4]], %[[T6]], %[[T8]] : tensor<5xi64>
-// CHECK:         %[[T10:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T9]]) : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<1x?x?x?x?xf32>
+// CHECK:         %[[T10:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T9]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<1x?x?x?x?xf32>
 // CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<1x?x?x?x?xf32> -> !torch.vtensor<[1,?,?,?,?],f32>
 // CHECK:         return %[[T11]] : !torch.vtensor<[1,?,?,?,?],f32>
 func.func @torch.aten.unsqueeze$dim$0(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[1,?,?,?,?],f32> {
@@ -552,7 +552,7 @@ func.func @torch.aten.unsqueeze$dim$0(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !
 // CHECK:         %[[T8:.*]] = arith.index_cast %[[T7]] : index to i64
 // CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
 // CHECK:         %[[T9:.*]] = tensor.from_elements %[[T2]], %[[C1_I64]], %[[T4]], %[[T6]], %[[T8]] : tensor<5xi64>
-// CHECK:         %[[T10:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T9]]) : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x1x?x?x?xf32>
+// CHECK:         %[[T10:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T9]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x1x?x?x?xf32>
 // CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<?x1x?x?x?xf32> -> !torch.vtensor<[?,1,?,?,?],f32>
 // CHECK:         return %[[T11]] : !torch.vtensor<[?,1,?,?,?],f32>
 func.func @torch.aten.unsqueeze$dim$1(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,1,?,?,?],f32> {
@@ -579,7 +579,7 @@ func.func @torch.aten.unsqueeze$dim$1(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !
 // CHECK:         %[[T8:.*]] = arith.index_cast %[[T7]] : index to i64
 // CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
 // CHECK:         %[[T9:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]], %[[C1_I64]], %[[T8]] : tensor<5xi64>
-// CHECK:         %[[T10:.*]] = "mhlo.dynamic_reshape"(%[[T0]], %[[T9]]) : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x?x?x1x?xf32>
+// CHECK:         %[[T10:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T9]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x?x?x1x?xf32>
 // CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<?x?x?x1x?xf32> -> !torch.vtensor<[?,?,?,1,?],f32>
 // CHECK:         return %[[T11]] : !torch.vtensor<[?,?,?,1,?],f32>
 func.func @torch.aten.unsqueeze$from_end(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,1,?],f32> {
