@@ -278,7 +278,6 @@ def generate_golden_trace(test: Test) -> Trace:
 
 
 def compile_and_run_test(test: Test, config: TestConfig) -> Any:
-    print(test.unique_name)
     try:
         golden_trace = generate_golden_trace(test)
         compiled = config.compile(test.program_factory())

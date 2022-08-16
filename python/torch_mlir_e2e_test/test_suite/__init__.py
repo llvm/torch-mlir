@@ -7,12 +7,12 @@
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
-    "QuantizedMLP_basic",
-    "TableBatchEmbeddingModule_basic",
-    "Convolution3DModule_basic",
-    "Convolution1DModule_basic",
-    "MaxPool2dWith3dInputModule_basic",
-    "MaxPool2dWithIndicesWith3dInputModule_basic",
+    # "QuantizedMLP_basic",
+    # "TableBatchEmbeddingModule_basic",
+    # "Convolution3DModule_basic",
+    # "Convolution1DModule_basic",
+    # "MaxPool2dWith3dInputModule_basic",
+    # "MaxPool2dWithIndicesWith3dInputModule_basic",
 }
 
 def register_all_tests():
