@@ -576,7 +576,7 @@ public:
           rewriter
               .create<tensor::CollapseShapeOp>(loc, intermediateResultType,
                                                castedInput, inputAssociations)
-              .result();
+              .getResult();
     }
 
     if (llvm::any_of(outputAssociations, [](ReassociationIndices indices) {
@@ -588,7 +588,7 @@ public:
                                expandedInput.has_value() ? expandedInput.value()
                                                          : castedInput,
                                outputAssociations)
-                           .result();
+                           .getResult();
     }
 
     Value result = collapsedInput.has_value() ? collapsedInput.value()

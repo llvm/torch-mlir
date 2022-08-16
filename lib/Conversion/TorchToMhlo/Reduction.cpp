@@ -87,11 +87,9 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   if (!initValue) return llvm::None;
   Value initIndex;
   if (mlir::mhlo::kMhloDimSizeBits == 32) {
-    initIndex =
-      mhlo::getConstTensor<int32_t>(rewriter, op, {0}, {}).getValue();
+    initIndex = mhlo::getConstTensor<int32_t>(rewriter, op, {0}, {}).value();
   } else {
-    initIndex =
-      mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).getValue();
+    initIndex = mhlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
   }
 
   DenseIntElementsAttr dimensions = DenseIntElementsAttr::get(

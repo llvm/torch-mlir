@@ -531,7 +531,7 @@ public:
     std::copy(outputPadding.begin(), outputPadding.end(),
               edgePaddingHighVec.begin() + 2);
     Value paddingValue =
-        mhlo::getConstTensor<float>(rewriter, op, {0.0}, {}).getValue();
+        mhlo::getConstTensor<float>(rewriter, op, {0.0}, {}).value();
     paddingValue = mhlo::promoteType(rewriter, paddingValue, inputTy);
     mlir::DenseIntElementsAttr edgePaddingLow =
         rewriter.getI64VectorAttr(edgePaddingLowVec);

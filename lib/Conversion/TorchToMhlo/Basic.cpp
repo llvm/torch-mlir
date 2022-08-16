@@ -1063,9 +1063,6 @@ LogicalResult ConvertAtenOp<ValsemVariantAtenUniformOp>::matchAndRewrite(
       op.getLoc(),
       rewriter.getFloatAttr(inputTy.getElementType(), toDoubleValue));
 
-  auto outType = getTypeConverter()
-                     ->convertType(op.getType())
-                     .template dyn_cast<TensorType>();
   rewriter.replaceOpWithNewOp<mhlo::RngOp>(
       op, inputTy, fromTensor, toTensor, mhloShape, mhlo::RngDistribution::UNIFORM);
   return success();

@@ -239,7 +239,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    auto abs = b.create<math::AbsOp>(loc, self);
+    auto abs = b.create<math::AbsFOp>(loc, self);
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
     Value ord = convertScalarToDtype(b, loc, adaptor.ord(), resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);

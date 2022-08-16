@@ -210,7 +210,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::OrIOp>(loc, lhsTest, rhsTest);
   }
   if (isa<AtenAbsOp>(op))
-    return b.create<math::AbsOp>(loc, payloadArgs[0]);
+    return b.create<math::AbsFOp>(loc, payloadArgs[0]);
   if (isa<AtenSigmoidOp>(op)) {
     auto negate = createCalculationForMathOpWithDtypeConversion<arith::NegFOp>(
         b, converter, payloadArgs[0], op);

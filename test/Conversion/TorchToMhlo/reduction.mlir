@@ -23,12 +23,12 @@
 // CHECK:             %[[VAL_18:.*]] = mhlo.minimum %[[VAL_12]], %[[VAL_14]] : tensor<i64>
 // CHECK:             %[[VAL_19:.*]] = "mhlo.select"(%[[VAL_15]], %[[VAL_12]], %[[VAL_14]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
 // CHECK:             %[[VAL_20:.*]] = "mhlo.select"(%[[VAL_17]], %[[VAL_18]], %[[VAL_19]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
-// CHECK:             "mhlo.return"(%[[VAL_16]], %[[VAL_20]]) : (tensor<f32>, tensor<i64>) -> ()
+// CHECK:             mhlo.return %[[VAL_16]], %[[VAL_20]] : tensor<f32>, tensor<i64>
 // CHECK:           }
 // CHECK:           %[[VAL_21:.*]] = arith.constant 1 : i64
 // CHECK:           %[[VAL_22:.*]] = tensor.from_elements %[[VAL_3]], %[[VAL_21]] : tensor<2xi64>
-// CHECK:           %[[VAL_23:.*]] = "mhlo.dynamic_reshape"(%[[VAL_10]]#0, %[[VAL_22]]) : (tensor<?xf32>, tensor<2xi64>) -> tensor<?x1xf32>
-// CHECK:           %[[VAL_24:.*]] = "mhlo.dynamic_reshape"(%[[VAL_10]]#1, %[[VAL_22]]) : (tensor<?xi64>, tensor<2xi64>) -> tensor<?x1xi64>
+// CHECK:           %[[VAL_23:.*]] = mhlo.dynamic_reshape %[[VAL_10]]#0, %[[VAL_22]] : (tensor<?xf32>, tensor<2xi64>) -> tensor<?x1xf32>
+// CHECK:           %[[VAL_24:.*]] = mhlo.dynamic_reshape %[[VAL_10]]#1, %[[VAL_22]] : (tensor<?xi64>, tensor<2xi64>) -> tensor<?x1xi64>
 // CHECK:           %[[VAL_25:.*]] = torch_c.from_builtin_tensor %[[VAL_23]] : tensor<?x1xf32> -> !torch.vtensor<[?,1],f32>
 // CHECK:           %[[VAL_26:.*]] = torch_c.from_builtin_tensor %[[VAL_24]] : tensor<?x1xi64> -> !torch.vtensor<[?,1],si64>
 // CHECK:           return %[[VAL_25]], %[[VAL_26]] : !torch.vtensor<[?,1],f32>, !torch.vtensor<[?,1],si64>
@@ -64,7 +64,7 @@ func.func @torch.aten.max.dim$keepdim(%arg0: !torch.vtensor<[?,?],f32>) -> (!tor
 // CHECK:             %[[VAL_18:.*]] = mhlo.minimum %[[VAL_12]], %[[VAL_14]] : tensor<i64>
 // CHECK:             %[[VAL_19:.*]] = "mhlo.select"(%[[VAL_15]], %[[VAL_12]], %[[VAL_14]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
 // CHECK:             %[[VAL_20:.*]] = "mhlo.select"(%[[VAL_17]], %[[VAL_18]], %[[VAL_19]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
-// CHECK:             "mhlo.return"(%[[VAL_16]], %[[VAL_20]]) : (tensor<f32>, tensor<i64>) -> ()
+// CHECK:             mhlo.return %[[VAL_16]], %[[VAL_20]] : tensor<f32>, tensor<i64>
 // CHECK:           }
 // CHECK:           %[[VAL_21:.*]] = torch_c.from_builtin_tensor %[[VAL_10]]#0 : tensor<?xf32> -> !torch.vtensor<[?],f32>
 // CHECK:           %[[VAL_22:.*]] = torch_c.from_builtin_tensor %[[VAL_10]]#1 : tensor<?xi64> -> !torch.vtensor<[?],si64>
@@ -101,11 +101,11 @@ func.func @torch.aten.max.dim(%arg0: !torch.vtensor<[?,?],f32>) -> (!torch.vtens
 // CHECK:             %[[VAL_18:.*]] = mhlo.minimum %[[VAL_12]], %[[VAL_14]] : tensor<i64>
 // CHECK:             %[[VAL_19:.*]] = "mhlo.select"(%[[VAL_15]], %[[VAL_12]], %[[VAL_14]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
 // CHECK:             %[[VAL_20:.*]] = "mhlo.select"(%[[VAL_17]], %[[VAL_18]], %[[VAL_19]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
-// CHECK:             "mhlo.return"(%[[VAL_16]], %[[VAL_20]]) : (tensor<f32>, tensor<i64>) -> ()
+// CHECK:             mhlo.return %[[VAL_16]], %[[VAL_20]] : tensor<f32>, tensor<i64>
 // CHECK:           }
 // CHECK:           %[[VAL_21:.*]] = arith.constant 1 : i64
 // CHECK:           %[[VAL_22:.*]] = tensor.from_elements %[[VAL_3]], %[[VAL_21]] : tensor<2xi64>
-// CHECK:           %[[VAL_23:.*]] = "mhlo.dynamic_reshape"(%[[VAL_10]]#1, %[[VAL_22]]) : (tensor<?xi64>, tensor<2xi64>) -> tensor<?x1xi64>
+// CHECK:           %[[VAL_23:.*]] = mhlo.dynamic_reshape %[[VAL_10]]#1, %[[VAL_22]] : (tensor<?xi64>, tensor<2xi64>) -> tensor<?x1xi64>
 // CHECK:           %[[VAL_24:.*]] = torch_c.from_builtin_tensor %[[VAL_23]] : tensor<?x1xi64> -> !torch.vtensor<[?,1],si64>
 // CHECK:           return %[[VAL_24]] : !torch.vtensor<[?,1],si64>
 func.func @torch.aten.argmax$keepdim(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,1],si64> {
@@ -140,7 +140,7 @@ func.func @torch.aten.argmax$keepdim(%arg0: !torch.vtensor<[?,?],f32>) -> !torch
 // CHECK:             %[[VAL_18:.*]] = mhlo.minimum %[[VAL_12]], %[[VAL_14]] : tensor<i64>
 // CHECK:             %[[VAL_19:.*]] = "mhlo.select"(%[[VAL_15]], %[[VAL_12]], %[[VAL_14]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
 // CHECK:             %[[VAL_20:.*]] = "mhlo.select"(%[[VAL_17]], %[[VAL_18]], %[[VAL_19]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
-// CHECK:             "mhlo.return"(%[[VAL_16]], %[[VAL_20]]) : (tensor<f32>, tensor<i64>) -> ()
+// CHECK:             mhlo.return %[[VAL_16]], %[[VAL_20]] : tensor<f32>, tensor<i64>
 // CHECK:           }
 // CHECK:           %[[VAL_11:.*]] = torch_c.from_builtin_tensor %[[VAL_10]]#1 : tensor<?xi64> -> !torch.vtensor<[?],si64>
 // CHECK:           return %[[VAL_11]] : !torch.vtensor<[?],si64>
@@ -174,7 +174,7 @@ func.func @torch.aten.argmax(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor
 // CHECK:           %[[VAL_10:.*]] = arith.index_cast %[[VAL_9]] : index to i64
 // CHECK:           %[[ONE_0:.*]] = arith.constant 1 : i64
 // CHECK:           %[[VAL_11:.*]] = tensor.from_elements %[[ONE_0]], %[[ONE_0]], %[[VAL_10]] : tensor<3xi64>
-// CHECK:           %[[VAL_12:.*]] = "mhlo.dynamic_reshape"(%[[VAL_4]], %[[VAL_11]]) : (tensor<?xf32>, tensor<3xi64>) -> tensor<1x1x?xf32>
+// CHECK:           %[[VAL_12:.*]] = mhlo.dynamic_reshape %[[VAL_4]], %[[VAL_11]] : (tensor<?xf32>, tensor<3xi64>) -> tensor<1x1x?xf32>
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x1x?xf32> -> !torch.vtensor<[1,1,?],f32>
 // CHECK:           return %[[VAL_13]] : !torch.vtensor<[1,1,?],f32>
 func.func @torch.aten.sum.dim_Intlist$keepdim(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[1,1,?],f32> {

@@ -17,7 +17,7 @@
 // CHECK:           %[[VAL_7:.*]] = "mhlo.reduce_window"(%[[VAL_1]], %[[VAL_6]]) ({
 // CHECK:           ^bb0(%[[VAL_8:.*]]: tensor<f32>, %[[VAL_9:.*]]: tensor<f32>):
 // CHECK:             %[[VAL_10:.*]] = mhlo.maximum %[[VAL_8]], %[[VAL_9]] : tensor<f32>
-// CHECK:             "mhlo.return"(%[[VAL_10]]) : (tensor<f32>) -> ()
+// CHECK:             mhlo.return %[[VAL_10]] : tensor<f32>
 // CHECK:           }) {padding = dense<0> : tensor<4x2xi64>, window_dilations = dense<[1, 1, 2, 1]> : tensor<4xi64>, window_dimensions = dense<[1, 1, 2, 2]> : tensor<4xi64>, window_strides = dense<1> : tensor<4xi64>} : (tensor<?x?x?x?xf32>, tensor<f32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_11:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
 // CHECK:           return %[[VAL_11]] : !torch.vtensor<[?,?,?,?],f32>
@@ -49,7 +49,7 @@ func.func @torch.aten.max_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch
 // CHECK:           %[[VAL_6:.*]] = "mhlo.reduce_window"(%[[VAL_1]], %[[VAL_5]]) ({
 // CHECK:           ^bb0(%[[VAL_8:.*]]: tensor<f32>, %[[VAL_9:.*]]: tensor<f32>):
 // CHECK:             %[[VAL_10:.*]] = mhlo.maximum %[[VAL_8]], %[[VAL_9]] : tensor<f32>
-// CHECK:             "mhlo.return"(%[[VAL_10]]) : (tensor<f32>) -> ()
+// CHECK:             mhlo.return %[[VAL_10]] : tensor<f32>
 // CHECK:           }) 
 // CHECK-SAME{LITERAL}:  {padding = dense<[[0, 0], [0, 0], [2, 2], [1, 1]]> : tensor<4x2xi64>, window_dilations = dense<[1, 1, 2, 1]> : tensor<4xi64>, window_dimensions = dense<[1, 1, 2, 2]> : tensor<4xi64>, window_strides = dense<1> : tensor<4xi64>} : (tensor<?x?x?x?xf32>, tensor<f32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
@@ -94,7 +94,7 @@ func.func @torch.aten.max_pool2d$padding(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
 // CHECK:           %[[VAL_14:.*]] = arith.muli %[[VAL_12]], %[[VAL_10]] : i64
 // CHECK:           %[[VAL_15:.*]] = tensor.from_elements %[[VAL_8]], %[[VAL_14]] : tensor<2xi64>
 // CHECK:           %[[VAL_16:.*]] = "mhlo.dynamic_iota"(%[[VAL_15]]) {iota_dimension = 1 : i64} : (tensor<2xi64>) -> tensor<?x?xi64>
-// CHECK:           %[[VAL_17:.*]] = "mhlo.dynamic_reshape"(%[[VAL_16]], %[[VAL_13]]) : (tensor<?x?xi64>, tensor<3xi64>) -> tensor<?x?x?xi64>
+// CHECK:           %[[VAL_17:.*]] = mhlo.dynamic_reshape %[[VAL_16]], %[[VAL_13]] : (tensor<?x?xi64>, tensor<3xi64>) -> tensor<?x?x?xi64>
 // CHECK:           %[[VAL_18:.*]] = mhlo.constant dense<0> : tensor<i64>
 // CHECK:           %[[VAL_19:.*]]:2 = "mhlo.reduce_window"(%[[VAL_1]], %[[VAL_17]], %[[VAL_6]], %[[VAL_18]]) ({
 // CHECK:           ^bb0(%[[IVAL_0:.*]]: tensor<f32>, %[[IVAL_1:.*]]: tensor<i64>, %[[IVAL_2:.*]]: tensor<f32>, %[[IVAL_3:.*]]: tensor<i64>):
@@ -104,7 +104,7 @@ func.func @torch.aten.max_pool2d$padding(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
 // CHECK:             %[[IVAL_7:.*]] = mhlo.minimum %[[IVAL_1]], %[[IVAL_3]] : tensor<i64>
 // CHECK:             %[[IVAL_8:.*]] = "mhlo.select"(%[[IVAL_4]], %[[IVAL_1]], %[[IVAL_3]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
 // CHECK:             %[[IVAL_9:.*]] = "mhlo.select"(%[[IVAL_6]], %[[IVAL_7]], %[[IVAL_8]]) : (tensor<i1>, tensor<i64>, tensor<i64>) -> tensor<i64>
-// CHECK:             "mhlo.return"(%[[IVAL_5]], %[[IVAL_9]]) : (tensor<f32>, tensor<i64>) -> ()
+// CHECK:             mhlo.return %[[IVAL_5]], %[[IVAL_9]] : tensor<f32>, tensor<i64>
 // CHECK{LITERAL}:  }) {padding = dense<0> : tensor<3x2xi64>, window_dilations = dense<1> : tensor<3xi64>, window_dimensions = dense<[1, 3, 3]> : tensor<3xi64>, window_strides = dense<[1, 2, 2]> : tensor<3xi64>} : (tensor<?x?x?xf32>, tensor<?x?x?xi64>, tensor<f32>, tensor<i64>) -> (tensor<?x?x?xf32>, tensor<?x?x?xi64>)
 // CHECK:           %[[VAL_20:.*]] = torch_c.from_builtin_tensor %[[VAL_19]]#0 : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
 // CHECK:           %[[VAL_21:.*]] = torch_c.from_builtin_tensor %[[VAL_19]]#1 : tensor<?x?x?xi64> -> !torch.vtensor<[?,?,?],si64>
@@ -140,7 +140,7 @@ func.func @torch.aten.max_pool2d_with_indices(%arg0: !torch.vtensor<[?,?,?],f32>
 // CHECK:           %[[VAL_6:.*]] = "mhlo.reduce_window"(%[[VAL_1]], %[[VAL_5]]) ({
 // CHECK:           ^bb0(%[[IVAL_0:.*]]: tensor<f32>, %[[IVAL_1:.*]]: tensor<f32>):
 // CHECK:             %[[IVAL_2:.*]] = mhlo.add %[[IVAL_0]], %[[IVAL_1]] : tensor<f32>
-// CHECK:             "mhlo.return"(%[[IVAL_2]]) : (tensor<f32>) -> ()
+// CHECK:             mhlo.return %[[IVAL_2]] : tensor<f32>
 // CHECK{LITERAL}:  }) {padding = dense<[[0, 0], [0, 0], [1, 1], [1, 1]]> : tensor<4x2xi64>, window_dilations = dense<1> : tensor<4xi64>, window_dimensions = dense<[1, 1, 3, 3]> : tensor<4xi64>, window_strides = dense<[1, 1, 2, 2]> : tensor<4xi64>} : (tensor<?x?x?x?xf32>, tensor<f32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_7:.*]] = mhlo.constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           %[[IDX_0:.*]] = arith.constant 0 : index
@@ -161,7 +161,7 @@ func.func @torch.aten.max_pool2d_with_indices(%arg0: !torch.vtensor<[?,?,?],f32>
 // CHECK:           %[[VAL_19:.*]] = "mhlo.reduce_window"(%[[VAL_17]], %[[VAL_18]]) ({
 // CHECK:           ^bb0(%[[IVAL_3:.*]]: tensor<f32>, %[[IVAL_4:.*]]: tensor<f32>):
 // CHECK:             %[[IVAL_5:.*]] = mhlo.add %[[IVAL_3]], %[[IVAL_4]] : tensor<f32>
-// CHECK:             "mhlo.return"(%[[IVAL_5]]) : (tensor<f32>) -> ()
+// CHECK:             mhlo.return %[[IVAL_5]] : tensor<f32>
 // CHECK{LITERAL}:  }) {padding = dense<[[0, 0], [0, 0], [1, 1], [1, 1]]> : tensor<4x2xi64>, window_dilations = dense<1> : tensor<4xi64>, window_dimensions = dense<[1, 1, 3, 3]> : tensor<4xi64>, window_strides = dense<[1, 1, 2, 2]> : tensor<4xi64>} : (tensor<?x?x?x?xf32>, tensor<f32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_20:.*]] = mhlo.divide %[[VAL_6]], %[[VAL_19]] : tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_21:.*]] = torch_c.from_builtin_tensor %[[VAL_20]] : tensor<?x?x?x?xf32> -> !torch.vtensor<[?,?,?,?],f32>
@@ -196,7 +196,7 @@ func.func @torch.aten.avg_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch
 // CHECK:           %[[VAL_6:.*]] = "mhlo.reduce_window"(%[[VAL_1]], %[[VAL_5]]) ({
 // CHECK:           ^bb0(%[[IVAL_0:.*]]: tensor<f32>, %[[IVAL_1:.*]]: tensor<f32>):
 // CHECK:             %[[IVAL_2:.*]] = mhlo.add %[[IVAL_0]], %[[IVAL_1]] : tensor<f32>
-// CHECK:             "mhlo.return"(%[[IVAL_2]]) : (tensor<f32>) -> ()
+// CHECK:             mhlo.return %[[IVAL_2]] : tensor<f32>
 // CHECK{LITERAL}:  }) {padding = dense<[[0, 0], [0, 0], [1, 1], [1, 1]]> : tensor<4x2xi64>, window_dilations = dense<1> : tensor<4xi64>, window_dimensions = dense<[1, 1, 3, 3]> : tensor<4xi64>, window_strides = dense<[1, 1, 2, 2]> : tensor<4xi64>} : (tensor<?x?x?x?xf32>, tensor<f32>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_7:.*]] = mhlo.constant dense<9> : tensor<i64>
 // CHECK:           %[[VAL_8:.*]] = mhlo.convert(%[[VAL_7]]) : (tensor<i64>) -> tensor<f32>
