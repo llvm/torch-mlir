@@ -10,45 +10,58 @@ include_directories(BEFORE
   )
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
-# TODO: Currently, out-of-tree build fails when LIBRARY_TYPE is set to SHARED, so we have this toggle.
-#       See https://github.com/llvm/torch-mlir/issues/1154 for more details.
-if(TORCH_MLIR_ENABLE_LTC)
-  set(LIBRARY_TYPE "SHARED")
-else()
-  set(LIBRARY_TYPE "MODULE")
-endif()
-
-add_library(TorchMLIRJITIRImporter ${LIBRARY_TYPE}
+# Static library with core functionality.
+add_library(TorchMLIRJITIRImporter STATIC
   class_annotator.cpp
-  class_annotator_pybind.cpp
-  get_registered_ops.cpp
   function_importer.cpp
-  module_builder.cpp
   node_importer.cpp
-  import_options_pybind.cpp
   ivalue_importer.cpp
-  init_python_bindings.cpp
   torch_to_mlir_utils.cpp
   )
-
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
+  )
+message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
+set_target_properties(TorchMLIRJITIRImporter PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
+  OUTPUT_NAME lib_jit_ir_importer
+  PREFIX ""
+  SUFFIX ".a"
+  CXX_VISIBILITY_PRESET "default"
+  COMPILE_FLAGS "${TORCH_CXXFLAGS}"
+  )
+
+# Separate Pybind MODULE due to issues with a SHARED library.
+# https://github.com/llvm/torch-mlir/issues/1154
+add_library(TorchMLIRJITIRImporterPybind MODULE
+  class_annotator_pybind.cpp
+  get_registered_ops.cpp
+  import_options_pybind.cpp
+  init_python_bindings.cpp
+  module_builder.cpp
+  )
+add_dependencies(TorchMLIRJITIRImporterPybind
+  TorchMLIRJITIRImporter
+  )
+target_link_libraries(TorchMLIRJITIRImporterPybind
+  ${TORCH_LIBRARIES}
   torch_python
-)
+  TorchMLIRJITIRImporter
+  )
 
 # On static Python builds, there may not be Python libraries to link against
 # (they will late bind at runtime from the executable). We have to condition
 # this because in that case it is set to NOTFOUND and CMake will consider
 # this an error.
 if(Python3_LIBRARIES)
-  target_link_libraries(TorchMLIRJITIRImporter
+  target_link_libraries(TorchMLIRJITIRImporterPybind
     ${Python3_LIBRARIES}
   )
 endif()
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
-set_target_properties(TorchMLIRJITIRImporter PROPERTIES
+set_target_properties(TorchMLIRJITIRImporterPybind PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
   OUTPUT_NAME _jit_ir_importer
   PREFIX "${PYTHON_MODULE_PREFIX}"
@@ -56,7 +69,7 @@ set_target_properties(TorchMLIRJITIRImporter PROPERTIES
   CXX_VISIBILITY_PRESET "hidden"
   COMPILE_FLAGS "${TORCH_CXXFLAGS}"
   )
-mlir_python_setup_extension_rpath(TorchMLIRJITIRImporter)
+mlir_python_setup_extension_rpath(TorchMLIRJITIRImporterPybind)
 
-torch_mlir_python_target_compile_options(TorchMLIRJITIRImporter)
-mlir_check_all_link_libraries(TorchMLIRJITIRImporter)
+torch_mlir_python_target_compile_options(TorchMLIRJITIRImporterPybind)
+mlir_check_all_link_libraries(TorchMLIRJITIRImporterPybind)

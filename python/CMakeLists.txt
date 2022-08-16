@@ -154,6 +154,7 @@ add_mlir_python_modules(TorchMLIRPythonModules
 # Then it would "just work".
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_dependencies(TorchMLIRPythonModules TorchMLIRJITIRImporter)
+  add_dependencies(TorchMLIRPythonModules TorchMLIRJITIRImporterPybind)
   # Build the E2E Tests (which depend on the JIT IR importer now).
   add_dependencies(TorchMLIRPythonModules TorchMLIRE2ETestPythonModules)
 endif()
