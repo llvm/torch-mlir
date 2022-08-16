@@ -113,10 +113,12 @@ public:
       // count number of inputs
       auto name = mlir_data->mlir_info()->name;
       if (startswith(name, "input_")) {
+        // Printing tensor name for testing purposes
         std::cout << "Input tensor: " << name << std::endl;
         ++num_inputs;
       }
     }
+    // Printing number of input tensors for testing purposes
     std::cout << num_inputs << " input tensors found" << std::endl;
     graph_executor.run(stack);
     std::vector<torch::lazy::BackendDataPtr> results;
