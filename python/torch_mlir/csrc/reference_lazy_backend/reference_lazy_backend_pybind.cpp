@@ -11,7 +11,9 @@
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/sys_utils.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/tensor_utils.h>
 
 #include <exception>
 #include <iostream>
@@ -73,6 +75,15 @@ PYBIND11_MODULE(_REFERENCE_LAZY_BACKEND, m) {
         torch::lazy::GetLatestComputation().get());
     return py::cast(computation);
   });
+  m.def("set_parameter_name",
+        [](const at::Tensor& tensor, const std::string& name) -> bool {
+            torch::lazy::DeviceData* ir_node = torch::lazy::device_data_cast(tensor);
+            if (ir_node) {
+                ir_node->SetName(name);
+                return true;
+            }
+            return false;
+        });
   m.def("_initialize", []() {
     NoGilSection gil;
     Initialize();

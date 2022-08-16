@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <sstream>
+
 #include <torch/csrc/lazy/backend/backend_data.h>
 #include <torch/csrc/lazy/backend/backend_device.h>
 #include <torch/csrc/lazy/backend/backend_interface.h>
@@ -29,13 +31,20 @@ public:
     at::Tensor tensor;
     c10::optional<at::Scalar> scalar;
     bool requires_grad;
+    std::string name;
 
     Info() {}
     Info(const Info& other)
         : tensor{other.tensor}, scalar{other.scalar},
-          requires_grad{other.requires_grad} {}
+          requires_grad{other.requires_grad}, name{other.name} {}
     Info(const at::Tensor& tensor)
-        : tensor{tensor}, requires_grad{tensor.requires_grad()} {}
+        : tensor{tensor}, requires_grad{tensor.requires_grad()} {
+      static int num_tensors = 0;
+      std::ostringstream oss;
+      oss << "tensor" << num_tensors;
+      this->name = oss.str();
+      ++num_tensors;
+    }
     Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
   };
 
