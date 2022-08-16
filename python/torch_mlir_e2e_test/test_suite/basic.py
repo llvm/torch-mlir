@@ -1748,6 +1748,125 @@ def IndexTensorMultiInputOneDim_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorMultiInputContiguousOneDimDynamic(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, 1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (
+            None,
+            index1,
+            index2,
+        ))
+
+
+@register_test_case(
+    module_factory=lambda: IndexTensorMultiInputContiguousOneDimDynamic())
+def IndexTensorMultiInputContiguousOneDimDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), torch.randint(4, (6, 1)),
+                   torch.randint(3, (3, )))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputNonContiguousOneDimDynamic(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, 1], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (
+            index1,
+            None,
+            index2,
+        ))
+
+
+@register_test_case(
+    module_factory=lambda: IndexTensorMultiInputNonContiguousOneDimDynamic())
+def IndexTensorMultiInputNonContiguousOneDimDynamic_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), torch.randint(4, (6, 1)),
+                   torch.randint(3, (3, )))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputNonContiguousDynamic(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, 2], torch.int64, True),
+        ([-1], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2):
+        return torch.ops.aten.index(x, (
+            index2,
+            None,
+            index1,
+        ))
+
+
+@register_test_case(
+    module_factory=lambda: IndexTensorMultiInputNonContiguousDynamic())
+def IndexTensorMultiInputNonContiguousDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), torch.randint(2, (6, 2)),
+                   torch.randint(3, (2, )))
+
+
+# ==============================================================================
+
+
+class IndexTensorMultiInputNonContiguousMultipleStaticDims(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([4, 1], torch.int64, True),
+        ([1, 3], torch.int64, True),
+        ([-1, 3], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2, index3):
+        return torch.ops.aten.index(x, (index1, index2, index3))
+
+
+@register_test_case(module_factory=lambda:
+                    IndexTensorMultiInputNonContiguousMultipleStaticDims())
+def IndexTensorMultiInputNonContiguousMultipleStaticDims_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2), torch.randint(3, (4, 1)),
+                   torch.randint(1, (1, 3)), torch.randint(1, (4, 3)))
+
+
+# ==============================================================================
+
+
 class IndexTensorMultiInputNonContiguous(torch.nn.Module):
 
     def __init__(self):
@@ -2591,7 +2710,7 @@ class AtenEmbeddingBagSumExample(torch.nn.Module):
 
     @export
     @annotate_args([
-        None, 
+        None,
         ([-1, -1], torch.float32, True),
         ([-1], torch.int64, True),
         ([-1], torch.int64, True),
@@ -2613,7 +2732,7 @@ class Aten_EmbeddingBagExample(torch.nn.Module):
 
     @export
     @annotate_args([
-        None, 
+        None,
         ([-1, -1], torch.float32, True),
         ([-1], torch.int64, True),
         ([-1], torch.int64, True),

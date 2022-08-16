@@ -583,10 +583,11 @@ public:
     int replacedIndexCount = indexTensorDims.size();
     int64_t startIndex = contiguous ? firstIndexDim : 0;
 
-    // Currently we only support statically sized index tensors
-    // when there is more than one index tensor.
-    // TODO: Add support for dynamic size index tensors. This will probably
-    // require broadcasting the index tensors to a common shape.
+    // Currently we only support statically sized index tensors or dynamic size
+    // index tensors without overlapping dynamic dims when there is more than
+    // one index tensor.
+    // TODO: Add support for dynamic size index tensors with overlapping
+    // dynamic dims.
     SmallVector<Value> broadcastedIndexShape;
     if (indexTensors.size() > 1) {
       int maxRank = -1;
@@ -602,12 +603,39 @@ public:
       for (auto i : llvm::seq(startIndex, startIndex + maxRank)) {
         auto resultDimSize = refinedResultShape[i];
         if (ShapedType::isDynamic(resultDimSize)) {
-          return rewriter.notifyMatchFailure(
-              op, "unimplemented: index tensors must have static shape if "
-                  "there is more than one index tensor");
+          SmallVector<Value> dynamicDims;
+          int64_t staticDimSize = -1;
+          for (auto indexTensor : indexTensors) {
+            RankedTensorType indexTensorType =
+                indexTensor.getType().cast<RankedTensorType>();
+            int64_t indexTensorRank = indexTensorType.getRank();
+            if ((maxRank - indexTensorRank) > (i - startIndex))
+              continue;
+            int64_t dim = i - startIndex - maxRank + indexTensorRank;
+            if (ShapedType::isDynamic(indexTensorType.getShape()[dim]))
+              dynamicDims.push_back(getDimOp(rewriter, loc, indexTensor, dim));
+            else
+              staticDimSize =
+                  std::max(staticDimSize, indexTensorType.getShape()[dim]);
+          }
+          if (dynamicDims.size() >= 2)
+            return rewriter.notifyMatchFailure(
+                op,
+                "unimplemented: index tensors with overlapping dynamic dims");
+          if (staticDimSize > 1) {
+            Value cstStaticDimSize = getConstant(rewriter, loc, staticDimSize,
+                                                 rewriter.getIndexType());
+            auto equalToRunning = rewriter.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::eq, cstStaticDimSize,
+                dynamicDims[0]);
+            rewriter.create<cf::AssertOp>(loc, equalToRunning,
+                                          "mismatched size for broadcast");
+          }
+          broadcastedIndexShape.push_back(dynamicDims[0]);
+        } else {
+          broadcastedIndexShape.push_back(getConstant(
+              rewriter, loc, resultDimSize, rewriter.getIndexType()));
         }
-        broadcastedIndexShape.push_back(
-            getConstant(rewriter, loc, resultDimSize, rewriter.getIndexType()));
       }
     } else {
       // For a single indexing tensor we can simply use its (dynamic) sizes
