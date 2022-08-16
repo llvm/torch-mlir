@@ -178,6 +178,9 @@ public:
 
     if (!rhsType) {
       rhs = mhlo::scalarToMhloTensor(rewriter, op, adaptor.other(), outElemTy);
+      if (isa<AtenRsubScalarOp>(op)) {
+        std::swap(lhs, rhs);
+      }
     }
 
     lhs = mhlo::promoteType(rewriter, lhs, outType);
@@ -1117,6 +1120,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_ADDSUB_PATTERN(AtenAddScalarOp, chlo::BroadcastAddOp);
   INSERT_BINARY_ADDSUB_PATTERN(AtenSubTensorOp, chlo::BroadcastSubOp);
   INSERT_BINARY_ADDSUB_PATTERN(AtenSubScalarOp, chlo::BroadcastSubOp);
+  INSERT_BINARY_ADDSUB_PATTERN(AtenRsubScalarOp, chlo::BroadcastSubOp);
 #undef INSERT_BINARY_ADDSUB_PATTERN
 
 #define INSERT_BINARY_MULDIV_PATTERN(AtenOp, ChloOp)                           \
