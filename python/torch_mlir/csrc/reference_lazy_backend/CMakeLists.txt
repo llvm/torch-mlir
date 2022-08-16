@@ -42,7 +42,7 @@ if(TORCH_MLIR_ENABLE_LTC)
   link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
   add_link_options(-Wl,-rpath,$ORIGIN/lib)
 
-  add_library(reference_lazy_backend SHARED
+  add_library(reference_lazy_backend MODULE
           backend_impl.cpp
           reference_lazy_backend_pybind.cpp
           )
@@ -51,6 +51,7 @@ if(TORCH_MLIR_ENABLE_LTC)
           )
   target_link_libraries(reference_lazy_backend
           ${TORCH_LIBRARIES}
+          torch_python
           torch_mlir_ltc_backend
           )
 

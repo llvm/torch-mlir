@@ -49,8 +49,7 @@ if(TORCH_MLIR_ENABLE_MHLO)
   endif()
 endif()
 
-# TODO: Reenable LTC once OOT build is successful (https://github.com/llvm/torch-mlir/issues/1154)
-option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
+option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" ON)
 
 if(TORCH_MLIR_ENABLE_LTC)
     set(ENV{TORCH_MLIR_ENABLE_LTC} 1)
