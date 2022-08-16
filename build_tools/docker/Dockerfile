@@ -16,7 +16,7 @@ RUN apt-get update                                              && \
     git                                                            \
     python3-pip                                                    \
     wget                                                           \
-    clang                                                          \
+    clang-10                                                       \
     automake                                                       \
     libtool                                                        \
     curl                                                           \

@@ -20,20 +20,23 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
     - name: Checkout torch-mlir
       uses: actions/checkout@v2
       with:
         submodules: 'true'
 
-    - name: Build with bazel
+    - name: Build docker image
       run: |
-        cd $GITHUB_WORKSPACE/utils/bazel
-        bazel build @torch-mlir//...
+        docker build -f build_tools/docker/Dockerfile \
+                     -t torch-mlir-bazel:ci \
+                     .
+
+    - name: Bazel build torch-mlir
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":/opt/src/torch-mlir \
+                   torch-mlir-bazel:ci \
+                   ./build_tools/docker/run_bazel_build.sh
 
     - name: Send mail
       if: failure()
