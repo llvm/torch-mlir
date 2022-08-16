@@ -1155,47 +1155,6 @@ public:
 };
 } // namespace
 
-namespace {
-class DecomposeAtenNativeDropoutOp : public OpRewritePattern<AtenNativeDropoutOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenNativeDropoutOp op,
-                                PatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    Value input = op.input();
-    Value prob = op.p();
-    bool train = false;
-    if (!matchPattern(op.train(), m_TorchConstantBool(&train)))
-      return rewriter.notifyMatchFailure(op, "train must be a boolean constant");
-
-    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
-    if (!train) {
-      // TODO(yancey.yx): supports inference mode
-      return op.emitError(
-          "native_dropout does not support argument train is false");
-    }
-    if (!inputType.hasDtype() || !inputType.getDtype().isa<mlir::FloatType>())
-      return rewriter.notifyMatchFailure(
-          op, "only support floating type input for training mode");
-    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-    Value floatOne =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-    Value oneMinusP = rewriter.create<AtenSubFloatOp>(loc, floatOne, prob);
-    Value boolMask = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
-        loc, inputType, input, oneMinusP, /*generator=*/noneVal);
-    Value maskedInput =
-        rewriter.create<AtenMulTensorOp>(loc, inputType, boolMask, input);
-    Value output =
-        rewriter.create<AtenMulScalarOp>(loc, inputType, maskedInput, oneMinusP);
-    Value one =
-        rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    boolMask = rewriter.create<AtenGeScalarOp>(
-        loc, op.getResult(1).getType(), boolMask, one);
-    rewriter.replaceOp(op, {output, boolMask});
-  return success();
-  }
-};
-} // namespace
 // Decompose aten.var into: aten.var.dim op.
 namespace {
 class DecomposeAtenVarOp : public OpRewritePattern<AtenVarOp> {
@@ -2635,8 +2594,6 @@ class DecomposeComplexOpsPass
     patterns.add<DecomposeAten_ToCopyOp>(context);
     target.addIllegalOp<Aten_ToCopyOp>();
     patterns.add<DecomposeAtenDropoutOp>(context);
-    patterns.add<DecomposeAtenNativeDropoutOp>(context);
-    target.addIllegalOp<AtenNativeDropoutOp>(); 
     target.addIllegalOp<AtenDropoutOp>();
     target.addIllegalOp<AtenNewEmptyOp>();
     patterns.add<DecomposeAtenNewEmptyOp>(context);
