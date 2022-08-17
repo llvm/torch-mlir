@@ -1,5 +1,6 @@
 *.swp
 .cache/
+.ccache
 .vscode
 .env
 *.code-workspace
@@ -10,6 +11,7 @@ externals/pytorch/
 libtorch*
 
 /build/
+/llvm-build/
 __pycache__
 *.pyc
 
