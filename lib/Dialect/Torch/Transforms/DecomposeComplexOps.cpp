@@ -2470,10 +2470,10 @@ public:
   LogicalResult matchAndRewrite(AtenDivIntOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value a_float = rewriter.create<AtenFloatScalarOp>(loc, op.a());
-    Value b_float = rewriter.create<AtenFloatScalarOp>(loc, op.b());
+    Value aFloat = rewriter.create<AtenFloatScalarOp>(loc, op.a());
+    Value bFloat = rewriter.create<AtenFloatScalarOp>(loc, op.b());
     rewriter.replaceOpWithNewOp<AtenDivFloatOp>(
-        op, Torch::FloatType::get(op.getContext()), a_float, b_float);
+        op, Torch::FloatType::get(op.getContext()), aFloat, bFloat);
     return success();
   }
 };

@@ -135,16 +135,16 @@ class DivIntModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([], torch.float32, True),
-        ([], torch.float32, True),
+        ([], torch.int32, True),
+        ([], torch.int32, True),
     ])
     def forward(self, lhs, rhs):
-        return lhs / rhs
+        return torch.ops.aten.div(int(lhs), int(rhs))
 
 
 @register_test_case(module_factory=lambda: DivIntModule())
 def DivIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.rand(()).int(), torch.rand(()).int())
+    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
 
 
 # ==============================================================================

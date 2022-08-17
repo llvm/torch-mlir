@@ -1332,3 +1332,17 @@ func.func @torch.aten.std.dim(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vten
   %0 = torch.aten.std.dim %arg0, %dims, %unbiased, %keepdim: !torch.vtensor<[3,4,5],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[3,4,1],f32>
   return %0 : !torch.vtensor<[3,4,1],f32>
 }
+
+// -----
+// CHECK-LABEL:  func.func @torch.aten.div.int(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.float {
+// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK:          %[[SUB:.*]] = arith.divf %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
+// CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[SUB:.*]]
+// CHECK:          return %[[OUT:.*]] : !torch.float
+func.func @torch.aten.div.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.float {
+  %0 = torch.aten.div.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
