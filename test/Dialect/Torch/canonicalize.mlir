@@ -1248,6 +1248,36 @@ func.func @torch.aten.div.float$fold_cst_operands() -> !torch.float {
   return %0 : !torch.float
 }
 
+// CHECK-LABEL:   func.func @torch.aten.div.int$fold_zero_dividend(
+// CHECK:           %[[CST0:.*]] = torch.constant.float 0.000000e+00
+// CHECK:           return %[[CST0]] : !torch.float
+func.func @torch.aten.div.int$fold_zero_dividend() -> !torch.float {
+  %int0 = torch.constant.int 0
+  %int5 = torch.constant.int 5
+  %0 = torch.aten.div.int %int0, %int5 : !torch.int, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.div.int$fold_one_divisor(
+// CHECK:           %[[CST4:.*]] = torch.constant.float 4.000000e+00
+// CHECK:           return %[[CST4]] : !torch.float
+func.func @torch.aten.div.int$fold_one_divisor() -> !torch.float {
+  %int4 = torch.constant.int 4
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.div.int %int4, %int1 : !torch.int, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.div.int$fold_cst_operands(
+// CHECK:           %[[CST2:.*]] = torch.constant.float 2.000000e+00
+// CHECK:           return %[[CST2]] : !torch.float
+func.func @torch.aten.div.int$fold_cst_operands() -> !torch.float {
+  %int4 = torch.constant.int 4
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.div.int %int4, %int2 : !torch.int, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.to.dtype_layout$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>
