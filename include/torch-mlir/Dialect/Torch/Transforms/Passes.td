@@ -218,6 +218,11 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
 def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   let summary = "Decompose complicated torch operations";
   let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
+  let options = [
+    ListOption<"legalOps", "legal-ops", "std::string",
+               "List of operation names that should be considered legal",
+               "llvm::cl::ZeroOrMore">
+  ];
   let description = [{
     Decompose torch operation that are losslessly represented as combinations of
     other operations, modulo appropropriate compiler fusion. Note that this pass
@@ -270,7 +275,7 @@ def LowerToBackendContract
   let summary = "Perform simplifications until the backend contract is satisfied.";
   let constructor = [{
     mlir::torch::Torch::createLowerToBackendContractPass(
-      /*maxIterations=*/10, /*decompose=*/true)
+      /*maxIterations=*/10, /*decompose=*/true, /*backendLegalOps=*/{})
   }];
   let description = [{
     This pass performs the bulk of the lowering of the program's computations
@@ -311,9 +316,10 @@ def LowerToBackendContract
   let options = [
     Option<"maxIterations", "max-iterations", "int", /*default=*/"10",
            "Maximum number of invocations of the simplification pipeline.">,
-    // TODO: Make this a configurable set of ops.
     Option<"decompose", "decompose", "bool", /*default=*/"true",
-           "Decompose ops.">
+           "Decompose ops.">,
+    ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
+               "List of ops to be considered legal for the backend.">
 
   ];
   // TODO: Debug why this is needed, even though the input program has func.func

@@ -2465,6 +2465,11 @@ public:
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
+public:
+  DecomposeComplexOpsPass() = default;
+  DecomposeComplexOpsPass(ArrayRef<std::string> legalOps) {
+    this->legalOps = legalOps;
+  }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
@@ -2629,6 +2634,10 @@ class DecomposeComplexOpsPass
     target.addIllegalOp<AtenNarrowOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
+
+    for (std::string opName : legalOps) {
+      target.addLegalOp(OperationName(opName, context));
+    }
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {

@@ -35,14 +35,26 @@ struct TorchLoweringPipelineOptions
       llvm::cl::desc(
           "Maximum number of invocations of the simplification pipeline."),
       llvm::cl::init(10)};
-  // If this option is false, decompose complex operations.
-  // If this option is true, skip decomposition of complex operations.
-  // TODO: This should be replaced with a list of operations to decompose.
-  // (or some other way to specify the set of allowed ops in the backend
-  // contract)
+  // If this option is true, decompose complex operations.
+  // If this option is false, skip decomposition of complex operations.
   Option<bool> decompose{*this, "decompose-complex-ops",
                          llvm::cl::desc("Decompose complex operations."),
                          llvm::cl::init(true)};
+  // A list of ops that should be considered legal for the backend.
+  // TODO: The meaning of this list should be formalized.
+  // A sketch of the semantics would be:
+  // - In torch_ods_gen.py, we mark each op as "legal in backend contract",
+  // "illegal in backend contract", or "conditionally legal in backend
+  // contract".
+  // This option would be a list of ops from the "conditionally legal" set
+  // which should be considered legal for a particular invocation of the
+  // lowering pipeline.
+  // TODO: The "decompose" flag should be expanded into this formulation
+  // of legality for the backend. Ultimately we will want LowerToBackendContract
+  // to check for a specific set of legal ops to stop its iteration.
+  ListOption<std::string> backendLegalOps{
+      *this, "backend-legal-ops",
+      llvm::cl::desc("List of ops to be considered legal for the backend.")};
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by
@@ -93,7 +105,8 @@ std::unique_ptr<OperationPass<ModuleOp>>
 createEraseModuleInitializerPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
-createLowerToBackendContractPass(int maxIterations, bool decompose);
+createLowerToBackendContractPass(int maxIterations, bool decompose,
+                                 ArrayRef<std::string> backendLegalOps);
 
 StringRef getShapeLibrary();
 
