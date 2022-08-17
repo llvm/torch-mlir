@@ -28,5 +28,5 @@ fi
 
 PYTHONPATH="${pypath}" python \
   -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_lib_gen \
-  --pytorch_op_extensions=${ext_module} \
+  --pytorch_op_extensions=${ext_module:-""} \
   --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"
