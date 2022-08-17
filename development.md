@@ -175,14 +175,15 @@ manually `source`'d in a shell.
 
 Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
 
-1. Install [Bazel](https://docs.bazel.build/versions/main/install.html) if you don't already have it
-2. Install a relatively new release of [Clang](https://releases.llvm.org/download.html)
-3. Build:
+1. Launch an interactive docker container with the required deps installed:
 ```shell
-cd utils/bazel
-bazel build @torch-mlir//...
+./utils/bazel/docker/run_docker.sh
 ```
-4. Find the built binary at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
+2. Build torch-mlir using bazel (from container):
+```shell
+./utils/bazel/docker/run_bazel_build.sh
+```
+3. Find the built binary at `utils/bazel/bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
 
 # Testing

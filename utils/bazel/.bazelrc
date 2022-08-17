@@ -4,8 +4,8 @@
 
 build --action_env=CC=clang
 build --action_env=CXX=clang++
-build --cxxopt=-std=c++17 
-build --host_cxxopt=-std=c++17 
+build --cxxopt=-std=c++17
+build --host_cxxopt=-std=c++17
 build --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0
 build --cxxopt=-U__GXX_ABI_VERSION
 build --cxxopt=-D__GXX_ABI_VERSION=1011

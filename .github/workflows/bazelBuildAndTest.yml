@@ -20,20 +20,38 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
     - name: Checkout torch-mlir
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: 'true'
 
-    - name: Build with bazel
+    - name: Setup cache for bazel
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/bazel
+        key: ubuntu_x86_64_torch_mlir_bazel_build_cache
+
+    - name: Set bazel cache permissions
       run: |
-        cd $GITHUB_WORKSPACE/utils/bazel
-        bazel build @torch-mlir//...
+        sudo chown -R root:root "${HOME}/.cache/bazel"
+
+    - name: Build docker image
+      run: |
+        docker build -f utils/bazel/docker/Dockerfile \
+                     -t torch-mlir:ci \
+                     .
+
+    - name: Bazel build torch-mlir
+      run: |
+        docker run --rm \
+                   -v "$(pwd)":"/opt/src/torch-mlir" \
+                   -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
+                   torch-mlir:ci \
+                   ./utils/bazel/docker/run_bazel_build.sh
+
+    - name: Switch bazel cache permissions
+      run: |
+        sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
 
     - name: Send mail
       if: failure()
