@@ -31,9 +31,15 @@ jobs:
         path: ~/.cache/bazel
         key: ubuntu_x86_64_torch_mlir_bazel_build_cache
 
+    # Change bazel cache directory to root ownership
+    # to allow writing to it from within the docker container.
+    # If no cache hits, this directory is not present
+    # so don't run chown (will error otherwise).
     - name: Set bazel cache permissions
       run: |
-        sudo chown -R root:root "${HOME}/.cache/bazel"
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R root:root "${HOME}/.cache/bazel"
+        fi
 
     - name: Build docker image
       run: |
@@ -49,9 +55,14 @@ jobs:
                    torch-mlir:ci \
                    ./utils/bazel/docker/run_bazel_build.sh
 
+    # Switch back bazel cache directory to user ownership
+    # to allow GHA post-cache step to save cache without
+    # permissions issue.
     - name: Switch bazel cache permissions
       run: |
-        sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
+        if [ -d "${HOME}/.cache/bazel" ]; then
+          sudo chown -R "$USER":"$USER" "${HOME}/.cache/bazel"
+        fi
 
     - name: Send mail
       if: failure()
