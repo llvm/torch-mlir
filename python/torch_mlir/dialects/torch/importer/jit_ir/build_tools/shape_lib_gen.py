@@ -526,12 +526,12 @@ def aten〇var(self: List[int], unbiased: bool = True) -> List[int]:
 def aten〇var〇dim(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     if dim is None or len(dim)==0:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def aten〇var〇correction(self: List[int], dim: Optional[List[int]], correction: Optional[int], keepdim: bool = False) -> List[int]:
     if dim is None or len(dim)==0:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def aten〇std(self: List[int], unbiased: bool = True) -> List[int]:
     return []
@@ -539,7 +539,7 @@ def aten〇std(self: List[int], unbiased: bool = True) -> List[int]:
 def aten〇std〇dim(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
     if dim is None or len(dim)==0:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, None)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def _reduce_along_dim(self: List[int], dim: int, keepdim: bool):
     dim = upstream_shape_functions.maybe_wrap_dim(dim, len(self))
@@ -576,12 +576,12 @@ def aten〇max〇dim(self: List[int], dim: int, keepdim: bool = False) -> Tuple[
 def aten〇mean〇dim(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     if dim is None or len(dim)==0:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
 def aten〇sum〇dim_IntList(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     if dim is None or len(dim)==0:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
 def aten〇permute(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
@@ -813,7 +813,7 @@ def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:
 def aten〇rand_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
-def aten〇arange〇start_step(start: float, end: float, step: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+def aten〇arange〇start_step(start: float, end: float, step: float = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     return upstream_shape_functions.arange_start_step(start, end, step, dtype, layout, device, pin_memory)
 
 def aten〇arange〇start(start: float, end: float, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
@@ -1171,7 +1171,7 @@ def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlen
 def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     if dim is None:
         dim = list(range(len(self)))
-    return upstream_shape_functions.mean_dim(self, dim, keepdim, dtype)
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
 # ==============================================================================
 # Shape library generator main().
