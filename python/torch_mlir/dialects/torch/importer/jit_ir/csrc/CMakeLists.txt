@@ -21,6 +21,7 @@ add_library(TorchMLIRJITIRImporter SHARED
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
+  torch_python
   )
 set_target_properties(TorchMLIRJITIRImporter PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
@@ -45,7 +46,6 @@ add_dependencies(TorchMLIRJITIRImporterPybind
   TorchMLIRJITIRImporter
   )
 target_link_libraries(TorchMLIRJITIRImporterPybind
-  TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   torch_python
   TorchMLIRJITIRImporter
