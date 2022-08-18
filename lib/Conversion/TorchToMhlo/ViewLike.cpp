@@ -194,9 +194,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return op.emitError("can not create a dynmaic slice");
 
   auto slice = *sliceInfo;
-  rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
-      op, getTypeConverter()->convertType(op.getType()), slice);
-
+  rewriter.replaceOp(op, slice);
   return success();
 }
 
