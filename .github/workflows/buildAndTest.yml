@@ -133,7 +133,6 @@ jobs:
           -DLLVM_ENABLE_ZSTD=OFF \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DTORCH_MLIR_ENABLE_MHLO=OFF \
-          -DTORCH_MLIR_ENABLE_LTC=OFF \
           -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
           -DMACOSX_DEPLOYMENT_TARGET=12.0 \
           -DPython3_EXECUTABLE="$(which python)" \

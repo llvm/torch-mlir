@@ -45,6 +45,7 @@ add_dependencies(TorchMLIRJITIRImporterPybind
   TorchMLIRJITIRImporter
   )
 target_link_libraries(TorchMLIRJITIRImporterPybind
+  TorchMLIRAggregateCAPI
   ${TORCH_LIBRARIES}
   torch_python
   TorchMLIRJITIRImporter
