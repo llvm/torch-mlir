@@ -33,6 +33,21 @@ set_target_properties(TorchMLIRJITIRImporter PROPERTIES
   LINK_FLAGS "-rdynamic"
   )
 
+# On static Python builds, there may not be Python libraries to link against
+# (they will late bind at runtime from the executable). We have to condition
+# this because in that case it is set to NOTFOUND and CMake will consider
+# this an error.
+if(Python3_LIBRARIES)
+    target_link_libraries(TorchMLIRJITIRImporter
+        ${Python3_LIBRARIES}
+        )
+endif()
+
+mlir_python_setup_extension_rpath(TorchMLIRJITIRImporter)
+
+torch_mlir_python_target_compile_options(TorchMLIRJITIRImporter)
+mlir_check_all_link_libraries(TorchMLIRJITIRImporter)
+
 # Separate Pybind MODULE due to issues with a SHARED library.
 # https://github.com/llvm/torch-mlir/issues/1154
 add_library(TorchMLIRJITIRImporterPybind MODULE
@@ -50,16 +65,6 @@ target_link_libraries(TorchMLIRJITIRImporterPybind
   torch_python
   TorchMLIRJITIRImporter
   )
-
-# On static Python builds, there may not be Python libraries to link against
-# (they will late bind at runtime from the executable). We have to condition
-# this because in that case it is set to NOTFOUND and CMake will consider
-# this an error.
-if(Python3_LIBRARIES)
-  target_link_libraries(TorchMLIRJITIRImporterPybind
-    ${Python3_LIBRARIES}
-  )
-endif()
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS}")
 set_target_properties(TorchMLIRJITIRImporterPybind PROPERTIES
