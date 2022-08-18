@@ -12,6 +12,8 @@ import torch
 import torch._lazy
 import torch.nn.functional as F
 
+from nest import visit_lazy_tensors
+
 
 def main(device='lazy'):
     """
@@ -52,6 +54,12 @@ def main(device='lazy'):
     losses = []
     for _ in range(num_epochs):
         optimizer.zero_grad()
+
+        # Optionally set parameter names if needed for compile
+        for scope, tensor in visit_lazy_tensors(
+            {"modules": model.state_dict(), "optimizer": optimizer.state_dict()}
+        ):
+            assert lazy_backend.set_parameter_name(tensor, ".".join(scope)), f"Failed set name: {name} = {tensor}"
 
         outputs = model(inputs)
         loss = criterion(outputs, targets)

@@ -131,6 +131,9 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
                                 "argument of !torch.tensor/!torch.vtensor type";
     return success();
   }
+  else if (namedAttr.getName().getValue() == "torch.parameter") {
+    return success();
+  }
 
   return op->emitError() << "unknown region arg attribute '"
                          << namedAttr.getName().getValue() << "'";

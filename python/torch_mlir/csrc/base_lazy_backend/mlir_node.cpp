@@ -71,6 +71,11 @@ hash_t TorchMlirNode::hash() const { return dag_hash_; }
 
 hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
 
+
+TorchMlirNode* TorchMlirNode::mlir_node(int index) {
+ return dynamic_cast<TorchMlirNode*>(operands_.at(index).get());
+}
+
 OpKind TorchMlirTensorList::ClassOpKind() {
   // Note: this OpKind is separate from ltc_ops.h since it would be a circular
   // import otherwise

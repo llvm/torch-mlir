@@ -48,6 +48,8 @@ public:
 
   hash_t shapeHash() const override;
 
+  TorchMlirNode* mlir_node(int index);
+
   virtual TorchMlirOpVector
   Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const;
 
