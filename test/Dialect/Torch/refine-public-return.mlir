@@ -59,3 +59,16 @@ func.func @called(%arg0: tensor<*xf32>) -> tensor<*xf32> {
 ^bb2:
   return %arg0 : tensor<*xf32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @return_multiple_copies_of_tensor(
+// CHECK-SAME:                                                %[[ARG:.*]]: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f32>) {
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.vtensor<[],f32> to !torch.vtensor
+// CHECK:           %[[TO_TENSOR:.*]] = torch.copy.to_tensor %[[CAST]] : !torch.tensor
+// CHECK:           return %[[ARG]], %[[ARG]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+func.func @return_multiple_copies_of_tensor(%arg0: !torch.vtensor<[],f32>) -> (!torch.tensor, !torch.tensor) {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],f32> to !torch.vtensor
+  %1 = torch.copy.to_tensor %0 : !torch.tensor
+  return %1, %1 : !torch.tensor, !torch.tensor
+}

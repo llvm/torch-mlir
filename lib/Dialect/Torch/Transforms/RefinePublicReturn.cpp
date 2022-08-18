@@ -71,7 +71,9 @@ class RefinePublicReturnPass
           // If the return (or transitively other ops) are not the only users,
           // then we can't be sure that the tensor hasn't been mutated, so stop
           // here.
-          if (!llvm::hasSingleElement(copy->getUsers()))
+          SetVector<Operation *> users(copy->getUsers().begin(),
+                                       copy->getUsers().end());
+          if (users.size() != 1)
             break;
           newOperand = copy.getOperand();
         } else {
