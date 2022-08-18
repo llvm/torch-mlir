@@ -40,7 +40,7 @@ set -eu -o errtrace
 this_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$this_dir"/../../ && pwd)"
 manylinux_docker_image="${manylinux_docker_image:-stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest}"
-python_versions="${TM_PYTHON_VERSIONS:-cp37-cp37m cp38-cp38 cp39-cp39 cp310-cp310}"
+python_versions="${TM_PYTHON_VERSIONS:-cp38-cp38 cp39-cp39 cp310-cp310}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
 
