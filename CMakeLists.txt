@@ -49,7 +49,7 @@ if(TORCH_MLIR_ENABLE_MHLO)
   endif()
 endif()
 
-option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" ON)
+option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF)
 
 if(TORCH_MLIR_ENABLE_LTC)
     set(ENV{TORCH_MLIR_ENABLE_LTC} 1)
