@@ -52,5 +52,5 @@ def _torch_mlir_configure_impl(repository_ctx):
 torch_mlir_configure = repository_rule(
     implementation = _torch_mlir_configure_impl,
     local = True,
-    configure = True
+    configure = True,
 )
