@@ -124,6 +124,7 @@ TOSA_PASS_SET = {
     "OnesModuleInt_basic",
     "OnesModuleFloat_basic",
     "OnesModuleFalsePinMemory_basic",
+    "OnesModuleCPUDevice_basic",
     "NewZerosModuleDefaultDtype_basic",
     "NewZerosModuleInt2D_basic",
     "NewZerosModuleInt3D_basic",

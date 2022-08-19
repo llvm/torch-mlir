@@ -195,6 +195,24 @@ def OnesModuleFalsePinMemory_basic(module, tu: TestUtils):
     module.forward()
 
 
+class OnesModuleCPUDevice(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        return torch.ones(3, 4, device="cpu")
+
+
+@register_test_case(module_factory=lambda: OnesModuleCPUDevice())
+def OnesModuleCPUDevice_basic(module, tu: TestUtils):
+    module.forward()
+
+
 # ==============================================================================
 
 
