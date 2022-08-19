@@ -28,25 +28,25 @@ class OutputType(Enum):
 
     # This output type consists of `torch` dialect ops that have been converted
     # maximally to value semantics, decomposed, and shapes have been inferred.
-    TORCH = 0
-
-    # This output type consists of `tosa` dialect ops. It can be thought of
-    # as taking the `TORCH` output type and lowering it to TOSA.
-    TOSA = 1
+    TORCH = "torch"
 
     # The output type contains a mix of `linalg`-on-tensors ops, `scf`, and
     # `arith` ops (and also `math` and `tm_tensor`). It can be thought of
     # as taking the `TORCH` output type and lowering it so that tensor
     # computations are done with `linalg`-on-tensors ops.
-    LINALG_ON_TENSORS = 2
+    LINALG_ON_TENSORS = "linalg-on-tensors"
+
+    # This output type consists of `tosa` dialect ops. It can be thought of
+    # as taking the `TORCH` output type and lowering it to TOSA.
+    TOSA = "tosa"
+
+    # This output type consists of `mhlo` dialect ops. It can be thought of
+    # as taking the `TORCH` output type and lowering it to MHLO.
+    MHLO = "mhlo"
 
     # Raw output of the JIT IR importer. This is not expected to be useful
     # for end-users, but can be convenient for development or reporting bugs.
-    RAW = 3
-
-    # This output type consists of `mhlo` dialect ops. It can be thought of 
-    # as taking the `TORCH` output type and lowering it to MHLO.
-    MHLO = 4
+    RAW = "raw"
 
     @staticmethod
     def get(spec: Union[str, "OutputType"]) -> "OutputType":
