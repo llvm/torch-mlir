@@ -6,6 +6,9 @@
 from typing import Sequence, Union, List
 from enum import Enum
 
+import sys
+from io import StringIO
+
 import torch
 
 from torch_mlir.passmanager import PassManager
@@ -116,6 +119,19 @@ class TensorPlaceholder:
         return TensorPlaceholder(shape, tensor.dtype)
 
 
+# The set of ops that are considered legal for each backend.
+# These are currently quite load-bearing, since different backends might be
+# missing patterns for decomposed forms of certain ops.
+# TODO: Tighten up the definition of these "conditionally legal for backends"
+# ops in the backend contract, and move these lists somewhere deeper in the
+# compiler where each backend can "own" its set of legal ops.
+BACKEND_LEGAL_OPS = {
+    OutputType.TOSA: [],
+    OutputType.LINALG_ON_TENSORS: [],
+    OutputType.MHLO: [],
+}
+
+
 _example_arg = Union[TensorPlaceholder, torch.Tensor]
 
 
@@ -209,14 +225,32 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     import_options = ImportOptions()
     import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
-    mb.import_module(scripted._c, class_annotator, import_options)
+    try:
+        original_stderr = sys.stderr
+        sys.stderr = StringIO()
+        # Import the TorchScript module to MLIR
+        mb.import_module(scripted._c, class_annotator, import_options)
+    except Exception as e:
+        raise Exception(f"""
+PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
+### Importer C++ Exception:
+{e}
+### Importer Diagnostics:
+{sys.stderr.getvalue()}
+""") from None
+    finally:
+        sys.stderr = original_stderr
 
     if output_type == OutputType.RAW:
         return mb.module
 
-    run_pipeline_with_repro_report(mb.module,
-                                   "torchscript-module-to-torch-backend-pipeline",
-                                   "Lowering TorchScript IR -> Torch Backend IR")
+    backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
+    option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
+    run_pipeline_with_repro_report(
+        mb.module,
+        f"torchscript-module-to-torch-backend-pipeline{option_string}",
+        "Lowering TorchScript IR -> Torch Backend IR",
+    )
 
     if verbose:
         print("\n====================")

@@ -217,7 +217,9 @@ def RefinePublicReturn : Pass<"torch-refine-public-return", "ModuleOp"> {
 
 def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   let summary = "Decompose complicated torch operations";
-  let constructor = "mlir::torch::Torch::createDecomposeComplexOpsPass()";
+  let constructor = [{
+    mlir::torch::Torch::createDecomposeComplexOpsPass(/*legalOps=*/{})
+  }];
   let options = [
     ListOption<"legalOps", "legal-ops", "std::string",
                "List of operation names that should be considered legal",

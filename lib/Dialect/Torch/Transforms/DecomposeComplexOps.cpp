@@ -2646,7 +2646,9 @@ public:
   }
 };
 } // namespace
+
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createDecomposeComplexOpsPass() {
-  return std::make_unique<DecomposeComplexOpsPass>();
+mlir::torch::Torch::createDecomposeComplexOpsPass(
+    ArrayRef<std::string> legalOps) {
+  return std::make_unique<DecomposeComplexOpsPass>(legalOps);
 }
