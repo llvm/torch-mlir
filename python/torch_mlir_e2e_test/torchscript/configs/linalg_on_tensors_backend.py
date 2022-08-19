@@ -3,23 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-import sys
 from typing import Any
-from io import StringIO
-import os
-import tempfile
 
-import numpy as np
 import torch
+import torch_mlir
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.abc import LinalgOnTensorsBackend
 from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
-from torch_mlir.compiler_utils import run_pipeline_with_repro_report
+from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 
 from .utils import (
     recursively_convert_to_numpy,
     recursively_convert_from_numpy,
-    convert_torchscript_module_to_torch_backend_contract_mlir,
 )
 
 
@@ -34,14 +29,9 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
         self.backend = backend
 
     def compile(self, program: torch.nn.Module) -> Any:
-
-        module = convert_torchscript_module_to_torch_backend_contract_mlir(
-            program)
-
-        run_pipeline_with_repro_report(
-            module,
-            "torch-backend-to-linalg-on-tensors-backend-pipeline",
-            "Lower Torch Backend IR -> Linalg-on-Tensors Backend IR")
+        example_args = convert_annotations_to_placeholders(program.forward)
+        module = torch_mlir.compile(
+            program, example_args, output_type="linalg-on-tensors")
 
         return self.backend.compile(module)
 
