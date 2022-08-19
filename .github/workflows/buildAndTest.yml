@@ -115,6 +115,7 @@ jobs:
       # cross compile, can't test arm64
       if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
       run: |
+        # TODO: Reenable LTC after build on macOS-arm64 is fixed (https://github.com/llvm/torch-mlir/issues/1253)
         cmake -GNinja -Bbuild_arm64 \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_C_COMPILER=clang \

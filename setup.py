@@ -20,10 +20,6 @@
 # prevent this script from attempting to build the directory, and will simply
 # use the (presumed already built) directory as-is.
 #
-# By default the lazy tensor backend is disabled and not built to avoid conflicts
-# with the out-of-tree build. To enable it, set the TORCH_MLIR_ENABLE_LTC
-# environment variable to 1.
-#
 # The package version can be set with the TORCH_MLIR_PYTHON_PACKAGE_VERSION
 # environment variable. For example, this can be "20220330.357" for a snapshot
 # release on 2022-03-30 with build number 357.
@@ -85,11 +81,8 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_VISIBILITY_INLINES_HIDDEN=ON",
                 f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
+                f"-DTORCH_MLIR_ENABLE_LTC={'ON' if int(os.environ.get('TORCH_MLIR_ENABLE_LTC', 1)) else 'OFF'}",
             ]
-            # TODO: Enable LTC by default once JIT importer linkage issue is fixed (https://github.com/llvm/torch-mlir/issues/1154)
-            enable_ltc = bool(int(os.environ.get("TORCH_MLIR_ENABLE_LTC", 0)))
-            if not enable_ltc:
-                cmake_args.append("-DTORCH_MLIR_ENABLE_LTC=OFF")
 
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")

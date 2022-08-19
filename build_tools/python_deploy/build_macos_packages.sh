@@ -35,6 +35,10 @@ export CMAKE_OSX_ARCHITECTURES="${TORCH_MLIR_OSX_ARCH:-arm64;x86_64}"
 echo "CMAKE_OSX_ARCHITECTURES: $CMAKE_OSX_ARCHITECTURES"
 echo "MACOSX_DEPLOYMENT_TARGET $MACOSX_DEPLOYMENT_TARGET"
 
+# Disable LTC build on MacOS to avoid linkage issues
+# https://github.com/llvm/torch-mlir/issues/1253
+export TORCH_MLIR_ENABLE_LTC=0
+
 function run() {
   echo "Using python versions: ${python_versions}"
 
