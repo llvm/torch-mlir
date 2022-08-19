@@ -11,6 +11,8 @@ include_directories(BEFORE
 link_directories("${TORCH_INSTALL_PREFIX}/lib")
 
 # Static library with core functionality.
+# We can't use a shared library here, due to issues with linking on macOS-arm64 (the library itself won't build)
+# For details, see: https://github.com/llvm/torch-mlir/runs/7919012376
 add_library(TorchMLIRJITIRImporter STATIC
   class_annotator.cpp
   function_importer.cpp
