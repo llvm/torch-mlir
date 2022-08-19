@@ -53,8 +53,8 @@ Value getNormalizedDimSizeInternal(PatternRewriter &rewriter, Operation *op,
 }
 
 Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
-                              Value input, Value startIndex, Value endIndex,
-                              Value step, size_t dimIndex,
+                              Type outTy, Value input, Value startIndex,
+                              Value endIndex, Value step, size_t dimIndex,
                               ArrayRef<Value> dimSizes) {
   auto loc = op->getLoc();
   // startIndex & endIndex has been normailized into range [0, dSize]
@@ -98,20 +98,15 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   auto stridesTensor =
       rewriter.create<tensor::FromElementsOp>(loc, strides).getResult();
 
-  auto inputShape = inputTy.getShape();
-  SmallVector<int64_t, 4> sliceShape(inputShape.begin(), inputShape.end());
-  sliceShape[dimIndex] = ShapedType::kDynamicSize;
-  auto sliceoutputTy =
-      RankedTensorType::get(sliceShape, inputTy.getElementType());
   return rewriter.create<mhlo::RealDynamicSliceOp>(
-      loc, sliceoutputTy, input, startTensor, endTensor, stridesTensor);
+      loc, outTy, input, startTensor, endTensor, stridesTensor);
 }
 
 // Get a dynamic slice of the tensor from startIndex to endIndex with stride
 // step on the specifed dimension. The input startIndex(default to 0),
 // endIndex(default to dimSize), and step(default to 1) can be optional.
 FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
-                                 Value input,
+                                 Type outTy, Value input,
                                  llvm::Optional<Value> startIndexOpt,
                                  llvm::Optional<Value> endIndexOpt,
                                  llvm::Optional<Value> stepOpt, int64_t dim) {
@@ -152,7 +147,7 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
         op, "failed to get dimension sizes of the input");
 
   auto dimSizes = *dimSizesInfo;
-  return getDynamicSliceInternal(rewriter, op, input, normStartIndex,
+  return getDynamicSliceInternal(rewriter, op, outTy, input, normStartIndex,
                                  normEndIndex, step, dim, dimSizes);
 }
 
@@ -174,6 +169,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   auto selfTy = self.getType().template cast<RankedTensorType>();
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
+  auto outTy =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
   int64_t dim;
   if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
@@ -192,14 +189,12 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   llvm::Optional<Value> step = getOptionalVal(adaptor.step());
 
   FailureOr<Value> sliceInfo =
-      getDynamicSlice(rewriter, op, self, start, end, step, dim);
+      getDynamicSlice(rewriter, op, outTy, self, start, end, step, dim);
   if (failed(sliceInfo))
     return op.emitError("can not create a dynmaic slice");
 
   auto slice = *sliceInfo;
-  rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
-      op, getTypeConverter()->convertType(op.getType()), slice);
-
+  rewriter.replaceOp(op, slice);
   return success();
 }
 
@@ -207,14 +202,13 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
 // specialized.
 template <typename AtenOpT>
 class ConvertAtenViewOp : public OpConversionPattern<AtenOpT> {
- public:
+public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
-  LogicalResult matchAndRewrite(
-      AtenOpT op,
-      OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter) const override {
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     auto rankType =
         adaptor.self().getType().template dyn_cast<RankedTensorType>();
     if (!rankType)
@@ -236,18 +230,19 @@ class ConvertAtenViewOp : public OpConversionPattern<AtenOpT> {
       return success();
     }
 
-    std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value& dSize) {
+    std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
       dSize = rewriter.create<ToI64Op>(loc, dSize).getResult();
       return dSize;
     });
 
 #ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
-    // The i64 calculation is much slower than i32 on some devices, such as Nvidia GPU.
-    // One can truncate from i64 to i32 since dimension sizes are unlikely to exceed
-    // the range of i32(4GiB)
-    std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value& dSize) {
+    // The i64 calculation is much slower than i32 on some devices, such as
+    // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
+    // unlikely to exceed the range of i32(4GiB)
+    std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
       // dimSize: cast i64 -> i32
-      dSize = rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(), dSize);
+      dSize =
+          rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(), dSize);
       return dSize;
     });
 #endif
@@ -272,28 +267,22 @@ class ConvertAtenViewOp : public OpConversionPattern<AtenOpT> {
     return success();
   }
 
-  bool getAtenViewOpSizes(
-      AtenOpT op,
-      OpAdaptor adaptor,
-      ConversionPatternRewriter& rewriter,
-      SmallVector<Value, 4>& dimSizes) const;
+  bool getAtenViewOpSizes(AtenOpT op, OpAdaptor adaptor,
+                          ConversionPatternRewriter &rewriter,
+                          SmallVector<Value, 4> &dimSizes) const;
 };
 
 template <>
 bool ConvertAtenViewOp<AtenViewOp>::getAtenViewOpSizes(
-    AtenViewOp op,
-    OpAdaptor adaptor,
-    ConversionPatternRewriter& rewriter,
-    SmallVector<Value, 4>& dimSizes) const {
+    AtenViewOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
+    SmallVector<Value, 4> &dimSizes) const {
   return getListConstructElements(adaptor.size(), dimSizes);
 }
 
 template <>
 bool ConvertAtenViewOp<AtenReshapeOp>::getAtenViewOpSizes(
-    AtenReshapeOp op,
-    OpAdaptor adaptor,
-    ConversionPatternRewriter& rewriter,
-    SmallVector<Value, 4>& dimSizes) const {
+    AtenReshapeOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
+    SmallVector<Value, 4> &dimSizes) const {
   return getListConstructElements(adaptor.shape(), dimSizes);
 }
 
@@ -415,10 +404,10 @@ void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
 #undef INSERT_ATENOP_PATTERN
 
-#define INSERT_VIEW_OP_PATTERN(AtenOp) \
-  target.addIllegalOp<AtenOp>();       \
+#define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \
+  target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenViewOp<AtenOp>>(typeConverter, context);
-    INSERT_VIEW_OP_PATTERN(AtenViewOp);
-    INSERT_VIEW_OP_PATTERN(AtenReshapeOp);
+  INSERT_VIEW_OP_PATTERN(AtenViewOp);
+  INSERT_VIEW_OP_PATTERN(AtenReshapeOp);
 #undef INSERT_VIEW_OP_PATTERN
 }
