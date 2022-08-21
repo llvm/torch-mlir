@@ -406,7 +406,7 @@ class _Convolution2DTF32Module(torch.nn.Module):
 def _Convolution2DTF32Module_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class _ConvolutionDreprecated2DAllFalseModule(torch.nn.Module):
+class _ConvolutionDeprecated2DAllFalseModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -430,11 +430,11 @@ class _ConvolutionDreprecated2DAllFalseModule(torch.nn.Module):
                                            deterministic=False,
                                            cudnn_enabled=False)
 
-@register_test_case(module_factory=lambda: _ConvolutionDreprecated2DAllFalseModule())
-def _ConvolutionDreprecated2DAllFalseModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: _ConvolutionDeprecated2DAllFalseModule())
+def _ConvolutionDeprecated2DAllFalseModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class _ConvolutionDreprecated2DBenchmarkModule(torch.nn.Module):
+class _ConvolutionDeprecated2DBenchmarkModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -458,11 +458,11 @@ class _ConvolutionDreprecated2DBenchmarkModule(torch.nn.Module):
                                            deterministic=False,
                                            cudnn_enabled=False)
 
-@register_test_case(module_factory=lambda: _ConvolutionDreprecated2DBenchmarkModule())
-def _ConvolutionDreprecated2DBenchmarkModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: _ConvolutionDeprecated2DBenchmarkModule())
+def _ConvolutionDeprecated2DBenchmarkModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class _ConvolutionDreprecated2DDeterministicModule(torch.nn.Module):
+class _ConvolutionDeprecated2DDeterministicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -486,11 +486,11 @@ class _ConvolutionDreprecated2DDeterministicModule(torch.nn.Module):
                                            deterministic=True,
                                            cudnn_enabled=False)
 
-@register_test_case(module_factory=lambda: _ConvolutionDreprecated2DDeterministicModule())
-def _ConvolutionDreprecated2DDeterministicModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: _ConvolutionDeprecated2DDeterministicModule())
+def _ConvolutionDeprecated2DDeterministicModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
-class _ConvolutionDreprecated2DCudnnModule(torch.nn.Module):
+class _ConvolutionDeprecated2DCudnnModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -514,7 +514,7 @@ class _ConvolutionDreprecated2DCudnnModule(torch.nn.Module):
                                            deterministic=False,
                                            cudnn_enabled=True)
 
-@register_test_case(module_factory=lambda: _ConvolutionDreprecated2DCudnnModule())
+@register_test_case(module_factory=lambda: _ConvolutionDeprecated2DCudnnModule())
 def _Convolution2DCudnnModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
