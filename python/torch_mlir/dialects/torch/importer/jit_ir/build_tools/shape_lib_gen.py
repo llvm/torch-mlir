@@ -940,7 +940,10 @@ def aten〇convolution(input: List[int], weight: List[int], bias: Optional[List[
 
 def aten〇_convolution(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool, allow_tf32: bool) -> List[int]:
     return aten〇convolution(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
-    
+
+def aten〇_convolution〇deprecated(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool) -> List[int]:
+    return aten〇convolution(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
+
 def aten〇flip(self: List[int], dims: List[int]) -> List[int]:
     return self
 
