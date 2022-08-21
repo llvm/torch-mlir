@@ -3444,6 +3444,40 @@ def Torch_Aten_ConvolutionOp : Torch_Op<"aten._convolution", [
   }];
 }
 
+def Torch_Aten_ConvolutionDeprecatedOp : Torch_Op<"aten._convolution.deprecated", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_convolution.deprecated : (Tensor, Tensor, Tensor?, int[], int[], int[], bool, int[], int, bool, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchListOfTorchIntType:$stride,
+    AnyTorchListOfTorchIntType:$padding,
+    AnyTorchListOfTorchIntType:$dilation,
+    Torch_BoolType:$transposed,
+    AnyTorchListOfTorchIntType:$output_padding,
+    Torch_IntType:$groups,
+    Torch_BoolType:$benchmark,
+    Torch_BoolType:$deterministic,
+    Torch_BoolType:$cudnn_enabled
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ConvolutionDeprecatedOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 12, 1);
+    }
+    void Aten_ConvolutionDeprecatedOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 12, 1);
+    }
+  }];
+}
+
 def Torch_AtenFlipOp : Torch_Op<"aten.flip", [
     AllowsTypeRefinement,
     HasValueSemantics,
