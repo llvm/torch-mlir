@@ -927,7 +927,7 @@ public:
 };
 } // namespace
 
-// Decompose aten.convolution_overrideable to aten.convolution
+// Decompose aten._convolution-like to aten.convolution
 namespace {
 template<typename ConvolutionLikeOp>
 class DecomposeAten_ConvolutionLikeOp
