@@ -871,7 +871,7 @@ public:
       }
 
       newSizes.reserve(rank - end + start);
-      for (size_t k = 0; k < start; ++k) {
+      for (int64_t k = 0; k < start; ++k) {
         Value dim =
             rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(k));
         newSizes.push_back(
@@ -880,7 +880,7 @@ public:
       Value flattenDimSize =
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
       newSizes.push_back(flattenDimSize);
-      for (size_t k = end + 1; k < rank; ++k) {
+      for (int64_t k = end + 1; k < rank; ++k) {
         Value dim =
             rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(k));
         newSizes.push_back(
