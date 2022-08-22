@@ -37,3 +37,41 @@ func.func @torch_c.to_i64$from_i64() -> !torch.int {
   %1 = torch_c.from_i64 %0
   return %1 : !torch.int
 }
+
+// CHECK-LABEL:   func.func @torch_c.from_f64() -> !torch.float {
+// CHECK:     %[[FLOAT5:.*]] = torch.constant.float 5.000000e+00
+// CHECK:     return %[[FLOAT5]] : !torch.float
+func.func @torch_c.from_f64() -> !torch.float {
+  %c5_f64 = arith.constant 5.000000e+00 : f64
+  %0 = torch_c.from_f64 %c5_f64
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch_c.to_f64() -> f64 {
+// CHECK:     %[[C5_f64:.*]] = arith.constant 5.000000e+00 : f64
+// CHECK:     return %[[C5_f64]] : f64
+func.func @torch_c.to_f64() -> f64 {
+  %float5 = torch.constant.float 5.000000e+00
+  %0 = torch_c.to_f64 %float5
+  return %0 : f64
+}
+
+// CHECK-LABEL:   func.func @torch_c.from_f64$to_f64() -> f64 {
+// CHECK:     %[[C5_f64:.*]] = arith.constant 5.000000e+00 : f64
+// CHECK:     return %[[C5_f64]] : f64
+func.func @torch_c.from_f64$to_f64() -> f64 {
+  %c5_f64 = arith.constant 5.000000e+00 : f64
+  %0 = torch_c.from_f64 %c5_f64
+  %1 = torch_c.to_f64 %0
+  return %1 : f64
+}
+
+// CHECK-LABEL:   func.func @torch_c.to_f64$from_f64() -> !torch.float {
+// CHECK:     %[[FLOAT5:.*]] = torch.constant.float 5.000000e+00
+// CHECK:     return %[[FLOAT5]] : !torch.float
+func.func @torch_c.to_f64$from_f64() -> !torch.float {
+  %float5 = torch.constant.float 5.000000e+00
+  %0 = torch_c.to_f64 %float5
+  %1 = torch_c.from_f64 %0
+  return %1 : !torch.float
+}
