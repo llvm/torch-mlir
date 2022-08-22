@@ -927,13 +927,14 @@ public:
 };
 } // namespace
 
-// Decompose aten.convolution_overrideable to aten.convolution
+// Decompose aten._convolution-like to aten.convolution
 namespace {
-class DecomposeAten_ConvolutionOp
-    : public OpRewritePattern<Aten_ConvolutionOp> {
+template<typename ConvolutionLikeOp>
+class DecomposeAten_ConvolutionLikeOp
+    : public OpRewritePattern<ConvolutionLikeOp> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(Aten_ConvolutionOp op,
+  using OpRewritePattern<ConvolutionLikeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(ConvolutionLikeOp op,
                                 PatternRewriter &rewriter) const override {
 
     rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
@@ -2542,8 +2543,10 @@ public:
     patterns.add<DecomposeAtenNativeBatchNormOp>(context);
     target.addIllegalOp<AtenConvolutionOverrideableOp>();
     patterns.add<DecomposeAtenConvolutionOverrideableOp>(context);
-    target.addIllegalOp<Aten_ConvolutionOp>();
-    patterns.add<DecomposeAten_ConvolutionOp>(context);
+    target.addIllegalOp<Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp>();
+    patterns.add<DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>,
+                 DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionDeprecatedOp>>(
+        context);
     target.addIllegalOp<AtenConv2dOp>();
     patterns.add<DecomposeAtenConv2dOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
