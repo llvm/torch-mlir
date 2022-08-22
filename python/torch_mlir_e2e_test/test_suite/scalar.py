@@ -127,6 +127,29 @@ def DivFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class DivIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int32, True),
+        ([], torch.int32, True),
+    ])
+    def forward(self, lhs, rhs):
+        return torch.ops.aten.div(int(lhs), int(rhs))
+
+
+@register_test_case(module_factory=lambda: DivIntModule())
+def DivIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
+
+
+# ==============================================================================
+
+
 class CeilFloatModule(torch.nn.Module):
 
     def __init__(self):

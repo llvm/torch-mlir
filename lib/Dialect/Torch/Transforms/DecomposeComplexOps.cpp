@@ -2463,6 +2463,23 @@ public:
 };
 } // namespace
 
+// Decompose aten.div.int into aten.div.float
+namespace {
+class DecomposeAtenDivIntOp : public OpRewritePattern<AtenDivIntOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDivIntOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value aFloat = rewriter.create<AtenFloatScalarOp>(loc, op.a());
+    Value bFloat = rewriter.create<AtenFloatScalarOp>(loc, op.b());
+    rewriter.replaceOpWithNewOp<AtenDivFloatOp>(
+        op, Torch::FloatType::get(op.getContext()), aFloat, bFloat);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -2637,6 +2654,8 @@ public:
     target.addIllegalOp<AtenNarrowOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
+    patterns.add<DecomposeAtenDivIntOp>(context);
+    target.addIllegalOp<AtenDivIntOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
