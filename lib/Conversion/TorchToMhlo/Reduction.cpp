@@ -490,6 +490,9 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   if (!matchPattern(op.dim(), m_TorchConstantIntList(inputDims))) {
     return rewriter.notifyMatchFailure(op, "non-int dim list unsupported");
   }
+  if (inputDims.size() == 0) {
+    inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+  }
 
   for (auto d : inputDims) {
     d = toPositiveDim(d, inputTy.getRank());

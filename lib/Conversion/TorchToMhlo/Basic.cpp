@@ -977,8 +977,41 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     v = mhlo::promoteType(rewriter, v, outType);
   }
 
+  size_t posDim = toPositiveDim(dim, outType.getRank());
   rewriter.replaceOpWithNewOp<mhlo::ConcatenateOp>(
-      op, ValueRange(builtinTensors), static_cast<uint64_t>(dim));
+      op, ValueRange(builtinTensors), posDim);
+  return success();
+}
+} // namespace
+
+// AtenNumelOp
+namespace {
+template <>
+LogicalResult ConvertAtenOp<AtenNumelOp>::matchAndRewrite(
+    AtenNumelOp op,
+    OpAdaptor adaptor,
+    ConversionPatternRewriter& rewriter) const {
+  auto self = adaptor.self();
+  auto selfTy = self.getType().dyn_cast<RankedTensorType>();
+  size_t rank = selfTy.getRank();
+
+  Type intType = rewriter.getIntegerType(mhlo::kMhloDimSizeBits);
+  auto loc = op->getLoc();
+  Value numel =
+      rewriter.create<arith::ConstantOp>(loc, rewriter.getIntegerAttr(intType, 1));
+  for (size_t d = 0 ; d < rank; ++ d) {
+     Value dimSize = rewriter.create<arith::IndexCastOp>(
+        loc, intType, rewriter.create<tensor::DimOp>(loc, self, d));
+     numel = rewriter.create<arith::MulIOp>(loc, numel, dimSize);
+  }
+
+  auto outTy = getTypeConverter()->convertType(op.getType());
+  if (outTy != numel.getType()) {
+    rewriter.replaceOpWithNewOp<arith::ExtSIOp>(
+        op, outTy, numel);
+  } else {
+    rewriter.replaceOp(op, numel);
+  }
   return success();
 }
 } // namespace
@@ -1067,5 +1100,6 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
   INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
+  INSERT_ATENOP_PATTERN(AtenNumelOp);
 #undef INSERT_ATENOP_PATTERN
 }

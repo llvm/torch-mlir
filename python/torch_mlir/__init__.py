@@ -202,7 +202,6 @@ def compile(model: torch.nn.Module,
         scripted = torch.jit.trace(model, tuple(example_args_for_trace))
     else:
         scripted = torch.jit.script(model)
-
     # Convert all concrete inputs to TensorPlaceholder's, for consistency.
     arg_placeholders = []
     for arg in example_args:
@@ -240,7 +239,6 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
 """) from None
     finally:
         sys.stderr = original_stderr
-
     if output_type == OutputType.RAW:
         return mb.module
 
