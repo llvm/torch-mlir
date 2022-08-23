@@ -15,20 +15,27 @@ from torch_mlir_e2e_test.torchscript.serialization import deserialize_all_tests_
 
 # Available test configs.
 from torch_mlir_e2e_test.torchscript.configs import (
-    LazyTensorCoreTestConfig, LinalgOnTensorsBackendTestConfig, NativeTorchTestConfig, TorchScriptTestConfig, TosaBackendTestConfig, EagerModeTestConfig
+    LazyTensorCoreTestConfig,
+    LinalgOnTensorsBackendTestConfig,
+    MhloBackendTestConfig,
+    NativeTorchTestConfig,
+    TorchScriptTestConfig,
+    TosaBackendTestConfig,
+    EagerModeTestConfig
 )
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
+from torch_mlir_e2e_test.mhlo_backends.linalg_on_tensors import LinalgOnTensorsMhloBackend
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsTosaBackend
 
-from .xfail_sets import REFBACKEND_XFAIL_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET, LTC_XFAIL_SET
+from .xfail_sets import REFBACKEND_XFAIL_SET, MHLO_PASS_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET, LTC_XFAIL_SET
 
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
 register_all_tests()
 
 def _get_argparse():
-    config_choices = ['native_torch', 'torchscript', 'refbackend', 'tosa', 'eager_mode', 'lazy_tensor_core']
+    config_choices = ['native_torch', 'torchscript', 'refbackend', 'mhlo', 'tosa', 'eager_mode', 'lazy_tensor_core']
     parser = argparse.ArgumentParser(description='Run torchscript e2e tests.')
     parser.add_argument('-c', '--config',
         choices=config_choices,
@@ -36,6 +43,7 @@ def _get_argparse():
         help=f'''
 Meaning of options:
 "refbackend": run through torch-mlir's RefBackend.
+"mhlo": run through torch-mlir's default MHLO backend.
 "tosa": run through torch-mlir's default TOSA backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
@@ -78,6 +86,9 @@ def main():
     if args.config == 'tosa':
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET
+    if args.config == 'mhlo':
+        config = MhloBackendTestConfig(LinalgOnTensorsMhloBackend())
+        xfail_set = all_test_unique_names - MHLO_PASS_SET
     elif args.config == 'native_torch':
         config = NativeTorchTestConfig()
         xfail_set = {}

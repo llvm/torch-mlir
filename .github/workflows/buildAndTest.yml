@@ -167,6 +167,12 @@ jobs:
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
         python -m e2e_testing.torchscript.main --config=eager_mode -v
 
+    - name: Run mhlo e2e integration tests
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
+        python -m e2e_testing.torchscript.main --config=mhlo -v
+
     - name: Run tosa e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |

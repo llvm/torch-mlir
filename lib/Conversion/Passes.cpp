@@ -9,6 +9,9 @@
 
 #include "torch-mlir/Conversion/Passes.h"
 
+#ifdef TORCH_MLIR_ENABLE_MHLO
+#include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
+#endif // TORCH_MLIR_ENABLE_MHLO
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
@@ -25,4 +28,11 @@ namespace {
 #include "torch-mlir/Conversion/Passes.h.inc"
 } // end namespace
 
-void mlir::torch::registerConversionPasses() { ::registerPasses(); }
+void mlir::torch::registerConversionPasses() {
+  ::registerPasses();
+#ifdef TORCH_MLIR_ENABLE_MHLO
+  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {
+    return mlir::mhlo::createLegalizeHloToLinalgPass();
+  });
+#endif // TORCH_MLIR_ENABLE_MHLO
+}

@@ -256,6 +256,14 @@ public:
     numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
                                                 numel);
 
+    if (dimSizes.size() == 0) {
+      rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()),
+        adaptor.self());
+      return success();
+    }
     Value mhloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
     Value computedShape = rewriter.create<mhlo::ComputeReshapeShapeOp>(
         loc, mhloShape.getType(), numel, mhloShape);
@@ -310,6 +318,11 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     if (dSize != 1)
       dims.push_back(r);
   }
+  if (dims.size() == 0) {
+    rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+        op, getTypeConverter()->convertType(op.getType()), self);
+    return success();
+  }
 
   auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
@@ -354,6 +367,11 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
   SmallVector<int64_t, 4> dims(rank);
   std::iota(dims.begin(), dims.end(), 0);
   dims.erase(dims.begin() + dim);
+  if (dims.size() == 0) {
+    rewriter.replaceOpWithNewOp<mhlo::ReshapeOp>(
+        op, getTypeConverter()->convertType(op.getType()), self);
+    return success();
+  }
   auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
