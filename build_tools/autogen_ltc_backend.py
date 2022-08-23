@@ -75,7 +75,7 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
         )
 
         # Only create this variable if it's used to avoid Wunused-variable
-        operand_idx_counter = 'size_t i = 0;' if 'i++' in emplace_arguments_str + emplace_kwarguments else ''
+        operand_idx_counter = "size_t i = 0;" if "i++" in emplace_arguments_str + emplace_kwarguments else ""
 
         return reindent(
             f"""
