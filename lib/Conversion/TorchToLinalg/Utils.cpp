@@ -97,6 +97,31 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   return castIntToIndex(b, loc, out);
 }
 
+Value torch_to_linalg::getOutputDimForConvTransposeOps(
+    OpBuilder &b, Location loc, Value in, Value paddingInt, Value dilationInt,
+    Value kernelSizeInt, Value strideInt) {
+  Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
+  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
+
+  // (in - 1) * stride
+  Value inStrided =
+      b.create<arith::SubIOp>(loc, castIndexToInt64(b, loc, in), c1);
+  inStrided = b.create<arith::MulIOp>(loc, inStrided, strideInt);
+
+  // 2 * padding
+  Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
+
+  // (kernelSize - 1) * dilation
+  Value kernelDilated = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);
+  kernelDilated = b.create<arith::MulIOp>(loc, kernelDilated, dilationInt);
+
+  Value out = b.create<arith::SubIOp>(loc, inStrided, doublePadding);
+  out = b.create<arith::AddIOp>(loc, out, kernelDilated);
+  out = b.create<arith::AddIOp>(loc, out, c1);
+
+  return castIntToIndex(b, loc, out);
+}
+
 Value torch_to_linalg::createReductionLinalgGeneric(
     OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
@@ -337,4 +362,12 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
                .getResult(0);
 
   return success();
+}
+
+Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
+                                             Value tensor) {
+  auto tensorType = tensor.getType().cast<RankedTensorType>();
+  auto rank = tensorType.getRank();
+  SmallVector<int64_t> unknownSizes(rank, kUnknownSize);
+  return b.create<tensor::CastOp>(loc, tensorType.clone(unknownSizes), tensor);
 }

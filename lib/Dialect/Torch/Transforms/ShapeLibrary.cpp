@@ -3494,6 +3494,137 @@ module {
     %6 = torch.prim.TupleConstruct %0, %2, %5 : !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>>
     return %6 : !torch.tuple<list<int>, list<int>, list<int>>
   }
+  func.func @__torch__.torch.jit._shape_functions.conv_forwards(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.bool, %arg7: !torch.list<int>, %arg8: !torch.int) -> !torch.list<int> {
+    %true = torch.constant.bool true
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %int1 = torch.constant.int 1
+    %0 = torch.aten.len.t %arg5 : !torch.list<int> -> !torch.int
+    %1 = torch.aten.gt.int %0, %int0 : !torch.int, !torch.int -> !torch.bool
+    %2 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %3 = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %4 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %5 = torch.aten.append.t %3, %4 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %6 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %7 = torch.aten.append.t %3, %6 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %8 = torch.aten.__range_length %int2, %2, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+    torch.prim.Loop %8, %true, init() {
+    ^bb0(%arg9: !torch.int):
+      %9 = torch.aten.__derive_index %arg9, %int2, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+      %10 = torch.prim.If %1 -> (!torch.int) {
+        %11 = torch.aten.sub.int %9, %int2 : !torch.int, !torch.int -> !torch.int
+        %12 = torch.aten.__getitem__.t %arg5, %11 : !torch.list<int>, !torch.int -> !torch.int
+        torch.prim.If.yield %12 : !torch.int
+      } else {
+        torch.prim.If.yield %int1 : !torch.int
+      }
+      torch.prim.If %arg6 -> () {
+        %11 = torch.aten.__getitem__.t %arg1, %9 : !torch.list<int>, !torch.int -> !torch.int
+        %12 = torch.aten.sub.int %11, %int1 : !torch.int, !torch.int -> !torch.int
+        %13 = torch.aten.mul.int %10, %12 : !torch.int, !torch.int -> !torch.int
+        %14 = torch.aten.__getitem__.t %arg0, %9 : !torch.list<int>, !torch.int -> !torch.int
+        %15 = torch.aten.sub.int %14, %int1 : !torch.int, !torch.int -> !torch.int
+        %16 = torch.aten.sub.int %9, %int2 : !torch.int, !torch.int -> !torch.int
+        %17 = torch.aten.__getitem__.t %arg3, %16 : !torch.list<int>, !torch.int -> !torch.int
+        %18 = torch.aten.mul.int %15, %17 : !torch.int, !torch.int -> !torch.int
+        %19 = torch.aten.sub.int %9, %int2 : !torch.int, !torch.int -> !torch.int
+        %20 = torch.aten.__getitem__.t %arg4, %19 : !torch.list<int>, !torch.int -> !torch.int
+        %21 = torch.aten.mul.int %20, %int2 : !torch.int, !torch.int -> !torch.int
+        %22 = torch.aten.sub.int %18, %21 : !torch.int, !torch.int -> !torch.int
+        %23 = torch.aten.add.int %22, %13 : !torch.int, !torch.int -> !torch.int
+        %24 = torch.aten.add.int %23, %int1 : !torch.int, !torch.int -> !torch.int
+        %25 = torch.aten.append.t %3, %24 : !torch.list<int>, !torch.int -> !torch.list<int>
+        torch.prim.If.yield
+      } else {
+        %11 = torch.aten.__getitem__.t %arg1, %9 : !torch.list<int>, !torch.int -> !torch.int
+        %12 = torch.aten.sub.int %11, %int1 : !torch.int, !torch.int -> !torch.int
+        %13 = torch.aten.mul.int %10, %12 : !torch.int, !torch.int -> !torch.int
+        %14 = torch.aten.add.int %13, %int1 : !torch.int, !torch.int -> !torch.int
+        %15 = torch.aten.__getitem__.t %arg0, %9 : !torch.list<int>, !torch.int -> !torch.int
+        %16 = torch.aten.sub.int %9, %int2 : !torch.int, !torch.int -> !torch.int
+        %17 = torch.aten.__getitem__.t %arg4, %16 : !torch.list<int>, !torch.int -> !torch.int
+        %18 = torch.aten.mul.int %17, %int2 : !torch.int, !torch.int -> !torch.int
+        %19 = torch.aten.add.int %15, %18 : !torch.int, !torch.int -> !torch.int
+        %20 = torch.aten.sub.int %19, %14 : !torch.int, !torch.int -> !torch.int
+        %21 = torch.aten.sub.int %9, %int2 : !torch.int, !torch.int -> !torch.int
+        %22 = torch.aten.__getitem__.t %arg3, %21 : !torch.list<int>, !torch.int -> !torch.int
+        %23 = torch.aten.floordiv.int %20, %22 : !torch.int, !torch.int -> !torch.int
+        %24 = torch.aten.add.int %23, %int1 : !torch.int, !torch.int -> !torch.int
+        %25 = torch.aten.append.t %3, %24 : !torch.list<int>, !torch.int -> !torch.list<int>
+        torch.prim.If.yield
+      }
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %3 : !torch.list<int>
+  }
+  func.func @__torch__.torch.jit._shape_functions.conv_transpose2d_input(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.optional<list<int>>, %arg5: !torch.optional<list<int>>, %arg6: !torch.int, %arg7: !torch.optional<list<int>>) -> !torch.list<int> {
+    %true = torch.constant.bool true
+    %none = torch.constant.none
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %int2 = torch.constant.int 2
+    %0 = torch.aten.__is__ %arg3, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %1 = torch.prim.If %0 -> (!torch.list<int>) {
+      %15 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    } else {
+      %15 = torch.prim.unchecked_cast %arg3 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    }
+    %2 = torch.aten.__is__ %arg4, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %3 = torch.prim.If %2 -> (!torch.list<int>) {
+      %15 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    } else {
+      %15 = torch.prim.unchecked_cast %arg4 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    }
+    %4 = torch.aten.__is__ %arg7, %none : !torch.optional<list<int>>, !torch.none -> !torch.bool
+    %5 = torch.prim.If %4 -> (!torch.list<int>) {
+      %15 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    } else {
+      %15 = torch.prim.unchecked_cast %arg7 : !torch.optional<list<int>> -> !torch.list<int>
+      torch.prim.If.yield %15 : !torch.list<int>
+    }
+    %6 = torch.aten.len.t %5 : !torch.list<int> -> !torch.int
+    %7 = torch.aten.gt.int %6, %int0 : !torch.int, !torch.int -> !torch.bool
+    %8 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int
+    %9 = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %10 = torch.aten.__getitem__.t %arg0, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %11 = torch.aten.append.t %9, %10 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %12 = torch.aten.__getitem__.t %arg1, %int0 : !torch.list<int>, !torch.int -> !torch.int
+    %13 = torch.aten.append.t %9, %12 : !torch.list<int>, !torch.int -> !torch.list<int>
+    %14 = torch.aten.__range_length %int2, %8, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+    torch.prim.Loop %14, %true, init() {
+    ^bb0(%arg8: !torch.int):
+      %15 = torch.aten.__derive_index %arg8, %int2, %int1 : !torch.int, !torch.int, !torch.int -> !torch.int
+      %16 = torch.prim.If %7 -> (!torch.int) {
+        %32 = torch.aten.sub.int %15, %int2 : !torch.int, !torch.int -> !torch.int
+        %33 = torch.aten.__getitem__.t %5, %32 : !torch.list<int>, !torch.int -> !torch.int
+        torch.prim.If.yield %33 : !torch.int
+      } else {
+        torch.prim.If.yield %int1 : !torch.int
+      }
+      %17 = torch.aten.__getitem__.t %arg1, %15 : !torch.list<int>, !torch.int -> !torch.int
+      %18 = torch.aten.sub.int %17, %int1 : !torch.int, !torch.int -> !torch.int
+      %19 = torch.aten.mul.int %16, %18 : !torch.int, !torch.int -> !torch.int
+      %20 = torch.aten.__getitem__.t %arg0, %15 : !torch.list<int>, !torch.int -> !torch.int
+      %21 = torch.aten.sub.int %20, %int1 : !torch.int, !torch.int -> !torch.int
+      %22 = torch.aten.sub.int %15, %int2 : !torch.int, !torch.int -> !torch.int
+      %23 = torch.aten.__getitem__.t %1, %22 : !torch.list<int>, !torch.int -> !torch.int
+      %24 = torch.aten.mul.int %21, %23 : !torch.int, !torch.int -> !torch.int
+      %25 = torch.aten.sub.int %15, %int2 : !torch.int, !torch.int -> !torch.int
+      %26 = torch.aten.__getitem__.t %3, %25 : !torch.list<int>, !torch.int -> !torch.int
+      %27 = torch.aten.mul.int %26, %int2 : !torch.int, !torch.int -> !torch.int
+      %28 = torch.aten.sub.int %24, %27 : !torch.int, !torch.int -> !torch.int
+      %29 = torch.aten.add.int %28, %19 : !torch.int, !torch.int -> !torch.int
+      %30 = torch.aten.add.int %29, %int1 : !torch.int, !torch.int -> !torch.int
+      %31 = torch.aten.append.t %9, %30 : !torch.list<int>, !torch.int -> !torch.list<int>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    return %9 : !torch.list<int>
+  }
   func.func @__torch__.torch.jit._shape_functions.flatten(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int) -> !torch.list<int> {
     %none = torch.constant.none
     %str = torch.constant.str "AssertionError: "
@@ -6333,8 +6464,16 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.conv2d(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.conv_transpose2d.input"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.int, %arg7: !torch.list<int>) -> !torch.list<int> {
+    %0 = torch.derefine %arg3 : !torch.list<int> to !torch.optional<list<int>>
+    %1 = torch.derefine %arg4 : !torch.list<int> to !torch.optional<list<int>>
+    %2 = torch.derefine %arg5 : !torch.list<int> to !torch.optional<list<int>>
+    %3 = torch.derefine %arg7 : !torch.list<int> to !torch.optional<list<int>>
+    %4 = call @__torch__.torch.jit._shape_functions.conv_transpose2d_input(%arg0, %arg1, %arg2, %0, %1, %2, %arg6, %3) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.optional<list<int>>, !torch.int, !torch.optional<list<int>>) -> !torch.list<int>
+    return %4 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.convolution"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.bool, %arg7: !torch.list<int>, %arg8: !torch.int) -> !torch.list<int> {
-    %0 = call @__torch__.torch.jit._shape_functions.conv_output_size(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg8) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.int) -> !torch.list<int>
+    %0 = call @__torch__.torch.jit._shape_functions.conv_forwards(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7, %arg8) : (!torch.list<int>, !torch.list<int>, !torch.optional<list<int>>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten._convolution"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.optional<list<int>>, %arg3: !torch.list<int>, %arg4: !torch.list<int>, %arg5: !torch.list<int>, %arg6: !torch.bool, %arg7: !torch.list<int>, %arg8: !torch.int, %arg9: !torch.bool, %arg10: !torch.bool, %arg11: !torch.bool, %arg12: !torch.bool) -> !torch.list<int> {

@@ -39,6 +39,14 @@ Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
                              Value kernelSizeInt, Value strideInt,
                              bool ceilMode = false);
 
+// As above but for transposed convolution ops
+// Along each dim:
+// dim_out =
+//  (dim_in - 1) * stride - 2 * padding + dilation * (kernelSize - 1) + 1
+Value getOutputDimForConvTransposeOps(OpBuilder &b, Location loc, Value in,
+                                      Value paddingInt, Value dilationInt,
+                                      Value kernelSizeInt, Value strideInt);
+
 // Create a reduction of `opInfo.tensorOperand`, reducing along the dimensions
 // in `opInfo.dimSet`. If `opInfo.keepDim` is true, the output tensor is the
 // same rank as the `opInfo.tensorOperand` and reduced dimensions are set to
@@ -61,6 +69,9 @@ LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
                                     SmallVector<Value> broadcastToShape,
                                     Value &result);
 
+// Cast a tensor to a rank-equivalent tensor of unknown size, i.e. <1x2xf32> ->
+// <?x?xf32>
+Value removeSizeInformation(OpBuilder &b, Location loc, Value tensor);
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

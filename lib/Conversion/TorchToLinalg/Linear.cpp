@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <algorithm>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -635,12 +636,18 @@ public:
     Value input = adaptor.input();   /* in form of N*C*H*W */
     Value weight = adaptor.weight(); /* in form of F*C*H*W */
 
+    bool transposed = true;
+    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant transposed supported");
+
     Type elementType =
         input.getType().cast<RankedTensorType>().getElementType();
     if (!elementType.isa<mlir::FloatType>())
       return op.emitError("unimplemented: non-floating point type");
     size_t inRank = input.getType().cast<RankedTensorType>().getRank();
-    if (inRank != 4)
+    size_t numSpacialDims = inRank - 2;
+    if (numSpacialDims != 2)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D convolution currently supported");
 
@@ -674,13 +681,6 @@ public:
     for (size_t i = 2; i < inRank; i++)
       weightDims.push_back(getDimOp(rewriter, loc, weight, i));
 
-    // Guard unused values (transposed)
-    bool transposed = true;
-    if (!matchPattern(op.transposed(), m_TorchConstantBool(&transposed)) ||
-        transposed)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only non-transposed convolution supported");
-
     // Checks for valid group size
     int64_t groupSize;
     if (!matchPattern(op.groups(), m_TorchConstantInt(&groupSize)))
@@ -701,19 +701,119 @@ public:
              "invalid: groups must divide input channel size evenly.");
     validate(weightBatch,
              "invalid: groups must divide weight batch size evenly.");
-
-    SmallVector<Value> paddingIntValues =
-        getAsConstantIntValues(rewriter, loc, paddingInts);
     SmallVector<Value> dilationIntValues =
         getAsConstantIntValues(rewriter, loc, dilationInts);
+    SmallVector<Value> paddingIntValues =
+        getAsConstantIntValues(rewriter, loc, paddingInts);
     SmallVector<Value> strideIntValues =
         getAsConstantIntValues(rewriter, loc, strideInts);
 
+    // Pad the input tensor according to padding.
     SmallVector<Value> outDims{inBatch, weightBatch};
-    for (size_t i = 0; i < inRank - 2; i++)
-      outDims.push_back(torch_to_linalg::getOutputDimForConvOps(
-          rewriter, loc, inDims[i], paddingIntValues[i], dilationIntValues[i],
-          castIndexToInt(weightDims[i]), strideIntValues[i]));
+    Value paddedInput;
+    if (transposed) {
+      Value c0 =
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+      Value c1 =
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+      Value c2 =
+          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+
+      // Transpose and flip weight
+      SmallVector<Value> weightInitDims = getTensorSizes(rewriter, loc, weight);
+      std::iter_swap(weightInitDims.begin(), weightInitDims.begin() + 1);
+      outDims[1] = weightInitDims[0];
+      Value weightInitTensor =
+          createZeroInitTensor(rewriter, loc, weightInitDims, elementType);
+      SmallVector<StringRef> iteratorTypes(inRank,
+                                           getParallelIteratorTypeName());
+      SmallVector<AffineMap> indexingMaps(
+          2, AffineMap::getMultiDimIdentityMap(inRank, context));
+      weight = rewriter
+                   .create<linalg::GenericOp>(
+                       loc, weightInitTensor.getType(), weight,
+                       weightInitTensor, indexingMaps, iteratorTypes,
+                       [&](OpBuilder &b, Location loc, ValueRange args) {
+                         SmallVector<Value> indices;
+                         for (size_t i = 0; i < inRank; i++)
+                           indices.push_back(b.create<linalg::IndexOp>(loc, i));
+                         std::iter_swap(indices.begin(), indices.begin() + 1);
+                         // Flip only the spatial dimensions (from 2 to inRank)
+                         for (size_t flipDim = 2; flipDim < inRank; flipDim++) {
+                           indices[flipDim] = b.create<arith::SubIOp>(
+                               loc,
+                               b.create<arith::SubIOp>(
+                                   loc, weightInitDims[flipDim], c1),
+                               indices[flipDim]);
+                         }
+                         Value res =
+                             b.create<tensor::ExtractOp>(loc, weight, indices)
+                                 .getResult();
+                         b.create<linalg::YieldOp>(loc, res);
+                       })
+                   .getResult(0);
+
+      // Calculate padded input size, allocate tensor
+      SmallVector<Value> outerSizes{inBatch, inChannels};
+      SmallVector<Value> innerSizes{inBatch, inChannels};
+      SmallVector<Value> offsets{c0, c0};
+      for (size_t i = 0; i < numSpacialDims; i++) {
+        Value innerSize = rewriter.create<arith::SubIOp>(loc, inDims[i], c1);
+        innerSize = rewriter.create<arith::MulIOp>(
+            loc, innerSize, castIntToIndex(rewriter, loc, strideIntValues[i]));
+        innerSize = rewriter.create<arith::AddIOp>(loc, innerSize, c1);
+
+        Value offset = rewriter.create<arith::SubIOp>(loc, weightDims[i], c1);
+        offset = rewriter.create<arith::MulIOp>(
+            loc, offset, castIntToIndex(rewriter, loc, dilationIntValues[i]));
+        offset = rewriter.create<arith::SubIOp>(
+            loc, offset, castIntToIndex(rewriter, loc, paddingIntValues[i]));
+
+        Value outerSize = rewriter.create<arith::MulIOp>(loc, offset, c2);
+        outerSize = rewriter.create<arith::AddIOp>(loc, outerSize, innerSize);
+
+        outerSizes.push_back(outerSize);
+        offsets.push_back(offset);
+      }
+
+      // Allocate padded input tensor
+      Value initTensor =
+          createZeroInitTensor(rewriter, loc, outerSizes, elementType);
+
+      // Insert input into allocated tensor
+      SmallVector<Value> strideIndexValues{c1, c1};
+      for (auto stride : strideIntValues)
+        strideIndexValues.push_back(castIntToIndex(rewriter, loc, stride));
+      SmallVector<Value> insertSizes = getTensorSizes(rewriter, loc, input);
+
+      paddedInput = rewriter.create<tensor::InsertSliceOp>(
+          loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+          initTensor, offsets, insertSizes, strideIndexValues);
+
+      // Calculate output dims
+      for (size_t i = 0; i < numSpacialDims; i++)
+        outDims.push_back(torch_to_linalg::getOutputDimForConvTransposeOps(
+            rewriter, loc, inDims[i], paddingIntValues[i], dilationIntValues[i],
+            castIndexToInt(weightDims[i]), strideIntValues[i]));
+
+      // Set stride to 1
+      strideInts.clear();
+      strideInts.append(numSpacialDims, 1);
+
+    } else {
+      // Pad input
+      SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
+      paddingIncludingNC.insert(paddingIncludingNC.end(), paddingInts.begin(),
+                                paddingInts.end());
+      paddedInput = torch_to_linalg::getZeroPaddedTensor(op, rewriter, input,
+                                                         paddingIncludingNC);
+
+      // Calculate output dims
+      for (size_t i = 0; i < numSpacialDims; i++)
+        outDims.push_back(torch_to_linalg::getOutputDimForConvOps(
+            rewriter, loc, inDims[i], paddingIntValues[i], dilationIntValues[i],
+            castIndexToInt(weightDims[i]), strideIntValues[i]));
+    }
 
     Value initTensor =
         rewriter.create<linalg::InitTensorOp>(loc, outDims, elementType);
@@ -768,14 +868,6 @@ public:
     inputSliceSizes.append(inDims);
     SmallVector<Value> weightSliceSizes{weightStride, weightChannels};
     weightSliceSizes.append(weightDims);
-
-    // Pad the input tensor according to padding.
-    SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
-    paddingIncludingNC.append(paddingInts);
-
-    // Pad inputSlice
-    Value paddedInput = torch_to_linalg::getZeroPaddedTensor(
-        op, rewriter, input, paddingIncludingNC);
 
     Value conv;
     if (groupSize == 1) {

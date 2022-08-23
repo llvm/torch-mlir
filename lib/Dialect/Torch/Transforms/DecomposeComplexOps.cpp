@@ -1031,6 +1031,26 @@ public:
 };
 } // namespace
 
+// Decompose aten.conv_transpose2d to aten.convolution
+namespace {
+class DecomposeAtenConvTranspose2dOp
+    : public OpRewritePattern<AtenConvTranspose2dInputOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenConvTranspose2dInputOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.input(), op.weight(), op.bias(),
+        op.stride(), op.padding(), op.dilation(), /*transposed=*/cstTrue,
+        op.output_padding(), op.groups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -2613,6 +2633,8 @@ public:
         context);
     target.addIllegalOp<AtenConv2dOp>();
     patterns.add<DecomposeAtenConv2dOp>(context);
+    target.addIllegalOp<AtenConvTranspose2dInputOp>();
+    patterns.add<DecomposeAtenConvTranspose2dOp>(context);
     patterns.add<DecomposeAtenArangeOp>(context);
     target.addIllegalOp<AtenArangeOp>();
     patterns.add<DecomposeAtenArangeStartOp>(context);
