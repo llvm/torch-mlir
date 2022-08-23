@@ -127,6 +127,7 @@ MHLO_PASS_SET = {
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
+    "RollModule_basic",
     "TestMultipleTensorReturn_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "BaddbmmStaticModule_basic",
