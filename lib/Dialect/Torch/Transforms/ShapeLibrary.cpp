@@ -6586,6 +6586,12 @@ module {
     %7 = torch.prim.TupleConstruct %arg0, %0, %0 : !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.tuple<list<int>, list<int>, list<int>>
     return %7 : !torch.tuple<list<int>, list<int>, list<int>>
   }
+  func.func @"__torch_mlir_shape_fn.aten.norm.ScalarOpt_dim"(%arg0: !torch.list<int>, %arg1: !torch.optional<float>, %arg2: !torch.list<int>, %arg3: !torch.bool) -> !torch.list<int> {
+    %none = torch.constant.none
+    %0 = torch.derefine %none : !torch.none to !torch.any
+    %1 = call @__torch__.torch.jit._shape_functions.mean_dim(%arg0, %arg2, %arg3, %0) : (!torch.list<int>, !torch.list<int>, !torch.bool, !torch.any) -> !torch.list<int>
+    return %1 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.native_batch_norm"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.optional<list<int>>, %arg3: !torch.optional<list<int>>, %arg4: !torch.optional<list<int>>, %arg5: !torch.bool, %arg6: !torch.float, %arg7: !torch.float) -> !torch.tuple<list<int>, list<int>, list<int>> {
     %int1 = torch.constant.int 1
     %int0 = torch.constant.int 0
