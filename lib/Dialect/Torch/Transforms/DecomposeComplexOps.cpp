@@ -834,6 +834,68 @@ public:
 };
 } // namespace
 
+// Decompose aten.flatten.using_ints into aten.view op.
+namespace {
+class DecomposeAtenFlattenUsingIntsOp
+    : public OpRewritePattern<AtenFlattenUsingIntsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFlattenUsingIntsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.self();
+    MLIRContext *context = op.getContext();
+    int64_t rank = getTensorRank(self);
+    if (rank < 0)
+      return rewriter.notifyMatchFailure(op, "unimplemented: unranked tensor");
+
+    int64_t start, end;
+    if (!matchPattern(op.start_dim(), m_TorchConstantInt(&start)) ||
+        !matchPattern(op.end_dim(), m_TorchConstantInt(&end))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires start and end dims to be constants");
+    }
+
+    SmallVector<Value, 4> newSizes;
+    if (rank == 0) {
+      Value one =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      newSizes.push_back(one);
+    } else {
+      start = toPositiveDim(start, rank);
+      end = toPositiveDim(end, rank);
+
+      if (start > end) {
+        return rewriter.notifyMatchFailure(
+            op, "expected end dim larger than start dim");
+      }
+
+      newSizes.reserve(rank - end + start);
+      for (size_t k = 0; k < start; ++k) {
+        Value dim =
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(k));
+        newSizes.push_back(
+            rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/dim));
+      }
+      Value flattenDimSize =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+      newSizes.push_back(flattenDimSize);
+      for (size_t k = end + 1; k < rank; ++k) {
+        Value dim =
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(k));
+        newSizes.push_back(
+            rewriter.create<AtenSizeIntOp>(loc, self, /*dim=*/dim));
+      }
+    }
+    Value newSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), newSizes);
+    rewriter.replaceOpWithNewOp<AtenViewOp>(op, op.getType(), op.self(),
+                                            newSizeList);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.expand into aten.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -2497,6 +2559,8 @@ public:
     target.addIllegalOp<AtenRepeatOp>();
     patterns.add<DecomposeAtenExpandOp>(context);
     target.addIllegalOp<AtenExpandOp>();
+    patterns.add<DecomposeAtenFlattenUsingIntsOp>(context);
+    target.addIllegalOp<AtenFlattenUsingIntsOp>();
     patterns.add<DecomposeAtenWhereScalarOp>(context);
     target.addIllegalOp<AtenWhereScalarOp>();
     patterns.add<DecomposeAtenWhereScalarOtherOp>(context);

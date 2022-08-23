@@ -202,8 +202,10 @@ func.func @torch.aten.argmax(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
 // CHECK:           %[[CST0:.*]] = torch.constant.int 0
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1
-// CHECK:           %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[INP]], %[[CST0]], %[[CST1]] :
-// CHECK-SAME:         !torch.vtensor<[?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
+// CHECK:           %[[CST:.*]]-1 = torch.constant.int -1
+// CHECK:           %[[T0:.*]] = torch.prim.ListConstruct %[[CST]]-1 : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[FLATTEN:.*]] = torch.aten.view %[[INP]], %[[T0]] :
+// CHECK-SAME:         !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
 // CHECK:           %[[VAL:.*]], %[[IND:.*]] = torch.aten.max.dim %[[FLATTEN]], %[[CST0]], %[[FALSE]] :
 // CHECK-SAME:         !torch.vtensor<[?],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
 // CHECK:           return %[[IND]] : !torch.vtensor<[],si64>
@@ -1331,4 +1333,20 @@ func.func @torch.aten.std.dim(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vten
   %keepdim = torch.constant.bool true
   %0 = torch.aten.std.dim %arg0, %dims, %unbiased, %keepdim: !torch.vtensor<[3,4,5],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[3,4,1],f32>
   return %0 : !torch.vtensor<[3,4,1],f32>
+}
+
+// -----
+// CHECK-LABEL:  func.func @torch.aten.flatten.using_ints(
+// CHECK-SAME:                                            %[[ARG0:.*]]: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?],f32> {
+// CHECK:         %[[INT0:.*]] = torch.constant.int 0
+// CHECK:         %[[INT3:.*]] = torch.constant.int 3
+// CHECK:         %[[INT:.*]]-1 = torch.constant.int -1
+// CHECK:         %[[T0:.*]] = torch.prim.ListConstruct %[[INT]]-1 : (!torch.int) -> !torch.list<int>
+// CHECK:         %[[T1:.*]] = torch.aten.view %[[ARG0]], %[[T0]] : !torch.vtensor<[?,?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
+// CHECK:         return %[[T1]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.flatten.using_ints(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?],f32> {
+  %int0 = torch.constant.int 0
+  %int3 = torch.constant.int 3
+  %1 = torch.aten.flatten.using_ints %arg0, %int0, %int3: !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
+  return %1 : !torch.vtensor<[?],f32>
 }
