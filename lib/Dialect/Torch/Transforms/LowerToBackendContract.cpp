@@ -197,6 +197,40 @@ static bool satisfiesBackendContract(ModuleOp module,
   return true;
 }
 
+// Forward declaration
+static llvm::hash_code hashOperation(Operation *);
+static llvm::hash_code hashBlock(Block &block) {
+  llvm::hash_code hash(0);
+  for (Operation &op : block.getOperations()) {
+    llvm::hash_code opHash = hashOperation(&op);
+    hash = llvm::hash_combine(hash, opHash);
+  }
+  return hash;
+}
+
+static llvm::hash_code hashRegion(Region &region) {
+  llvm::hash_code hash(0);
+  for (Block &block : region.getBlocks()) {
+    llvm::hash_code blockHash = hashBlock(block);
+    hash = llvm::hash_combine(hash, blockHash);
+  }
+  return hash;
+}
+
+static llvm::hash_code hashOperation(Operation *op) {
+  llvm::hash_code hash(0);
+  llvm::hash_code opHash = OperationEquivalence::computeHash(
+    op, OperationEquivalence::ignoreHashValue,
+    OperationEquivalence::ignoreHashValue,
+    OperationEquivalence::IgnoreLocations);
+  hash = llvm::hash_combine(hash, opHash);
+  for (auto &region : op->getRegions()) {
+    llvm::hash_code regionHash = hashRegion(region);
+    hash = llvm::hash_combine(hash, regionHash);
+  }
+  return hash;
+}
+
 namespace {
 class LowerToBackendContractPass
     : public LowerToBackendContractBase<LowerToBackendContractPass> {
@@ -217,6 +251,9 @@ public:
     options.backendLegalOps = backendLegalOps;
     createTorchSimplificationPipeline(pm, options);
 
+    bool codeChanged = false;
+    llvm::hash_code moduleHash = hashOperation(module);
+
     int i = 0;
     do {
       if (i++ == maxIterations) {
@@ -234,7 +271,14 @@ public:
 
       if (failed(runPipeline(pm, module)))
         return signalPassFailure();
-    } while (!satisfiesBackendContract(module));
+      
+      llvm::hash_code newModuleHash = hashOperation(module);
+      codeChanged = (moduleHash != newModuleHash);
+      moduleHash = newModuleHash;
+    
+    // Iterate until maxIterations is reached or 
+    // backend contract is satisified and code optimization converges.
+    } while (!satisfiesBackendContract(module) || codeChanged);
     LLVM_DEBUG({
       llvm::dbgs() << "LowerToBackendContractPass: "
                    << "succeeded after " << i
