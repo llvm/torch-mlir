@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -178,15 +179,17 @@ public:
           }));
       return success();
     }
-    if (auto elements = op.valueAttr().dyn_cast<SparseElementsAttr>()) {
+    if (auto elements = op.valueAttr().dyn_cast<DenseResourceElementsAttr>()) {
       if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
         if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
           Type builtinTensorElemTy =
               IntegerType::get(context, intType.getIntOrFloatBitWidth());
           auto shapedType =
               RankedTensorType::get(type.getShape(), builtinTensorElemTy);
+          AsmResourceBlob *blob = elements.getRawHandle().getBlob();
+          assert(blob && "Expecting dense resource with a valid blob");
           rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-              op, DenseElementsAttr::get(shapedType, elements.getValues()));
+              op, DenseElementsAttr::get(shapedType, blob->getData()));
           return success();
         }
       }
