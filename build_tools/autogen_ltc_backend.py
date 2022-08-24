@@ -74,6 +74,9 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
             for a in emplace_kwarg_values + emplace_kwarg_scalars
         )
 
+        # Only create this variable if it's used to avoid Wunused-variable
+        operand_idx_counter = "size_t i = 0;" if "i++" in (emplace_arguments_str + emplace_kwarguments) else ""
+
         return reindent(
             f"""
             {signature} {{
@@ -82,7 +85,7 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
                 std::vector<torch::jit::NamedValue> kwarguments;
                 arguments.reserve({len(emplace_arguments)});
                 kwarguments.reserve({len(emplace_kwarg_values + emplace_kwarg_scalars)});
-                size_t i = 0;
+                {operand_idx_counter}
                 {emplace_arguments_str}
                 {emplace_kwarguments}
                 torch::lazy::TorchMlirOpVector {schema.aten_name}_out = torch::lazy::LowerTorchMlirBuiltin(function, op().op, shapes(), arguments, kwarguments);
