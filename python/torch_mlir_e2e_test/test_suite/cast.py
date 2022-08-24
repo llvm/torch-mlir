@@ -26,7 +26,7 @@ class TensorToIntZeroRank(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TensorToIntZeroRank())
 def TensorToIntZeroRank_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, ()))
+    module.forward(tu.randint(high=10))
 
 # ==============================================================================
 
@@ -45,7 +45,7 @@ class TensorToInt(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TensorToInt())
 def TensorToInt_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (1, 1)))
+    module.forward(tu.randint(1, 1, high=10))
 
 # ==============================================================================
 

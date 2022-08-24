@@ -57,7 +57,7 @@ class ElementwiseUnaryIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseUnaryIntModule())
 def ElementwiseUnaryIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -428,7 +428,7 @@ class ElementwiseSigmoidIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSigmoidIntModule())
 def ElementwiseSigmoidIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 5), dtype=torch.int32))
+    module.forward(tu.randint(3, 5, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -474,7 +474,7 @@ class ElementwiseMinimumIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseMinimumIntModule())
 def ElementwiseMinimumIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (3, 5)))
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
 
 
 # ==============================================================================
@@ -520,7 +520,7 @@ class ElementwiseMaximumIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseMaximumIntModule())
 def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (3, 5)))
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
 
 
 # ==============================================================================
@@ -663,7 +663,7 @@ class RsubIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RsubIntModule())
 def RsubIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4)))
+    module.forward(tu.randint(3, 4, high=100))
 
 
 # ==============================================================================
@@ -685,7 +685,7 @@ class RsubIntModule_noalpha(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RsubIntModule_noalpha())
 def RsubIntModule_noalpha_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4)))
+    module.forward(tu.randint(3, 4, high=100))
 
 
 # ==============================================================================
@@ -707,7 +707,7 @@ class ElementwiseMulScalarIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseMulScalarIntModule())
 def ElementwiseMulScalarModule_int(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 4)))
+    module.forward(tu.randint(3, 4, high=10))
 
 
 # ==============================================================================
@@ -751,7 +751,7 @@ class ElementwiseMulScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseMulScalarModule())
 def ElementwiseMulScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -798,7 +798,7 @@ class ElementwiseMulTensorIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseMulTensorIntModule())
 def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.randint(10, [4]).type(torch.int32), torch.randint(10, [4]))
+        tu.randint(4, high=10).type(torch.int32), tu.randint(4, high=10))
 
 
 # ==============================================================================
@@ -845,7 +845,7 @@ class ElementwiseAtan2TensorIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseAtan2TensorIntModule())
 def ElementwiseAtan2TensorIntModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.randint(1, 10, [4]).type(torch.int32), torch.randint(1, 10, [4]))
+        tu.randint(4, low=1, high=10).type(torch.int32), tu.randint(4, low=1, high=10))
 
 
 # ==============================================================================
@@ -868,8 +868,8 @@ class ElementwiseAtan2FloatIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtan2FloatIntModule())
 def ElementwiseAtan2FloatIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, [4, 4], dtype=torch.int32),
-        tu.rand(4, 4).double())
+    module.forward(tu.randint(4, 4, low=1, high=10).to(torch.int32),
+                   tu.rand(4, 4).double())
 
 
 # ==============================================================================
@@ -913,7 +913,7 @@ class ElementwiseLogIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLogIntModule())
 def ElementwiseLogIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 # ==============================================================================
 
@@ -978,7 +978,7 @@ class ElementwiseErfIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseErfIntModule())
 def ElementwiseErfIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1022,7 +1022,7 @@ class ElementwiseSqrtIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSqrtIntModule())
 def ElementwiseSqrtIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1170,7 +1170,7 @@ class ElementwiseLog2IntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLog2IntModule())
 def ElementwiseLog2IntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1214,7 +1214,7 @@ class ElementwiseRsqrtIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRsqrtIntModule())
 def ElementwiseRsqrtIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1280,7 +1280,7 @@ class ElementwiseReciprocalIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseReciprocalIntModule())
 def ElementwiseReciprocalIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (4,), dtype=torch.int32))
+    module.forward(tu.randint(4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1323,7 +1323,7 @@ class ElementwiseRemainderScalarModule_Int_Float(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float())
 def ElementwiseRemainderScalarModule_Int_Float_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3,), dtype=torch.int32))
+    module.forward(tu.randint(3, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1366,7 +1366,7 @@ class ElementwiseRemainderScalarModule_Int(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Int())
 def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 2), dtype=torch.int32))
+    module.forward(tu.randint(3, 2, high=10).to(torch.int32))
 
 # ==============================================================================
 
@@ -1478,8 +1478,8 @@ class ElementwiseAndIntegerModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseAndIntegerModule())
 def ElementwiseAndIntegerModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.randint(-10, 10, (3, 4)).to(torch.int32),
-        torch.randint(-10, 10, (3, 4)))
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32),
+        tu.randint(3, 4, low=-10, high=10))
 
 
 # ==============================================================================
@@ -1501,7 +1501,7 @@ class ElementwiseSubScalarIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSubScalarIntModule())
 def ElementwiseSubScalarIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, high=10).to(dtype=torch.int32))
 
 
 # ==============================================================================
@@ -1545,7 +1545,7 @@ class ElementwiseAddScalarInt64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAddScalarInt64Module())
 def ElementwiseAddScalarInt64Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 4)))
+    module.forward(tu.randint(3, 4, high=10))
 
 
 # ==============================================================================
@@ -1567,7 +1567,7 @@ class ElementwiseAddScalarIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAddScalarIntModule())
 def ElementwiseAddScalarIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3), dtype=torch.int32))
+    module.forward(tu.randint(2, 3, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1677,7 +1677,7 @@ class ElementwiseExpIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseExpIntModule())
 def ElementwiseExpIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1721,7 +1721,7 @@ class ElementwiseExpm1IntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseExpm1IntModule())
 def ElementwiseExpm1IntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1765,7 +1765,7 @@ class ElementwiseSinIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseSinIntModule())
 def ElementwiseSinIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1809,7 +1809,7 @@ class ElementwiseCosIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseCosIntModule())
 def ElementwiseCosIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 10, (3, 4), dtype=torch.int32))
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1924,7 +1924,7 @@ class ElementwiseAtenLogicalOrOpRandomModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpRandomModule())
 def ElementwiseAtenLogicalOrOpRandomModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(3, 10, (2, 3, 4, 5)), torch.randint(10, 100, (2, 3, 4, 5)))
+    module.forward(tu.randint(2, 3, 4, 5, low=3, high=10), tu.randint(2, 3, 4, 5, low=10, high=100))
 
 # ==============================================================================
 
@@ -1962,7 +1962,7 @@ class ElementwiseAtenLogicalOrOpNegativeModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpNegativeModule())
 def ElementwiseAtenLogicalOrOpNegativeModule_basic(module, tu: TestUtils):
-    module.forward(torch.neg(torch.randint(3, 10, (2, 3, 4, 5))), torch.neg(torch.randint(10, 100, (2, 3, 4, 5))))
+    module.forward(torch.neg(tu.randint(2, 3, 4, 5, low=3, high=10)), torch.neg(tu.randint(2, 3, 4, 5, low=10, high=100)))
 
 # ==============================================================================
 
@@ -1981,7 +1981,7 @@ class ElementwiseAtenLogicalOrOpBrodcastModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAtenLogicalOrOpBrodcastModule())
 def ElementwiseAtenLogicalOrOpBrodcastModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(3, (3,)), torch.randint(3, (4, 3)))
+    module.forward(tu.randint(3, high=3), tu.randint(4, 3, high=3))
 
 
 # ==============================================================================

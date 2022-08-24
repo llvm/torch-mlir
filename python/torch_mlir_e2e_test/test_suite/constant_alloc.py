@@ -346,7 +346,7 @@ class EmptyLikeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: EmptyLikeIntModule())
 def EmptyLikeModule_int(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)))
+    module.forward(tu.randint(3, 5, high=10))
 
 
 class EmptyLikeMemoryFormatModule(torch.nn.Module):
@@ -446,7 +446,7 @@ class ZerosLikeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ZerosLikeIntModule())
 def ZerosLikeModule_int(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)))
+    module.forward(tu.randint(3, 5, high=10))
 
 
 class ZerosLikeFloatModule(torch.nn.Module):
@@ -525,7 +525,7 @@ class OnesLikeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: OnesLikeIntModule())
 def OnesLikeModule_int(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)))
+    module.forward(tu.randint(3, 5, high=10))
 
 
 class OnesLikeFloatModule(torch.nn.Module):
@@ -702,7 +702,7 @@ class NewZerosModuleFloat2D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewZerosModuleFloat2D())
 def NewZerosModuleFloat2D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3, 4)))
+    module.forward(tu.randint(2, 3, 4, high=10))
 
 
 class NewZerosModuleFloat3D(torch.nn.Module):
@@ -721,7 +721,7 @@ class NewZerosModuleFloat3D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewZerosModuleFloat3D())
 def NewZerosModuleFloat3D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 class NewZerosModuleFalsePinMemory(torch.nn.Module):
@@ -742,7 +742,7 @@ class NewZerosModuleFalsePinMemory(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewZerosModuleFalsePinMemory())
 def NewZerosModuleFalsePinMemory_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 # ==============================================================================
@@ -821,7 +821,7 @@ class NewOnesModuleFloat2D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewOnesModuleFloat2D())
 def NewOnesModuleFloat2D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3, 4)))
+    module.forward(tu.randint(2, 3, 4, high=10))
 
 
 class NewOnesModuleFloat3D(torch.nn.Module):
@@ -840,7 +840,7 @@ class NewOnesModuleFloat3D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewOnesModuleFloat3D())
 def NewOnesModuleFloat3D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 class NewOnesModuleFalsePinMemory(torch.nn.Module):
@@ -861,7 +861,7 @@ class NewOnesModuleFalsePinMemory(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewOnesModuleFalsePinMemory())
 def NewOnesModuleFalsePinMemory_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 # ==============================================================================
@@ -1016,7 +1016,7 @@ class FullLikeModuleInt2D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: FullLikeModuleInt2D())
 def FullLikeModuleInt2D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5)))
+    module.forward(tu.randint(4, 5, high=10))
 
 
 class FullLikeModuleInt3D(torch.nn.Module):
@@ -1035,7 +1035,7 @@ class FullLikeModuleInt3D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: FullLikeModuleInt3D())
 def FullLikeModuleInt3D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (10, 4, 5)).to(torch.int32))
+    module.forward(tu.randint(10, 4, 5, high=100).to(torch.int32))
 
 
 class FullLikeModuleInt2DStatic(torch.nn.Module):
@@ -1054,7 +1054,7 @@ class FullLikeModuleInt2DStatic(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: FullLikeModuleInt2DStatic())
 def FullLikeModuleInt2DStatic_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5)))
+    module.forward(tu.randint(4, 5, high=10))
 
 
 class FullLikeModuleFloat2D(torch.nn.Module):
@@ -1133,7 +1133,7 @@ class FullLikeModuleFalsePinMemory(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: FullLikeModuleFalsePinMemory())
 def FullLikeModuleFalsePinMemory_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (10, 4)))
+    module.forward(tu.randint(10, 4, high=100))
 
 
 # ==============================================================================
@@ -1174,7 +1174,7 @@ class ZeroInt32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ZeroInt32Module())
 def ZeroInt32Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (10, 4), dtype=torch.int32))
+    module.forward(tu.randint(10, 4, high=100).to(dtype=torch.int32))
 
 
 class ZeroInt64Module(torch.nn.Module):
@@ -1193,7 +1193,7 @@ class ZeroInt64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ZeroInt64Module())
 def ZeroInt64Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (10, 4)))
+    module.forward(tu.randint(10, 4, high=100))
 
 
 # ==============================================================================
@@ -1274,7 +1274,7 @@ class NewEmptyModuleFloat2D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyModuleFloat2D())
 def NewEmptyModuleFloat2D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3, 4)))
+    module.forward(tu.randint(2, 3, 4, high=10))
 
 
 class NewEmptyModuleFloat3D(torch.nn.Module):
@@ -1294,7 +1294,7 @@ class NewEmptyModuleFloat3D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyModuleFloat3D())
 def NewEmptyModuleFloat3D_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 class NewEmptyModuleFalsePinMemory(torch.nn.Module):
@@ -1315,7 +1315,7 @@ class NewEmptyModuleFalsePinMemory(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyModuleFalsePinMemory())
 def NewEmptyModuleFalsePinMemory_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)))
+    module.forward(tu.randint(2, 3, high=10))
 
 
 class NewEmptyModuleNonDefaultFloatDtype(torch.nn.Module):
@@ -1354,7 +1354,7 @@ class NewEmptyModuleNonDefaultIntDtype(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyModuleNonDefaultIntDtype())
 def NewEmptyModuleNonDefaultIntDtype_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)).to(torch.int32))
+    module.forward(tu.randint(2, 3, high=10).to(torch.int32))
 
 
 class NewEmptyModuleLayoutIntDtype(torch.nn.Module):
@@ -1373,7 +1373,7 @@ class NewEmptyModuleLayoutIntDtype(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NewEmptyModuleLayoutIntDtype())
 def NewEmptyModuleLayoutIntDtype_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (2, 3)).to(torch.int32))
+    module.forward(tu.randint(2, 3, high=10).to(torch.int32))
 
 
 # ==============================================================================
@@ -1397,7 +1397,7 @@ class MaskedFillScalarDefaultModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaskedFillScalarDefaultModule())
 def MaskedFillScalarDefaultModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3),
-                   torch.randint(0, 2, (2, 3)).to(dtype=torch.bool))
+                   tu.randint(2, 3, high=2).to(dtype=torch.bool))
 
 
 class MaskedFillScalarIntValueModule(torch.nn.Module):
@@ -1418,7 +1418,7 @@ class MaskedFillScalarIntValueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaskedFillScalarIntValueModule())
 def MaskedFillScalarIntValueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3),
-                   torch.randint(0, 2, (2, 3)).to(dtype=torch.bool))
+                   tu.randint(2, 3, high=2).to(dtype=torch.bool))
 
 
 class MaskedFillScalarFloatValueModule(torch.nn.Module):
@@ -1438,8 +1438,8 @@ class MaskedFillScalarFloatValueModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MaskedFillScalarFloatValueModule())
 def MaskedFillScalarFloatValueModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 10, (2, 3)),
-                   torch.randint(0, 2, (2, 3)).to(dtype=torch.bool))
+    module.forward(tu.randint(2, 3, low=-10, high=10),
+                   tu.randint(2, 3, high=2).to(dtype=torch.bool))
 
 
 class MaskedFillTensorFloatValueModule(torch.nn.Module):
@@ -1460,5 +1460,5 @@ class MaskedFillTensorFloatValueModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MaskedFillTensorFloatValueModule())
 def MaskedFillTensorFloatValueModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 10, (2, 3)),
-                   torch.randint(0, 2, (2, 3)).to(dtype=torch.bool), tu.rand())
+    module.forward(tu.randint(2, 3, low=-10, high=10),
+                   tu.randint(2, 3, high=2).to(dtype=torch.bool), tu.rand())

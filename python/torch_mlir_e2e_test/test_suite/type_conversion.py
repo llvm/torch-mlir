@@ -57,7 +57,7 @@ class TypeConversionI32ToI64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI32ToI64Module())
 def TypeConversionI32ToI64Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(5, [2, 3]).type(torch.int32))
+    module.forward(tu.randint(2, 3, high=5).type(torch.int32))
 
 
 class TypeConversionI64ToI32Module(torch.nn.Module):
@@ -73,7 +73,7 @@ class TypeConversionI64ToI32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI64ToI32Module())
 def TypeConversionI64ToI32Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(5, [2, 3]))
+    module.forward(tu.randint(2, 3, high=5))
 
 
 class TypeConversionI1ToI32Module(torch.nn.Module):
@@ -89,7 +89,7 @@ class TypeConversionI1ToI32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI1ToI32Module())
 def TypeConversionI1ToI32Module_basic(module, tu: TestUtils):
-    tensor = torch.randint(0, 2, (3, 4), dtype=torch.bool)
+    tensor = tu.randint(3, 4, low=0, high=2).to(torch.bool)
     module.forward(tensor)
 
 
@@ -106,7 +106,7 @@ class TypeConversionI1ToI64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI1ToI64Module())
 def TypeConversionI1ToI64Module_basic(module, tu: TestUtils):
-    tensor = torch.randint(0, 2, (3, 4), dtype=torch.bool)
+    tensor = tu.randint(3, 4, low=0, high=2).to(torch.bool)
     module.forward(tensor)
 
 
@@ -123,7 +123,7 @@ class TypeConversionI1ToF32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI1ToF32Module())
 def TypeConversionI1ToF32Module_basic(module, tu: TestUtils):
-    tensor = torch.randint(0, 2, (3, 4), dtype=torch.bool)
+    tensor = tu.randint(3, 4, low=0, high=2).to(torch.bool)
     module.forward(tensor)
 
 
@@ -140,7 +140,7 @@ class TypeConversionI1ToF64Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: TypeConversionI1ToF64Module())
 def TypeConversionI1ToF64Module_basic(module, tu: TestUtils):
-    tensor = torch.randint(0, 2, (3, 4), dtype=torch.bool)
+    tensor = tu.randint(3, 4, low=0, high=2).to(torch.bool)
     module.forward(tensor)
 
 

@@ -140,7 +140,7 @@ class ReduceSumUnsignedIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumUnsignedIntModule())
 def ReduceSumUnsignedIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(0, 100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, low=0, high=100))
 
 # ==============================================================================
 
@@ -159,7 +159,7 @@ class ReduceSumSignedIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumSignedIntModule())
 def ReduceSumSignedIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-100, 100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
 
 # ==============================================================================
 
@@ -178,7 +178,7 @@ class ReduceSumDtypeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumDtypeIntModule())
 def ReduceSumDtypeIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4, 5)).to(torch.int32))
+    module.forward(tu.randint(3, 4, 5, high=100).to(torch.int32))
 
 # ==============================================================================
 
@@ -197,7 +197,7 @@ class ReduceSumDimIntListIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumDimIntListIntModule())
 def ReduceSumDimIntListIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, high=100))
 
 # ==============================================================================
 
@@ -216,7 +216,7 @@ class ReduceSumDimIntListDtypeIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumDimIntListDtypeIntModule())
 def ReduceSumDimIntListDtypeIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4, 5)).to(torch.int32))
+    module.forward(tu.randint(3, 4, 5, high=100).to(torch.int32))
 
 # ==============================================================================
 
@@ -235,7 +235,7 @@ class ReduceSumDimIntListKeepDimIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceSumDimIntListKeepDimIntModule())
 def ReduceSumDimIntListKeepDimIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, high=100))
 
 # ==============================================================================
 
@@ -383,7 +383,7 @@ class ReduceMaxSignedIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceMaxSignedIntModule())
 def ReduceMaxSignedIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-100, 100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, low=-100, high=100))
 
 # ==============================================================================
 
@@ -401,7 +401,7 @@ class ReduceMaxUnsignedIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ReduceMaxUnsignedIntModule())
 def ReduceMaxUnsignedIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (3, 4, 5)))
+    module.forward(tu.randint(3, 4, 5, high=100))
 
 # ==============================================================================
 

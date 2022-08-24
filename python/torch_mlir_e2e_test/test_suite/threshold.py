@@ -27,7 +27,7 @@ class Threshold1dIntI32Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Threshold1dIntI32Module())
 def Threshold1dIntI32Module_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4,), dtype=torch.int32))
+    module.forward(tu.randint(4, high=10).to(torch.int32))
 
 
 class Threshold1dIntModule(torch.nn.Module):
@@ -45,7 +45,7 @@ class Threshold1dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Threshold1dIntModule())
 def Threshold1dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4,)))
+    module.forward(tu.randint(4, high=10))
 
 
 class Threshold2dIntModule(torch.nn.Module):
@@ -63,7 +63,7 @@ class Threshold2dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Threshold2dIntModule())
 def Threshold2dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5)))
+    module.forward(tu.randint(4, 5, high=10))
 
 
 class Threshold3dIntModule(torch.nn.Module):
@@ -81,7 +81,7 @@ class Threshold3dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Threshold3dIntModule())
 def Threshold3dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5, 6)))
+    module.forward(tu.randint(4, 5, 6, high=10))
 
 
 class Threshold1dFloatModule(torch.nn.Module):
@@ -154,7 +154,7 @@ class ThresholdBackward1dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward1dIntModule())
 def ThresholdBackward1dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4,)), torch.randint(8, (4,)))
+    module.forward(tu.randint(4, high=10), tu.randint(4, high=8))
 
 
 class ThresholdBackward2dIntModule(torch.nn.Module):
@@ -173,7 +173,7 @@ class ThresholdBackward2dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward2dIntModule())
 def ThresholdBackward2dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5)), torch.randint(8, (4, 5)))
+    module.forward(tu.randint(4, 5, high=10), tu.randint(4, 5, high=8))
 
 
 class ThresholdBackward3dIntModule(torch.nn.Module):
@@ -192,7 +192,7 @@ class ThresholdBackward3dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward3dIntModule())
 def ThresholdBackward3dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (4, 5, 6)), torch.randint(8, (4, 5, 6)))
+    module.forward(tu.randint(4, 5, 6, high=10), tu.randint(4, 5, 6, high=8))
 
 
 class ThresholdBackward1dFloatModule(torch.nn.Module):
@@ -268,7 +268,7 @@ class ThresholdBackward1dMixedModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward1dMixedModule())
 def ThresholdBackward1dMixedModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4), torch.randint(10, (4,)))
+    module.forward(torch.randn(4), tu.randint(4, high=10))
 
 
 class ThresholdBackward2dMixedModule(torch.nn.Module):
@@ -287,7 +287,7 @@ class ThresholdBackward2dMixedModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward2dMixedModule())
 def ThresholdBackward2dMixedModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(20, (4, 5)), torch.randn(4, 5))
+    module.forward(tu.randint(4, 5, high=20), torch.randn(4, 5))
 
 
 class ThresholdBackward3dMixedModule(torch.nn.Module):
@@ -306,4 +306,4 @@ class ThresholdBackward3dMixedModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ThresholdBackward3dMixedModule())
 def ThresholdBackward3dMixedModule_basic(module, tu: TestUtils):
-    module.forward(torch.randn(4, 5, 6), torch.randint(10, (4, 5, 6)))
+    module.forward(torch.randn(4, 5, 6), tu.randint(4, 5, 6, high=10))
