@@ -254,32 +254,57 @@ Torch-MLIR by default builds with the latest nightly PyTorch version. This can b
 -DTORCH_MLIR_SRC_PYTORCH_BRANCH=master # Optional. Defaults to PyTorch's main branch
 ```
 
-# Updating the LLVM submodule
+# Updating the LLVM and MLIR-HLO submodules
 
-Torch-MLIR maintains `llvm-project` (which contains, among other things,
-upstream MLIR) as a submodule in `externals/llvm-project`. We aim to update this
-at least weekly to new LLVM revisions to bring in the latest features and spread
-out over time the effort of updating our code for MLIR API breakages.
+Torch-MLIR depends on `llvm-project` (which contains, among other things,
+upstream MLIR) and `mlir-hlo`, both of which are submodules in the `externals/`
+directory. We aim to update these at least weekly to bring in the latest
+features and spread out over time the effort of updating our code for MLIR API
+breakages.
 
-Updating the LLVM submodule is done by:
+## Which LLVM commit should I pick?
 
-1. In the `externals/llvm-project` directory, run `git pull` to update to the
-   upstream revision of interest (such as a particular upstream change that is
-   needed for your Torch-MLIR PR).
-2. Rebuild and test Torch-MLIR (see above), fixing any issues that arise. This
-   might involve fixing various API breakages introduced upstream (they are
-   likely unrelated to what you are working on). If these fixes are too complex,
-   please file a work-in-progress PR explaining the issues you are running into
-   asking for help so that someone from the community can help.
-3. Run `build_tools/update_shape_lib.sh` to update the shape library -- this is
+Since downstream projects may want to build Torch-MLIR (and thus LLVM and
+MLIR-HLO) in various configurations (Release versus Debug builds; on Linux,
+Windows, or macOS; possibly with Clang, LLD, and LLDB enabled), it is crucial to
+pick LLVM commits that pass tests for all combinations of these configurations.
+
+So every week, we track the so-called _green_ commit (i.e. the LLVM commit which
+works with all of the above configurations) in Issue
+https://github.com/llvm/torch-mlir/issues/1178.  In addition to increasing our
+confidence that the resulting update will not break downstream projects, basing
+our submodule updates on these green commits also helps us stay in sync with
+LLVM updates in other projects like ONNX-MLIR and MLIR-HLO.
+
+## What is the update process?
+
+1. **Lookup green commit hashes**: From the Github issue
+   https://github.com/llvm/torch-mlir/issues/1178, find the LLVM and MLIR-HLO
+   green commits for the week when Torch-MLIR is being updated.
+2. **Update the `llvm-project` submodule**: In the `externals/llvm-project`
+   directory, run `git fetch` followed by `git checkout <llvm-commit-hash>`
+   (where `<llvm-commit-hash>` is the green commit hash for the LLVM project
+   from Step 1).
+3. **Update the `mlir-hlo` submodule**: In the `externals/mlir-hlo` directory,
+   run `git fetch` followed by `git checkout <mlir-hlo-commit-hash>` (where
+   `<mlir-hlo-commit-hash>` is the green commit hash for the MLIR-HLO project
+   from Step 1).
+4. **Rebuild and test Torch-MLIR**: See the section "CMake Build" above for
+   instructions, fixing any issues that arise. This might involve fixing various
+   API breakages introduced upstream (they are likely unrelated to what you are
+   working on).  If these fixes are too complex, please file a work-in-progress
+   PR explaining the issues you are running into asking for help so that someone
+   from the community can help.
+5. **Update Shape Library**: Run `build_tools/update_shape_lib.sh`. This is
    sometimes needed because upstream changes can affect canonicalization and
-   other minor details of the IR in the shape library. See [docs/shape_lib.md](docs/shape_lib.md) for more details on the shape library.
+   other minor details of the IR in the shape library. See
+   [docs/shape_lib.md](docs/shape_lib.md) for more details on the shape library.
 
 
-Here are some examples of PR's updating the LLVM submodule:
+Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 
-- https://github.com/llvm/torch-mlir/pull/958
-- https://github.com/llvm/torch-mlir/pull/856
+- https://github.com/llvm/torch-mlir/pull/1180
+- https://github.com/llvm/torch-mlir/pull/1229
 
 # Enabling Address Sanitizer (ASan)
 
