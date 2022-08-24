@@ -979,7 +979,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
 
   size_t posDim = toPositiveDim(dim, outType.getRank());
   rewriter.replaceOpWithNewOp<mhlo::ConcatenateOp>(
-      op, ValueRange(builtinTensors), posDim);
+      op, outType, ValueRange(builtinTensors), posDim);
   return success();
 }
 } // namespace
