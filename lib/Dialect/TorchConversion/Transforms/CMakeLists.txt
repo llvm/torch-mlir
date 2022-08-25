@@ -18,7 +18,6 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
   BackendTypeConversionPasses.cpp  
   Passes.cpp
-  VerifyInvariantsBeforeBackendLowering.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
 
