@@ -659,8 +659,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
-          AtenRollOp>(
-          op)) {
+          AtenRollOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
@@ -975,12 +974,38 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   if (auto zeros = dyn_cast<AtenZerosOp>(op)) {
+    BaseTensorType tensorType =
+        op->getResult(0).getType().cast<BaseTensorType>();
+    if (tensorType.hasDtype()) {
+      auto dataType = getTorchTypeForScalarType(
+          zeros.getContext(), getScalarTypeForType(tensorType.getDtype()));
+      visitConstantTensorAllocOp<AtenZerosOp>(zeros, /*dataType=*/dataType);
+      return;
+    }
     visitConstantTensorAllocOp<AtenZerosOp>(zeros, /*dataType=*/{});
     return;
   } else if (auto ones = dyn_cast<AtenOnesOp>(op)) {
+    BaseTensorType tensorType =
+        op->getResult(0).getType().cast<BaseTensorType>();
+    if (tensorType.hasDtype()) {
+      auto dataType = getTorchTypeForScalarType(
+          ones.getContext(), getScalarTypeForType(tensorType.getDtype()));
+      visitConstantTensorAllocOp<AtenOnesOp>(ones, /*dataType=*/dataType);
+      return;
+    }
     visitConstantTensorAllocOp<AtenOnesOp>(ones, /*dataType=*/{});
     return;
   } else if (auto emptyMemoryFormat = dyn_cast<AtenEmptyMemoryFormatOp>(op)) {
+    BaseTensorType tensorType =
+        op->getResult(0).getType().cast<BaseTensorType>();
+    if (tensorType.hasDtype()) {
+      auto dataType = getTorchTypeForScalarType(
+          emptyMemoryFormat.getContext(),
+          getScalarTypeForType(tensorType.getDtype()));
+      visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(
+          emptyMemoryFormat, /*dataType=*/dataType);
+      return;
+    }
     visitConstantTensorAllocOp<AtenEmptyMemoryFormatOp>(emptyMemoryFormat,
                                                         /*dataType=*/{});
     return;
@@ -1061,7 +1086,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-  
+
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
     return;
