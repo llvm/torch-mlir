@@ -26,6 +26,8 @@ mlir_configure_python_dev_packages()
 # Library definition
 ###########################################################################
 
+# We piggyback on the shared library setup/infra used by Torch-MLIR Python bindings for consistency.
+# https://github.com/llvm/torch-mlir/pull/1283
 set(LIBRARY_OUTPUT_PATH  "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs")
 set(OUTPUT_NAME "_REFERENCE_LAZY_BACKEND")
 
