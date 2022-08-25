@@ -155,6 +155,20 @@ jobs:
       run: |
         cmake --build build --target check-torch-mlir-all
 
+    - name: Ensure generated files are up to date
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        ./build_tools/update_torch_ods.sh
+        ./build_tools/update_shape_lib.sh
+        if ! git diff --quiet; then
+          echo "#######################################################"
+          echo "Generated files are not up to date (see diff below)"
+          echo ">>> Please run ./build_tools/update_torch_ods.sh and ./build_tools/update_shape_lib.sh <<<"
+          echo "#######################################################"
+          git diff --color=always
+          exit 1
+        fi
+
     - name: Run refbackend e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
