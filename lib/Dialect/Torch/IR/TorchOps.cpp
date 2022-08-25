@@ -295,7 +295,7 @@ LogicalResult ClassTypeOp::verify() {
 
 OperandRange
 PrimLoopOp::getSuccessorEntryOperands(Optional<unsigned int> index) {
-  assert(index.hasValue() && index.value() == 0);
+  assert(index.has_value() && index.value() == 0);
   return iterArgsInit();
 }
 
