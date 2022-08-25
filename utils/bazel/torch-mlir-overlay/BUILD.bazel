@@ -500,7 +500,6 @@ cc_library(
         "lib/Dialect/TorchConversion/Transforms/BackendTypeConversionPasses.cpp",
         "lib/Dialect/TorchConversion/Transforms/PassDetail.h",
         "lib/Dialect/TorchConversion/Transforms/Passes.cpp",
-        "lib/Dialect/TorchConversion/Transforms/VerifyInvariantsBeforeBackendLowering.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyLinalgOnTensorsBackendContract.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyTosaBackendContract.cpp",
     ],

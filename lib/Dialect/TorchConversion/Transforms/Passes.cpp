@@ -63,10 +63,6 @@ void mlir::torch::registerTorchConversionPasses() {
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
-  // Check some invariants to catch errors in a clear way.
-  pm.addPass(
-      TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
-
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
@@ -101,10 +97,6 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
 
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
-  // Check some invariants to catch errors in a clear way.
-  pm.addPass(
-      TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
-
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass());
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
@@ -130,10 +122,6 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 #ifdef TORCH_MLIR_ENABLE_MHLO
 void TorchConversion::createTorchBackendToMhloBackendPipeline(
     OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
-  // Check some invariants to catch errors in a clear way.
-  pm.addPass(
-      TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass());
-
   pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass());
 
   // Clean up any non-canonical code introduced above..
