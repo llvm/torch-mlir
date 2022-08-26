@@ -37,6 +37,7 @@ MHLO_PASS_SET = {
     "AvgPool2dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Convolution2DStaticModule_basic",
+    "ConvolutionModule2DTransposeStridedStatic_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",
