@@ -29,7 +29,7 @@ class AddIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AddIntModule())
 def AddIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -52,7 +52,7 @@ class SubIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SubIntModule())
 def SubIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -98,7 +98,7 @@ class MulIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MulIntModule())
 def MulIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-100, 100, ()), torch.randint(-100, 100, ()))
+    module.forward(tu.randint(low=-100, high=100), tu.randint(low=-100, high=100))
 
 
 # ==============================================================================
@@ -172,7 +172,7 @@ class SqrtIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: SqrtIntModule())
 def SqrtIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, ()))
+    module.forward(tu.randint(high=10))
 
 
 class SqrtIntConstantModule(torch.nn.Module):
@@ -273,7 +273,7 @@ class BoolIntFalseModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: BoolIntFalseModule())
 def BoolIntFalseModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 100, ()))
+    module.forward(tu.randint(low=1, high=100))
 
 
 class BoolIntTrueModule(torch.nn.Module):
@@ -292,7 +292,7 @@ class BoolIntTrueModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: BoolIntTrueModule())
 def BoolIntTrueModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(1, 100, ()))
+    module.forward(tu.randint(low=1, high=100))
 
 
 class BoolIntConstantModule(torch.nn.Module):

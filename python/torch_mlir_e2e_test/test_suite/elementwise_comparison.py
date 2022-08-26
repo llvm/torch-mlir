@@ -45,7 +45,7 @@ class ElementwiseGtIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGtIntScalarModule())
 def ElementwiseGtIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)))
+    module.forward(tu.randint(3, 4, low=-10, high=15))
 
 # ==============================================================================
 
@@ -64,7 +64,7 @@ class ElementwiseGtMixed2ScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGtMixed2ScalarModule())
 def ElementwiseGtMixed2ScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)).to(torch.int32))
+    module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
 # ==============================================================================
 
@@ -102,7 +102,7 @@ class ElementwiseGeIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGeIntScalarModule())
 def ElementwiseGeIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)))
+    module.forward(tu.randint(3, 4, low=-10, high=15))
 
 # ==============================================================================
 
@@ -121,7 +121,7 @@ class ElementwiseGeMixedIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGeMixedIntScalarModule())
 def ElementwiseGeMixedIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)).to(torch.int32))
+    module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
 # ==============================================================================
 
@@ -180,7 +180,7 @@ class ElementwiseGtIntTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGtIntTensorModule())
 def ElementwiseGtIntTensorModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (5, )))
+    module.forward(tu.randint(3, 5, high=10), tu.randint(5, high=10))
 
 # ==============================================================================
 
@@ -218,7 +218,7 @@ class ElementwiseLtIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLtIntScalarModule())
 def ElementwiseLtIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)))
+    module.forward(tu.randint(3, 4, low=-10, high=15))
 
 # ==============================================================================
 
@@ -238,7 +238,7 @@ class ElementwiseLtDiffWidthScalarModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: ElementwiseLtDiffWidthScalarModule())
 def ElementwiseLtDiffWidthScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)).to(torch.int32))
+    module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
 # ==============================================================================
 
@@ -276,7 +276,7 @@ class ElementwiseLeIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLeIntScalarModule())
 def ElementwiseLeIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)))
+    module.forward(tu.randint(3, 4, low=-10, high=15))
 
 # ==============================================================================
 
@@ -295,7 +295,7 @@ class ElementwiseLeMixedIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLeMixedIntScalarModule())
 def ElementwiseLeMixedIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(-10, 15, (3, 4)).to(torch.int32))
+    module.forward(tu.randint(3, 4, low=-10, high=15).to(torch.int32))
 
 # ==============================================================================
 
@@ -354,7 +354,7 @@ class ElementwiseLtIntTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLtIntTensorModule())
 def ElementwiseLtIntTensorModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(10, (3, 5)), torch.randint(10, (5, )))
+    module.forward(tu.randint(3, 5, high=10), tu.randint(5, high=10))
 
 # ==============================================================================
 
@@ -393,7 +393,7 @@ class ElementwiseEqIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseEqIntScalarModule())
 def ElementwiseEqIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(2, 4, (5, 8)))
+    module.forward(tu.randint(5, 8, low=2, high=4))
 
 # ==============================================================================
 
@@ -413,7 +413,7 @@ class ElementwiseEqDiffWidthScalarModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: ElementwiseEqDiffWidthScalarModule())
 def ElementwiseEqDiffWidthScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(2, 4, (5, 8)).to(torch.int32))
+    module.forward(tu.randint(5, 8, low=2, high=4).to(torch.int32))
 
 # ==============================================================================
 
@@ -455,7 +455,7 @@ class ElementwiseEqIntTensorModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseEqIntTensorModule())
 def ElementwiseEqIntTensorModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(2, 4, (8, 5)), torch.randint(2, 4, (5, )))
+    module.forward(tu.randint(8, 5, low=2, high=4), tu.randint(5, low=2, high=4))
 
 # ==============================================================================
 
@@ -494,7 +494,7 @@ class ElementwiseNeIntScalarModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseNeIntScalarModule())
 def ElementwiseNeIntScalarModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(2, 4, (8, 5)))
+    module.forward(tu.randint(8, 5, low=2, high=4))
 
 # ==============================================================================
 
