@@ -76,6 +76,8 @@ Generated files are created in this directory, which is ignored by version contr
 
 ## Architecture
 
+![LTC Diagram](ltc_images/ltc_architecture.jpg)
+
 ### Tracing LTC graph
 
 The journey begins with a tensor in PyTorch on the `lazy` device, which may undergo a number of operations during its lifetime.
