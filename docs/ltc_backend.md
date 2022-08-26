@@ -76,7 +76,7 @@ Generated files are created in this directory, which is ignored by version contr
 
 ## Architecture
 
-![LTC Diagram](ltc_images/ltc_architecture.jpg)
+![LTC Diagram](ltc_images/ltc_architecture.png)
 
 ### Tracing LTC graph
 
@@ -93,7 +93,7 @@ previously registered in `RegisterLazy.cpp`.
 Next, `LazyNativeFunctions::tanh` from `LazyNativeFunctions.cpp` is called, which triggers the creation of a `Tanh` node, which is a subclass of `TorchMlirNode` and `torch::lazy::Node`, defined in `LazyIr.h`.
 These nodes are then tracked internally by LTC as the computation graph is traced out.
 
-![Tracing Tensors](ltc_images/tracing_tensors.jpg)
+![Tracing Tensors](ltc_images/tracing_tensors.png)
 
 ### Syncing Tensors
 
@@ -109,7 +109,7 @@ creates an instance of `TorchMlirLoweringContext`. Here, the `TorchMlirNode`s ar
 Next, `TorchMlirLoweringContext::Build` is executed and the final `jit::Graph` is sent to `torch_mlir::importJitFunctionAsFuncOp` to generate MLIR using the existing infrastructure from Torch-MLIR.
 At this point, a `TorchMlirComputation` is created containing the final `mlir::FuncOp`.
 
-![Syncing Tensors](ltc_images/syncing_tensors.jpg)
+![Syncing Tensors](ltc_images/syncing_tensors.png)
 
 ### Final Compilation and Execution
 
@@ -117,7 +117,7 @@ The `TorchMlirComputation` is sent to the vendor specific implementation of `Tor
 
 Finally, the compiled computation is sent to `TorchMlirBackendImpl::ExecuteComputation` to be executed on the vendor device, which produces some results to be send back to PyTorch.
 
-![Vendor Execution](ltc_images/vendor_execution.jpg)
+![Vendor Execution](ltc_images/vendor_execution.png)
 
 ## Implementing a custom backend
 
