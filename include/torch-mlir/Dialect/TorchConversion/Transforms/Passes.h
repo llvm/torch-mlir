@@ -41,9 +41,6 @@ void createTorchBackendToMhloBackendPipeline(
     const torch::Torch::TorchLoweringPipelineOptions &options);
 #endif
 
-std::unique_ptr<OperationPass<ModuleOp>>
-createVerifyInvariantsBeforeBackendLoweringPass();
-
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>

@@ -117,7 +117,7 @@ def main():
         sys.exit(1)
 
     # Run the tests.
-    results = run_tests(tests, config, args.sequential)
+    results = run_tests(tests, config, args.sequential, args.verbose)
 
     # Report the test results.
     failed = report_results(results, xfail_set, args.verbose)

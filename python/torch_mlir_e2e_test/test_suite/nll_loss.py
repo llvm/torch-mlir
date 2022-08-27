@@ -34,7 +34,7 @@ class NllLossModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule())
 def NllLossModule_basic(module, tu: TestUtils):
-  module.forward(tu.rand(2, 3), torch.randint(0, 3, (2,)))
+  module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
 class NllLossModule_mean(torch.nn.Module):
@@ -58,7 +58,7 @@ class NllLossModule_mean(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule_mean())
 def NllLossModule_mean_basic(module, tu: TestUtils):
-  module.forward(tu.rand(2, 3), torch.randint(0, 3, (2,)))
+  module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
 class NllLossModule_sum(torch.nn.Module):
@@ -82,7 +82,7 @@ class NllLossModule_sum(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule_sum())
 def NllLossModule_sum_basic(module, tu: TestUtils):
-  module.forward(tu.rand(2, 3), torch.randint(0, 3, (2,)))
+  module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
 class NllLossModule_1D(torch.nn.Module):
@@ -106,7 +106,7 @@ class NllLossModule_1D(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule_1D())
 def NllLossModule_1D_basic(module, tu: TestUtils):
-  module.forward(tu.rand(3), torch.randint(0, 3, ()))
+  module.forward(tu.rand(3), tu.randint(high=3))
 
 
 class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
@@ -131,7 +131,7 @@ class NllLossModule_ignore_index_out_of_bounds(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule_ignore_index_out_of_bounds())
 def NllLossModule_ignore_index_out_of_bounds_basic(module, tu: TestUtils):
-  module.forward(tu.rand(2, 3), torch.randint(0, 3, (2,)))
+  module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 class NllLossModule_backward(torch.nn.Module):
 

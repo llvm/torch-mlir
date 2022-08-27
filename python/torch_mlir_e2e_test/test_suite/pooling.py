@@ -489,7 +489,7 @@ class MaxPool2dWithIndicesBackwardStatic4DModule(torch.nn.Module):
     module_factory=lambda: MaxPool2dWithIndicesBackwardStatic4DModule())
 def MaxPool2dWithIndicesBackwardStatic4DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 7, 6), tu.rand(2, 4, 6, 5),
-                   torch.randint(16, (2, 4, 7, 6)))
+                   tu.randint(2, 4, 7, 6, high=16))
 
 
 class MaxPool2dWithIndicesBackwardStatic3DModule(torch.nn.Module):
@@ -519,7 +519,7 @@ class MaxPool2dWithIndicesBackwardStatic3DModule(torch.nn.Module):
     module_factory=lambda: MaxPool2dWithIndicesBackwardStatic3DModule())
 def MaxPool2dWithIndicesBackwardStatic3DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 7, 6), tu.rand(4, 6, 5),
-                   torch.randint(16, (4, 7, 6)))
+                   tu.randint(4, 7, 6, high=16))
 
 
 class MaxPool2dWithIndicesBackwardDynamic4DModule(torch.nn.Module):
@@ -549,7 +549,7 @@ class MaxPool2dWithIndicesBackwardDynamic4DModule(torch.nn.Module):
     module_factory=lambda: MaxPool2dWithIndicesBackwardDynamic4DModule())
 def MaxPool2dWithIndicesBackwardDynamic4DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 7, 6), tu.rand(2, 4, 6, 5),
-                   torch.randint(16, (2, 4, 7, 6)))
+                   tu.randint(2, 4, 7, 6, high=16))
 
 
 class MaxPool2dWithIndicesBackwardDynamic3DModule(torch.nn.Module):
@@ -579,7 +579,7 @@ class MaxPool2dWithIndicesBackwardDynamic3DModule(torch.nn.Module):
     module_factory=lambda: MaxPool2dWithIndicesBackwardDynamic3DModule())
 def MaxPool2dWithIndicesBackwardDynamic3DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 6), tu.rand(2, 6, 5),
-                   torch.randint(16, (2, 7, 6)))
+                   tu.randint(2, 7, 6, high=16))
 
 
 # ==============================================================================
@@ -632,7 +632,7 @@ class AvgPool2dIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AvgPool2dIntModule())
 def AvgPool2dIntModule_basic(module, tu: TestUtils):
-    module.forward(torch.randint(100, (2, 4, 20, 20)))
+    module.forward(tu.randint(2, 4, 20, 20, high=100))
 
 
 class AvgPool2dStaticModule(torch.nn.Module):

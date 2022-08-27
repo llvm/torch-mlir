@@ -6,7 +6,7 @@ Refer to the main documentation [here](ltc_backend.md).
 ```python
 import torch
 import torch._lazy
-import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
+import torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND as lazy_backend
 
 # Register the example LTC backend.
 lazy_backend._initialize()

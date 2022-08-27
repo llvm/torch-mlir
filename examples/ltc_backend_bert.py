@@ -113,7 +113,7 @@ def main(device='lazy', full_size=False):
     losses = train(model, num_epochs, num_training_steps, train_dataloader, device)
 
     # Get debug information from LTC
-    if 'torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND' in sys.modules:
+    if 'torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND' in sys.modules:
         computation = lazy_backend.get_latest_computation()
         if computation:
             print(computation.debug_string())
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":
-            import torch_mlir.reference_lazy_backend._REFERENCE_LAZY_BACKEND as lazy_backend
+            import torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND as lazy_backend
 
             lazy_backend._initialize()
 

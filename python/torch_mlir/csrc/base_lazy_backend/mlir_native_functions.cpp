@@ -302,10 +302,8 @@ at::Tensor LazyNativeFunctions::_to_copy(
 };
 
 at::Tensor LazyNativeFunctions::empty(
-    at::SymIntArrayRef sym_size,
-    c10::optional<at::ScalarType> dtype,
-    c10::optional<at::Layout> layout,
-    c10::optional<at::Device> device,
+    at::SymIntArrayRef sym_size, c10::optional<at::ScalarType> dtype,
+    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
     c10::optional<bool> pin_memory,
     c10::optional<at::MemoryFormat> memory_format) {
   // TODO: support this directly
@@ -321,9 +319,8 @@ at::Tensor LazyNativeFunctions::empty(
   // See Note [Lazy Tensor Functionalization]
   if (c10::impl::tls_local_dispatch_key_set().excluded_.has(
           c10::DispatchKey::Functionalize)) {
-    // Invariant: if the functionalization key is in the exclude set, then we're
-    // expected to return an ordinary tensor, which will be "lifted" into a
-    // functional wrapper later.
+    // Invariant: if the functionalization key is in the exclude set, then we're expected
+    // to return an ordinary tensor, which will be "lifted" into a functional wrapper later.
     return tensor;
   } else {
     auto wrapped = at::functionalization::impl::to_functional_tensor(tensor);
@@ -337,12 +334,8 @@ at::Tensor LazyNativeFunctions::empty_strided(
     c10::optional<at::Device> device, c10::optional<bool> pin_memory) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   at::Tensor t = empty(
-      c10::SymIntArrayRef::fromIntArrayRef(size),
-      dtype,
-      layout,
-      device,
-      pin_memory,
-      c10::nullopt);
+    c10::SymIntArrayRef::fromIntArrayRef(size),
+    dtype, layout, device, pin_memory, c10::nullopt);
   return t.as_strided(size, stride, /*storage_offset=*/0);
 }
 
@@ -361,8 +354,7 @@ LazyNativeFunctions::fill_(at::Tensor& self, const at::Scalar& value) {
 at::Tensor LazyNativeFunctions::_unsafe_view(
     const at::Tensor& self, at::IntArrayRef size) {
   TORCH_LAZY_FN_COUNTER("lazy::");
-  return LazyNativeFunctions::view_copy(
-      self, c10::SymIntArrayRef::fromIntArrayRef(size));
+  return LazyNativeFunctions::view_copy(self, c10::SymIntArrayRef::fromIntArrayRef(size));
 }
 
 // This is needed by the torch.tensor constructor.
@@ -397,14 +389,6 @@ at::Tensor LazyNativeFunctions::new_empty_strided(
           self, size, stride, dtype, layout, device, pin_memory);
 }
 
-at::Tensor LazyNativeFunctions::narrow_copy(
-    const at::Tensor& self,
-    int64_t dim,
-    c10::SymInt start,
-    c10::SymInt length) {
-  return at::functionalization::functionalize_aten_op<ATEN_OP(
-      narrow_copy)>::call(self, dim, start, length);
-}
 at::Tensor LazyNativeFunctions::pixel_shuffle(
     const at::Tensor& self, int64_t upscale_factor) {
   return at::functionalization::functionalize_aten_op<ATEN_OP(
@@ -439,11 +423,6 @@ at::Tensor LazyNativeFunctions::_trilinear(
     at::IntArrayRef sumdim, int64_t unroll_dim) {
   return at::functionalization::functionalize_aten_op<ATEN_OP(_trilinear)>::
       call(i1, i2, i3, expand1, expand2, expand3, sumdim, unroll_dim);
-}
-::std::tuple<at::Tensor, at::Tensor>
-LazyNativeFunctions::linalg_inv_ex(const at::Tensor& self, bool check_errors) {
-  return at::functionalization::functionalize_aten_op<ATEN_OP(
-      linalg_inv_ex)>::call(self, check_errors);
 }
 at::Tensor LazyNativeFunctions::linalg_pinv(
     const at::Tensor& self, const c10::optional<at::Tensor>& atol,

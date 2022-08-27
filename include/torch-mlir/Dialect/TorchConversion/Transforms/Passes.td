@@ -12,27 +12,6 @@
 
 include "mlir/Pass/PassBase.td"
 
-def VerifyInvariantsBeforeBackendLowering
-    : Pass<"torch-verify-invariants-before-backend-lowering", "ModuleOp"> {
-  let summary = "Verify invariants required by backend lowering";
-  let constructor =
-    "mlir::torch::TorchConversion::createVerifyInvariantsBeforeBackendLoweringPass()";
-  let description = [{
-    This pass checks any invariants needed by the process of lowering the
-    `torch` dialect to the linalg-on-tensors backend contract.
-
-    The most important invariant is that all tensors should be ranked and have
-    a known dtype. It is useful to catch this early because it usually
-    represents a simple bug in RefineTypes, but can manifest as many different
-    kinds of obscure symptoms during lowering.
-
-    TODO: This pass should probably be phrased as checking the
-    "torch backend contract" and moved to that dialect once we have more
-    substantial definition definition around what that layer is from an
-    "allowlist" perspective.
-  }];
-}
-
 def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "ModuleOp"> {
   let summary = "Convert functions to operate on builtin tensors";
   let constructor = "mlir::torch::TorchConversion::createFuncBackendTypeConversionPass()";
