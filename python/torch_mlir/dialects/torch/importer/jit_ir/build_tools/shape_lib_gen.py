@@ -1229,6 +1229,13 @@ def main(args):
     # Put the `〇` back to a regular `.`.
     asm = asm.replace("\\E3\\80\\87", ".")
 
+    # Write out the shape functions .mlir file.
+    shape_funcs_mlir_file = os.path.join(
+        args.torch_transforms_cpp_dir, "ShapeFunctions.mlir")
+    with open(shape_funcs_mlir_file, "w") as f:
+        p = lambda *args: print(*args, file=f)
+        p(f"{asm}")
+
     # Write out the shape library .cpp file.
     shape_lib_cpp_file = os.path.join(
         args.torch_transforms_cpp_dir, "ShapeLibrary.cpp")
@@ -1254,17 +1261,11 @@ f"""//===-------------------------------------------------------------*- C++-*-=
 using namespace mlir;
 
 StringRef mlir::torch::Torch::getShapeLibrary() {{
-// TODO: Find a way to embed this string nicely.
-// It is currently too long, and will probably break MSVC builds if anyone
-// attempts that.
-// We want to preserve the legibility of the shape library as a checked in file,
-// since that is sometimes useful for debugging / diffing.
-// Probably the ideal outcome is to have the shape library be a .mlir file
-// that is checked in, and then we embed it as part of the build process.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
   constexpr StringLiteral shapeLib(R"mlir(
-{asm})mlir");
+#include "ShapeFunctions.mlir"
+)mlir");
 #pragma clang diagnostic pop
   return shapeLib;
 }}""")
