@@ -289,6 +289,20 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenMaxOtherOp : public OpRewritePattern<AtenMaxOtherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaxOtherOp op,
+                                PatternRewriter &rewriter) const override {
+    Value input = op.self();
+    Value other = op.other();
+    rewriter.replaceOpWithNewOp<AtenMaximumOp>(op, op.getType(), input, other);
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 // To avoid overflow we use the following decomposition rule:
@@ -2881,6 +2895,8 @@ public:
     target.addIllegalOp<AtenNarrowOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
+    patterns.add<DecomposeAtenMaxOtherOp>(context);
+    target.addIllegalOp<AtenMaxOtherOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
