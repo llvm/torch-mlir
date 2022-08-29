@@ -7,10 +7,10 @@
 
 import torch
 
-from torch_mlir_e2e_test.torchscript.framework import run_tests, TestUtils
-from torch_mlir_e2e_test.torchscript.reporting import report_results
-from torch_mlir_e2e_test.torchscript.registry import register_test_case, GLOBAL_TEST_REGISTRY
-from torch_mlir_e2e_test.torchscript.configs import TorchScriptTestConfig
+from torch_mlir_e2e_test.framework import run_tests, TestUtils
+from torch_mlir_e2e_test.reporting import report_results
+from torch_mlir_e2e_test.registry import register_test_case, GLOBAL_TEST_REGISTRY
+from torch_mlir_e2e_test.configs import TorchScriptTestConfig
 
 class Submodule2(torch.nn.Module):
     def __init__(self):

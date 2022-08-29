@@ -7,7 +7,7 @@ import torch
 from torch.utils._pytree import tree_map
 
 from torch_mlir.eager_mode.torch_mlir_tensor import TorchMLIRTensor
-from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 
 def wrap(e):

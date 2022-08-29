@@ -9,7 +9,7 @@ import torch
 import torch_mlir
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.abc import LinalgOnTensorsBackend
-from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 
 from .utils import (

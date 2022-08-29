@@ -7,7 +7,7 @@ import torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND as lazy_backend
 import torch
 from torch.utils._pytree import tree_map
 
-from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 
 def to_device(device):

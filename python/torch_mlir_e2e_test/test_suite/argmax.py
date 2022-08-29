@@ -4,9 +4,9 @@
 
 import torch
 
-from torch_mlir_e2e_test.torchscript.framework import TestUtils
-from torch_mlir_e2e_test.torchscript.registry import register_test_case
-from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
+from torch_mlir_e2e_test.framework import TestUtils
+from torch_mlir_e2e_test.registry import register_test_case
+from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
@@ -63,4 +63,3 @@ class ArgmaxKeepDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ArgmaxKeepDimsModule())
 def ArgmaxModule_keepDim(module, tu: TestUtils):
     module.forward(tu.rand(4, 6))
-

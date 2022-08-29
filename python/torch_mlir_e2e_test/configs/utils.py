@@ -3,16 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-import sys
 from typing import Any
-from io import StringIO
 
 import numpy as np
 import torch
-
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
-from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
-from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 
 def recursively_convert_to_numpy(o: Any):
