@@ -183,4 +183,5 @@ jobs:
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+        echo "LTC tests disabled temporarily. https://github.com/llvm/torch-mlir/pull/1292"
+        # python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
