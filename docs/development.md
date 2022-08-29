@@ -205,11 +205,11 @@ Torch-MLIR has two types of tests:
 
 ```shell
 # Run all tests on the reference backend
-./tools/torchscript_e2e_test.sh
+./tools/e2e_test.sh
 # Run tests that match the regex `Conv2d`, with verbose errors.
-./tools/torchscript_e2e_test.sh --filter Conv2d --verbose
+./tools/e2e_test.sh --filter Conv2d --verbose
 # Run tests on the TOSA backend.
-./tools/torchscript_e2e_test.sh --config tosa
+./tools/e2e_test.sh --config tosa
 ```
 
 ## Running unit tests.
@@ -310,10 +310,10 @@ Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 
 To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
 work" with all C++ tools like `torch-mlir-opt`. When running a Python script
-such as through `./tools/torchscript_e2e_test.sh`, you will need to do:
+such as through `./tools/e2e_test.sh`, you will need to do:
 
 ```
-LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/torchscript_e2e_test.sh -s
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./tools/e2e_test.sh -s
 # See instructions here for how to get the libasan path for GCC:
 # https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
 ```

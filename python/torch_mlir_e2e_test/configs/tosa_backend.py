@@ -8,12 +8,8 @@ from typing import Any
 import torch
 import torch_mlir
 
-from torch_mlir_e2e_test.mhlo_backends.abc import MhloBackend
-from torch_mlir_e2e_test.torchscript.framework import (
-    TestConfig,
-    Trace,
-    TraceItem
-)
+from torch_mlir_e2e_test.tosa_backends.abc import TosaBackend
+from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 from .utils import (
     recursively_convert_to_numpy,
@@ -21,22 +17,24 @@ from .utils import (
 )
 
 
-class MhloBackendTestConfig(TestConfig):
+class TosaBackendTestConfig(TestConfig):
     """Base class for TestConfig's that are implemented with linalg-on-tensors.
 
     This class handles all the common lowering that torch-mlir does before
     reaching the linalg-on-tensors abstraction level.
     """
-    def __init__(self, backend: MhloBackend):
+    def __init__(self, backend: TosaBackend):
         super().__init__()
         self.backend = backend
 
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torch_mlir.compile(
-            program, example_args, output_type="mhlo")
+            program, example_args, output_type="tosa")
 
         return self.backend.compile(module)
+
+
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
         backend_module = self.backend.load(artifact)

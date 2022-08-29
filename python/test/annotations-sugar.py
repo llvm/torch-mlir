@@ -7,7 +7,7 @@
 
 import torch
 
-from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
+from torch_mlir_e2e_test.annotations import annotate_args, export
 from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator
 from torch_mlir.dialects.torch.importer.jit_ir.torchscript_annotations import extract_annotations
 
