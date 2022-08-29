@@ -515,7 +515,7 @@ class _ConvolutionDeprecated2DCudnnModule(torch.nn.Module):
                                            cudnn_enabled=True)
 
 @register_test_case(module_factory=lambda: _ConvolutionDeprecated2DCudnnModule())
-def _Convolution2DCudnnModule_basic(module, tu: TestUtils):
+def _ConvolutionDeprecated2DCudnnModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 3, 10, 10), torch.randn(3, 3, 2, 2))
 
 class ConvolutionModule2DGroups(torch.nn.Module):
