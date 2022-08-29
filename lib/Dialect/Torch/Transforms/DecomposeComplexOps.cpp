@@ -1214,9 +1214,18 @@ public:
           op, "expected `dim` to be `None` or constructed from list construct");
     }
 
+    // Upcasting the input tensor to `F64` dtype for higher precision during the
+    // computation of the result.
+    BaseTensorType outputTensorType = outputType.cast<BaseTensorType>();
+    Type outputTypeAsF64 = outputTensorType.getWithSizesAndDtype(
+              outputTensorType.getSizes(), rewriter.getF64Type());;
+    if (inputType.getDtype().getIntOrFloatBitWidth() != 64) {
+      input = convertTensorToDtype(rewriter, loc, input, rewriter.getF64Type());
+    }
+
     // Compute sum along dimensions specified in `dimList`.
     Value sumAlongDims = rewriter.create<AtenSumDimIntListOp>(
-        loc, outputType, input, dimList, keepDim, dtype);
+        loc, outputTypeAsF64, input, dimList, keepDim, dtype);
 
     // `productDimSize` is product of sizes of dimensions to be reduced.
     Value productDimSize;
@@ -1232,8 +1241,12 @@ public:
             rewriter.create<AtenMulIntOp>(loc, productDimSize, dimSize);
       }
     }
-    rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, sumAlongDims,
+    Value result = rewriter.create<AtenDivScalarOp>(loc, outputTypeAsF64, sumAlongDims,
                                                  productDimSize);
+    if (outputTensorType.getDtype().getIntOrFloatBitWidth() != 64) {
+      result = convertTensorToDtype(rewriter, loc, result, outputTensorType.getDtype());
+    }
+    rewriter.replaceOp(op, result);
     return success();
   }
 };

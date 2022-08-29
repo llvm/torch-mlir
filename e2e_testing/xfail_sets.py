@@ -31,7 +31,6 @@ MHLO_PASS_SET = {
     "SqueezeDimModule_unitDim",
     "MeanModule_basic",
     "MeanDynamicSizesModule_basic",
-    "MeanDimEmptyDimModule_basic",
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
     "AvgPool2dStaticModule_basic",

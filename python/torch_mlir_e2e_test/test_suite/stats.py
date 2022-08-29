@@ -221,6 +221,46 @@ def MeanDimNoneDimModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class MeanDimLargeInputModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.mean(x, (2, 3))
+
+
+@register_test_case(module_factory=lambda: MeanDimLargeInputModule())
+def MeanDimLargeInputModule_basic(module, tu: TestUtils):
+    module.forward(100 + tu.rand(3, 4, 1024, 8192))
+
+# ==============================================================================
+
+class MeanDimLargeInputDtypeModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.mean(x, (2, 3), dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: MeanDimLargeInputDtypeModule())
+def MeanDimLargeInputDtypeModule_basic(module, tu: TestUtils):
+    module.forward(100 + tu.rand(3, 4, 1024, 8192))
+
+# ==============================================================================
+
 class VarUnbiasedModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
