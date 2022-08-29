@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import logging
 import os
+import platform
 import re
 import subprocess
 import warnings
@@ -213,18 +214,21 @@ class GenTorchMlirLTC:
 
         # use ripgrep if available as its much faster
         if which("rg") is not None:
-            cmd = ["rg", "-o", "-N", r"aten::[0-9a-zA-Z_\.]+"]
+            cmd = ["rg", "-o", "-N", r"aten::[0-9a-zA-Z_\.]+", str(self.torch_ops_file)]
+        elif which("grep") is not None:
+            cmd = ["grep", "-o", r"aten::[0-9a-zA-Z_\.]\+", str(self.torch_ops_file)]
         else:
-            cmd = ["grep", "-o", r"aten::[0-9a-zA-Z_\.]\+"]
+            cmd = f"for /f \"tokens=7 delims=` \" %a in ('findstr /R /C:\"aten::\" {self.torch_ops_file}') do @echo %a"
 
         torch_ops = set(
             op[6:]
             for op in subprocess.check_output(
-                cmd + [str(self.torch_ops_file)],
+                cmd,
                 encoding="utf-8",
+                shell=True if platform.system() == "Windows" else False
             )
             .strip()
-            .split(os.linesep)
+            .split()
         )
         torch_opnames = get_opnames(torch_ops)
 
