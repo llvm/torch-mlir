@@ -13,7 +13,6 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
 
   DEPENDS
   MhloDialect
-  ChloDialect
   MhloToLinalg
   MLIRMhloPassIncGen
   TorchMLIRConversionPassIncGen
@@ -22,11 +21,12 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   Core
 
   LINK_LIBS PUBLIC
+  ChloOps
   MLIRIR
   MLIRPass
   MhloDialect
-  ChloDialect
   MhloToLinalg
+  StablehloBase
   TorchMLIRTorchDialect
 )
 
