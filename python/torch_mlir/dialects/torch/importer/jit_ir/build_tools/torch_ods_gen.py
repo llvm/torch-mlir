@@ -502,6 +502,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::squeeze_copy : (Tensor) -> (Tensor)")
     emit("aten::squeeze_copy.dim : (Tensor, int) -> (Tensor)")
     emit("aten::t_copy : (Tensor) -> (Tensor)")
+    emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
+    emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::transpose_copy.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::unsqueeze_copy : (Tensor, int) -> (Tensor)")
     emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")

@@ -319,6 +319,9 @@ def aten〇triu(self: List[int], diagonal: int = 0) -> List[int]:
 def aten〇tanh(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇lift_fresh_copy(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇erf(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -562,6 +565,12 @@ def aten〇argmax(self: List[int], dim: Optional[int] = None, keepdim: bool = Fa
 
 def aten〇any〇dim(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return _reduce_along_dim(self, dim, keepdim)
+
+def aten〇cumsum(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇bitwise_not(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
 
 def aten〇max〇dim(self: List[int], dim: int, keepdim: bool = False) -> Tuple[List[int], List[int]]:
     reduced_shape = _reduce_along_dim(self, dim, keepdim)
@@ -832,6 +841,9 @@ def aten〇mul〇Tensor(self: List[int], other: List[int]) -> List[int]:
 
 def aten〇div〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
+
+def aten〇pow〇Tensor_Tensor(self: List[int], exponent: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, exponent)
 
 def aten〇div〇Tensor_mode(self: List[int], other: List[int], rounding_mode: Optional[str]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
