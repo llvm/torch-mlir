@@ -5,7 +5,7 @@
 
 import argparse
 
-from torch_mlir_e2e_test.torchscript.serialization import serialize_all_tests_to
+from torch_mlir_e2e_test.serialization import serialize_all_tests_to
 
 from . import hf_sequence_classification
 from . import vision_models

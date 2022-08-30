@@ -8,23 +8,27 @@ from typing import Any
 
 import torch
 
-from torch_mlir_e2e_test.torchscript.framework import TestConfig, Trace, TraceItem
+from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 
-class NativeTorchTestConfig(TestConfig):
-    """TestConfig that just runs the torch.nn.Module without compiling"""
+class TorchScriptTestConfig(TestConfig):
+    """TestConfig that runs the torch.nn.Module through TorchScript"""
     def __init__(self):
         super().__init__()
 
-    def compile(self, program: torch.nn.Module) -> torch.nn.Module:
-        return program
+    def compile(self, program: torch.nn.Module) -> torch.jit.ScriptModule:
+        return torch.jit.script(program)
 
-    def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
-        # TODO: Deepcopy the torch.nn.Module, so that if the program is
+    def run(self, artifact: torch.jit.ScriptModule, trace: Trace) -> Trace:
+        # TODO: Deepcopy the torch.jit.ScriptModule, so that if the program is
         # stateful then it does not mutate the original compiled program.
+
         result: Trace = []
         for item in trace:
-            output = getattr(artifact, item.symbol)(*item.inputs)
+            attr = artifact
+            for part in item.symbol.split('.'):
+                attr = getattr(attr, part)
+            output = attr(*item.inputs)
             result.append(
                 TraceItem(symbol=item.symbol,
                           inputs=item.inputs,

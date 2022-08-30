@@ -7,14 +7,14 @@ import argparse
 import re
 import sys
 
-from torch_mlir_e2e_test.torchscript.framework import run_tests
-from torch_mlir_e2e_test.torchscript.reporting import report_results
-from torch_mlir_e2e_test.torchscript.registry import GLOBAL_TEST_REGISTRY
-from torch_mlir_e2e_test.torchscript.serialization import deserialize_all_tests_from
+from torch_mlir_e2e_test.framework import run_tests
+from torch_mlir_e2e_test.reporting import report_results
+from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
+from torch_mlir_e2e_test.serialization import deserialize_all_tests_from
 
 
 # Available test configs.
-from torch_mlir_e2e_test.torchscript.configs import (
+from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
     LinalgOnTensorsBackendTestConfig,
     MhloBackendTestConfig,
@@ -62,7 +62,7 @@ The directory containing serialized pre-built tests.
 Right now, these are additional tests which require heavy Python dependencies
 to generate (or cannot even be generated with the version of PyTorch used by
 torch-mlir).
-See `build_tools/torchscript_e2e_heavydep_tests/generate_serialized_tests.sh`
+See `build_tools/e2e_heavydep_tests/generate_serialized_tests.sh`
 for more information on building these artifacts.
 ''')
     parser.add_argument('-s', '--sequential',
@@ -117,7 +117,7 @@ def main():
         sys.exit(1)
 
     # Run the tests.
-    results = run_tests(tests, config, args.sequential)
+    results = run_tests(tests, config, args.sequential, args.verbose)
 
     # Report the test results.
     failed = report_results(results, xfail_set, args.verbose)

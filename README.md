@@ -93,4 +93,4 @@ The project follows the conventions of typical MLIR-based projects:
 * `python` top level directory for Python code
 
 ## Developers
-If you would like to develop and build torch-mlir from source please look at [Development Notes](development.md)
+If you would like to develop and build torch-mlir from source please look at [Development Notes](docs/development.md)
