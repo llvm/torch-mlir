@@ -9,9 +9,9 @@ from functorch import make_fx
 from torch.nn.utils import _stateless
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-from torch_mlir_e2e_test.torchscript.framework import TestUtils
-from torch_mlir_e2e_test.torchscript.registry import register_test_case
-from torch_mlir_e2e_test.torchscript.annotations import annotate_args, export
+from torch_mlir_e2e_test.framework import TestUtils
+from torch_mlir_e2e_test.registry import register_test_case
+from torch_mlir_e2e_test.annotations import annotate_args, export
 
 from torch import fx
 import copy

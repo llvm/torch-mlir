@@ -341,15 +341,15 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
     if mp.cpu_count() == 2:
         num_processes = 1
 
+    # Sort the tests to make output nicer.
+    tests = list(sorted(tests, key=lambda t: t.unique_name))
+
     # TODO: If num_processes == 1, then run without any of the multiprocessing
     # machinery. In theory it should work, but any crash in the testing process
     # seems to cause a cascade of failures resulting in undecipherable error
     # messages.
     if num_processes == 1 or sequential:
         return [compile_and_run_test(test, config, verbose) for test in tests]
-
-    # Sort the tests to make output nicer.
-    tests = list(sorted(tests, key=lambda t: t.unique_name))
 
     # To run e2e tests in parallel:
     # The tests are put into a synchronized queue. Multiple worker processes are

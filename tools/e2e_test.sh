@@ -9,4 +9,4 @@ cd "$src_dir"
 export PYTHONPATH=${PYTHONPATH-}
 source .env
 
-python -m e2e_testing.torchscript.main "$@"
+python -m e2e_testing.main "$@"

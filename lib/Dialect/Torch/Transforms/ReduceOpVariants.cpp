@@ -55,9 +55,9 @@ static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
 namespace {
 // Convert value semantic ops operating on mutable arrays to instead operate on
 // immutable tensors.
-class ConvertToImmutableTensors : public RewritePattern {
+class ConvertHasValueSemanticsOpsToValueTensors : public RewritePattern {
 public:
-  ConvertToImmutableTensors(MLIRContext *context)
+  ConvertHasValueSemanticsOpsToValueTensors(MLIRContext *context)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, context) {}
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -260,7 +260,7 @@ class ReduceOpVariantsPass : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns.add<ConvertToImmutableTensors>(context);
+    patterns.add<ConvertHasValueSemanticsOpsToValueTensors>(context);
     patterns.add<ReduceTrailingUnderscoreInplaceVariant>(context);
     patterns.add(reduceNonValueTensorLiteralOpToValueTensorLiteralOp);
     patterns.add<ReduceNonValueSemanticOps>(context);

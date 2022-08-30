@@ -4,7 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 from torch_mlir import TensorPlaceholder
-from torch_mlir_e2e_test.torchscript.annotations import TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME
+from torch_mlir_e2e_test.annotations import TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME
 
 def convert_annotations_to_placeholders(forward_method):
     """Converts the annotations on a forward method into tensor placeholders.

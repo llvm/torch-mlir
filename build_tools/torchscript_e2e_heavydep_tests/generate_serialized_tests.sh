@@ -38,4 +38,4 @@ cd "$torch_mlir_src_root"
 export PYTHONPATH=${PYTHONPATH-}
 source "$torch_mlir_src_root/.env"
 
-python3 -m build_tools.torchscript_e2e_heavydep_tests.main --output_dir="$serialized_test_dir"
+python3 -m build_tools.e2e_heavydep_tests.main --output_dir="$serialized_test_dir"

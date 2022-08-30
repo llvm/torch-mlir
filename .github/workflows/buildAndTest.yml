@@ -155,32 +155,47 @@ jobs:
       run: |
         cmake --build build --target check-torch-mlir-all
 
+    - name: Ensure generated files are up to date
+      if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
+      run: |
+        ./build_tools/update_torch_ods.sh
+        ./build_tools/update_shape_lib.sh
+        if ! git diff --quiet; then
+          echo "#######################################################"
+          echo "Generated files are not up to date (see diff below)"
+          echo ">>> Please run ./build_tools/update_torch_ods.sh and ./build_tools/update_shape_lib.sh <<<"
+          echo "#######################################################"
+          git diff --color=always
+          exit 1
+        fi
+
     - name: Run refbackend e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=refbackend -v
+        python -m e2e_testing.main --config=refbackend -v
 
     - name: Run eager_mode e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=eager_mode -v
+        python -m e2e_testing.main --config=eager_mode -v
 
     - name: Run mhlo e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=mhlo -v
+        python -m e2e_testing.main --config=mhlo -v
 
     - name: Run tosa e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=tosa -v
+        python -m e2e_testing.main --config=tosa -v
 
     - name: Run lazy_tensor_core e2e integration tests
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' && matrix.llvm-build == 'in-tree' }}
       run: |
         export PYTHONPATH="$GITHUB_WORKSPACE/build/tools/torch-mlir/python_packages/torch_mlir"
-        python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+        echo "LTC tests disabled temporarily. https://github.com/llvm/torch-mlir/pull/1292"
+        # python -m e2e_testing.main --config=lazy_tensor_core -v
