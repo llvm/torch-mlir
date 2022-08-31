@@ -14,6 +14,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
@@ -70,6 +72,29 @@ static Value createTMTensorScatterOp(
   Value originalElement = blockArgs[1];
   bodyBuild(regionBuilder, loc, updatesElement, originalElement);
   return scatterOp->getResult(0);
+}
+
+static Value createTMTensorScanOp(
+    OpBuilder &b, Location loc, Value input, Value output, Value accumulator,
+    int64_t dim, bool inclusive,
+    function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
+  auto inputType = input.getType().cast<RankedTensorType>();
+  auto accType = accumulator.getType().cast<RankedTensorType>();
+  Type elementType = inputType.getElementType();
+  auto scanOp =
+      b.create<TMTensor::ScanOp>(loc, TypeRange{inputType, accType}, input,
+                                 ValueRange{output, accumulator},
+                                 b.getI64IntegerAttr(dim), b.getBoolAttr(true));
+
+  Region &scanOpRegion = scanOp.region();
+  auto &scanOpBlock = scanOpRegion.emplaceBlock();
+  scanOpBlock.addArguments({elementType, elementType}, {loc, loc});
+  OpBuilder regionBuilder(scanOpRegion);
+  auto blockArgs = scanOpBlock.getArguments();
+  Value inputElement = blockArgs[0];
+  Value accElement = blockArgs[1];
+  bodyBuild(regionBuilder, loc, inputElement, accElement);
+  return scanOp->getResult(0);
 }
 
 namespace {
@@ -523,6 +548,50 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenCumsumOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Value input = adaptor.self();
+    auto resultType = input.getType().cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
+    Location loc = op->getLoc();
+    SmallVector<Value> sizes = getTensorSizes(rewriter, loc, input);
+    Value output = createZeroInitTensor(rewriter, loc, sizes, elementType);
+    output = rewriter.create<tensor::CastOp>(loc, resultType, output);
+
+    int64_t dim;
+    if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+
+    sizes.erase(sizes.begin() + dim);
+    SmallVector<int64_t> accStatic(resultType.getShape());
+    accStatic.erase(accStatic.begin() + dim);
+    Value acc = createZeroInitTensor(rewriter, loc, sizes, elementType);
+    Type accType = RankedTensorType::get(accStatic, elementType);
+    acc = rewriter.create<tensor::CastOp>(loc, accType, acc);
+
+    Value result = createTMTensorScanOp(
+        rewriter, loc, input, output, acc, dim, true,
+        [](OpBuilder &b, Location loc, Value input, Value acc) {
+          Value sum = (input.getType().isa<mlir::FloatType>()
+                           ? b.create<arith::AddFOp>(loc, input, acc)
+                           : b.create<arith::AddIOp>(loc, input, acc))
+                          ->getResult(0);
+          b.create<TMTensor::YieldOp>(loc, sum);
+        });
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+    return success();
+  }
+};
+} // namespace
+
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
@@ -560,6 +629,8 @@ public:
     target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);
+    target.addIllegalOp<AtenCumsumOp>();
+    patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
