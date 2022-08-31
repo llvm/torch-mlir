@@ -6,7 +6,7 @@
 // Also available under a BSD-style license. See LICENSE.
 //
 //===----------------------------------------------------------------------===//
-
+#ifdef TORCH_MLIR_ENABLE_MHLO
 #include "PassDetail.h"
 
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
@@ -70,3 +70,4 @@ std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::TorchConversion::createVerifyMhloBackendContractPass() {
   return std::make_unique<VerifyMhloBackendContractPass>();
 }
+#endif // TORCH_MLIR_ENABLE_MHLO

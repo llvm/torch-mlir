@@ -42,8 +42,10 @@ def VerifyTosaBackendContract : Pass<"torch-verify-tosa-backend-contract", "Modu
   let constructor = "mlir::torch::TorchConversion::createVerifyTosaBackendContractPass()";
 }
 
+#ifdef TORCH_MLIR_ENABLE_MHLO
 def VerifyMhloBackendContract : Pass<"torch-verify-mhlo-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the mhlo backend contract";
   let constructor = "mlir::torch::TorchConversion::createVerifyMhloBackendContractPass()";
 }
+#endif // TORCH_MLIR_ENABLE_MHLO
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES
