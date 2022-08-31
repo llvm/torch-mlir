@@ -186,6 +186,39 @@ function build_in_tree() {
   ccache -s
 }
 
+function _check_file_not_changed_by() {
+  # _check_file_not_changed_by <cmd> <file>
+  cmd="$1"
+  file="$2"
+  file_backup="$PWD/$(basename $file)"
+  file_new="$PWD/$(basename $file).new"
+  # Save the original file.
+  cp "$file" "$file_backup"
+  # Run the command to regenerate it.
+  "$1" || return 1
+  # Save the new generated file.
+  cp "$file" "$file_new"
+  # Restore the original file. We want this function to not change the user's
+  # working tree state.
+  mv "$file_backup" "$file"
+  # We use git-diff as "just a diff program" (no SCM stuff) because it has
+  # nicer output than regular `diff`.
+  if ! git diff --quiet "$file" "$file_new"; then
+    echo "#######################################################"
+    echo "Generated file '${file}' is not up to date (see diff below)"
+    echo ">>> Please run '${cmd}' to update it <<<"
+    echo "#######################################################"
+    git diff --color=always "$file" "$file_new"
+    # TODO: Is there a better cleanup strategy that doesn't require duplicating
+    # this inside and outside the `if`?
+    rm "$file_new"
+    rm "$file_backup"
+    return 1
+  fi
+  rm "$file_new"
+  rm "$file_backup"
+}
+
 function test_in_tree() {
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
@@ -193,19 +226,11 @@ function test_in_tree() {
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
-  echo ":::: Run shapelib update tests"
-  if ! ./build_tools/update_shape_lib.sh; then
-    echo Shape Lib is out of date with the installed PyTorch version
-  else
-    echo Shape Lib is up to date
-  fi
+  echo ":::: Check that update_shape_lib.sh has been run"
+  _check_file_not_changed_by ./build_tools/update_shape_lib.sh lib/Dialect/Torch/Transforms/ShapeLibrary.cpp
 
-  echo ":::: Run torch_ods update tests"
-  if ! ./build_tools/update_torch_ods.sh; then
-    echo Torch ODS is out of date with the installed PyTorch version
-  else
-    echo Torch ODS is up to date
-  fi
+  echo ":::: Check that update_torch_ods.sh has been run"
+  _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
 
   echo ":::: Run refbackend e2e integration tests"
   python -m e2e_testing.main --config=refbackend -v
@@ -216,8 +241,8 @@ function test_in_tree() {
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
 
-  echo ":::: Run Lazy Tensor Core e2e integration tests"
   # Temporarily disabled in top of main (https://github.com/llvm/torch-mlir/pull/1292)
+  #echo ":::: Run Lazy Tensor Core e2e integration tests"
   #python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
 }
 
