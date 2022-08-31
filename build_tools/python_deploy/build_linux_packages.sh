@@ -193,6 +193,20 @@ function test_in_tree() {
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
+  echo ":::: Run shapelib update tests"
+  if ! ./build_tools/update_shape_lib.sh; then
+    echo Shape Lib is out of date with the installed PyTorch version
+  else
+    echo Shape Lib is up to date
+  fi
+
+  echo ":::: Run torch_ods update tests"
+  if ! ./build_tools/update_torch_ods.sh; then
+    echo Torch ODS is out of date with the installed PyTorch version
+  else
+    echo Torch ODS is up to date
+  fi
+
   echo ":::: Run refbackend e2e integration tests"
   python -m e2e_testing.main --config=refbackend -v
 
