@@ -12,6 +12,7 @@ set(LinkedLibs  MLIRIR
                 
 if(TORCH_MLIR_ENABLE_MHLO)
   list(APPEND LinkedLibs ChloPasses)
+  list(APPEND MhloContract VerifyMhloBackendContract.cpp)
 endif()
 
 add_mlir_library(TorchMLIRTorchConversionPasses
@@ -20,6 +21,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   Passes.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
+  ${MhloContract}
 
 
   ADDITIONAL_HEADER_DIRS
