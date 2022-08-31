@@ -32,3 +32,12 @@ PYTHONPATH="${pypath}" python \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
   --pytorch_op_extensions="${ext_module}" \
   --debug_registry_dump="${torch_ir_include_dir}/JITOperatorRegistryDump.txt"
+
+if ! git diff --quiet ./include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td &> /dev/null; then
+  echo "#######################################################"
+  echo "Generated files are not up to date (see diff below)"
+  echo ">>> Please verify you are running the latest PyTorch nightly or source build and if required push these changes up for review <<<"
+  echo "#######################################################"
+  git diff --color=always ./include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+  exit 1
+fi
