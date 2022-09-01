@@ -57,7 +57,7 @@ jobs:
       with:
         cache-suffix: ${{ matrix.os-arch }}-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
 
-    - name: Configure os-arch='ubuntu-x86_64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
+    - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
