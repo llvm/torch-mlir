@@ -99,7 +99,6 @@ function run_on_host() {
     --volume="/etc/passwd:/etc/passwd:ro" \
     --volume="/etc/shadow:/etc/shadow:ro" \
     --ipc=host \
-    --ulimit nofile=32768:32768 \
     -e __MANYLINUX_BUILD_WHEELS_IN_DOCKER=1 \
     -e "TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION}" \
     -e "TM_PYTHON_VERSIONS=${TM_PYTHON_VERSIONS}" \
