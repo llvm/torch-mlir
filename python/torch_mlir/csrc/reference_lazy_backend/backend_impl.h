@@ -25,5 +25,8 @@ void InitReferenceLazyBackend();
 
 ComputationPtr& GetLatestComputation();
 
+
+size_t MarkOutputTensors(const std::vector<at::Tensor>& tensors, const bool append);
+
 } // namespace lazy
 } // namespace torch

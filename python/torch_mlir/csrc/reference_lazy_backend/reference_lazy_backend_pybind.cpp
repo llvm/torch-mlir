@@ -10,14 +10,17 @@
 #include "torch/csrc/jit/python/pybind.h"
 #include "torch/csrc/lazy/backend/backend_interface.h"
 
+#include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
 #include <torch_mlir/csrc/base_lazy_backend/mlir_lowering_context.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/sys_utils.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/tensor_utils.h>
 
 #include <exception>
+#include <iomanip>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 #include "backend_impl.h"
 
@@ -83,6 +86,66 @@ PYBIND11_MODULE(_REFERENCE_LAZY_BACKEND, m) {
                 return true;
             }
             return false;
+        });
+  m.def("mark_output_tensors",
+        [](const std::vector<at::Tensor>& tensors, const bool append) -> size_t {
+            return torch::lazy::MarkOutputTensors(tensors, append);
+        },
+        py::arg("tensors"),
+        py::arg("append") = false
+  );
+  m.def("get_tensor_address",
+        [](const at::Tensor& tensor) -> std::string {
+            auto device = torch::lazy::GetBackendDevice(tensor);
+            TORCH_CHECK(device);
+            torch::lazy::LazyTensorPtr lazy_tensor = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(tensor, *device);
+
+            std::ostringstream out;
+            out << std::hex << (void*) lazy_tensor.get() << std::dec;
+            return out.str();
+        });
+  m.def("get_handle_address",
+        [](const at::Tensor& tensor) -> std::string {
+            auto device = torch::lazy::GetBackendDevice(tensor);
+            TORCH_CHECK(device);
+            torch::lazy::LazyTensorPtr lazy_tensor = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(tensor, *device);
+
+            torch::lazy::BackendDataPtr handle = lazy_tensor->CurrentDataHandle();
+            if (!handle) {
+              auto* device_data = device_data_cast(lazy_tensor->GetIrValue());
+              if (device_data) {
+                handle = device_data->data();
+              }
+            }
+
+            std::ostringstream out;
+            out << std::hex << (void*) handle.get() << std::dec;
+            return out.str();
+        });
+  m.def("get_device_data_address",
+        [](const at::Tensor& tensor) -> std::string {
+            auto device = torch::lazy::GetBackendDevice(tensor);
+            TORCH_CHECK(device);
+            torch::lazy::LazyTensorPtr lazy_tensor = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(tensor, *device);
+
+            torch::lazy::BackendDataPtr handle = nullptr;
+            auto* device_data = device_data_cast(lazy_tensor->GetIrValue());
+            if (device_data) {
+              handle = device_data->data();
+            }
+
+            std::ostringstream out;
+            out << std::hex << (void*) handle.get() << std::dec;
+            return out.str();
+        });
+  m.def("get_unique_id",
+        [](const at::Tensor& tensor) -> int64_t {
+            auto device = torch::lazy::GetBackendDevice(tensor);
+            TORCH_CHECK(device);
+            torch::lazy::LazyTensorPtr lazy_tensor = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(tensor, *device);
+            TORCH_CHECK(lazy_tensor);
+
+            return lazy_tensor->GetUniqueId();
         });
   m.def("_initialize", []() {
     NoGilSection gil;

@@ -7,6 +7,28 @@
 namespace torch {
 namespace lazy {
 
+bool is_detach_copy(const torch::lazy::Value& value) {
+    return value->op() == torch::lazy::DetachCopy::ClassOpKind();
+}
+
+torch::lazy::DeviceData* device_data_cast(const torch::lazy::Value& value) {
+    if (!value) {
+        return nullptr;
+    }
+    torch::lazy::TorchMlirNode* node = dynamic_cast<torch::lazy::TorchMlirNode*>(value.node.get());
+    while(node) {
+        if (node->op() == torch::lazy::DeviceData::ClassOpKind()) {
+            return dynamic_cast<torch::lazy::DeviceData*>(node);
+        }
+        else if (node->op() == torch::lazy::DetachCopy::ClassOpKind()) {
+            node = node->mlir_node(0);
+        }
+        else {
+            break;
+        }
+    }
+}
+
 torch::lazy::DeviceData* device_data_cast(
     const at::Tensor& tensor, c10::optional<torch::lazy::BackendDevice> device
 ) {
@@ -16,21 +38,7 @@ torch::lazy::DeviceData* device_data_cast(
     TORCH_CHECK(device);
     torch::lazy::LazyTensorPtr lazy_tensor = torch::lazy::GetLtcTensorOrCreateForWrappedNumber(tensor, *device);
     if (lazy_tensor) {
-        torch::lazy::Value param_value = lazy_tensor->GetIrValue();
-        if (param_value) {
-            torch::lazy::TorchMlirNode* node = dynamic_cast<torch::lazy::TorchMlirNode*>(param_value.node.get());
-            while(node) {
-                if (node->op() == torch::lazy::DeviceData::ClassOpKind()) {
-                    return dynamic_cast<torch::lazy::DeviceData*>(node);
-                }
-                else if (node->op() == torch::lazy::DetachCopy::ClassOpKind()) {
-                    node = node->mlir_node(0);
-                }
-                else {
-                    break;
-                }
-            }
-        }
+        return device_data_cast(lazy_tensor->GetIrValue());
     }
     return nullptr;
 }

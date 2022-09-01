@@ -8,6 +8,7 @@ Example use of the example Torch MLIR LTC backend.
 import argparse
 import sys
 
+import numpy as np
 import torch
 import torch._lazy
 import torch.nn.functional as F
@@ -29,6 +30,9 @@ def main(device='lazy'):
     targets = torch.tensor([3], dtype=torch.int64, device=device)
     assert targets.device.type == device
 
+    assert lazy_backend.set_parameter_name(inputs, "input.0")
+    assert lazy_backend.set_parameter_name(targets, "input.1")
+
     print("Initialized data")
 
     class Model(torch.nn.Module):
@@ -41,7 +45,11 @@ def main(device='lazy'):
             out = F.relu(out)
             return out
 
-    model = Model().to(device)
+    model = Model()
+
+    parameters = [p.detach().numpy() for p in model.parameters()]
+
+    model = model.to(device)
     model.train()
     assert all(p.device.type == device for p in model.parameters())
 
@@ -50,27 +58,52 @@ def main(device='lazy'):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
-    num_epochs = 3
+    # preinitialize state
+    for group in optimizer.param_groups:
+        for p in group['params']:
+            if group['momentum'] != 0:
+                optimizer.state[p]["momentum_buffer"] = torch.zeros_like(
+                    p, device="cpu"
+                ).to("lazy")
+
+    num_epochs = 1
     losses = []
+
+    print("Entering training loop")
     for _ in range(num_epochs):
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
         # Optionally set parameter names if needed for compile
         for scope, tensor in visit_lazy_tensors(
-            {"modules": model.state_dict(), "optimizer": optimizer.state_dict()}
+            {"modules": model.state_dict(keep_vars=True), "optimizer": optimizer.state_dict()}
         ):
             assert lazy_backend.set_parameter_name(tensor, ".".join(scope)), f"Failed set name: {name} = {tensor}"
+            print(lazy_backend.get_unique_id(tensor), ".".join(scope), lazy_backend.get_handle_address(tensor), lazy_backend.get_device_data_address(tensor))
 
         outputs = model(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
         losses.append(loss)
 
+        print("Optimizer step")
         optimizer.step()
 
+        lazy_backend.mark_output_tensors([loss], append=False)
+
+        for scope, tensor in visit_lazy_tensors(
+            {"modules": model.state_dict(keep_vars=True), "optimizer": optimizer.state_dict()}
+        ):
+            print(lazy_backend.get_unique_id(tensor), ".".join(scope), lazy_backend.get_handle_address(tensor), lazy_backend.get_device_data_address(tensor))
+            lazy_backend.mark_output_tensors([tensor], append=True)
+
         if device == "lazy":
-            print("Calling Mark Step")
+            print("Calling Mark Step", flush=True)
             torch._lazy.mark_step()
+
+        for scope, tensor in visit_lazy_tensors(
+            {"modules": model.state_dict(keep_vars=True), "optimizer": optimizer.state_dict()}
+        ):
+            print(lazy_backend.get_unique_id(tensor), ".".join(scope), lazy_backend.get_handle_address(tensor), lazy_backend.get_device_data_address(tensor))
 
     # Get debug information from LTC
     if 'torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND' in sys.modules:
@@ -79,6 +112,15 @@ def main(device='lazy'):
             print(computation.debug_string())
 
     print(losses)
+
+
+    new_parameters = [p.detach().cpu().numpy() for p in model.parameters()]
+
+    for p1, p2, in zip(parameters, new_parameters):
+        assert not np.allclose(p1, p2)
+        print(p1)
+        print(p2)
+        print()
 
     return model, losses
 

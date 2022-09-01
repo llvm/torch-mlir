@@ -125,6 +125,8 @@ bool TorchMlirLoweringContext::CheckResultShape(
   return false;
 }
 
+
+
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
   PRINT_FUNCTION();
 
@@ -251,7 +253,7 @@ torch::jit::Value* TorchMlirLoweringContext::GetParameter(BackendDataPtr data) {
           /*strides=*/c10::VaryingShape<int64_t>(),
           /*requires_grad=*/c10::nullopt));
 
-      if (!startswith(info->name, "input")) {
+      if (info->name != "" && !startswith(info->name, "input")) {
         parameter_names_[parameters_.size()] = info->name;
       }
     }

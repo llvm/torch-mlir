@@ -19,6 +19,7 @@
 #include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
+#include <torch_mlir/csrc/base_lazy_backend/utils/tensor_utils.h>
 
 #include "backend_impl.h"
 
@@ -26,6 +27,8 @@ using namespace torch::lazy;
 
 namespace torch {
 namespace lazy {
+
+
 
 struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
   ReferenceLazyBackendDeviceType(c10::DeviceType device_type)
@@ -51,6 +54,7 @@ public:
     std::cout << "RNG Seed Set to: " << seed << std::endl;
   }
 
+
   /**
    * Lowering, Compilation, Execution
    * */
@@ -66,6 +70,11 @@ public:
 
     // Vendor backend specific lowering can be exec here before returning.
     for (const auto& instance : instances) {
+      TORCH_CHECK(
+          instance->in_mark_step,
+          "Compile outside of mark step:\n",
+          GetComputationBackendText(instance)
+      );
       // Store computation instance for external access after compilation.
       GetLatestComputation() = instance;
     }
