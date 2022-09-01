@@ -17,6 +17,8 @@
 namespace mlir {
 namespace torch {
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToMhloPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToMhloPass(bool enableStaticShape, bool enableI32Index);
 } // namespace torch
 } // namespace mlir
 
