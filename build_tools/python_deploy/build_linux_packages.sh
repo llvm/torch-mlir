@@ -48,7 +48,7 @@ TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp39-cp39 cp310-cp310}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
-TM_PACKAGES="${TM_PACKAGES:-torch-mlir out-of-tree in-tree}"
+TM_PACKAGES="${TM_PACKAGES:-torch-mlir}"
 # Use pre-built Pytorch
 TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 # Skip running tests if you want quick iteration
