@@ -314,7 +314,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-pass-decls"],
+            [
+                "-gen-pass-decls",
+                "-DTORCH_MLIR_ENABLE_MHLO",
+            ],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
     ],
@@ -502,6 +505,7 @@ cc_library(
         "lib/Dialect/TorchConversion/Transforms/Passes.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyLinalgOnTensorsBackendContract.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyTosaBackendContract.cpp",
+        "lib/Dialect/TorchConversion/Transforms/VerifyMhloBackendContract.cpp",
     ],
     hdrs = [
         "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h",

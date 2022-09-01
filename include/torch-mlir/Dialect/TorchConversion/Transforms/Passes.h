@@ -39,6 +39,7 @@ void createTorchBackendToTosaBackendPipeline(
 void createTorchBackendToMhloBackendPipeline(
     OpPassManager &pm,
     const torch::Torch::TorchLoweringPipelineOptions &options);
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyMhloBackendContractPass();
 #endif
 
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
