@@ -17,8 +17,8 @@ concurrency:
 
 
 # Provisioned Jobs:
-# ubuntu - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
-# ubuntu - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
+# ubuntu/docker - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
+# ubuntu/docker - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
 # macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
 jobs:
   build-test:
