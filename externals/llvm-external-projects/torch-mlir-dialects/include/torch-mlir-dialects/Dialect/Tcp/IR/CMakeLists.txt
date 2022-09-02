@@ -1,0 +1,11 @@
+function(_add_dialect)
+  set(LLVM_TARGET_DEFINITIONS TcpOps.td)
+  mlir_tablegen(TcpOps.h.inc -gen-op-decls)
+  mlir_tablegen(TcpOps.cpp.inc -gen-op-defs)
+  mlir_tablegen(TcpDialect.h.inc -gen-dialect-decls -dialect=tcp)
+  mlir_tablegen(TcpDialect.cpp.inc -gen-dialect-defs -dialect=tcp)
+  add_public_tablegen_target(TorchMLIRTcpOpsIncGen)
+  add_dependencies(mlir-headers TorchMLIRTcpOpsIncGen)
+endfunction()
+
+_add_dialect()
