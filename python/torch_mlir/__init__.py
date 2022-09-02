@@ -126,7 +126,7 @@ class TensorPlaceholder:
 # ops in the backend contract, and move these lists somewhere deeper in the
 # compiler where each backend can "own" its set of legal ops.
 BACKEND_LEGAL_OPS = {
-    OutputType.TOSA: ['torch.aten.flatten.using_ints',],
+    OutputType.TOSA: ['torch.aten.flatten.using_ints','torch.aten.native_layer_norm'],
     OutputType.LINALG_ON_TENSORS: ['torch.aten.flatten.using_ints',],
     OutputType.MHLO: [],
 }
