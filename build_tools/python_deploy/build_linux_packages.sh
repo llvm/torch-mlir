@@ -211,11 +211,9 @@ function _check_file_not_changed_by() {
     # TODO: Is there a better cleanup strategy that doesn't require duplicating
     # this inside and outside the `if`?
     rm "$file_new"
-    rm "$file_backup"
     return 1
   fi
   rm "$file_new"
-  rm "$file_backup"
 }
 
 function test_in_tree() {
