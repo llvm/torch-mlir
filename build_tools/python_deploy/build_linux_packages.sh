@@ -83,6 +83,13 @@ function run_on_host() {
       export USERID=$(id -u)
       export GROUPID=$(id -g)
       ;;
+    bazel)
+      TM_CURRENT_DOCKER_IMAGE=${TM_CI_DOCKER_IMAGE}
+      # CI uses only Python3.10
+      TM_PYTHON_VERSIONS="cp310-cp310"
+      export USERID=$(id -u)
+      export GROUPID=$(id -g)
+      ;;
     *)
       echo "Unrecognized package '$package'"
       exit 1
@@ -149,6 +156,9 @@ function run_in_docker() {
             test_in_tree;
           fi
           ;;
+        bazel)
+          build_bazel "$python_version"
+          ;;
         *)
           echo "Unrecognized package '$package'"
           exit 1
@@ -158,6 +168,11 @@ function run_in_docker() {
   done
 }
 
+function build_bazel() {
+  local python_version="$1"
+  cd "/main_checkout/torch-mlir/utils/bazel"
+  bazel build @torch-mlir//...
+}
 
 function build_in_tree() {
   local torch_from_src="$1"
