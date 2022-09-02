@@ -566,8 +566,8 @@ def aten〇argmax(self: List[int], dim: Optional[int] = None, keepdim: bool = Fa
 def aten〇any〇dim(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return _reduce_along_dim(self, dim, keepdim)
 
-def aten〇cumsum(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
-    return upstream_shape_functions.unary(self)
+# def aten〇cumsum(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+#     return upstream_shape_functions.unary(self)
 
 def aten〇bitwise_not(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
