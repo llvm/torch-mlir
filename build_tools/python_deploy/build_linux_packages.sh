@@ -106,6 +106,11 @@ function run_on_host() {
     -e "TM_SKIP_TESTS=${TM_SKIP_TESTS}" \
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
     -e "CCACHE_DIR=/main_checkout/torch-mlir/.ccache" \
+    -e "CCACHE_COMPILERCHECK=none" \
+    -e "CCACHE_NOCOMPRESS=true" \
+    -e "CCACHE_HARDLINK=true" \
+    -e "CCACHE_INODECACHE=true" \
+    -e "CCACHE_TEMPDIR=/main_checkout/torch-mlir/.ccache_tmp" \
     "${TM_CURRENT_DOCKER_IMAGE}" \
     /bin/bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
 }

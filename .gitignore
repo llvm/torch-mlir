@@ -2,6 +2,7 @@
 .cache/
 .vscode
 .ccache
+.ccache_tmp
 .env
 *.code-workspace
 .ipynb_checkpoints
