@@ -19,11 +19,6 @@
 
 namespace mlir {
 namespace mhlo {
-#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
-static constexpr size_t kMhloDimSizeBits = 32;
-#else
-static constexpr size_t kMhloDimSizeBits = 64;
-#endif
 
 using mlir::ConversionPatternRewriter;
 
@@ -60,18 +55,19 @@ SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank);
 // Get the dimension sizes of the input tensor, given the dimension axes
 FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
-                                                     ArrayRef<int64_t> inpDims);
+                                                     ArrayRef<int64_t> inpDims,
+                                                     size_t dimSizeIndexBits);
 
 // Get the dimension sizes of the input tensor
-FailureOr<SmallVector<Value, 4>>
-getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value);
+FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
+                                                     Operation *op, Value value,
+                                                     size_t dimSizeIndexBits);
 
 // Get a tensor that unsqueezed the specified dimensions of the input tensor
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value tensor,
-                                 ArrayRef<int64_t> inputUnsqzDims);
+                                 Value tensor, ArrayRef<int64_t> inputUnsqzDims,
+                                 size_t dimSizeIndexBits);
 
-                          
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,
                          TensorType outType);

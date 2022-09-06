@@ -20,7 +20,7 @@ add_mlir_library(TorchMLIRTorchConversionPasses
   Passes.cpp
   VerifyLinalgOnTensorsBackendContract.cpp
   VerifyTosaBackendContract.cpp
-
+  VerifyMhloBackendContract.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/TorchConversion/Transforms

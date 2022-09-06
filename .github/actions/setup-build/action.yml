@@ -36,3 +36,4 @@ runs:
     with:
       key: ${{ runner.os }}-torch_mlir_build_assets-${{ inputs.cache-suffix }}
       max-size: 2G
+      verbose: 2

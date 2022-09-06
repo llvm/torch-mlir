@@ -141,5 +141,9 @@ void TorchConversion::createTorchBackendToMhloBackendPipeline(
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
+  // Verify that we have lowered to the form that MHLO backends
+  // expect. This fails compilation (signalPassFailure) if the IR is not in the
+  // correct form.
+  pm.addPass(TorchConversion::createVerifyMhloBackendContractPass());
 }
 #endif

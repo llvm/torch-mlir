@@ -259,9 +259,10 @@ SmallVector<size_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank) {
   return posDims;
 }
 
-FailureOr<SmallVector<Value, 4>>
-getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value,
-                    ArrayRef<int64_t> inpDims) {
+FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
+                                                     Operation *op, Value value,
+                                                     ArrayRef<int64_t> inpDims,
+                                                     size_t dimSizeIndexBits) {
   auto valueTy = value.getType().dyn_cast<RankedTensorType>();
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
@@ -276,14 +277,15 @@ getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value,
   auto loc = op->getLoc();
   for (auto d : dims) {
     dimSizes.emplace_back(rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getIntegerType(kMhloDimSizeBits),
+        loc, rewriter.getIntegerType(dimSizeIndexBits),
         rewriter.create<tensor::DimOp>(loc, value, d)));
   }
   return dimSizes;
 }
 
-FailureOr<SmallVector<Value, 4>>
-getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
+FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
+                                                     Operation *op, Value value,
+                                                     size_t dimSizeIndexBits) {
   auto valueTy = value.getType().dyn_cast<RankedTensorType>();
   if (!valueTy) {
     return rewriter.notifyMatchFailure(
@@ -294,12 +296,12 @@ getDimSizesOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
   // Get int vector [0, 1, ..., rank-1]
   std::vector<int64_t> dims(rank);
   std::iota(dims.begin(), dims.end(), 0);
-  return getDimSizesOfTensor(rewriter, op, value, dims);
+  return getDimSizesOfTensor(rewriter, op, value, dims, dimSizeIndexBits);
 }
 
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value tensor,
-                                 ArrayRef<int64_t> inputUnsqzDims) {
+                                 Value tensor, ArrayRef<int64_t> inputUnsqzDims,
+                                 size_t dimSizeIndexBits) {
   // Returns a new tensor with dims of size 1 inserted at the specified
   // position.
   //
@@ -307,7 +309,8 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   // tensor) are specified with unsqzDims. Indices must be in-order, and in
   // range of tensor rank. Thus, unsqueeze a rank 1 tensor with {0, 2}, {0, 1,
   // 3}, {0, 1, 2} are all valid dimension sets, but {0, 3}, {2} are not.
-  auto dimSizesInfo = getDimSizesOfTensor(rewriter, op, tensor);
+  auto dimSizesInfo =
+      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -324,7 +327,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   auto loc = op->getLoc();
   auto rankTy = tensor.getType().dyn_cast<RankedTensorType>();
   auto oldShape = rankTy.getShape();
-  Type intType = rewriter.getIntegerType(kMhloDimSizeBits);
+  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   auto one = rewriter.create<arith::ConstantOp>(
       loc, rewriter.getIntegerAttr(intType, 1));
 

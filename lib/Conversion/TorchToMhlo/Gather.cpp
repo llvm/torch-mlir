@@ -23,18 +23,14 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-
-#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
-static constexpr size_t kMhloDimSizeBits = 32;
-#else
-static constexpr size_t kMhloDimSizeBits = 64;
-#endif
+using namespace mlir::torch::torch_to_mhlo;
 
 namespace {
 Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
-                                  Value input, Value indices, int64_t axis) {
+                                  Value input, Value indices, int64_t axis,
+                                  size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
-  Type intType = rewriter.getIntegerType(kMhloDimSizeBits);
+  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   Value one = rewriter.create<arith::ConstantOp>(
       loc, rewriter.getIntegerAttr(intType, 1));
 
@@ -98,16 +94,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
                                      sliceSizesTensor, dimsAttr)
       .getResult();
 }
-
-template <typename AtenOpT>
-class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
-public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
-  using OpAdaptor = typename AtenOpT::Adaptor;
-  LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
-};
+} // namespace
 
 // Ref: https://pytorch.org/docs/stable/generated/torch.nn.functional.embedding.html
 // padding_idx (int, optional)
@@ -149,8 +136,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "sparse gradients is currently not supported");
 
-  Value output =
-      gatherTensorAlongSingleAxis(rewriter, op, weight, adaptor.indices(), 0);
+  Value output = gatherTensorAlongSingleAxis(
+      rewriter, op, weight, adaptor.indices(), 0, options.dimSizeIndexBits);
   rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
@@ -170,24 +157,23 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant dim is currently supported");
 
-  Value output =
-      gatherTensorAlongSingleAxis(rewriter, op, self, adaptor.index(), dim);
+  Value output = gatherTensorAlongSingleAxis(
+      rewriter, op, self, adaptor.index(), dim, options.dimSizeIndexBits);
 
   rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(
       op, getTypeConverter()->convertType(op.getType()), output);
 
   return success();
 }
-} // namespace
 
 void mlir::torch::torch_to_mhlo::populateGatherOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
+    ConversionTarget &target, const TorchToMhloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
+  patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
   INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
   INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
 #undef INSERT_ATENOP_PATTERN
