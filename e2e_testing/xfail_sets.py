@@ -22,6 +22,7 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
+    "ReduceFrobeniusNormModule_basic",
     "FlattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "TensorsConcatNegativeDimModule_basic",

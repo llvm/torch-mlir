@@ -1170,6 +1170,9 @@ def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlen
 def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
+def aten〇frobenius_norm〇dim(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
+
 # ==============================================================================
 # Shape library generator main().
 # ==============================================================================

@@ -36,7 +36,7 @@ class LinalgOnTensorsMhloBackend(MhloBackend):
         """
         run_pipeline_with_repro_report(
             imported_module,
-            "func.func(hlo-legalize-to-linalg)",
+            "func.func(hlo-legalize-to-linalg),func.func(canonicalize)",
             "Lowering MLIR-HLO to Linalg-on-Tensors")
         return self.refbackend.compile(imported_module)
 

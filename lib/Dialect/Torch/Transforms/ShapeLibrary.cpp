@@ -6941,6 +6941,13 @@ module {
     %1 = call @__torch__.torch.jit._shape_functions.sum_mean_dim(%arg0, %arg2, %arg3, %0) : (!torch.list<int>, !torch.optional<list<int>>, !torch.bool, !torch.any) -> !torch.list<int>
     return %1 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.frobenius_norm.dim"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
+    %int0 = torch.constant.int 0
+    %0 = torch.derefine %arg1 : !torch.list<int> to !torch.optional<list<int>>
+    %1 = torch.derefine %int0 : !torch.int to !torch.any
+    %2 = call @__torch__.torch.jit._shape_functions.sum_mean_dim(%arg0, %0, %arg2, %1) : (!torch.list<int>, !torch.optional<list<int>>, !torch.bool, !torch.any) -> !torch.list<int>
+    return %2 : !torch.list<int>
+  }
 }
 )mlir");
 #pragma clang diagnostic pop
