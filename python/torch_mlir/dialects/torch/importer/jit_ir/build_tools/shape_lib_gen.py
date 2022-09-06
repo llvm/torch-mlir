@@ -490,6 +490,9 @@ def aten〇floor_divide〇Scalar(self: List[int], other: float) -> List[int]:
 def aten〇pow〇Tensor_Scalar(self: List[int], exponent: float) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇pow〇Tensor_Tensor(self: List[int], exponent: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
 
