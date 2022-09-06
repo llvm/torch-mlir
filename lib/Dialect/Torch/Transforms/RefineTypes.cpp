@@ -665,7 +665,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
-          AtenRollOp, AtenPowTensorTensorOp>(op)) {
+          AtenRollOp, AtenPowTensorTensorOp, AtenLiftFreshCopyOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 

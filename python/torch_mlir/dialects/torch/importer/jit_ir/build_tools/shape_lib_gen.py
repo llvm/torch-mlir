@@ -448,6 +448,9 @@ def aten〇contiguous(self: List[int], memory_format: int = 0) -> List[int]:
 def aten〇clone(self: List[int], memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇lift_fresh_copy(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇_log_softmax_backward_data(grad_output: List[int], output: List[int], dim: int, input_dtype: int) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
