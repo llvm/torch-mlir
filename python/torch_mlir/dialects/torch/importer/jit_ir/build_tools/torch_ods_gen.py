@@ -307,6 +307,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
+    emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
