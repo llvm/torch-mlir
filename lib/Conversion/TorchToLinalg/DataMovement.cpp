@@ -237,26 +237,43 @@ public:
                              int64_t startExpandDim, int64_t maxExpandDim,
                              const SmallVector<int64_t> &collapseShape,
                              const SmallVector<int64_t> &expandShape,
+                             ReassociationIndices &collapseIndices,
                              ReassociationIndices &expandIndices) {
     int64_t collapseDimSize = collapseShape[collapseDim];
+
     int64_t expandedSize = 1;
+    int64_t collapsedSize = collapseDimSize;
 
-    for (auto i : llvm::seq<int64_t>(startExpandDim, maxExpandDim)) {
-      int64_t expandDimSize = expandShape[i];
-      if (expandDimSize == kUnknownSize ||
-          collapseDimSize % (expandedSize *= expandDimSize)) {
-        return rewriter.notifyMatchFailure(
-            op, "desired size is not compatible with the input tensor size");
+    int64_t expandIndex = startExpandDim;
+    int64_t collapseIndex = collapseDim + 1;
+
+    while (expandIndex != maxExpandDim || collapseIndex != maxCollapseDim) {
+
+      if (expandIndex != maxExpandDim && expandedSize <= collapsedSize) {
+        int64_t expandDimSize = expandShape[expandIndex];
+        if (expandDimSize == kUnknownSize)
+          return rewriter.notifyMatchFailure(
+              op, "desired expand size is not compatible with the input tensor "
+                  "size");
+
+        expandedSize *= expandDimSize;
+        expandIndices.push_back(expandIndex);
+        expandIndex++;
+      } else if (collapseIndex != maxCollapseDim &&
+                 collapsedSize < expandedSize) {
+        collapseDimSize = collapseShape[collapseIndex];
+        if (collapseDimSize == kUnknownSize)
+          return rewriter.notifyMatchFailure(
+              op, "desired collapse size is not compatible with the input "
+                  "tensor size");
+
+        collapsedSize *= collapseDimSize;
+        collapseIndices.push_back(collapseIndex);
+        collapseIndex++;
       }
-      expandIndices.push_back(i);
-      if (expandedSize == collapseDimSize)
+
+      if (expandedSize == collapsedSize)
         return success();
-
-      if (expandedSize > collapseDimSize) {
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: only supports expanding and collapsing "
-                "in view");
-      }
     }
 
     return rewriter.notifyMatchFailure(
@@ -372,7 +389,6 @@ public:
             "is enough static shape information to determine its size, or when "
             "the input tensor is being flattened to a single dimension");
       }
-
       auto productReduceKnownSizes = [](const ArrayRef<int64_t> sizes) {
         auto knownSizes = llvm::make_filter_range(
             sizes, [](int64_t val) { return val != kUnknownSize; });
@@ -475,6 +491,7 @@ public:
                   nextUnchangedOutput, inputShapeVec, outputShape,
                   outputAssociations.back())))
             return failure();
+
           outputDim = nextUnchangedOutput;
           inputDim = nextUnchangedInput;
           continue;
@@ -500,11 +517,12 @@ public:
           if (failed(minimallyCollapseDimHelper(
                   op, rewriter, inputDim, nextUnchangedInput, outputDim,
                   nextUnchangedOutput, inputShapeVec, outputShape,
-                  outputAssociations.back())))
+                  inputAssociations.back(), outputAssociations.back()))) {
             return failure();
+          }
           hasDynamic = false;
           outputDim = outputAssociations.back().back() + 1;
-          inputDim++;
+          inputDim = inputAssociations.back().back() + 1;
           continue;
         }
 
@@ -513,18 +531,20 @@ public:
         if (failed(minimallyCollapseDimHelper(
                 op, rewriter, outputDim, nextUnchangedOutput, inputDim,
                 nextUnchangedInput, outputShape, inputShapeVec,
-                inputAssociations.back())))
+                outputAssociations.back(), inputAssociations.back()))) {
           return failure();
+        }
         hasDynamic = false;
         inputDim = inputAssociations.back().back() + 1;
-        outputDim++;
+        outputDim = outputAssociations.back().back() + 1;
         continue;
       }
 
       if (inputDim != nextUnchangedInput || outputDim != nextUnchangedOutput) {
         return rewriter.notifyMatchFailure(
-            op, "could not match input tensor shape to output shape; "
-                "potentially unsupported view shape");
+            op, "could not match inputDim to next Unchanged Input or "
+                "outDim to next Unchanged Output. "
+                "potentially unsupported view shape ");
       }
 
       // Append the associations for the dims matching `aten.size.int`
@@ -563,12 +583,14 @@ public:
           return indices.size() > 1;
         })) {
       SmallVector<int64_t> intermediateShape;
-      for (auto i : llvm::seq(0, (int)inputAssociations.size())) {
-        if (inputAssociations[i].size() > 1) {
-          intermediateShape.push_back(outputShape[outputAssociations[i][0]]);
-        } else {
-          intermediateShape.push_back(inputShapeVec[inputAssociations[i][0]]);
+      for (auto i : llvm::seq(0, (int)outputAssociations.size())) {
+        int sum = 1;
+
+        for (auto j : llvm::seq(0, (int)outputAssociations[i].size())) {
+          sum *= outputShape[outputAssociations[i][j]];
         }
+
+        intermediateShape.push_back(sum);
       }
       Type intermediateResultType =
           RankedTensorType::get(intermediateShape, resultType.getElementType());
@@ -582,6 +604,7 @@ public:
     if (llvm::any_of(outputAssociations, [](ReassociationIndices indices) {
           return indices.size() > 1;
         })) {
+
       collapsedInput = rewriter
                            .create<tensor::ExpandShapeOp>(
                                loc, adjustedResultType,
@@ -593,6 +616,7 @@ public:
 
     Value result = collapsedInput.has_value() ? collapsedInput.value()
                                               : expandedInput.value();
+
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
