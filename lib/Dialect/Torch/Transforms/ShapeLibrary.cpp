@@ -5634,6 +5634,10 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.lift_fresh_copy"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten._log_softmax_backward_data"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>

@@ -1685,6 +1685,28 @@ def ElementwiseCloneContiguousModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LiftFreshCopyModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.lift_fresh_copy(x)
+
+
+@register_test_case(module_factory=lambda: LiftFreshCopyModule())
+def LiftFreshCopyModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseExpModule(torch.nn.Module):
 
     def __init__(self):

@@ -2748,6 +2748,21 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.lift_fresh_copy` op into `aten.clone` op.
+class DecomposeAtenLiftFreshCopyOp
+    : public OpRewritePattern<AtenLiftFreshCopyOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLiftFreshCopyOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constantNone = rewriter.create<ConstantNoneOp>(op.getLoc());
+    rewriter.replaceOpWithNewOp<AtenCloneOp>(op, op.getType(), op.self(),
+                                             /*memoryFormat=*/constantNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -2932,6 +2947,8 @@ public:
     target.addIllegalOp<AtenNarrowOp>();
     patterns.add<DecomposeAten_EmbeddingBagOp>(context);
     target.addIllegalOp<Aten_EmbeddingBagOp>();
+    patterns.add<DecomposeAtenLiftFreshCopyOp>(context);
+    target.addIllegalOp<AtenLiftFreshCopyOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));

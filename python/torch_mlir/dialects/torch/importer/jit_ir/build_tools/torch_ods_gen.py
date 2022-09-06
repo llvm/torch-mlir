@@ -429,6 +429,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
     emit("aten::clone : (Tensor, int?) -> (Tensor)")
+    emit("aten::lift_fresh_copy : (Tensor) -> (Tensor)")
     emit("aten::contiguous : (Tensor, int) -> (Tensor)")
     emit("aten::copy_ : (Tensor, Tensor, bool) -> (Tensor)")
     emit("aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)")

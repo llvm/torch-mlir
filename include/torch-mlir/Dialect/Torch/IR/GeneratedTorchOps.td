@@ -5212,6 +5212,29 @@ def Torch_AtenCloneOp : Torch_Op<"aten.clone", [
   }];
 }
 
+def Torch_AtenLiftFreshCopyOp : Torch_Op<"aten.lift_fresh_copy", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::lift_fresh_copy : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLiftFreshCopyOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenLiftFreshCopyOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenContiguousOp : Torch_Op<"aten.contiguous", [
     AllowsTypeRefinement,
     ReadOnly
