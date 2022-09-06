@@ -5661,6 +5661,30 @@ def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [
   }];
 }
 
+def Torch_AtenIndexTensorHackedTwinOp : Torch_Op<"aten.index.Tensor_hacked_twin", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::index.Tensor_hacked_twin : (Tensor, Tensor[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTensorType:$indices
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenIndexTensorHackedTwinOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenIndexTensorHackedTwinOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenIndexSelectOp : Torch_Op<"aten.index_select", [
     AllowsTypeRefinement,
     HasValueSemantics,

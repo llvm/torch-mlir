@@ -2763,6 +2763,21 @@ class DecomposeAtenLiftFreshCopyOp
 } // namespace
 
 namespace {
+// Decompose `aten.index.Tensor_hacked_twin` op into `aten.index.Tensor` op.
+class DecomposeAtenIndexTensorHackedTwinOp
+    : public OpRewritePattern<AtenIndexTensorHackedTwinOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexTensorHackedTwinOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenIndexTensorOp>(op, op.getType(), op.self(),
+                                                   op.indices());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -2949,6 +2964,8 @@ public:
     target.addIllegalOp<Aten_EmbeddingBagOp>();
     patterns.add<DecomposeAtenLiftFreshCopyOp>(context);
     target.addIllegalOp<AtenLiftFreshCopyOp>();
+    patterns.add<DecomposeAtenIndexTensorHackedTwinOp>(context);
+    target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
