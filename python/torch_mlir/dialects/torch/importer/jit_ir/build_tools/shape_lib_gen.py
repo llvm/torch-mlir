@@ -860,6 +860,9 @@ def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
 def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇bitwise_not(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇logical_or(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 

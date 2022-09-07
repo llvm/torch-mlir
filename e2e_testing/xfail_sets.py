@@ -254,6 +254,8 @@ TOSA_PASS_SET = {
     "ElementwiseMulScalarModule_float",
     "ElementwiseCeilModule_basic",
     "ElementwiseReciprocalModule_basic",
+    "ElementwiseNotIntegerModule_basic",
+    "ElementwiseNotInt32Module_basic",
     "TypePromotionAlphaWiderModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "BatchNorm1DModule_basic",
