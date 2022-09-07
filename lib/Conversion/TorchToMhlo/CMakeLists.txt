@@ -15,6 +15,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   MhloDialect
   MhloToLinalg
   MLIRMhloPassIncGen
+  LMHLOTransformsPassIncGen
   TorchMLIRConversionPassIncGen
 
   LINK_COMPONENTS
@@ -26,6 +27,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   MLIRPass
   MhloDialect
   MhloToLinalg
+  MLIRBufferTransforms
   StablehloBase
   TorchMLIRTorchDialect
 )
