@@ -383,6 +383,12 @@ public:
   void visitOperation(Operation *op, ArrayRef<const ValueState *> operands,
                       ArrayRef<ValueState *> results) final;
 
+  void setToEntryState(ValueState *lattice) override {
+    auto refType = lattice->getPoint().getType();
+    auto knowledge = ValueKnowledge::getKnowledgeFromType(refType);
+    propagateIfChanged(lattice, lattice->join(knowledge));
+  }
+
 private:
   // Get the MLIR type of the tensor dtype given the dtype integer value and the
   // input dtype. When DType is None the type is inferred from the input dtype.
@@ -1106,9 +1112,8 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Otherwise, this is an unknown operation. Just mark all results as
-  // having reached a pessimistic fixpoint.
-  markAllPessimisticFixpoint(results);
+  // Otherwise, this is an unknown operation, so reset the state.
+  setAllToEntryStates(results);
   return;
 }
 
