@@ -22,14 +22,6 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
-    "ViewDoubleMergeStaticModule_basic",
-    "ViewCollapseOnesMiddleModule_basic",
-    "ViewFiveTestStaticModule_basic",
-    "ViewOffsetTestStaticModule_basic",
-    "ViewTwoFiveThreeStaticModule_basic",
-    "ViewTwoToThreeStaticModule_basic",
-    "ViewExpandOnesMiddleOppModule_basic",
-    "ViewOffsetBackwardTestStaticModule_basic",
     "FlattenStaticModule_basic",
     "FlattenRank0Module_basic",
     "TensorsConcatNegativeDimModule_basic",
@@ -167,14 +159,6 @@ MHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
-    "ViewDoubleMergeStaticModule_basic",
-    "ViewCollapseOnesMiddleModule_basic",
-    "ViewFiveTestStaticModule_basic",
-    "ViewOffsetTestStaticModule_basic",
-    "ViewTwoFiveThreeStaticModule_basic",
-    "ViewTwoToThreeStaticModule_basic",
-    "ViewExpandOnesMiddleOppModule_basic",
-    "ViewOffsetBackwardTestStaticModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseSigmoidModule_basic",
