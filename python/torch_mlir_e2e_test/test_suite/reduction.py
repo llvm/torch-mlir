@@ -510,3 +510,37 @@ class ReduceL3NormKeepDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceL3NormKeepDimModule())
 def ReduceL3NormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+class ReduceFrobeniusNormModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    @export 
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])  
+    def forward(self, a):
+        return torch.ops.aten.frobenius_norm(a, dim=[0, 1], keepdim=False)
+
+@register_test_case(module_factory=lambda: ReduceFrobeniusNormModule())
+def ReduceFrobeniusNormModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    @export 
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])  
+    def forward(self, a):
+        return torch.ops.aten.frobenius_norm(a, dim=[0, 1], keepdim=True)
+
+@register_test_case(module_factory=lambda: ReduceFrobeniusNormKeepDimModule())
+def ReduceFrobeniusNormKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(3, 4, 5))
