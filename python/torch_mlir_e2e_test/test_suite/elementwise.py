@@ -1125,8 +1125,8 @@ class ElementwisePowTensorBroadcastModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
-        ([-1, -1], torch.float32, True),
         ([-1, 1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
     ])
     def forward(self, a, b):
         return torch.pow(a, b)
@@ -1134,7 +1134,7 @@ class ElementwisePowTensorBroadcastModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwisePowTensorBroadcastModule())
 def ElementwisePowTensorBroadcastModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4), tu.rand(3, 1))
+    module.forward(tu.rand(3, 1), tu.rand(3, 4))
 
 
 # ==============================================================================
