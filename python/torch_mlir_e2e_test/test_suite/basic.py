@@ -2769,6 +2769,42 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class CumsumModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumModule())
+def CumsumModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+class CumsumStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 7, 4], torch.float32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumStaticModule())
+def CumsumStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+# ==============================================================================
+
 class AtenToDeviceModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

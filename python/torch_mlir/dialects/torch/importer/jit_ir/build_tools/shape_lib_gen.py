@@ -809,6 +809,9 @@ def aten〇index_put_impl(self: List[int], indices: List[Optional[List[int]]], v
 def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:
     return self
 
+def aten〇cumsum(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return self
+
 def aten〇rand_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
