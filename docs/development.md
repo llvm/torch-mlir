@@ -313,7 +313,10 @@ Torch-MLIR has two types of tests:
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and
-   check the output with `FileCheck`.
+   check the output with `FileCheck`. These tests usually live in the `test/`
+   directory with a parallel file naming scheme to the `lib/*` structure.
+   More details about this kind of test is available in the upstream
+   [LLVM Testing Guide](https://llvm.org/docs/TestingGuide.html#regression-test-structure).
 
 
 ## Running execution (end-to-end) tests:
