@@ -98,12 +98,6 @@ public:
     setSafe();
   }
 
-  bool isUninitialized() const override {
-    // We are an optimistic analysis, so we are always default initialized to
-    // the optimistic "assumed safe" state.
-    return false;
-  }
-
   void print(raw_ostream &os) const override {
     os << "InlineGlobalSlotsAnalysisState(" << (isSafe ? "safe" : "unsafe")
        << ")";

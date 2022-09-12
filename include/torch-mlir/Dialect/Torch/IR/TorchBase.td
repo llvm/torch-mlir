@@ -37,6 +37,7 @@ def Torch_Dialect : Dialect {
   let hasRegionArgAttrVerify = 1;
   let hasConstantMaterializer = 1;
   let useDefaultTypePrinterParser = 0;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 
   let extraClassDeclaration = [{
     /// Parse a type registered to this dialect.
