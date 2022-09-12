@@ -674,6 +674,20 @@ OpFoldResult AtenSqueezeDimOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTypeAsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTypeAsOp::fold(ArrayRef<Attribute> operands) {
+  Type inType = self().getType();
+  Type newType = other().getType();
+
+  if (inType == newType)
+    return self();
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenToDtypeOp
 //===----------------------------------------------------------------------===//
 
