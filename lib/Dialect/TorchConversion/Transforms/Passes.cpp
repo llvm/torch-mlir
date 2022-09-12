@@ -53,7 +53,7 @@ void mlir::torch::registerTorchConversionPasses() {
       "contract.",
       TorchConversion::createTorchBackendToTosaBackendPipeline);
 #ifdef TORCH_MLIR_ENABLE_MHLO
-  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+  mlir::PassPipelineRegistration<TorchConversion::MhloBackendPipelineOptions>(
       "torch-backend-to-mhlo-backend-pipeline",
       "Pipeline lowering torch backend contract to MHLO backend "
       "contract.",
@@ -121,8 +121,10 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 
 #ifdef TORCH_MLIR_ENABLE_MHLO
 void TorchConversion::createTorchBackendToMhloBackendPipeline(
-    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
-  pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass());
+    OpPassManager &pm,
+    const TorchConversion::MhloBackendPipelineOptions &options) {
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToMhloPass(
+      options.enableStaticShape, options.enableI32Index));
 
   // Clean up any non-canonical code introduced above..
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());

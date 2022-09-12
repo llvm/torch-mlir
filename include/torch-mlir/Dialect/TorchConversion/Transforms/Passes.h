@@ -36,9 +36,22 @@ void createTorchBackendToTosaBackendPipeline(
 
 // Do not register the torch-to-mhlo pipeline if mhlo target is disabled
 #ifdef TORCH_MLIR_ENABLE_MHLO
+struct MhloBackendPipelineOptions
+    : public PassPipelineOptions<MhloBackendPipelineOptions> {
+  Option<bool> enableStaticShape{
+      *this, "enable-static-shape",
+      llvm::cl::desc("Enable static shape conversion."), llvm::cl::init(false)};
+  // The i64 calculation is much slower than i32 on some devices, such as
+  // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes
+  // are unlikely to exceed the range of i32(4GiB)
+  Option<bool> enableI32Index{
+      *this, "enable-i32-index",
+      llvm::cl::desc("Enable truncate index from i64 to i32(unsafely)"),
+      llvm::cl::init(false)};
+};
+
 void createTorchBackendToMhloBackendPipeline(
-    OpPassManager &pm,
-    const torch::Torch::TorchLoweringPipelineOptions &options);
+    OpPassManager &pm, const MhloBackendPipelineOptions &options);
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyMhloBackendContractPass();
 #endif
 
