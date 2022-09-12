@@ -609,8 +609,9 @@ public:
     return mhloConvOp.getResult();
   }
 
-  LogicalResult matchAndRewrite(AtenConvolutionOp op, OpAdaptor adaptor,
-                                ConversionPatternRewriter &rewriter) const {
+  LogicalResult
+  matchAndRewrite(AtenConvolutionOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Value input = adaptor.input();
     Value weight = adaptor.weight();
 

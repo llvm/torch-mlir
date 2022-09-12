@@ -314,10 +314,7 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            [
-                "-gen-pass-decls",
-                "-DTORCH_MLIR_ENABLE_MHLO",
-            ],
+            ["-gen-pass-decls"],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
     ],

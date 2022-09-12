@@ -383,6 +383,12 @@ public:
   void visitOperation(Operation *op, ArrayRef<const ValueState *> operands,
                       ArrayRef<ValueState *> results) final;
 
+  void setToEntryState(ValueState *lattice) override {
+    auto refType = lattice->getPoint().getType();
+    auto knowledge = ValueKnowledge::getKnowledgeFromType(refType);
+    propagateIfChanged(lattice, lattice->join(knowledge));
+  }
+
 private:
   // Get the MLIR type of the tensor dtype given the dtype integer value and the
   // input dtype. When DType is None the type is inferred from the input dtype.
@@ -659,15 +665,15 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
-          AtenRollOp>(
-          op)) {
+          AtenRollOp, AtenPowTensorTensorOp, AtenLiftFreshCopyOp,
+          AtenIndexTensorHackedTwinOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
   // Dtype is always float32, except for bfloat16, float64 and nullptr.
   if (isa<AtenTanhOp, AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp,
           AtenSigmoidOp, AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op,
-          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp>(op)) {
+          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type dtype = operands[0]->getValue().dtype;
@@ -1106,9 +1112,8 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
-  // Otherwise, this is an unknown operation. Just mark all results as
-  // having reached a pessimistic fixpoint.
-  markAllPessimisticFixpoint(results);
+  // Otherwise, this is an unknown operation, so reset the state.
+  setAllToEntryStates(results);
   return;
 }
 
