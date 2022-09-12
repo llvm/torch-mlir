@@ -16,6 +16,7 @@ blacklist:
 - copy_
 
 # Disabled for consistency with TS backend
+- lift_fresh_copy
 - new_empty
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
@@ -68,6 +69,15 @@ supported:
 - _trilinear
 - linalg_pinv.atol_rtol_tensor
 - logsumexp.out
+
+# List of ops that will take in symints for the size instead of ints
+symint:
+- empty.memory_format
+- expand
+- expand_copy
+# - narrow_copy
+- view
+- view_copy
 
 
 additional_ops:
