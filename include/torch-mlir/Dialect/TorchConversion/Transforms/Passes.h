@@ -24,15 +24,11 @@ namespace TorchConversion {
 
 /// Creates a pipeline that lowers from the torch backend contract to the
 /// linalg-on-tensors backend contract.
-void createTorchBackendToLinalgOnTensorsBackendPipeline(
-    OpPassManager &pm,
-    const torch::Torch::TorchLoweringPipelineOptions &options);
+void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
 
 /// Creates a pipeline that lowers from the torch backend contract to the
 /// TOSA backend contract.
-void createTorchBackendToTosaBackendPipeline(
-    OpPassManager &pm,
-    const torch::Torch::TorchLoweringPipelineOptions &options);
+void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
 
 // Do not register the torch-to-mhlo pipeline if mhlo target is disabled
 #ifdef TORCH_MLIR_ENABLE_MHLO
