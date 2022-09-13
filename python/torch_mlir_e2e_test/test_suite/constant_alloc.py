@@ -1462,3 +1462,25 @@ class MaskedFillTensorFloatValueModule(torch.nn.Module):
 def MaskedFillTensorFloatValueModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3, low=-10, high=10),
                    tu.randint(2, 3, high=2).to(dtype=torch.bool), tu.rand())
+
+
+class MaskedFillTensorFloatMaskModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int64, True),
+        ([-1, -1], torch.float, True),
+    ])
+    def forward(self, x, mask):
+        return torch.ops.aten.masked_fill(x, mask, value=0.1)
+
+
+@register_test_case(module_factory=lambda: MaskedFillTensorFloatMaskModule())
+def MaskedFillTensorFloatMaskModule_basic(module, tu: TestUtils):
+    mask = tu.randint(2, 3, low=0, high=2).to(torch.float)
+    module.forward(tu.randint(2, 3, low=-10, high=10),
+                   mask)
