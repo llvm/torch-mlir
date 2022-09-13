@@ -701,7 +701,11 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
           AtenRollOp, AtenPowTensorTensorOp, AtenLiftFreshCopyOp,
-          AtenIndexTensorHackedTwinOp>(op)) {
+          AtenIndexTensorHackedTwinOp
+      #ifdef TORCH_MLIR_CUSTOM_OP_EXAMPLE
+          , TorchMlirCustomOpExampleIdentityOp
+      #endif // TORCH_MLIR_CUSTOM_OP_EXAMPLE
+          >(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 

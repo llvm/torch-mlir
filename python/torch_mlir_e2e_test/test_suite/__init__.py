@@ -17,7 +17,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "MaxPool2dWithIndicesWith3dInputModule_basic",
 }
 
-def register_all_tests():
+def register_all_tests(include_custom_op: bool):
     """Registers all the built-in E2E tests that Torch-MLIR provides."""
     # Side-effecting import statements.
     from . import basic
@@ -53,3 +53,5 @@ def register_all_tests():
     from . import return_types
     from . import control_flow
     from . import stats
+    if include_custom_op:
+        from . import custom_op_example

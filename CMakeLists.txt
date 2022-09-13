@@ -49,6 +49,20 @@ else()
     set(ENV{TORCH_MLIR_ENABLE_LTC} 0)
 endif()
 
+option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
+if(TORCH_MLIR_USE_INSTALLED_PYTORCH)
+    add_definitions(-DTORCH_MLIR_USE_INSTALLED_PYTORCH)
+else()
+    set(TORCH_MLIR_USE_INSTALLED_PYTORCH OFF)
+endif()
+
+option(TORCH_MLIR_CUSTOM_OP_EXAMPLE "Builds custom op example" OFF)
+if(NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
+    add_definitions(-DTORCH_MLIR_CUSTOM_OP_EXAMPLE)
+    set(TORCH_MLIR_CUSTOM_OP_EXAMPLE ON)
+endif()
+message(STATUS "TORCH_MLIR_CUSTOM_OP_EXAMPLE:" ${TORCH_MLIR_CUSTOM_OP_EXAMPLE})
+
 torch_mlir_add_llvm_external_project(
   torch-mlir-dialects
   TORCH_MLIR_DIALECTS

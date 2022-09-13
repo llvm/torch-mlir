@@ -29,3 +29,7 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
 )
 
 torch_mlir_target_includes(TorchMLIRTorchToLinalg)
+
+if(TORCH_MLIR_CUSTOM_OP_EXAMPLE)
+  add_subdirectory(CustomOp)
+endif()

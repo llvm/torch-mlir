@@ -30,9 +30,13 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import LinalgOnTensorsT
 
 from .xfail_sets import REFBACKEND_XFAIL_SET, MHLO_PASS_SET, TOSA_PASS_SET, EAGER_MODE_XFAIL_SET, LTC_XFAIL_SET
 
+import os
+include_custom_op = False
+if os.getenv('INCLUDE_CUSTOM_OP') == 'ON':
+    include_custom_op = True
 # Import tests to register them in the global registry.
 from torch_mlir_e2e_test.test_suite import register_all_tests
-register_all_tests()
+register_all_tests(include_custom_op)
 
 def _get_argparse():
     config_choices = ['native_torch', 'torchscript', 'refbackend', 'mhlo', 'tosa', 'eager_mode', 'lazy_tensor_core']

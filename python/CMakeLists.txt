@@ -17,8 +17,6 @@ add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
 # PyTorch
 ################################################################################
 
-option(TORCH_MLIR_USE_INSTALLED_PYTORCH "Build from local PyTorch in environment" ON)
-
 if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
   # Source builds
   set(ENV{TORCH_MLIR_SRC_PYTORCH_REPO} ${TORCH_MLIR_SRC_PYTORCH_REPO})
@@ -64,6 +62,15 @@ declare_mlir_dialect_python_bindings(
   SOURCES dialects/torch/__init__.py
   DIALECT_NAME torch
 )
+
+if(TORCH_MLIR_CUSTOM_OP_EXAMPLE)
+  declare_mlir_python_sources(TorchMLIRPythonSources.CustomOp
+    ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
+    ADD_TO_PARENT TorchMLIRPythonSources
+    SOURCES_GLOB
+      _torch_mlir_custom_op_example/__init__.py
+  )
+endif()
 
 ################################################################################
 # Extensions
@@ -111,7 +118,9 @@ add_subdirectory(torch_mlir/eager_mode)
 # Required for running the update_torch_ods.sh and update_shape_lib.sh scripts.
 ################################################################################
 
-# add_subdirectory(torch_mlir/_torch_mlir_custom_op_example)
+if(TORCH_MLIR_CUSTOM_OP_EXAMPLE)
+  add_subdirectory(torch_mlir/_torch_mlir_custom_op_example)
+endif()
 
 ################################################################################
 # Generate packages and shared library
@@ -163,6 +172,10 @@ if(TORCH_MLIR_ENABLE_LTC)
   # Add Torch-MLIR LTC backend as dependency
   add_dependencies(TorchMLIRPythonModules torch_mlir_ltc_backend)
   add_dependencies(TorchMLIRPythonModules reference_lazy_backend)
+endif()
+
+if(TORCH_MLIR_CUSTOM_OP_EXAMPLE)
+  add_dependencies(TorchMLIRPythonModules torch_mlir_custom_op_example)
 endif()
 
 add_subdirectory(test)

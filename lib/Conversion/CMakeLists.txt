@@ -18,6 +18,9 @@ set(linked_libs TorchMLIRTorchToLinalg
 if(TORCH_MLIR_ENABLE_MHLO)
   list(APPEND linked_libs TorchMLIRTorchToMhlo)
 endif()
+if (TORCH_MLIR_CUSTOM_OP_EXAMPLE)
+  list(APPEND linked_libs TorchMLIRTorchToLinalgCustomOp)
+endif()
 
 add_mlir_library(TorchMLIRConversionPasses
   Passes.cpp

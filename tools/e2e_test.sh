@@ -2,6 +2,9 @@
 set -euo pipefail
 
 src_dir="$(realpath "$(dirname "$0")"/..)"
+build_dir="${src_dir}/build"
+
+export INCLUDE_CUSTOM_OP="${INCLUDE_CUSTOM_OP:-OFF}"
 
 cd "$src_dir"
 

@@ -22,11 +22,16 @@ if [ ! -z ${TORCH_MLIR_EXT_PYTHONPATH} ]; then
   pypath="${pypath}:${TORCH_MLIR_EXT_PYTHONPATH}"
 fi
 TORCH_MLIR_EXT_MODULES="${TORCH_MLIR_EXT_MODULES:-""}"
+include_custom_op_example="${INCLUDE_CUSTOM_OP:-OFF}"
+if [ "$include_custom_op_example" == "ON" ]; then
+  ext_module="torch_mlir._torch_mlir_custom_op_example"
+fi
 if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
-  ext_module="${TORCH_MLIR_EXT_MODULES} "
+  ext_module="${ext_module},${TORCH_MLIR_EXT_MODULES} "
 fi
 
 PYTHONPATH="${pypath}" python \
   -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \
-  --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"
+  --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}" \
+  --include_custom_op_example="${include_custom_op_example}"

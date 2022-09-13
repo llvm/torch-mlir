@@ -1,17 +1,18 @@
+###########################################################################
 # Setup PyTorch
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/modules")
-include(TorchMLIRPyTorch)
-TorchMLIRProbeForPyTorchInstall()
-find_package(Torch 1.8 REQUIRED)
-TorchMLIRConfigurePyTorch()
+###########################################################################
 
-# Python sources
-declare_mlir_python_sources(TorchMLIRPythonSources.CustomOp
-  ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
-  ADD_TO_PARENT TorchMLIRPythonSources
-  SOURCES_GLOB
-    _torch_mlir_custom_op_example/__init__.py
-)
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/python/torch_mlir/cmake/modules")
+include(TorchMLIRPyTorch)
+
+TorchMLIRProbeForPyTorchInstall()
+set(Torch_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../libtorch/share/cmake/Torch")
+
+find_package(Torch 1.11 REQUIRED)
+
+###########################################################################
+# Library definition
+###########################################################################
 
 # C++ extension
 include_directories(BEFORE

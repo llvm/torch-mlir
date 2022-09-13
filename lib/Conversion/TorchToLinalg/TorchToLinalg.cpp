@@ -61,7 +61,10 @@ public:
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
 
     RewritePatternSet patterns(context);
-
+  #ifdef TORCH_MLIR_CUSTOM_OP_EXAMPLE
+    torch_to_linalg::populateCustomOpExamplePatternsAndLegality(
+        typeConverter, patterns, target);
+  #endif // TORCH_MLIR_CUSTOM_OP_EXAMPLE
     torch_to_linalg::populateTensorScalarInteropPatternsAndLegality(
         typeConverter, patterns, target);
     torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,

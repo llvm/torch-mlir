@@ -1192,6 +1192,9 @@ def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[Lis
 def aten〇frobenius_norm〇dim(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
+def _torch_mlir_custom_op_example〇identity(t: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(t)
+
 # ==============================================================================
 # Shape library generator main().
 # ==============================================================================
@@ -1229,6 +1232,8 @@ def main(args):
     registry = Registry.load()
     for k, v in globals().items():
         if "〇" not in k:
+            continue
+        if k == "_torch_mlir_custom_op_example〇identity" and args.include_custom_op_example == "OFF":
             continue
         if not hasattr(v, "_not_present_in_registry"):
             _verify_signature_matches_registry(v, registry)
@@ -1305,6 +1310,10 @@ def _create_argparse() -> argparse.ArgumentParser:
         "--torch_transforms_cpp_dir",
         required=True,
         help="Directory containing the Torch transforms cpp files")
+    parser.add_argument(
+        "--include_custom_op_example",
+        type=str,
+        help="String value to denote if custom_op_example has to be included")
     parser.add_argument(
         "--pytorch_op_extensions",
         type=str,
