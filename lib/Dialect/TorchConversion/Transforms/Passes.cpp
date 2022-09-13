@@ -41,13 +41,13 @@ namespace {
 
 void mlir::torch::registerTorchConversionPasses() {
   ::registerPasses();
-  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+  mlir::PassPipelineRegistration<>(
       "torch-backend-to-linalg-on-tensors-backend-pipeline",
       "Pipeline lowering torch backend contract to linalg-on-tensors backend "
       "contract.",
       TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
 
-  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+  mlir::PassPipelineRegistration<>(
       "torch-backend-to-tosa-backend-pipeline",
       "Pipeline lowering torch backend contract to TOSA backend "
       "contract.",
@@ -62,7 +62,7 @@ void mlir::torch::registerTorchConversionPasses() {
 }
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
-    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+    OpPassManager &pm) {
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
@@ -96,7 +96,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
 }
 
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
-    OpPassManager &pm, const Torch::TorchLoweringPipelineOptions &options) {
+    OpPassManager &pm) {
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass());
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
