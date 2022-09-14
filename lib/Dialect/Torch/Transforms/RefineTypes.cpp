@@ -167,15 +167,19 @@ namespace {
 // we cannot claim to know something about a value which is false.
 // This class could also be called "dataflow facts", "lattice value", etc.
 struct ValueKnowledge {
-  ValueKnowledge() = delete;
+  ValueKnowledge() = default;
   ValueKnowledge(Type dtype, Type scalarType,
                  OptionalKnowledge optionalKnowledge,
                  torch_upstream::TypeKind kind)
-      : dtype(dtype), scalarType(scalarType), kind(kind),
+      : isInitialized(true), dtype(dtype), scalarType(scalarType), kind(kind),
         optional(optionalKnowledge) {}
 
   void print(raw_ostream &os) const {
     os << "ValueKnowledge(";
+    if (!isInitialized) {
+      os << "uninitialized)";
+      return;
+    }
     if (dtype)
       os << "dtype=" << dtype;
     if (scalarType)
@@ -249,13 +253,21 @@ struct ValueKnowledge {
   }
 
   bool operator==(const ValueKnowledge &rhs) const {
-    return std::make_tuple(dtype, optional) ==
-           std::make_tuple(rhs.dtype, rhs.optional);
+    if (!isInitialized && !rhs.isInitialized)
+      return true;
+    return isInitialized && rhs.isInitialized &&
+           std::make_tuple(dtype, optional) ==
+               std::make_tuple(rhs.dtype, rhs.optional);
   }
 
   // Return true if the `refinedType` has more concrete type info than `type`.
   static bool hasStrictlyMoreRefinedTypeInfo(const ValueKnowledge &refinedType,
                                              const ValueKnowledge &type) {
+    if (!refinedType.isInitialized)
+      return false;
+    if (!type.isInitialized)
+      return true;
+
     if (type.kind == torch_upstream::TypeKind::AnyType &&
         refinedType.kind != torch_upstream::TypeKind::AnyType)
       return true;
@@ -284,6 +296,11 @@ struct ValueKnowledge {
   // both.
   static ValueKnowledge join(const ValueKnowledge &lhs,
                              const ValueKnowledge &rhs) {
+    if (!lhs.isInitialized)
+      return rhs;
+    if (!rhs.isInitialized)
+      return lhs;
+
     // Mental model: All conditions are checking how to change from the safe "no
     // knowledge" default-initialized state to a state with more knowledge
     // consistent with lhs and rhs.
@@ -294,6 +311,11 @@ struct ValueKnowledge {
 
   static ValueKnowledge joinTypes(const ValueKnowledge &lhs,
                                   const ValueKnowledge &rhs) {
+    if (!lhs.isInitialized)
+      return rhs;
+    if (!rhs.isInitialized)
+      return lhs;
+
     if (hasStrictlyMoreRefinedTypeInfo(lhs, rhs))
       return rhs;
     if (hasStrictlyMoreRefinedTypeInfo(rhs, lhs))
@@ -308,6 +330,11 @@ struct ValueKnowledge {
   // If the two pieces of knowledge are contradictory, None is returned.
   static Optional<ValueKnowledge> meet(const ValueKnowledge &lhs,
                                        const ValueKnowledge &rhs) {
+    if (!lhs.isInitialized)
+      return lhs;
+    if (!rhs.isInitialized)
+      return rhs;
+
     Optional<ValueKnowledge> knowledge = meetTypes(lhs, rhs);
 
     if (!knowledge.has_value())
@@ -324,6 +351,11 @@ struct ValueKnowledge {
 
   static Optional<ValueKnowledge> meetTypes(const ValueKnowledge &lhs,
                                             const ValueKnowledge &rhs) {
+    if (!lhs.isInitialized)
+      return lhs;
+    if (!rhs.isInitialized)
+      return rhs;
+
     if (hasStrictlyMoreRefinedTypeInfo(lhs, rhs))
       return lhs;
     if (hasStrictlyMoreRefinedTypeInfo(rhs, lhs))
@@ -332,6 +364,9 @@ struct ValueKnowledge {
       return lhs;
     return None;
   }
+
+  // We start in the uninitialized state by default.
+  bool isInitialized = false;
 
   // The dtype of a tensor.
   // This is equal to nullptr for the follow cases:
@@ -1431,13 +1466,13 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
   };
   if (auto tensorType = v.getType().dyn_cast<BaseTensorType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement || latticeElement->isUninitialized())
+    if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     return getRefinedTensorType(tensorType, knowledge);
   } else if (auto optionalType = v.getType().dyn_cast<OptionalType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement || latticeElement->isUninitialized())
+    if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     if (knowledge.optional == OptionalKnowledge::isNone)
@@ -1451,7 +1486,7 @@ static Type getMostRefinedStaticType(Value v, DataFlowSolver &solver) {
     }
   } else if (auto scalarType = v.getType().dyn_cast<NumberType>()) {
     const ValueState *latticeElement = solver.lookupState<ValueState>(v);
-    if (!latticeElement || latticeElement->isUninitialized())
+    if (!latticeElement)
       return nullptr;
     const ValueKnowledge &knowledge = latticeElement->getValue();
     if (knowledge.kind == torch_upstream::TypeKind::IntType)
