@@ -1592,6 +1592,32 @@ void Torch::ConstantFloatOp::getAsmResultNames(
 }
 
 //===----------------------------------------------------------------------===//
+// ConstantNumberOp
+//===----------------------------------------------------------------------===//
+OpFoldResult Torch::ConstantNumberOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+void Torch::ConstantNumberOp::getCanonicalizationPatterns(
+  RewritePatternSet &patterns, MLIRContext *context) {
+    patterns.add(+[](Torch::ConstantNumberOp op, PatternRewriter &rewriter) {
+      Location loc = op->getLoc();
+
+      Value constValue;
+      Attribute value = op.valueAttr();
+      if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
+        constValue = rewriter.create<Torch::ConstantFloatOp>(loc, floatValue);
+      } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()){
+        constValue = rewriter.create<Torch::ConstantIntOp>(loc, intValue);
+      } else {
+        return failure();
+      }
+      rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, op.getType(), constValue);
+      return success();
+    });
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantBoolOp
 //===----------------------------------------------------------------------===//
 
@@ -1945,6 +1971,41 @@ OpFoldResult AtenMulIntOp::fold(ArrayRef<Attribute> operands) {
     return getI64IntegerAttr(getContext(), 0);
   if (lConstant && rConstant)
     return getI64IntegerAttr(getContext(), lhs * rhs);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSubOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
+  int64_t intLhs, intRhs;
+  if (matchPattern(getOperand(0), m_TorchConstantInt(&intLhs)) && 
+      matchPattern(getOperand(1), m_TorchConstantInt(&intRhs))) {
+    return getI64IntegerAttr(getContext(), intLhs - intRhs);
+  }
+  
+  double floatLhs, floatRhs;
+  if (matchPattern(getOperand(0), m_TorchConstantFloat(&floatLhs)) &&
+      matchPattern(getOperand(1), m_TorchConstantFloat(&floatRhs))) {
+    return getF64FloatAttr(getContext(), floatLhs - floatRhs);
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCeilScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilScalarOp::fold(ArrayRef<Attribute> operands) {
+  int64_t intVal;
+  if (matchPattern(getOperand(), m_TorchConstantInt(&intVal))) {
+    return getI64IntegerAttr(getContext(), intVal);
+  }
+  double floatVal;
+  if (matchPattern(getOperand(), m_TorchConstantFloat(&floatVal))) {
+    return getI64IntegerAttr(getContext(), (int64_t)std::ceil(floatVal));
+  }
   return nullptr;
 }
 

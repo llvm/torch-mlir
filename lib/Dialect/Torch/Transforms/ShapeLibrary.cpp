@@ -20,7 +20,6 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 #ifndef _MSC_VER
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
-#endif
   // clang-format off
   return "module {\n"
 "  func.func @__torch__.torch._decomp.decompositions.nll_loss_backward(%arg0: !torch.tensor, %arg1: !torch.tensor, %arg2: !torch.tensor, %arg3: !torch.optional<tensor>, %arg4: !torch.int, %arg5: !torch.int, %arg6: !torch.tensor) -> !torch.tensor {\n"
@@ -7820,5 +7819,3 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
   // clang-format on
 #ifndef _MSC_VER
 #pragma clang diagnostic pop
-#endif
-}

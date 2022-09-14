@@ -753,6 +753,25 @@ def Torch_ConstantFloatOp : Torch_Op<"constant.float", [
   let hasFolder = 1;
 }
 
+def Torch_ConstantNumberOp : Torch_Op<"constant.number",
+    [ConstantLike, NoSideEffect]> {
+  let summary = "Materialize a constant `number` value.";
+  let description = [{
+    Note: 
+    1. For now, only integer or float input is supported.
+    2. This op will finally be converted to 
+       `torch.constant.{float,int}` + `torch.derefine`
+  }];
+  let arguments = (ins
+    AnyAttrOf<[F64Attr, I64Attr]>:$value
+  );
+  let results = (outs
+    Torch_NumberType:$result
+  );
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
 def Torch_ConstantBoolOp : Torch_Op<"constant.bool", [
     ConstantLike,
     NoSideEffect,
