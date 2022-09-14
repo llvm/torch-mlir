@@ -44,7 +44,7 @@ TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-stellaraccident/manylinux201
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"
 # Version of Python to use in Release builds. Ignored in CIs.
-TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp39-cp39 cp310-cp310}"
+TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp37-cp37m cp39-cp39 cp310-cp310}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
