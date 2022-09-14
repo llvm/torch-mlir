@@ -930,6 +930,10 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   if (auto sum = dyn_cast<AtenSumOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
+    // If the input dtype is bool, the result type should be i64.
+    if (defaultDtype.isInteger(1))
+      defaultDtype =
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     Type dtype = getDtypeOrDefault(sum.getContext(), sum.dtype(), defaultDtype);
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
@@ -939,6 +943,10 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
   if (auto sumDimIntList = dyn_cast<AtenSumDimIntListOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
+    // If the input dtype is bool, the result type should be i64.
+    if (defaultDtype.isInteger(1))
+      defaultDtype =
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed);
     Type dtype = getDtypeOrDefault(sumDimIntList.getContext(),
                                    sumDimIntList.dtype(), defaultDtype);
     visitReductionAlongDimIntListOp(sumDimIntList, sumDimIntList.dim(),
