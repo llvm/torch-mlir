@@ -309,8 +309,10 @@ public:
           outputIndexingMap,
     };
 
-    SmallVector<StringRef> iteratorTypes(iterationMapDimension,
-                                           getParallelIteratorTypeName());
+    // Reduce along the indices dim
+    SmallVector<StringRef> iteratorTypes({getParallelIteratorTypeName(),
+                                          getReductionIteratorTypeName(),
+                                          getParallelIteratorTypeName()});
 
     Value embeddingDim = getDimOp(rewriter, loc, weight, 1);
     Value initTensor;
