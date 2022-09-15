@@ -317,6 +317,7 @@ TOSA_PASS_SET = {
     "ViewCollapseInferredDimModule_basic",
     "ViewExpandInferredDimModule_basic",
     "ViewNoChangeStaticModule_basic",
+    "ViewStaticModule_basic",
     "UnsafeViewExpandModule_basic",
     "ReshapeCollapseModule_basic",
     "ElementwiseGeluModule_basic",
