@@ -1594,27 +1594,29 @@ void Torch::ConstantFloatOp::getAsmResultNames(
 //===----------------------------------------------------------------------===//
 // ConstantNumberOp
 //===----------------------------------------------------------------------===//
+
 OpFoldResult Torch::ConstantNumberOp::fold(ArrayRef<Attribute> operands) {
   return valueAttr();
 }
 
 void Torch::ConstantNumberOp::getCanonicalizationPatterns(
-  RewritePatternSet &patterns, MLIRContext *context) {
-    patterns.add(+[](Torch::ConstantNumberOp op, PatternRewriter &rewriter) {
-      Location loc = op->getLoc();
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Torch::ConstantNumberOp op, PatternRewriter &rewriter) {
+    Location loc = op->getLoc();
 
-      Value constValue;
-      Attribute value = op.valueAttr();
-      if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
-        constValue = rewriter.create<Torch::ConstantFloatOp>(loc, floatValue);
-      } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()){
-        constValue = rewriter.create<Torch::ConstantIntOp>(loc, intValue);
-      } else {
-        return failure();
-      }
-      rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, op.getType(), constValue);
-      return success();
-    });
+    Value constValue;
+    Attribute value = op.valueAttr();
+    if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
+      constValue = rewriter.create<Torch::ConstantFloatOp>(loc, floatValue);
+    } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()) {
+      constValue = rewriter.create<Torch::ConstantIntOp>(loc, intValue);
+    } else {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, op.getType(),
+                                                   constValue);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1979,16 +1981,32 @@ OpFoldResult AtenMulIntOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
-  int64_t intLhs, intRhs;
-  if (matchPattern(getOperand(0), m_TorchConstantInt(&intLhs)) && 
-      matchPattern(getOperand(1), m_TorchConstantInt(&intRhs))) {
-    return getI64IntegerAttr(getContext(), intLhs - intRhs);
+  if (!operands[0] || !operands[1]) {
+    return nullptr;
   }
-  
-  double floatLhs, floatRhs;
-  if (matchPattern(getOperand(0), m_TorchConstantFloat(&floatLhs)) &&
-      matchPattern(getOperand(1), m_TorchConstantFloat(&floatRhs))) {
-    return getF64FloatAttr(getContext(), floatLhs - floatRhs);
+
+  auto intLhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto floatLhs = operands[0].dyn_cast_or_null<FloatAttr>();
+  auto intRhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  auto floatRhs = operands[1].dyn_cast_or_null<FloatAttr>();
+  if (intLhs && intRhs) {
+    return IntegerAttr::get(intLhs.getType(),
+                            intLhs.getValue().getSExtValue() -
+                                intRhs.getValue().getSExtValue());
+  } else if (intLhs && floatRhs) {
+    return FloatAttr::get(
+        floatRhs.getType(),
+        static_cast<double>(intLhs.getValue().getSExtValue()) -
+            floatRhs.getValue().convertToDouble());
+  } else if (intRhs && floatLhs) {
+    return FloatAttr::get(
+        floatLhs.getType(),
+        floatLhs.getValue().convertToDouble() -
+            static_cast<double>(intRhs.getValue().getSExtValue()));
+  } else if (floatLhs && floatRhs) {
+    return FloatAttr::get(floatLhs.getType(),
+                          floatLhs.getValue().convertToDouble() -
+                              floatRhs.getValue().convertToDouble());
   }
   return nullptr;
 }
@@ -1998,15 +2016,16 @@ OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenCeilScalarOp::fold(ArrayRef<Attribute> operands) {
-  int64_t intVal;
-  if (matchPattern(getOperand(), m_TorchConstantInt(&intVal))) {
-    return getI64IntegerAttr(getContext(), intVal);
+  if (!operands[0]) {
+    return nullptr;
   }
-  double floatVal;
-  if (matchPattern(getOperand(), m_TorchConstantFloat(&floatVal))) {
-    return getI64IntegerAttr(getContext(), (int64_t)std::ceil(floatVal));
+  auto floatValue = operands[0].dyn_cast_or_null<FloatAttr>();
+  if (!floatValue) {
+    return nullptr;
   }
-  return nullptr;
+  return getI64IntegerAttr(
+      getContext(),
+      static_cast<int64_t>(std::ceil(floatValue.getValue().convertToDouble())));
 }
 
 //===----------------------------------------------------------------------===//

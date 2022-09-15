@@ -757,10 +757,13 @@ def Torch_ConstantNumberOp : Torch_Op<"constant.number",
     [ConstantLike, NoSideEffect]> {
   let summary = "Materialize a constant `number` value.";
   let description = [{
-    Note: 
-    1. For now, only integer or float input is supported.
-    2. This op will finally be converted to 
-       `torch.constant.{float,int}` + `torch.derefine`
+    This op is used as a workaround to the fact that the constant 
+    materialization in MLIR must materialize a constant with a single op. 
+    To materialize ops with a static `!torch.number type, we must use this op, 
+    even though we statically know if it is an integer or a float.
+
+    Note: This op unconditionally canonicalizes to 
+    `torch.constant.{float,int}` + `torch.derefine`
   }];
   let arguments = (ins
     AnyAttrOf<[F64Attr, I64Attr]>:$value
