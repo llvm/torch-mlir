@@ -214,3 +214,23 @@ class ToDtypeBoolLayoutNoneModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ToDtypeBoolLayoutNoneModule())
 def ToDtypeBoolLayoutNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
+
+
+class TypeAsSameModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        return torch.ops.aten.type_as(x, y)
+
+
+@register_test_case(module_factory=lambda: TypeAsSameModule())
+def TypeAsSameModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))

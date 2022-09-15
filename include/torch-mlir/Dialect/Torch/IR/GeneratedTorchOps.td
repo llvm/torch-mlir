@@ -6229,6 +6229,7 @@ def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenViewOp : Torch_Op<"aten.view", [
