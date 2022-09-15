@@ -12,6 +12,7 @@ from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 mb = ModuleBuilder()
 
+# CHECK-LABEL: torch.class_type @__torch__.TestModule {
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

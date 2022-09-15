@@ -502,6 +502,7 @@ cc_library(
         "lib/Dialect/TorchConversion/Transforms/Passes.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyLinalgOnTensorsBackendContract.cpp",
         "lib/Dialect/TorchConversion/Transforms/VerifyTosaBackendContract.cpp",
+        "lib/Dialect/TorchConversion/Transforms/VerifyMhloBackendContract.cpp",
     ],
     hdrs = [
         "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h",

@@ -99,6 +99,7 @@ build_pytorch() {
   USE_PYTORCH_QNNPACK=ON \
   USE_QNNPACK=OFF \
   USE_XNNPACK=OFF \
+  USE_PRECOMPILED_HEADERS=1 \
   ${PYTHON_BIN} setup.py  bdist_wheel -d "$WHEELHOUSE"
 }
 

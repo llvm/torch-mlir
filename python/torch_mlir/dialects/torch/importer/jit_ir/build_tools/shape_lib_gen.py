@@ -448,6 +448,9 @@ def aten〇contiguous(self: List[int], memory_format: int = 0) -> List[int]:
 def aten〇clone(self: List[int], memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇lift_fresh_copy(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇_log_softmax_backward_data(grad_output: List[int], output: List[int], dim: int, input_dtype: int) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
@@ -489,6 +492,9 @@ def aten〇floor_divide〇Scalar(self: List[int], other: float) -> List[int]:
 
 def aten〇pow〇Tensor_Scalar(self: List[int], exponent: float) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+def aten〇pow〇Tensor_Tensor(self: List[int], exponent: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, exponent)
 
 def aten〇rsub〇Scalar(self: List[int], other: float, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -803,6 +809,9 @@ def aten〇index_put_impl(self: List[int], indices: List[Optional[List[int]]], v
 def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:
     return self
 
+def aten〇cumsum(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return self
+
 def aten〇rand_like(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
@@ -853,6 +862,9 @@ def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
 
 def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
+
+def aten〇bitwise_not(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
 
 def aten〇logical_or(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
@@ -1069,20 +1081,7 @@ def aten〇constant_pad_nd(self: List[int], pad: List[int], value: float = 0) ->
 def aten〇pad(self: List[int], pad: List[int], mode: str = "constant", value: Optional[float] = None) -> List[int]:
     return pad_shape_fn(self, pad)
 
-# See https://numpy.org/doc/stable/user/basics.indexing.html
-@check_shape_function([
-    Invocation(TensorOfShape(2), [LongTensorOfShape(4)]), # Basic case.
-    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4)]), # More dimensions.
-    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(6, 4)]), # Multidimensional index tensor along a dimension.
-    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), None]), # Explicit None value.
-    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), LongTensorOfShape(4)]), # Indexing tensors on consecutive dimensions.
-    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), None, LongTensorOfShape(4)]), # Indexing tensors on non-consecutive dimensions.
-    Invocation(TensorOfShape(2, 3, 4, 5), [LongTensorOfShape(4, 2), None, LongTensorOfShape(2)]), # Indexing tensors on non-consecutive dimensions.
-    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4, 5, 6), LongTensorOfShape(1, 5, 1)]), # Broadcasting of index tensors.
-    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4)]), # Fewer index tensors than dimensions.
-    ErrorInvocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4), LongTensorOfShape(4)]), # More index tensors than dimensions.
-])
-def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
+def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
     assert len(indices) <= len(self), "More indices than dimensions to index"
     broadcasted_shape: List[int] = []
     unused_dim_sizes: List[int] = []
@@ -1121,6 +1120,26 @@ def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -
     for i in range(first_index_tensor_location, len(unused_dim_sizes)):
         result_shape.append(unused_dim_sizes[i])
     return result_shape
+
+# See https://numpy.org/doc/stable/user/basics.indexing.html
+@check_shape_function([
+    Invocation(TensorOfShape(2), [LongTensorOfShape(4)]), # Basic case.
+    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4)]), # More dimensions.
+    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(6, 4)]), # Multidimensional index tensor along a dimension.
+    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4), None]), # Explicit None value.
+    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), LongTensorOfShape(4)]), # Indexing tensors on consecutive dimensions.
+    Invocation(TensorOfShape(2, 3, 4, 5), [None, LongTensorOfShape(4), None, LongTensorOfShape(4)]), # Indexing tensors on non-consecutive dimensions.
+    Invocation(TensorOfShape(2, 3, 4, 5), [LongTensorOfShape(4, 2), None, LongTensorOfShape(2)]), # Indexing tensors on non-consecutive dimensions.
+    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4, 5, 6), LongTensorOfShape(1, 5, 1)]), # Broadcasting of index tensors.
+    Invocation(TensorOfShape(2, 3), [LongTensorOfShape(4)]), # Fewer index tensors than dimensions.
+    ErrorInvocation(TensorOfShape(2, 3), [LongTensorOfShape(4), LongTensorOfShape(4), LongTensorOfShape(4)]), # More index tensors than dimensions.
+])
+def aten〇index〇Tensor(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
+    return index_tensor_like(self, indices)
+
+def aten〇index〇Tensor_hacked_twin(self: List[int], indices: List[List[int]]) -> List[int]:
+    optional_indices: List[Optional[List[int]]] = [x for x in indices]
+    return index_tensor_like(self, optional_indices)
 
 def aten〇cat(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
@@ -1169,6 +1188,9 @@ def aten〇bincount(self: List[int], weights: Optional[List[int]] = None, minlen
 
 def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[List[int]] = None, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
+
+def aten〇frobenius_norm〇dim(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
 # ==============================================================================
 # Shape library generator main().

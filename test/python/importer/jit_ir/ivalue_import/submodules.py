@@ -22,6 +22,7 @@ class TestModule(torch.nn.Module):
         self.s0 = Submodule(0)
         self.s1 = Submodule(1)
 
+# CHECK-LABEL: torch.class_type @__torch__.TestModule {
 # CHECK:         %[[T:.*]] = torch.constant.bool true
 
 # CHECK:         %[[N0:.*]] = torch.constant.int 0

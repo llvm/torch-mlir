@@ -52,10 +52,13 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
             "func.func(tosa-to-linalg-named)",
             "Lowering TOSA to Linalg-on-Tensors for Named Ops")
 
+        # TOSA-to-LinAlg may generate tosa.const() ops, so we want to lower them
+        # to arith.constants here before proceeding further.
         run_pipeline_with_repro_report(
             imported_module,
-            "func.func(tosa-to-linalg)",
+            "func.func(tosa-to-linalg),func.func(tosa-to-arith)",
             "Lowering TOSA to Linalg-on-Tensors")
+
         return self.refbackend.compile(imported_module)
 
     def load(self, module):

@@ -1963,6 +1963,83 @@ def IndexTensorMultiInputContiguousCenter_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IndexTensorHackedTwinModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, [index])
+
+
+@register_test_case(module_factory=lambda: IndexTensorHackedTwinModule())
+def IndexTensorHackedTwinModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5), tu.randint(2, 3, high=4))
+
+
+# ==============================================================================
+
+
+class IndexTensorHackedTwinModule3dInput(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, index):
+        return torch.ops.aten.index(x, [index])
+
+
+@register_test_case(
+    module_factory=lambda: IndexTensorHackedTwinModule3dInput())
+def IndexTensorHackedTwinModule3dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3), tu.randint(2, 3, high=3))
+
+
+# ==============================================================================
+
+
+class IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims(
+        torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+        ([4, 1], torch.int64, True),
+        ([1, 3], torch.int64, True),
+        ([-1, 3], torch.int64, True),
+    ])
+    def forward(self, x, index1, index2, index3):
+        return torch.ops.aten.index(x, [index1, index2, index3])
+
+
+@register_test_case(
+    module_factory=lambda:
+    IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims())
+def IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic(
+        module, tu: TestUtils):
+    module.forward(tu.rand(5, 4, 3, 2), tu.randint(4, 1, high=3),
+                   tu.randint(1, 3, high=1), tu.randint(4, 3, high=1))
+
+
+# ==============================================================================
+
+
 class SquareModule(torch.nn.Module):
 
     def __init__(self):
@@ -2766,6 +2843,42 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
     indices = torch.LongTensor([0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54])
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
     module.forward(weight, indices, offsets)
+
+# ==============================================================================
+
+class CumsumModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumModule())
+def CumsumModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+class CumsumStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 7, 4], torch.float32, True),
+    ])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 1)
+
+@register_test_case(module_factory=lambda: CumsumStaticModule())
+def CumsumStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
 
 # ==============================================================================
 

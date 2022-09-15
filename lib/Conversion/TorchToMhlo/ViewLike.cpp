@@ -28,6 +28,7 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
+using namespace mlir::torch::torch_to_mhlo;
 
 namespace {
 // A dimension index from torch.dialect might outside the range [0, dimSize].
@@ -55,10 +56,11 @@ Value getNormalizedDimSizeInternal(PatternRewriter &rewriter, Operation *op,
 Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
                               Type outTy, Value input, Value startIndex,
                               Value endIndex, Value step, size_t dimIndex,
-                              ArrayRef<Value> dimSizes) {
+                              ArrayRef<Value> dimSizes,
+                              size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
   // startIndex & endIndex has been normailized into range [0, dSize]
-  Type intType = rewriter.getIntegerType(mhlo::kMhloDimSizeBits);
+  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   Value zero = rewriter.create<arith::ConstantOp>(
       loc, rewriter.getIntegerAttr(intType, 0));
   Value one = rewriter.create<arith::ConstantOp>(
@@ -109,7 +111,8 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
                                  Type outTy, Value input,
                                  llvm::Optional<Value> startIndexOpt,
                                  llvm::Optional<Value> endIndexOpt,
-                                 llvm::Optional<Value> stepOpt, int64_t dim) {
+                                 llvm::Optional<Value> stepOpt, int64_t dim,
+                                 size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
   auto inputTy = input.getType().dyn_cast<RankedTensorType>();
   auto rank = inputTy.getRank();
@@ -133,77 +136,31 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
               : rewriter.create<arith::ConstantOp>(
                     loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 1));
 
-#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
-  auto i32Type = rewriter.getIntegerType(mhlo::kMhloDimSizeBits);
-  normStartIndex =
-      rewriter.create<arith::TruncIOp>(loc, i32Type, normStartIndex);
-  normEndIndex = rewriter.create<arith::TruncIOp>(loc, i32Type, normEndIndex);
-  step = rewriter.create<arith::TruncIOp>(loc, i32Type, step);
-#endif
+  if (dimSizeIndexBits == 32) {
+    Type intType = rewriter.getIntegerType(dimSizeIndexBits);
+    normStartIndex =
+        rewriter.create<arith::TruncIOp>(loc, intType, normStartIndex);
+    normEndIndex = rewriter.create<arith::TruncIOp>(loc, intType, normEndIndex);
+    step = rewriter.create<arith::TruncIOp>(loc, intType, step);
+  }
   FailureOr<SmallVector<Value, 4>> dimSizesInfo =
-      mhlo::getDimSizesOfTensor(rewriter, op, input);
+      mhlo::getDimSizesOfTensor(rewriter, op, input, dimSizeIndexBits);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
 
   auto dimSizes = *dimSizesInfo;
   return getDynamicSliceInternal(rewriter, op, outTy, input, normStartIndex,
-                                 normEndIndex, step, dim, dimSizes);
-}
-
-template <typename AtenOpT>
-class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
-public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
-  using OpAdaptor = typename AtenOpT::Adaptor;
-  LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
-};
-
-template <>
-LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
-    AtenSliceTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.self();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
-  if (!selfTy)
-    return op.emitError("only ranked tensor types are supported");
-  auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-  int64_t dim;
-  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
-    return rewriter.notifyMatchFailure(
-        op, "only constant dim is currently supported");
-
-  auto getOptionalVal = [&](Value val) -> llvm::Optional<Value> {
-    if (val.getType().isa<Torch::NoneType>()) {
-      return llvm::None;
-    } else {
-      return val;
-    }
-  };
-
-  llvm::Optional<Value> start = getOptionalVal(adaptor.start());
-  llvm::Optional<Value> end = getOptionalVal(adaptor.end());
-  llvm::Optional<Value> step = getOptionalVal(adaptor.step());
-
-  FailureOr<Value> sliceInfo =
-      getDynamicSlice(rewriter, op, outTy, self, start, end, step, dim);
-  if (failed(sliceInfo))
-    return op.emitError("can not create a dynmaic slice");
-
-  auto slice = *sliceInfo;
-  rewriter.replaceOp(op, slice);
-  return success();
+                                 normEndIndex, step, dim, dimSizes,
+                                 dimSizeIndexBits);
 }
 
 // This defines a template to construct ops whose legalizations are
 // specialized.
 template <typename AtenOpT>
-class ConvertAtenViewOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenViewOp : public ConvertAtenOp<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
   LogicalResult
@@ -235,19 +192,19 @@ public:
       return dSize;
     });
 
-#ifdef TORCH_MLIR_ENABLE_MHLO_TRUNC_DIMSIZE_TO_I32
-    // The i64 calculation is much slower than i32 on some devices, such as
-    // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
-    // unlikely to exceed the range of i32(4GiB)
-    std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
-      // dimSize: cast i64 -> i32
-      dSize =
-          rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(), dSize);
-      return dSize;
-    });
-#endif
+    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
+    Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
+    if (options.dimSizeIndexBits == 32) {
+      // The i64 calculation is much slower than i32 on some devices, such as
+      // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
+      // unlikely to exceed the range of i32(4GiB)
+      std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
+        // dimSize: cast i64 -> i32
+        dSize = rewriter.create<arith::TruncIOp>(loc, intType, dSize);
+        return dSize;
+      });
+    }
 
-    Type intType = rewriter.getIntegerType(mhlo::kMhloDimSizeBits);
     Value numel = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(intType, 1));
     for (auto d : dimSizes) {
@@ -293,6 +250,45 @@ bool ConvertAtenViewOp<AtenReshapeOp>::getAtenViewOpSizes(
     SmallVector<Value, 4> &dimSizes) const {
   return getListConstructElements(adaptor.shape(), dimSizes);
 }
+} // namespace
+
+template <>
+LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
+    AtenSliceTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.self();
+  auto selfTy = self.getType().template cast<RankedTensorType>();
+  if (!selfTy)
+    return op.emitError("only ranked tensor types are supported");
+  auto outTy =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  int64_t dim;
+  if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant dim is currently supported");
+
+  auto getOptionalVal = [&](Value val) -> llvm::Optional<Value> {
+    if (val.getType().isa<Torch::NoneType>()) {
+      return llvm::None;
+    } else {
+      return val;
+    }
+  };
+
+  llvm::Optional<Value> start = getOptionalVal(adaptor.start());
+  llvm::Optional<Value> end = getOptionalVal(adaptor.end());
+  llvm::Optional<Value> step = getOptionalVal(adaptor.step());
+
+  FailureOr<Value> sliceInfo =
+      getDynamicSlice(rewriter, op, outTy, self, start, end, step, dim,
+                      options.dimSizeIndexBits);
+  if (failed(sliceInfo))
+    return op.emitError("can not create a dynmaic slice");
+
+  auto slice = *sliceInfo;
+  rewriter.replaceOp(op, slice);
+  return success();
+}
 
 template <>
 LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
@@ -324,7 +320,8 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     return success();
   }
 
-  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims);
+  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims,
+                                                   options.dimSizeIndexBits);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -372,7 +369,8 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
   }
-  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims);
+  auto newDimSizesInfo = mhlo::getDimSizesOfTensor(rewriter, op, self, dims,
+                                                   options.dimSizeIndexBits);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -397,8 +395,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!matchPattern(op.dim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
 
-  auto unsqzTensorInfo =
-      mhlo::unsqueezeTensor(rewriter, op, adaptor.self(), {dim});
+  auto unsqzTensorInfo = mhlo::unsqueezeTensor(rewriter, op, adaptor.self(),
+                                               {dim}, options.dimSizeIndexBits);
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,
                                        "failed to create unsqueezed tensor");
@@ -406,16 +404,15 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   rewriter.replaceOp(op, *unsqzTensorInfo);
   return success();
 }
-} // namespace
 
 void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
+    ConversionTarget &target, const TorchToMhloOptions &options) {
   MLIRContext *context = patterns.getContext();
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
+  patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
   INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
   INSERT_ATENOP_PATTERN(AtenSqueezeOp);
   INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
@@ -424,7 +421,7 @@ void mlir::torch::torch_to_mhlo::populateViewLikeOpPatternsAndLegality(
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenViewOp<AtenOp>>(typeConverter, context);
+  patterns.add<ConvertAtenViewOp<AtenOp>>(typeConverter, context, options)
   INSERT_VIEW_OP_PATTERN(AtenViewOp);
   INSERT_VIEW_OP_PATTERN(AtenReshapeOp);
 #undef INSERT_VIEW_OP_PATTERN

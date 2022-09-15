@@ -132,6 +132,17 @@ def ConvertTorchToMhlo : Pass<"convert-torch-to-mhlo", "func::FuncOp"> {
     Convert Torch ops to mhlo ops.
   }];
   let constructor = "mlir::torch::createConvertTorchToMhloPass()";
+
+  // Specify any options.
+  let options = [
+    Option<"enableStaticShape", "enable-static-shape", "bool", /*default=*/"false",
+           "Enable static shape conversion">,
+    // The i64 calculation is much slower than i32 on some devices, such as
+    // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes
+    // are unlikely to exceed the range of i32(4GiB)
+    Option<"enableI32Index", "enable-i32-index", "bool", /*default=*/"false",
+           "Enable truncate index from i64 to i32(unsafely)">,
+  ];
 }
 #endif
 

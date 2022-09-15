@@ -196,7 +196,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                     elementType.getIntOrFloatBitWidth())));
   }
 
-  if (isa<AtenLinalgVectorNormOp>(op))
+  if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
   op->emitError("unimplemented lowering in createInitElementForReduceOp");
@@ -242,6 +242,15 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     auto abs = b.create<math::AbsFOp>(loc, self);
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
     Value ord = convertScalarToDtype(b, loc, adaptor.ord(), resultElementType);
+    auto pow = b.create<math::PowFOp>(loc, abs, ord);
+    return b.create<arith::AddFOp>(loc, pow, result);
+  } else if (isa<AtenFrobeniusNormDimOp>(op)) {
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    auto abs = b.create<math::AbsFOp>(loc, self);
+    Attribute twoAttr = b.getFloatAttr(resultElementType, 2.0);
+    auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   }
@@ -319,6 +328,9 @@ private:
       return computeReductionOpInfoForDimVariantOp(sumOp, operands, rewriter);
 
     if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op))
+      return computeReductionOpInfoForDimVariantOp(normOp, operands, rewriter);
+
+    if (auto normOp = dyn_cast<AtenFrobeniusNormDimOp>(op))
       return computeReductionOpInfoForDimVariantOp(normOp, operands, rewriter);
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
@@ -405,7 +417,8 @@ private:
   LogicalResult
   validateReductionElementType(Operation *op, Type elemType,
                                ConversionPatternRewriter &rewriter) const {
-    if (isa<AtenLinalgVectorNormOp>(op) && !elemType.isa<mlir::FloatType>())
+    if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op)) &&
+        !elemType.isa<mlir::FloatType>())
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
     // No checks for all other reduction operations
@@ -455,6 +468,15 @@ public:
       reduceOp = *secondReduceOp;
     }
 
+    // If it is aten.frobenius_norm.dim op, take the square root of reduceOp as
+    // the final result
+    if (auto normOp = dyn_cast<AtenFrobeniusNormDimOp>(op)) {
+      auto halfAttr = rewriter.getFloatAttr(elemType, 0.5);
+      auto exp = rewriter.create<arith::ConstantOp>(loc, halfAttr);
+      reduceOp =
+          createElementwiseExp(loc, elemType, exp, reduceOp, *opInfo, rewriter);
+    }
+
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, reduceOp);
     return success();
   }
@@ -471,5 +493,6 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
+  target.addIllegalOp<AtenFrobeniusNormDimOp>();
   patterns.add<ConvertReductionOp>(typeConverter, context);
 }

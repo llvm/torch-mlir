@@ -5634,6 +5634,10 @@ module {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.lift_fresh_copy"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten._log_softmax_backward_data"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.int, %arg3: !torch.int) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
@@ -5688,6 +5692,10 @@ module {
   }
   func.func @"__torch_mlir_shape_fn.aten.pow.Tensor_Scalar"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func.func @"__torch_mlir_shape_fn.aten.pow.Tensor_Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.leaky_relu"(%arg0: !torch.list<int>, %arg1: !torch.float) -> !torch.list<int> {
@@ -6284,6 +6292,9 @@ module {
   func.func @"__torch_mlir_shape_fn.aten.bernoulli"(%arg0: !torch.list<int>, %arg1: !torch.any) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.cumsum"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.optional<int>) -> !torch.list<int> {
+    return %arg0 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.rand_like"(%arg0: !torch.list<int>, %arg1: !torch.optional<int>, %arg2: !torch.optional<int>, %arg3: !torch.optional<Device>, %arg4: !torch.optional<bool>, %arg5: !torch.optional<int>) -> !torch.list<int> {
     return %arg0 : !torch.list<int>
   }
@@ -6359,6 +6370,10 @@ module {
   }
   func.func @"__torch_mlir_shape_fn.aten.bitwise_and.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func.func @"__torch_mlir_shape_fn.aten.bitwise_not"(%arg0: !torch.list<int>) -> !torch.list<int> {
+    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.logical_or"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {
@@ -6807,6 +6822,10 @@ module {
     return %0 : !torch.list<int>
   }
   func.func @"__torch_mlir_shape_fn.aten.index.Tensor"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>) -> !torch.list<int> {
+    %0 = call @__torch__.index_tensor_like(%arg0, %arg1) : (!torch.list<int>, !torch.list<optional<list<int>>>) -> !torch.list<int>
+    return %0 : !torch.list<int>
+  }
+  func.func @__torch__.index_tensor_like(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>) -> !torch.list<int> {
     %false = torch.constant.bool false
     %int-1 = torch.constant.int -1
     %true = torch.constant.bool true
@@ -6917,6 +6936,19 @@ module {
     }
     return %9 : !torch.list<int>
   }
+  func.func @"__torch_mlir_shape_fn.aten.index.Tensor_hacked_twin"(%arg0: !torch.list<int>, %arg1: !torch.list<list<int>>) -> !torch.list<int> {
+    %true = torch.constant.bool true
+    %0 = torch.prim.ListConstruct  : () -> !torch.list<optional<list<int>>>
+    %1 = torch.aten.len.t %arg1 : !torch.list<list<int>> -> !torch.int
+    torch.prim.Loop %1, %true, init() {
+    ^bb0(%arg2: !torch.int):
+      %3 = torch.aten.__getitem__.t %arg1, %arg2 : !torch.list<list<int>>, !torch.int -> !torch.list<int>
+      %4 = torch.aten.append.t %0, %3 : !torch.list<optional<list<int>>>, !torch.list<int> -> !torch.list<optional<list<int>>>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    %2 = call @__torch__.index_tensor_like(%arg0, %0) : (!torch.list<int>, !torch.list<optional<list<int>>>) -> !torch.list<int>
+    return %2 : !torch.list<int>
+  }
   func.func @"__torch_mlir_shape_fn.aten.cat"(%arg0: !torch.list<list<int>>, %arg1: !torch.int) -> !torch.list<int> {
     %0 = call @__torch__.torch.jit._shape_functions.cat(%arg0, %arg1) : (!torch.list<list<int>>, !torch.int) -> !torch.list<int>
     return %0 : !torch.list<int>
@@ -6940,6 +6972,13 @@ module {
     %0 = torch.derefine %arg4 : !torch.optional<int> to !torch.any
     %1 = call @__torch__.torch.jit._shape_functions.sum_mean_dim(%arg0, %arg2, %arg3, %0) : (!torch.list<int>, !torch.optional<list<int>>, !torch.bool, !torch.any) -> !torch.list<int>
     return %1 : !torch.list<int>
+  }
+  func.func @"__torch_mlir_shape_fn.aten.frobenius_norm.dim"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.bool) -> !torch.list<int> {
+    %int0 = torch.constant.int 0
+    %0 = torch.derefine %arg1 : !torch.list<int> to !torch.optional<list<int>>
+    %1 = torch.derefine %int0 : !torch.int to !torch.any
+    %2 = call @__torch__.torch.jit._shape_functions.sum_mean_dim(%arg0, %0, %arg2, %1) : (!torch.list<int>, !torch.optional<list<int>>, !torch.bool, !torch.any) -> !torch.list<int>
+    return %2 : !torch.list<int>
   }
 }
 )mlir");
