@@ -178,6 +178,7 @@ function build_in_tree() {
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=OFF \
+      -DTORCH_MLIR_DIALECTS_ENABLE_TCP=OFF \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm

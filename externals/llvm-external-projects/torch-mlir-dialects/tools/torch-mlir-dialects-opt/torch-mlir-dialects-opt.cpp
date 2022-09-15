@@ -18,7 +18,9 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+#ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
+#endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
@@ -39,7 +41,9 @@ int main(int argc, char **argv) {
   registry.insert<
       // Local dialects
       mlir::torch::TMTensor::TMTensorDialect,
+#ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
       mlir::tcp::TcpDialect,
+#endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
       // Upstream dialects
       mlir::arith::ArithmeticDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
