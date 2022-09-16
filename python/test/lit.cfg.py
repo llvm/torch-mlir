@@ -37,6 +37,12 @@ config.test_source_root = os.path.dirname(__file__)
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.torch_mlir_obj_root, 'test')
 
+# On Windows the path to python could contains spaces in which case it needs to
+# be provided in quotes.  This is the equivalent of how %python is setup in
+# llvm/utils/lit/lit/llvm/config.py.
+if "Windows" in config.host_os:
+  config.python_executable = '"%s"' % (config.python_executable)
+
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 config.substitutions.append(('%shlibext', config.llvm_shlib_ext))
 config.substitutions.append(('%PYTHON', config.python_executable))
