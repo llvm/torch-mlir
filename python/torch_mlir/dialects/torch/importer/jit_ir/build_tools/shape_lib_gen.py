@@ -1251,6 +1251,17 @@ def main(args):
     # Put the `〇` back to a regular `.`.
     asm = asm.replace("\\E3\\80\\87", ".")
 
+    # We're about to put quotes around the string, so escape the `"` characters.
+    asm = asm.replace("\"", "\\\"")
+
+    # Instead of dumping one big chunk of text that is several thousand lines
+    # long (and which causes MSVC to error out), split it into multiple lines.
+    # See MSVC Compiler Error C2026
+    # [https://docs.microsoft.com/en-us/cpp/error-messages/compiler-errors-1/compiler-error-c2026?view=msvc-170]
+    # for details.
+    multiple_lines = asm.replace("\n", "\\n\"\n\"")
+    asm = f"\"{multiple_lines}\""
+
     # Write out the shape library .cpp file.
     shape_lib_cpp_file = os.path.join(
         args.torch_transforms_cpp_dir, "ShapeLibrary.cpp")
@@ -1276,19 +1287,16 @@ f"""//===-------------------------------------------------------------*- C++-*-=
 using namespace mlir;
 
 StringRef mlir::torch::Torch::getShapeLibrary() {{
-// TODO: Find a way to embed this string nicely.
-// It is currently too long, and will probably break MSVC builds if anyone
-// attempts that.
-// We want to preserve the legibility of the shape library as a checked in file,
-// since that is sometimes useful for debugging / diffing.
-// Probably the ideal outcome is to have the shape library be a .mlir file
-// that is checked in, and then we embed it as part of the build process.
+#ifndef _MSC_VER
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
-  constexpr StringLiteral shapeLib(R"mlir(
-{asm})mlir");
+#endif
+  // clang-format off
+  return {asm};
+  // clang-format on
+#ifndef _MSC_VER
 #pragma clang diagnostic pop
-  return shapeLib;
+#endif
 }}""")
 
 def _create_argparse() -> argparse.ArgumentParser:
