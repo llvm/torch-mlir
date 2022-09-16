@@ -2866,8 +2866,9 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
       adaptor.self(), dimAttr);
 
   if (argMax.getType() != indicesType) {
-    argMax = rewriter.create<tosa::ReshapeOp>(op->getLoc(), indicesType, argMax,
-                                              prunedShapeAttr);
+    argMax = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(), indicesType, argMax,
+        rewriter.getI64ArrayAttr(reducedShape));
   }
 
   if (!keepDim) {
