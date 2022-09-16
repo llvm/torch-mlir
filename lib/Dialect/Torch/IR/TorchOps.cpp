@@ -1915,14 +1915,50 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
 
 using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
 template <typename OpTy>
-static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,
-                                                    BinaryIntOperatorFn f) {
+static std::enable_if_t<!std::is_same_v<OpTy, ArrayRef<Attribute>>,
+                        OpFoldResult>
+atenBinaryIntOperatorFoldHelper(OpTy op, BinaryIntOperatorFn f) {
   int64_t lhs, rhs;
   if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
       !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
     return nullptr;
 
   return getI64IntegerAttr(op.getContext(), f(lhs, rhs));
+}
+
+static OpFoldResult
+atenBinaryIntOperatorFoldHelper(ArrayRef<Attribute> operands,
+                                BinaryIntOperatorFn f) {
+  auto intLhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto intRhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (!intLhs || !intRhs) {
+    return nullptr;
+  }
+  return IntegerAttr::get(
+      intLhs.getType(),
+      f(intLhs.getValue().getSExtValue(), intRhs.getValue().getSExtValue()));
+}
+
+using BinaryFloatOperatorFn = std::function<double(double, double)>;
+static OpFoldResult
+atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
+                                  BinaryFloatOperatorFn f) {
+  double lhs, rhs;
+  auto parseDoubleAttribute = [](Attribute attr, double &value) -> bool {
+    if (auto intLhs = attr.dyn_cast_or_null<IntegerAttr>()) {
+      value = static_cast<double>(intLhs.getValue().getSExtValue());
+    } else if (auto floatLhs = attr.dyn_cast_or_null<FloatAttr>()) {
+      value = floatLhs.getValue().convertToDouble();
+    } else {
+      return false;
+    }
+    return true;
+  };
+  if (!parseDoubleAttribute(operands[0], lhs) ||
+      !parseDoubleAttribute(operands[1], rhs)) {
+    return nullptr;
+  }
+  return getF64FloatAttr(operands[0].getContext(), f(lhs, rhs));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1985,30 +2021,12 @@ OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
     return nullptr;
   }
 
-  auto intLhs = operands[0].dyn_cast_or_null<IntegerAttr>();
-  auto floatLhs = operands[0].dyn_cast_or_null<FloatAttr>();
-  auto intRhs = operands[1].dyn_cast_or_null<IntegerAttr>();
-  auto floatRhs = operands[1].dyn_cast_or_null<FloatAttr>();
-  if (intLhs && intRhs) {
-    return IntegerAttr::get(intLhs.getType(),
-                            intLhs.getValue().getSExtValue() -
-                                intRhs.getValue().getSExtValue());
-  } else if (intLhs && floatRhs) {
-    return FloatAttr::get(
-        floatRhs.getType(),
-        static_cast<double>(intLhs.getValue().getSExtValue()) -
-            floatRhs.getValue().convertToDouble());
-  } else if (intRhs && floatLhs) {
-    return FloatAttr::get(
-        floatLhs.getType(),
-        floatLhs.getValue().convertToDouble() -
-            static_cast<double>(intRhs.getValue().getSExtValue()));
-  } else if (floatLhs && floatRhs) {
-    return FloatAttr::get(floatLhs.getType(),
-                          floatLhs.getValue().convertToDouble() -
-                              floatRhs.getValue().convertToDouble());
+  if (operands[0].isa<IntegerAttr>() && operands[1].isa<IntegerAttr>()) {
+    return atenBinaryIntOperatorFoldHelper(
+        operands, [](int64_t a, int64_t b) -> int64_t { return a - b; });
   }
-  return nullptr;
+  return atenBinaryFloatOperatorFoldHelper(
+      operands, [](double a, double b) -> double { return a - b; });
 }
 
 //===----------------------------------------------------------------------===//
