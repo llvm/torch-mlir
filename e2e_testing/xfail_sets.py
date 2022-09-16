@@ -22,6 +22,9 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
+    "ElementwiseClampModule_basic",
+    "ElementwiseClampMinModule_basic",
+    "ElementwiseClampMaxModule_basic",
     "BmmModule_basic",
     "BroadcastToModule_basic",
     "ElementwiseExpModule_basic",
