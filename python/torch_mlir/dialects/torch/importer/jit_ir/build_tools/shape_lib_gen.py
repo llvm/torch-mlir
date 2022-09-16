@@ -1253,44 +1253,18 @@ def main(args):
 
     # Write out the shape functions .mlir file.
     shape_funcs_mlir_file = os.path.join(
-        args.torch_transforms_cpp_dir, "ShapeFunctions.mlir")
+        args.torch_transforms_cpp_dir, "ShapeLibrary.mlir")
     with open(shape_funcs_mlir_file, "w") as f:
         p = lambda *args: print(*args, file=f)
-        p(f"{asm}")
-
-    # Write out the shape library .cpp file.
-    shape_lib_cpp_file = os.path.join(
-        args.torch_transforms_cpp_dir, "ShapeLibrary.cpp")
-    with open(shape_lib_cpp_file, "w") as f:
-        p = lambda *args: print(*args, file=f)
         p(
-f"""//===-------------------------------------------------------------*- C++-*-===//
-//
-// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// Also available under a BSD-style license. See LICENSE.
-//
-//===----------------------------------------------------------------------===//
+f"""//===----------------------------------------------------------------------===//
 //
 // This file is auto-generated! Do not edit!!!
 // Generated with the script `build_tools/update_shape_lib.sh`.
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
-
-using namespace mlir;
-
-StringRef mlir::torch::Torch::getShapeLibrary() {{
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Woverlength-strings"
-  constexpr StringLiteral shapeLib(R"mlir(
-#include "ShapeFunctions.mlir"
-)mlir");
-#pragma clang diagnostic pop
-  return shapeLib;
-}}""")
+{asm}""")
 
 def _create_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="generate_ods")
