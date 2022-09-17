@@ -57,5 +57,6 @@ def ReadOnly : TorchOpTrait<"ReadOnly">;
 def IsTrailingUnderscoreInplaceVariant
   : TorchOpTrait<"IsTrailingUnderscoreInplaceVariant">;
 def AllowsTypeRefinement : TorchOpTrait<"AllowsTypeRefinement">;
+def IsGlobalModuleOp : TorchOpTrait<"IsGlobalModuleOp">;
 
 #endif // TORCH_BASE

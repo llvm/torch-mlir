@@ -2203,11 +2203,7 @@ LogicalResult GlobalSlotModuleInitializerOp::verify() {
     // We only permit a small set of ops in the module initializer.
     // These ops are essentially those which can be produced by the IValue
     // importer.
-    if (isa<GlobalSlotModuleInitializerOp, InitializeGlobalSlotsOp,
-            PrimListConstructOp, PrimDictConstructOp, PrimTupleConstructOp,
-            ConstantBoolOp, ConstantStrOp, ConstantIntOp, ConstantFloatOp,
-            ConstantNoneOp, NonValueTensorLiteralOp, PerTensorAffineCreateOp,
-            LinearParamsCreateOp>(op))
+    if (op->hasTrait<mlir::torch::Torch::OpTrait::IsGlobalModuleOp>())
       return WalkResult::advance();
     op->emitOpError() << "is not allowed in a module initializer";
     return WalkResult::interrupt();
