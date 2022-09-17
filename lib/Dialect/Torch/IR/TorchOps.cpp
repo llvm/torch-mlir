@@ -1914,18 +1914,6 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
 }
 
 using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
-template <typename OpTy>
-static std::enable_if_t<!std::is_same_v<OpTy, ArrayRef<Attribute>>,
-                        OpFoldResult>
-atenBinaryIntOperatorFoldHelper(OpTy op, BinaryIntOperatorFn f) {
-  int64_t lhs, rhs;
-  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
-      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
-    return nullptr;
-
-  return getI64IntegerAttr(op.getContext(), f(lhs, rhs));
-}
-
 static OpFoldResult
 atenBinaryIntOperatorFoldHelper(ArrayRef<Attribute> operands,
                                 BinaryIntOperatorFn f) {
@@ -1967,7 +1955,7 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 
 OpFoldResult AtenFloordivIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
+    operands, [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1976,7 +1964,7 @@ OpFoldResult AtenFloordivIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenRemainderIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a % b; });
+    operands, [](int64_t a, int64_t b) { return a % b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1985,7 +1973,7 @@ OpFoldResult AtenRemainderIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenAddIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a + b; });
+    operands, [](int64_t a, int64_t b) { return a + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1994,7 +1982,7 @@ OpFoldResult AtenAddIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenSubIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a - b; });
+    operands, [](int64_t a, int64_t b) { return a - b; });
 }
 
 //===----------------------------------------------------------------------===//

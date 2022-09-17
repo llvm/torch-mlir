@@ -759,7 +759,7 @@ def Torch_ConstantNumberOp : Torch_Op<"constant.number",
   let description = [{
     This op is used as a workaround to the fact that the constant 
     materialization in MLIR must materialize a constant with a single op. 
-    To materialize ops with a static `!torch.number type, we must use this op, 
+    To materialize ops with a static `!torch.number` type, we must use this op, 
     even though we statically know if it is an integer or a float.
 
     Note: This op unconditionally canonicalizes to 
