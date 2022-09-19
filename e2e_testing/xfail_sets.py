@@ -623,4 +623,6 @@ LTC_XFAIL_SET = {
     "ElementwiseRemainderScalarModule_Float_basic",
     "ElementwiseRemainderScalarModule_Int_basic",
     "ElementwiseRemainderScalarModule_Bool_basic",
+    "AtenIntTensorByteDtypeModule_basic",
+    "AtenIntTensorCharDtypeModule_basic",
 }

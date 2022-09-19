@@ -84,6 +84,8 @@ public:
     Value input = adaptor.a();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
+    Type inputDtype =
+        op.a().getType().template cast<BaseTensorType>().getDtype();
 
     // The `input` tensor must contain exactly one element, i.e., either the
     // `input` is a zero rank tensor or all the dimensions of the `input` tensor
@@ -97,7 +99,11 @@ public:
     Value constantZero =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     SmallVector<Value> indices(inputRank, constantZero);
-    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, input, indices);
+    Value result = rewriter.create<tensor::ExtractOp>(loc, input, indices);
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    rewriter.replaceOp(op, convertScalarToDtype(rewriter, loc, result,
+                                                resultType, inputDtype));
     return success();
   }
 };
