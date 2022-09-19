@@ -61,8 +61,8 @@ class AllowsTypeRefinement
 // module initializer. These ops are essentially those which can be produced
 // by the IValue importer.
 template <typename ConcreteType>
-class IsGlobalModuleOp
-    : public ::mlir::OpTrait::TraitBase<ConcreteType, IsGlobalModuleOp> {};
+class AllowedInModuleInitializer
+    : public ::mlir::OpTrait::TraitBase<ConcreteType, AllowedInModuleInitializer> {};
 
 } // namespace OpTrait
 } // namespace Torch

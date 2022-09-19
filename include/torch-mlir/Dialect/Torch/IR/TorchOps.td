@@ -252,7 +252,7 @@ def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
 def Torch_GlobalSlotModuleInitializerOp : Torch_Op<"global_slot.module_initializer", [
     IsolatedFromAbove,
     SingleBlockImplicitTerminator<"::mlir::torch::Torch::InitializeGlobalSlotsOp">,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Module initializer for all `torch.global_slot` ops";
   let description = [{
@@ -279,7 +279,7 @@ def Torch_GlobalSlotModuleInitializerOp : Torch_Op<"global_slot.module_initializ
 def Torch_InitializeGlobalSlotsOp : Torch_Op<"initialize.global_slots", [
     Terminator,
     HasParent<"::mlir::torch::Torch::GlobalSlotModuleInitializerOp">,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Terminator for torch.global_slot.module_initializer region";
   let description = [{
@@ -379,7 +379,7 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
     TypesMatchWith<"contained types correspond to operand types",
     "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))",
     "isValidSubtype">,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "TorchScript prim::TupleConstruct op";
   let description = [{
@@ -402,7 +402,7 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
 def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
     NoSideEffect,
     AllowsTypeRefinement,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "TorchScript prim::ListConstruct op";
 
@@ -423,7 +423,7 @@ def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
 def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
     AllowsTypeRefinement,
     SameVariadicOperandSize,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "TorchScript prim::DictConstruct op";
 
@@ -660,7 +660,7 @@ def Torch_ConstantNoneOp : Torch_Op<"constant.none", [
     ConstantLike,
     NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Get the singleton None value.";
   let description = [{
@@ -677,7 +677,7 @@ def Torch_ConstantStrOp : Torch_Op<"constant.str", [
     ConstantLike,
     NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Materialize a constant str value.";
   let description = [{
@@ -713,7 +713,7 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int", [
     ConstantLike,
     NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Materialize a constant `int` value.";
   let description = [{
@@ -735,7 +735,7 @@ def Torch_ConstantFloatOp : Torch_Op<"constant.float", [
     ConstantLike,
     NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Materialize a constant `float` value.";
   let description = [{
@@ -757,7 +757,7 @@ def Torch_ConstantBoolOp : Torch_Op<"constant.bool", [
     ConstantLike,
     NoSideEffect,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Materialize a constant `bool` value.";
   let description = [{
@@ -830,7 +830,7 @@ def Torch_OperatorOp : Torch_Op<"operator", [
 
 def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
     AllowsTypeRefinement,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Create a `!torch.LinearParams`";
   let arguments = (ins
@@ -846,7 +846,7 @@ def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
 
 def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
     AllowsTypeRefinement,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Create a per-tensor-affine quantized tensor";
   let description = [{
@@ -877,7 +877,7 @@ def Torch_PerTensorAffineCreateOp : Torch_Op<"per_tensor_affine.create", [
 def Torch_NonValueTensorLiteralOp : Torch_Op<"tensor.literal", [
     DeclareOpInterfaceMethods<InferTypeOpInterface, ["isCompatibleReturnTypes"]>,
     AllowsTypeRefinement,
-    IsGlobalModuleOp,
+    AllowedInModuleInitializer,
   ]> {
   let summary = "Create a value of !torch.tensor type from a literal";
   let description = [{
