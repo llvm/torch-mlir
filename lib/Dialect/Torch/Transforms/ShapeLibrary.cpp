@@ -20,6 +20,7 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 #ifndef _MSC_VER
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
+#endif
   // clang-format off
   return "module {\n"
 "  func.func @__torch__.torch._decomp.decompositions.nll_loss_backward(%arg0: !torch.tensor, %arg1: !torch.tensor, %arg2: !torch.tensor, %arg3: !torch.optional<tensor>, %arg4: !torch.int, %arg5: !torch.int, %arg6: !torch.tensor) -> !torch.tensor {\n"
@@ -968,7 +969,7 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "      torch.prim.RaiseException %str, %none : !torch.str, !torch.none\n"
 "      torch.prim.If.yield\n"
 "    }\n"
-"    %1 = torch.operator \"aten.ceil.Scalar\"(%arg0) : (!torch.union<float, int>) -> !torch.number\n"
+"    %1 = torch.aten.ceil.Scalar %arg0 : !torch.union<float, int> -> !torch.number\n"
 "    %2 = torch.aten.Int.Scalar %1 : !torch.number -> !torch.int\n"
 "    %3 = torch.prim.ListConstruct %2 : (!torch.int) -> !torch.list<int>\n"
 "    return %3 : !torch.list<int>\n"
@@ -991,8 +992,8 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "      torch.prim.RaiseException %str, %none : !torch.str, !torch.none\n"
 "      torch.prim.If.yield\n"
 "    }\n"
-"    %2 = torch.operator \"aten.sub\"(%arg1, %arg0) : (!torch.union<float, int>, !torch.union<float, int>) -> !torch.number\n"
-"    %3 = torch.operator \"aten.ceil.Scalar\"(%2) : (!torch.number) -> !torch.number\n"
+"    %2 = torch.aten.sub %arg1, %arg0 : !torch.union<float, int>, !torch.union<float, int> -> !torch.number\n"
+"    %3 = torch.aten.ceil.Scalar %2 : !torch.number -> !torch.number\n"
 "    %4 = torch.aten.Int.Scalar %3 : !torch.number -> !torch.int\n"
 "    %5 = torch.prim.ListConstruct %4 : (!torch.int) -> !torch.list<int>\n"
 "    return %5 : !torch.list<int>\n"
@@ -1028,7 +1029,7 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "      }\n"
 "      torch.prim.If.yield\n"
 "    }\n"
-"    %2 = torch.operator \"aten.sub\"(%arg1, %arg0) : (!torch.union<float, int>, !torch.union<float, int>) -> !torch.number\n"
+"    %2 = torch.aten.sub %arg1, %arg0 : !torch.union<float, int>, !torch.union<float, int> -> !torch.number\n"
 "    %3 = torch.aten.div %2, %arg2 : !torch.number, !torch.union<float, int> -> !torch.float\n"
 "    %4 = torch.aten.ceil.float %3 : !torch.float -> !torch.int\n"
 "    %5 = torch.prim.ListConstruct %4 : (!torch.int) -> !torch.list<int>\n"
@@ -7819,3 +7820,5 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
   // clang-format on
 #ifndef _MSC_VER
 #pragma clang diagnostic pop
+#endif
+}
