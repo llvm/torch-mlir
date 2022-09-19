@@ -21,7 +21,7 @@ __all__ = [
 
 
 def assert_arg_type_is_supported(ty):
-    SUPPORTED = [np.float32, np.float64, np.int32, np.int64, np.bool_]
+    SUPPORTED = [np.float32, np.float64, np.uint8, np.int8, np.int32, np.int64, np.bool_]
     assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
 
 
@@ -29,11 +29,13 @@ memref_type_to_np_dtype = {
     "mrf32": np.float32,
     "mrf64": np.float64,
     "mri1": np.bool_,
+    "mri8": np.int8,
     "mri32": np.int32,
     "mri64": np.int64
 }
 elemental_type_to_ctype = {
     "i1": ctypes.c_bool,
+    "i8": ctypes.c_byte,
     "i64": ctypes.c_int,
     "f32": ctypes.c_float,
     "f64": ctypes.c_double

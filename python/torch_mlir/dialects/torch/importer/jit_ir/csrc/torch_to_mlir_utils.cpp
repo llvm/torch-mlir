@@ -356,6 +356,12 @@ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
   case ScalarType::Half:
     return mlirDenseElementsAttrFloat16Get(
         shapedType, numElements, static_cast<const uint16_t *>(tensorData));
+  case ScalarType::Byte:
+    return mlirDenseElementsAttrUInt8Get(
+        shapedType, numElements, static_cast<const uint8_t *>(tensorData));
+  case ScalarType::Char:
+    return mlirDenseElementsAttrInt8Get(
+        shapedType, numElements, static_cast<const int8_t *>(tensorData));
 
   default:
     throwUnsupportedTensorError();
