@@ -1059,6 +1059,59 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   return success();
 }
 
+// AtenArangeStartStepOp
+// aten.arange.start_step = range(ceil((end-start)/step)) * step + start.
+template <>
+LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
+    AtenArangeStartStepOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op->getLoc();
+
+  // The pinMemory should be either `none` or `false`.
+  bool pinMemory;
+  if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
+      (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory)) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: pin_memory must be either None or false");
+  }
+
+  // Get element type of resultType as dtype
+  auto outType = this->getTypeConverter()
+                     ->convertType(op.getType())
+                     .cast<RankedTensorType>();
+  auto dtype = outType.getElementType();
+  if (!dtype.isa<mlir::IntegerType>() && !dtype.isa<mlir::FloatType>()) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only int or float dtype supported");
+  }
+
+  Value start = mhlo::scalarToMhloTensor(rewriter, op, adaptor.start(), dtype);
+  Value end = mhlo::scalarToMhloTensor(rewriter, op, adaptor.end(), dtype);
+  Value step = mhlo::scalarToMhloTensor(rewriter, op, adaptor.step(), dtype);
+
+  // Get length of the 1-d output tensor
+  Value subOut = rewriter.create<mhlo::SubtractOp>(loc, end, start);
+  Value divOut = rewriter.create<mhlo::DivOp>(loc, subOut, step);
+
+  Value resultLength = rewriter.create<mhlo::ReshapeOp>(
+      loc, RankedTensorType::get({1}, dtype), divOut);
+  if (dtype.isa<mlir::FloatType>()) {
+    resultLength = rewriter.create<mhlo::CeilOp>(loc, resultLength);
+    resultLength = rewriter.create<mhlo::ConvertOp>(
+        loc, RankedTensorType::get({1}, rewriter.getI64Type()), resultLength);
+  }
+
+  Value window =
+      rewriter.create<mhlo::DynamicIotaOp>(loc, outType, resultLength, 0);
+  DenseIntElementsAttr broadcastDimensions;
+  Value mulOut = rewriter.create<chlo::BroadcastMulOp>(loc, window, step,
+                                                       broadcastDimensions);
+  rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(op, mulOut, start,
+                                                    broadcastDimensions);
+  return success();
+}
+
 void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToMhloOptions &options) {
@@ -1138,6 +1191,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenCatOp);
   INSERT_ATENOP_PATTERN(AtenClampOp);
+  INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
   INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);

@@ -2018,6 +2018,20 @@ OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenDivOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivOp::fold(ArrayRef<Attribute> operands) {
+  if (!operands[0] || !operands[1]) {
+    return nullptr;
+  }
+  // Since AtenDivOp always returns float value, we don't need to deal with the
+  // case where the operands are both integers separately.
+  return atenBinaryFloatOperatorFoldHelper(
+      operands, [](double a, double b) -> double { return a / b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCeilScalarOp
 //===----------------------------------------------------------------------===//
 
