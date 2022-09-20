@@ -1047,6 +1047,28 @@ def BroadcastToModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class BroadcastToIdentityCaseStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.broadcast_to(x, [3, 1, 1])
+
+
+@register_test_case(module_factory=lambda: BroadcastToIdentityCaseStaticModule())
+def BroadcastToIdentityCaseStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1))
+
+
+# ==============================================================================
+
+
 class RollModule(torch.nn.Module):
 
     def __init__(self):

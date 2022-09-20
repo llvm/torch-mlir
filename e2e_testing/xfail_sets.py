@@ -364,6 +364,7 @@ TOSA_PASS_SET = {
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
+    "BroadcastToIdentityCaseStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
