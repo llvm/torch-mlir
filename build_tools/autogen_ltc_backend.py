@@ -212,23 +212,13 @@ class GenTorchMlirLTC:
         # List of non-native ops to do IR codegen for
         non_native = config.get("non_native", [])
 
-        # use ripgrep if available as its much faster
-        if which("rg") is not None:
-            cmd = ["rg", "-o", "-N", r"aten::[0-9a-zA-Z_\.]+", str(self.torch_ops_file)]
-        elif which("grep") is not None:
-            cmd = ["grep", "-o", r"aten::[0-9a-zA-Z_\.]\+", str(self.torch_ops_file)]
-        else:
-            cmd = f"for /f \"tokens=7 delims=` \" %a in ('findstr /R /C:\"aten::\" {self.torch_ops_file}') do @echo %a"
-
+        # ops set
         torch_ops = set(
             op[6:]
-            for op in subprocess.check_output(
-                cmd,
-                encoding="utf-8",
-                shell=True if platform.system() == "Windows" else False
-            )
-            .strip()
-            .split()
+            for op in [
+                re.search("aten::[\w\.]+", line).group() for line in open(self.torch_ops_file, "r")
+                if re.search("aten::", line)
+            ]
         )
         torch_opnames = get_opnames(torch_ops)
 
