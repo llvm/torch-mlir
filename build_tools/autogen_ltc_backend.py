@@ -5,7 +5,6 @@ import logging
 import os
 import platform
 import re
-import subprocess
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
