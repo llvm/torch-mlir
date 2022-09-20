@@ -149,6 +149,14 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
   if (auto floatType = type.dyn_cast<Torch::FloatType>())
     return builder.create<Torch::ConstantFloatOp>(loc, value.cast<FloatAttr>());
 
+  if (auto numberType = type.dyn_cast<Torch::NumberType>()) {
+    if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
+      return builder.create<Torch::ConstantNumberOp>(loc, floatValue);
+    } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()) {
+      return builder.create<Torch::ConstantNumberOp>(loc, intValue);
+    }
+  }
+  
   if (type.isa<Torch::BoolType>()) {
     return builder.create<Torch::ConstantBoolOp>(loc,
                                                  value.cast<IntegerAttr>());

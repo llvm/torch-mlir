@@ -1592,6 +1592,34 @@ void Torch::ConstantFloatOp::getAsmResultNames(
 }
 
 //===----------------------------------------------------------------------===//
+// ConstantNumberOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Torch::ConstantNumberOp::fold(ArrayRef<Attribute> operands) {
+  return valueAttr();
+}
+
+void Torch::ConstantNumberOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Torch::ConstantNumberOp op, PatternRewriter &rewriter) {
+    Location loc = op->getLoc();
+
+    Value constValue;
+    Attribute value = op.valueAttr();
+    if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
+      constValue = rewriter.create<Torch::ConstantFloatOp>(loc, floatValue);
+    } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()) {
+      constValue = rewriter.create<Torch::ConstantIntOp>(loc, intValue);
+    } else {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<Torch::DerefineOp>(op, op.getType(),
+                                                   constValue);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantBoolOp
 //===----------------------------------------------------------------------===//
 
@@ -1886,15 +1914,39 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
 }
 
 using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
-template <typename OpTy>
-static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,
-                                                    BinaryIntOperatorFn f) {
-  int64_t lhs, rhs;
-  if (!matchPattern(op.getOperand(0), m_TorchConstantInt(&lhs)) ||
-      !matchPattern(op.getOperand(1), m_TorchConstantInt(&rhs)))
+static OpFoldResult
+atenBinaryIntOperatorFoldHelper(ArrayRef<Attribute> operands,
+                                BinaryIntOperatorFn f) {
+  auto intLhs = operands[0].dyn_cast_or_null<IntegerAttr>();
+  auto intRhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  if (!intLhs || !intRhs) {
     return nullptr;
+  }
+  return IntegerAttr::get(
+      intLhs.getType(),
+      f(intLhs.getValue().getSExtValue(), intRhs.getValue().getSExtValue()));
+}
 
-  return getI64IntegerAttr(op.getContext(), f(lhs, rhs));
+using BinaryFloatOperatorFn = std::function<double(double, double)>;
+static OpFoldResult
+atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
+                                  BinaryFloatOperatorFn f) {
+  double lhs, rhs;
+  auto parseDoubleAttribute = [](Attribute attr, double &value) -> bool {
+    if (auto intLhs = attr.dyn_cast_or_null<IntegerAttr>()) {
+      value = static_cast<double>(intLhs.getValue().getSExtValue());
+    } else if (auto floatLhs = attr.dyn_cast_or_null<FloatAttr>()) {
+      value = floatLhs.getValue().convertToDouble();
+    } else {
+      return false;
+    }
+    return true;
+  };
+  if (!parseDoubleAttribute(operands[0], lhs) ||
+      !parseDoubleAttribute(operands[1], rhs)) {
+    return nullptr;
+  }
+  return getF64FloatAttr(operands[0].getContext(), f(lhs, rhs));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1903,7 +1955,7 @@ static OpFoldResult atenBinaryIntOperatorFoldHelper(OpTy op,
 
 OpFoldResult AtenFloordivIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
+    operands, [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1912,7 +1964,7 @@ OpFoldResult AtenFloordivIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenRemainderIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a % b; });
+    operands, [](int64_t a, int64_t b) { return a % b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1921,7 +1973,7 @@ OpFoldResult AtenRemainderIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenAddIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a + b; });
+    operands, [](int64_t a, int64_t b) { return a + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1930,7 +1982,7 @@ OpFoldResult AtenAddIntOp::fold(ArrayRef<Attribute> operands) {
 
 OpFoldResult AtenSubIntOp::fold(ArrayRef<Attribute> operands) {
   return atenBinaryIntOperatorFoldHelper(
-      *this, [](int64_t a, int64_t b) { return a - b; });
+    operands, [](int64_t a, int64_t b) { return a - b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1946,6 +1998,40 @@ OpFoldResult AtenMulIntOp::fold(ArrayRef<Attribute> operands) {
   if (lConstant && rConstant)
     return getI64IntegerAttr(getContext(), lhs * rhs);
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenSubOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSubOp::fold(ArrayRef<Attribute> operands) {
+  if (!operands[0] || !operands[1]) {
+    return nullptr;
+  }
+
+  if (operands[0].isa<IntegerAttr>() && operands[1].isa<IntegerAttr>()) {
+    return atenBinaryIntOperatorFoldHelper(
+        operands, [](int64_t a, int64_t b) -> int64_t { return a - b; });
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      operands, [](double a, double b) -> double { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCeilScalarOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCeilScalarOp::fold(ArrayRef<Attribute> operands) {
+  if (!operands[0]) {
+    return nullptr;
+  }
+  auto floatValue = operands[0].dyn_cast_or_null<FloatAttr>();
+  if (!floatValue) {
+    return nullptr;
+  }
+  return getI64IntegerAttr(
+      getContext(),
+      static_cast<int64_t>(std::ceil(floatValue.getValue().convertToDouble())));
 }
 
 //===----------------------------------------------------------------------===//
