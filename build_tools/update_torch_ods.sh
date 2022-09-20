@@ -22,13 +22,17 @@ if [ ! -z ${TORCH_MLIR_EXT_PYTHONPATH} ]; then
   pypath="${pypath}:${TORCH_MLIR_EXT_PYTHONPATH}"
 fi
 TORCH_MLIR_EXT_MODULES="${TORCH_MLIR_EXT_MODULES:-""}"
-ext_module="${ext_module:-""}"
+include_custom_op_example="${INCLUDE_CUSTOM_OP:-OFF}"
+if [ "$include_custom_op_example" == "ON" ]; then
+  ext_module="torch_mlir._torch_mlir_custom_op_example"
+fi
 if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
-  ext_module="${TORCH_MLIR_EXT_MODULES}"
+  ext_module="${ext_module},${TORCH_MLIR_EXT_MODULES}"
 fi
 
 PYTHONPATH="${pypath}" python \
   -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.torch_ods_gen \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
-  --pytorch_op_extensions="${ext_module}" \
-  --debug_registry_dump="${torch_ir_include_dir}/JITOperatorRegistryDump.txt"
+  --pytorch_op_extensions="${ext_module:-""}" \
+  --debug_registry_dump="${torch_ir_include_dir}/JITOperatorRegistryDump.txt" \
+  --include_custom_op_example="${include_custom_op_example}"

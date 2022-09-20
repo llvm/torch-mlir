@@ -9728,3 +9728,25 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   }];
 }
 
+def Torch_TorchMlirCustomOpExampleIdentityOp : Torch_Op<"_torch_mlir_custom_op_example.identity", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$t
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchMlirCustomOpExampleIdentityOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void TorchMlirCustomOpExampleIdentityOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}

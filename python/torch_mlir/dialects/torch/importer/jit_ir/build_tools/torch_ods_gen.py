@@ -218,7 +218,7 @@ def emit_op(operator: JitOperator,
                 has_canonicalizer=has_canonicalizer)
 
 
-def emit_ops(emitter_td: TextEmitter, registry: Registry):
+def emit_ops(emitter_td: TextEmitter, registry: Registry, include_custom_op_example: str):
     def emit(key, **kwargs):
         emit_op(registry[key], emitter_td, **kwargs)
 
@@ -644,6 +644,16 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "quantized::linear : (Tensor, __torch__.torch.classes.quantized.LinearPackedParamsBase, float, int) -> (Tensor)",
         traits=["HasValueSemantics"])
 
+    # ==========================================================================
+    # `_torch_mlir_custom_op_example::` namespace.
+    #
+    # This is a demonstration of supporting an operation defined in a PyTorch
+    # extension.
+    # ==========================================================================
+
+    if include_custom_op_example == "ON":
+        emit("_torch_mlir_custom_op_example::identity : (Tensor) -> (Tensor)")
+
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
@@ -668,7 +678,7 @@ def main(args: argparse.Namespace):
     with open(td_path, "w") as f_td:
         emitter_td = TextEmitter(f_td)
         emitter_td.print(ODS_BANNER)
-        emit_ops(emitter_td, registry)
+        emit_ops(emitter_td, registry, args.include_custom_op_example)
 
 
 def _create_argparse() -> argparse.ArgumentParser:
@@ -680,6 +690,10 @@ def _create_argparse() -> argparse.ArgumentParser:
     parser.add_argument(
         "--debug_registry_dump",
         help="File to dump the the PyTorch JIT operator registry into")
+    parser.add_argument(
+        "--include_custom_op_example",
+        type=str,
+        help="String value to denote if custom_op_example has to be included")
     parser.add_argument(
         "--pytorch_op_extensions",
         type=str,
