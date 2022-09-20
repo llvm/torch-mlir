@@ -204,6 +204,8 @@ MHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseCloneContiguousModule_basic",
+    "ElementwiseCloneModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseSigmoidModule_basic",
@@ -364,6 +366,7 @@ TOSA_PASS_SET = {
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
+    "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "BroadcastToIdentityCaseStaticModule_basic",
 }

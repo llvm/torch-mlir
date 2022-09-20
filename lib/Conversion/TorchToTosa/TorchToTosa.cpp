@@ -3393,6 +3393,31 @@ public:
   }
 };
 
+// Legalizes the torch.clone op.
+template <typename AtenOpT>
+class ConvertAtenCloneOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    int64_t memoryFormat;
+    if (!op.memory_format().getType().template isa<Torch::NoneType>() &&
+        (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)) ||
+         memoryFormat != torch_upstream::MemoryFormat::Contiguous)) {
+      return op.emitError(
+          "unimplemented: only default memory format is supported");
+    }
+    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
+                       ->convertType(op.getType())
+                       .template dyn_cast<TensorType>();
+    rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType, adaptor.self());
+
+    return success();
+  }
+};
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -3598,6 +3623,12 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
 #undef INSERT_ATENOP_PATTERN
+
+#define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenCloneOp<AtenOp>>(typeConverter, context);
+    INSERT_CLONE_ATENOP_PATTERN(AtenCloneOp);
+#undef INSERT_CLONE_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
