@@ -2940,6 +2940,40 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
+    AtenBroadcastToOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+
+  auto selfElemTy = selfType.getElementType();
+  if (!selfElemTy.isIntOrFloat()) {
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point or integer datatype legalization supported");
+  }
+
+  SmallVector<int64_t> outShape;
+  if (!matchPattern(op.size(), m_TorchConstantIntList(outShape)))
+    return rewriter.notifyMatchFailure(op,
+                                       "size must consist of Scalar constants");
+
+  SmallVector<int64_t> inputShape(selfType.getShape());
+  if (!llvm::equal(inputShape, outShape))
+    return rewriter.notifyMatchFailure(op,
+                                       "Only identity cases are supported.");
+
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
+      rewriter.getI64ArrayAttr(outShape));
+
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3562,6 +3596,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenTransposeIntOp);
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
+    INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
 #undef INSERT_ATENOP_PATTERN
 
     if (failed(applyPartialConversion(getOperation(), target,
