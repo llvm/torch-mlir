@@ -8888,6 +8888,7 @@ def Torch_AtenDivOp : Torch_Op<"aten.div", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenAddOp : Torch_Op<"aten.add", [
