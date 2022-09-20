@@ -1,0 +1,40 @@
+# See: https://github.com/llvm/torch-mlir/issues/1374
+name: Publish releases page
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+
+  workflow_dispatch:
+
+jobs:
+  scrape_and_publish_releases:
+    name: "Scrape and publish releases"
+    runs-on: ubuntu-20.04
+
+    # Don't run this in everyone's forks.
+    if: github.repository == 'llvm/torch-mlir'
+
+    steps:
+      - name: Checking out repository
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      - name: Run scrape releases script
+        run: python ./build_tools/scrape_releases.py llvm torch-mlir > /tmp/index.html
+        shell: bash
+      - run: git fetch --all
+      - run: git switch github-pages
+      - run: git config --global user.email "none@none.com"
+      - run: git config --global user.name "torch-mlir"
+      - run: mv /tmp/index.html package-index/index.html
+      - run: git add package-index/index.html
+
+      # Only try to make a commit if the file has changed.
+      - run: git diff --cached --exit-code || git commit -m "Update releases."
+
+      - name: GitHub Push
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: github-pages
