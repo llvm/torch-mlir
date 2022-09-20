@@ -23,6 +23,20 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
+    "ArangeDtypeFloatModule_basic",
+    "ArangeDtypeIntModule_basic",
+    "ArangeFalsePinMemoryModule_basic",
+    "ArangeFloatModule_basic",
+    "ArangeIntModule_basic",
+    "ArangeNegativeStartFloatModule_basic",
+    "ArangeNegativeStartIntModule_basic",
+    "ArangeStartFloatModule_basic",
+    "ArangeStartIntModule_basic",
+    "ArangeStartNegativeStepFloatModule_basic",
+    "ArangeStartNegativeStepIntModule_basic",
+    "ArangeStartStepFloatModule_basic",
+    "ArangeStartStepIntModule_basic",
+    "ArangeZeroElementOutputModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
@@ -351,6 +365,7 @@ TOSA_PASS_SET = {
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "BroadcastToIdentityCaseStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {

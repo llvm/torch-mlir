@@ -8888,6 +8888,7 @@ def Torch_AtenDivOp : Torch_Op<"aten.div", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenAddOp : Torch_Op<"aten.add", [
@@ -8912,6 +8913,55 @@ def Torch_AtenAddOp : Torch_Op<"aten.add", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+}
+
+def Torch_AtenSubOp : Torch_Op<"aten.sub", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sub : (Scalar, Scalar) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchScalarType:$a,
+    AnyTorchScalarType:$b
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSubOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenSubOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+def Torch_AtenCeilScalarOp : Torch_Op<"aten.ceil.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::ceil.Scalar : (Scalar) -> (Scalar)`";
+  let arguments = (ins
+    AnyTorchScalarType:$a
+  );
+  let results = (outs
+    AnyTorchScalarType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCeilScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenCeilScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenSqrtIntOp : Torch_Op<"aten.sqrt.int", [

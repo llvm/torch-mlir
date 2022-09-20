@@ -56,6 +56,14 @@ template <typename ConcreteType>
 class AllowsTypeRefinement
     : public ::mlir::OpTrait::TraitBase<ConcreteType, AllowsTypeRefinement> {};
 
+// If a Torch op has this trait, it means that the op is allowed to be used
+// in the module initializer. Only a small set of ops are permitted in the
+// module initializer. These ops are essentially those which can be produced
+// by the IValue importer.
+template <typename ConcreteType>
+class AllowedInModuleInitializer
+    : public ::mlir::OpTrait::TraitBase<ConcreteType, AllowedInModuleInitializer> {};
+
 } // namespace OpTrait
 } // namespace Torch
 } // namespace torch

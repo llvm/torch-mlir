@@ -16,6 +16,7 @@ blacklist:
 - copy_
 
 # Disabled for consistency with TS backend
+- lift_fresh_copy
 - new_empty
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
@@ -60,6 +61,7 @@ supported:
 # but their implementations call view operators (which we need to functionalize away).
 - block_diag
 - new_empty_strided
+- narrow_copy
 - pixel_shuffle
 - pixel_unshuffle
 - select_backward
@@ -68,6 +70,16 @@ supported:
 - _trilinear
 - linalg_pinv.atol_rtol_tensor
 - logsumexp.out
+
+# List of ops that will take in symints for the size instead of ints
+symint:
+- empty.memory_format
+- new_empty_strided
+- expand
+- expand_copy
+- narrow_copy
+- view
+- view_copy
 
 
 additional_ops:
