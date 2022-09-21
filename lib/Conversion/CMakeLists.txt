@@ -1,6 +1,7 @@
 add_subdirectory(TorchToLinalg)
 add_subdirectory(TorchToSCF)
 add_subdirectory(TorchToArith)
+add_subdirectory(TorchToMLProgram)
 add_subdirectory(TorchToTosa)
 if(TORCH_MLIR_ENABLE_MHLO)
   add_subdirectory(TorchToMhlo)
@@ -12,6 +13,7 @@ add_subdirectory(Utils)
 set(linked_libs TorchMLIRTorchToLinalg
                 TorchMLIRTorchToSCF
                 TorchMLIRTorchToArith
+                TorchMLIRTorchToMLProgram
                 TorchMLIRTorchToTosa
                 TorchMLIRTorchToTMTensor
                 TorchMLIRConversionUtils)

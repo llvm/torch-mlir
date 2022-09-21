@@ -13,12 +13,13 @@
 #include "mlir-hlo/Dialect/mhlo/transforms/passes.h"
 #include "mlir-hlo/Transforms/passes.h"
 #endif // TORCH_MLIR_ENABLE_MHLO
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
-#include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
-#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "torch-mlir/Conversion/TorchToMLProgram/TorchToMLProgram.h"
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
+#include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 
 //===----------------------------------------------------------------------===//
 // Pass registration

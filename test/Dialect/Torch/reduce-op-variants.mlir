@@ -113,6 +113,15 @@ func.func @torch.tensor.literal() -> !torch.tensor {
   return %0 : !torch.tensor
 }
 
+// CHECK-LABEL:   func.func @torch.tensor.external.literal() -> !torch.tensor<[7],f32> {
+// CHECK:           %[[VTENSOR:.*]] = torch.vtensor.external.literal(@fc.weight) : !torch.vtensor<[7],f32>
+// CHECK:           %[[TENSOR:.*]] = torch.copy.to_tensor %[[VTENSOR]] : !torch.tensor<[7],f32>
+// CHECK:           return %[[TENSOR]] : !torch.tensor<[7],f32>
+func.func @torch.tensor.external.literal() -> !torch.tensor<[7],f32> {
+  %0 = torch.tensor.external.literal(@fc.weight) : !torch.tensor<[7],f32>
+  return %0 : !torch.tensor<[7],f32>
+}
+
 // CHECK-LABEL:   func.func @convert_to_value_semantic_tensors_optional_list(
 // CHECK-SAME:         %[[SELF:.*]]: !torch.tensor<[5],f32>,
 // CHECK-SAME:         %[[INDICES:.*]]: !torch.tensor<[2,3],si64>) -> !torch.tensor {

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Sequence, Union, List
+from typing import Sequence, Union, List, Optional
 from enum import Enum
 
 import sys
@@ -140,6 +140,7 @@ def compile(model: torch.nn.Module,
             output_type: Union[str, "OutputType"] = OutputType.TORCH,
             use_tracing: bool = False,
             ignore_traced_shapes = False,
+            use_external_references_if_numel_exceeds: Optional[int] = None,
             verbose: bool = False):
     """Convert a PyTorch model to MLIR.
 
@@ -161,6 +162,10 @@ def compile(model: torch.nn.Module,
             `TensorPlaceholder`'s used as `example_args`. Also,
             strictly-speaking, this option covers dtypes too, but we just say
             "shapes" to be succinct.
+        use_external_references_if_numel_exceeds: If non-None, then any tensors
+            with more than this number of elements will be referenced in the
+            IR with an external reference. This is useful for gigantic models
+            where materializing the weights in the IR is impractical.
         verbose: If true, print extra information about the conversion.
 
     Returns:
@@ -224,6 +229,7 @@ def compile(model: torch.nn.Module,
     mb = ModuleBuilder()
     import_options = ImportOptions()
     import_options.ignoreExistingTensorShapesAndDtypes = ignore_traced_shapes
+    import_options.useExternalReferencesIfNumelExceeds = use_external_references_if_numel_exceeds
     try:
         original_stderr = sys.stderr
         sys.stderr = StringIO()
