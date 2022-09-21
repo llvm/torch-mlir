@@ -68,7 +68,12 @@ for more information on building these artifacts.
     parser.add_argument('-s', '--sequential',
                         default=False,
                         action='store_true',
-                        help='run e2e tests sequentially rather than in parallel')
+                        help='''Run tests sequentially rather than in parallel.
+This can be useful for debugging, since it runs the tests in the same process,
+which make it easier to attach a debugger or get a stack trace.''')
+    parser.add_argument('--crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed',
+                        metavar="TEST", type=str, nargs='+',
+                        help='A set of tests to not attempt to run, since they crash and cannot be XFAILed.')
     return parser
 
 def main():
@@ -102,9 +107,17 @@ def main():
         config = LazyTensorCoreTestConfig()
         xfail_set = LTC_XFAIL_SET
 
+    do_not_attempt = set(args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or [])
+    available_tests = [test for test in GLOBAL_TEST_REGISTRY if test.unique_name not in do_not_attempt]
+    if args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed is not None:
+        for arg in args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed:
+            if arg not in all_test_unique_names:
+                print(f'ERROR: --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed argument "{arg}" is not a valid test name')
+                sys.exit(1)
+
     # Find the selected tests, and emit a diagnostic if none are found.
     tests = [
-        test for test in GLOBAL_TEST_REGISTRY
+        test for test in available_tests
         if re.match(args.filter, test.unique_name)
     ]
     if len(tests) == 0:
@@ -112,7 +125,7 @@ def main():
             f'ERROR: the provided filter {args.filter!r} does not match any tests'
         )
         print('The available tests are:')
-        for test in GLOBAL_TEST_REGISTRY:
+        for test in available_tests:
             print(test.unique_name)
         sys.exit(1)
 
