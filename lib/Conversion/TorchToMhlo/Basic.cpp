@@ -515,6 +515,9 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     }
   }
 
+  if (bcastShapeVec.size() == 0) {
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, self);
+  } else {
     Value bcastShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), ValueRange{bcastShapeVec});
     auto dimensionNumbers =
@@ -522,7 +525,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     rewriter.replaceOpWithNewOp<mhlo::DynamicBroadcastInDimOp>(
         op, outType, self, bcastShapeTensor,
         rewriter.getI64TensorAttr(dimensionNumbers));
-    return success();
+  }
+  return success();
 }
 
 // AtenPermuteOp
