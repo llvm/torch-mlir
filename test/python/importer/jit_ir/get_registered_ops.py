@@ -2,11 +2,7 @@
 # This file is licensed under a pytorch-style license
 # See LICENSE.pytorch for license information.
 
-# TODO: Fix ODR violation on non-static cl::opt in LLVM
-# `cl::opt<FunctionSummary::ForceSummaryHotnessType, true>`.
-# This causes double free on global dtors on exiting the program.
-# The FileCheck still passes though.
-# RUN: (%PYTHON %s || true) | FileCheck %s
+# RUN: %PYTHON %s | FileCheck %s
 
 from torch_mlir._mlir_libs._jit_ir_importer import get_registered_ops
 
