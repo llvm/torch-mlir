@@ -240,9 +240,8 @@ function test_in_tree() {
   # - AvgPool2dFloatModule_basic,AvgPool2dCeilModeTrueModule_basic: https://github.com/llvm/torch-mlir/issues/1361
   python -m e2e_testing.main --config=tosa -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed AvgPool2dFloatModule_basic AvgPool2dCeilModeTrueModule_basic
 
-  # Temporarily disabled in top of main (https://github.com/llvm/torch-mlir/pull/1292)
-  #echo ":::: Run Lazy Tensor Core e2e integration tests"
-  #python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+  echo ":::: Run Lazy Tensor Core e2e integration tests"
+  python -m e2e_testing.main --config=lazy_tensor_core -v
 }
 
 function setup_venv() {
