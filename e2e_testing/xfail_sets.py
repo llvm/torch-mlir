@@ -420,6 +420,7 @@ TOSA_PASS_SET = {
     "ElementwiseSigmoidModule_basic",
     "ElementwiseExpModule_basic",
     "ElementwiseReluModule_basic",
+    "ElementwiseLeakyReluModule_basic",
     "ElementwiseFloorModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseBinaryStaticShapeModule_basic",

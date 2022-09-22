@@ -40,6 +40,27 @@ func.func @torch.aten.relu$basic(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vte
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.leaky_relu$basic(
+// CHECK-SAME:                                %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:           %[[VAL_1:.*]] = torch.constant.float 1.000000e-01
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() {value = dense<1.000000e-01> : tensor<f32>} : () -> tensor<f32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() {value = dense<0.000000e+00> : tensor<f32>} : () -> tensor<f32>
+// CHECK:           %[[VAL_4:.*]] = "tosa.greater_equal"(%[[VAL_0]], %[[VAL_3]]) : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xi1>
+// CHECK:           %[[VAL_5:.*]] = "tosa.mul"(%[[VAL_0]], %[[VAL_2]]) {shift = 0 : i32} : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xf32>
+// CHECK:           %[[VAL_6:.*]] = "tosa.select"(%[[VAL_4]], %[[VAL_0]], %[[VAL_5]]) : (tensor<?x?xi1>, tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[?,?],f32>
+// CHECK:         }
+func.func @torch.aten.leaky_relu$basic(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %fp0 = torch.constant.float 1.000000e-01
+  %0 = torch.aten.leaky_relu %arg0, %fp0 : !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.log$basic(
 // CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[ARG_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>

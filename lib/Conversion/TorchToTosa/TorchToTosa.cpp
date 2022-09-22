@@ -600,14 +600,14 @@ LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
     AtenLeakyReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  Value self = adaptor.self();
+  Value self = adaptor.getSelf();
   auto selfTy = self.getType().cast<TensorType>();
   if (!selfTy.getElementType().isa<mlir::FloatType>()) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
 
-  Value alphaScalar = op.negative_slope();
+  Value alphaScalar = op.getNegativeSlope();
   Value alphaTensor;
   if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), alphaScalar,
                                      alphaTensor, selfTy.getElementType(), {})))
