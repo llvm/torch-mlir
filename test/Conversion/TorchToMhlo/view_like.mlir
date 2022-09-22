@@ -349,39 +349,6 @@ func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !
   return %1 : !torch.vtensor<[?,120,4,64],f32>
 }
 
-// CHECK-LABEL:  func.func @torch.aten.view$minus1(
-// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[2,3,?,?],f32>) -> !torch.vtensor<[2,3,?],f32> {
-// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,3,?,?],f32> -> tensor<2x3x?x?xf32>
-// CHECK:         %[[INTneg1:.*]] = torch.constant.int -1
-// CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch.aten.size.int %[[ARG0]], %[[INT0]] : !torch.vtensor<[2,3,?,?],f32>, !torch.int -> !torch.int
-// CHECK:         %[[T2:.*]] = torch.aten.size.int %[[ARG0]], %[[INT1]] : !torch.vtensor<[2,3,?,?],f32>, !torch.int -> !torch.int
-// CHECK:         %[[T3:.*]] = torch.prim.ListConstruct %[[T1]], %[[T2]], %[[INTneg1]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// CHECK:         %[[T4:.*]] = torch_c.to_i64 %[[T1]]
-// CHECK:         %[[T5:.*]] = torch_c.to_i64 %[[T2]]
-// CHECK:         %[[T6:.*]] = torch_c.to_i64 %[[INTneg1]]
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[T7:.*]] = arith.muli %[[C1_I64]], %[[T4]] : i64
-// CHECK:         %[[T8:.*]] = arith.muli %[[T7]], %[[T5]] : i64
-// CHECK:         %[[T9:.*]] = arith.muli %[[T8]], %[[T6]] : i64
-// CHECK:         %[[T10:.*]] = arith.index_cast %[[T9]] : i64 to index
-// CHECK:         %[[T11:.*]] = tensor.from_elements %[[T4]], %[[T5]], %[[T6]] : tensor<3xi64>
-// CHECK:         %[[T12:.*]] = mhlo.compute_reshape_shape %[[T10]], %[[T11]] : index, tensor<3xi64> -> tensor<3xi64>
-// CHECK:         %[[T13:.*]] = mhlo.dynamic_reshape %[[T0]], %[[T12]] : (tensor<2x3x?x?xf32>, tensor<3xi64>) -> tensor<2x3x?xf32>
-// CHECK:         %[[T14:.*]] = torch_c.from_builtin_tensor %[[T13]] : tensor<2x3x?xf32> -> !torch.vtensor<[2,3,?],f32>
-// CHECK:         return %[[T14]] : !torch.vtensor<[2,3,?],f32>
-func.func @torch.aten.view$minus1(%arg0: !torch.vtensor<[2,3,?,?],f32>) -> !torch.vtensor<[2,3,?],f32> {
-  %int-1 = torch.constant.int -1
-  %int1 = torch.constant.int 1
-  %int0 = torch.constant.int 0
-  %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[2,3,?,?],f32>, !torch.int -> !torch.int
-  %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[2,3,?,?],f32>, !torch.int -> !torch.int
-  %2 = torch.prim.ListConstruct %0, %1, %int-1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  %3 = torch.aten.view %arg0, %2 : !torch.vtensor<[2,3,?,?],f32>, !torch.list<int> -> !torch.vtensor<[2,3,?],f32>
-  return %3 : !torch.vtensor<[2,3,?],f32>
-}
-
 // CHECK-LABEL:  func.func @torch.aten.view$to_rank1(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[1],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[],f32> -> tensor<f32>
