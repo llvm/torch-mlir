@@ -46,7 +46,7 @@ import torch
 PACKAGE_VERSION = os.environ.get("TORCH_MLIR_PYTHON_PACKAGE_VERSION") or "0.0.1"
 
 # If true, enable LTC build by default
-TORCH_MLIR_ENABLE_LTC_DEFAULT = True
+TORCH_MLIR_ENABLE_LTC_DEFAULT = False
 
 # Build phase discovery is unreliable. Just tell it what phases to run.
 class CustomBuild(_build):

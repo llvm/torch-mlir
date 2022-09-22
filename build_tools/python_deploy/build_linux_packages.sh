@@ -177,7 +177,7 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="/main_checkout/torch-mlir/externals/llvm-external-projects/torch-mlir-dialects" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=ON \
+      -DTORCH_MLIR_ENABLE_LTC=OFF \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
@@ -289,7 +289,7 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=ON \
+      -DTORCH_MLIR_ENABLE_LTC=OFF \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
