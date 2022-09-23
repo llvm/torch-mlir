@@ -46,9 +46,10 @@ class VerifyMhloBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp,
-                                 shape::ShapeOfOp>(opHasLegalTypes);
-    // Basic scalar operations.
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(opHasLegalTypes);
+    // Shape operations.
+    target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
+
     target.addLegalDialect<mhlo::MhloDialect>();
     target.addLegalDialect<chlo::ChloDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
