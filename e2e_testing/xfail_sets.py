@@ -497,8 +497,6 @@ LTC_XFAIL_SET = {
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "HBC_basic",
-    "HardTanhIntModule_basic",
-    "HardTanhModule_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
     "IndexPut1DIntAccumulateModule_basic",
