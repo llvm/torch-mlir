@@ -847,13 +847,13 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
                                       inputTy.getShape().end()};
     castShape[1] = weightTy.getShape()[0];
     auto castTy = RankedTensorType::get(castShape, inputTy.getElementType());
-    // feature counts must match among operands of mhlo::BatchNormInferenceOp
+    // Feature counts must match among operands of mhlo::BatchNormInferenceOp.
     Value inputCasted =
         rewriter.create<tensor::CastOp>(op.getLoc(), castTy, input);
     Value output = rewriter.create<mhlo::BatchNormInferenceOp>(
         op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
         runningMean, runningVar,
-        // 'epsilon' must satisfy constraint: 32-bit float attribute
+        // 'epsilon' must satisfy constraint: 32-bit float attribute.
         rewriter.getF32FloatAttr(eps), rewriter.getI64IntegerAttr(1));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputTy, output);
     return success();
