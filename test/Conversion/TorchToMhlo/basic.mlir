@@ -159,22 +159,24 @@ func.func @torch.aten.batch_norm$training(%arg0: !torch.vtensor<[?,3,?,?],f32>) 
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.batch_norm$training(
-// CHECK-SAME:                                              %[[VAL_0:.*]]: !torch.vtensor<[?,3,?,?],f32>) -> !torch.vtensor<[?,3,?,?],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,3,?,?],f32> -> tensor<?x3x?x?xf32>
-// CHECK:           %[[VAL_2:.*]] = mhlo.constant dense<0.000000e+00> : tensor<3xf32>
-// CHECK:           %[[VAL_3:.*]] = mhlo.constant dense<1.000000e+00> : tensor<3xf32>
-// CHECK:           %true = torch.constant.bool true
-// CHECK:           %false = torch.constant.bool false
-// CHECK:           %float1.000000e-01 = torch.constant.float 1.000000e-01
-// CHECK:           %float1.000000e-05 = torch.constant.float 1.000000e-05
-// CHECK:           %[[VAL_4:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_5:.*]] = tensor.dim %[[VAL_1]], %[[VAL_4]] : tensor<?x3x?x?xf32>
-// CHECK:           %[[VAL_6:.*]] = tensor.from_elements %[[VAL_5]] : tensor<1xindex>
-// CHECK:           %[[VAL_7:.*]] = "mhlo.batch_norm_inference"(%[[VAL_1]], %[[VAL_3]], %[[VAL_2]], %[[VAL_2]], %[[VAL_3]]) {epsilon = 9.99999974E-6 : f32, feature_index = 1 : i64} : (tensor<?x3x?x?xf32>, tensor<3xf32>, tensor<3xf32>, tensor<3xf32>, tensor<3xf32>) -> tensor<?x3x?x?xf32>
-// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<?x3x?x?xf32> -> !torch.vtensor<[?,3,?,?],f32>
-// CHECK:           return %[[VAL_8]] : !torch.vtensor<[?,3,?,?],f32>
-func.func @torch.aten.batch_norm$training(%arg0: !torch.vtensor<[?,3,?,?],f32>) -> !torch.vtensor<[?,3,?,?],f32> {
+// CHECK-LABEL:  func.func @torch.aten.batch_norm$inference(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,3,?,?],f32>) -> !torch.vtensor<[?,3,?,?],f32> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,3,?,?],f32> -> tensor<?x3x?x?xf32>
+// CHECK:         %[[T1:.*]] = mhlo.constant dense<0.000000e+00> : tensor<3xf32>
+// CHECK:         %[[T2:.*]] = mhlo.constant dense<1.000000e+00> : tensor<3xf32>
+// CHECK:         %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[FLOAT1:.*]].000000e-01 = torch.constant.float 1.000000e-01
+// CHECK:         %[[FLOAT1:.*]].000000e-05 = torch.constant.float 1.000000e-05
+// CHECK:         %[[C1:.*]] = arith.constant 1 : index
+// CHECK:         %[[T3:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x3x?x?xf32>
+// CHECK:         %[[T4:.*]] = tensor.from_elements %[[T3]] : tensor<1xindex>
+// CHECK:         %[[T5:.*]] = tensor.cast %[[T0]] : tensor<?x3x?x?xf32> to tensor<?x3x?x?xf32>
+// CHECK:         %[[T6:.*]] = "mhlo.batch_norm_inference"(%[[T5]], %[[T2]], %[[T1]], %[[T1]], %[[T2]]) {epsilon = 9.99999974E-6 : f32, feature_index = 1 : i64} : (tensor<?x3x?x?xf32>, tensor<3xf32>, tensor<3xf32>, tensor<3xf32>, tensor<3xf32>) -> tensor<?x3x?x?xf32>
+// CHECK:         %[[T7:.*]] = tensor.cast %[[T6]] : tensor<?x3x?x?xf32> to tensor<?x3x?x?xf32>
+// CHECK:         %[[T8:.*]] = torch_c.from_builtin_tensor %[[T7]] : tensor<?x3x?x?xf32> -> !torch.vtensor<[?,3,?,?],f32>
+// CHECK:         return %[[T8]] : !torch.vtensor<[?,3,?,?],f32>
+func.func @torch.aten.batch_norm$inference(%arg0: !torch.vtensor<[?,3,?,?],f32>) -> !torch.vtensor<[?,3,?,?],f32> {
   %0 = torch.vtensor.literal(dense<0.000000e+00> : tensor<3xf32>) : !torch.vtensor<[3],f32>
   %1 = torch.vtensor.literal(dense<1.000000e+00> : tensor<3xf32>) : !torch.vtensor<[3],f32>
   %true = torch.constant.bool true
