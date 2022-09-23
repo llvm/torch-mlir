@@ -12,6 +12,7 @@
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpDefinition.h"
@@ -45,8 +46,8 @@ class VerifyMhloBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
-        opHasLegalTypes);
+    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp,
+                                 shape::ShapeOfOp>(opHasLegalTypes);
     // Basic scalar operations.
     target.addLegalDialect<mhlo::MhloDialect>();
     target.addLegalDialect<chlo::ChloDialect>();

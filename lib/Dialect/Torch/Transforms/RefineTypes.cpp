@@ -677,7 +677,7 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // Take dtype from first operand.
   if (isa<CopyToValueTensorOp, CopyToNonValueTensorOp, AtenBatchNormOp,
-          AtenReluOp, AtenGeluOp, AtenCeilOp, AtenGeluBackwardOp,
+          AtenReluOp, AtenRelu6Op, AtenGeluOp, AtenCeilOp, AtenGeluBackwardOp,
           AtenBitwiseNotOp, AtenToPrimDeviceOp, AtenCpuOp, AtenContiguousOp,
           AtenFill_ScalarOp, AtenDetachOp, AtenMaskedFill_ScalarOp, AtenCopy_Op,
           AtenCumsumOp, AtenLayerNormOp, AtenClampOp, AtenClampMinOp,
