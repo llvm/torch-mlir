@@ -56,7 +56,7 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
         # to arith.constants here before proceeding further.
         run_pipeline_with_repro_report(
             imported_module,
-            "func.func(tosa-to-linalg),func.func(tosa-to-arith)",
+            "func.func(tosa-to-tensor),func.func(tosa-to-linalg),func.func(tosa-to-arith)",
             "Lowering TOSA to Linalg-on-Tensors")
 
         return self.refbackend.compile(imported_module)

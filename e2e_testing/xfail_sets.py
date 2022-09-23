@@ -435,6 +435,7 @@ TOSA_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "BroadcastToIdentityCaseStaticModule_basic",
+    "SliceStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
