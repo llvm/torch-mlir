@@ -433,6 +433,36 @@ public:
 };
 } // namespace
 
+// AtenToDtypeOp
+template <>
+LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
+    AtenToDtypeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.self();
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  rewriter.replaceOpWithNewOp<mhlo::ConvertOp>(op, outType, self);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
+    AtenSizeIntOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return op.emitError("only tensor types are currently supported");
+  auto dim = rewriter.create<arith::IndexCastOp>(
+      op.getLoc(), rewriter.getIndexType(), adaptor.dim());
+  auto dimSize = rewriter.create<tensor::DimOp>(
+      op.getLoc(), rewriter.getIndexType(), adaptor.self(), dim);
+
+  rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
+      op, getTypeConverter()->convertType(op.getType()), dimSize);
+  return success();
+}
+
 // AtenBroadcastToOp
 template <>
 LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
@@ -463,10 +493,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     Value dValue = shape[i];
     Value newD;
     int64_t dInt;
-    if (!(matchPattern(dValue, m_TorchConstantInt(&dInt)))) {
-      return op->emitError("element of desired shape must be a scalar");
-    }
-    if (i >= leadingRank && dInt == -1) {
+    if (i >= leadingRank && matchPattern(dValue, m_TorchConstantInt(&dInt)) &&
+        dInt == -1) {
       newD = rewriter.create<mlir::tensor::DimOp>(op->getLoc(), self,
                                                   i - leadingRank);
     } else {
@@ -487,6 +515,9 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     }
   }
 
+  if (bcastShapeVec.size() == 0) {
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, self);
+  } else {
     Value bcastShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), ValueRange{bcastShapeVec});
     auto dimensionNumbers =
@@ -494,7 +525,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     rewriter.replaceOpWithNewOp<mhlo::DynamicBroadcastInDimOp>(
         op, outType, self, bcastShapeTensor,
         rewriter.getI64TensorAttr(dimensionNumbers));
-    return success();
+  }
+  return success();
 }
 
 // AtenPermuteOp
@@ -1196,5 +1228,7 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
   INSERT_ATENOP_PATTERN(AtenNativeLayerNormOp);
   INSERT_ATENOP_PATTERN(AtenNumelOp);
+  INSERT_ATENOP_PATTERN(AtenSizeIntOp);
+  INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
 }

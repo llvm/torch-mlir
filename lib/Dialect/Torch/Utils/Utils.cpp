@@ -60,6 +60,16 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 
+Type Torch::getTypeForTorchType(
+    MLIRContext *context, Type type,
+    mlir::IntegerType::SignednessSemantics signedness) {
+  if (type.isa<Torch::IntType>())
+    return IntegerType::get(context, 64, signedness);
+  if (type.isa<Torch::FloatType>())
+    return Float64Type::get(context);
+  llvm::report_fatal_error("unhandled type for getTypeForTorchType");
+}
+
 Type Torch::getTypeForScalarType(
     MLIRContext *context, torch_upstream::ScalarType dtypeInt,
     mlir::IntegerType::SignednessSemantics signedness) {
