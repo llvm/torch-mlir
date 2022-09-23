@@ -345,6 +345,28 @@ def ElementwiseReluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRelu6Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.relu6(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRelu6Module())
+def ElementwiseRelu6Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2) - 0.5)
+
+
+# ==============================================================================
+
+
 class ElementwiseLeakyReluModule(torch.nn.Module):
 
     def __init__(self):

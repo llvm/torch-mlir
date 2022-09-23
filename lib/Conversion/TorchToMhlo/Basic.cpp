@@ -184,6 +184,41 @@ public:
 
 } // namespace
 
+// The binary broadcast patterns
+namespace {
+template <typename AtenOpT, typename ChloOpT>
+class ConvertAtenBinaryBroadcastOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.self();
+    auto lhsTy = lhs.getType().cast<TensorType>();
+    Value rhs = adaptor.other();
+    auto rhsTy = rhs.getType().cast<TensorType>();
+
+    if (!lhsTy || !rhsTy)
+      return op.emitError("only Tensor types supported");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    if (lhsElemTy != rhsElemTy)
+      return op.emitError("input data types mismatched");
+
+    rewriter.replaceOpWithNewOp<ChloOpT>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()),
+        lhs, rhs,
+        /*broadcast_attr*/ nullptr);
+    return success();
+  }
+};
+} // namespace
+
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
 namespace {
@@ -1231,4 +1266,13 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
+
+#define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, MhloOp)                        \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenBinaryBroadcastOp<AtenOp, MhloOp>>(typeConverter,    \
+                                                             context)
+  INSERT_BINARY_BROADCAST_PATTERN(AtenMaximumOp, chlo::BroadcastMaxOp);
+  INSERT_BINARY_BROADCAST_PATTERN(AtenMinimumOp, chlo::BroadcastMinOp);
+  INSERT_BINARY_BROADCAST_PATTERN(Aten__And__TensorOp, chlo::BroadcastAndOp);
+#undef INSERT_BINARY_BROADCAST_PATTERN
 }

@@ -645,6 +645,20 @@ static Value getRelu6Results(PatternRewriter &rewriter, Location loc,
   return relu6Out;
 }
 
+namespace {
+class DecomposeAtenRelu6Op : public OpRewritePattern<AtenRelu6Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRelu6Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value relu6 = getRelu6Results(rewriter, loc, op.self());
+    rewriter.replaceOp(op, relu6);
+    return success();
+  }
+};
+} // namespace
+
 // Hardswish(x) = x * Relu6(x+3)/6
 namespace {
 class DecomposeAtenHardswishOp : public OpRewritePattern<AtenHardswishOp> {
@@ -2907,6 +2921,8 @@ public:
     target.addIllegalOp<AtenRandLikeOp>();
     patterns.add<DecomposeAtenHardsigmoidOp>(context);
     target.addIllegalOp<AtenHardsigmoidOp>();
+    patterns.add<DecomposeAtenRelu6Op>(context);
+    target.addIllegalOp<AtenRelu6Op>();
     patterns.add<DecomposeAtenHardswishOp>(context);
     target.addIllegalOp<AtenHardswishOp>();
     patterns.add<DecomposeAtenSoftplusOp>(context);
