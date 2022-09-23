@@ -167,9 +167,9 @@ function run_in_docker() {
 
 
 function build_in_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build in-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
   cmake -GNinja -B/main_checkout/torch-mlir/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
@@ -185,7 +185,7 @@ function build_in_tree() {
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=ON \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
@@ -264,9 +264,9 @@ function setup_venv() {
 }
 
 function build_out_of_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build out-of-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version"
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
@@ -298,7 +298,7 @@ function build_out_of_tree() {
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
       -DTORCH_MLIR_ENABLE_LTC=ON \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
