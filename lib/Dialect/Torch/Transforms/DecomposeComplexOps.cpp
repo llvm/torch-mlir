@@ -126,13 +126,10 @@ static Value createTensorSub(PatternRewriter &rewriter, Location loc,
 // converted the to the element type of the given tensor type.
 static Value createInitTensor(PatternRewriter &rewriter, Location loc,
                               Type resultType, Value scalar, Value sizeList) {
-  BaseTensorType tensorType = resultType.cast<BaseTensorType>();
   Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
-      loc, tensorType, sizeList, /*dtype=*/noneVal, /*layout=*/noneVal,
-      /*device=*/noneVal, /*pin_memory=*/noneVal, /*memory_format=*/noneVal);
-  return rewriter.create<ValsemVariantAtenFillScalarOp>(loc, resultType,
-                                                        emptyTensor, scalar);
+  return rewriter.create<AtenFullOp>(
+      loc, resultType, sizeList, scalar, /*dtype=*/noneVal, /*layout=*/noneVal,
+      /*device=*/noneVal, /*memory_format=*/noneVal);
 }
 
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
@@ -1504,8 +1501,8 @@ public:
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
     Value one =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
-    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
-        loc, resultType, input, op.dtype(), op.layout(), op.device(),
+    Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+        loc, resultType, input, zero, op.dtype(), op.layout(), op.device(),
         op.pin_memory(), op.memory_format());
     rewriter.replaceOpWithNewOp<ValsemVariantAtenUniformOp>(
         op, resultType, emptyTensor, /*from=*/zero, /*to=*/one,
@@ -1834,22 +1831,18 @@ class DecomposeAtenArangeStartOp : public OpRewritePattern<AtenArangeStartOp> {
 } // namespace
 
 namespace {
-// Decompose constant tensor allocation like ops.
+// Decompose constant tensor full like ops.
 template <typename OpTy, int fillVal>
 class DecomposeConstantTensorAllocLikeOp : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
   LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    // Allocate a memory block.
-    Value initTensor = rewriter.create<AtenEmptyLikeOp>(
-        loc, op.getType(), op.self(), op.dtype(), op.layout(), op.device(),
-        op.pin_memory(), op.memory_format());
     Value constVal = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(fillVal));
-    // Initialize the allocated memory block with `fillVal`.
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
-        op, initTensor.getType(), initTensor, constVal);
+    rewriter.replaceOpWithNewOp<AtenFullLikeOp>(
+        op, op.getType(), op.self(), constVal, op.dtype(), op.layout(),
+        op.device(), op.pin_memory(), op.memory_format());
     return success();
   }
 };
@@ -2042,19 +2035,24 @@ class DecomposeConstantTensorNewLikeOp : public OpRewritePattern<OpTy> {
 } // namespace
 
 namespace {
-// Decompose `aten.full` op into `aten.empty` and `aten.fill` ops.
+// Decompose `aten.full` op into `aten.broadcast_to`
 class DecomposeAtenFullOp : public OpRewritePattern<AtenFullOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenFullOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
-    Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, op.getType(), op.size(), op.dtype(), op.layout(), op.device(),
-        op.pin_memory(), /*memory_format=*/noneVal);
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
-        op, op.getType(), emptyTensor, op.fill_value());
+    BaseTensorType outTy = op.getType().template cast<BaseTensorType>();
+    SmallVector<int64_t> empty;
+    auto dtype =
+        getTypeForTorchType(op.getContext(), op.fill_value().getType());
+    Type tensorType =
+        outTy.getWithSizesAndDtype(llvm::makeArrayRef(empty), dtype);
+    Value fillVal = rewriter.create<PrimNumToTensorScalarOp>(loc, tensorType,
+                                                             op.fill_value());
+    fillVal = convertTensorToDtype(rewriter, loc, fillVal, outTy.getDtype());
+    rewriter.replaceOpWithNewOp<AtenBroadcastToOp>(op, op.getType(), fillVal,
+                                                   op.size());
     return success();
   }
 };
@@ -2116,11 +2114,18 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenFullLikeOp op,
                                 PatternRewriter &rewriter) const override {
-    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
-        op.getLoc(), op.getType(), op.self(), op.dtype(), op.layout(),
-        op.device(), op.pin_memory(), op.memory_format());
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(
-        op, op.getType(), emptyTensor, op.fill_value());
+    BaseTensorType outTy = op.getType().template cast<BaseTensorType>();
+    SmallVector<int64_t> empty;
+    auto dtype =
+        getTypeForTorchType(op.getContext(), op.fill_value().getType());
+    Type tensorType =
+        outTy.getWithSizesAndDtype(llvm::makeArrayRef(empty), dtype);
+    Value fillVal = rewriter.create<PrimNumToTensorScalarOp>(
+        op.getLoc(), tensorType, op.fill_value());
+    fillVal =
+        convertTensorToDtype(rewriter, op.getLoc(), fillVal, outTy.getDtype());
+    rewriter.replaceOpWithNewOp<AtenExpandAsOp>(op, op.getType(), fillVal,
+                                                op.self());
     return success();
   }
 };
@@ -2166,8 +2171,10 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten_ToCopyOp op,
                                 PatternRewriter &rewriter) const override {
-    Value emptyTensor = rewriter.create<AtenEmptyLikeOp>(
-        op.getLoc(), op.getType(), op.self(), op.dtype(), op.layout(),
+    Value zero = rewriter.create<ConstantFloatOp>(
+        op.getLoc(), rewriter.getF64FloatAttr(0.0));
+    Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+        op.getLoc(), op.getType(), op.self(), zero, op.dtype(), op.layout(),
         op.device(), op.pin_memory(), op.memory_format());
     rewriter.replaceOpWithNewOp<ValsemVariantAtenCopyOp>(
         op, op.getType(), emptyTensor, op.self(), op.non_blocking());

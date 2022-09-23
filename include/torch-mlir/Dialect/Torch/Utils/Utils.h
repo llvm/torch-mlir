@@ -31,6 +31,10 @@ Type getTypeForScalarType(
     MLIRContext *context, torch_upstream::ScalarType dtypeInt,
     mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
 
+Type getTypeForTorchType(
+    MLIRContext *context, Type type,
+    mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
+
 Type getTorchTypeForScalarType(MLIRContext *context,
                                torch_upstream::ScalarType dtypeInt);
 
