@@ -7,6 +7,7 @@ add_mlir_dialect_library(TorchMLIRTorchConversionDialect
 
   DEPENDS
   MLIRTorchConversionOpsIncGen
+  MLIRTorchTypesIncGen
 
   LINK_COMPONENTS
   Core
