@@ -29,6 +29,25 @@ def SliceModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6,4,7))
 
 
+# ==============================================================================
+
+class SliceStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([6, 4, 7], torch.float32, True),
+    ])
+    def forward(self, x):
+        return x[0:5:1, 1:3:1, 2:4:1]
+
+
+@register_test_case(module_factory=lambda: SliceStaticModule())
+def SliceStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6,4,7))
+
 
 # ==============================================================================
 
