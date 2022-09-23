@@ -58,6 +58,11 @@ PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] 
 export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
 echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_VERSION}"
 
+export TORCH_MLIR_SRC_PYTORCH_REPO="${TORCH_MLIR_SRC_PYTORCH_REPO}:-pytorch/pytorch"
+echo "Setting torch-mlir PyTorch Repo for source builds to: ${TORCH_MLIR_SRC_PYTORCH_REPO}"
+export TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH}:-master"
+echo "Setting torch-mlir PyTorch version for source builds to: ${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
+
 function run_on_host() {
   echo "Running on host for $1:$@"
   echo "Outputting to ${TM_OUTPUT_DIR}"
@@ -105,6 +110,8 @@ function run_on_host() {
     -e "TM_PACKAGES=${package}" \
     -e "TM_SKIP_TESTS=${TM_SKIP_TESTS}" \
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}" \
     -e "CCACHE_DIR=/main_checkout/torch-mlir/.ccache" \
     "${TM_CURRENT_DOCKER_IMAGE}" \
     /bin/bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
@@ -179,6 +186,8 @@ function build_in_tree() {
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build
@@ -290,6 +299,8 @@ function build_out_of_tree() {
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
       -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot
