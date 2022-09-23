@@ -257,6 +257,9 @@ class GenTorchMlirLTC:
         # Additional ops to support that are not supported by Torch-MLIR explicitly
         supported |= set(config.get("additional_ops", []))
 
+        # List of ops that will take in symints for its size
+        symint = set(config.get("symint", []))
+
         self.ops = sorted(ops)
 
         with self.source_yaml.open("w") as f:
@@ -265,6 +268,7 @@ class GenTorchMlirLTC:
                 "cpp_namespace": "torch::lazy",
                 "full_codegen": self.ops,
                 "supported": sorted(supported),
+                "symint": sorted(symint),
                 "non_native": non_native,
             }
             yaml.dump(source_yaml, f, default_flow_style=False)

@@ -23,6 +23,20 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
+    "ArangeDtypeFloatModule_basic",
+    "ArangeDtypeIntModule_basic",
+    "ArangeFalsePinMemoryModule_basic",
+    "ArangeFloatModule_basic",
+    "ArangeIntModule_basic",
+    "ArangeNegativeStartFloatModule_basic",
+    "ArangeNegativeStartIntModule_basic",
+    "ArangeStartFloatModule_basic",
+    "ArangeStartIntModule_basic",
+    "ArangeStartNegativeStepFloatModule_basic",
+    "ArangeStartNegativeStepIntModule_basic",
+    "ArangeStartStepFloatModule_basic",
+    "ArangeStartStepIntModule_basic",
+    "ArangeZeroElementOutputModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampMaxModule_basic",
@@ -190,6 +204,8 @@ MHLO_PASS_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseCloneContiguousModule_basic",
+    "ElementwiseCloneModule_basic",
     "ElementwiseUnaryModule_basic",
     "ElementwiseBinaryModule_basic",
     "ElementwiseSigmoidModule_basic",
@@ -350,6 +366,9 @@ TOSA_PASS_SET = {
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
+    "LiftFreshCopyModule_basic",
+    "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "BroadcastToIdentityCaseStaticModule_basic",
 }
 
 LTC_XFAIL_SET = {
