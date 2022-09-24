@@ -246,6 +246,14 @@ MlirType torchMlirTorchValueTensorTypeGetWithLeastStaticInformation(
       Torch::ValueTensorType::getWithLeastStaticInformation(unwrap(context)));
 }
 
+MlirType torchMlirTorchValueTensorTypeGetFromAttribute(MlirAttribute attr) {
+  auto attrTensorType =
+      unwrap(attr).cast<TypedAttr>().getType().cast<RankedTensorType>();
+  return wrap(Torch::ValueTensorType::get(attrTensorType.getContext(),
+                                          attrTensorType.getShape(),
+                                          attrTensorType.getElementType()));
+}
+
 //===----------------------------------------------------------------------===//
 // torch.none type.
 //===----------------------------------------------------------------------===//

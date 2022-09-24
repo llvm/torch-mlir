@@ -329,4 +329,16 @@ def LowerToBackendContract
   let dependentDialects = ["func::FuncDialect"];
 }
 
+def SatisfiesBackendContract
+    : Pass<"satisfies-backend-contract", "ModuleOp"> {
+  let summary = "Check that program satisfies backend contract.";
+  let constructor =
+    "mlir::torch::Torch::createSatisfiesBackendContractPass()";
+  let description = [{
+    This pass performs a set of inspections to check that program satisfies backend
+    contract. In case of check failure it prints out the error message and returns
+    `signalPassFailure()` status.
+  }];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES

@@ -30,17 +30,8 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::tosa;
 
-//===----------------------------------------------------------------------===//
-// Pass registration
-//===----------------------------------------------------------------------===//
-
-namespace {
-#define GEN_PASS_REGISTRATION
-#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
-} // end namespace
-
 void mlir::torch::registerTorchConversionPasses() {
-  ::registerPasses();
+  mlir::torch::registerPasses();
   mlir::PassPipelineRegistration<>(
       "torch-backend-to-linalg-on-tensors-backend-pipeline",
       "Pipeline lowering torch backend contract to linalg-on-tensors backend "

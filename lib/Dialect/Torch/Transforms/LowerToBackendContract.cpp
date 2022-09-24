@@ -149,7 +149,7 @@ static LogicalResult checkType(Operation *op, Type type,
   }
 }
 
-static bool satisfiesBackendContract(ModuleOp module,
+static bool satisfiesBackendContract(ModuleOp moduleOp,
                                      bool actuallyEmitDiagnostics = false) {
   // We do not permit `torch.global_slot`'s in the backend contract, since
   // support for them is not widespread, and this does not align with PyTorch's
@@ -158,7 +158,7 @@ static bool satisfiesBackendContract(ModuleOp module,
   // We just check for the GlobalSlotModuleInitializerOp since its verifier
   // ensures that the set of global slots matches those initialized by the
   // module initializer.
-  auto walkResult0 = module.walk([&](Torch::GlobalSlotModuleInitializerOp op) {
+  auto walkResult0 = moduleOp.walk([&](Torch::GlobalSlotModuleInitializerOp op) {
     if (actuallyEmitDiagnostics) {
       // Report the error on the terminator to avoid dumping the whole
       // initializer itself, which can have pages of ops in it.
@@ -179,7 +179,7 @@ static bool satisfiesBackendContract(ModuleOp module,
   // A pre-order walk gives a more intuitive "first error".
   // TODO: Should we report more than the first error?
   // How do we avoid making it too spammy?
-  auto walkResult1 = module.walk<WalkOrder::PreOrder>([&](Block *block) {
+  auto walkResult1 = moduleOp.walk<WalkOrder::PreOrder>([&](Block *block) {
     for (BlockArgument arg : block->getArguments())
       if (failed(checkType(block->getParentOp(), arg.getType(),
                            actuallyEmitDiagnostics))) {
@@ -209,9 +209,9 @@ public:
     this->backendLegalOps = backendLegalOps;
   }
   void runOnOperation() override {
-    ModuleOp module = getOperation();
+    ModuleOp moduleOp = getOperation();
 
-    OpPassManager pm(module.getOperationName());
+    OpPassManager pm(moduleOp.getOperationName());
     TorchLoweringPipelineOptions options;
     options.decompose = decompose;
     options.backendLegalOps = backendLegalOps;
@@ -227,19 +227,29 @@ public:
                        << " iterations of the simplification pipeline\n";
         });
         // Show the diagnostics.
-        (void)satisfiesBackendContract(module,
+        (void)satisfiesBackendContract(moduleOp,
                                        /*actuallyEmitDiagnostics=*/true);
         return signalPassFailure();
       }
 
-      if (failed(runPipeline(pm, module)))
+      if (failed(runPipeline(pm, moduleOp)))
         return signalPassFailure();
-    } while (!satisfiesBackendContract(module));
+    } while (!satisfiesBackendContract(moduleOp));
     LLVM_DEBUG({
       llvm::dbgs() << "LowerToBackendContractPass: "
                    << "succeeded after " << i
                    << " iterations of the simplification pipeline\n";
     });
+  }
+};
+
+class SatisfiesBackendContractPass
+    : public SatisfiesBackendContractBase<SatisfiesBackendContractPass> {
+public:
+  void runOnOperation() override {
+    if (!satisfiesBackendContract(getOperation(), /*actuallyEmitDiagnostics=*/true)) {
+      return signalPassFailure();
+    }
   }
 };
 } // namespace
@@ -249,4 +259,9 @@ mlir::torch::Torch::createLowerToBackendContractPass(
     int maxIterations, bool decompose, ArrayRef<std::string> backendLegalOps) {
   return std::make_unique<LowerToBackendContractPass>(maxIterations, decompose,
                                                       backendLegalOps);
+}
+
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::torch::Torch::createSatisfiesBackendContractPass() {
+  return std::make_unique<SatisfiesBackendContractPass>();
 }

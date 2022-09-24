@@ -142,6 +142,32 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
+  MlirLocation loc = mlirLocationUnknownGet(mlir_context_);
+  MlirModule moduleOp = mlirModuleCreateEmpty(loc);
+  MlirBlock moduleBody = mlirModuleGetBody(moduleOp);
+  mlirBlockInsertOwnedOperation(moduleBody, 0, func_op);
+
+  TORCH_CHECK(
+      !mlirModuleIsNull(moduleOp),
+      "MlirModule is null.");
+
+  // Apply passes.
+  MlirPassManager pm = mlirPassManagerCreate(mlir_context_);
+  MlirOpPassManager nestedFuncPm = mlirPassManagerGetNestedUnder(
+    pm, mlirStringRefCreateFromCString("func.func"));
+
+  MlirPass refineTypesPass = mlirCreateRefineTypes();
+  mlirOpPassManagerAddOwnedPass(nestedFuncPm, refineTypesPass);
+
+  MlirPass satisfiesBackendContract= mlirCreateSatisfiesBackendContract();
+  mlirPassManagerAddOwnedPass(pm, satisfiesBackendContract);
+
+  MlirLogicalResult success = mlirPassManagerRun(pm, moduleOp);
+
+  TORCH_CHECK(
+    !mlirLogicalResultIsFailure(success),
+    "Unexpected failure running pass manager.");
+
   return std::make_shared<TorchMlirComputation>(
       func_op, mlir_context_, graph_, parameter_names_, input_output_aliases_);
 }
