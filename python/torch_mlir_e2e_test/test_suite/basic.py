@@ -643,6 +643,48 @@ def GatherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherRandomIndexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([-1, -1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, 1, indices)
+
+@register_test_case(module_factory=lambda: GatherRandomIndexModule())
+def GatherRandomIndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), tu.randint(2, 3, 4, high=3))
+
+
+# ==============================================================================
+
+
+class Gather2DInputModdule(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, 1, indices)
+
+@register_test_case(module_factory=lambda: Gather2DInputModdule())
+def Gather2DInputModdule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5), torch.tensor([[1, 2, 3], [4, 3, 2]]))
+
+
+# ==============================================================================
+
+
 class GatherStaticModule(torch.nn.Module):
 
     def __init__(self):

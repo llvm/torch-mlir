@@ -26,6 +26,8 @@ MHLO_PASS_SET = {
     "BroadcastToIdentityCaseStaticModule_basic",
     "GatherStaticModule_basic",
     "GatherModule_basic",
+    "Gather2DInputModdule_basic",
+    "GatherRandomIndexModule_basic",
     "ArangeDtypeFloatModule_basic",
     "ArangeDtypeIntModule_basic",
     "ArangeFalsePinMemoryModule_basic",
