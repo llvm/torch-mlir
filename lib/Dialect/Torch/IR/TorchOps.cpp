@@ -1722,6 +1722,43 @@ void AtenAddTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSliceTOp
+//===----------------------------------------------------------------------===//
+
+void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](AtenSliceTOp op, PatternRewriter &rewriter) {
+    auto valueList = op.l();
+    auto listConstructOp = valueList.getDefiningOp<PrimListConstructOp>();
+    if (!listConstructOp) {
+      return failure();
+    }
+
+    SmallVector<Value> listElements =
+        llvm::to_vector<4>(listConstructOp.elements());
+    int64_t st;
+    int64_t ed;
+    int64_t step;
+    if (!matchPattern(op.start(), m_TorchConstantInt(&st)) ||
+        !matchPattern(op.end(), m_TorchConstantInt(&ed)) ||
+        !matchPattern(op.step(), m_TorchConstantInt(&step))) {
+      return failure();
+    }
+    st = st >= 0 ? st : st + listElements.size();
+    ed = ed >= 0 ? ed : ed + listElements.size();
+    SmallVector<Value> newListElements;
+
+    for (int64_t i = st; i < ed; i += step) {
+      newListElements.push_back(listElements[i]);
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+        op, Torch::ListType::get(listElements[0].getType()), newListElements);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenEqIntListOp
 //===----------------------------------------------------------------------===//
 
