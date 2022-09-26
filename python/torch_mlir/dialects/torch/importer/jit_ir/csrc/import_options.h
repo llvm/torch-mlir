@@ -24,10 +24,6 @@ struct ImportOptions {
   // signatures.
   bool assumeTensorsHaveValueSemantics = false;
 
-  // If this is set to true, then add the input and output names from the
-  // function schema as an attribute to the imported function
-  bool includeInputOutputNamesAttribute = false;
-
   // If this is set to true, then the shape and dtype information in the
   // JIT IR graph should be ignored. This can be useful when importing from
   // torch.jit.trace'd graphs, since those will have shapes burned into them.
