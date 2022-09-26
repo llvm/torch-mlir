@@ -2,6 +2,9 @@ name: Roll PyTorch
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'RollPyTorch'
 
 jobs:
   build_linux:
