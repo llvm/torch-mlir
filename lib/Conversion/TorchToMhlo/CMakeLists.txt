@@ -22,7 +22,6 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   Core
 
   LINK_LIBS PUBLIC
-  ChloOps
   MLIRIR
   MLIRPass
   MhloDialect

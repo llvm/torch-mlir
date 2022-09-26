@@ -45,7 +45,7 @@ def Torch_NnModuleType : Torch_Type<"NnModule", "nn.Module"> {
 }
 
 // For standard ArrayRefs, which require allocation.
-class OptionalArrayRefParameter<string arrayOf, string desc = ""> :
+class OptionalArrayRefTorchParameter<string arrayOf, string desc = ""> :
     AttrOrTypeParameter<
       "::llvm::Optional<::llvm::ArrayRef<" # arrayOf # ">>", desc> {
   let allocator = [{
@@ -146,7 +146,7 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     - `getElementType()` -> `getDtype()` (but be sure that `hasDtype()` though).
   }];
   let parameters = (ins
-    OptionalArrayRefParameter<"int64_t", "sizes of dimensions">:$optionalSizes,
+    OptionalArrayRefTorchParameter<"int64_t", "sizes of dimensions">:$optionalSizes,
     "::mlir::Type":$optionalDtype
   );
   let genVerifyDecl = 1;
