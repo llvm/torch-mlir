@@ -236,9 +236,7 @@ function test_in_tree() {
   python -m e2e_testing.main --config=eager_mode -v
 
   echo ":::: Run TOSA e2e integration tests"
-  # crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed issues:
-  # - AvgPool2dFloatModule_basic,AvgPool2dCeilModeTrueModule_basic: https://github.com/llvm/torch-mlir/issues/1361
-  python -m e2e_testing.main --config=tosa -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed AvgPool2dFloatModule_basic AvgPool2dCeilModeTrueModule_basic
+  python -m e2e_testing.main --config=tosa -v
 
   echo ":::: Run Lazy Tensor Core e2e integration tests"
   python -m e2e_testing.main --config=lazy_tensor_core -v
