@@ -532,7 +532,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::add.t : (t[], t[]) -> (t[])", has_canonicalizer=True)
     emit("aten::eq.int_list : (int[], int[]) -> (bool)", has_folder=True)
     emit("aten::list.t : (t[]) -> (t[])")
-    emit("aten::slice.t : (t[], int?, int?, int) -> (t[])")
+    emit("aten::slice.t : (t[], int?, int?, int) -> (t[])", has_canonicalizer=True)
     emit("aten::insert.t : (t[], int, t) -> ()")
     emit("aten::ne.int_list : (int[], int[]) -> (bool)")
     emit("aten::any.bool : (bool[]) -> (bool)")

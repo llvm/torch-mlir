@@ -7705,6 +7705,7 @@ def Torch_AtenSliceTOp : Torch_Op<"aten.slice.t", [
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenInsertTOp : Torch_Op<"aten.insert.t", [
