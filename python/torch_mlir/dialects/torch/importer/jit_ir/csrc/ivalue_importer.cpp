@@ -276,7 +276,7 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.ListConstruct", loc,
         torchMlirTorchListTypeGet(
-            getMlirTypeFromTorchType(loc, list.elementType())),
+            getMlirTypeFromTorchType(loc, list.elementType(), importOptions)),
         elems);
     return mlirOperationGetResult(operation, 0);
   }
@@ -291,8 +291,8 @@ MlirValue IValueImporter::rawImportIValue(c10::IValue ivalue) {
     MlirOperation operation = createMlirOperationAtEnd(
         importBlock, "torch.prim.DictConstruct", loc,
         torchMlirTorchDictTypeGet(
-            getMlirTypeFromTorchType(loc, dict.keyType()),
-            getMlirTypeFromTorchType(loc, dict.valueType())),
+            getMlirTypeFromTorchType(loc, dict.keyType(), importOptions),
+            getMlirTypeFromTorchType(loc, dict.valueType(), importOptions)),
         keys, values);
     return mlirOperationGetResult(operation, 0);
   }
@@ -368,10 +368,20 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
   at::Tensor tensor = ivalue.toTensor().contiguous();
   MlirAttribute denseElements = convertTensorToMlirElementsAttr(tensor, loc);
 
-  MlirOperation tensorOp = createMlirOperationAtEnd(
-      importBlock, "torch.tensor.literal", loc,
-      torchMlirTorchNonValueTensorTypeGetFromAttribute(denseElements),
-      toMlirNamedAttribute("value", denseElements));
+  MlirOperation tensorOp;
+
+  if (importOptions.assumeTensorsHaveValueSemantics) {
+    tensorOp = createMlirOperationAtEnd(
+        importBlock, "torch.vtensor.literal", loc,
+        torchMlirTorchValueTensorTypeGetFromAttribute(denseElements),
+        toMlirNamedAttribute("value", denseElements));
+  } else {
+    tensorOp = createMlirOperationAtEnd(
+        importBlock, "torch.tensor.literal", loc,
+        torchMlirTorchNonValueTensorTypeGetFromAttribute(denseElements),
+        toMlirNamedAttribute("value", denseElements));
+  }
+
   MlirValue tensorReprValue = mlirOperationGetResult(tensorOp, 0);
 
   // Construct the complete tensor value. This is trivial for most tensors, but
@@ -384,9 +394,16 @@ MlirValue IValueImporter::importTensor(c10::IValue ivalue) {
     // compiler stages that are building a statically modeled quantization
     // representation will need to convert this to their representation.
     std::vector<int64_t> shape(tensor.sizes().begin(), tensor.sizes().end());
-    MlirType quantizedTensorType = torchMlirTorchNonValueTensorTypeGet(
-        context, shape.size(), shape.data(),
-        getMlirTypeForTorchScalarType(loc, tensor.scalar_type()));
+    MlirType quantizedTensorType;
+    if (importOptions.assumeTensorsHaveValueSemantics) {
+      quantizedTensorType = torchMlirTorchValueTensorTypeGet(
+          context, shape.size(), shape.data(),
+          getMlirTypeForTorchScalarType(loc, tensor.scalar_type()));
+    } else {
+      quantizedTensorType = torchMlirTorchNonValueTensorTypeGet(
+          context, shape.size(), shape.data(),
+          getMlirTypeForTorchScalarType(loc, tensor.scalar_type()));
+    }
     if (tensor.qscheme() == c10::kPerTensorAffine) {
       MlirValue qScale = importIValue(c10::IValue(tensor.q_scale()));
       MlirValue zeroPoint = importIValue(c10::IValue(tensor.q_zero_point()));
@@ -463,7 +480,7 @@ void IValueImporter::importClassType(c10::ClassType *classType) {
             "name", mlirStringAttrGet(
                         context, toMlirStringRef(classAttribute.getName()))),
         toMlirNamedAttribute("type", mlirTypeAttrGet(getMlirTypeFromTorchType(
-                                         loc, classAttribute.getType()))),
+                                         loc, classAttribute.getType(), importOptions))),
         isPrivate);
   }
 
