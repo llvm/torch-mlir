@@ -5,7 +5,7 @@
 import typing
 
 import torch
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
+from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ModuleBuilder
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
 mb = ModuleBuilder()
@@ -32,8 +32,6 @@ annotator.annotateArgs(class_type, ['forward'], [
     ((), torch.float, True),
 ])
 
-import_options = ImportOptions()
-import_options.assumeTensorsHaveValueSemantics = False
 # # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
-mb.import_module(recursivescriptmodule._c, annotator, import_options)
+mb.import_module(recursivescriptmodule._c, annotator)
 mb.module.operation.print()
