@@ -54,9 +54,9 @@ torch_mlir_add_llvm_external_project(
   TORCH_MLIR_DIALECTS
   ${CMAKE_CURRENT_SOURCE_DIR}/externals/llvm-external-projects/torch-mlir-dialects)
 
-option(TORCH_MLIR_OOT_BUILD "Specifies an out of tree build" OFF)
+option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OOT_BUILD)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_BUILD)
   message(STATUS "Torch-MLIR out-of-tree build.")
   # Out-of-tree build
 
