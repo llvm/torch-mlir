@@ -19,10 +19,6 @@
 # Additionally, the TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT env var will
 # prevent this script from attempting to build the directory, and will simply
 # use the (presumed already built) directory as-is.
-# 
-# The Lazy Tensor Core build is enabled by default. If it is causing issues or
-# is not needed, it can be disabled by setting the environment variable
-# TORCH_MLIR_ENABLE_LTC=0
 #
 # The package version can be set with the TORCH_MLIR_PYTHON_PACKAGE_VERSION
 # environment variable. For example, this can be "20220330.357" for a snapshot
@@ -94,11 +90,6 @@ class CMakeBuild(build_py):
                 f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
                 f"-DTORCH_MLIR_ENABLE_LTC={'ON' if enable_ltc else 'OFF'}",
             ]
-            enable_ltc = bool(int(os.environ.get("TORCH_MLIR_ENABLE_LTC", 1)))
-            if enable_ltc:
-                cmake_args.append("-DTORCH_MLIR_ENABLE_LTC=ON")
-            else:
-                cmake_args.append("-DTORCH_MLIR_ENABLE_LTC=OFF")
 
             os.makedirs(cmake_build_dir, exist_ok=True)
             cmake_cache_file = os.path.join(cmake_build_dir, "CMakeCache.txt")

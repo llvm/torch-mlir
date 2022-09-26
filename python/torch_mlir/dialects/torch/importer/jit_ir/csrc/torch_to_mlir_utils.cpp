@@ -283,7 +283,7 @@ torch_mlir::getFunctionTypeFromSchema(MlirContext context,
                              outputTypes.size(), outputTypes.data());
 }
 
-MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
+ MlirAttribute torch_mlir::convertTensorToMlirElementsAttr(at::Tensor tensor,
                                                           MlirLocation loc) {
   using at::ScalarType;
 

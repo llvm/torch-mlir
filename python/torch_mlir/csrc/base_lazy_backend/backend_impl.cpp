@@ -13,9 +13,7 @@
 #include <torch/csrc/lazy/backend/backend_data.h>
 #include <torch/csrc/lazy/backend/backend_device.h>
 #include <torch/csrc/lazy/backend/lowering_context.h>
-#include <torch/csrc/lazy/core/internal_ops/ltc_ops.h>
 #include <torch/csrc/lazy/core/shape.h>
-#include <torch/csrc/lazy/core/tensor.h>
 
 #include "backend_impl.h"
 #include "ir_builder.h"
@@ -61,10 +59,6 @@ void TorchMlirBackendData::Assign(const BackendData& data) {
   TORCH_CHECK(
       info,
       "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
-
-  if (info_) {
-    std::cout << "Assigning " << (void*) &data << " to " << (void*) this << std::endl;
-  }
 
   info_ = std::make_unique<TorchMlirBackendData::Info>(*info);
 }
@@ -119,7 +113,6 @@ TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
   if (!device_data_node) {
     return nullptr;
   }
-  std::cout << "Got computation data from node: " << node->ToString() << std::endl;
   return device_data_node->data();
 }
 

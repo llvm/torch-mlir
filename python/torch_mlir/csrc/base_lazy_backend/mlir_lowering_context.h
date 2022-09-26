@@ -138,7 +138,9 @@ public:
 
   std::shared_ptr<torch::jit::Graph> graph() const;
 
-  MlirOperation func_op() const;
+  MlirOperation& func_op();
+
+  MlirContext* mlir_context();
 
   virtual const std::string debug_string() const;
 

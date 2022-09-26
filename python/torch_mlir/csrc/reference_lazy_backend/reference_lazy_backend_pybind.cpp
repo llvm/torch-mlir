@@ -87,13 +87,6 @@ PYBIND11_MODULE(_REFERENCE_LAZY_BACKEND, m) {
             }
             return false;
         });
-  m.def("mark_output_tensors",
-        [](const std::vector<at::Tensor>& tensors, const bool append) -> size_t {
-            return torch::lazy::MarkOutputTensors(tensors, append);
-        },
-        py::arg("tensors"),
-        py::arg("append") = false
-  );
   m.def("get_tensor_address",
         [](const at::Tensor& tensor) -> std::string {
             auto device = torch::lazy::GetBackendDevice(tensor);

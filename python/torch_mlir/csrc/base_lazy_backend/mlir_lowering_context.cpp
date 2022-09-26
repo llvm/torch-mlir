@@ -173,7 +173,6 @@ ComputationPtr TorchMlirLoweringContext::Build() {
             mlir_context_,
             toMlirStringRef(parameter_names_[index])
           )
-          // mlirDictionaryAttrGet(mlir_context_, 0, nullptr)
         );
         return mlirDictionaryAttrGet(mlir_context_, 1, &attr);
       },
@@ -367,7 +366,11 @@ std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
   return graph_;
 }
 
-MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
+MlirOperation& TorchMlirComputation::func_op() { return func_op_; }
+
+MlirContext* TorchMlirComputation::mlir_context() {
+  return &mlir_context_;
+}
 
 const std::string TorchMlirComputation::debug_string() const {
   std::stringstream ss;
