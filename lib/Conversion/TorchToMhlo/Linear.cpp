@@ -102,13 +102,13 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
   }
   SmallVector<int64_t> outShape;
   // set batch dims, will skip invalid dimensions
-  for (size_t k = 0; k < lhsShape.size(); ++k) {
+  for (int64_t k = 0; k < static_cast<int64_t>(lhsShape.size()); ++k) {
     if (k == lhsResultDim || k == lhsContractingDim)
       continue;
     outShape.push_back(lhsShape[k]);
   }
-  for (size_t k = 0, b = 0; k < rhsShape.size(); ++k) {
-    if (b >= outShape.size())
+  for (int64_t k = 0, b = 0; k < static_cast<int64_t>(rhsShape.size()); ++k) {
+    if (b >= static_cast<int64_t>(outShape.size()))
       break;
     if (k == rhsResultDim || k == rhsContractingDim)
       continue;
@@ -119,10 +119,10 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
   }
 
   // set result dimensions
-  if (lhsResultDim < lhsShape.size() && lhsResultDim >= 0) {
+  if (lhsResultDim < static_cast<int64_t>(lhsShape.size()) && lhsResultDim >= 0) {
     outShape.push_back(lhsShape[lhsResultDim]);
   }
-  if (rhsResultDim < rhsShape.size() && rhsResultDim >= 0) {
+  if (rhsResultDim < static_cast<int64_t>(rhsShape.size()) && rhsResultDim >= 0) {
     outShape.push_back(rhsShape[rhsResultDim]);
   }
   return RankedTensorType::get(outShape, lhsTy.getElementType());
