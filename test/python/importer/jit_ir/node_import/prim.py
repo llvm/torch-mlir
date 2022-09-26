@@ -5,7 +5,7 @@
 import typing
 
 import torch
-from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
+from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
 
 from utils import create_script_function
 
@@ -159,6 +159,37 @@ graph():
   %list : int[] = prim::Constant[value=[1, 2, 3]]()
   return (%list)
 """))
+
+mb.module.operation.print()
+print()
+
+# CHECK-LABEL:   func.func @__torch__.prim_Constant_scalar() -> !torch.number {
+# CHECK:           %[[A:.*]] = torch.tensor.literal
+# CHECK:           %[[RET:.*]] = torch.aten.ScalarImplicit
+# CHECK:           return %[[RET]] : !torch.number
+import_options = ImportOptions()
+import_options.assumeTensorsHaveValueSemantics = False
+mb.import_function(create_script_function("__torch__.prim_Constant_scalar", """
+graph():
+  %0 : Long(requires_grad=0, device=cpu) = prim::Constant[value={1}]()
+  %1 : Scalar = aten::ScalarImplicit(%0)
+  return (%1)
+""", parse_tensor_constants=True), import_options)
+
+mb.module.operation.print()
+print()
+
+# CHECK-LABEL:   func.func @__torch__.prim_Constant_scalar_value_semantics() -> !torch.number {
+# CHECK:           %[[A:.*]] = torch.vtensor.literal
+# CHECK:           %[[RET:.*]] = torch.aten.ScalarImplicit
+# CHECK:           return %[[RET]] : !torch.number
+import_options.assumeTensorsHaveValueSemantics = True
+mb.import_function(create_script_function("__torch__.prim_Constant_scalar_value_semantics", """
+graph():
+  %0 : Long(requires_grad=0, device=cpu) = prim::Constant[value={1}]()
+  %1 : Scalar = aten::ScalarImplicit(%0)
+  return (%1)
+""", parse_tensor_constants=True), import_options)
 
 mb.module.operation.print()
 print()
