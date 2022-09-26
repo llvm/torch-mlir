@@ -1,3 +1,5 @@
+llvm_canonicalize_cmake_booleans(TORCH_MLIR_DIALECTS_ENABLE_TCP)
+
 # lit needs to find the tools, and the location differs for in-tree and out-of-tree builds.
 get_target_property(TORCH_MLIR_DIALECTS_TOOLS_DIR torch-mlir-dialects-opt RUNTIME_OUTPUT_DIRECTORY)
 configure_lit_site_cfg(
