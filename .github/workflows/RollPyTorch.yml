@@ -34,14 +34,22 @@ jobs:
         echo "$PT_HASH" > ./pytorch-version.txt
         rm torch-"${PT_RELEASE}"-*.whl
 
+        # Write the release and hash to the environment file so that we can
+        # retrieve them when creating a PR
+        echo "PT_HASH=${PT_HASH}" >> $GITHUB_ENV
+        echo "PT_RELEASE=${PT_RELEASE}" >> $GITHUB_ENV
+
         TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${PT_HASH}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${PT_RELEASE}" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
-    #- name: Pushing changes
-    #  uses: ad-m/github-push-action@v0.6.0
-    #  with:
-    #    github_token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-    #    branch: ${{ github.ref_name }}
-    #    tags: true
+    - name: Create PR to push new PyTorch version
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      run: |
+        git checkout -b "merge/pytorch-update-${{ env.PT_RELEASE }}"
+        gh pr create -H "merge/pytorch-update-${{ env.PT_RELEASE }}" -B main \
+          --title "build: update PyTorch version to nightly ${{ env.PT_RELEASE }}" \
+          --body "Corresponding PyTorch commit hash: `${{ env.PT_HASH }}`" \
+          --reviewer powderluv
