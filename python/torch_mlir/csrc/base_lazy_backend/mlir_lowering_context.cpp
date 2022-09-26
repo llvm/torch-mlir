@@ -161,9 +161,6 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*context=*/mlir_context_,
       /*function=*/generate_jit_fn().get(),
       /*getArgAttribute=*/[&](int index) -> MlirAttribute {
-        if (sys_util::GetEnvBool("NullArgAttribute", false)) {
-          return {nullptr};
-        }
         if (parameter_names_.count(index) == 0) {
           return {nullptr};
         }
