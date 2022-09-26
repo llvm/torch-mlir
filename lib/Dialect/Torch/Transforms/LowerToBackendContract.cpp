@@ -149,7 +149,7 @@ static LogicalResult checkType(Operation *op, Type type,
   }
 }
 
-static bool satisfiesBackendContract(ModuleOp moduleOp,
+static bool satisfiesBackendContract(ModuleOp module,
                                      bool actuallyEmitDiagnostics = false) {
   // We do not permit `torch.global_slot`'s in the backend contract, since
   // support for them is not widespread, and this does not align with PyTorch's
@@ -158,7 +158,7 @@ static bool satisfiesBackendContract(ModuleOp moduleOp,
   // We just check for the GlobalSlotModuleInitializerOp since its verifier
   // ensures that the set of global slots matches those initialized by the
   // module initializer.
-  auto walkResult0 = moduleOp.walk([&](Torch::GlobalSlotModuleInitializerOp op) {
+  auto walkResult0 = module.walk([&](Torch::GlobalSlotModuleInitializerOp op) {
     if (actuallyEmitDiagnostics) {
       // Report the error on the terminator to avoid dumping the whole
       // initializer itself, which can have pages of ops in it.
@@ -179,7 +179,7 @@ static bool satisfiesBackendContract(ModuleOp moduleOp,
   // A pre-order walk gives a more intuitive "first error".
   // TODO: Should we report more than the first error?
   // How do we avoid making it too spammy?
-  auto walkResult1 = moduleOp.walk<WalkOrder::PreOrder>([&](Block *block) {
+  auto walkResult1 = module.walk<WalkOrder::PreOrder>([&](Block *block) {
     for (BlockArgument arg : block->getArguments())
       if (failed(checkType(block->getParentOp(), arg.getType(),
                            actuallyEmitDiagnostics))) {
@@ -209,9 +209,9 @@ public:
     this->backendLegalOps = backendLegalOps;
   }
   void runOnOperation() override {
-    ModuleOp moduleOp = getOperation();
+    ModuleOp module = getOperation();
 
-    OpPassManager pm(moduleOp.getOperationName());
+    OpPassManager pm(module.getOperationName());
     TorchLoweringPipelineOptions options;
     options.decompose = decompose;
     options.backendLegalOps = backendLegalOps;
@@ -227,14 +227,14 @@ public:
                        << " iterations of the simplification pipeline\n";
         });
         // Show the diagnostics.
-        (void)satisfiesBackendContract(moduleOp,
+        (void)satisfiesBackendContract(module,
                                        /*actuallyEmitDiagnostics=*/true);
         return signalPassFailure();
       }
 
-      if (failed(runPipeline(pm, moduleOp)))
+      if (failed(runPipeline(pm, module)))
         return signalPassFailure();
-    } while (!satisfiesBackendContract(moduleOp));
+    } while (!satisfiesBackendContract(module));
     LLVM_DEBUG({
       llvm::dbgs() << "LowerToBackendContractPass: "
                    << "succeeded after " << i
