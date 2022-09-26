@@ -13,6 +13,10 @@ set(LIBS
   TorchMLIRTMTensorPasses
 )
 
+if(TORCH_MLIR_DIALECTS_ENABLE_TCP)
+  list(APPEND LIBS TorchMLIRTcpDialect)
+endif()
+
 add_llvm_tool(torch-mlir-dialects-opt
   torch-mlir-dialects-opt.cpp
 
