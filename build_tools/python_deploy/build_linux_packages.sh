@@ -177,7 +177,7 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="/main_checkout/torch-mlir/externals/llvm-external-projects/torch-mlir-dialects" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
@@ -240,9 +240,8 @@ function test_in_tree() {
   # - AvgPool2dFloatModule_basic,AvgPool2dCeilModeTrueModule_basic: https://github.com/llvm/torch-mlir/issues/1361
   python -m e2e_testing.main --config=tosa -v --crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed AvgPool2dFloatModule_basic AvgPool2dCeilModeTrueModule_basic
 
-  # Temporarily disabled in top of main (https://github.com/llvm/torch-mlir/pull/1292)
-  #echo ":::: Run Lazy Tensor Core e2e integration tests"
-  #python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+  echo ":::: Run Lazy Tensor Core e2e integration tests"
+  python -m e2e_testing.main --config=lazy_tensor_core -v
 }
 
 function setup_venv() {
@@ -291,7 +290,7 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
