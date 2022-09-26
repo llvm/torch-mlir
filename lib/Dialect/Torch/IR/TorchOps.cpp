@@ -1738,30 +1738,30 @@ void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         llvm::to_vector<4>(listConstructOp.elements());
     int64_t size = static_cast<int64_t>(listElements.size());
 
-    int64_t st;
-    int64_t ed;
+    int64_t start;
+    int64_t end;
     int64_t step;
     if (op.start().getType().isa<Torch::NoneType>()) {
-      st = 0;
-    } else if (!matchPattern(op.start(), m_TorchConstantInt(&st))) {
+      start = 0;
+    } else if (!matchPattern(op.start(), m_TorchConstantInt(&start))) {
       return failure();
     }
     if (op.end().getType().isa<Torch::NoneType>()) {
-      ed = listElements.size();
-    } else if (!matchPattern(op.end(), m_TorchConstantInt(&ed))) {
+      end = listElements.size();
+    } else if (!matchPattern(op.end(), m_TorchConstantInt(&end))) {
       return failure();
     }
     if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
       return failure();
     }
 
-    st = st >= 0 ? st : st + size;
-    st = st >= 0 ? st : 0;
-    ed = ed >= 0 ? ed : ed + size;
-    ed = ed < size ? ed : size;
+    start = start >= 0 ? start : start + size;
+    start = start >= 0 ? start : 0;
+    end = end >= 0 ? end : end + size;
+    end = end < size ? end : size;
     SmallVector<Value> newListElements;
 
-    for (int64_t i = st; i < ed; i += step) {
+    for (int64_t i = start; i < end; i += step) {
       newListElements.push_back(listElements[i]);
     }
 
