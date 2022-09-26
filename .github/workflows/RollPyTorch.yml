@@ -20,8 +20,6 @@ jobs:
       run: |
         cd $GITHUB_WORKSPACE
         python -m pip install wheel
-        TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
-        printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
 
         # Fetch the most recent nightly PyTorch release
         PT_RELEASE=$(python -m pip index versions -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre torch | grep "Available versions" | tr ' ' '\n' | sort -nr | head -n1 | tr -d ',')
@@ -33,6 +31,7 @@ jobs:
 
         # Read the commit hash from the downloaded whl file without extracting it
         PT_HASH=$(unzip -p torch-"${PT_RELEASE}"-*.whl torch/version.py | grep git_version | awk '{ print $3 }' | tr -d "'")
+        echo "$PT_HASH" > ./pytorch-version.txt
         rm torch-"${PT_RELEASE}"-*.whl
 
         TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
