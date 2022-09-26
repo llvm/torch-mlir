@@ -78,6 +78,9 @@ symint:
 - expand
 - expand_copy
 - narrow_copy
+- slice_backward
+- slice_copy.Tensor
+- slice_scatter
 - view
 - view_copy
 - as_strided_copy
