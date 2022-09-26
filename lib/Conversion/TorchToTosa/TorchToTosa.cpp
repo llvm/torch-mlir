@@ -2214,11 +2214,28 @@ template <>
 LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
+
   auto outputTy = getTypeConverter()
                       ->convertType(op.getType())
                       .template cast<RankedTensorType>();
-  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.value());
 
+  // Tensors with integer types need to be converted to signless integer
+  // element type. All tensors with element types other than integer can reuse
+  // existing elements attribute.
+  // TODO: what about unsigned integer?
+  if (auto elements = op.valueAttr().dyn_cast<DenseIntElementsAttr>()) {
+    Type builtinTensorElemTy = outputTy.getElementType();
+    unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
+    if (builtinTensorElemTy.isSignedInteger()) {
+      DenseElementsAttr valueAttr =
+          elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
+            return APInt(bitWidth, v.getSExtValue());
+          });
+      rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, valueAttr);
+      return success();
+    }
+  }
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.value());
   return success();
 }
 
