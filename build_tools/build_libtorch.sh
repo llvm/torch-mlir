@@ -45,10 +45,21 @@ install_requirements() {
 
 checkout_pytorch() {
   if [[ ! -d "$PYTORCH_ROOT" ]]; then
-    git clone --depth 1 --single-branch --branch "${TORCH_MLIR_SRC_PYTORCH_BRANCH}" https://github.com/"$TORCH_MLIR_SRC_PYTORCH_REPO" "$PYTORCH_ROOT"
+    # ${TORCH_MLIR_SRC_PYTORCH_BRANCH} could be a branch name or a commit hash.
+    # Althought `git clone` can accept a branch name, the same command does not
+    # accept a commit hash, so we instead use `git fetch`.  The alternative is
+    # to clone the entire repository and then `git checkout` the requested
+    # branch or commit hash, but that's too expensive.
+    mkdir "${PYTORCH_ROOT}"
+    cd "${PYTORCH_ROOT}"
+    git init
+    git remote add origin "https://github.com/${TORCH_MLIR_SRC_PYTORCH_REPO}"
+    git fetch --depth=1 origin "${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
+    git reset --hard FETCH_HEAD
+  else
+    cd "${PYTORCH_ROOT}"
+    git reset --hard HEAD
   fi
-  cd "$PYTORCH_ROOT"
-  git reset --hard HEAD
   git clean -df
   git submodule update --init --depth 1 --recursive
 }
