@@ -211,12 +211,12 @@ function _check_file_not_changed_by() {
   mv "$file_backup" "$file"
   # We use git-diff as "just a diff program" (no SCM stuff) because it has
   # nicer output than regular `diff`.
-  if ! git diff --quiet "$file" "$file_new"; then
+  if ! git diff --no-index --quiet "$file" "$file_new"; then
     echo "#######################################################"
     echo "Generated file '${file}' is not up to date (see diff below)"
     echo ">>> Please run '${cmd}' to update it <<<"
     echo "#######################################################"
-    git diff --color=always "$file" "$file_new"
+    git diff --no-index --color=always "$file" "$file_new"
     # TODO: Is there a better cleanup strategy that doesn't require duplicating
     # this inside and outside the `if`?
     rm "$file_new"
