@@ -153,15 +153,8 @@ ComputationPtr TorchMlirLoweringContext::Build() {
 
   // Apply passes.
   MlirPassManager pm = mlirPassManagerCreate(mlir_context_);
-  MlirOpPassManager nestedFuncPm = mlirPassManagerGetNestedUnder(
-    pm, mlirStringRefCreateFromCString("func.func"));
-
-  MlirPass refineTypesPass = mlirCreateRefineTypes();
-  mlirOpPassManagerAddOwnedPass(nestedFuncPm, refineTypesPass);
-
   MlirPass satisfiesBackendContract= mlirCreateSatisfiesBackendContract();
   mlirPassManagerAddOwnedPass(pm, satisfiesBackendContract);
-
   MlirLogicalResult success = mlirPassManagerRun(pm, moduleOp);
 
   TORCH_CHECK(
