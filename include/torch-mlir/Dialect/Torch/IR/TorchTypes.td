@@ -383,6 +383,7 @@ class ListOf<list<Type> allowedTypes, string descr> :
 
 def AnyTorchListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;
 def AnyTorchListOfTorchIntType : ListOf<[Torch_IntType], "Int list type (int[])">;
+def AnyTorchListOfTorchFloatType : ListOf<[Torch_FloatType], "Float list type (float[])">;
 def AnyTorchListOfTorchStringType : ListOf<[Torch_StringType], "Str list type (str[])">;
 def AnyTorchListOfTensorType:
       ListOf<[AnyTorchTensorType], "Any int list type (Tensor[])">;
@@ -390,7 +391,7 @@ def AnyTorchListOfOptionalTensorType :
       ListOf<[AnyTorchOptionalTensorType],
              "Any optional tensor list type (Tensor?[])">;
 def AnyTorchOptionalListOfTorchIntType : OptionalOf<AnyTorchListOfTorchIntType, "Optional torch int list type (int[]?)">;
-
+def AnyTorchOptionalListOfTorchFloatType : OptionalOf<AnyTorchListOfTorchFloatType, "Optional torch float list type (float[]?)">;
 // Note: TorchScript does not consider !torch.bool to be a Scalar.
 def AnyTorchScalarType :
     Type<CPred<"isValidSubtype($_self, ::mlir::torch::Torch::NumberType::get($_self.getContext()))">,
