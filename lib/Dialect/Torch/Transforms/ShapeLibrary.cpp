@@ -6991,6 +6991,10 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "    %2 = call @__torch__.torch.jit._shape_functions.sum_mean_dim(%arg0, %0, %arg2, %1) : (!torch.list<int>, !torch.optional<list<int>>, !torch.bool, !torch.any) -> !torch.list<int>\n"
 "    return %2 : !torch.list<int>\n"
 "  }\n"
+"  func.func @\"__torch_mlir_shape_fn.aten.upsample_nearest2d.vec\"(%arg0: !torch.list<int>, %arg1: !torch.optional<list<int>>, %arg2: !torch.optional<list<float>>) -> !torch.list<int> {\n"
+"    %0 = call @__torch__.torch.jit._shape_functions.upsample_nearest2d(%arg0, %arg1, %arg2) : (!torch.list<int>, !torch.optional<list<int>>, !torch.optional<list<float>>) -> !torch.list<int>\n"
+"    return %0 : !torch.list<int>\n"
+"  }\n"
 "}\n"
 "";
   // clang-format on

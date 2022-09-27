@@ -34,6 +34,8 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "bool?": "AnyTorchOptionalBoolType",
     "float": "Torch_FloatType",
     "float?": "AnyTorchOptionalFloatType",
+    "float[]": "AnyTorchListOfTorchFloatType",
+    "float[]?": "AnyTorchOptionalListOfTorchFloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",
@@ -515,6 +517,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
 
 
     # Dict ops.
