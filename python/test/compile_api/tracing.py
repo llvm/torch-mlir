@@ -9,9 +9,8 @@ import torch
 
 import torch_mlir
 
+
 class TanhModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
     def forward(self, x):
         return torch.ops.aten.tanh(x)
 
@@ -50,5 +49,24 @@ except Exception as e:
 try:
     # CHECK: TensorPlaceholder can only be used with tracing when `ignore_traced_shapes=True`
     torch_mlir.compile(TanhModule(), [placeholder], use_tracing=True)
+except Exception as e:
+    print(e)
+
+
+class DictModule(torch.nn.Module):
+    def forward(self, x):
+        return x['a'] * 2.0
+
+
+try:
+    # CHECK: Only Tensors, TensorPlaceholders, or a sequences of Tensors and TensorPlaceholders are supported as inputs.
+    torch_mlir.compile(DictModule(), {'a': torch.tensor(3.0)}, use_tracing=True)
+except Exception as e:
+    print(e)
+
+
+try:
+    # CHECK: Only Tensors, TensorPlaceholders, or a sequences of Tensors and TensorPlaceholders are supported as inputs.
+    torch_mlir.compile(DictModule(), [{'a': torch.tensor(3.0)}], use_tracing=True)
 except Exception as e:
     print(e)

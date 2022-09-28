@@ -175,6 +175,13 @@ def compile(model: torch.nn.Module,
     # tensor to a list of a single tensor to make the API more ergonomic.
     if isinstance(example_args, (torch.Tensor, TensorPlaceholder)):
         example_args = (example_args,)
+    
+    # If users passed in anything other than tensors or a list of tensors (e.g.
+    # a dictionary), we can't handle it.
+    if not isinstance(example_args, Sequence):
+        raise Exception(
+            "Only Tensors, TensorPlaceholders, or a sequences of Tensors and "
+            "TensorPlaceholders are supported as inputs.")
 
     # TODO: Don't hardcode "forward". See `torch.onnx.export` and
     # `torch.jit.trace_module` for API inspiration.
@@ -197,8 +204,12 @@ def compile(model: torch.nn.Module,
                 shape = [s if s != -1 else 7 for s in arg.shape]
                 example_args_for_trace.append(
                     torch.ones(*shape, dtype=arg.dtype))
-            else:
+            elif isinstance(arg, torch.Tensor):
                 example_args_for_trace.append(arg)
+            else:
+                raise Exception(
+                    "Only Tensors, TensorPlaceholders, or a sequences of "
+                    "Tensors and TensorPlaceholders are supported as inputs.")
         scripted = torch.jit.trace(model, tuple(example_args_for_trace))
     else:
         scripted = torch.jit.script(model)
