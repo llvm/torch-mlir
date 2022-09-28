@@ -55,8 +55,13 @@ TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 TM_SKIP_TESTS="${TM_SKIP_TESTS:-OFF}"
 
 PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] && . "$PKG_VER_FILE"
-export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
+TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
 echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_VERSION}"
+
+TORCH_MLIR_SRC_PYTORCH_REPO="${TORCH_MLIR_SRC_PYTORCH_REPO:-pytorch/pytorch}"
+echo "Setting torch-mlir PyTorch Repo for source builds to: ${TORCH_MLIR_SRC_PYTORCH_REPO}"
+TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH:-master}"
+echo "Setting torch-mlir PyTorch version for source builds to: ${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
 
 function run_on_host() {
   echo "Running on host for $1:$@"
@@ -105,6 +110,8 @@ function run_on_host() {
     -e "TM_PACKAGES=${package}" \
     -e "TM_SKIP_TESTS=${TM_SKIP_TESTS}" \
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}" \
     -e "CCACHE_DIR=/main_checkout/torch-mlir/.ccache" \
     "${TM_CURRENT_DOCKER_IMAGE}" \
     /bin/bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
@@ -160,9 +167,9 @@ function run_in_docker() {
 
 
 function build_in_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build in-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
   cmake -GNinja -B/main_checkout/torch-mlir/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
@@ -178,7 +185,9 @@ function build_in_tree() {
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=ON \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build
@@ -249,15 +258,15 @@ function setup_venv() {
   source /main_checkout/torch-mlir/docker_venv/bin/activate
 
   echo ":::: pip installing dependencies"
-  python3 -m pip install -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
-  python3 -m pip install -r /main_checkout/torch-mlir/requirements.txt
+  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
+  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt
 
 }
 
 function build_out_of_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build out-of-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version"
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
@@ -289,7 +298,9 @@ function build_out_of_tree() {
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
       -DTORCH_MLIR_ENABLE_LTC=ON \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot
@@ -310,7 +321,7 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
