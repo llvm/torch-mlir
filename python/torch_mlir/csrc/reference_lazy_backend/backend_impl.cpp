@@ -19,7 +19,6 @@
 #include <torch_mlir/csrc/base_lazy_backend/utils/debug.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/exception.h>
 #include <torch_mlir/csrc/base_lazy_backend/utils/string_utils.h>
-#include <torch_mlir/csrc/base_lazy_backend/utils/tensor_utils.h>
 
 #include "backend_impl.h"
 
@@ -27,8 +26,6 @@ using namespace torch::lazy;
 
 namespace torch {
 namespace lazy {
-
-
 
 struct ReferenceLazyBackendDeviceType : public BackendDeviceType {
   ReferenceLazyBackendDeviceType(c10::DeviceType device_type)
@@ -53,7 +50,6 @@ public:
   void SetRngSeed(size_t seed) const override {
     std::cout << "RNG Seed Set to: " << seed << std::endl;
   }
-
 
   /**
    * Lowering, Compilation, Execution
@@ -112,15 +108,17 @@ public:
     for (const auto& argument : arguments) {
       const auto mlir_data =
           std::static_pointer_cast<TorchMlirBackendData>(argument);
-      if (mlir_data->mlir_info()->scalar.has_value()) {
-        stack.emplace_back(mlir_data->mlir_info()->scalar.value());
+      auto* info = dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
+      TORCH_CHECK(info);
+      if (info->scalar.has_value()) {
+        stack.emplace_back(info->scalar.value());
       } else {
-        at::Tensor tensor = mlir_data->mlir_info()->tensor;
+        at::Tensor tensor = info->tensor;
         stack.emplace_back(tensor);
       }
 
       // count number of inputs
-      auto name = mlir_data->mlir_info()->name;
+      auto name = info->name;
       if (startswith(name, "input_")) {
         // Printing tensor name for testing purposes
         std::cout << "Input tensor: " << name << std::endl;

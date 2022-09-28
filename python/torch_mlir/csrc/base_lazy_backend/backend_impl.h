@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <memory>
 #include <sstream>
 
 #include <torch/csrc/lazy/backend/backend_data.h>
@@ -49,6 +50,7 @@ public:
   };
 
   TorchMlirBackendData(BackendDevice device, Shape shape);
+  TorchMlirBackendData(BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info);
   TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
   TorchMlirBackendData(
       const at::Tensor& tensor, BackendDevice device, Shape shape);
@@ -59,10 +61,10 @@ public:
 
   virtual bool HasValue() const override;
 
-  TorchMlirBackendData::Info* mlir_info() const;
+  BackendData::Info* mlir_info() const;
 
-private:
-  std::unique_ptr<TorchMlirBackendData::Info> info_;
+protected:
+  std::shared_ptr<BackendData::Info> info_;
 };
 
 class TORCH_API TorchMlirBackendImpl : public BackendImplInterface {

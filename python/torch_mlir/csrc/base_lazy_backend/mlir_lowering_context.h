@@ -12,9 +12,7 @@
 
 #pragma once
 
-#include <cstddef>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <torch/csrc/api/include/torch/jit.h>
@@ -125,7 +123,7 @@ public:
   TorchMlirComputation(
       MlirOperation func_op, MlirContext mlir_context,
       const std::shared_ptr<torch::jit::Graph>& graph,
-      std::unordered_map<int, std::string> parameter_names,
+      std::unordered_map<int, std::string> parameters_map,
       InputOutputAliases input_output_aliases);
 
   int parameters_size() const override;
@@ -134,13 +132,15 @@ public:
 
   const std::vector<std::string>& parameter_names() const override;
 
+  const std::unordered_map<int, std::string>& parameters_map() const;
+
   const torch::lazy::Shape& result_shape() const override;
 
   std::shared_ptr<torch::jit::Graph> graph() const;
 
-  MlirOperation& func_op();
+  MlirOperation func_op() const;
 
-  MlirContext* mlir_context();
+  MlirContext mlir_context() const;
 
   virtual const std::string debug_string() const;
 
@@ -148,6 +148,7 @@ public:
 
 protected:
   size_t num_parameters_;
+  std::unordered_map<int, std::string> parameters_map_;
   std::vector<std::string> parameter_names_;
   std::vector<Shape> parameter_shapes_;
   Shape result_shape_;

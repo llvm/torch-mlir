@@ -15,9 +15,6 @@
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/passes/refine_tuple_types.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
-#include "mlir-c/BuiltinAttributes.h"
-#include "mlir-c/BuiltinTypes.h"
-#include "mlir-c/IR.h"
 #include "torch-mlir-c/Registration.h"
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
@@ -28,22 +25,6 @@
 #include "utils/exception.h"
 #include "utils/string_utils.h"
 #include "utils/sys_utils.h"
-
-namespace {
-
-static MlirStringRef toMlirStringRef(const std::string &s) {
-  return mlirStringRefCreate(s.data(), s.size());
-}
-
-
-inline MlirNamedAttribute toMlirNamedAttribute(const char *s,
-                                               MlirAttribute attr) {
-  MlirContext context = mlirAttributeGetContext(attr);
-  MlirIdentifier ident = mlirIdentifierGet(context, toMlirStringRef(s));
-  return mlirNamedAttributeGet(ident, attr);
-}
-
-}
 
 namespace torch {
 namespace lazy {
@@ -125,8 +106,6 @@ bool TorchMlirLoweringContext::CheckResultShape(
   return false;
 }
 
-
-
 size_t TorchMlirLoweringContext::AddResult(const Output& output) {
   PRINT_FUNCTION();
 
@@ -160,19 +139,7 @@ ComputationPtr TorchMlirLoweringContext::Build() {
   MlirOperation func_op = torch_mlir::importJitFunctionAsFuncOp(
       /*context=*/mlir_context_,
       /*function=*/generate_jit_fn().get(),
-      /*getArgAttribute=*/[&](int index) -> MlirAttribute {
-        if (parameter_names_.count(index) == 0) {
-          return {nullptr};
-        }
-        MlirNamedAttribute attr = toMlirNamedAttribute(
-          "torch.parameter",
-          mlirStringAttrGet(
-            mlir_context_,
-            toMlirStringRef(parameter_names_[index])
-          )
-        );
-        return mlirDictionaryAttrGet(mlir_context_, 1, &attr);
-      },
+      /*getArgAttribute=*/[](int) -> MlirAttribute { return {nullptr}; },
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
   return std::make_shared<TorchMlirComputation>(
@@ -229,7 +196,8 @@ torch::jit::Value* TorchMlirLoweringContext::GetParameter(BackendDataPtr data) {
     torch::jit::Value* param =
         graph_->addInput(c10::str("p", parameters_.size()));
 
-    auto info = mlir_data->mlir_info();
+    auto* info = dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
+    TORCH_CHECK(info, "Expected TorchMlirBackendData::Info");
     if (info->scalar.has_value()) {
       auto& scalar = info->scalar.value();
       if (scalar.isFloatingPoint()) {
@@ -325,15 +293,16 @@ void TorchMlirLoweringContext::RegisterMlirDialects() {
 TorchMlirComputation::TorchMlirComputation(
     MlirOperation func_op, MlirContext mlir_context,
     const std::shared_ptr<torch::jit::Graph>& graph,
-    std::unordered_map<int, std::string> parameter_names,
+    std::unordered_map<int, std::string> parameters_map,
     InputOutputAliases input_output_aliases)
     : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
-      graph_(graph), input_output_aliases_(input_output_aliases) {
+      graph_(graph), input_output_aliases_(input_output_aliases),
+      parameters_map_(parameters_map) {
 
   num_parameters_ = graph_->inputs().size();
 
-  parameter_names_.reserve(parameter_names.size());
-  for (auto kv : parameter_names) {
+  parameter_names_.reserve(parameters_map_.size());
+  for (auto kv : parameters_map_) {
     parameter_names_.emplace_back(kv.second);
   }
 }
@@ -353,6 +322,10 @@ const std::vector<std::string>& TorchMlirComputation::parameter_names() const {
   return parameter_names_;
 }
 
+const std::unordered_map<int, std::string>& TorchMlirComputation::parameters_map() const {
+  return parameters_map_;
+}
+
 const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
   throw std::runtime_error(
       "todo(whc) implement ts computation shapes or change interface");
@@ -363,10 +336,10 @@ std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
   return graph_;
 }
 
-MlirOperation& TorchMlirComputation::func_op() { return func_op_; }
+MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
-MlirContext* TorchMlirComputation::mlir_context() {
-  return &mlir_context_;
+MlirContext TorchMlirComputation::mlir_context() const {
+  return mlir_context_;
 }
 
 const std::string TorchMlirComputation::debug_string() const {
