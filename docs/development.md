@@ -321,6 +321,9 @@ Torch-MLIR has two types of tests:
 
 ## Running execution (end-to-end) tests:
 
+> **Note**
+> An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
+
 ```shell
 # Run all tests on the reference backend
 ./tools/e2e_test.sh
@@ -328,6 +331,12 @@ Torch-MLIR has two types of tests:
 ./tools/e2e_test.sh --filter Conv2d --verbose
 # Run tests on the TOSA backend.
 ./tools/e2e_test.sh --config tosa
+```
+
+Alternatively, you can run the tests via Python directly:
+
+```shell
+python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
 ## Running unit tests.
