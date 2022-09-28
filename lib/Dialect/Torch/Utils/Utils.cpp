@@ -142,3 +142,17 @@ int Torch::getTensorRank(Value tensor) {
   }
   return tensorRank;
 }
+
+bool Torch::isViewLikeOp(Operation *op) {
+  // AtenContiguousOp might return a view, so this is conservatively
+  // correct. We could potentially be more precise and identify the cases
+  // that it does not return a view and treat those as having value
+  // semantics.
+  return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
+             AtenExpandOp, AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
+             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
+             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
+             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+             TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
+             AtenNarrowOp, AtenToDeviceOp>(op);
+}
