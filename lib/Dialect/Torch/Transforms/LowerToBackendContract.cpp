@@ -243,8 +243,8 @@ public:
   }
 };
 
-class SatisfiesBackendContractPass
-    : public SatisfiesBackendContractBase<SatisfiesBackendContractPass> {
+class VerifySatisfiesBackendContractPass
+    : public VerifySatisfiesBackendContractBase<VerifySatisfiesBackendContractPass> {
 public:
   void runOnOperation() override {
     if (!satisfiesBackendContract(getOperation(), /*actuallyEmitDiagnostics=*/true)) {
@@ -262,6 +262,6 @@ mlir::torch::Torch::createLowerToBackendContractPass(
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createSatisfiesBackendContractPass() {
-  return std::make_unique<SatisfiesBackendContractPass>();
+mlir::torch::Torch::createVerifySatisfiesBackendContractPass() {
+  return std::make_unique<VerifySatisfiesBackendContractPass>();
 }

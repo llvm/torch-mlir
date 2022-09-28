@@ -1,4 +1,4 @@
-//===-- torch-mlir-c/Transforms.h - Helpers for C API to Core MLIR ------*- C -*-===//
+//===-- torch-mlir-c/Transforms.h - C API for torch passes --------*- C -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM
 // Exceptions.

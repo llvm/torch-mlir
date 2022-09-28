@@ -5,7 +5,7 @@
 import typing
 
 import torch
-from torch_mlir.dialects.torch.importer.jit_ir import ClassAnnotator, ImportOptions, ModuleBuilder
+from torch_mlir.dialects.torch.importer.jit_ir import ModuleBuilder
 
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
@@ -61,14 +61,10 @@ class TestModule(torch.nn.Module):
 # CHECK:   torch.slot "ones_qint8", %[[ONES_QINT8]] : !torch.tensor<[1],!torch.qint8>
 # CHECK:   torch.slot "ones_quint8", %[[ONES_QUINT8]] : !torch.tensor<[1],!torch.quint8>
 # CHECK: }
+
+
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)
-
-import_options = ImportOptions()
-import_options.assumeTensorsHaveValueSemantics = False
-
-class_annotator = ClassAnnotator()
-
 # TODO: Automatically handle unpacking Python class RecursiveScriptModule into the underlying ScriptModule.
-mb.import_module(recursivescriptmodule._c, class_annotator, import_options)
+mb.import_module(recursivescriptmodule._c)
 mb.module.operation.print()
