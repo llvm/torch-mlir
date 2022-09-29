@@ -22,12 +22,13 @@ compiling or TorchScript'ing).
 
 import abc
 from typing import Any, Callable, List, NamedTuple, Optional, TypeVar, Union, Dict
+from itertools import repeat
 
 import sys
 import traceback
 
 import torch
-import torch.multiprocessing as mp
+import multiprocess as mp
 
 TorchScriptValue = Union[int, float, List['TorchScriptValue'],
                          Dict['TorchScriptValue',
@@ -314,21 +315,6 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
                       golden_trace=golden_trace)
 
 
-queue_sentinel = "QUEUE_SENTINEL"
-
-
-def run_workers_in_parallel(task_queue: mp.Queue, worker, num_processes: int):
-    processes = []
-    for i in range(num_processes):
-        p = mp.get_context("fork").Process(target=worker, args=(task_queue, ))
-        p.start()
-        processes.append(p)
-    for i in range(num_processes):
-        task_queue.put(queue_sentinel)
-    for p in processes:
-        p.join()
-
-
 def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=False) -> List[TestResult]:
     """Invoke the given `Test`'s with the provided `TestConfig`."""
     num_processes = min(int(mp.cpu_count() * 1.1), len(tests))
@@ -351,30 +337,16 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
     if num_processes == 1 or sequential:
         return [compile_and_run_test(test, config, verbose) for test in tests]
 
-    # To run e2e tests in parallel:
-    # The tests are put into a synchronized queue. Multiple worker processes are
-    # created. Each worker takes one test at a time from the queue to compile
-    # and execute it. If the test finishes, whether failed or passed, the result
-    # of the test is put into a synchronized list which collects the tests
-    # results from all worker processes.
-    manager = mp.Manager()
-    tests_queue = manager.Queue()
-    sync_results = manager.list()
     # This is needed because autograd does not support crossing process
     # boundaries.
     torch.autograd.set_grad_enabled(False)
-    for test in tests:
-        tests_queue.put(test.unique_name)
 
-    tests_dict = {test.unique_name: test for test in tests}
+    pool = mp.Pool(num_processes)
+    arg_list = zip(tests, repeat(config))
+    handles = pool.starmap_async(compile_and_run_test, arg_list)
+    results = handles.get()
 
-    def worker(tests_queue: mp.Queue):
-        for test_name in iter(tests_queue.get, queue_sentinel):
-            sync_results.append(
-                compile_and_run_test(tests_dict[test_name], config))
-
-    run_workers_in_parallel(tests_queue, worker, num_processes)
-    tests_with_results = {result.unique_name for result in sync_results}
+    tests_with_results = {result.unique_name for result in results}
     all_tests = {test.unique_name for test in tests}
     # For processes that are crashed due to compile time or runtime error,
     # the error outputs are printed out all together but no TestResult is
@@ -391,7 +363,6 @@ def run_tests(tests: List[Test], config: TestConfig, sequential=False, verbose=F
             trace=None,
             golden_trace=None) for aborted_test_name in aborted_tests
     ]
-    results = [result for result in sync_results]
     results.extend(aborted_tests_results)
     results.sort(key=lambda result: result.unique_name)
     return results

@@ -57,6 +57,12 @@ config.standalone_tools_dir = os.path.join(config.torch_mlir_obj_root, 'bin')
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
+# On Windows the path to python could contains spaces in which case it needs to
+# be provided in quotes.  This is the equivalent of how %python is setup in
+# llvm/utils/lit/lit/llvm/config.py.
+if "Windows" in config.host_os:
+  config.python_executable = '"%s"' % (config.python_executable)
+
 tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir]
 tools = [
     'torch-mlir-opt',

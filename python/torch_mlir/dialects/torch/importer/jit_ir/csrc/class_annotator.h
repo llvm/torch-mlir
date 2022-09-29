@@ -124,9 +124,9 @@ private:
   std::vector<MethodAnnotation> methodAnnotations;
 };
 
-// A map of annotations on `c10::ClassType`s
+// A map of annotations on `c10::ClassType` names
 using ClassAnnotationMap =
-    std::unordered_map<c10::ClassType *, std::unique_ptr<ClassAnnotation>>;
+    std::map<std::string, std::unique_ptr<ClassAnnotation>>;
 
 // A collection of class annotations + methods to create the annotations.
 //

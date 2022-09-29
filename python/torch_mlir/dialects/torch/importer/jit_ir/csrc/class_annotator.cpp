@@ -135,11 +135,12 @@ const ClassAnnotationMap &ClassAnnotator::getAnnotationMap() {
 
 ClassAnnotation &
 ClassAnnotator::getOrCreateClassAnnotation(c10::ClassType *classType) {
-  auto it = classAnnotations.find(classType);
+  auto className = classType->name()->qualifiedName();
+  auto it = classAnnotations.find(className);
   if (it == classAnnotations.end()) {
     auto newAnnotation = std::make_unique<ClassAnnotation>(
         classType->shared_from_this()->cast<c10::ClassType>());
-    it = classAnnotations.insert({classType, std::move(newAnnotation)}).first;
+    it = classAnnotations.insert({className, std::move(newAnnotation)}).first;
     for (int i = 0, e = classType->methods().size(); i != e; i++) {
       functionToMethodMap[classType->methods()[i]] =
           &it->second->getMethodAnnotations()[i];
