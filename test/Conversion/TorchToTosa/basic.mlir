@@ -821,7 +821,7 @@ func.func @torch.aten.max.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
 // -----
 
 // CHECK-LABEL: @torch.vtensor.literal_si64$basic(
-// CHECK: %[[VAL_0:.*]] = "tosa.const"() {value = dense<-1> : tensor<1x512xsi64>} : () -> tensor<1x512xi64>
+// CHECK: %[[VAL_0:.*]] = "tosa.const"() {value = dense<-1> : tensor<1x512xi64>} : () -> tensor<1x512xi64>
 // CHECK: %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<1x512xi64> -> !torch.vtensor<[1,512],si64>
 // CHECK: return %[[VAL_1]] : !torch.vtensor<[1,512],si64>
 func.func @torch.vtensor.literal_si64$basic() -> !torch.vtensor<[1,512],si64> {
