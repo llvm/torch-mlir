@@ -321,11 +321,13 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
-  python -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
-    --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir \
+    -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html \
+    -r /main_checkout/torch-mlir/whl-requirements.txt
 }
 
 function run_audit_wheel() {
