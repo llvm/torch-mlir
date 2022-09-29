@@ -1089,7 +1089,7 @@ def BroadcastToModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class BroadcastToIdentityCaseStaticModule(torch.nn.Module):
+class BroadcastToSameRankStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -1097,16 +1097,41 @@ class BroadcastToIdentityCaseStaticModule(torch.nn.Module):
     @export
     @annotate_args([
         None,
+        ([3, 1, 8], torch.float32, True),
         ([3, 1, 1], torch.float32, True),
     ])
-    def forward(self, x):
-        return torch.broadcast_to(x, [3, 1, 1])
+    def forward(self, x, y):
+        y = torch.broadcast_to(y, [3, 1, 8])
+        return torch.ops.aten.sub(x, y)
 
 
-@register_test_case(module_factory=lambda: BroadcastToIdentityCaseStaticModule())
-def BroadcastToIdentityCaseStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 1, 1))
+@register_test_case(module_factory=lambda: BroadcastToSameRankStaticModule())
+def BroadcastToSameRankStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 8), tu.rand(3, 1, 1))
 
+
+# ==============================================================================
+
+
+class BroadcastZeroRankInputStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 8], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, x, y):
+        y = torch.broadcast_to(y, [3, 1, 8])
+        return torch.ops.aten.sub(x, y)
+
+
+@register_test_case(module_factory=lambda: BroadcastZeroRankInputStaticModule())
+def BroadcastZeroRankInputStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 8), tu.rand())
 
 # ==============================================================================
 

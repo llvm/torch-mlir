@@ -2980,15 +2980,29 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
                                        "size must consist of Scalar constants");
 
   SmallVector<int64_t> inputShape(selfType.getShape());
-  if (!llvm::equal(inputShape, outShape))
-    return rewriter.notifyMatchFailure(op,
-                                       "Only identity cases are supported.");
-
-  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
-      rewriter.getI64ArrayAttr(outShape));
-
-  return success();
+  if (inputShape.size() == outShape.size() || inputShape.size() == 0) {
+    // Check for identity case i.e, for ex: [a, b, c] -> [a, b, c]. If this is
+    // true then we can replace the op result with the input operand
+    // irrespective of the users of the op result.
+    if (!llvm::equal(inputShape, outShape)) {
+      for (auto user : op->getResult(0).getUsers()) {
+        // This case is only supported if the result of the `broadcast_to` op is
+        // not used by an op which is a view like.
+        if (isViewLikeOp(user)) {
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: broadcast not supported for this case");
+        }
+      }
+    }
+    // If we reach here, then it means the given case is handled by implicit
+    // broadcasting done by tosa.
+    op.replaceAllUsesWith(op.self());
+    rewriter.eraseOp(op);
+    return success();
+  }
+  return rewriter.notifyMatchFailure(
+      op,
+      "unimplemented: broadcasts other than same rank or zero ranked tensor.");
 }
 
 template <typename AtenOpT, typename TosaOpT>

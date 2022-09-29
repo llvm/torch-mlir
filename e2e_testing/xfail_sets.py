@@ -23,7 +23,6 @@ EAGER_MODE_XFAIL_SET = {
 }
 
 MHLO_PASS_SET = {
-    "BroadcastToIdentityCaseStaticModule_basic",
     "GatherStaticModule_basic",
     "GatherModule_basic",
     "Gather2DInputModdule_basic",
@@ -454,7 +453,8 @@ TOSA_PASS_SET = {
     "_LogSoftmaxModuleStable_basic",
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
-    "BroadcastToIdentityCaseStaticModule_basic",
+    "BroadcastToSameRankStaticModule_basic",
+    "BroadcastZeroRankInputStaticModule_basic",
     "SliceStaticModule_basic",
 }
 
