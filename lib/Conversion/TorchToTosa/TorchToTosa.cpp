@@ -2224,9 +2224,9 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   // existing elements attribute.
   // TODO: what about unsigned integer?
   if (auto elements = op.valueAttr().dyn_cast<DenseIntElementsAttr>()) {
-    Type builtinTensorElemTy = outputTy.getElementType();
-    unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
-    if (builtinTensorElemTy.isSignedInteger()) {
+    if (elements.getElementType().isSignedInteger()) {
+      Type builtinTensorElemTy = outputTy.getElementType();
+      unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
       DenseElementsAttr valueAttr =
           elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
             return APInt(bitWidth, v.getSExtValue());
