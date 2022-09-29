@@ -15,14 +15,16 @@
 #include <torch/csrc/jit/api/compilation_unit.h>
 #include <torch/csrc/jit/passes/refine_tuple_types.h>
 #include <torch/csrc/lazy/core/lazy_graph_executor.h>
+#include "torch-mlir-c/Registration.h"
 
 #include "../../dialects/torch/importer/jit_ir/csrc/function_importer.h"
 #include "backend_impl.h"
 #include "mlir_lowering_context.h"
 #include "mlir_node.h"
-#include "torch-mlir-c/Registration.h"
 #include "utils/debug.h"
 #include "utils/exception.h"
+#include "utils/string_utils.h"
+#include "utils/sys_utils.h"
 
 namespace torch {
 namespace lazy {
@@ -141,7 +143,7 @@ ComputationPtr TorchMlirLoweringContext::Build() {
       /*importOptions=*/{/*assumeTensorsHaveValueSemantics=*/true});
 
   return std::make_shared<TorchMlirComputation>(
-      func_op, mlir_context_, graph_, input_output_aliases_);
+      func_op, mlir_context_, graph_, parameter_names_, input_output_aliases_);
 }
 
 torch::jit::Value* TorchMlirLoweringContext::GetOutputOp(const Output& output) {
@@ -194,7 +196,8 @@ torch::jit::Value* TorchMlirLoweringContext::GetParameter(BackendDataPtr data) {
     torch::jit::Value* param =
         graph_->addInput(c10::str("p", parameters_.size()));
 
-    auto info = mlir_data->mlir_info();
+    auto* info = dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
+    TORCH_CHECK(info, "Expected TorchMlirBackendData::Info");
     if (info->scalar.has_value()) {
       auto& scalar = info->scalar.value();
       if (scalar.isFloatingPoint()) {
@@ -213,6 +216,10 @@ torch::jit::Value* TorchMlirLoweringContext::GetParameter(BackendDataPtr data) {
           /*sizes=*/c10::VaryingShape<int64_t>(data->shape().sizes()),
           /*strides=*/c10::VaryingShape<int64_t>(),
           /*requires_grad=*/c10::nullopt));
+
+      if (info->name != "" && !startswith(info->name, "input")) {
+        parameter_names_[parameters_.size()] = info->name;
+      }
     }
 
     it = parameters_map_.emplace(handle, Parameter{param, parameters_.size()})
@@ -286,16 +293,22 @@ void TorchMlirLoweringContext::RegisterMlirDialects() {
 TorchMlirComputation::TorchMlirComputation(
     MlirOperation func_op, MlirContext mlir_context,
     const std::shared_ptr<torch::jit::Graph>& graph,
+    std::unordered_map<int, std::string> parameters_map,
     InputOutputAliases input_output_aliases)
     : func_op_(std::move(func_op)), mlir_context_(std::move(mlir_context)),
-      graph_(graph), input_output_aliases_(input_output_aliases) {
-  for (torch::jit::Value* input : graph_->inputs()) {
-    parameter_names_.push_back(input->debugName());
+      graph_(graph), input_output_aliases_(input_output_aliases),
+      parameters_map_(parameters_map) {
+
+  num_parameters_ = graph_->inputs().size();
+
+  parameter_names_.reserve(parameters_map_.size());
+  for (auto kv : parameters_map_) {
+    parameter_names_.emplace_back(kv.second);
   }
 }
 
 int TorchMlirComputation::parameters_size() const {
-  return parameter_names_.size();
+  return num_parameters_;
 }
 
 const std::vector<torch::lazy::Shape>&
@@ -307,6 +320,10 @@ TorchMlirComputation::parameter_shapes() const {
 
 const std::vector<std::string>& TorchMlirComputation::parameter_names() const {
   return parameter_names_;
+}
+
+const std::unordered_map<int, std::string>& TorchMlirComputation::parameters_map() const {
+  return parameters_map_;
 }
 
 const torch::lazy::Shape& TorchMlirComputation::result_shape() const {
@@ -321,6 +338,10 @@ std::shared_ptr<torch::jit::Graph> TorchMlirComputation::graph() const {
 
 MlirOperation TorchMlirComputation::func_op() const { return func_op_; }
 
+MlirContext TorchMlirComputation::mlir_context() const {
+  return mlir_context_;
+}
+
 const std::string TorchMlirComputation::debug_string() const {
   std::stringstream ss;
 
@@ -329,6 +350,13 @@ const std::string TorchMlirComputation::debug_string() const {
 
   // MLIR
   ss << "MLIR: \n" << to_string() << "\n";
+
+  // Parameter names
+  ss << "Parameter names:\n";
+  for (auto& p : parameter_names_) {
+    ss << "    " << p << "\n";
+  }
+  ss << "\n";
 
   // Input/Output Mapping
   ss << "Input/Output Alias Mapping: \n";

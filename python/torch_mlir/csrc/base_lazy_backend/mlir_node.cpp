@@ -38,6 +38,13 @@ hash_t OperandHashes(
 
 } // namespace
 
+
+// Adds a static hook that is run after every single TorchMlirNode is initialized
+static std::vector<std::function<void(TorchMlirNode*)>> constructor_hooks;
+void TorchMlirNode::addConstructorHook(std::function<void(TorchMlirNode*)> f) {
+  constructor_hooks.emplace_back(f);
+}
+
 TorchMlirNode::TorchMlirNode(
     OpKind op, OpList operands, std::vector<Shape>&& shapes, size_t num_outputs,
     hash_t hash_seed)
@@ -48,6 +55,10 @@ TorchMlirNode::TorchMlirNode(
       (enableDynamicShape()
            ? OperandHashes(operands, this->shapes(), hash_seed, false)
            : shape_hash_);
+
+  for (std::function<void(TorchMlirNode*)>& f : constructor_hooks) {
+    f(this);
+  }
 }
 
 TorchMlirNode::TorchMlirNode(
@@ -70,6 +81,15 @@ TorchMlirNode::TorchMlirNode(
 hash_t TorchMlirNode::hash() const { return dag_hash_; }
 
 hash_t TorchMlirNode::shapeHash() const { return shape_hash_; }
+
+
+TorchMlirNode* TorchMlirNode::mlir_node(int index) {
+  return dynamic_cast<TorchMlirNode*>(operands_.at(index).get());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TorchMlirTensorList
+///////////////////////////////////////////////////////////////////////////////
 
 OpKind TorchMlirTensorList::ClassOpKind() {
   // Note: this OpKind is separate from ltc_ops.h since it would be a circular
