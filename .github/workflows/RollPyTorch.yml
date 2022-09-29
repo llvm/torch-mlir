@@ -1,7 +1,6 @@
 name: Roll PyTorch
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build_linux:
@@ -41,25 +40,22 @@ jobs:
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
         ./build_tools/python_deploy/build_linux_packages.sh
-    - name: Push changes to new branch
-      run: |
-        BRANCH="merge/pytorch-update-${{ env.PT_RELEASE }}"
-        TITLE="update PyTorch version to ${{ env.PT_RELEASE }}"
-        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
-        echo "TITLE=${TITLE}" >> ${GITHUB_ENV}
-        cd ${GITHUB_WORKSPACE}
-        git config user.email "torch-mlir@users.noreply.github.com"
-        git config user.name "Roll PyTorch Action"
-        git checkout -b "${BRANCH}"
-        git add pytorch-version.txt pytorch-requirements.txt
-        git commit -m "${TITLE}"
-        git push --set-upstream origin "${BRANCH}"
     - name: Create PR to push new PyTorch version
-      run: |
-        URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-        BODY="PyTorch commit hash: \`${{ env.PT_HASH }}\` -- CI link: ${URL}"
-        cd ${GITHUB_WORKSPACE}
-        gh pr create -H "${{ env.BRANCH }}" -B main --title "${{ env.TITLE }}" \
-          --body "${BODY}" --reviewer powderluv
-      env:
-        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      uses: peter-evans/create-pull-request@v4
+      with:
+        token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+        add-paths: |
+          pytorch-version.txt
+          pytorch-requirements.txt
+        delete-branch: true
+        branch: ${{ env.BRANCH }}
+        title: ${{ env.TITLE }}
+        author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
+        body: |
+          PyTorch commit hash `${{ env.PT_HASH }}`
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        commit-message: |
+          ${{ env.TITLE }}
+
+          PyTorch commit hash `${{ env.PT_HASH }}`
+        reviewers: powderluv
