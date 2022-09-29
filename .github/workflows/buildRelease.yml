@@ -93,3 +93,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+
+    - name: Invoke Publish Releases Page
+      uses: benc-uk/workflow-dispatch@v1
+      with:
+        workflow: Publish releases page
+        token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+        ref: "${{ env.tag_name }}"
