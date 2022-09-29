@@ -3005,6 +3005,32 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
       "unimplemented: broadcasts other than same rank or zero ranked tensor.");
 }
 
+//  Legalizes the torch.aten.to.dtype op
+template <>
+LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
+    AtenToDtypeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto outType =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+  if (!outType || !outType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only Tensor types with static shapes are currently supported");
+
+  Type outElemTy = outType.getElementType();
+  if (!outElemTy.isIntOrFloat()) {
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point or integer datatype legalization supported");
+  }
+  Value constOp;
+  if (failed(torchScalarToTosaTensor(rewriter, op, op.self(), constOp,
+                                     outElemTy, outType.getShape())))
+    return rewriter.notifyMatchFailure(
+        op, "Supplied value must be a Scalar constant");
+
+  rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType, constOp);
+  return success();
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
@@ -3498,7 +3524,6 @@ public:
     return success();
   }
 };
-
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -3704,6 +3729,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
+    INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
