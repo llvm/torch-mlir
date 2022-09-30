@@ -828,3 +828,22 @@ func.func @torch.vtensor.literal_si64$basic() -> !torch.vtensor<[1,512],si64> {
   %0 = torch.vtensor.literal(dense<-1> : tensor<1x512xsi64>) : !torch.vtensor<[1,512],si64>
   return %0 : !torch.vtensor<[1,512],si64>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.arange.start_step() -> !torch.vtensor<[5],si64> {
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[CST5:.*]] = torch.constant.int 5
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() {value = dense<[0, 1, 2, 3, 4]> : tensor<5xi64>} : () -> tensor<5xi64>
+// CHECK:           %[[VAL_1:.*]] = "tosa.cast"(%[[VAL_0]]) : (tensor<5xi64>) -> tensor<5xi64>
+// CHECK:           %[[VAL_2:.*]] = torch_c.from_builtin_tensor %1 : tensor<5xi64> -> !torch.vtensor<[5],si64>
+// CHECK:           return %[[VAL_2]] : !torch.vtensor<[5],si64>
+func.func @torch.aten.arange.start_step() -> !torch.vtensor<[5],si64> {
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int5 = torch.constant.int 5
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.arange.start_step %int0, %int5, %int1, %none, %none, %none, %none : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[5],si64>
+  return %0 : !torch.vtensor<[5],si64>
+}
