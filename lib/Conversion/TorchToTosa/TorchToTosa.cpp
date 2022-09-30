@@ -3005,6 +3005,56 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
       "unimplemented: broadcasts other than same rank or zero ranked tensor.");
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
+    AtenArangeStartStepOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType =
+      typeConverter->convertType(op->getResult(0).getType())
+          .cast<RankedTensorType>();
+
+  // At this point all tensors should have value semantics, and hence the
+  // `layout` check can be ignored.
+
+  // TODO: Add support for pin_memory features.
+  // The pin_memory should be either `False` or `none`.
+  bool pinMemory;
+  if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
+      (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory)) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: pin_memory must be either None or false");
+  }
+
+  int64_t start, step, end;
+  if (!matchPattern(op.start(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `start` should be a torch constant int");
+
+  if (!matchPattern(op.end(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `end` should be a torch constant int");
+
+  if (!matchPattern(op.step(), m_TorchConstantInt(&step)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `step` should be a torch constant int");
+
+  // The result will always be a 1-d tensor.
+  // The size of the result is calculated as follows:
+  //          ceil((end - start)/step)
+  int64_t resultShape = ceil((float)(end - start) / (float)step);
+  SmallVector<int64_t> values(resultShape, start);
+  for (unsigned i = 1; i < resultShape; i++)
+    values[i] += i * step;
+  Value result =
+      tosa::getConstTensor<int64_t>(rewriter, op, values, resultShape).value();
+
+  rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType, result);
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3653,6 +3703,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
+    INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

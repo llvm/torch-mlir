@@ -456,6 +456,13 @@ TOSA_PASS_SET = {
     "BroadcastToSameRankStaticModule_basic",
     "BroadcastZeroRankInputStaticModule_basic",
     "SliceStaticModule_basic",
+    "ArangeStartStepIntModule_basic",
+    "ArangeDtypeFloatModule_basic",
+    "ArangeIntModule_basic",
+    "ArangeNegativeStartIntModule_basic",
+    "ArangeStartIntModule_basic",
+    "ArangeStartNegativeStepIntModule_basic",
+    "ArangeZeroElementOutputModule_basic",
 }
 
 LTC_XFAIL_SET = {
