@@ -3387,6 +3387,30 @@ def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
   }];
 }
 
+def Torch_AtenMvOp : Torch_Op<"aten.mv", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mv : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$vec
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMvOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMvOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -4524,31 +4548,6 @@ def Torch_AtenLinalgVectorNormOp : Torch_Op<"aten.linalg_vector_norm", [
     }
     void AtenLinalgVectorNormOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 1);
-    }
-  }];
-}
-
-def Torch_AtenFrobeniusNormDimOp : Torch_Op<"aten.frobenius_norm.dim", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::frobenius_norm.dim : (Tensor, int[], bool) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$dim,
-    Torch_BoolType:$keepdim
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenFrobeniusNormDimOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 3, 1);
-    }
-    void AtenFrobeniusNormDimOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
 }

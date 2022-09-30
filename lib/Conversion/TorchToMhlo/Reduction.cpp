@@ -30,7 +30,7 @@ using namespace mlir::torch::torch_to_mhlo;
 static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
                                            PatternRewriter &rewriter) {
   auto constType = RankedTensorType::get({}, elementTy);
-  if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp>(op)) {
+  if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
     if (elementTy.isa<mlir::FloatType>()) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
@@ -571,113 +571,6 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 }
 } // namespace
 
-// AtenFrobeniusNormDimOp
-// aten.frobenius_norm.dim => mhlo.reduce(calculate square sum along given dims)
-//                            + mhlo.sqrt
-namespace {
-template <>
-LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
-    AtenFrobeniusNormDimOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  const TorchToMhloOptions &options = getOptions();
-
-  Value input = adaptor.self();
-  auto inputType = input.getType().dyn_cast<RankedTensorType>();
-  if (!inputType) {
-    return op.emitError(
-        "only ranked tensor input supported in AtenFrobeniusNormDimOp");
-  }
-  auto inputRank = inputType.getRank();
-  auto inputElemType = inputType.getElementType();
-  if (!inputElemType.isa<mlir::FloatType>()) {
-    return op.emitError(
-        "only float dtype allowed in input tensor of AtenFrobeniusNormDimOp");
-  }
-
-  SmallVector<int64_t> dims;
-  if (!matchPattern(op.dim(), m_TorchConstantIntList(dims))) {
-    return rewriter.notifyMatchFailure(
-        op, "non-const integer `dim` is not supported");
-  }
-  for (auto &dim : dims) {
-    dim = toPositiveDim(dim, inputRank);
-    if (!isValidDim(dim, inputRank)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "invalid dimension detected in `dim`");
-    }
-  }
-
-  // Sort the dims in ascending order, making the conversion 
-  // stable with unordered dims.
-  std::sort(dims.begin(), dims.end());
-
-  bool keepDim = false;
-  if (!matchPattern(op.keepdim(), m_TorchConstantBool(&keepDim))) {
-    return rewriter.notifyMatchFailure(
-        op, "non-const bool `keepdim` is not supported");
-  }
-
-  auto initValue = createInitialValueForReduceOp(op, inputElemType, rewriter);
-  if (!initValue) {
-    return failure();
-  }
-
-  auto squareSumReduceOp = rewriter.create<mhlo::ReduceOp>(
-      op->getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
-
-  Region &region = squareSumReduceOp.body();
-  Block &block = region.emplaceBlock();
-  auto blockArgumentTy = RankedTensorType::get({}, inputElemType);
-
-  block.addArgument(blockArgumentTy, op->getLoc());
-  block.addArgument(blockArgumentTy, op->getLoc());
-
-  auto *firstArgument = block.args_begin();
-  auto secondArgument = block.args_rbegin();
-
-  {
-    OpBuilder::InsertionGuard guard(rewriter);
-    rewriter.setInsertionPointToStart(&block);
-
-    auto constantOrd2 = rewriter.create<mhlo::ConstantOp>(
-        op->getLoc(), blockArgumentTy,
-        DenseElementsAttr::get(blockArgumentTy, llvm::ArrayRef<float>{2.0}));
-    auto abs = rewriter.create<mhlo::AbsOp>(op->getLoc(), *secondArgument);
-    auto squareResult = rewriter.create<mhlo::PowOp>(
-        op->getLoc(), abs, constantOrd2);
-    auto addResult = rewriter.create<mhlo::AddOp>(op->getLoc(), squareResult,
-                                                  *firstArgument);
-    rewriter.create<mhlo::ReturnOp>(op->getLoc(), addResult.getResult());
-  }
-
-  auto output = rewriter.create<mhlo::SqrtOp>(op->getLoc(),
-                                              squareSumReduceOp.getResult(0));
-
-  if (keepDim) {
-    auto outShapeInfo = mhlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
-    if (failed(outShapeInfo)) {
-      return rewriter.notifyMatchFailure(
-          op, "failed to get dimension sizes of the input");
-    }
-    auto outShapeVec = *outShapeInfo;
-    auto one = rewriter.create<mlir::arith::ConstantOp>(
-        op->getLoc(), rewriter.getIntegerAttr(
-                          rewriter.getIntegerType(options.dimSizeIndexBits), 1));
-    for (int64_t i : dims) {
-      outShapeVec[i] = one;
-    }
-    auto outShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
-        op->getLoc(), outShapeVec);
-    rewriter.replaceOpWithNewOp<mhlo::DynamicReshapeOp>(
-        op, getTypeConverter()->convertType(op.getType()), output,
-        outShapeTensor);
-    return success();
-  }
-  rewriter.replaceOp(op, output.getResult());
-  return success();
-}
-} // namespace
-
 void mlir::torch::torch_to_mhlo::populateReductionOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToMhloOptions &options) {
@@ -690,6 +583,5 @@ void mlir::torch::torch_to_mhlo::populateReductionOpPatternsAndLegality(
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumDimIntListOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenSumOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenMaxOp);
-  INSERT_ATEN_REDUCTION_OP_PATTERN(AtenFrobeniusNormDimOp);
 #undef INSERT_ATEN_REDUCTION_OP_PATTERN
 }

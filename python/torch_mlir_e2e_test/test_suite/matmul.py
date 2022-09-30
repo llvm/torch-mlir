@@ -209,3 +209,20 @@ class MatmulBroadcastBatchDim(torch.nn.Module):
 def MatmulBroadcastBatchDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6, 7), tu.rand(5, 7, 6))
     
+# ==============================================================================
+
+class Mv(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+        ([-1], torch.float32, True),
+    ])
+    def forward(self, m, v):
+        return torch.mv(m, v)
+
+
+@register_test_case(module_factory=lambda: Mv())
+def Mv_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2), tu.rand(2))

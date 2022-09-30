@@ -416,6 +416,42 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenMvOp : public OpConversionPattern<AtenMvOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenMvOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value lhs = adaptor.self();
+    Value rhs = adaptor.vec();
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    auto resultType = newResultType.cast<RankedTensorType>();
+    Type elementType = resultType.getElementType();
+
+    Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
+    Value lhsDim1 = getDimOp(rewriter, loc, lhs, 1);
+    Value rhsDim0 = getDimOp(rewriter, loc, rhs, 0);
+    checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+    Value zeroTensor =
+        createZeroInitTensor(rewriter, loc, ValueRange{lhsDim0}, elementType);
+    Value matmul =
+        rewriter
+            .create<linalg::MatvecOp>(loc, zeroTensor.getType(),
+                                      ValueRange{lhs, rhs}, zeroTensor)
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenBmmOp : public OpConversionPattern<AtenBmmOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -839,6 +875,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
   patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
+  target.addIllegalOp<AtenMvOp>();
+  patterns.add<ConvertAtenMvOp>(typeConverter, context);
   target.addIllegalOp<AtenBmmOp>();
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
