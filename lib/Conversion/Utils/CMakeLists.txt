@@ -5,7 +5,7 @@ add_mlir_conversion_library(TorchMLIRConversionUtils
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Conversion/Utils
 
   LINK_LIBS PUBLIC
-  MLIRArithmeticDialect
+  MLIRArithDialect
   MLIRLinalgDialect
   TorchMLIRTorchDialect
 )

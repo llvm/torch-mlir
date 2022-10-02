@@ -11,7 +11,7 @@
 
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -43,7 +43,7 @@ public:
     registry.insert<math::MathDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<tensor::TensorDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<cf::ControlFlowDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
@@ -53,7 +53,7 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
                            cf::ControlFlowDialect, math::MathDialect,
-                           tensor::TensorDialect, arith::ArithmeticDialect>();
+                           tensor::TensorDialect, arith::ArithDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 
     TypeConverter typeConverter;

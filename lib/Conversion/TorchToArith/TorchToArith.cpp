@@ -10,7 +10,7 @@
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 
 #include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -300,7 +300,7 @@ class ConvertTorchToArith : public ConvertTorchToArithBase<ConvertTorchToArith> 
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<cf::ControlFlowDialect>();
     registry.insert<math::MathDialect>();
@@ -311,7 +311,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, func::FuncDialect,
-                           arith::ArithmeticDialect, tensor::TensorDialect,
+                           arith::ArithDialect, tensor::TensorDialect,
                            cf::ControlFlowDialect, math::MathDialect>();
 
     TypeConverter typeConverter;

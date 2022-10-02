@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -304,7 +304,7 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     ConversionTarget target(*context);
     target.addLegalDialect<func::FuncDialect>();
     target.addLegalDialect<math::MathDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addIllegalOp<math::TanhOp>();
     target.addIllegalOp<math::ErfOp>();
     if (failed(applyPartialConversion(func, target, std::move(patterns)))) {
@@ -352,7 +352,7 @@ class MemrefCopyOpToLinalg : public OpRewritePattern<memref::CopyOp> {
   LogicalResult matchAndRewrite(memref::CopyOp copyOp,
                                 PatternRewriter &rewriter) const override {
     Operation *linalgCopy = createLinalgCopyOp(
-        rewriter, copyOp.getLoc(), copyOp.source(), copyOp.target());
+        rewriter, copyOp.getLoc(), copyOp.getSource(), copyOp.getTarget());
     rewriter.replaceOp(copyOp, linalgCopy->getResults());
     return success();
   }

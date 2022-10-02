@@ -10,7 +10,7 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 
 #include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -321,7 +321,7 @@ namespace {
 class ConvertTorchToSCF : public ConvertTorchToSCFBase<ConvertTorchToSCF> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<scf::SCFDialect, arith::ArithmeticDialect>();
+    registry.insert<scf::SCFDialect, arith::ArithDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -329,7 +329,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, scf::SCFDialect,
-                           arith::ArithmeticDialect>();
+                           arith::ArithDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

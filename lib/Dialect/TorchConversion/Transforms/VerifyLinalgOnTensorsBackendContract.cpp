@@ -10,7 +10,7 @@
 #include "PassDetail.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -71,8 +71,7 @@ class VerifyLinalgOnTensorsBackendContractPass
     // Basic scalar operations.
     target.addDynamicallyLegalDialect<func::FuncDialect>(isLegalScalarOp);
     target.addDynamicallyLegalDialect<math::MathDialect>(isLegalScalarOp);
-    target.addDynamicallyLegalDialect<arith::ArithmeticDialect>(
-        isLegalScalarOp);
+    target.addDynamicallyLegalDialect<arith::ArithDialect>(isLegalScalarOp);
 
     // Tensor operations should go through linalg and the tensor dialect.
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);

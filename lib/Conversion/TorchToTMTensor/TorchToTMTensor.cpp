@@ -10,7 +10,7 @@
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 
 #include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -614,7 +614,7 @@ public:
     registry.insert<linalg::LinalgDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<tensor::TensorDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<TMTensorDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
@@ -623,7 +623,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
-                           tensor::TensorDialect, arith::ArithmeticDialect,
+                           tensor::TensorDialect, arith::ArithDialect,
                            Torch::TorchDialect, TMTensorDialect>();
 
     TypeConverter typeConverter;
