@@ -36,8 +36,8 @@ cmake -GNinja -Bbuild \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR= \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=externals/llvm-external-projects/torch-mlir-dialects \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="$PWD"/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
@@ -106,7 +106,7 @@ cmake --build build
 
 ## Setup Python Environment to export the built Python packages
 
-### Linux
+### Linux and macOS
 
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
