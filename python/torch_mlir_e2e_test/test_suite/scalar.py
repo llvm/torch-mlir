@@ -311,3 +311,42 @@ class BoolIntConstantModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: BoolIntConstantModule())
 def BoolIntConstantModule_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+class AtenIntTensorByteDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.uint8, True),
+    ])
+
+    def forward(self, val):
+        return int(val)
+
+@register_test_case(module_factory=lambda: AtenIntTensorByteDtypeModule())
+def AtenIntTensorByteDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=-100, high=100).to(dtype=torch.uint8))
+
+
+# ==============================================================================
+
+class AtenIntTensorCharDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int8, True),
+    ])
+
+    def forward(self, val):
+        return int(val)
+
+@register_test_case(module_factory=lambda: AtenIntTensorCharDtypeModule())
+def AtenIntTensorCharDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=-100, high=100).to(dtype=torch.int8))

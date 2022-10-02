@@ -2214,11 +2214,28 @@ template <>
 LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
+
   auto outputTy = getTypeConverter()
                       ->convertType(op.getType())
                       .template cast<RankedTensorType>();
-  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.value());
 
+  // Tensors with integer types need to be converted to signless integer
+  // element type. All tensors with element types other than integer can reuse
+  // existing elements attribute.
+  // TODO: what about unsigned integer?
+  if (auto elements = op.valueAttr().dyn_cast<DenseIntElementsAttr>()) {
+    if (elements.getElementType().isSignedInteger()) {
+      Type builtinTensorElemTy = outputTy.getElementType();
+      unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
+      DenseElementsAttr valueAttr =
+          elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
+            return APInt(bitWidth, v.getSExtValue());
+          });
+      rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, valueAttr);
+      return success();
+    }
+  }
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.value());
   return success();
 }
 
@@ -2963,14 +2980,78 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
                                        "size must consist of Scalar constants");
 
   SmallVector<int64_t> inputShape(selfType.getShape());
-  if (!llvm::equal(inputShape, outShape))
-    return rewriter.notifyMatchFailure(op,
-                                       "Only identity cases are supported.");
+  if (inputShape.size() == outShape.size() || inputShape.size() == 0) {
+    // Check for identity case i.e, for ex: [a, b, c] -> [a, b, c]. If this is
+    // true then we can replace the op result with the input operand
+    // irrespective of the users of the op result.
+    if (!llvm::equal(inputShape, outShape)) {
+      for (auto user : op->getResult(0).getUsers()) {
+        // This case is only supported if the result of the `broadcast_to` op is
+        // not used by an op which is a view like.
+        if (isViewLikeOp(user)) {
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: broadcast not supported for this case");
+        }
+      }
+    }
+    // If we reach here, then it means the given case is handled by implicit
+    // broadcasting done by tosa.
+    op.replaceAllUsesWith(op.self());
+    rewriter.eraseOp(op);
+    return success();
+  }
+  return rewriter.notifyMatchFailure(
+      op,
+      "unimplemented: broadcasts other than same rank or zero ranked tensor.");
+}
 
-  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, getTypeConverter()->convertType(op.getType()), adaptor.self(),
-      rewriter.getI64ArrayAttr(outShape));
+template <>
+LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
+    AtenArangeStartStepOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
 
+  TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType =
+      typeConverter->convertType(op->getResult(0).getType())
+          .cast<RankedTensorType>();
+
+  // At this point all tensors should have value semantics, and hence the
+  // `layout` check can be ignored.
+
+  // TODO: Add support for pin_memory features.
+  // The pin_memory should be either `False` or `none`.
+  bool pinMemory;
+  if (!op.pin_memory().getType().isa<Torch::NoneType>() &&
+      (!matchPattern(op.pin_memory(), m_TorchConstantBool(&pinMemory)) ||
+       pinMemory)) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: pin_memory must be either None or false");
+  }
+
+  int64_t start, step, end;
+  if (!matchPattern(op.start(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `start` should be a torch constant int");
+
+  if (!matchPattern(op.end(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `end` should be a torch constant int");
+
+  if (!matchPattern(op.step(), m_TorchConstantInt(&step)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: value `step` should be a torch constant int");
+
+  // The result will always be a 1-d tensor.
+  // The size of the result is calculated as follows:
+  //          ceil((end - start)/step)
+  int64_t resultShape = ceil((float)(end - start) / (float)step);
+  SmallVector<int64_t> values(resultShape, start);
+  for (unsigned i = 1; i < resultShape; i++)
+    values[i] += i * step;
+  Value result =
+      tosa::getConstTensor<int64_t>(rewriter, op, values, resultShape).value();
+
+  rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType, result);
   return success();
 }
 
@@ -3622,6 +3703,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
+    INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

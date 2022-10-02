@@ -78,8 +78,9 @@ SmallVector<Value> getTypeConvertedValues(OpBuilder &b, Location loc,
 // Convert a scalar value to the target type. The scalar value can be an element
 // from a tensor or a scalar in the pytorch dialect. Both the scalar and dtype
 // should be converted builtin types.
-Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar,
-                           Type dtype);
+Value convertScalarToDtype(
+    OpBuilder &b, Location loc, Value scalar, Type dtype,
+    llvm::Optional<Type> srcOriginalDtype = llvm::NoneType());
 
 // Return the number of elements of a tensor if the shape is static; otherwise,
 // return -1.

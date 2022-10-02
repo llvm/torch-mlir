@@ -604,6 +604,9 @@ class AvgPool2dFloatModule(torch.nn.Module):
     def forward(self, x):
         return self.ap2d(x)
 
+@register_test_case(module_factory=lambda: AvgPool2dFloatModule())
+def AvgPool2dFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20) - 0.5)
 
 class AvgPool2dIntModule(torch.nn.Module):
 
@@ -698,3 +701,7 @@ class AvgPool2dCeilModeTrueModule(torch.nn.Module):
     ])
     def forward(self, x):
         return self.ap2d(x)
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilModeTrueModule())
+def AvgPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))

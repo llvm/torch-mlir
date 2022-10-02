@@ -84,6 +84,25 @@ class ViewExpandOnesMiddleModule(torch.nn.Module):
 def ViewExpandOnesMiddleModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 2))
 
+    # ==============================================================================
+
+class ViewCollapseOnesMiddleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 1, 1, 1, 1, 2], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(3, 1, 2)
+
+@register_test_case(module_factory=lambda: ViewCollapseOnesMiddleModule())
+def ViewCollapseOnesMiddleModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 1, 1, 1, 2))
+
 # ==============================================================================
 
 class ViewDynamicExpandModule(torch.nn.Module):
@@ -240,6 +259,82 @@ def ViewDynamicExpandCollapseWithAtenIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ViewTwoToThreeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 2], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 3)
+
+@register_test_case(module_factory=lambda: ViewTwoToThreeStaticModule())
+def ViewTwoToThreeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2))
+
+# ==============================================================================
+
+class ViewTwoFiveThreeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([3, 5, 2], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 5, 3)
+
+@register_test_case(module_factory=lambda: ViewTwoFiveThreeStaticModule())
+def ViewTwoFiveThreeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+# ==============================================================================
+
+class ViewOffsetTestStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 2, 2, 5, 6], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 3, 4, 6, 5)
+
+@register_test_case(module_factory=lambda: ViewOffsetTestStaticModule())
+def ViewOffsetTestStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 2, 2, 5, 6))
+
+# ==============================================================================
+
+class ViewOffsetBackwardTestStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([2, 3, 4, 5, 6], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(2, 3, 2, 2, 6, 5)
+
+@register_test_case(module_factory=lambda: ViewOffsetBackwardTestStaticModule())
+def ViewOffsetBackwardTestStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5, 6))
+
+# ==============================================================================
+
 class View1DFoldModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -289,11 +384,49 @@ class ViewExpandInferredDimModule(torch.nn.Module):
     ])
 
     def forward(self, a):
-        return a.view(2, -1, 2)
+        return a.view(3, -1, 2)
 
 @register_test_case(module_factory=lambda: ViewExpandInferredDimModule())
 def ViewExpandInferredDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 6))
+
+# ==============================================================================
+
+class ViewExpandDynamicDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, -1, 128], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(16, 1, 128)
+
+@register_test_case(module_factory=lambda: ViewExpandDynamicDimModule())
+def ViewExpandDynamicDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 16, 128))
+
+# ==============================================================================
+
+class ViewFlattenAndExpandModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.float32, True),
+    ])
+
+    def forward(self, a):
+        return a.view(a.size(0), a.size(1))
+
+@register_test_case(module_factory=lambda: ViewFlattenAndExpandModule())
+def ViewFlattenAndExpandModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(64,128))
 
 # ==============================================================================
 

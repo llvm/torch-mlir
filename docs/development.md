@@ -22,132 +22,6 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Docker Builds
-
-We have preliminary support for building with Docker images. This is a new
-flow and we would like your feedback on how it works for you and please
-feel free to file any feedback or issues.
-
-Install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/). You don't need Docker Desktop.
-
-You have three types of builds selectable with the Environment Variable `TM_PACKAGES`:`torch-mlir` the
-Release build, `out-of-tree` where torch-mlir is build with a pre-built MLIR and `in-tree` where torch-mlir
-is built as part of the LLVM project along with MLIR.
-
-We mount a ccache and pip cache inside the docker container to speed up iterative builds. Iterative
-builds should be as fast as running without docker.
-
-### In-Tree builds
-
-Build MLIR and Torch-MLIR together as part of the LLVM repo.
-
-```shell
-TM_PACKAGES="in-tree" ./build_tools/python_deploy/build_linux_packages.sh
-```
-
-### Out-of-Tree builds
-
-Build LLVM/MLIR first and then build Torch-MLIR referencing that build
-```shell
-TM_PACKAGES="out-of-tree" ./build_tools/python_deploy/build_linux_packages.sh
-```
-
-### Release builds
-
-Build in a manylinux Docker image so we can upload artifacts to PyPI.
-
-```shell
-TM_PACKAGES="torch-mlir" ./build_tools/python_deploy/build_linux_packages.sh
-```
-
-### Mimicing CI+Release builds
-
-If you wanted to build all the CIs locally
-
-```shell
-TM_PACKAGES="out-of-tree in-tree" ./build_tools/python_deploy/build_linux_packages.sh
-```
-
-If you wanted to build all the CIs and the Release builds (just with Python 3.10 since most other Python builds are redundant)
-
-```shell
-TM_PACKAGES="torch-mlir out-of-tree in-tree" TM_PYTHON_VERSIONS="cp310-cp310" ./build_tools/python_deploy/build_linux_packages.sh
-```
-
-Note: The Release docker still runs as root so it may generate some files owned by root:root. We hope to move it to run as a user in the future.
-
-### Cleaning up
-
-Docker builds tend to leave a wide variety of files around. Luckily most are owned by the user but there are still some that need to be removed
-as superuser.
-
-```shell
-rm -rf build build_oot llvm-build docker_venv externals/pytorch/build .ccache
-```
-
-## Building your own Docker image
-
-If you would like to build your own docker image (usually not necessary). You can run:
-
-```shell
-cd ./build_tools/docker
-docker build -t your-name/torch-mlir-ci --no-cache .
-```
-
-### Other configurable environmental variables
-
-The following additional environmental variables can be used to customie your docker build:
-
-* Custom Release Docker image:
-  Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
-```shell
-  TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
-```
-* Custom CI Docker image:
-  Defaults to `powderluv/torch-mlir-ci:latest`. This assumes an Ubuntu LTS like image. You can build your own with `./build_tools/docker/Dockerfile`
-```shell
-  TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
-```
-
-* Custom Python Versions for Release builds:
-  Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp38-cp38 cp39-cp39 cp310-cp310`
-```shell
-  TM_PYTHON_VERSIONS="cp38-cp38 cp39-cp39 cp310-cp310"
-```
-
-* Location to store Release build wheels
-```shell
-  TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
-```
-
-* What "packages" to build:
-  Defaults to torch-mlir. Options are `torch-mlir out-of-tree in-tree`
-```shell
-  TM_PACKAGES="torch-mlir out-of-tree in-tree"
-```
-* Use pre-built Pytorch:
-  Defaults to using pre-built Pytorch. Setting it to `OFF` builds from source
-```shell
-  TM_USE_PYTORCH_BINARY="OFF"
-```
-* Skip running tests
-  Skip running tests if you want quick build only iteration. Default set to `OFF`
-```shell
-  TM_SKIP_TESTS="OFF"
-```
-
-
-## Build Python Packages
-
-We have preliminary support for building Python packages. This can be done
-with the following commands:
-
-```
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
-```
-
 ## CMake Build
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
@@ -300,6 +174,133 @@ Torch-MLIR can also be built using Bazel (apart from the official CMake build) f
 ```
 3. Find the built binary at `utils/bazel/bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
+## Docker Builds
+
+We have preliminary support for building with Docker images. Currently this
+is not very convenient for day-to-day interactive development and
+debugging flows but is very useful for reproducing failures
+from the CI. This is a new flow and we would like your feedback on how
+it works for you and please feel free to file any feedback or issues.
+
+Install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/). You don't need Docker Desktop.
+
+You have three types of builds selectable with the Environment Variable `TM_PACKAGES`:`torch-mlir` the
+Release build, `out-of-tree` where torch-mlir is build with a pre-built MLIR and `in-tree` where torch-mlir
+is built as part of the LLVM project along with MLIR.
+
+We mount a ccache and pip cache inside the docker container to speed up iterative builds. Iterative
+builds should be as fast as running without docker.
+
+### In-Tree builds
+
+Build MLIR and Torch-MLIR together as part of the LLVM repo.
+
+```shell
+TM_PACKAGES="in-tree" ./build_tools/python_deploy/build_linux_packages.sh
+```
+
+### Out-of-Tree builds
+
+Build LLVM/MLIR first and then build Torch-MLIR referencing that build
+```shell
+TM_PACKAGES="out-of-tree" ./build_tools/python_deploy/build_linux_packages.sh
+```
+
+### Release builds
+
+Build in a manylinux Docker image so we can upload artifacts to PyPI.
+
+```shell
+TM_PACKAGES="torch-mlir" ./build_tools/python_deploy/build_linux_packages.sh
+```
+
+### Mimicing CI+Release builds
+
+If you wanted to build all the CIs locally
+
+```shell
+TM_PACKAGES="out-of-tree in-tree" ./build_tools/python_deploy/build_linux_packages.sh
+```
+
+If you wanted to build all the CIs and the Release builds (just with Python 3.10 since most other Python builds are redundant)
+
+```shell
+TM_PACKAGES="torch-mlir out-of-tree in-tree" TM_PYTHON_VERSIONS="cp310-cp310" ./build_tools/python_deploy/build_linux_packages.sh
+```
+
+Note: The Release docker still runs as root so it may generate some files owned by root:root. We hope to move it to run as a user in the future.
+
+### Cleaning up
+
+Docker builds tend to leave a wide variety of files around. Luckily most are owned by the user but there are still some that need to be removed
+as superuser.
+
+```shell
+rm -rf build build_oot llvm-build docker_venv externals/pytorch/build .ccache
+```
+
+## Building your own Docker image
+
+If you would like to build your own docker image (usually not necessary). You can run:
+
+```shell
+cd ./build_tools/docker
+docker build -t your-name/torch-mlir-ci --no-cache .
+```
+
+### Other configurable environmental variables
+
+The following additional environmental variables can be used to customie your docker build:
+
+* Custom Release Docker image:
+  Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
+```shell
+  TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
+```
+* Custom CI Docker image:
+  Defaults to `powderluv/torch-mlir-ci:latest`. This assumes an Ubuntu LTS like image. You can build your own with `./build_tools/docker/Dockerfile`
+```shell
+  TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
+```
+
+* Custom Python Versions for Release builds:
+  Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp38-cp38 cp39-cp39 cp310-cp310`
+```shell
+  TM_PYTHON_VERSIONS="cp38-cp38 cp39-cp39 cp310-cp310"
+```
+
+* Location to store Release build wheels
+```shell
+  TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
+```
+
+* What "packages" to build:
+  Defaults to torch-mlir. Options are `torch-mlir out-of-tree in-tree`
+```shell
+  TM_PACKAGES="torch-mlir out-of-tree in-tree"
+```
+* Use pre-built Pytorch:
+  Defaults to using pre-built Pytorch. Setting it to `OFF` builds from source
+```shell
+  TM_USE_PYTORCH_BINARY="OFF"
+```
+* Skip running tests
+  Skip running tests if you want quick build only iteration. Default set to `OFF`
+```shell
+  TM_SKIP_TESTS="OFF"
+```
+
+
+## Build Python Packages
+
+We have preliminary support for building Python packages. This can be done
+with the following commands:
+
+```
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
+```
 
 # Testing
 
@@ -321,6 +322,9 @@ Torch-MLIR has two types of tests:
 
 ## Running execution (end-to-end) tests:
 
+> **Note**
+> An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
+
 ```shell
 # Run all tests on the reference backend
 ./tools/e2e_test.sh
@@ -328,6 +332,12 @@ Torch-MLIR has two types of tests:
 ./tools/e2e_test.sh --filter Conv2d --verbose
 # Run tests on the TOSA backend.
 ./tools/e2e_test.sh --config tosa
+```
+
+Alternatively, you can run the tests via Python directly:
+
+```shell
+python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
 ## Running unit tests.

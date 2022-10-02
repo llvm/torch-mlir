@@ -55,8 +55,13 @@ TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 TM_SKIP_TESTS="${TM_SKIP_TESTS:-OFF}"
 
 PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] && . "$PKG_VER_FILE"
-export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
+TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
 echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_VERSION}"
+
+TORCH_MLIR_SRC_PYTORCH_REPO="${TORCH_MLIR_SRC_PYTORCH_REPO:-pytorch/pytorch}"
+echo "Setting torch-mlir PyTorch Repo for source builds to: ${TORCH_MLIR_SRC_PYTORCH_REPO}"
+TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH:-master}"
+echo "Setting torch-mlir PyTorch version for source builds to: ${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
 
 function run_on_host() {
   echo "Running on host for $1:$@"
@@ -105,6 +110,8 @@ function run_on_host() {
     -e "TM_PACKAGES=${package}" \
     -e "TM_SKIP_TESTS=${TM_SKIP_TESTS}" \
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}" \
+    -e "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}" \
     -e "CCACHE_DIR=/main_checkout/torch-mlir/.ccache" \
     "${TM_CURRENT_DOCKER_IMAGE}" \
     /bin/bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
@@ -160,9 +167,9 @@ function run_in_docker() {
 
 
 function build_in_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build in-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
   cmake -GNinja -B/main_checkout/torch-mlir/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
@@ -177,8 +184,10 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="/main_checkout/torch-mlir/externals/llvm-external-projects/torch-mlir-dialects" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build
@@ -202,12 +211,12 @@ function _check_file_not_changed_by() {
   mv "$file_backup" "$file"
   # We use git-diff as "just a diff program" (no SCM stuff) because it has
   # nicer output than regular `diff`.
-  if ! git diff --quiet "$file" "$file_new"; then
+  if ! git diff --no-index --quiet "$file" "$file_new"; then
     echo "#######################################################"
     echo "Generated file '${file}' is not up to date (see diff below)"
     echo ">>> Please run '${cmd}' to update it <<<"
     echo "#######################################################"
-    git diff --color=always "$file" "$file_new"
+    git diff --no-index --color=always "$file" "$file_new"
     # TODO: Is there a better cleanup strategy that doesn't require duplicating
     # this inside and outside the `if`?
     rm "$file_new"
@@ -238,9 +247,8 @@ function test_in_tree() {
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
 
-  # Temporarily disabled in top of main (https://github.com/llvm/torch-mlir/pull/1292)
-  #echo ":::: Run Lazy Tensor Core e2e integration tests"
-  #python -m e2e_testing.torchscript.main --config=lazy_tensor_core -v
+  echo ":::: Run Lazy Tensor Core e2e integration tests"
+  python -m e2e_testing.main --config=lazy_tensor_core -v
 }
 
 function setup_venv() {
@@ -250,15 +258,15 @@ function setup_venv() {
   source /main_checkout/torch-mlir/docker_venv/bin/activate
 
   echo ":::: pip installing dependencies"
-  python3 -m pip install -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
-  python3 -m pip install -r /main_checkout/torch-mlir/requirements.txt
+  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
+  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt
 
 }
 
 function build_out_of_tree() {
-  local torch_from_src="$1"
+  local torch_from_bin="$1"
   local python_version="$2"
-  echo ":::: Build out-of-tree Torch from source: $torch_from_src with Python: $python_version"
+  echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version"
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
@@ -289,8 +297,10 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
-      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_src" \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
+      -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
+      -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
+      -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot
@@ -311,11 +321,13 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
-  python -m pip install -r /main_checkout/torch-mlir/requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir/ \
-    --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir \
+    -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html \
+    -r /main_checkout/torch-mlir/whl-requirements.txt
 }
 
 function run_audit_wheel() {

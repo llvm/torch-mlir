@@ -184,6 +184,41 @@ public:
 
 } // namespace
 
+// The binary broadcast patterns
+namespace {
+template <typename AtenOpT, typename ChloOpT>
+class ConvertAtenBinaryBroadcastOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.self();
+    auto lhsTy = lhs.getType().cast<TensorType>();
+    Value rhs = adaptor.other();
+    auto rhsTy = rhs.getType().cast<TensorType>();
+
+    if (!lhsTy || !rhsTy)
+      return op.emitError("only Tensor types supported");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    if (lhsElemTy != rhsElemTy)
+      return op.emitError("input data types mismatched");
+
+    rewriter.replaceOpWithNewOp<ChloOpT>(
+        op,
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()),
+        lhs, rhs,
+        /*broadcast_attr*/ nullptr);
+    return success();
+  }
+};
+} // namespace
+
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
 namespace {
@@ -843,10 +878,19 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     return success();
   } else {
     Type outputTy = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<mhlo::BatchNormInferenceOp>(
-        op, outputTy, input, weight, bias, runningMean, runningVar,
-        rewriter.getFloatAttr(inputTy.getElementType(), eps),
-        rewriter.getI64IntegerAttr(1));
+    SmallVector<int64_t, 4> castShape{inputTy.getShape().begin(),
+                                      inputTy.getShape().end()};
+    castShape[1] = weightTy.getShape()[0];
+    auto castTy = RankedTensorType::get(castShape, inputTy.getElementType());
+    // Feature counts must match among operands of mhlo::BatchNormInferenceOp.
+    Value inputCasted =
+        rewriter.create<tensor::CastOp>(op.getLoc(), castTy, input);
+    Value output = rewriter.create<mhlo::BatchNormInferenceOp>(
+        op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
+        runningMean, runningVar,
+        // 'epsilon' must satisfy constraint: 32-bit float attribute.
+        rewriter.getF32FloatAttr(eps), rewriter.getI64IntegerAttr(1));
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputTy, output);
     return success();
   }
 }
@@ -1231,4 +1275,13 @@ void mlir::torch::torch_to_mhlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
+
+#define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, MhloOp)                        \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenBinaryBroadcastOp<AtenOp, MhloOp>>(typeConverter,    \
+                                                             context)
+  INSERT_BINARY_BROADCAST_PATTERN(AtenMaximumOp, chlo::BroadcastMaxOp);
+  INSERT_BINARY_BROADCAST_PATTERN(AtenMinimumOp, chlo::BroadcastMinOp);
+  INSERT_BINARY_BROADCAST_PATTERN(Aten__And__TensorOp, chlo::BroadcastAndOp);
+#undef INSERT_BINARY_BROADCAST_PATTERN
 }

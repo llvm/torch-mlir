@@ -682,6 +682,101 @@ func.func @torch.aten.add.t$concat_empty(%arg0: !torch.int) -> !torch.list<int> 
   return %2 : !torch.list<int>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.slice.t$basic() -> !torch.list<int> {
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[RET]] : !torch.list<int>
+func.func @torch.aten.slice.t$basic() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.slice.t %0, %int0, %int-1, %int1 : !torch.list<int>, !torch.int, !torch.int, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.slice.t$none_start() -> !torch.list<int> {
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[RET]] : !torch.list<int>
+func.func @torch.aten.slice.t$none_start() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.slice.t %0, %none, %int-1, %int1 : !torch.list<int>, !torch.none, !torch.int, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.slice.t$none_end() -> !torch.list<int> {
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %int2 = torch.constant.int 2
+// CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[RET]] : !torch.list<int>
+func.func @torch.aten.slice.t$none_end() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.slice.t %0, %int0, %none, %int1 : !torch.list<int>, !torch.int, !torch.none, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.slice.t$start_exceed_range() -> !torch.list<int> {
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[RET]] : !torch.list<int>
+func.func @torch.aten.slice.t$start_exceed_range() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %int-1000 = torch.constant.int -1000
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.slice.t %0, %int-1000, %int-1, %int1 : !torch.list<int>, !torch.int, !torch.int, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.slice.t$end_exceed_range() -> !torch.list<int> {
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %int2 = torch.constant.int 2
+// CHECK:           %[[RET:.*]] = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[RET]] : !torch.list<int>
+func.func @torch.aten.slice.t$end_exceed_range() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %int1000 = torch.constant.int 1000
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.slice.t %0, %int0, %int1000, %int1 : !torch.list<int>, !torch.int, !torch.int, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
+// Not canonicalized because of mutated l list
+// CHECK-LABEL: func.func @torch.aten.slice.t$no_canonicalize_l_mutated()
+func.func @torch.aten.slice.t$no_canonicalize_l_mutated() -> !torch.list<int> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int-1 = torch.constant.int -1
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.slice.t
+  %2 = torch.aten.slice.t %0, %int0, %int-1, %int1 : !torch.list<int>, !torch.int, !torch.int, !torch.int -> !torch.list<int>
+  %3 = torch.aten.append.t %0, %int-1 : !torch.list<int>, !torch.int -> !torch.list<int>
+  return %2 : !torch.list<int>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.eq.int_list$fold$literals_of_different_sizes
 // CHECK:           %[[RET:.*]] = torch.constant.bool false
 // CHECK:           return %[[RET]] : !torch.bool

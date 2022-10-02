@@ -23,7 +23,7 @@ void DeviceData::propagate_name() {
     // Add device data name to backend data
     TorchMlirBackendData* mlir_data = dynamic_cast<TorchMlirBackendData*>(data_.get());
     TORCH_CHECK(mlir_data);
-    TorchMlirBackendData::Info* info = mlir_data->mlir_info();
+    auto* info = dynamic_cast<TorchMlirBackendData::Info*>(mlir_data->mlir_info());
     TORCH_CHECK(info);
     info->name = name_;
   }

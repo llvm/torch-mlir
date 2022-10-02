@@ -50,6 +50,8 @@ bool isBuiltInType(Type type);
 // -1 is returned if the tensorRank can't be determined.
 int getTensorRank(Value tensor);
 
+bool isViewLikeOp(Operation *op);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

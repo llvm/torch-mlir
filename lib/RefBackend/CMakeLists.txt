@@ -5,6 +5,7 @@ add_mlir_library(TorchMLIRRefBackend
   ${PROJECT_SRC_DIR}/include/torch-mlir/RefBackend
 
   DEPENDS
+  MLIRTorchTypesIncGen
   TorchMLIRRefBackendPassIncGen
 
   LINK_COMPONENTS

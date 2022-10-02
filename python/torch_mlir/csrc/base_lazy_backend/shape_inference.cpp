@@ -36,5 +36,12 @@ std::vector<torch::lazy::Shape> compute_shape_var(
   return {Shape(self.scalar_type(), {})};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_hardtanh(
+    const at::Tensor& self, const at::Scalar& min_val, const at::Scalar& max_val
+) {
+  return {Shape(self.scalar_type(), self.sizes().vec())};
+}
+
+
 } // namespace lazy
 } // namespace torch

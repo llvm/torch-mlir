@@ -61,8 +61,13 @@ static bool isArgMemRefTypeValid(Type type) {
         return true;
       if (integerTy.isSignlessInteger(32))
         return true;
+      if (integerTy.isSignlessInteger(8))
+        return true;
+      if (integerTy.isSignedInteger(8))
+        return true;
       if (integerTy.isSignlessInteger(1))
         return true;
+
     }
   }
   return false;
@@ -139,7 +144,7 @@ static LogicalResult mungeFunction(
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type))
       return emitError(arg.getLoc(),
-                       "argument must be a memref of f32, f64, i32, i64, i1");
+                       "argument must be a memref of f32, f64, i32, i64, i8, i1");
     auto cast = b.create<memref::CastOp>(arg.getLoc(), type, arg);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));

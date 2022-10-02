@@ -1722,6 +1722,56 @@ void AtenAddTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSliceTOp
+//===----------------------------------------------------------------------===//
+
+void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](AtenSliceTOp op, PatternRewriter &rewriter) {
+    auto valueList = op.l();
+    auto listConstructOp = valueList.getDefiningOp<PrimListConstructOp>();
+    if (!listConstructOp || isListPotentiallyMutated(listConstructOp)) {
+      return failure();
+    }
+
+    SmallVector<Value> listElements =
+        llvm::to_vector<4>(listConstructOp.elements());
+    int64_t size = static_cast<int64_t>(listElements.size());
+
+    int64_t start;
+    int64_t end;
+    int64_t step;
+    if (op.start().getType().isa<Torch::NoneType>()) {
+      start = 0;
+    } else if (!matchPattern(op.start(), m_TorchConstantInt(&start))) {
+      return failure();
+    }
+    if (op.end().getType().isa<Torch::NoneType>()) {
+      end = listElements.size();
+    } else if (!matchPattern(op.end(), m_TorchConstantInt(&end))) {
+      return failure();
+    }
+    if (!matchPattern(op.step(), m_TorchConstantInt(&step))) {
+      return failure();
+    }
+
+    start = start >= 0 ? start : start + size;
+    start = start >= 0 ? start : 0;
+    end = end >= 0 ? end : end + size;
+    end = end < size ? end : size;
+    SmallVector<Value> newListElements;
+
+    for (int64_t i = start; i < end; i += step) {
+      newListElements.push_back(listElements[i]);
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+        op, Torch::ListType::get(listElements[0].getType()), newListElements);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenEqIntListOp
 //===----------------------------------------------------------------------===//
 

@@ -42,11 +42,16 @@ public:
   TorchMlirNode(
       OpKind op, Shape shape, size_t num_outputs, hash_t hash_seed = kHashSeed);
 
+  // Adds a static hook that is run after every single TorchMlirNode is constructed
+  static void addConstructorHook(std::function<void(TorchMlirNode*)>);
+
   ~TorchMlirNode() override = default;
 
   hash_t hash() const override;
 
   hash_t shapeHash() const override;
+
+  TorchMlirNode* mlir_node(int index);
 
   virtual TorchMlirOpVector
   Lower(TorchMlirFunction function, TorchMlirLoweringContext* loctx) const;

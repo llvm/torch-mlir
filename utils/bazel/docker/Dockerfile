@@ -27,8 +27,9 @@ RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSIO
     && chmod a+x /usr/bin/bazel
 
 COPY requirements.txt /opt/app/requirements.txt
+COPY pytorch-requirements.txt /opt/app/pytorch-requirements.txt
 WORKDIR /opt/app
 RUN python -m pip install --upgrade pip
-RUN python -m pip install --ignore-installed -r requirements.txt
+RUN python -m pip install --upgrade --ignore-installed -r requirements.txt
 
 WORKDIR /opt/src/torch-mlir

@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <memory>
 #include <sstream>
 
 #include <torch/csrc/lazy/backend/backend_data.h>
@@ -33,22 +34,23 @@ public:
     bool requires_grad;
     std::string name;
 
-    Info() {}
+    Info() {
+      static int i = 0;
+      std::stringstream ss;
+      ss << "placeholder" << i;
+      name = ss.str();
+      ++i;
+    }
     Info(const Info& other)
         : tensor{other.tensor}, scalar{other.scalar},
           requires_grad{other.requires_grad}, name{other.name} {}
     Info(const at::Tensor& tensor)
-        : tensor{tensor}, requires_grad{tensor.requires_grad()} {
-      static int num_tensors = 0;
-      std::ostringstream oss;
-      oss << "tensor" << num_tensors;
-      this->name = oss.str();
-      ++num_tensors;
-    }
+        : tensor{tensor}, requires_grad{tensor.requires_grad()} {}
     Info(const at::Scalar& scalar) : scalar{scalar}, requires_grad(false) {}
   };
 
   TorchMlirBackendData(BackendDevice device, Shape shape);
+  TorchMlirBackendData(BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info);
   TorchMlirBackendData(const at::Scalar& scalar, BackendDevice device);
   TorchMlirBackendData(
       const at::Tensor& tensor, BackendDevice device, Shape shape);
@@ -59,10 +61,10 @@ public:
 
   virtual bool HasValue() const override;
 
-  TorchMlirBackendData::Info* mlir_info() const;
+  BackendData::Info* mlir_info() const;
 
-private:
-  std::unique_ptr<TorchMlirBackendData::Info> info_;
+protected:
+  std::shared_ptr<BackendData::Info> info_;
 };
 
 class TORCH_API TorchMlirBackendImpl : public BackendImplInterface {

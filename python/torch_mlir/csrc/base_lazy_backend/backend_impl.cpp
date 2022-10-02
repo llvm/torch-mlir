@@ -27,19 +27,24 @@ namespace lazy {
 
 TorchMlirBackendData::TorchMlirBackendData(BackendDevice device, Shape shape)
     : BackendData(device, shape),
-      info_(std::make_unique<TorchMlirBackendData::Info>()) {
+      info_(std::make_shared<TorchMlirBackendData::Info>()) {
+  PRINT_FUNCTION();
+}
+TorchMlirBackendData::TorchMlirBackendData(
+  BackendDevice device, Shape shape, std::shared_ptr<BackendData::Info> info)
+    : BackendData(device, shape), info_(info) {
   PRINT_FUNCTION();
 }
 TorchMlirBackendData::TorchMlirBackendData(
     const at::Scalar& scalar, BackendDevice device)
     : BackendData(device, Shape(scalar.type(), {})),
-      info_(std::make_unique<TorchMlirBackendData::Info>(scalar)) {
+      info_(std::make_shared<TorchMlirBackendData::Info>(scalar)) {
   PRINT_FUNCTION();
 }
 TorchMlirBackendData::TorchMlirBackendData(
     const at::Tensor& tensor, BackendDevice device, Shape shape)
     : BackendData(device, shape),
-      info_(std::make_unique<TorchMlirBackendData::Info>(tensor)) {
+      info_(std::make_shared<TorchMlirBackendData::Info>(tensor)) {
   PRINT_FUNCTION();
 }
 
@@ -54,18 +59,12 @@ void TorchMlirBackendData::Assign(const BackendData& data) {
       torch_mlir_data,
       "Invalid Backend Data Pointer. Expected TorchMlirBackendData.");
 
-  TorchMlirBackendData::Info* info =
-      dynamic_cast<TorchMlirBackendData::Info*>(torch_mlir_data->mlir_info());
-  TORCH_CHECK(
-      info,
-      "Invalid Backend Data Pointer. Expected TorchMlirBackendData::Info.");
-
-  info_ = std::make_unique<TorchMlirBackendData::Info>(*info);
+  info_ = torch_mlir_data->info_;
 }
 
 bool TorchMlirBackendData::HasValue() const { return bool(info_); }
 
-TorchMlirBackendData::Info* TorchMlirBackendData::mlir_info() const {
+BackendData::Info* TorchMlirBackendData::mlir_info() const {
   return info_.get();
 }
 

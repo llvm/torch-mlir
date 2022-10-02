@@ -397,6 +397,9 @@ def aten〇log(self: List[int]) -> List[int]:
 def aten〇relu(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇relu6(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇_softmax(self: List[int], dim: int, half_to_float: bool) -> List[int]:
     return upstream_shape_functions.unary(self)
 

@@ -16,6 +16,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -25,20 +26,6 @@ static Value assertNonValueTensor(Value tensor) {
   assert(tensor.getType().isa<NonValueTensorType>() &&
          "tensor is expected to be a non-value tensor");
   return tensor;
-}
-
-static bool isViewLikeOp(Operation *op) {
-  // AtenContiguousOp might return a view, so this is conservatively
-  // correct. We could potentially be more precise and identify the cases
-  // that it does not return a view and treat those as having value
-  // semantics.
-  return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
-             AtenExpandOp, AtenFlattenUsingIntsOp, AtenPermuteOp, AtenReshapeOp,
-             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
-             TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
-             AtenNarrowOp, AtenToDeviceOp>(op);
 }
 
 namespace {
