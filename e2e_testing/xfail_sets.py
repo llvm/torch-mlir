@@ -569,7 +569,6 @@ LTC_XFAIL_SET = {
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
     "LiftFreshCopyModule_basic",
     "Matmul_dot",
-    "Matmul_matvec",
     "MulIntModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",

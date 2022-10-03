@@ -600,6 +600,9 @@ def aten〇numpy_T(self: List[int]) -> List[int]:
 def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.matmul(self, other)
 
+def aten〇mv(self: List[int], vec: List[int]) -> List[int]:
+    return upstream_shape_functions.mv(self, vec)
+
 def aten〇mm(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 

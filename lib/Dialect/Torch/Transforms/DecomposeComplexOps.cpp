@@ -631,6 +631,21 @@ public:
 };
 } // namespace
 
+// Decompose aten.mv into: aten.matmul.
+namespace {
+class DecomposeAtenMvOp : public OpRewritePattern<AtenMvOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMvOp op,
+                                PatternRewriter &rewriter) const override {
+    Value lhs = op.self();
+    Value rhs = op.vec();
+    rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), lhs, rhs);
+    return success();
+  }
+};
+} // namespace
+
 // ReLU6(x) = min(max(0, x), 6) = min(Relu(x), 6)
 static Value getRelu6Results(PatternRewriter &rewriter, Location loc,
                              Value input) {
@@ -2859,6 +2874,8 @@ public:
     patterns.add<DecomposeAtenSelectIntOp>(context);
     target.addIllegalOp<AtenSelectIntOp>();
     patterns.add<DecomposeAtenMatmulOp>(context);
+    target.addIllegalOp<AtenMvOp>();
+    patterns.add<DecomposeAtenMvOp>(context);
     target.addIllegalOp<AtenTOp>();
     patterns.add<DecomposeAtenTOp>(context);
     patterns.add<DecomposeAten_LogSoftmaxBackwardDataOp>(context);
