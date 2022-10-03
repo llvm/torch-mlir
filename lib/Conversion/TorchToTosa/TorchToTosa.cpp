@@ -3004,6 +3004,30 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
       "unimplemented: broadcasts other than same rank or zero ranked tensor.");
 }
 
+
+template <>
+LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
+    AtenWhereSelfOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types input are currently supported");
+  auto condType = adaptor.condition().getType().dyn_cast<TensorType>();
+  if (!condType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types condition are currently supported");
+
+  auto outType = getTypeConverter()->convertType(op.getType());
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, adaptor.condition(),
+                                              adaptor.self(), adaptor.other());
+
+  return success();
+}
+
+
 template <>
 LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
@@ -3829,6 +3853,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
+    INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
     INSERT_ATENOP_PATTERN(ValsemVariantAtenCopyOp);
