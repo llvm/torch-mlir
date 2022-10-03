@@ -111,8 +111,7 @@ std::unique_ptr<OperationPass<ModuleOp>>
 createLowerToBackendContractPass(int maxIterations, bool decompose,
                                  ArrayRef<std::string> backendLegalOps);
 
-std::unique_ptr<OperationPass<ModuleOp>>
-createVerifySatisfiesBackendContractPass();
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyBackendContractPass();
 
 StringRef getShapeLibrary();
 
