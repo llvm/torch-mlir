@@ -147,6 +147,19 @@ def prim_min(x: int):
 def prim_max(x: int):
     return max(x), max(x,x), max(x, x, x)
 
+# CHECK-LABEL:   func.func @__torch__.prim_where(
+# CHECK-SAME:                             %[[ARG:.*]]: !torch.tensor) -> !torch.tensor {
+# CHECK:           %[[A:.*]] = torch.constant.int 1
+# CHECK:           %[[B:.*]] = torch.constant.float 1.000000e+00
+# CHECK:           %[[SCALAR:.*]] = torch.aten.lt.Scalar %[[ARG]], %[[A]] : !torch.tensor, !torch.int -> !torch.tensor
+# CHECK:           %[[RET:.*]] = torch.aten.where.ScalarOther %[[SCALAR]], %[[ARG]], %[[B]] :
+# CHECK-SAME:           !torch.tensor, !torch.tensor, !torch.float -> !torch.tensor
+# CHECK:           return %[[RET]] : !torch.tensor
+@mb.import_function
+@torch.jit.script
+def prim_where(x):
+    return torch.where(x < 1, x, 1.0)
+
 # CHECK-LABEL:   func.func @__torch__.prim_Constant_list() -> !torch.list<int> {
 # CHECK:           %[[A:.*]] = torch.constant.int 1
 # CHECK:           %[[B:.*]] = torch.constant.int 2
