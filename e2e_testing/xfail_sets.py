@@ -454,6 +454,7 @@ TOSA_PASS_SET = {
     "ArgmaxModule_keepDim",
     "ArgmaxModule_with_dim",
     "_LogSoftmaxModuleStable_basic",
+    "ElementwiseAtenWhereSelfModule_basic",
     "LiftFreshCopyModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "BroadcastToSameRankStaticModule_basic",

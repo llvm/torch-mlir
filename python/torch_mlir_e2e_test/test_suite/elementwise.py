@@ -134,6 +134,30 @@ def ElementwiseTernaryModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenWhereSelfModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([1, 1, 5, 5], torch.bool, True),
+        ([1, 12, 5, 5], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, a, b, c):
+        return torch.ops.aten.where(a, b, c)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAtenWhereSelfModule())
+def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
+    module.forward(torch.zeros(1, 1, 5, 5, dtype=torch.bool), torch.rand(1, 12, 5, 5), torch.rand(()))
+
+
+# ==============================================================================
+
+
 class ElementwiseWhereSelfModule(torch.nn.Module):
 
     def __init__(self):

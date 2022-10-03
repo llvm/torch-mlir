@@ -913,3 +913,16 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[3,5],si64>) -> !torch.vten
   %0 = torch.aten.to.dtype %arg0, %int11, %false, %false, %none : !torch.vtensor<[3,5],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,5],i1>
   return %0 : !torch.vtensor<[3,5],i1>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.where.self(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: tensor<1x1x5x5xi1>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: tensor<1x12x5x5xf32>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: tensor<f32>) -> tensor<1x12x5x5xf32> {
+// CHECK:           %[[VAL_3:.*]] = "tosa.select"(%[[VAL_0]], %[[VAL_1]], %[[VAL_2]]) : (tensor<1x1x5x5xi1>, tensor<1x12x5x5xf32>, tensor<f32>) -> tensor<1x12x5x5xf32>
+// CHECK:           return %[[VAL_3]] : tensor<1x12x5x5xf32>
+// CHECK:         }
+func.func @torch.aten.where.self(%arg0: !torch.vtensor<[1,1,5,5],i1>, %arg1: !torch.vtensor<[1,12,5,5],f32>, %arg2: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,12,5,5],f32> {
+  %0 = torch.aten.where.self %arg0, %arg1, %arg2 : !torch.vtensor<[1,1,5,5],i1>, !torch.vtensor<[1,12,5,5],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[1,12,5,5],f32>
+  return %0 : !torch.vtensor<[1,12,5,5],f32>
+}
