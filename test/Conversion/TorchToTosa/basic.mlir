@@ -847,3 +847,15 @@ func.func @torch.aten.arange.start_step() -> !torch.vtensor<[5],si64> {
   %0 = torch.aten.arange.start_step %int0, %int5, %int1, %none, %none, %none, %none : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[5],si64>
   return %0 : !torch.vtensor<[5],si64>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() {value = dense<1> : tensor<i64>} : () -> tensor<i64>
+// CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:           return %[[VAL_1]] : !torch.vtensor<[],si64>
+func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}

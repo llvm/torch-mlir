@@ -3055,6 +3055,29 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
+    PrimNumToTensorScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType =
+      typeConverter->convertType(op->getResult(0).getType())
+          .cast<RankedTensorType>();
+
+  // Only supports integer operand type, because for the floating point operand
+  // type result tensor has to be of type `f64` which is not supported in the
+  // tosa.
+  int64_t initValue;
+  if (!matchPattern(op.a(), m_TorchConstantInt(&initValue)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: input should be a torch constant int");
+
+  DenseElementsAttr constAttr = DenseElementsAttr::get(resultType, {initValue});
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, constAttr);
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3704,6 +3727,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
+    INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
