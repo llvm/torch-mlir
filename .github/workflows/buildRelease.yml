@@ -9,6 +9,11 @@ on:
       python_package_version:
         description: 'Version to use for creating the Python package'
         default: ''
+  
+  # For testing in the pull request.  Remove before merging.
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build_linux:
