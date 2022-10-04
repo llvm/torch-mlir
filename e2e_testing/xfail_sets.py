@@ -464,6 +464,9 @@ TOSA_PASS_SET = {
     "ArangeStartNegativeStepIntModule_basic",
     "ArangeZeroElementOutputModule_basic",
     "NumToTensorIntModule_basic",
+    "ToDtypeBoolLayoutNoneStaticModule_basic",
+    "ToCopyBoolDTypeStaticModule_basic",
+    "HardTanhIntModule_basic",
 }
 
 LTC_XFAIL_SET = {
