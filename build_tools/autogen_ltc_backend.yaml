@@ -12,7 +12,6 @@ blacklist:
 - detach
 - item
 - size
-- where
 - copy_
 
 # Disabled for consistency with TS backend
