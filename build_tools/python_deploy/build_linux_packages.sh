@@ -156,8 +156,10 @@ function run_in_docker() {
           setup_venv "$python_version"
           build_in_tree "$TM_USE_PYTORCH_BINARY" "$python_version"
           if [ "${TM_UPDATE_ODS_AND_SHAPE_LIB}" == "ON" ]; then
+            pushd /main_checkout/torch-mlir
             ./build_tools/update_torch_ods.sh
             ./build_tools/update_shape_lib.sh
+            popd
           fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
             test_in_tree;
