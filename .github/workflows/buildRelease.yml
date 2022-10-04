@@ -51,6 +51,11 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+    - name: Publish to PyPI
+      if: github.event.inputs.release_id != ''
+      uses: pypa/gh-action-pypi-publish@v1.5.1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
 
   build_macos:
     name: MacOS Build
@@ -93,6 +98,12 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+    
+    - name: Publish to PyPI
+      if: github.event.inputs.release_id != ''
+      uses: pypa/gh-action-pypi-publish@v1.5.1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
 
     - name: Invoke Publish Releases Page
       uses: benc-uk/workflow-dispatch@v1
