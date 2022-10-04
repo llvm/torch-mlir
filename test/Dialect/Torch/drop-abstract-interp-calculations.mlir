@@ -1,11 +1,11 @@
-// RUN: torch-mlir-opt -torch-drop-shape-calculations -split-input-file %s | FileCheck %s
+// RUN: torch-mlir-opt -torch-drop-abstract-interp-calculations -split-input-file %s | FileCheck %s
 
-// CHECK-LABEL:   func.func @basic(
+// CHECK-LABEL:   func.func @basic$shape_calculate(
 // CHECK-SAME:                 %[[ARG:.*]]: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
 // CHECK:           %[[TANH:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor<[2,?],unk> -> !torch.vtensor<[2,?],unk>
 // CHECK:           %[[ERASED:.*]] = torch.tensor_static_info_cast %[[TANH]] : !torch.vtensor<[2,?],unk> to !torch.vtensor
 // CHECK:           return %[[ERASED]] : !torch.vtensor
-func.func @basic(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
+func.func @basic$shape_calculate(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
   %int2 = torch.constant.int 2
   %int1 = torch.constant.int 1
   %0 = torch.shape.calculate  {
@@ -17,6 +17,27 @@ func.func @basic(%arg0: !torch.vtensor<[2,?],unk>) -> !torch.vtensor {
     torch.shape.calculate.yield.shapes %3 : !torch.list<int>
   } : !torch.vtensor<[2,?],unk>
   %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<[2,?],unk> to !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @basic$dtype_calculate(
+// CHECK-SAME:                     %[[ARG:.*]]: !torch.vtensor<*,f32>) -> !torch.vtensor {
+// CHECK:           %[[INT_6:.*]] = torch.constant.int 6
+// CHECK:           %[[TANH:.*]] = torch.aten.tanh %[[ARG]] : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[TANH]] : !torch.vtensor<*,f32> to !torch.vtensor
+// CHECK:           return %[[CAST]] : !torch.vtensor
+func.func @basic$dtype_calculate(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
+  %int6 = torch.constant.int 6
+  %0 = torch.dtype.calculate {
+    %2 = torch.aten.tanh %arg0 : !torch.vtensor<*,f32> -> !torch.vtensor<*,f32>
+    torch.dtype.calculate.yield %2 : !torch.vtensor<*,f32>
+  } dtypes {
+    %2 = torch.aten.dim %arg0 : !torch.vtensor<*,f32> -> !torch.int
+    torch.dtype.calculate.yield.dtypes %int6 : !torch.int
+  } : !torch.vtensor<*,f32>
+  %1 = torch.tensor_static_info_cast %0 : !torch.vtensor<*,f32> to !torch.vtensor
   return %1 : !torch.vtensor
 }
 

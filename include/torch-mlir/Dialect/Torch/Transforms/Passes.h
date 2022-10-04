@@ -80,6 +80,9 @@ void createTorchSimplificationPipeline(
 /// Creates a pipeline that refines shapes of tensor operations in the program.
 void createTorchShapeRefinementPipeline(OpPassManager &pm);
 
+/// Creates a pipeline that refines dtype of tensor operations in the program.
+void createTorchDtypeRefinementPipeline(OpPassManager &pm);
+
 std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>> createRefineTypesPass();
@@ -102,7 +105,13 @@ std::unique_ptr<OperationPass<ModuleOp>> createReifyShapeCalculationsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createSimplifyShapeCalculationsPass();
 
-std::unique_ptr<OperationPass<func::FuncOp>> createDropShapeCalculationsPass();
+std::unique_ptr<OperationPass<ModuleOp>> createReifyDtypeCalculationsPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createSimplifyDtypeCalculationsPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createDropAbstractInterpCalculationsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createEraseModuleInitializerPass();
@@ -113,7 +122,7 @@ createLowerToBackendContractPass(int maxIterations, bool decompose,
 
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyBackendContractPass();
 
-StringRef getShapeLibrary();
+StringRef getAbstractInterpLibrary();
 
 } // namespace Torch
 

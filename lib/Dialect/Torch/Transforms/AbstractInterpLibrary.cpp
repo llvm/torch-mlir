@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This file is auto-generated! Do not edit!!!
-// Generated with the script `build_tools/update_shape_lib.sh`.
+// Generated with the script `build_tools/update_abstract_interp_lib.sh`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -16,7 +16,7 @@
 
 using namespace mlir;
 
-StringRef mlir::torch::Torch::getShapeLibrary() {
+StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 #ifndef _MSC_VER
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Woverlength-strings"
@@ -5470,6 +5470,25 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
 "  }\n"
+"  func.func @\"__torch_mlir_dtype_fn.aten.tanh\"(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {\n"
+"    %int6 = torch.constant.int 6\n"
+"    %int15 = torch.constant.int 15\n"
+"    %true = torch.constant.bool true\n"
+"    %int7 = torch.constant.int 7\n"
+"    %0 = torch.aten.eq.int %arg1, %int7 : !torch.int, !torch.int -> !torch.bool\n"
+"    %1 = torch.prim.If %0 -> (!torch.bool) {\n"
+"      torch.prim.If.yield %true : !torch.bool\n"
+"    } else {\n"
+"      %3 = torch.aten.eq.int %arg1, %int15 : !torch.int, !torch.int -> !torch.bool\n"
+"      torch.prim.If.yield %3 : !torch.bool\n"
+"    }\n"
+"    %2 = torch.prim.If %1 -> (!torch.int) {\n"
+"      torch.prim.If.yield %arg1 : !torch.int\n"
+"    } else {\n"
+"      torch.prim.If.yield %int6 : !torch.int\n"
+"    }\n"
+"    return %2 : !torch.int\n"
+"  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.erf\"(%arg0: !torch.list<int>) -> !torch.list<int> {\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
@@ -5692,6 +5711,23 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "  func.func @\"__torch_mlir_shape_fn.aten.add.Scalar\"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
+"  }\n"
+"  func.func @\"__torch_mlir_dtype_fn.aten.add.Scalar\"(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.union<float, int>, %arg3: !torch.union<float, int>) -> !torch.int {\n"
+"    %none = torch.constant.none\n"
+"    %0 = torch.prim.ListConstruct %arg0, %none : (!torch.int, !torch.none) -> !torch.list<optional<int>>\n"
+"    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.get_dtype_of_scalar(%arg2) : (!torch.union<float, int>) -> !torch.int\n"
+"    %2 = torch.prim.ListConstruct %arg1, %1 : (!torch.int, !torch.int) -> !torch.list<int>\n"
+"    %3 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(%0, %2) : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int\n"
+"    return %3 : !torch.int\n"
+"  }\n"
+"  func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(%arg0: !torch.list<optional<int>>, %arg1: !torch.list<int>) -> !torch.int {\n"
+"    %0 = torch.promote_dtypes %arg0, %arg1 : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int\n"
+"    return %0 : !torch.int\n"
+"  }\n"
+"  func.func @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.get_dtype_of_scalar(%arg0: !torch.union<float, int>) -> !torch.int {\n"
+"    %0 = torch.prim.NumToTensor.Scalar %arg0 : !torch.union<float, int> -> !torch.tensor\n"
+"    %1 = torch.prim.dtype %0 : !torch.tensor -> !torch.int\n"
+"    return %1 : !torch.int\n"
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.sub.Scalar\"(%arg0: !torch.list<int>, %arg1: !torch.float, %arg2: !torch.float) -> !torch.list<int> {\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
@@ -6394,6 +6430,12 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "    %0 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
 "  }\n"
+"  func.func @\"__torch_mlir_dtype_fn.aten.add.Tensor\"(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.int, %arg4: !torch.union<float, int>) -> !torch.int {\n"
+"    %0 = torch.prim.ListConstruct %arg0, %arg2 : (!torch.int, !torch.int) -> !torch.list<optional<int>>\n"
+"    %1 = torch.prim.ListConstruct %arg1, %arg3 : (!torch.int, !torch.int) -> !torch.list<int>\n"
+"    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(%0, %1) : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int\n"
+"    return %2 : !torch.int\n"
+"  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.sub.Tensor\"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.float) -> !torch.list<int> {\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %arg1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
@@ -7085,6 +7127,15 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "    %3 = torch.aten.__getitem__.t %arg1, %int1 : !torch.list<int>, !torch.int -> !torch.int\n"
 "    %4 = torch.prim.ListConstruct %0, %1, %2, %3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>\n"
 "    return %4 : !torch.list<int>\n"
+"  }\n"
+"  func.func @\"__torch_mlir_dtype_fn.aten.add\"(%arg0: !torch.union<float, int>, %arg1: !torch.union<float, int>) -> !torch.int {\n"
+"    %none = torch.constant.none\n"
+"    %0 = torch.prim.ListConstruct %none, %none : (!torch.none, !torch.none) -> !torch.list<optional<int>>\n"
+"    %1 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.get_dtype_of_scalar(%arg0) : (!torch.union<float, int>) -> !torch.int\n"
+"    %2 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.get_dtype_of_scalar(%arg1) : (!torch.union<float, int>) -> !torch.int\n"
+"    %3 = torch.prim.ListConstruct %1, %2 : (!torch.int, !torch.int) -> !torch.list<int>\n"
+"    %4 = call @__torch__.torch_mlir.dialects.torch.importer.jit_ir.build_tools.library_generator.promote_dtypes(%0, %3) : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int\n"
+"    return %4 : !torch.int\n"
 "  }\n"
 "}\n"
 "";

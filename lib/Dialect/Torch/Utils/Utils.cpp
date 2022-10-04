@@ -100,17 +100,44 @@ Type Torch::getTypeForScalarType(
   }
 }
 
-Type Torch::getTorchTypeForScalarType(MLIRContext *context,
-                                      torch_upstream::ScalarType dtypeInt) {
+FailureOr<Type>
+Torch::getTorchTypeForScalarType(MLIRContext *context,
+                                 torch_upstream::ScalarType dtypeInt) {
   switch (dtypeInt) {
   case torch_upstream::ScalarType::Double:
     return Torch::FloatType::get(context);
   case torch_upstream::ScalarType::Long:
     return Torch::IntType::get(context);
   default:
-    llvm::report_fatal_error(
-        "Unsupported scalar type to Torch type conversion");
+    return failure();
   }
+}
+
+Type Torch::getDefaultDtypeForTorchScalar(Type type) {
+  MLIRContext *context = type.getContext();
+  if (type.isa<Torch::FloatType>()) {
+    // For now, use float32 which is the initial default dtype returned by
+    // `torch.get_default_dtype`.
+    return Float32Type::get(context);
+  }
+  if (type.isa<Torch::IntType>())
+    return IntegerType::get(context, 64, IntegerType::Signed);
+  if (type.isa<Torch::BoolType>())
+    return IntegerType::get(context, 1);
+  llvm_unreachable(
+      "getDefaultDtypeForTorchScalar called on an unsupported type");
+}
+
+Type Torch::getBuiltInTypeForTorchScalar(Type type) {
+  MLIRContext *context = type.getContext();
+  if (type.isa<Torch::FloatType>())
+    return Float64Type::get(context);
+  if (type.isa<Torch::IntType>())
+    return IntegerType::get(context, 64, IntegerType::Signed);
+  if (type.isa<Torch::BoolType>())
+    return IntegerType::get(context, 1);
+  llvm_unreachable(
+      "getBuiltInTypeForTorchScalar called on an unsupported type");
 }
 
 Value Torch::getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,

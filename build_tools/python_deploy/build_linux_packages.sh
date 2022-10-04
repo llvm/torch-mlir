@@ -53,8 +53,8 @@ TM_PACKAGES="${TM_PACKAGES:-torch-mlir}"
 TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 # Skip running tests if you want quick iteration
 TM_SKIP_TESTS="${TM_SKIP_TESTS:-OFF}"
-# Update ODS and shape library files
-TM_UPDATE_ODS_AND_SHAPE_LIB="${TM_UPDATE_ODS_AND_SHAPE_LIB:-OFF}"
+# Update ODS and abstract interpretation library files
+TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB="${TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB:-OFF}"
 
 PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] && . "$PKG_VER_FILE"
 TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
@@ -119,7 +119,7 @@ function run_on_host() {
     -e "TM_PYTHON_VERSIONS=${TM_PYTHON_VERSIONS}" \
     -e "TM_PACKAGES=${package}" \
     -e "TM_SKIP_TESTS=${TM_SKIP_TESTS}" \
-    -e "TM_UPDATE_ODS_AND_SHAPE_LIB=${TM_UPDATE_ODS_AND_SHAPE_LIB}" \
+    -e "TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB=${TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB}" \
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
     -e "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}" \
     -e "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}" \
@@ -164,10 +164,10 @@ function run_in_docker() {
         in-tree)
           setup_venv "$python_version"
           build_in_tree "$TM_USE_PYTORCH_BINARY" "$python_version"
-          if [ "${TM_UPDATE_ODS_AND_SHAPE_LIB}" == "ON" ]; then
+          if [ "${TM_UPDATE_ODS_AND_ABSTRACT_INTERP_LIB}" == "ON" ]; then
             pushd /main_checkout/torch-mlir
             ./build_tools/update_torch_ods.sh
-            ./build_tools/update_shape_lib.sh
+            ./build_tools/update_abstract_interp_lib.sh
             popd
           fi
           if [ "${TM_SKIP_TESTS}" == "OFF" ]; then
@@ -253,8 +253,8 @@ function test_in_tree() {
   cd /main_checkout/torch-mlir/
   export PYTHONPATH="/main_checkout/torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir"
 
-  echo ":::: Check that update_shape_lib.sh has been run"
-  _check_file_not_changed_by ./build_tools/update_shape_lib.sh lib/Dialect/Torch/Transforms/ShapeLibrary.cpp
+  echo ":::: Check that update_abstract_interp_lib.sh has been run"
+  _check_file_not_changed_by ./build_tools/update_abstract_interp_lib.sh lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
 
   echo ":::: Check that update_torch_ods.sh has been run"
   _check_file_not_changed_by ./build_tools/update_torch_ods.sh include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td

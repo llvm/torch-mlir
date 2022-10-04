@@ -446,10 +446,12 @@ LLVM updates in other projects like ONNX-MLIR and MLIR-HLO.
    working on).  If these fixes are too complex, please file a work-in-progress
    PR explaining the issues you are running into asking for help so that someone
    from the community can help.
-5. **Update Shape Library**: Run `build_tools/update_shape_lib.sh`. This is
-   sometimes needed because upstream changes can affect canonicalization and
-   other minor details of the IR in the shape library. See
-   [docs/shape_lib.md](docs/shape_lib.md) for more details on the shape library.
+5. **Update Abstract Interpretation Library**: Run
+   `build_tools/update_abstract_interp_lib.sh`.  This is sometimes needed
+   because upstream changes can affect canonicalization and other minor details
+   of the IR in the shape library. See
+   [docs/abstract_interp_lib.md](docs/abstract_interp_lib.md) for more details
+   on the abstract interpretation library.
 
 
 Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:

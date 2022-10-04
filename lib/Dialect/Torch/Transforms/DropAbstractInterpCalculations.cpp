@@ -9,29 +9,22 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/Parser/Parser.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/InliningUtils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
-class DropShapeCalculateOp : public OpConversionPattern<ShapeCalculateOp> {
+template <typename CalculateOp>
+class DropCalculateOp : public OpConversionPattern<CalculateOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<CalculateOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ShapeCalculateOp op, OpAdaptor adaptor,
+  matchAndRewrite(CalculateOp op, typename CalculateOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Block *block = &op.getBody().front();
     Operation *terminator = block->getTerminator();
@@ -45,16 +38,18 @@ public:
 } // namespace
 
 namespace {
-class DropShapeCalculationsPass
-    : public DropShapeCalculationsBase<DropShapeCalculationsPass> {
+class DropAbstractInterpCalculationsPass
+    : public DropAbstractInterpCalculationsBase<
+          DropAbstractInterpCalculationsPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);
-    patterns.insert<DropShapeCalculateOp>(context);
+    patterns.insert<DropCalculateOp<DtypeCalculateOp>>(context);
+    patterns.insert<DropCalculateOp<ShapeCalculateOp>>(context);
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect>();
-    target.addIllegalOp<ShapeCalculateOp>();
+    target.addIllegalOp<DtypeCalculateOp, ShapeCalculateOp>();
     target.addLegalOp<func::FuncOp>();
 
     if (failed(applyPartialConversion(getOperation(), target,
@@ -66,6 +61,6 @@ class DropShapeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createDropShapeCalculationsPass() {
-  return std::make_unique<DropShapeCalculationsPass>();
+mlir::torch::Torch::createDropAbstractInterpCalculationsPass() {
+  return std::make_unique<DropAbstractInterpCalculationsPass>();
 }

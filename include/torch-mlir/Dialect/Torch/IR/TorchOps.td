@@ -1101,6 +1101,40 @@ def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.flo
   let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` type($self) `,` type($p) `,` type($generator) `->` type($result)";
 }
 
+def Torch_PromoteDtypesOp: Torch_Op<"promote_dtypes", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`promote_dtypes op : (int?[], int[]) -> (int)`";
+  let description = [{
+    This op is generated when the python function
+    `__torch_mlir_internal_promote_dtypes` is used in a dtype refinement
+    function. It represents the type promotion logic used by PyTorch to
+    determine result types.
+
+    The first argument is a list of optional ranks for each of the inputs
+    being used for promotion. The ranks are optional to allow representing
+    `Scalar` inputs, which follow their own set of promotion rules.
+
+    The second argument is a list of dtypes for each of the inputs being used
+    for promotion.
+
+    The order of the values in each list must be the same. In other words,
+    the ith rank and the ith dtype must be from the same Scalar/Tensor.
+
+    It is an error to call this op with empty lists or lists of different size.
+  }];
+  let arguments = (ins
+    AnyTorchListOfOptionalIntType:$ranks,
+    AnyTorchListOfTorchIntType:$dtypes
+  );
+  let results = (outs
+    Torch_IntType:$result
+  );
+  let assemblyFormat = "$ranks `,` $dtypes attr-dict `:` functional-type(operands, results)";
+}
+
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 
 // But TS compiler introduces control flow for `torch._assert` operation. The 
 // `torch._assert` would introduce control flow like: 
@@ -1140,31 +1174,31 @@ def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
   let summary = "Shape calculation encapsulation op";
   let description = [{
     The `torch.shape.calculate` op captures a shape calculation
-    (in the region `shapeCalculation`) which calculates the shapes for
+    (in the region `calculation`) which calculates the shapes for
     the set of values yielded by the `body` region.
 
-    The `shapeCalculation` region yields a `!torch.list<int>` for each
+    The `calculation` region yields a `!torch.list<int>` for each
     value yielded by the `body` region.
 
-    Conceptually, the `shapeCalculation` region executes first, then `body`
-    region. So the `shapeCalculation` region can also contain arbitrary
+    Conceptually, the `calculation` region executes first, then `body`
+    region. So the `calculation` region can also contain arbitrary
     assertions or side-effecting code which guard the validity of the execution
     of the body (typically by terminating the program with a
     torch.prim.RaiseException op).
 
     The program has undefined behavior if the values yielded by the `body`
-    region do not have the shapes yielded by the `shapeCalculation` region.
+    region do not have the shapes yielded by the `calculation` region.
   }];
 
   let arguments = (ins);
   let results = (outs Variadic<AnyTorchType>:$results);
   let regions = (region
     SizedRegion<1>:$body,
-    SizedRegion<1>:$shapeCalculation
+    SizedRegion<1>:$calculation
   );
 
   let assemblyFormat = [{
-    $body `shapes` $shapeCalculation attr-dict `:` type($results)
+    $body `shapes` $calculation attr-dict `:` type($results)
   }];
 }
 
@@ -1201,6 +1235,86 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
 
   let arguments = (ins
     Variadic<AnyTorchListOfTorchIntType>:$results
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    attr-dict ($results^ `:` type($results))?
+  }];
+
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// Dtype calculation modeling ops.
+//===----------------------------------------------------------------------===//
+
+def Torch_DtypeCalculateOp : Torch_Op<"dtype.calculate", [
+  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  let summary = "Dtype calculation encapsulation op";
+  let description = [{
+    The `torch.dtype.calculate` op captures a dtype calculation
+    (in the region `calculation`) which calculates the dtypes for
+    the set of values yielded by the `body` region.
+
+    The `calculation` region yields a `!torch.int` for each
+    value yielded by the `body` region.
+
+    Conceptually, the `calculation` region executes first, then `body`
+    region. So the `calculation` region can also contain arbitrary
+    assertions or side-effecting code which guard the validity of the execution
+    of the body (typically by terminating the program with a
+    torch.prim.RaiseException op).
+
+    The program has undefined behavior if the values yielded by the `body`
+    region do not have the dtypes yielded by the `calculation` region.
+  }];
+
+  let arguments = (ins);
+  let results = (outs Variadic<AnyTorchType>:$results);
+  let regions = (region
+    SizedRegion<1>:$body,
+    SizedRegion<1>:$calculation
+  );
+
+  let assemblyFormat = [{
+    $body `dtypes` $calculation attr-dict `:` type($results)
+  }];
+}
+
+def Torch_DtypeCalculateYieldOp : Torch_Op<"dtype.calculate.yield", [
+    Terminator,
+    ReturnLike,
+    HasParent<"::mlir::torch::Torch::DtypeCalculateOp">]> {
+  let summary = "yield-like terminator for torch.dtype.calculate";
+  let description = [{
+    This op terminates the `body` region of a `torch.dtype.calculate` op.
+  }];
+
+  let arguments = (ins
+    Variadic<AnyTorchType>:$results
+  );
+  let results = (outs);
+
+  let assemblyFormat = [{
+    attr-dict ($results^ `:` type($results))?
+  }];
+}
+
+def Torch_DtypeCalculateYieldDtypesOp : Torch_Op<"dtype.calculate.yield.dtypes", [
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
+    Terminator,
+    HasValueSemantics,
+    ReadOnly,
+    HasParent<"::mlir::torch::Torch::DtypeCalculateOp">]> {
+  let summary = "yield-like terminator for torch.dtype.calculate shape region";
+  let description = [{
+    This op terminates the `dtypeCalculation` region of a
+    `torch.dtype.calculate` op.
+  }];
+
+  let arguments = (ins
+    Variadic<Torch_IntType>:$results
   );
   let results = (outs);
 

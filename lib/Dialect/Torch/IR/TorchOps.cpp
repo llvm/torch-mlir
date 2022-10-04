@@ -2294,24 +2294,40 @@ OpFoldResult PrimMinSelfIntOp::fold(ArrayRef<Attribute> operands) {
 // ShapeCalculateOp
 //===----------------------------------------------------------------------===//
 
-void ShapeCalculateOp::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
-  (void)operands;
-
+template <typename CalculateOp>
+static void
+getSuccessorRegionsForCalculateOp(CalculateOp op, Optional<unsigned> index,
+                                  ArrayRef<Attribute> operands,
+                                  SmallVectorImpl<RegionSuccessor> &regions) {
   if (!index.has_value()) {
-    // First thing the op does is branch into the shape calculation.
-    regions.emplace_back(&getShapeCalculation());
+    // First thing the op does is branch into the calculation.
+    regions.emplace_back(&op.getCalculation());
     return;
   }
   if (*index == 0) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(getResults());
+    regions.emplace_back(op.getResults());
     return;
   }
   assert(*index == 1);
-  // Shape calculation branches to the body.
-  regions.emplace_back(&getBody());
+  // Calculation branches to the body.
+  regions.emplace_back(&op.getBody());
+}
+
+void ShapeCalculateOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
+}
+
+//===----------------------------------------------------------------------===//
+// DtypeCalculateOp
+//===----------------------------------------------------------------------===//
+
+void DtypeCalculateOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  getSuccessorRegionsForCalculateOp(*this, index, operands, regions);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2330,6 +2346,25 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
   auto parent = cast<ShapeCalculateOp>(getOperation()->getParentOp());
   if (parent.getNumResults() != getNumOperands())
     return emitOpError("expected number of shapes to match number of results");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// DtypeCalculateYieldDtypesOp
+//===----------------------------------------------------------------------===//
+
+MutableOperandRange DtypeCalculateYieldDtypesOp::getMutableSuccessorOperands(
+    Optional<unsigned> index) {
+  // The dtype operands don't get forwarded to the body.
+  // MutableOperandRange always has an owning operation, even if empty, so
+  // create a 0-length range.
+  return MutableOperandRange(*this, /*start=*/0, /*length=*/0);
+}
+
+LogicalResult DtypeCalculateYieldDtypesOp::verify() {
+  auto parent = cast<DtypeCalculateOp>(getOperation()->getParentOp());
+  if (parent.getNumResults() != getNumOperands())
+    return emitOpError("expected number of dtypes to match number of results");
   return success();
 }
 

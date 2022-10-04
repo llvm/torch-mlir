@@ -1,5 +1,6 @@
 #!/bin/bash
-# Updates auto-generated shape library files for the `torch` dialect.
+# Updates auto-generated abstract interpretation library files for the
+# `torch` dialect.
 #
 # Environment variables:
 #   TORCH_MLIR_EXT_MODULES: comma-separated list of python module names
@@ -41,6 +42,6 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
 fi
 
 PYTHONPATH="${pypath}" python \
-  -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.shape_lib_gen \
+  -m torch_mlir.dialects.torch.importer.jit_ir.build_tools.abstract_interp_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \
   --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"

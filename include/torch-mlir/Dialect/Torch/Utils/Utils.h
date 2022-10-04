@@ -11,7 +11,6 @@
 
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 
 namespace mlir {
@@ -35,8 +34,23 @@ Type getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
 
-Type getTorchTypeForScalarType(MLIRContext *context,
-                               torch_upstream::ScalarType dtypeInt);
+FailureOr<Type> getTorchTypeForScalarType(MLIRContext *context,
+                                          torch_upstream::ScalarType dtypeInt);
+
+// This is the type rule used for deciding dtype for:
+// 1. A new tensor created from given data.
+// 2. The scalar type for type promotion when a scalar is an operand of a tensor
+// operation (such as AtenMulScalarOp, AtenAddScalarOp etc)
+// If the data is floating-point, the `dtype` is inferred to be the
+// default dtype, see `torch.get_default_dtype`.
+Type getDefaultDtypeForTorchScalar(Type type);
+
+// This is the type rule used for deciding builtin type for:
+// 1. The dtype of the result tensor when converting a Scalar into a Tensor like
+// PrimNumToTensorScalarOp.
+// 2. The scalar type for type promotion when a scalar is an operand of scalar
+// only operation like AtenAddOp.
+Type getBuiltInTypeForTorchScalar(Type type);
 
 Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                               Type dtype);
