@@ -58,7 +58,8 @@ checkout_pytorch() {
     git reset --hard FETCH_HEAD
   else
     cd "${PYTORCH_ROOT}"
-    git reset --hard HEAD
+    git fetch --depth=1 origin "${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
+    git reset --hard FETCH_HEAD
   fi
   git clean -df
   git submodule update --init --depth 1 --recursive
