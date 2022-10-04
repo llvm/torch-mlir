@@ -391,7 +391,7 @@ at::Tensor LazyNativeFunctions::new_empty_strided_symint(
     c10::optional<at::Device> device,
     c10::optional<bool> pin_memory) {
   return at::functionalization::
-      functionalize_aten_op<ATEN_OP(new_empty_strided)>::call(
+      functionalize_aten_op_symint<ATEN_OP(new_empty_strided)>::call(
           self, size, stride, dtype, layout, device, pin_memory);
 }
 
@@ -400,7 +400,7 @@ at::Tensor LazyNativeFunctions::narrow_copy_symint(
     int64_t dim,
     c10::SymInt start,
     c10::SymInt length) {
-  return at::functionalization::functionalize_aten_op<ATEN_OP(
+  return at::functionalization::functionalize_aten_op_symint<ATEN_OP(
       narrow_copy)>::call(self, dim, start, length);
 }
 at::Tensor LazyNativeFunctions::pixel_shuffle(
@@ -426,7 +426,7 @@ at::Tensor LazyNativeFunctions::slice_backward_symint(
     c10::SymInt start,
     c10::SymInt end,
     c10::SymInt step) {
-  return at::functionalization::functionalize_aten_op<ATEN_OP(
+  return at::functionalization::functionalize_aten_op_symint<ATEN_OP(
       slice_backward)>::call(grad_output, input_sizes, dim, start, end, step);
 }
 at::Tensor LazyNativeFunctions::diagonal_backward(
