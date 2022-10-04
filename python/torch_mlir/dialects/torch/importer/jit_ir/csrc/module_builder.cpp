@@ -124,10 +124,16 @@ ModuleBuilder::ModuleBuilder(pybind11::object contextObj)
 }
 
 torch::jit::StrongFunctionPtr
-ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function) {
+ModuleBuilder::importFunction(torch::jit::StrongFunctionPtr function,
+                              py::object maybeImportOptions) {
+  ImportOptions importOptions;
+  if (!maybeImportOptions.is_none()) {
+    importOptions = py::cast<ImportOptions>(maybeImportOptions);
+  }
   MlirBlock block = getBodyBlock();
   MlirOperation terminator = this->terminator;
-  MlirOperation func = importJitFunctionAsFuncOp(context, function.function_);
+  MlirOperation func = importJitFunctionAsFuncOp(context, function.function_,
+        [](int) -> MlirAttribute { return {nullptr}; }, importOptions);
   mlirBlockInsertOwnedOperationBefore(block, terminator, func);
   return function;
 }
@@ -182,7 +188,8 @@ void ModuleBuilder::bind(py::module &m) {
       .def(py::init<py::object>(), py::arg("context") = py::none())
       .def_property_readonly("context", &ModuleBuilder::getContextObj)
       .def_property_readonly("module", &ModuleBuilder::getModuleObj)
-      .def("import_function", &ModuleBuilder::importFunction)
+      .def("import_function", &ModuleBuilder::importFunction, py::arg("function"),
+           py::arg("importOptions") = py::none())
       .def("import_module", &ModuleBuilder::importModule, py::arg("module"),
            py::arg("classAnnotator") = py::none(),
            py::arg("importOptions") = py::none());

@@ -198,10 +198,17 @@ void NodeImporter::importNode(Node *node, MlirBlock appendToBlock,
                                                       c10::attr::value)))));
     } else if (output->type()->cast<c10::TensorType>()) {
       MlirAttribute attr = importAttribute(loc, node, c10::attr::value);
-      op = createMlirOperation(
-          "torch.tensor.literal", loc,
-          torchMlirTorchNonValueTensorTypeGetFromAttribute(attr),
-          toMlirNamedAttribute("value", attr));
+      if (importOptions.assumeTensorsHaveValueSemantics) {
+        op = createMlirOperation(
+            "torch.vtensor.literal", loc,
+            torchMlirTorchValueTensorTypeGetFromAttribute(attr),
+            toMlirNamedAttribute("value", attr));
+      } else {
+        op = createMlirOperation(
+            "torch.tensor.literal", loc,
+            torchMlirTorchNonValueTensorTypeGetFromAttribute(attr),
+            toMlirNamedAttribute("value", attr));
+      }
     } else if (output->type()->cast<c10::DeviceObjType>()) {
       op = createMlirOperation(
           "torch.constant.device", loc,

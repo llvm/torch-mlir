@@ -10,6 +10,6 @@ from torch._C import CompilationUnit
 # RUN: %PYTHON %s
 
 # Import TorchScript IR string as ScriptFunction.
-def create_script_function(func_name, ts_ir_str):
+def create_script_function(func_name, ts_ir_str, **kwargs):
     cu = CompilationUnit()
-    return cu.create_function(func_name, torch._C.parse_ir(ts_ir_str))
+    return cu.create_function(func_name, torch._C.parse_ir(ts_ir_str, **kwargs))

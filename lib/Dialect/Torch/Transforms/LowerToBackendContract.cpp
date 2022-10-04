@@ -242,6 +242,16 @@ public:
     });
   }
 };
+
+class VerifyBackendContractPass
+    : public VerifyBackendContractBase<VerifyBackendContractPass> {
+public:
+  void runOnOperation() override {
+    if (!satisfiesBackendContract(getOperation(), /*actuallyEmitDiagnostics=*/true)) {
+      return signalPassFailure();
+    }
+  }
+};
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
@@ -249,4 +259,9 @@ mlir::torch::Torch::createLowerToBackendContractPass(
     int maxIterations, bool decompose, ArrayRef<std::string> backendLegalOps) {
   return std::make_unique<LowerToBackendContractPass>(maxIterations, decompose,
                                                       backendLegalOps);
+}
+
+std::unique_ptr<OperationPass<ModuleOp>>
+mlir::torch::Torch::createVerifyBackendContractPass() {
+  return std::make_unique<VerifyBackendContractPass>();
 }
