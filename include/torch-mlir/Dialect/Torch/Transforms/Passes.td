@@ -330,7 +330,7 @@ def LowerToBackendContract
 }
 
 def VerifyBackendContract
-    : Pass<"verify-backend-contract", "ModuleOp"> {
+    : Pass<"torch-verify-backend-contract", "ModuleOp"> {
   let summary = "Check that program satisfies backend contract.";
   let constructor =
     "mlir::torch::Torch::createVerifyBackendContractPass()";
