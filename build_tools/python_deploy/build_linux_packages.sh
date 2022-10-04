@@ -142,7 +142,7 @@ function run_in_docker() {
         torch-mlir)
           clean_wheels torch_mlir "$python_version"
           build_torch_mlir
-          #run_audit_wheel torch_mlir "$python_version"
+          run_audit_wheel torch_mlir "$python_version"
           clean_build torch_mlir "$python_version"
           ;;
         out-of-tree)
