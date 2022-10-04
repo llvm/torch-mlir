@@ -61,7 +61,7 @@ jobs:
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
-        TM_PACKAGES="${{ matrix.llvm-build }}" TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" ./build_tools/python_deploy/build_linux_packages.sh
+        TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-version.txt)" TM_PACKAGES="${{ matrix.llvm-build }}" TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" ./build_tools/python_deploy/build_linux_packages.sh
     - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
       # cross compile, can't test arm64
       if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
