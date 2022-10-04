@@ -53,6 +53,9 @@ template <typename T>
 llvm::Optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                      ArrayRef<T> vec, ArrayRef<int64_t> shape);
 
+LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
+                                   Value src, Type destType, Value &result);
+
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.
 template <typename TosaOp, typename... Args>

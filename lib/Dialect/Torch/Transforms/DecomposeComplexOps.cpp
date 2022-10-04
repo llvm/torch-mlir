@@ -2200,8 +2200,9 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(Aten_ToCopyOp op,
                                 PatternRewriter &rewriter) const override {
-    Value zero = rewriter.create<ConstantFloatOp>(
-        op.getLoc(), rewriter.getF64FloatAttr(0.0));
+    Type resultDtype = op.getType().cast<BaseTensorType>().getDtype();
+    Value zero = getConstantWithGivenDtypeAndValue(rewriter, op.getLoc(), 0.0,
+                                                   resultDtype);
     Value emptyTensor = rewriter.create<AtenFullLikeOp>(
         op.getLoc(), op.getType(), op.self(), zero, op.dtype(), op.layout(),
         op.device(), op.pin_memory(), op.memory_format());

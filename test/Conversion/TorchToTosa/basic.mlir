@@ -859,3 +859,57 @@ func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
   %0 = torch.prim.NumToTensor.Scalar %int1 : !torch.int -> !torch.vtensor<[],si64>
   return %0 : !torch.vtensor<[],si64>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.valsem.aten.copy(
+// CHECK-SAME:                                   %[[ARG_0:.*]]: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
+// CHECK:           %[[INP:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[1,1,5,5],ui8> -> tensor<1x1x5x5xi8>
+// CHECK:           %[[CST5:.*]] = torch.constant.int 5
+// CHECK:           %[[CST1:.*]] = torch.constant.int 1
+// CHECK:           %[[CST11:.*]] = torch.constant.int 11
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() {value = dense<0> : tensor<i64>} : () -> tensor<i64>
+// CHECK:           %[[VAL_1:.*]] = "tosa.const"() {value = dense<0> : tensor<i64>} : () -> tensor<i64>
+// CHECK:           %[[VAL_2:.*]] = "tosa.equal"(%[[VAL_0]], %[[VAL_1]]) : (tensor<i64>, tensor<i64>) -> tensor<i1>
+// CHECK:           %[[VAL_3:.*]] = "tosa.logical_not"(%[[VAL_2]]) : (tensor<i1>) -> tensor<i1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() {value = dense<0> : tensor<1x1x5x5xi8>} : () -> tensor<1x1x5x5xi8>
+// CHECK:           %[[VAL_5:.*]] = "tosa.equal"(%[[INP]], %[[VAL_4]]) : (tensor<1x1x5x5xi8>, tensor<1x1x5x5xi8>) -> tensor<1x1x5x5xi1>
+// CHECK:           %[[VAL_6:.*]] = "tosa.logical_not"(%[[VAL_5]]) : (tensor<1x1x5x5xi1>) -> tensor<1x1x5x5xi1>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x1x5x5xi1> -> !torch.vtensor<[1,1,5,5],i1>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,1,5,5],i1>
+func.func @torch.valsem.aten.copy(%arg0: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
+  %int5 = torch.constant.int 5
+  %int1 = torch.constant.int 1
+  %int11 = torch.constant.int 11
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.NumToTensor.Scalar %int0 : !torch.int -> !torch.vtensor<[],si64>
+  %1 = torch.aten.to.dtype %0, %int11, %false, %false, %none : !torch.vtensor<[],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[],i1>
+  %2 = torch.prim.ListConstruct %int1, %int1, %int5, %int5 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.aten.broadcast_to %1, %2 : !torch.vtensor<[],i1>, !torch.list<int> -> !torch.vtensor<[1,1,5,5],i1>
+  %4 = torch.valsem.aten.copy %3, %arg0, %false : !torch.vtensor<[1,1,5,5],i1>, !torch.vtensor<[1,1,5,5],ui8>, !torch.bool -> !torch.vtensor<[1,1,5,5],i1>
+  return %4 : !torch.vtensor<[1,1,5,5],i1>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.to.dtype(
+// CHECK-SAME:                                   %[[ARG_0:.*]]: !torch.vtensor<[3,5],si64>) -> !torch.vtensor<[3,5],i1> {
+// CHECK:           %[[INP:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[3,5],si64> -> tensor<3x5xi64>
+// CHECK:           %[[CST11:.*]] = torch.constant.int 11
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() {value = dense<0> : tensor<3x5xi64>} : () -> tensor<3x5xi64>
+// CHECK:           %[[VAL_1:.*]] = "tosa.equal"(%[[INP]], %[[VAL_0]]) : (tensor<3x5xi64>, tensor<3x5xi64>) -> tensor<3x5xi1>
+// CHECK:           %[[VAL_2:.*]] = "tosa.logical_not"(%[[VAL_1]]) : (tensor<3x5xi1>) -> tensor<3x5xi1>
+// CHECK:           %[[VAL_3:.*]] = torch_c.from_builtin_tensor %[[VAL_2]] : tensor<3x5xi1> -> !torch.vtensor<[3,5],i1>
+// CHECK:           return %[[VAL_3]] : !torch.vtensor<[3,5],i1>
+func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[3,5],si64>) -> !torch.vtensor<[3,5],i1> {
+  %int11 = torch.constant.int 11
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %0 = torch.aten.to.dtype %arg0, %int11, %false, %false, %none : !torch.vtensor<[3,5],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,5],i1>
+  return %0 : !torch.vtensor<[3,5],i1>
+}
