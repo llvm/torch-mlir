@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
@@ -134,7 +134,7 @@ struct TMTensorBufferizePass
     bufferization::BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<arith::ArithmeticDialect, func::FuncDialect,
+    target.addLegalDialect<arith::ArithDialect, func::FuncDialect,
                            memref::MemRefDialect, tensor::TensorDialect>();
 
     // Mark all TMTensor operations illegal as long as they work on tensors.
