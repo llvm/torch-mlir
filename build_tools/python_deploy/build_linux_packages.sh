@@ -344,6 +344,8 @@ function run_audit_wheel() {
   local wheel_basename="$1"
   local python_version="$2"
   generic_wheel="/wheelhouse/${wheel_basename}-*-${python_version}-linux_x86_64.whl"
+  # DEBUG:
+  ls -lha /wheelhouse/
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"
