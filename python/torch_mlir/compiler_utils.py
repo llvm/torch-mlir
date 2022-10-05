@@ -65,7 +65,7 @@ def run_pipeline_with_repro_report(module,
             {description} failed with the following diagnostics:
             {sys.stderr.getvalue()}
 
-            Error can be reproduced with:
+            For Torch-MLIR developers, the error can be reproduced with:
             $ torch-mlir-opt -pass-pipeline='{pipeline}' {filename}
             Add '{debug_options}' to get the IR dump for debugging purpose.
             """
