@@ -94,6 +94,15 @@ jobs:
       with:
         release_id: ${{ github.event.inputs.release_id }}
 
+  publish_releases:
+    needs:
+    - build_linux
+    - build_macos
+
+    # Publish even if one of the builds failed
+    if: ${{ always() }}
+
+    steps:
     - name: Invoke Publish Releases Page
       uses: benc-uk/workflow-dispatch@v1
       with:
