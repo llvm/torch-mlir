@@ -574,6 +574,7 @@ LTC_XFAIL_SET = {
     "LiftFreshCopyModule_basic",
     "Matmul_dot",
     "MulIntModule_basic",
+    "DivIntModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "NewEmptyModuleDefaultDtype_basic",

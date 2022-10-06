@@ -1351,6 +1351,16 @@ func.func @torch.aten.div.float$fold_cst_operands() -> !torch.float {
   return %0 : !torch.float
 }
 
+// CHECK-LABEL:   func.func @torch.aten.div.int$fold_cst_operands(
+// CHECK:           %[[CST:.*]] = torch.constant.float 5.000000e-01
+// CHECK:           return %[[CST]] : !torch.float
+func.func @torch.aten.div.int$fold_cst_operands() -> !torch.float {
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %0 = torch.aten.div.int %int2, %int4 : !torch.int, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.to.dtype_layout$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[?,?],f32>) -> !torch.tensor<[?,?],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[?,?],f32>

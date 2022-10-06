@@ -767,8 +767,8 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Promote the two dtypes assuming possibly-zero rank.
   if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp, AtenDivTensorOp,
           AtenDivTensorModeOp, Aten__And__TensorOp, AtenMinimumOp,
-          AtenMaximumOp, AtenBitwiseAndTensorOp, AtenThresholdBackwardOp,
-          AtenFloorDivideOp>(op)) {
+          AtenMaximumOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
+          AtenThresholdBackwardOp, AtenFloorDivideOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultType(

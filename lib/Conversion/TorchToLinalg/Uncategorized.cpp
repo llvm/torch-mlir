@@ -199,6 +199,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::AndIOp>(loc, lhs, rhs);
   }
+  if (auto bitwiseOrTensor = dyn_cast<AtenBitwiseOrTensorOp>(op)) {
+    if (bitwiseOrTensor.getType()
+            .cast<ValueTensorType>()
+            .getDtype()
+            .isa<mlir::FloatType>()) {
+      bitwiseOrTensor.emitError(
+          "Bitwise_Or does not support floating point dtype");
+      return nullptr;
+    }
+    Type dtype = converter->convertType(bitwiseOrTensor.getType())
+                     .cast<RankedTensorType>()
+                     .getElementType();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    return b.create<arith::OrIOp>(loc, lhs, rhs);
+  }
   if (auto logicalOr = dyn_cast<AtenLogicalOrOp>(op)) {
     MLIRContext *context = op->getContext();
     Type floatDtype = mlir::FloatType::getF64(context);
@@ -1006,12 +1022,12 @@ public:
              AtenSqrtOp, AtenFloorOp, AtenPowTensorScalarOp,
              AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp, AtenRsqrtOp,
              AtenDivScalarOp, AtenRemainderScalarOp, AtenAbsOp,
-             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenGtScalarOp,
-             AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-             AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenEqTensorOp,
-             AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
-             AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
+             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
+             AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
+             AtenLeScalarOp, AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp,
+             AtenEqTensorOp, AtenLtTensorOp, AtenSubScalarOp, AtenAddScalarOp,
+             AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
+             AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenTriuOp,
              AtenBitwiseNotOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
@@ -1483,10 +1499,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenCeilOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog1pOp,
       AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp,
-      AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp, AtenEqTensorOp,
-      AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp,
-      AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
+      AtenBitwiseOrTensorOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenTriuOp,
       AtenRemainderScalarOp, AtenBitwiseNotOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
