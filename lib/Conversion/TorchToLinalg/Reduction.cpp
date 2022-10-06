@@ -152,12 +152,10 @@ public:
               nestedLoc, oldIndex.getType(),
               rewriter.create<linalg::IndexOp>(loc, dim));
 
-          Value predicate;
-          if (inElementType.isa<mlir::FloatType>())
-            predicate = rewriter.create<arith::CmpFOp>(
-                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
-          auto resultMax = rewriter.create<arith::SelectOp>(
-              nestedLoc, predicate, newValue, oldValue);
+          auto resultMax = rewriter.create<arith::MaxFOp>(
+              nestedLoc, newValue, oldValue);
+          Value predicate = rewriter.create<arith::CmpFOp>(
+              nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
           auto resultIndex = rewriter.create<arith::SelectOp>(
               nestedLoc, predicate, newIndex, oldIndex);
           nestedBuilder.create<linalg::YieldOp>(
