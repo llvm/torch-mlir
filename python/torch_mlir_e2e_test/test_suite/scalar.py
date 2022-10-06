@@ -104,6 +104,31 @@ def MulIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class DivIntModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([], torch.int64, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, lhs, rhs):
+        # Cast the result to float to make e2e test baseline result to be a float.
+        # Without the cast, baseline result is a Tensor which is unexpected.
+        return float(torch.ops.aten.div(int(lhs), int(rhs)))
+
+
+@register_test_case(module_factory=lambda: DivIntModule())
+def DivIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=-10, high=10), tu.randint(low=3, high=10))
+
+
+# ==============================================================================
+
+
 class DivFloatModule(torch.nn.Module):
 
     def __init__(self):

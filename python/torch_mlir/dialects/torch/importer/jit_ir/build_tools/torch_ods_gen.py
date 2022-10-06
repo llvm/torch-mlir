@@ -287,6 +287,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
@@ -570,6 +571,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
     emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
+    emit("aten::div.int : (int, int) -> (float)", has_folder=True)
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")
     emit("aten::add.float_int : (float, int) -> (float)")

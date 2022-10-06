@@ -122,6 +122,25 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenDivIntOp : public OpConversionPattern<AtenDivIntOp> {
+public:
+  using OpConversionPattern<AtenDivIntOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDivIntOp op,
+                  typename OpConversionPattern<AtenDivIntOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value a =
+        convertScalarToDtype(rewriter, loc, adaptor.a(), rewriter.getF64Type());
+    Value b =
+        convertScalarToDtype(rewriter, loc, adaptor.b(), rewriter.getF64Type());
+    rewriter.replaceOpWithNewOp<arith::DivFOp>(op, a, b);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Lowers aten integer comparison ops.
 template <typename AtenOp, arith::CmpIPredicate Pred>
 class ConvertAtenIntComparisonOp : public OpConversionPattern<AtenOp> {
@@ -374,6 +393,8 @@ public:
     target.addIllegalOp<AtenSubFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenDivIntOp>();
+    patterns.add<ConvertAtenDivIntOp>(typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);
