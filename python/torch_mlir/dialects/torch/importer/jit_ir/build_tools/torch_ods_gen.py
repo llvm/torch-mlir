@@ -307,6 +307,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::addcdiv : (Tensor, Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::mish : (Tensor) -> (Tensor)")
     emit("aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
     emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")

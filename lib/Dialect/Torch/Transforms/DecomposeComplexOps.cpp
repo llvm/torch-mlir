@@ -2137,6 +2137,37 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.mish` op into `aten.tanh` and `aten.softplus` ops.
+// Mish(x) = x * Tanh(Softplus(x))
+class DecomposeAtenMishOp : public OpRewritePattern<AtenMishOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMishOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.self();
+    Type type = op.getType();
+
+    auto inputType = input.getType().cast<BaseTensorType>();
+    if (!inputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "Dtype not present");
+
+    Type dType = inputType.getDtype();
+    // Form default Value tensors for `beta` and `threshold` operands
+    // of `aten.softplus` op.
+    Value beta = getConstantWithGivenDtypeAndValue(rewriter, loc, 1.0, dType);
+    Value threshold =
+        getConstantWithGivenDtypeAndValue(rewriter, loc, 20.0, dType);
+    Value softplusOp =
+        rewriter.create<AtenSoftplusOp>(loc, type, input, beta, threshold);
+    Value tanhOp = rewriter.create<AtenTanhOp>(loc, type, softplusOp);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, type, input, tanhOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.full_like` op into `aten.empty_like` and `aten.fill` ops.
 class DecomposeAtenFullLikeOp : public OpRewritePattern<AtenFullLikeOp> {
 public:
@@ -2959,6 +2990,8 @@ public:
     target.addIllegalOp<AtenFullOp>();
     patterns.add<DecomposeAtenLinearOp>(context);
     target.addIllegalOp<AtenLinearOp>();
+    patterns.add<DecomposeAtenMishOp>(context);
+    target.addIllegalOp<AtenMishOp>();
     patterns.add<DecomposeAtenFullLikeOp>(context);
     target.addIllegalOp<AtenFullLikeOp>();
     patterns.add<DecomposeAtenIndexPutOp>(context);
