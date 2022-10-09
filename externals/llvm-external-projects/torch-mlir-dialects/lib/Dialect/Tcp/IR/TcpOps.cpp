@@ -12,6 +12,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 
 #define GET_OP_CLASSES
