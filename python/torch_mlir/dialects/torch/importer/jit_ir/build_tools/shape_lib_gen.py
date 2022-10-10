@@ -600,6 +600,9 @@ def aten〇numpy_T(self: List[int]) -> List[int]:
 def aten〇matmul(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.matmul(self, other)
 
+def aten〇mv(self: List[int], vec: List[int]) -> List[int]:
+    return upstream_shape_functions.mv(self, vec)
+
 def aten〇mm(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
@@ -861,6 +864,9 @@ def aten〇minimum(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇maximum(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇bitwise_or〇Tensor(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
 def aten〇bitwise_and〇Tensor(self: List[int], other: List[int]) -> List[int]:
@@ -1194,6 +1200,9 @@ def aten〇linalg_vector_norm(self: List[int], ord: float = 2, dim: Optional[Lis
 
 def aten〇frobenius_norm〇dim(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
+
+def aten〇upsample_nearest2d〇vec(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
+    return upstream_shape_functions.upsample_nearest2d(input, output_size, scale_factors)
 
 # ==============================================================================
 # Shape library generator main().

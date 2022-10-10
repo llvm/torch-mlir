@@ -163,3 +163,18 @@ bool Torch::isViewLikeOp(Operation *op) {
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenToDeviceOp>(op);
 }
+
+Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
+                                               Location loc, float value,
+                                               Type dtype) {
+  // Creating constants satisfying backend contract.
+  if (dtype.isInteger(64) || dtype.isInteger(32) || dtype.isInteger(8) ||
+      dtype.isInteger(1))
+    return rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr((int64_t)value));
+  if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16())
+    return rewriter.create<ConstantFloatOp>(loc,
+                                            rewriter.getF64FloatAttr(value));
+  llvm::report_fatal_error(
+      "unhandled type for getConstantWithGivenDtypeAndValue");
+}

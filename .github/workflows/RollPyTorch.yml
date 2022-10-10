@@ -1,8 +1,6 @@
 name: Roll PyTorch
 
 on:
-  schedule:
-    - cron: '0 12 * * *'
   workflow_dispatch:
 
 jobs:
@@ -34,8 +32,8 @@ jobs:
         python -m pip download -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html --pre "torch==${PT_RELEASE}"
         # Read the commit hash from the downloaded whl file without extracting it
         PT_HASH=$(unzip -p torch-"${PT_RELEASE}"*.whl torch/version.py | grep git_version | awk '{ print $3 }' | tr -d "'")
-        echo "${PT_HASH}" | cmp - pytorch-version.txt --quiet
-        PT_HASH_CHANGED=$?
+        PT_HASH_CHANGED=0
+        echo "${PT_HASH}" | cmp - pytorch-version.txt --quiet || PT_HASH_CHANGED=$?
         echo "${PT_HASH}" > pytorch-version.txt
         rm torch-"${PT_RELEASE}"*.whl
         # Write the release and hash to the environment file so that we can
@@ -44,13 +42,14 @@ jobs:
         echo "PT_RELEASE=${PT_RELEASE}" >> ${GITHUB_ENV}
         echo "PT_HASH_CHANGED=${PT_HASH_CHANGED}" >> ${GITHUB_ENV}
 
-    - name: Build and test
+    - name: Build and test (in-tree), also update ODS and shape library
       if: env.PT_HASH_CHANGED != '0'
       run: |
         cd ${GITHUB_WORKSPACE}
-        TM_PACKAGES="out-of-tree" TM_USE_PYTORCH_BINARY="OFF" \
+        TM_PACKAGES="in-tree" TM_USE_PYTORCH_BINARY="OFF" \
         TORCH_MLIR_SRC_PYTORCH_BRANCH="${{ env.PT_HASH }}" \
         TORCH_MLIR_SRC_PYTORCH_RELEASE="${{ env.PT_RELEASE }}" \
+        TM_UPDATE_ODS_AND_SHAPE_LIB="ON" \
         ./build_tools/python_deploy/build_linux_packages.sh
 
     - name: Push changes to main branch
@@ -61,5 +60,5 @@ jobs:
         git config user.name "Roll PyTorch Action"
         git fetch --recurse-submodules=no
         git checkout main
-        git add pytorch-version.txt pytorch-requirements.txt
+        git add pytorch-version.txt pytorch-requirements.txt lib/Dialect/Torch/Transforms/ShapeLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
         git diff --cached --exit-code || (git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}" && git push --set-upstream origin main)

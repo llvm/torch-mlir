@@ -10,7 +10,7 @@
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 
 #include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -116,6 +116,25 @@ public:
     Value result = rewriter.create<UnaryOp>(loc, input);
     rewriter.replaceOp(op,
                        convertScalarToDtype(rewriter, loc, result, resultType));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenDivIntOp : public OpConversionPattern<AtenDivIntOp> {
+public:
+  using OpConversionPattern<AtenDivIntOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenDivIntOp op,
+                  typename OpConversionPattern<AtenDivIntOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value a =
+        convertScalarToDtype(rewriter, loc, adaptor.a(), rewriter.getF64Type());
+    Value b =
+        convertScalarToDtype(rewriter, loc, adaptor.b(), rewriter.getF64Type());
+    rewriter.replaceOpWithNewOp<arith::DivFOp>(op, a, b);
     return success();
   }
 };
@@ -300,7 +319,7 @@ class ConvertTorchToArith : public ConvertTorchToArithBase<ConvertTorchToArith> 
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<tensor::TensorDialect>();
     registry.insert<cf::ControlFlowDialect>();
     registry.insert<math::MathDialect>();
@@ -311,7 +330,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<Torch::TorchDialect, func::FuncDialect,
-                           arith::ArithmeticDialect, tensor::TensorDialect,
+                           arith::ArithDialect, tensor::TensorDialect,
                            cf::ControlFlowDialect, math::MathDialect>();
 
     TypeConverter typeConverter;
@@ -374,6 +393,8 @@ public:
     target.addIllegalOp<AtenSubFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenDivIntOp>();
+    patterns.add<ConvertAtenDivIntOp>(typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);

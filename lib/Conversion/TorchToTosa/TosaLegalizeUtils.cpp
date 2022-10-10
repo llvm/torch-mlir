@@ -221,6 +221,64 @@ llvm::Optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
   return const_op.getResult();
 }
 
+static LogicalResult checkValidityOfCast(Type src, Type dest) {
+  if ((src.isInteger(64) && dest.isInteger(32)) ||
+      (src.isInteger(32) && dest.isInteger(64)) ||
+      (src.isInteger(64) && dest.isInteger(1)) ||
+      (src.isInteger(32) && dest.isInteger(1)) ||
+      (src.isInteger(8) && dest.isInteger(1)) ||
+      (src.isF32() && dest.isInteger(1))) {
+    return success();
+  }
+  return failure();
+}
+
+// Template specialization for float
+LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
+                                   Value src, Type destType, Value &result) {
+
+  Type srcElemTy = src.getType().dyn_cast<TensorType>().getElementType();
+  Type destElemTy = destType.dyn_cast<TensorType>().getElementType();
+
+  if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
+    return rewriter.notifyMatchFailure(
+        op, "casting to result dtype is invalid or unsupported");
+
+  if (destElemTy.isInteger(1)) {
+    auto srcType = src.getType().dyn_cast<TensorType>();
+    SmallVector<int64_t> srcShape(srcType.getShape());
+    uint64_t num_total_elements = 1;
+    for (int64_t a : srcShape)
+      num_total_elements *= a;
+
+    llvm::Optional<Value> constOp;
+    if (srcElemTy.isInteger(64)) {
+      SmallVector<int64_t> values(num_total_elements, 0);
+      constOp =
+          tosa::getConstTensor<int64_t>(rewriter, op, values, srcShape).value();
+    } else if (srcElemTy.isInteger(32)) {
+      SmallVector<int32_t> values(num_total_elements, 0);
+      constOp =
+          tosa::getConstTensor<int32_t>(rewriter, op, values, srcShape).value();
+    } else if (srcElemTy.isF32()) {
+      SmallVector<float> values(num_total_elements, 0.0);
+      constOp =
+          tosa::getConstTensor<float>(rewriter, op, values, srcShape).value();
+    } else if (srcElemTy.isInteger(8)) {
+      SmallVector<int8_t> values(num_total_elements, 0);
+      constOp =
+          tosa::getConstTensor<int8_t>(rewriter, op, values, srcShape).value();
+    }
+    Value equalToZero = rewriter.create<tosa::EqualOp>(op->getLoc(), destType,
+                                                       src, constOp.value());
+    result = rewriter.create<tosa::LogicalNotOp>(op->getLoc(), destType,
+                                                 equalToZero);
+  } else {
+    result = rewriter.create<tosa::CastOp>(op->getLoc(), destType, src);
+  }
+  return success();
+}
+
 // Template instantiation
 template llvm::Optional<Value> getConstTensor<int32_t>(PatternRewriter &,
                                                        Operation *,

@@ -52,6 +52,9 @@ int getTensorRank(Value tensor);
 
 bool isViewLikeOp(Operation *op);
 
+Value getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter, Location loc,
+                                        float value, Type dtype);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

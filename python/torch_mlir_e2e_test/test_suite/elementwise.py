@@ -1553,6 +1553,31 @@ def ElementwiseAndIntegerModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseOrIntegerModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1], torch.int32, True),
+        ([-1, -1], torch.int64, True),
+    ])
+    def forward(self, x, y):
+        return torch.bitwise_or(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseOrIntegerModule())
+def ElementwiseOrIntegerModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32),
+        tu.randint(3, 4, low=-10, high=10))
+
+
+# ==============================================================================
+
+
 class ElementwiseNotIntegerModule(torch.nn.Module):
 
     def __init__(self):

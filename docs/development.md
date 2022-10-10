@@ -28,23 +28,25 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 ### Building torch-mlir in-tree
 
-The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
+The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
 
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_COMPILER=clang \
-  -DCMAKE_CXX_COMPILER=clang++ \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR=`pwd` \
-  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR=`pwd`/externals/llvm-external-projects/torch-mlir-dialects \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="$PWD"/externals/llvm-external-projects/torch-mlir-dialects \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
 ```
 The following additional quality of life flags can be used to reduce build time:
+* Enabling clang on Linux
+```shell
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+```
 * Enabling ccache:
 ```shell
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -73,8 +75,6 @@ If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, 
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_COMPILER=clang \
-  -DCMAKE_CXX_COMPILER=clang++ \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
@@ -82,7 +82,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host \
   .
 ```
-The same QoL CMake flags can be used to enable ccache and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
@@ -105,15 +105,25 @@ cmake --build build
 ```
 
 ## Setup Python Environment to export the built Python packages
+
+### Linux and macOS
+
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples
+```
+
+### Windows PowerShell
+
+```shell
+$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/examples"
 ```
 
 ## Testing MLIR output in various dialects
 
 To test the compiler's output to the different MLIR dialects, you can use the example `examples/torchscript_resnet18_all_output_types.py`.
 
-Make sure you have activated the virtualenv and set the `PYTHONPATH` above:
+Make sure you have activated the virtualenv and set the `PYTHONPATH` above
+(if running on Windows, modify the environment variable as shown above):
 ```shell
 source mlir_venv/bin/activate
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/examples

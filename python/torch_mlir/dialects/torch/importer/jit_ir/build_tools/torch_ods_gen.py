@@ -34,6 +34,8 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "bool?": "AnyTorchOptionalBoolType",
     "float": "Torch_FloatType",
     "float?": "AnyTorchOptionalFloatType",
+    "float[]": "AnyTorchListOfTorchFloatType",
+    "float[]?": "AnyTorchOptionalListOfTorchFloatType",
     "t[]": "AnyTorchListType",
     "t": "AnyTorchType",
     "t1": "AnyTorchType",
@@ -285,6 +287,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::abs : (Tensor) -> (Tensor)",
             "aten::reciprocal : (Tensor) -> (Tensor)",
             "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
+            "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
             "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
@@ -333,6 +336,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
     emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
@@ -515,6 +519,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
 
 
     # Dict ops.
@@ -566,6 +571,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
     emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
+    emit("aten::div.int : (int, int) -> (float)", has_folder=True)
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")
     emit("aten::add.float_int : (float, int) -> (float)")

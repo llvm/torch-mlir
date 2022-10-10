@@ -701,7 +701,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
           AtenRollOp, AtenPowTensorTensorOp, AtenLiftFreshCopyOp,
-          AtenIndexTensorHackedTwinOp>(op)) {
+          AtenIndexTensorHackedTwinOp, AtenUpsampleNearest2dVecOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 
@@ -754,7 +754,7 @@ void TypeAnalysis::visitOperation(Operation *op,
 
   // Promote the two dtypes assuming non-zero rank.
   if (isa<AtenMmOp, AtenBmmOp, AtenMatmulOp, AtenConv2dOp, AtenConvolutionOp,
-          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp,
+          Aten_ConvolutionOp, Aten_ConvolutionDeprecatedOp, AtenMvOp,
           AtenConvolutionOverrideableOp, AtenConvTranspose2dInputOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
@@ -767,8 +767,8 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Promote the two dtypes assuming possibly-zero rank.
   if (isa<AtenAddTensorOp, AtenSubTensorOp, AtenMulTensorOp, AtenDivTensorOp,
           AtenDivTensorModeOp, Aten__And__TensorOp, AtenMinimumOp,
-          AtenMaximumOp, AtenBitwiseAndTensorOp, AtenThresholdBackwardOp,
-          AtenFloorDivideOp>(op)) {
+          AtenMaximumOp, AtenBitwiseAndTensorOp, AtenBitwiseOrTensorOp,
+          AtenThresholdBackwardOp, AtenFloorDivideOp>(op)) {
     auto knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     knowledge.dtype = getPromotedResultType(

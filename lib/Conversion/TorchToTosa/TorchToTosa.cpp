@@ -12,7 +12,7 @@
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 
 #include "../PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Traits.h"
@@ -3055,6 +3055,133 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
+    PrimNumToTensorScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType =
+      typeConverter->convertType(op->getResult(0).getType())
+          .cast<RankedTensorType>();
+
+  // Only supports integer operand type, because for the floating point operand
+  // type result tensor has to be of type `f64` which is not supported in the
+  // tosa.
+  int64_t initValue;
+  if (!matchPattern(op.a(), m_TorchConstantInt(&initValue)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: input should be a torch constant int");
+
+  DenseElementsAttr constAttr = DenseElementsAttr::get(resultType, {initValue});
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, resultType, constAttr);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<ValsemVariantAtenCopyOp>::matchAndRewrite(
+    ValsemVariantAtenCopyOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  auto srcType = adaptor.src().getType().dyn_cast<TensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+
+  if (!srcType || !srcType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+
+  // The non_blocking should be a constant `False`.
+  bool nonBlocking;
+  if (!matchPattern(op.non_blocking(), m_TorchConstantBool(&nonBlocking))) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: non_blocking must be a constant");
+  } else if (nonBlocking) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: non_blocking is expected to be false");
+  }
+
+  SmallVector<int64_t> selfShape(selfType.getShape());
+  SmallVector<int64_t> srcShape(srcType.getShape());
+
+  if (llvm::equal(selfShape, srcShape) || selfShape.size() == 0) {
+    // If we reach here, then it means the given case is handled by implicit
+    // broadcasting done by tosa.
+    Value result;
+    if (failed(tosa::tosaCastTensorToType(
+            rewriter, op, adaptor.src(),
+            getTypeConverter()->convertType(op.getType()), result)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: cast to result type not supported");
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+  return rewriter.notifyMatchFailure(
+      op, "unimplemented: valsem.aten.copy op not supported for this case.");
+}
+
+//  Legalizes the torch.aten.to.dtype op
+template <>
+LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
+    AtenToDtypeOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto selfType = adaptor.self().getType().dyn_cast<TensorType>();
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types with static shape are supported");
+
+  // The non_blocking arg should be a constant `False`.
+  bool nonBlocking;
+  if (!matchPattern(op.non_blocking(), m_TorchConstantBool(&nonBlocking))) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: non_blocking arg must be a constant");
+  } else if (nonBlocking) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: non_blocking arg is expected to be false");
+  }
+
+  // The copy arg should be a constant `False`.
+  bool copy;
+  if (!matchPattern(op.copy(), m_TorchConstantBool(&copy))) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: copy arg must be a constant");
+  } else if (copy) {
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: copy arg is expected to be false");
+  }
+
+  // Only `none`, `contiguous` and `preserve` memory_format is supported.
+  if (!op.memory_format().getType().isa<Torch::NoneType>()) {
+    int64_t memoryFormat;
+    if (!matchPattern(op.memory_format(), m_TorchConstantInt(&memoryFormat)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the memory format should be specified in "
+              "an integer constant");
+    if (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
+        memoryFormat != torch_upstream::MemoryFormat::Preserve)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only none, contiguous and preserve "
+              "memory_format is supported");
+  }
+
+  auto resultTy = getTypeConverter()
+                      ->convertType(op.getResult().getType())
+                      .cast<RankedTensorType>();
+
+  Value result;
+  if (failed(tosa::tosaCastTensorToType(rewriter, op, adaptor.self(), resultTy,
+                                        result)))
+    return rewriter.notifyMatchFailure(op, "conversion to result type failed");
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -3511,7 +3638,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect>();
     registry.insert<tensor::TensorDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
 
@@ -3519,7 +3646,7 @@ public:
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<tosa::TosaDialect, tensor::TensorDialect,
-                           arith::ArithmeticDialect>();
+                           arith::ArithDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -3704,6 +3831,9 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
+    INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
+    INSERT_ATENOP_PATTERN(ValsemVariantAtenCopyOp);
+    INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

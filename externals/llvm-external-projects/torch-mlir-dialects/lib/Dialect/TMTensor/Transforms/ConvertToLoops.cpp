@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -101,7 +101,7 @@ namespace {
 struct TMTensorToLoopsPass : public TMTensorToLoopsBase<TMTensorToLoopsPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, func::FuncDialect,
-                    mlir::arith::ArithmeticDialect, math::MathDialect,
+                    mlir::arith::ArithDialect, math::MathDialect,
                     memref::MemRefDialect, scf::SCFDialect>();
   }
 

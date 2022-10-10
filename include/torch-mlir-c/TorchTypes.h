@@ -204,6 +204,10 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchValueTensorTypeGet(
 MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
 
+/// Gets the !torch.vtensor type with the tensor attribute.
+MLIR_CAPI_EXPORTED MlirType
+torchMlirTorchValueTensorTypeGetFromAttribute(MlirAttribute attr);
+
 //===----------------------------------------------------------------------===//
 // !torch.none type.
 //===----------------------------------------------------------------------===//

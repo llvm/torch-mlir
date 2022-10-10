@@ -39,7 +39,8 @@ public:
   // Just a bit of naming cruft.
   // Returns the same function, making it suitable as a nested decorator.
   torch::jit::StrongFunctionPtr
-  importFunction(torch::jit::StrongFunctionPtr function);
+  importFunction(torch::jit::StrongFunctionPtr function,
+                 py::object maybeImportOptions);
 
   // Imports a torch::jit::Module into the current module, using the
   // annotations, if not none, provided in `maybeClassAnnotator` which should be

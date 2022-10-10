@@ -21,6 +21,8 @@ class ModuleOp;
 namespace torch {
 namespace Torch {
 
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
+
 std::unique_ptr<OperationPass<ModuleOp>> createGlobalizeObjectGraphPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
@@ -109,12 +111,21 @@ std::unique_ptr<OperationPass<ModuleOp>>
 createLowerToBackendContractPass(int maxIterations, bool decompose,
                                  ArrayRef<std::string> backendLegalOps);
 
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyBackendContractPass();
+
 StringRef getShapeLibrary();
 
 } // namespace Torch
 
 /// Registers all Torch transformation passes.
 void registerTorchPasses();
+
+//===----------------------------------------------------------------------===//
+// Pass registration
+//===----------------------------------------------------------------------===//
+
+#define GEN_PASS_REGISTRATION
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 } // namespace torch
 } // namespace mlir

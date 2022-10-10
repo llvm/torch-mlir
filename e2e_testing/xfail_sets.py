@@ -463,6 +463,10 @@ TOSA_PASS_SET = {
     "ArangeStartIntModule_basic",
     "ArangeStartNegativeStepIntModule_basic",
     "ArangeZeroElementOutputModule_basic",
+    "NumToTensorIntModule_basic",
+    "ToDtypeBoolLayoutNoneStaticModule_basic",
+    "ToCopyBoolDTypeStaticModule_basic",
+    "HardTanhIntModule_basic",
 }
 
 LTC_XFAIL_SET = {
@@ -569,8 +573,8 @@ LTC_XFAIL_SET = {
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
     "LiftFreshCopyModule_basic",
     "Matmul_dot",
-    "Matmul_matvec",
     "MulIntModule_basic",
+    "DivIntModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "NewEmptyModuleDefaultDtype_basic",
@@ -632,4 +636,8 @@ LTC_XFAIL_SET = {
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
+    "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dStaticFactor_basic",
+    "UpSampleNearest2dStaticSize_basic",
 }

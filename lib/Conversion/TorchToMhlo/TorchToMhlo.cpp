@@ -12,7 +12,7 @@
 #include "../PassDetail.h"
 #include "./PopulatePatterns.h"
 #include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Matchers.h"
@@ -42,14 +42,14 @@ public:
     registry.insert<chlo::ChloDialect>();
     registry.insert<mhlo::MhloDialect>();
     registry.insert<tensor::TensorDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<chlo::ChloDialect, mhlo::MhloDialect,
-                           tensor::TensorDialect, arith::ArithmeticDialect>();
+                           tensor::TensorDialect, arith::ArithDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

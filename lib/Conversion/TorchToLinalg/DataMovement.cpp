@@ -16,7 +16,7 @@
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -252,11 +252,11 @@ public:
           llvm::all_of(expandShape,
                        [](int64_t value) { return value == kUnknownSize; })) {
 
-        for (int i = 0; i < collapseShape.size(); i++) {
+        for (size_t i = 0; i < collapseShape.size(); i++) {
           collapseIndices.push_back(i);
         }
 
-        for (int i = 0; i < expandShape.size(); i++) {
+        for (size_t i = 0; i < expandShape.size(); i++) {
           expandIndices.push_back(i);
         }
 
@@ -290,8 +290,8 @@ public:
         op, "total number of elements mismatch in the expansion");
   }
 
-  static LogicalResult solveDynamicSize(SmallVector<int64_t> &inputShape,
-                                        SmallVector<int64_t> &outputShape) {
+  static void solveDynamicSize(SmallVector<int64_t> &inputShape,
+                               SmallVector<int64_t> &outputShape) {
     int64_t inputProduct = 1;
     int64_t outputProduct = 1;
 
@@ -316,7 +316,7 @@ public:
     if (inputDynamicValues + outputDynamicValues == 1) {
       if (inputDynamicValues) {
         int64_t missingValue = outputProduct / inputProduct;
-        for (int i = 0; i < inputShape.size(); i++) {
+        for (size_t i = 0; i < inputShape.size(); i++) {
           if (inputShape[i] == -1) {
             inputShape[i] = missingValue;
             break;
@@ -324,7 +324,7 @@ public:
         }
       } else {
         int64_t missingValue = inputProduct / outputProduct;
-        for (int i = 0; i < outputShape.size(); i++) {
+        for (size_t i = 0; i < outputShape.size(); i++) {
           if (outputShape[i] == -1) {
             outputShape[i] = missingValue;
             break;
@@ -332,8 +332,6 @@ public:
         }
       }
     }
-
-    return success();
   }
 
   LogicalResult
@@ -624,9 +622,6 @@ public:
         outputAssociations.back().push_back(outputDim++);
       }
     }
-
-    int64_t inputCount = inputAssociations.size();
-    int64_t outputCount = outputAssociations.size();
 
     // Check if the shapes already match up to dynamic sizes. If so, we can just
     // cast as the result type because the previous loop sets up the necessary

@@ -2175,6 +2175,20 @@ OpFoldResult AtenDivFloatOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+//===----------------------------------------------------------------------===//
+// AtenDivIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivIntOp::fold(ArrayRef<Attribute> operands) {
+  int64_t lhs, rhs;
+  bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
+  bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
+  if (lConstant && rConstant)
+    return getF64FloatAttr(getContext(), double(lhs) / rhs);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCeilFloatOp
 //===----------------------------------------------------------------------===//
 
@@ -2184,8 +2198,6 @@ OpFoldResult AtenCeilFloatOp::fold(ArrayRef<Attribute> operands) {
     return getI64IntegerAttr(getContext(), std::ceil(c));
   return nullptr;
 }
-
-//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // PrimMaxIntOp

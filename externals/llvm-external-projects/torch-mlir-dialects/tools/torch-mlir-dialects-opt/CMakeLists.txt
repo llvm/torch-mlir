@@ -1,5 +1,5 @@
 set(LIBS
-  MLIRArithmeticDialect
+  MLIRArithDialect
   MLIRDialect
   MLIRLinalgDialect
   MLIRMemRefDialect

@@ -12,7 +12,7 @@
 #include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -152,12 +152,10 @@ public:
               nestedLoc, oldIndex.getType(),
               rewriter.create<linalg::IndexOp>(loc, dim));
 
-          Value predicate;
-          if (inElementType.isa<mlir::FloatType>())
-            predicate = rewriter.create<arith::CmpFOp>(
-                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
-          auto resultMax = rewriter.create<arith::SelectOp>(
-              nestedLoc, predicate, newValue, oldValue);
+          auto resultMax = rewriter.create<arith::MaxFOp>(
+              nestedLoc, newValue, oldValue);
+          Value predicate = rewriter.create<arith::CmpFOp>(
+              nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
           auto resultIndex = rewriter.create<arith::SelectOp>(
               nestedLoc, predicate, newIndex, oldIndex);
           nestedBuilder.create<linalg::YieldOp>(
