@@ -12,14 +12,17 @@
 
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
-REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS
+REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    "UpSampleNearest2dDynamicFactor_basic",
+}
 
 EAGER_MODE_XFAIL_SET = {
     # RefBackend fails
     "TableBatchEmbeddingModule_basic",
     "QuantizedMLP_basic",
     "Matmul_vecmat",
-    "BatchMlpLayerModule_basic"
+    "BatchMlpLayerModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 MHLO_PASS_SET = {
