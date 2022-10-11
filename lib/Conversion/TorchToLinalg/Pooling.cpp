@@ -111,9 +111,9 @@ static LogicalResult createPoolingOp(
 
   auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
   auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
-  Value windowTensor = rewriter.create<linalg::InitTensorOp>(
-      loc, castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues),
-      elementType);
+  auto shape = castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues);
+  Value windowTensor = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(shape), elementType);
 
   result = rewriter
                .create<OpTy>(loc, outTensorInitialized.getType(),
@@ -260,8 +260,9 @@ public:
     SmallVector<Value> stride =
         getAsConstantIndexValues(rewriter, loc, strideInts);
 
-    Value windowTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, kernelSize, indicesRankedTensorType.getElementType());
+    Value windowTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(kernelSize),
+        indicesRankedTensorType.getElementType());
 
     SmallVector<AffineExpr> inputExprs, outputExprs, kernelExprs;
     for (unsigned i = 0; i < 4; i++) {
@@ -407,8 +408,8 @@ public:
                         : adaptor.divisor_override();
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
-    Value outputTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, outTensorShape, resultElementType);
+    Value outputTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outTensorShape), resultElementType);
     SmallVector<AffineMap> indexingMapsAvg(2,
                                            rewriter.getMultiDimIdentityMap(4));
     SmallVector<StringRef> iteratorTypesAvg(4, "parallel");

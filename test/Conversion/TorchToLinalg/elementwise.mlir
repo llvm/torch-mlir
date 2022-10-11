@@ -4,7 +4,7 @@
 // CHECK-LABEL:   func.func @elementwise$unary(
 // CHECK-SAME:                            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
-// CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [] : tensor<f32>
+// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty() : tensor<f32>
 // CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>], iterator_types = []} ins(%[[BUILTIN_TENSOR]] : tensor<f32>) outs(%[[INIT_TENSOR]] : tensor<f32>) {
 // CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[TANH:.*]] = math.tanh %[[BBARG0]] : f32
@@ -32,7 +32,7 @@ func.func @elementwise$unary(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[]
 // CHECK:           %[[ARG1_DIM0:.*]] = tensor.dim %[[BUILTIN_ARG1]], %[[C0_2]] : tensor<?xf32>
 // CHECK:           %[[LEGAL_SIZES:.*]] = arith.cmpi eq, %[[ARG0_DIM1]], %[[ARG1_DIM0]] : index
 // CHECK:           assert %[[LEGAL_SIZES]], "mismatched size for broadcast"
-// CHECK:           %[[INIT_TENSOR:.*]] = linalg.init_tensor [%[[ARG0_DIM0]], %[[ARG0_DIM1]]] : tensor<?x?xf32>
+// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty(%[[ARG0_DIM0]], %[[ARG0_DIM1]]) : tensor<?x?xf32>
 // CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d1)>, affine_map<(d0, d1) -> (d0, d1)>], iterator_types = ["parallel", "parallel"]} ins(%[[BUILTIN_ARG0]], %[[BUILTIN_ARG1]] : tensor<?x?xf32>, tensor<?xf32>) outs(%[[INIT_TENSOR]] : tensor<?x?xf32>) {
 // CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[MUL:.*]] = arith.mulf %[[LHS]], %[[RHS]] : f32

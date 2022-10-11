@@ -122,13 +122,15 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
 // initElem.
 Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                        Type elemTy, Value initElem) {
-  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+  Value initTensor =
+      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
   return b.create<linalg::FillOp>(loc, initElem, initTensor).getResult(0);
 }
 
 Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy) {
-  Value initTensor = b.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+  Value initTensor =
+      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
   RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
   Value c0 =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
