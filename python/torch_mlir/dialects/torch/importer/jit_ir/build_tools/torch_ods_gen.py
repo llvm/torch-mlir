@@ -327,6 +327,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)")
 
     emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
+    emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants(
         "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)")
     emit_with_mutating_variants(

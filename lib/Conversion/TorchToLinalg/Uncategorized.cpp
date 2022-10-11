@@ -252,6 +252,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                          payloadArgs[0], constZero);
     return b.create<arith::SelectOp>(loc, pred, payloadArgs[0], constZero);
   }
+  if (auto round = dyn_cast<AtenRoundOp>(op)) {
+    if (!round.getType()
+             .cast<ValueTensorType>()
+             .getDtype()
+             .isa<mlir::FloatType>()) {
+      round.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    return b.create<math::RoundOp>(loc, payloadArgs[0]);
+  }
   if (auto lrelu = dyn_cast<AtenLeakyReluOp>(op)) {
     if (!lrelu.getType()
              .cast<ValueTensorType>()
@@ -1029,7 +1039,7 @@ public:
              AtenThresholdOp, AtenThresholdBackwardOp, AtenCloneOp, AtenSinOp,
              AtenCosOp, AtenNeScalarOp, AtenNegOp, AtenMaskedFillScalarOp,
              AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenTriuOp,
-             AtenBitwiseNotOp>(op))
+             AtenBitwiseNotOp, AtenRoundOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1504,7 +1514,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenEqTensorOp, AtenLtTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenMaskedFillScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenTriuOp,
-      AtenRemainderScalarOp, AtenBitwiseNotOp>();
+      AtenRemainderScalarOp, AtenBitwiseNotOp, AtenRoundOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

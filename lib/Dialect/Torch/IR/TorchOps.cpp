@@ -674,6 +674,18 @@ OpFoldResult AtenSqueezeDimOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRoundOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRoundOp::fold(ArrayRef<Attribute> operands) {
+  if (auto selfType = self().getType().dyn_cast<BaseTensorType>()) {
+    if (selfType.hasDtype() && selfType.getDtype().isa<mlir::IntegerType>())
+      return self();
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenTypeAsOp
 //===----------------------------------------------------------------------===//
 
