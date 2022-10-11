@@ -279,6 +279,7 @@ MHLO_PASS_SET = {
     "Permute0RankModule_basic",
     "UnsafeViewCollapseModule_basic",
     "UnsafeViewDynamicExpandModule_basic",
+    "AtenRoundIntModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -470,6 +471,7 @@ TOSA_PASS_SET = {
     "ToDtypeBoolLayoutNoneStaticModule_basic",
     "ToCopyBoolDTypeStaticModule_basic",
     "HardTanhIntModule_basic",
+    "AtenRoundIntModule_basic"
 }
 
 LTC_XFAIL_SET = {
