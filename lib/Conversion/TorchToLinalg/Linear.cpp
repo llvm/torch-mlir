@@ -70,8 +70,8 @@ public:
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = newResultType.cast<TensorType>().getElementType();
-    Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, ValueRange{lhsDim0, rhsDim1}, elementType);
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, ArrayRef<OpFoldResult>{lhsDim0, rhsDim1}, elementType);
     Value c0 = rewriter.create<arith::ConstantOp>(
         loc, FloatAttr::get(elementType, 0.0));
     Value zeroFill =
@@ -80,7 +80,7 @@ public:
                        .create<linalg::MatmulOp>(loc, zeroFill.getType(),
                                                  ValueRange{lhs, rhs}, zeroFill)
                        .getResult(0);
-    // When constructed with just dynamic sizes, InitTensorOp will have a result
+    // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
     // type of `op`. The constraints on later linalg ops means that the result
     // of the MatmulOp will have this type too. So cast it to the desired type
@@ -346,7 +346,7 @@ public:
         SmallVector<OpFoldResult> updatedCollapseResultShape =
             getAsOpFoldResult(collapsedResultShape);
 
-        Value initTensor = rewriter.create<linalg::InitTensorOp>(
+        Value initTensor = rewriter.create<tensor::EmptyOp>(
             loc, updatedCollapseResultShape, elementType);
         Value c0 = rewriter.create<arith::ConstantOp>(
             loc, rewriter.getZeroAttr(elementType));
@@ -660,8 +660,8 @@ public:
             castIndexToInt(weightDims[i]), strideIntValues[i]));
     }
 
-    Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, outDims, elementType);
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outDims), elementType);
 
     Value bias = adaptor.bias();
     Value outputTensor;

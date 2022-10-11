@@ -178,7 +178,8 @@ public:
     Location loc = op.getLoc();
     Value a = adaptor.a();
     Value outTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, ValueRange{}, a.getType())
+        rewriter
+            .create<tensor::EmptyOp>(loc, ArrayRef<OpFoldResult>{}, a.getType())
             ->getResult(0);
     rewriter.replaceOpWithNewOp<linalg::FillOp>(op, a, outTensor);
 
