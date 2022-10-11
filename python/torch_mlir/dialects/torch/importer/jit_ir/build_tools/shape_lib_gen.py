@@ -394,6 +394,9 @@ def aten〇ceil(self: List[int]) -> List[int]:
 def aten〇log(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇mish(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇relu(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
