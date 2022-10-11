@@ -10,7 +10,6 @@ import sys
 from torch_mlir_e2e_test.framework import run_tests
 from torch_mlir_e2e_test.reporting import report_results
 from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
-from torch_mlir_e2e_test.serialization import deserialize_all_tests_from
 
 
 # Available test configs.
@@ -57,14 +56,6 @@ Regular expression specifying which tests to include in this run.
                         default=False,
                         action='store_true',
                         help='report test results with additional detail')
-    parser.add_argument('--serialized-test-dir', default=None, type=str, help='''
-The directory containing serialized pre-built tests.
-Right now, these are additional tests which require heavy Python dependencies
-to generate (or cannot even be generated with the version of PyTorch used by
-torch-mlir).
-See `build_tools/e2e_heavydep_tests/generate_serialized_tests.sh`
-for more information on building these artifacts.
-''')
     parser.add_argument('-s', '--sequential',
                         default=False,
                         action='store_true',
@@ -79,8 +70,6 @@ which make it easier to attach a debugger or get a stack trace.''')
 def main():
     args = _get_argparse().parse_args()
 
-    if args.serialized_test_dir:
-        deserialize_all_tests_from(args.serialized_test_dir)
     all_test_unique_names = set(
         test.unique_name for test in GLOBAL_TEST_REGISTRY)
 
