@@ -95,6 +95,7 @@ jobs:
         release_id: ${{ github.event.inputs.release_id }}
 
   publish_releases:
+    runs-on: ubuntu-latest
     needs:
     - build_linux
     - build_macos
