@@ -18,7 +18,7 @@ include "torch-mlir/Dialect/Torch/IR/TorchTypes.td"
 include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionBase.td"
 
 class TorchConversion_Op<string mnemonic, list<Trait> traits = []>
-    : Op<TorchConversion_Dialect, mnemonic, !listconcat(traits, [NoSideEffect])> {
+    : Op<TorchConversion_Dialect, mnemonic, !listconcat(traits, [Pure])> {
 }
 
 //===----------------------------------------------------------------------===//

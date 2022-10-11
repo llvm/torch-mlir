@@ -113,7 +113,7 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
       },
       dimensions);
 
-  Block &block = mhloReduceOp.body().emplaceBlock();
+  Block &block = mhloReduceOp.getBody().emplaceBlock();
 
   // Add block arguments
   auto blockValArgumentType =
@@ -384,7 +384,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumOp>::matchAndRewrite(
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
-  Block &block = mhloReduceOp.body().emplaceBlock();
+  Block &block = mhloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
 
   block.addArgument(blockArgumentTy, op->getLoc());
@@ -441,7 +441,7 @@ LogicalResult ConvertAtenReductionOp<AtenMaxOp>::matchAndRewrite(
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
-  Block &block = mhloReduceOp.body().emplaceBlock();
+  Block &block = mhloReduceOp.getBody().emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
 
   block.addArgument(blockArgumentTy, op->getLoc());
@@ -525,7 +525,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   auto mhloReduceOp = rewriter.create<mhlo::ReduceOp>(
       op.getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
-  Region &region = mhloReduceOp.body();
+  Region &region = mhloReduceOp.getBody();
   Block &block = region.emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputTy.getElementType());
 
@@ -625,7 +625,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   auto squareSumReduceOp = rewriter.create<mhlo::ReduceOp>(
       op->getLoc(), input, initValue, rewriter.getI64TensorAttr(dims));
 
-  Region &region = squareSumReduceOp.body();
+  Region &region = squareSumReduceOp.getBody();
   Block &block = region.emplaceBlock();
   auto blockArgumentTy = RankedTensorType::get({}, inputElemType);
 

@@ -101,9 +101,8 @@ public:
         createZeroInitTensor(rewriter, loc, resultShape, idxElementType);
 
     // Second fill the output buffer for the running max.
-    Value initTensorMax =
-        rewriter.create<linalg::InitTensorOp>(loc, resultShape, inElementType)
-            .result();
+    Value initTensorMax = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), inElementType);
 
     FloatAttr fillValueMaxAttr = rewriter.getFloatAttr(
         inElementType,

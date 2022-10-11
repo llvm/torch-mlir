@@ -2123,13 +2123,12 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
     Value sumDiv = toReduce;
     SmallVector<int64_t> toReduceShape(toReduceType.getShape().begin(),
                                        toReduceType.getShape().end());
-    while (static_cast<int64_t>(toReduceShape.size()) != meanAndVarShapeRank) {
-      toReduceShape.back() = 1;
+    for (int64_t i = toReduceShape.size() - 1; i >= meanAndVarShapeRank; i--) {
+      toReduceShape[i] = 1;
       sumDiv = rewriter.create<tosa::ReduceSumOp>(
           op.getLoc(),
           RankedTensorType::get(toReduceShape, inputType.getElementType()),
-          sumDiv, rewriter.getI64IntegerAttr(toReduceShape.size() - 1));
-      toReduceShape.pop_back();
+          sumDiv, rewriter.getI64IntegerAttr(i));
     }
 
     return rewriter.create<tosa::ReshapeOp>(op.getLoc(), outType, sumDiv,

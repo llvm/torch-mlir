@@ -948,8 +948,8 @@ public:
       outputDims.push_back(getDimOp(rewriter, loc, adaptor.self(), i));
     std::swap(outputDims[dim0], outputDims[dim1]);
 
-    Value outVector =
-        rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
+    Value outVector = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outputDims), elementType);
     SmallVector<AffineExpr> idExprs;
     SmallVector<AffineExpr> swapExprs;
     for (auto i = 0; i < inputRank; i++)
@@ -1021,8 +1021,8 @@ public:
     for (unsigned i = 0; i < inputRank; i++)
       outputDims.push_back(getDimOp(rewriter, loc, inVector, dimensions[i]));
 
-    Value outVector =
-        rewriter.create<linalg::InitTensorOp>(loc, outputDims, elementType);
+    Value outVector = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outputDims), elementType);
     SmallVector<AffineExpr> idExprs;
     SmallVector<AffineExpr> swapExprs;
     for (unsigned i = 0; i < inputRank; i++)
@@ -1147,8 +1147,8 @@ public:
       return op.getValue();
     };
 
-    Value result = rewriter.create<linalg::InitTensorOp>(
-        loc, sizes, newResultType.getElementType());
+    Value result = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(sizes), newResultType.getElementType());
     for (auto tensor : tensors) {
       SmallVector<Value> sizes = getTensorSizes(rewriter, loc, tensor);
       result = rewriter.createOrFold<tensor::InsertSliceOp>(

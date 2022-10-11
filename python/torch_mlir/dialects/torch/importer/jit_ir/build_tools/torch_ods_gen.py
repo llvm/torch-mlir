@@ -639,7 +639,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::max.int : (int, int) -> (int)", has_folder=True)
     emit("prim::RaiseException : (str, str?) -> ()")
     emit("prim::Uninitialized : () -> (Any)",
-         has_canonicalizer=True, traits=["NoSideEffect"])
+         has_canonicalizer=True, traits=["Pure"])
     emit("prim::unchecked_cast : (t) -> (t)", has_folder=True,
          traits=["DeclareOpInterfaceMethods<CastOpInterface>"])
     emit("prim::Print : (...) -> ()")

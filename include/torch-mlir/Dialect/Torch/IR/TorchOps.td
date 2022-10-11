@@ -375,7 +375,7 @@ def Torch_PrimListUnpackOp: Torch_Op<"prim.ListUnpack", [
 }
 
 def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
-    NoSideEffect,
+    Pure,
     TypesMatchWith<"contained types correspond to operand types",
     "elements", "result", "Torch::TupleType::get($_ctxt, llvm::to_vector<6>($_self))",
     "isValidSubtype">,
@@ -400,7 +400,7 @@ def Torch_PrimTupleConstructOp: Torch_Op<"prim.TupleConstruct", [
 }
 
 def Torch_PrimListConstructOp: Torch_Op<"prim.ListConstruct", [
-    NoSideEffect,
+    Pure,
     AllowsTypeRefinement,
     AllowedInModuleInitializer,
   ]> {
@@ -449,7 +449,7 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
 }
 
 def Torch_PrimCreateObjectOp: Torch_Op<"prim.CreateObject", [
-    NoSideEffect,
+    Pure,
     AllowsTypeRefinement,
     ]> {
   let summary = "TorchScript prim::CreateObject op";
@@ -587,7 +587,7 @@ def Torch_PrimIfOp : Torch_Op<"prim.If", [
 def Torch_PrimIfYieldOp : Torch_Op<"prim.If.yield", [
     Terminator,
     ReturnLike,
-    NoSideEffect,
+    Pure,
     HasParent<"::mlir::torch::Torch::PrimIfOp">]> {
   let summary = "yield-like terminator for torch.prim.If";
   let description = [{
@@ -658,7 +658,7 @@ def Torch_PrimExitOp : Torch_Op<"prim.Exit", []> {
 
 def Torch_ConstantNoneOp : Torch_Op<"constant.none", [
     ConstantLike,
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     AllowedInModuleInitializer,
   ]> {
@@ -675,7 +675,7 @@ def Torch_ConstantNoneOp : Torch_Op<"constant.none", [
 
 def Torch_ConstantStrOp : Torch_Op<"constant.str", [
     ConstantLike,
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     AllowedInModuleInitializer,
   ]> {
@@ -694,7 +694,7 @@ def Torch_ConstantStrOp : Torch_Op<"constant.str", [
 }
 
 def Torch_ConstantDeviceOp : Torch_Op<"constant.device",
-    [NoSideEffect,
+    [Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
   let summary = "Materialize a constant Device value.";
   let description = [{
@@ -711,7 +711,7 @@ def Torch_ConstantDeviceOp : Torch_Op<"constant.device",
 
 def Torch_ConstantIntOp : Torch_Op<"constant.int", [
     ConstantLike,
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     AllowedInModuleInitializer,
   ]> {
@@ -733,7 +733,7 @@ def Torch_ConstantIntOp : Torch_Op<"constant.int", [
 
 def Torch_ConstantFloatOp : Torch_Op<"constant.float", [
     ConstantLike,
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     AllowedInModuleInitializer,
   ]> {
@@ -754,7 +754,7 @@ def Torch_ConstantFloatOp : Torch_Op<"constant.float", [
 }
 
 def Torch_ConstantNumberOp : Torch_Op<"constant.number",
-    [ConstantLike, NoSideEffect]> {
+    [ConstantLike, Pure]> {
   let summary = "Materialize a constant `number` value.";
   let description = [{
     This op is used as a workaround to the fact that the constant 
@@ -777,7 +777,7 @@ def Torch_ConstantNumberOp : Torch_Op<"constant.number",
 
 def Torch_ConstantBoolOp : Torch_Op<"constant.bool", [
     ConstantLike,
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
     AllowedInModuleInitializer,
   ]> {
@@ -799,7 +799,7 @@ def Torch_ConstantBoolOp : Torch_Op<"constant.bool", [
 //===----------------------------------------------------------------------===//
 
 def Torch_DerefineOp : Torch_Op<"derefine", [
-    NoSideEffect,
+    Pure,
     DeclareOpInterfaceMethods<CastOpInterface>,
   ]> {
   let summary = "De-refine a type";
@@ -932,7 +932,7 @@ def Torch_NonValueTensorLiteralOp : Torch_Op<"tensor.literal", [
 def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
     DeclareOpInterfaceMethods<InferTypeOpInterface>,
     ConstantLike,
-    NoSideEffect,
+    Pure,
   ]> {
   let summary = "Create a value of !torch.vtensor type from a literal";
   let description = [{
@@ -961,7 +961,7 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
 def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
     AllowsTypeRefinement,
-    NoSideEffect]> {
+    Pure]> {
   let summary = "Adds/removes static information from a tensor type.";
   let description = [{
     This op does not imply any runtime code. Semantically it is an identity
