@@ -193,7 +193,7 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="/main_checkout/torch-mlir/externals/llvm-external-projects/torch-mlir-dialects" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
@@ -256,9 +256,8 @@ function test_in_tree() {
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
 
-  # XXX: Uncomment once LTC is enabled again.
-  # echo ":::: Run Lazy Tensor Core e2e integration tests"
-  # python -m e2e_testing.main --config=lazy_tensor_core -v
+  echo ":::: Run Lazy Tensor Core e2e integration tests"
+  python -m e2e_testing.main --config=lazy_tensor_core -v
 }
 
 function setup_venv() {
@@ -307,7 +306,7 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=OFF \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \

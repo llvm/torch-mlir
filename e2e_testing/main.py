@@ -15,8 +15,7 @@ from torch_mlir_e2e_test.serialization import deserialize_all_tests_from
 
 # Available test configs.
 from torch_mlir_e2e_test.configs import (
-    # XXX: Uncomment once LTC is enabled again.
-    # LazyTensorCoreTestConfig,
+    LazyTensorCoreTestConfig,
     LinalgOnTensorsBackendTestConfig,
     MhloBackendTestConfig,
     NativeTorchTestConfig,
