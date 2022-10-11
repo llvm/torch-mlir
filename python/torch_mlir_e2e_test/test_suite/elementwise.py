@@ -339,7 +339,7 @@ class ElementwiseReluModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseReluModule())
 def ElementwiseReluModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 2) - 0.5)
+    module.forward(tu.rand(4, 2, low=-1))
 
 
 # ==============================================================================
@@ -361,7 +361,7 @@ class ElementwiseRelu6Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRelu6Module())
 def ElementwiseRelu6Module_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 2) - 0.5)
+    module.forward(tu.rand(4, 2, low=-1))
 
 
 # ==============================================================================
@@ -383,7 +383,7 @@ class ElementwiseLeakyReluModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseLeakyReluModule())
 def ElementwiseLeakyReluModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 2) - 0.5)
+    module.forward(tu.rand(4, 2, low=-1))
 
 
 # ==============================================================================
@@ -406,7 +406,7 @@ class ElementwiseGeluModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseGeluModule())
 def ElementwiseGeluModule_basic(module, tu: TestUtils):
-    module.forward(2 * tu.rand(5, 3) - 0.5)
+    module.forward(tu.rand(5, 3, low=-0.5, high=0.5))
 
 
 # ==============================================================================

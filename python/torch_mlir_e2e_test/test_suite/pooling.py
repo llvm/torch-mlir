@@ -121,7 +121,7 @@ class MaxPool2dModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MaxPool2dModule())
 def MaxPool2dModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
 
 
 class MaxPool2dStaticModule(torch.nn.Module):
@@ -191,7 +191,7 @@ class MaxPool2dWith3dInputModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: MaxPool2dWith3dInputModule())
 def MaxPool2dWith3dInputModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 20, 20) - 0.5)
+    module.forward(tu.rand(1, 20, 20, low=-1))
 
 
 # ==============================================================================
@@ -606,7 +606,7 @@ class AvgPool2dFloatModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AvgPool2dFloatModule())
 def AvgPool2dFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 4, 20, 20) - 0.5)
+    module.forward(tu.rand(2, 4, 20, 20, low=-1))
 
 class AvgPool2dIntModule(torch.nn.Module):
 
@@ -655,7 +655,7 @@ class AvgPool2dStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AvgPool2dStaticModule())
 def AvgPool2dStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 2, 10, 20) - 0.5)
+    module.forward(tu.rand(2, 2, 10, 20, low=-1))
 
 
 class AvgPool2dDivisorOverrideModule(torch.nn.Module):
@@ -680,7 +680,7 @@ class AvgPool2dDivisorOverrideModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AvgPool2dDivisorOverrideModule())
 def AvgPool2dDivisorOverrideModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4, 20, 20) - 0.5)
+    module.forward(tu.rand(4, 4, 20, 20, low=-1))
 
 
 class AvgPool2dCeilModeTrueModule(torch.nn.Module):

@@ -351,7 +351,7 @@ class ConstantPad2dStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConstantPad2dStaticModule())
 def ConstantPad2dStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
 
 
 # ==============================================================================
@@ -375,7 +375,7 @@ class PadModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: PadModule())
 def PadModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
 
 
 # ==============================================================================
@@ -399,7 +399,7 @@ class PadWithNoneValModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: PadWithNoneValModule())
 def PadWithNoneValModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, low=-1))
 
 
 # ==============================================================================
@@ -421,7 +421,7 @@ class ConstantPadNdModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConstantPadNdModule())
 def ConstantPadNdModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4, low=-1))
 
 
 # ==============================================================================
@@ -443,7 +443,7 @@ class ConstantPadNdStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConstantPadNdStaticModule())
 def ConstantPadNdStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4, low=-1))
 
 
 # ==============================================================================
@@ -465,7 +465,7 @@ class ConstantPadNdPartialStaticModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConstantPadNdPartialStaticModule())
 def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 20, 20, 4, 4) - 0.5)
+    module.forward(tu.rand(1, 1, 20, 20, 4, 4, low=-1))
 
 
 # ==============================================================================
