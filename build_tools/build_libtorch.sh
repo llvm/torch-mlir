@@ -122,13 +122,13 @@ package_pytorch() {
   fi
 
   # Copy over all of the cmake files
-  mv build/lib*/torch/share     libtorch/
-  mv build/lib*/torch/include   libtorch/
-  mv build/lib*/torch/lib       libtorch/
+  cp -r build/lib*/torch/share     libtorch/
+  cp -r build/lib*/torch/include   libtorch/
+  cp -r build/lib*/torch/lib       libtorch/
   # Copy over all lib files
-  mv build/lib/*                libtorch/lib/
+  cp -r build/lib/*                libtorch/lib/
   # Copy over all include files
-  mv build/include/*            libtorch/include/
+  cp -r build/include/*            libtorch/include/
 
   (pushd "$PYTORCH_ROOT" && git rev-parse HEAD) > libtorch/build-hash
   echo "Installing libtorch in ${PYTORCH_ROOT}/../../"
