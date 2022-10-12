@@ -572,11 +572,11 @@ public:
           createZeroInitTensor(rewriter, loc, weightInitDims, elementType);
       SmallVector<StringRef> iteratorTypes(inRank,
                                            getParallelIteratorTypeName());
-      SmallVector<AffineMap> indexingMaps(
-          2, AffineMap::getMultiDimIdentityMap(inRank, context));
+      SmallVector<AffineMap> indexingMaps{
+          AffineMap::getMultiDimIdentityMap(inRank, context)};
       weight = rewriter
                    .create<linalg::GenericOp>(
-                       loc, weightInitTensor.getType(), weight,
+                       loc, weightInitTensor.getType(), ValueRange{},
                        weightInitTensor, indexingMaps, iteratorTypes,
                        [&](OpBuilder &b, Location loc, ValueRange args) {
                          SmallVector<Value> indices;
