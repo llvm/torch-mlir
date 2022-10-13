@@ -564,6 +564,23 @@ func.func @torch.aten.index_put(%input: !torch.vtensor<[?],f32>, %index: !torch.
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.index_add(
+// CHECK-SAME:                  %[[INP:.*]]: !torch.vtensor<[?],f32>, %[[DIM:.*]]: !torch.int,
+// CHECK-SAME:                  %[[INDEX:.*]]: !torch.vtensor<[?],f32>, %[[VALUES:.*]]: !torch.vtensor<[?],f32>,
+// CHECK-SAME:                  %[[ALPHA:.*]]: !torch.int) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[INT1:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor<[?],f32>>
+// CHECK:           %[[CONS1:.*]] = torch.constant.int 1
+// CHECK:           %[[INT0:.*]] = torch.aten.unsqueeze %[[VALUES]], %[[CONS1]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[],f64>
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RES:.*]] = torch.valsem.aten.index_put_impl %[[INP:.*]], %[[INT1]], %[[INT0]], %[[TRUE]], %[[FALSE]] : !torch.vtensor<[?],f32>, !torch.list<vtensor<[?],f32>>, !torch.vtensor<[],f64>, !torch.bool, !torch.bool -> !torch.vtensor<[?],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.index_add(%input: !torch.vtensor<[?],f32>, %dim: !torch.int, %index: !torch.vtensor<[?],f32>, %values: !torch.vtensor<[?],f32>, %alpha: !torch.int ) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.index_add %input, %dim, %index, %values, %alpha: !torch.vtensor<[?],f32>, !torch.int, !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.dropout$eval(
 // CHECK-SAME:                  %[[INP:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[PROB:.*]] = torch.constant.float 1.000000e-01
