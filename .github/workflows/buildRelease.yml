@@ -59,6 +59,12 @@ jobs:
     - name: DEBUG List Files
       if: github.event.inputs.release_id != ''
       run: find .
+    - name: Create dist directory
+      if: github.event.inputs.release_id != ''
+      run: mkdir dist
+    - name: Copy releases to publish to dist directory
+      if: github.event.inputs.release_id != ''
+      run: cp build_tools/python_deploy/wheelhouse/torch_mlir-*.whl dist/
     - name: Publish to PyPI
       if: github.event.inputs.release_id != ''
       uses: pypa/gh-action-pypi-publish@v1.5.1
