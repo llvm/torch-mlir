@@ -137,13 +137,18 @@ class NoopBuildExtension(build_ext):
         pass
 
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+
 setup(
     name="torch-mlir",
     version=f"{PACKAGE_VERSION}",
     author="Sean Silva",
     author_email="silvasean@google.com",
     description="First-class interop between PyTorch and MLIR",
-    long_description="",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     include_package_data=True,
     cmdclass={
         "build": CustomBuild,
