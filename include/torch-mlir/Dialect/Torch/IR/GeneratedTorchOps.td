@@ -6711,6 +6711,29 @@ def Torch_AtenIntImplicitOp : Torch_Op<"aten.IntImplicit", [
   }];
 }
 
+def Torch_AtenFloatImplicitOp : Torch_Op<"aten.FloatImplicit", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::FloatImplicit : (Tensor) -> (float)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFloatImplicitOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenFloatImplicitOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenTensorFloatOp : Torch_Op<"aten.tensor.float", [
     AllowsTypeRefinement,
     HasValueSemantics,

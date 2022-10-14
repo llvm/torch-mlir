@@ -5,7 +5,6 @@ blacklist:
 - index.Tensor  # Error: TODO not sure if there are other valid types to handle here
 - index_put  # Error: TODO not sure if there are other valid types to handle here
 - index_put_  # Error: TODO not sure if there are other valid types to handle here
-- stack  # Error: TODO not sure if there are other valid types to handle here
 
 # Additional ops which autogen is supported for but don't compile yet
 - _convolution
@@ -20,6 +19,10 @@ blacklist:
 - rsub
 - slice.Tensor  # Disabled in favour of slice_copy.Tensor
 - zeros
+- ones
+- arange
+- arange.start
+- arange.start_step
 
 # Disabled in favour of functionalized alternatives
 - _reshape_alias
@@ -33,7 +36,10 @@ blacklist:
 - unsqueeze
 - view
 
-# whitelist:
+whitelist:
+# Enabled for consistency with TS backend
+- arange.start_out
+
 # List of ops to autogen even if not supported by Torch-MLIR explicitly
 #- split_copy.Tensor
 #- split_with_sizes_copy
@@ -74,7 +80,6 @@ supported:
 symint:
 - empty.memory_format
 - new_empty_strided
-- expand
 - expand_copy
 - narrow_copy
 - slice_backward
@@ -98,6 +103,7 @@ non_native:
     properties:
       - ShapeCompute
       - TreatScalarsAsConstants
+  - func: expand(Tensor input, int[] size, bool is_scalar_expand) -> Tensor
   - func: cast(Tensor input, ScalarType dtype, ScalarType? stype) -> Tensor
     opkind: ltc_cast
     properties:

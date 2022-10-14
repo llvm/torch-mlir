@@ -284,5 +284,22 @@ TorchMlirOpVector Scalar::Lower(
   return {loctx->graph()->insertConstant(at::scalar_tensor(value, options))};
 }
 
+TorchMlirOpVector Expand::Lower(
+    TorchMlirFunction function, TorchMlirLoweringContext* loctx) const {
+  std::vector<torch::jit::NamedValue> arguments;
+  arguments.emplace_back(loctx->GetOutputOp(operand(0)));
+  arguments.emplace_back(size);
+  auto expand_out = LowerBuiltin(this, function, arguments);
+  if (is_scalar_expand) {
+    // The aten::expand operations sets all strides to 0 when the original is
+    // of rank 0. This leads to false positives when checking for internal
+    // memory overlap, because at::has_internal_overlap returns
+    // MemOverlap::YES when a stride is set to 0.
+    TORCH_CHECK_EQ(expand_out.size(), 1);
+    return {GenerateClone(expand_out.front(), function)};
+  }
+  return expand_out;
+}
+
 } // namespace lazy
 } // namespace torch
