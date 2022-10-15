@@ -263,6 +263,11 @@ TORCHDYNAMO_XFAIL_SET = {
     # ERROR: Exception: Unsupported: return type List[Tensor] in schema for aten.unbind.int
     "UnbindIntListUnpack_Module_basic",
     "UnbindIntGetItem_Module_basic",
+
+    # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
+    "ScatterValueFloatModule_basic",
+    # ERROR: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
+    "ScatterValueIntModule_basic",
 }
 
 TORCHDYNAMO_CRASHING_SET = {
@@ -1247,4 +1252,6 @@ LTC_XFAIL_SET = {
     "ChunkListUnpackUneven_Module_basic",
     "ChunkListUnpackDynamic_Module_basic",
     "ChunkListUnpackUnevenDynamic_Module_basic",
+    "ScatterValueFloatModule_basic",
+    "ScatterValueIntModule_basic",
 }
