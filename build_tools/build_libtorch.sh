@@ -7,6 +7,7 @@ PYTORCH_ROOT=${PYTORCH_ROOT:-$SRC_ROOT/externals/pytorch}
 PYTORCH_INSTALL_PATH=${PYTORCH_INSTALL_PATH:-$SRC_ROOT/libtorch}
 TORCH_MLIR_SRC_PYTORCH_REPO="${TORCH_MLIR_SRC_PYTORCH_REPO:-pytorch/pytorch}"
 TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH:-master}"
+TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${TM_PYTORCH_INSTALL_WITHOUT_REBUILD:-false}"
 PT_C_COMPILER="${PT_C_COMPILER:-clang}"
 PT_CXX_COMPILER="${PT_CXX_COMPILER:-clang++}"
 CMAKE_OSX_ARCHITECTURES="${CMAKE_OSX_ARCHITECTURES:-x86_64}"
@@ -151,10 +152,12 @@ unpack_pytorch() {
 
 #main
 echo "Building libtorch from source"
-checkout_pytorch
-install_requirements
-build_pytorch
-package_pytorch
+if [[ $TM_PYTORCH_INSTALL_WITHOUT_REBUILD != "true" ]]; then
+  checkout_pytorch
+  install_requirements
+  build_pytorch
+  package_pytorch
+fi
 if [[ $CMAKE_OSX_ARCHITECTURES = "arm64" ]]; then
   echo "${Yellow} Cross compiling for arm64 so unpacking PyTorch wheel for libs${NC}"
   unpack_pytorch
