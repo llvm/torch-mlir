@@ -300,6 +300,55 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
 }
 
 namespace {
+class ConvertAtenScatterSrcOp : public OpConversionPattern<AtenScatterSrcOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenScatterSrcOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    TypeConverter *typeConverter = getTypeConverter();
+    Value self = adaptor.getSelf();
+    Value index = adaptor.getIndex();
+    Value src = adaptor.getSrc();
+
+    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
+    RankedTensorType indexType = index.getType().cast<RankedTensorType>();
+    RankedTensorType srcType = src.getType().cast<RankedTensorType>();
+    if (selfType.getRank() != indexType.getRank() ||
+        indexType.getRank() != srcType.getRank())
+      return rewriter.notifyMatchFailure(op,
+                                         "'self', 'index' and 'src' should all"
+                                         "have the same number of dimensions.");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: dim is not constant");
+
+    // Get the inputs reformatted for the TMScatterOp
+    auto [indices, updates] =
+        convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(rewriter, index,
+                                                             src, dim);
+    Value scatterOp = createTMTensorScatterOp(
+        rewriter, loc, updates, indices, self,
+        /*uniqueIndices=*/false,
+        [&](OpBuilder &b, Location loc, Value updatesElement,
+            Value inputElement) {
+          b.create<TMTensor::YieldOp>(loc, updatesElement);
+        });
+
+    auto resultType = typeConverter->convertType(op->getResult(0).getType())
+                          .cast<RankedTensorType>();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // aten::bincount op counts the frequency of each value in a 1-d input tensor of
 // non-negative ints.
 class ConvertAtenBincountOp : public OpConversionPattern<AtenBincountOp> {
@@ -1605,6 +1654,9 @@ public:
     target.addIllegalOp<AtenScaledDotProductAttentionOp>();
     patterns.add<ConvertAtenScaledDotProductAttentionOp>(typeConverter,
                                                          context);
+
+    target.addIllegalOp<AtenScatterSrcOp>();
+    patterns.add<ConvertAtenScatterSrcOp>(typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
