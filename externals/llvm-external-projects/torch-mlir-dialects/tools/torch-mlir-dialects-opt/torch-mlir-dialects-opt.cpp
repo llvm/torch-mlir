@@ -18,6 +18,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+#include "torch-mlir-dialects/Conversion/Passes.h"
 #ifdef TORCH_MLIR_DIALECTS_ENABLE_TCP
 #include "torch-mlir-dialects/Dialect/Tcp/IR/TcpDialect.h"
 #endif // TORCH_MLIR_DIALECTS_ENABLE_TCP
@@ -48,6 +49,8 @@ int main(int argc, char **argv) {
       mlir::arith::ArithDialect, mlir::linalg::LinalgDialect,
       mlir::func::FuncDialect, mlir::memref::MemRefDialect,
       mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
+
+  mlir::torch_mlir_dialects::registerConversionPasses();
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "MLIR modular optimizer driver\n", registry,
