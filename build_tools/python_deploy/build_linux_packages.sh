@@ -183,7 +183,9 @@ function build_in_tree() {
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
-      -DCMAKE_LINKER=lld \
+      -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+      -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+      -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld" \
       -DLLVM_ENABLE_ASSERTIONS=ON \
       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -286,7 +288,9 @@ function build_out_of_tree() {
         -DCMAKE_CXX_COMPILER=clang++ \
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-        -DCMAKE_LINKER=lld \
+        -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+        -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+        -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld" \
         -DLLVM_ENABLE_ASSERTIONS=ON \
         -DLLVM_ENABLE_PROJECTS=mlir \
         -DLLVM_TARGETS_TO_BUILD=host \
@@ -302,7 +306,9 @@ function build_out_of_tree() {
       -DCMAKE_CXX_COMPILER=clang++ \
       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-      -DCMAKE_LINKER=lld \
+      -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+      -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" \
+      -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld" \
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
