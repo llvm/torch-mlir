@@ -27,7 +27,7 @@ add_mlir_conversion_library(TorchMLIRTorchToMhlo
   MhloDialect
   MhloToLinalg
   MLIRBufferTransforms
-  StablehloBase
+  StablehloOps
   TorchMLIRTorchDialect
 )
 

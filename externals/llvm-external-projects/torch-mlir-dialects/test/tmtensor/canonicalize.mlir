@@ -2,8 +2,8 @@
 
 // CHECK-LABEL: func.func @tensor.cast(
 func.func @tensor.cast(%arg0: tensor<128xi32>) -> tensor<128xi32> {
-  %init = linalg.init_tensor [128] : tensor<128xi32>
-  %c0 = linalg.init_tensor [] : tensor<i32>
+  %init = tensor.empty() : tensor<128xi32>
+  %c0 = tensor.empty() : tensor<i32>
 
   %casted_arg0 = tensor.cast %arg0 : tensor<128xi32> to tensor<?xi32>
   %casted_init = tensor.cast %init : tensor<128xi32> to tensor<?xi32>

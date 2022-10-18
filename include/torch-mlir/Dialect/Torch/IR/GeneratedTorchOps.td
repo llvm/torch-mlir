@@ -9863,7 +9863,7 @@ def Torch_PrimRaiseExceptionOp : Torch_Op<"prim.RaiseException", [
 }
 
 def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
-    NoSideEffect,
+    Pure,
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly

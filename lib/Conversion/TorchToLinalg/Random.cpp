@@ -118,7 +118,7 @@ public:
                                          getParallelIteratorTypeName());
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, self);
     Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+        rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
     Value uniformRes =
         rewriter
             .create<linalg::GenericOp>(

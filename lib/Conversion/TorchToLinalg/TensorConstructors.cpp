@@ -238,8 +238,8 @@ public:
     }
 
     // Create an uninitialized tensor of `resultSize` shape.
-    Value initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, resultSizeIndex, resultElementType);
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultSizeIndex), resultElementType);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
     return success();
   }
@@ -301,8 +301,8 @@ public:
     }
     resultShape = castIntToIndex(rewriter, loc, resultShape);
 
-    Value resultTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, resultShape, dtype);
+    Value resultTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), dtype);
 
     StringRef iteratorType = getParallelIteratorTypeName();
     AffineMap indexingMap =

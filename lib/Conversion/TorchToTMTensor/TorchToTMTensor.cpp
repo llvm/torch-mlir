@@ -184,7 +184,7 @@ public:
 
     SmallVector<Value, 1> inputSizeDynamic =
         getTensorSizesUntilDim(rewriter, loc, input, 0);
-    Value updatesTensor = rewriter.create<linalg::InitTensorOp>(
+    Value updatesTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(inputSizeDynamic), resultElemType);
 
     Value constantZero = rewriter.create<arith::ConstantOp>(
@@ -441,7 +441,7 @@ public:
         getAsOpFoldResult(getTensorSizes(rewriter, loc, indices));
     updatedIndicesShape.push_back(rewriter.getIndexAttr(tensorOperandRank));
 
-    Value initTensor = rewriter.create<linalg::InitTensorOp>(
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, updatedIndicesShape, indicesElemType);
 
     Value wIn = inputShape[tensorOperandRank - 1];

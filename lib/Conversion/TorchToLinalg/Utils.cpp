@@ -271,7 +271,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   // Add the indexing map for the outs init tensor.
   indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
 
-  Value initTensor = b.create<linalg::InitTensorOp>(
+  Value initTensor = b.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(resultShape), resultElementType);
   return b
       .create<linalg::GenericOp>(loc,
@@ -345,8 +345,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     outExpr.push_back(mlir::getAffineDimExpr(i, context));
   }
 
-  Value outTensor =
-      rewriter.create<linalg::InitTensorOp>(loc, outShape, elementType);
+  Value outTensor = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(outShape), elementType);
 
   SmallVector<AffineMap> indexingMaps = {
       AffineMap::get(broadcastToShape.size(), 0, outExpr, context),

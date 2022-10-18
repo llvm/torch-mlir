@@ -149,7 +149,7 @@ public:
     SmallVector<StringRef> iteratorTypes(sizes.size(),
                                          getParallelIteratorTypeName());
     Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, sizes, elemTy);
+        rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
     Value embeddingResult =
         rewriter
             .create<linalg::GenericOp>(
@@ -410,8 +410,8 @@ public:
     Type offsetElemTy = offsetsTy.getElementType();
     Value zeroDim = rewriter.create<arith::ConstantIndexOp>(loc, /*value=*/0);
     offsetResultSize.push_back(zeroDim);
-    Value offsetResult = rewriter.create<linalg::InitTensorOp>(
-        loc, offsetResultSize, offsetElemTy);
+    Value offsetResult = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(offsetResultSize), offsetElemTy);
     auto resultType1 = typeConverter->convertType(op->getResult(1).getType());
     Value castedOffsetResult =
         rewriter.create<tensor::CastOp>(loc, resultType1, offsetResult);
@@ -478,8 +478,8 @@ public:
 
     SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
     resultShape[dimInt] = getTensorSizes(rewriter, loc, indices)[0];
-    Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
 
     SmallVector<AffineExpr> resultExpr;
     AffineExpr indicesExpr = rewriter.getAffineDimExpr(dimInt);
@@ -677,8 +677,8 @@ public:
     // safely map all size 1 dims to 0 in the corresponding affine maps.
     // TODO: For dynamic shapes, we have to either broadcast the index tensors
     // to a common shape or introduce some form of control flow.
-    Value initTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, resultShape, elementType);
+    Value initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
     SmallVector<AffineMap> indexingMaps;
     SmallVector<StringRef> iteratorTypes;
 
@@ -861,8 +861,8 @@ public:
       }
     }
 
-    Value outTensor =
-        rewriter.create<linalg::InitTensorOp>(loc, dims, elementType);
+    Value outTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(dims), elementType);
 
     AffineMap idMap = rewriter.getMultiDimIdentityMap(inputRank);
     SmallVector<StringRef> iteratorTypes(inputRank,

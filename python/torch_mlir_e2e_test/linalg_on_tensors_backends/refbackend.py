@@ -119,7 +119,7 @@ LOWERING_PIPELINE = ",".join([
     # Bufferize.
     "func.func(scf-bufferize)",
     "func.func(tm-tensor-bufferize)",
-    "func.func(linalg-init-tensor-to-alloc-tensor)",
+    "func.func(empty-tensor-to-alloc-tensor)",
     "func.func(linalg-bufferize)",
     "func-bufferize",
     "arith-bufferize",

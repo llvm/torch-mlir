@@ -154,7 +154,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dOp>::matchAndRewrite(
       op->getLoc(), outTy, input, initVal, windowDimensions, windowStrides,
       baseDilations, windowDilations, pad);
 
-  Block &block = reduceWindowOp.body().emplaceBlock();
+  Block &block = reduceWindowOp.getBody().emplaceBlock();
 
   auto blockArgumentTy = RankedTensorType::get({}, inputElemTy);
   block.addArgument(blockArgumentTy, op->getLoc());
@@ -309,7 +309,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
       mlir::ValueRange{input, indexTensor}, mlir::ValueRange{initVal, initIdx},
       windowDimensions, windowStrides, baseDilations, windowDilations, pad);
 
-  Block &block = reduceWindowOp.body().emplaceBlock();
+  Block &block = reduceWindowOp.getBody().emplaceBlock();
 
   // Add bb argument
   auto blockValArgumentType = RankedTensorType::get({}, inputElemTy);
@@ -454,7 +454,7 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
       op->getLoc(), outTy, input, initVal, windowDimensions, windowStrides,
       baseDilations, windowDilations, pad);
 
-  Block &sumBlock = reduceWindowSum.body().emplaceBlock();
+  Block &sumBlock = reduceWindowSum.getBody().emplaceBlock();
 
   // Add bb argument
   auto blockArgumentType = RankedTensorType::get({}, inputElemTy);
@@ -505,7 +505,7 @@ LogicalResult ConvertAtenOp<AtenAvgPool2dOp>::matchAndRewrite(
       windowSizeConst, zero, windowDimensions, windowStrides, baseDilations,
       windowDilations, pad);
 
-  Block &sizeBlock = reduceWindowSize.body().emplaceBlock();
+  Block &sizeBlock = reduceWindowSize.getBody().emplaceBlock();
 
   // Add bb argument
   blockArgumentType = RankedTensorType::get({}, inputElemTy);
