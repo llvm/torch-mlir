@@ -20,6 +20,9 @@
 #include "torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#ifdef TORCH_MLIR_ENABLE_TCP
+#include "torch-mlir/Conversion/TorchToTcp/TorchToTcp.h"
+#endif // TORCH_MLIR_ENABLE_TCP
 
 //===----------------------------------------------------------------------===//
 // Pass registration

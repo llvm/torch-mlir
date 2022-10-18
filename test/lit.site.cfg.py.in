@@ -17,6 +17,7 @@ config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
 config.python_executable = "@Python3_EXECUTABLE@"
 config.enable_jit_ir_importer = @TORCH_MLIR_ENABLE_JIT_IR_IMPORTER@
 config.enable_mhlo = @TORCH_MLIR_ENABLE_MHLO@
+config.enable_tcp = @TORCH_MLIR_ENABLE_TCP@
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

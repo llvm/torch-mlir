@@ -154,4 +154,14 @@ def ConvertTorchToMhlo : Pass<"convert-torch-to-mhlo", "func::FuncOp"> {
 }
 #endif
 
+#ifdef TORCH_MLIR_ENABLE_TCP
+def ConvertTorchToTcp : Pass<"convert-torch-to-tcp", "func::FuncOp"> {
+  let summary = "Convert Torch ops to Tcp ops";
+  let description = [{
+    Convert Torch ops to Tcp ops.
+  }];
+  let constructor = "mlir::torch::createConvertTorchToTcpPass()";
+}
+#endif // TORCH_MLIR_ENABLE_TCP
+
 #endif // TORCHMLIR_CONVERSION_PASSES
