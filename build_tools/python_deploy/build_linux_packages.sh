@@ -65,10 +65,18 @@ echo "Setting torch-mlir PyTorch Repo for source builds to: ${TORCH_MLIR_SRC_PYT
 export TORCH_MLIR_SRC_PYTORCH_BRANCH="${TORCH_MLIR_SRC_PYTORCH_BRANCH:-master}"
 echo "Setting torch-mlir PyTorch version for source builds to: ${TORCH_MLIR_SRC_PYTORCH_BRANCH}"
 
+# If using PyTorch source, install from the existing build instead of rebuilding
+# all of PyTorch.  This option is useful in CI, when it determines that the
+# PyTorch version has not changed between consecutive runs.
+export TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${TM_PYTORCH_INSTALL_WITHOUT_REBUILD:-false}"
+
 function run_on_host() {
   echo "Running on host for $1:$@"
   echo "Outputting to ${TM_OUTPUT_DIR}"
-  rm -rf "${TM_OUTPUT_DIR}"
+  if [[ $TM_PYTORCH_INSTALL_WITHOUT_REBUILD != "true" ]]; then
+    # We want to use the cached files, so don't remove them.
+    rm -rf "${TM_OUTPUT_DIR}"
+  fi
   mkdir -p "${TM_OUTPUT_DIR}"
   case "$package" in
     torch-mlir)
@@ -115,6 +123,7 @@ function run_on_host() {
     -e "TM_USE_PYTORCH_BINARY=${TM_USE_PYTORCH_BINARY}" \
     -e "TORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO}" \
     -e "TORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH}" \
+    -e "TM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD}" \
     -e "CCACHE_DIR=/main_checkout/torch-mlir/.ccache" \
     "${TM_CURRENT_DOCKER_IMAGE}" \
     /bin/bash /main_checkout/torch-mlir/build_tools/python_deploy/build_linux_packages.sh
@@ -197,6 +206,7 @@ function build_in_tree() {
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
+      -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build
@@ -310,6 +320,7 @@ function build_out_of_tree() {
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
+      -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot

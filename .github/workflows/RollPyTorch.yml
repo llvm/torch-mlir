@@ -64,3 +64,10 @@ jobs:
         git checkout main
         git add pytorch-version.txt pytorch-requirements.txt lib/Dialect/Torch/Transforms/ShapeLibrary.cpp include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
         git diff --cached --exit-code || (git commit -m "update PyTorch version to ${{ env.PT_RELEASE }}" && git push --set-upstream origin main)
+
+    - name: Update PyTorch Build Cache
+      id: cache-pytorch
+      uses: actions/cache@v3
+      with:
+        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+        key: ubuntu-x86_64-pytorch-${{ env.PT_HASH }}
