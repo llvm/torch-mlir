@@ -20,6 +20,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
 
+#include <iostream>
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -1702,6 +1704,20 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     rewriter.replaceOpWithNewOp<AtenSizeIntOp>(op, sizeOp.self(), op.idx());
     return success();
   });
+
+  patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {
+    auto potentialUnbindOp = op.getOperand(0);
+    auto unbindOp = potentialUnbindOp.getDefiningOp<AtenUnbindIntOp>();
+    if (!unbindOp)
+      return failure();
+    std::cout << "XXX: Found unbind op!" << std::endl;
+
+    auto tensor = unbindOp.getOperand(0);
+    //rewriter.replaceOpWithNewOp<Aten__Getitem__TOp>(op, tensor, op.getOperand(1));
+    rewriter.replaceOp(op, {tensor, op.getOperand(1)});
+    return success();
+  });
+
 }
 
 //===----------------------------------------------------------------------===//
