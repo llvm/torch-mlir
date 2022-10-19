@@ -298,9 +298,8 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
   // We don't know how to rewrite it, so mark it as illegal.
   target.addIllegalOp<func::CallIndirectOp>();
   if (failed(applyPartialConversion(func.getOperation(), target,
-                                    std::move(patterns)))) {
+                                    std::move(patterns))))
     return failure();
-  }
   return success();
 }
 
