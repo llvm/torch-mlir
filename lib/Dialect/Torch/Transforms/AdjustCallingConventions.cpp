@@ -19,6 +19,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -187,8 +188,49 @@ public:
 };
 } // namespace
 
+static bool isValidNonContainerResultType(Type result_type) {
+  if (result_type.isa<Torch::BaseTensorType>() ||
+      result_type.isa<Torch::FloatType>() ||
+      result_type.isa<Torch::IntType>() ||
+      result_type.isa<Torch::BoolType>()) {
+    return true;
+  }
+  return false;
+}
+
+static LogicalResult validateReturns(func::FuncOp func) {
+  // getResultTypes can only ever be one item.  Multiple return values are
+  // stored in a tuple.
+  const auto& result_type = func.getResultTypes().front();
+
+  // Allow single tensor returns
+  if (isValidNonContainerResultType(result_type)) {
+    return success();
+  }
+
+  // Allow multi-tensor tuple returns
+  if (auto tuple = result_type.dyn_cast<Torch::TupleType>()) {
+    bool contains_only_tensors = true;
+    const auto& contained_types = tuple.getContainedTypes();
+    for (const auto& contained_type : contained_types) {
+      if (!isValidNonContainerResultType(contained_type)) {
+        contains_only_tensors = false;
+      }
+    }
+    if (contained_types.size() >= 2 && contains_only_tensors) {
+      return success();
+    }
+  }
+
+  return func->emitError(
+    "Functions must return a tensor, multiple tensors, "
+    "or a tuple of multiple tensors.");
+}
+
 static LogicalResult adjustCallingConventions(func::FuncOp func,
                                               TypeBoundMap &typeBoundMap) {
+  if (failed(validateReturns(func)))
+      return failure();
   MLIRContext *context = func.getContext();
   RewritePatternSet patterns(context);
   TypeConverter typeConverter;
@@ -256,8 +298,9 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
   // We don't know how to rewrite it, so mark it as illegal.
   target.addIllegalOp<func::CallIndirectOp>();
   if (failed(applyPartialConversion(func.getOperation(), target,
-                                    std::move(patterns))))
+                                    std::move(patterns)))) {
     return failure();
+  }
   return success();
 }
 

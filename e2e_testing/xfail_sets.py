@@ -13,7 +13,7 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
-    "UpSampleNearest2dDynamicFactor_basic",
+    "SingleTensorTupleReturn_basic",
 }
 
 EAGER_MODE_XFAIL_SET = {
@@ -22,7 +22,6 @@ EAGER_MODE_XFAIL_SET = {
     "QuantizedMLP_basic",
     "Matmul_vecmat",
     "BatchMlpLayerModule_basic",
-    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 MHLO_PASS_SET = {
@@ -611,7 +610,6 @@ LTC_XFAIL_SET = {
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
-    "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
