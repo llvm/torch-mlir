@@ -11,6 +11,7 @@
 #include <torch/csrc/lazy/backend/backend_data.h>
 #include <torch/csrc/lazy/backend/backend_device.h>
 #include <torch/csrc/lazy/backend/lowering_context.h>
+#include <torch/csrc/lazy/core/lazy_graph_executor.h>
 #include <torch/csrc/lazy/core/shape.h>
 
 #include <torch_mlir/csrc/base_lazy_backend/backend_impl.h>
@@ -186,6 +187,9 @@ void InitReferenceLazyBackend() {
   at::RegisterTorchMlirLazyNativeFunctions();
   static std::unique_ptr<BackendRegistrar> g_registrar;
   g_registrar.reset(new BackendRegistrar(GetReferenceLazyBackendImpl()));
+
+  static LazyGraphExecutor* executor = new LazyGraphExecutor();
+  LazyGraphExecutor::Register(executor);
 }
 
 ComputationPtr& GetLatestComputation() {
