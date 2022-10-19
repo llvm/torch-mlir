@@ -706,7 +706,7 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     dW = stride[1]
 
-  assert len(padding) == 1 or len(padding) == 2, "avg_pool2d: padding must be either be a single int, or a tuple of two ints"
+  assert len(padding) == 1 or len(padding) == 2, "avg_pool2d: padding must be either a single int, or a tuple of two ints"
   padH = padding[0]
   padW = padH if len(padding) == 1 else padding[1]
 
@@ -734,11 +734,57 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
   else:
     return [nbatch, nInputPlane, outputHeight, outputWidth]
 
+def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool):
+  assert len(kernel_size) == 1, "avg_pool1d: kernel_size must be a single int"
+  k = kernel_size[0]
+
+  assert len(stride) == 0 or len(stride) == 1, "avg_pool2d: stride must either be omitted, or a single int"
+  d = k if len(stride) == 0 else stride[0]
+
+  assert len(padding) == 1, "avg_pool2d: padding must be a single int"
+  pad = padding[0]
+
+  dilation = 1
+
+  assert len(input) == 2 or len(input) == 3
+
+  nbatch = input[-3] if len(input) == 3 else 1
+  nInputPlane = input[-2]
+  inputLength = input[-1]
+
+  outputLength = upstream_shape_functions.pooling_output_shape(
+    inputLength, k, pad, d, dilation, ceil_mode)
+  
+  if len(input) == 3:
+    return [nbatch, nInputPlane, outputLength]
+  else:
+    return [nInputPlane, outputLength]
+
+def adaptive_avg_pool1d(self: List[int], out: List[int]):
+    assert len(out) == 1
+    assert len(self) == 2 or len(self) == 3
+    
+    for i in range(len(self)):
+        assert self[i] != 0
+
+    shape: List[int] = []
+    for i in range(len(self) - 1):
+        shape.append(self[i])
+    shape.append(out[0])
+
+    return shape
+
 def aten〇avg_pool2d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
     return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
 
+def aten〇avg_pool1d(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
+    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
 def aten〇adaptive_avg_pool2d(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_functions.adaptive_avg_pool2d(self, output_size)
+
+def aten〇adaptive_avg_pool1d(self: List[int], output_size: List[int]) -> List[int]:
+    return adaptive_avg_pool1d(self, output_size)
 
 def aten〇flatten〇using_ints(self: List[int], start_dim: int = 0, end_dim: int = -1) -> List[int]:
     return upstream_shape_functions.flatten(self, start_dim, end_dim)
