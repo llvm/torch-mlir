@@ -203,12 +203,12 @@ static LogicalResult validateReturns(func::FuncOp func) {
   // stored in a tuple.
   const auto& resultType = func.getResultTypes().front();
 
-  // Allow single tensor returns
+  // Allow single tensor, scalar, and bool returns
   if (isValidNonContainerResultType(resultType)) {
     return success();
   }
 
-  // Allow multi-tensor tuple returns
+  // Allow multi-tensor/scalar/bool tuple returns
   if (auto tuple = resultType.dyn_cast<Torch::TupleType>()) {
     bool containsOnlyTensors = true;
     const auto& containedTypes = tuple.getContainedTypes();
@@ -223,8 +223,8 @@ static LogicalResult validateReturns(func::FuncOp func) {
   }
 
   return func->emitError(
-    "Functions must return a tensor, multiple tensors, "
-    "or a tuple of multiple tensors.");
+    "Functions must return a tensor, scalar, bool, multiple tensors, scalars, "
+    "or bools, or a tuple of multiple tensors, scalars, or bools.");
 }
 
 static LogicalResult adjustCallingConventions(func::FuncOp func,
