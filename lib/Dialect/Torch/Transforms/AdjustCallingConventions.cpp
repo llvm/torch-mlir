@@ -191,14 +191,15 @@ static bool isValidNonContainerResultType(Type resultType) {
   return resultType.isa<Torch::BaseTensorType>() ||
          resultType.isa<Torch::FloatType>() ||
          resultType.isa<Torch::IntType>() ||
-         resultType.isa<Torch::BoolType>();
+         resultType.isa<Torch::BoolType>() ||
+         resultType.isa<Torch::NoneType>();
 }
 
 static LogicalResult validateReturns(func::FuncOp func) {
   if (func.getResultTypes().size() > 1) {
     return func->emitError(
-      "Functions can only ever can only ever return one item. Multiple return "
-      "values are stored in a tuple.");
+      "Functions can only ever return one item. Multiple return values are "
+      "stored in a tuple.");
   }
   const auto& resultType = func.getResultTypes().front();
 
@@ -219,8 +220,8 @@ static LogicalResult validateReturns(func::FuncOp func) {
 
   return func->emitError(
     "Functions must return a single tensor-like value, multiple tensor-like "
-    "values, or a tuple of more than one tensor-like value. Tensor-like values: "
-    "tensors, scalars, and bools.");
+    "values, or a tuple of more than one tensor-like value. Tensor-like "
+    "values: tensors, scalars, bools, and Nones.");
 }
 
 static LogicalResult adjustCallingConventions(func::FuncOp func,
