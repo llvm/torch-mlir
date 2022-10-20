@@ -188,11 +188,11 @@ public:
 };
 } // namespace
 
-static bool isValidNonContainerResultType(Type result_type) {
-  if (result_type.isa<Torch::BaseTensorType>() ||
-      result_type.isa<Torch::FloatType>() ||
-      result_type.isa<Torch::IntType>() ||
-      result_type.isa<Torch::BoolType>()) {
+static bool isValidNonContainerResultType(Type resultType) {
+  if (resultType.isa<Torch::BaseTensorType>() ||
+      resultType.isa<Torch::FloatType>() ||
+      resultType.isa<Torch::IntType>() ||
+      resultType.isa<Torch::BoolType>()) {
     return true;
   }
   return false;
@@ -201,23 +201,23 @@ static bool isValidNonContainerResultType(Type result_type) {
 static LogicalResult validateReturns(func::FuncOp func) {
   // getResultTypes can only ever be one item.  Multiple return values are
   // stored in a tuple.
-  const auto& result_type = func.getResultTypes().front();
+  const auto& resultType = func.getResultTypes().front();
 
   // Allow single tensor returns
-  if (isValidNonContainerResultType(result_type)) {
+  if (isValidNonContainerResultType(resultType)) {
     return success();
   }
 
   // Allow multi-tensor tuple returns
-  if (auto tuple = result_type.dyn_cast<Torch::TupleType>()) {
-    bool contains_only_tensors = true;
-    const auto& contained_types = tuple.getContainedTypes();
-    for (const auto& contained_type : contained_types) {
-      if (!isValidNonContainerResultType(contained_type)) {
-        contains_only_tensors = false;
+  if (auto tuple = resultType.dyn_cast<Torch::TupleType>()) {
+    bool containsOnlyTensors = true;
+    const auto& containedTypes = tuple.getContainedTypes();
+    for (const auto& containedType : containedTypes) {
+      if (!isValidNonContainerResultType(containedType)) {
+        containsOnlyTensors = false;
       }
     }
-    if (contained_types.size() >= 2 && contains_only_tensors) {
+    if (containedTypes.size() >= 2 && containsOnlyTensors) {
       return success();
     }
   }
