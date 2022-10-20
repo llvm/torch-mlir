@@ -218,9 +218,9 @@ static LogicalResult validateReturns(func::FuncOp func) {
   }
 
   return func->emitError(
-    "Functions must return a single value of a valid type, multiple valid "
-    "types, or a tuple of more than one valid type. Valid types: tensor, "
-    "scalar, and bool.");
+    "Functions must return a single tensor-like value, multiple tensor-like "
+    "values, or a tuple of more than one tensor-like value. Tensor-like values: "
+    "tensors, scalars, and bools.");
 }
 
 static LogicalResult adjustCallingConventions(func::FuncOp func,
