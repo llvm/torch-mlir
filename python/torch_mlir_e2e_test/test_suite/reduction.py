@@ -601,3 +601,61 @@ class ReduceFrobeniusNormKeepDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceFrobeniusNormKeepDimModule())
 def ReduceFrobeniusNormKeepDimModule_basic(module, tu: TestUtils):
     module.forward(torch.rand(3, 4, 5))
+
+# ==============================================================================
+
+class MseLossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+        ([-1 , -1], torch.float32, True),
+    ])
+
+    def forward(self, x, y):
+        return torch.ops.aten.mse_loss(x, y, reduction=0)
+
+@register_test_case(module_factory=lambda: MseLossNoReductionModule())
+def MseLossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+class MseLossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+        ([-1 , -1], torch.float32, True),
+    ])
+
+    def forward(self, x, y):
+        return torch.ops.aten.mse_loss(x, y, reduction=1)
+
+@register_test_case(module_factory=lambda: MseLossMeanReductionModule())
+def MseLossMeanReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+class MseLossSumReductionWithDifferentElemTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+        ([-1 , -1], torch.float64, True),
+    ])
+
+    def forward(self, x, y):
+        return torch.ops.aten.mse_loss(x, y, reduction=2)
+
+@register_test_case(module_factory=lambda: MseLossSumReductionWithDifferentElemTypeModule())
+def MseLossSumReductionWithDifferentElemTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4).to(torch.float64))

@@ -991,3 +991,59 @@ func.func @torch.aten.roll(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.int, 
   %2 = torch.aten.roll %arg0, %0, %1 : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[?,?],f32>
   return %2 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.mse_loss$no_reduction(
+// CHECK-SAME:                                   %[[SELF:.*]]: !torch.vtensor<[?,?],f32>,
+// CHECK-SAME:                                   %[[TARGET:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:         %[[REDUCTION:.*]] = torch.constant.int 0
+// CHECK:         %[[ALPHA:.*]] = torch.constant.float 1.000000e+00
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[SELF]], %[[TARGET]], %[[ALPHA]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[SUB_SQUARE:.*]] = torch.aten.mul.Tensor %[[SUB]], %[[SUB]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[SUB_SQUARE]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.mse_loss$no_reduction(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.mse_loss %arg0, %arg1, %int0 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.mse_loss$mean_reduction(
+// CHECK-SAME:                                   %[[SELF:.*]]: !torch.vtensor<[?,?],f32>,
+// CHECK-SAME:                                   %[[TARGET:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:         %[[REDUCTION:.*]] = torch.constant.int 1
+// CHECK:         %[[ALPHA:.*]] = torch.constant.float 1.000000e+00
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[SELF]], %[[TARGET]], %[[ALPHA]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[SUB_SQUARE:.*]] = torch.aten.mul.Tensor %[[SUB]], %[[SUB]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[NONE:.*]] = torch.constant.none
+// CHECK:         %[[SUB_SQUARE_SUM:.*]] = torch.aten.sum.dim_IntList %[[SUB_SQUARE]], %[[NONE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[?,?],f32>, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[NUMEL:.*]] = torch.aten.numel %[[SUB_SQUARE]] : !torch.vtensor<[?,?],f32> -> !torch.int
+// CHECK:         %[[SUB_SQUARE_MEAN:.*]] = torch.aten.div.Scalar %[[SUB_SQUARE_SUM]], %[[NUMEL]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[SUB_SQUARE_MEAN]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.mse_loss$mean_reduction(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.mse_loss %arg0, %arg1, %int1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.mse_loss$sum_reduction(
+// CHECK-SAME:                                   %[[SELF:.*]]: !torch.vtensor<[?,?],f32>,
+// CHECK-SAME:                                   %[[TARGET:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:         %[[REDUCTION:.*]] = torch.constant.int 2
+// CHECK:         %[[ALPHA:.*]] = torch.constant.float 1.000000e+00
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[SELF]], %[[TARGET]], %[[ALPHA]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[SUB_SQUARE:.*]] = torch.aten.mul.Tensor %[[SUB]], %[[SUB]] : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[NONE:.*]] = torch.constant.none
+// CHECK:         %[[SUB_SQUARE_SUM:.*]] = torch.aten.sum.dim_IntList %[[SUB_SQUARE]], %[[NONE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[?,?],f32>, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[SUB_SQUARE_SUM]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.mse_loss$sum_reduction(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.mse_loss %arg0, %arg1, %int2 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}

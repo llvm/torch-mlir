@@ -2846,6 +2846,57 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenMseLossOp : public OpRewritePattern<AtenMseLossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMseLossOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // The `reduction` arg would have only three valid values.
+    // 0 means no reduction.
+    // 1 means mean reduction.
+    // 2 means sum reduction.
+    int64_t reductionType;
+    if (!matchPattern(op.reduction(), m_TorchConstantInt(&reductionType)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant integer value for reduction");
+
+    Location loc = op.getLoc();
+    BaseTensorType resultType = op.getType().cast<BaseTensorType>();
+    BaseTensorType inputType = op.self().getType().cast<BaseTensorType>();
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "Expected the input tensor to have sizes");
+    BaseTensorType subType =
+        inputType
+            .getWithSizesAndDtype(llvm::makeArrayRef(inputType.getSizes()),
+                                  resultType.getDtype())
+            .cast<BaseTensorType>();
+
+    Value sub = createTensorSub(rewriter, loc, subType, op.self(), op.target());
+    Value result = rewriter.create<AtenSquareOp>(loc, subType, sub);
+    if (reductionType == torch_upstream::Reduction::None) {
+      rewriter.replaceOp(op, result);
+      return success();
+    }
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    if (reductionType == torch_upstream::Reduction::Mean)
+      result = rewriter.create<AtenMeanDimOp>(loc, resultType, result,
+                                              /*dim=*/cstNone,
+                                              /*keepdim=*/cstFalse,
+                                              /*dtype=*/cstNone);
+    else
+      result = rewriter.create<AtenSumDimIntListOp>(
+          loc, resultType, result, /*dim=*/cstNone, /*keepdim=*/cstFalse,
+          /*dtype=*/cstNone);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3040,6 +3091,8 @@ public:
     target.addIllegalOp<AtenLiftFreshCopyOp>();
     patterns.add<DecomposeAtenIndexTensorHackedTwinOp>(context);
     target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
+    patterns.add<DecomposeAtenMseLossOp>(context);
+    target.addIllegalOp<AtenMseLossOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
