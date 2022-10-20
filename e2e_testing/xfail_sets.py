@@ -479,7 +479,8 @@ TOSA_PASS_SET = {
     "ToDtypeBoolLayoutNoneStaticModule_basic",
     "ToCopyBoolDTypeStaticModule_basic",
     "HardTanhIntModule_basic",
-    "AtenRoundIntModule_basic"
+    "AtenRoundIntModule_basic",
+    "MseLossNoReductionModule_basic",
 }
 
 LTC_XFAIL_SET = {

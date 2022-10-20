@@ -1047,6 +1047,11 @@ def aten〇nll_loss_forward(self: List[int], target: List[int], weight: Optional
 def aten〇nll_loss_backward(grad_output: List[int], self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int, total_weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇mse_loss(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
+    if reduction == 0:
+        return upstream_shape_functions.unary(self)
+    return []
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
 ])
