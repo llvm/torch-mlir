@@ -155,10 +155,6 @@ setup(
     ],
     install_requires=[
         "numpy",
-        # To avoid issues with drift for each nightly build, we pin to the
-        # exact version we built against.
-        # TODO: This includes the +cpu specifier which is overly
-        # restrictive and a bit unfortunate.
         f"torch=={torch.__version__}".split("+", 1)[0],
     ],
     zip_safe=False,
