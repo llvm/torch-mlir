@@ -195,9 +195,11 @@ static bool isValidNonContainerResultType(Type resultType) {
 }
 
 static LogicalResult validateReturns(func::FuncOp func) {
-  assert(func.getResultTypes().size() <= 1 &&
-         "getResultTypes can only ever be one item. Multiple return values are "
-         "stored in a tuple.");
+  if (func.getResultTypes().size() > 1) {
+    return func->emitError(
+      "Functions can only ever can only ever return one item. Multiple return "
+      "values are stored in a tuple.");
+  }
   const auto& resultType = func.getResultTypes().front();
 
   // Allow single tensor, scalar, and bool returns
