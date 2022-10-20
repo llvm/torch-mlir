@@ -118,7 +118,7 @@ def AdjustCallingConventions
 
     The transformations performed are:
     - `torch.type_bound` annotations are incorporated into the type of the
-      function arguments, which should be `!numpy.ndarray<...>`'s.
+      function arguments, which should be `!torch.tensor<...>`'s.
     - Python-isms are rewritten to MLIR-isms
       - NoneType return is rewritten to the absence of a return value.
       - Tuple return is rewritten to multiple return values.
