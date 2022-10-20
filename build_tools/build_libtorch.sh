@@ -152,7 +152,9 @@ unpack_pytorch() {
 
 #main
 echo "Building libtorch from source"
-if [[ $TM_PYTORCH_INSTALL_WITHOUT_REBUILD != "true" ]]; then
+wheel_exists=true
+compgen -G "$WHEELHOUSE/*.whl" > /dev/null || wheel_exists=false
+if [[ $TM_PYTORCH_INSTALL_WITHOUT_REBUILD != "true" || ${wheel_exists} == "false" ]]; then
   checkout_pytorch
   install_requirements
   build_pytorch
