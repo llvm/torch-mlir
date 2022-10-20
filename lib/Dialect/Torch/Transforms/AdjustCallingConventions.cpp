@@ -207,14 +207,10 @@ static LogicalResult validateReturns(func::FuncOp func) {
 
   // Allow multi-tensor/scalar/bool tuple returns
   if (auto tuple = resultType.dyn_cast<Torch::TupleType>()) {
-    bool containsOnlyTensors = true;
     const auto& containedTypes = tuple.getContainedTypes();
-    for (const auto& containedType : containedTypes) {
-      if (!isValidNonContainerResultType(containedType)) {
-        containsOnlyTensors = false;
-      }
-    }
-    if (containedTypes.size() >= 2 && containsOnlyTensors) {
+    bool containsValidTypes = llvm::all_of(
+      tuple.getContainedTypes(), isValidNonContainerResultType);
+    if (containedTypes.size() >= 2 && containsValidTypes) {
       return success();
     }
   }
