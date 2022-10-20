@@ -2217,8 +2217,7 @@ public:
                                 PatternRewriter &rewriter) const override {
 
     Value input = op.self();
-    int inputRank = getTensorRank(input);
-    BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+    int64_t inputRank = getTensorRank(input);
     Value updates = op.source();
 
     if (inputRank < 0) {
@@ -2232,14 +2231,16 @@ public:
 
     Value indicesAsTensorList = rewriter.create<PrimListConstructOp>(
         op.getLoc(), Torch::ListType::get(op.index().getType()),
-        Value(op.index()));
+       op.index());
 
     Value accumulateTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
+
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
 
     rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
         op, op.getType(), op.self(), indicesAsTensorList, updates, accumulateTrue,
         /*unsafe=*/cstFalse);
+
     return success();
   }
 };

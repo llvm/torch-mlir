@@ -201,6 +201,20 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenIntImplicitOp
+    : public OpConversionPattern<AtenIntImplicitOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIntImplicitOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<tensor::ExtractOp>(op, adaptor.a());
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateTensorScalarInteropPatternsAndLegality(TypeConverter &typeConverter,
                                                    RewritePatternSet &patterns,
@@ -223,4 +237,6 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
   patterns.add<ConvertAtenScalarImplicitOp>(typeConverter, context);
   target.addIllegalOp<AtenScalarImplicitOp>();
+  patterns.add<ConvertAtenIntImplicitOp>(typeConverter, context);
+  target.addIllegalOp<AtenIntImplicitOp>();
 }
