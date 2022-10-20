@@ -19,7 +19,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
-
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
