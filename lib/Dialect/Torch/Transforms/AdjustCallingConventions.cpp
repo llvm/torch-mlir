@@ -189,13 +189,10 @@ public:
 } // namespace
 
 static bool isValidNonContainerResultType(Type resultType) {
-  if (resultType.isa<Torch::BaseTensorType>() ||
-      resultType.isa<Torch::FloatType>() ||
-      resultType.isa<Torch::IntType>() ||
-      resultType.isa<Torch::BoolType>()) {
-    return true;
-  }
-  return false;
+  return resultType.isa<Torch::BaseTensorType>() ||
+         resultType.isa<Torch::FloatType>() ||
+         resultType.isa<Torch::IntType>() ||
+         resultType.isa<Torch::BoolType>();
 }
 
 static LogicalResult validateReturns(func::FuncOp func) {
