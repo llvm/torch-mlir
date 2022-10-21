@@ -198,8 +198,8 @@ static bool isValidNonContainerResultType(Type resultType) {
 static LogicalResult validateReturns(func::FuncOp func) {
   if (func.getResultTypes().size() > 1) {
     return func->emitError(
-      "Python functions should only ever return one item. Multiple return "
-      "values are returned as a tuple.");
+      "Functions directly imported from Python should only ever return one "
+      "item. Multiple return values are returned as a tuple.");
   }
 
   // Allow returns of nothing. This shouldn't be possible from Python, but it
