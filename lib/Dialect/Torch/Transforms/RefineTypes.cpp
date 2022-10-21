@@ -689,10 +689,11 @@ void TypeAnalysis::visitOperation(Operation *op,
           ValsemVariantAtenBernoulliTensorOp, ValsemVariantAtenFillScalarOp,
           AtenHardsigmoidOp, AtenCloneOp, AtenHardswishOp, AtenSiluOp,
           AtenHardtanhOp, AtenMaskedSelectOp, AtenMaxPool2dOp, AtenAvgPool2dOp,
-          AtenAdaptiveAvgPool2dOp, AtenFlattenUsingIntsOp, AtenSqueezeOp,
-          AtenSqueezeDimOp, AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp,
-          AtenReshapeOp, Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp,
-          AtenTOp, AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
+          AtenAdaptiveAvgPool2dOp, AtenAvgPool1dOp, AtenAdaptiveAvgPool1dOp,
+          AtenFlattenUsingIntsOp, AtenSqueezeOp, AtenSqueezeDimOp,
+          AtenUnsqueezeOp, AtenViewOp, Aten_UnsafeViewOp, AtenReshapeOp,
+          Aten_ReshapeAliasOp, AtenResize_Op, AtenTransposeIntOp, AtenTOp,
+          AtenPermuteOp, AtenIndexSelectOp, AtenSelectIntOp,
           AtenSelectScatterOp, AtenNarrowOp, AtenSliceTensorOp,
           AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
           AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
@@ -709,7 +710,8 @@ void TypeAnalysis::visitOperation(Operation *op,
   // Dtype is always float32, except for bfloat16, float64 and nullptr.
   if (isa<AtenTanhOp, AtenExpOp, AtenExpm1Op, AtenSinOp, AtenCosOp,
           AtenSigmoidOp, AtenReciprocalOp, AtenLogOp, AtenSqrtOp, AtenLog2Op,
-          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp, AtenFrobeniusNormDimOp>(op)) {
+          AtenLog1pOp, AtenRsqrtOp, AtenErfOp, AtenSoftplusOp,
+          AtenFrobeniusNormDimOp>(op)) {
     ValueKnowledge knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());
     Type dtype = operands[0]->getValue().dtype;
@@ -1111,7 +1113,7 @@ void TypeAnalysis::visitOperation(Operation *op,
     incorporateKnowledge(embedding.getResult(), knowledge);
     return;
   }
-  
+
   if (isa<Aten_EmbeddingBagOp, AtenEmbeddingBagPaddingIdxOp>(op)) {
     visitAtenEmbeddingBagOp(op);
     return;

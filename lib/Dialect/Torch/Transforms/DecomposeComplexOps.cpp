@@ -2479,6 +2479,81 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 } // namespace
 
 namespace {
+// Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d` op.
+
+// The logic of this decomposition is totally same with
+// the DecomposeAtenAdaptiveAvgPool2dOp, that means currently only following two
+// cases are supported:
+//  1. inputSize = outputSize
+//  2. outputSize = 1
+class DecomposeAtenAdaptiveAvgPool1dOp
+    : public OpRewritePattern<AtenAdaptiveAvgPool1dOp> {
+  using OpRewritePattern<AtenAdaptiveAvgPool1dOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAdaptiveAvgPool1dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.self();
+    int64_t rank = getTensorRank(input);
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
+
+    Value outputShape = op.output_size();
+    SmallVector<Value> outputShapeSizesTorchInt;
+    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+    Value outputSize = outputShapeSizesTorchInt[0];
+
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+
+    int64_t outputSizeInt;
+    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
+      return rewriter.notifyMatchFailure(
+          op, "the output size of adaptive_pool_1d must be a constant int");
+    }
+
+    SmallVector<Value, 1> kernelSize;
+    if (outputSizeInt == 1) {
+      BaseTensorType inputTensorType = input.getType().cast<BaseTensorType>();
+      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+      kernelSize.push_back(inputShape[rank - 1] == kUnknownSize
+                                ? inputSize
+                                : rewriter.create<Torch::ConstantIntOp>(
+                                      loc, rewriter.getI64IntegerAttr(
+                                              inputShape[rank - 1])));
+    } else {
+      Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
+      rewriter.create<RuntimeAssertOp>(
+          loc, cond,
+          "unimplemented: only support cases where input and output size are "
+          "equal for non-unit output size");
+      kernelSize.push_back(constantOne);
+    }
+
+    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne});
+    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantZero});
+
+    rewriter.replaceOpWithNewOp<AtenAvgPool1dOp>(
+        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+        /*ceil_mode=*/constantFalse, /*count_include_pad=*/constantTrue);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.clamp_min` op into `aten.clamp` op.
 class DecomposeAtenClampMinOp : public OpRewritePattern<AtenClampMinOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -3014,6 +3089,8 @@ public:
     target.addIllegalOp<AtenToDeviceOp>();
     patterns.add<DecomposeAtenAdaptiveAvgPool2dOp>(context);
     target.addIllegalOp<AtenAdaptiveAvgPool2dOp>();
+    patterns.add<DecomposeAtenAdaptiveAvgPool1dOp>(context);
+    target.addIllegalOp<AtenAdaptiveAvgPool1dOp>();
     patterns.add<DecomposeAtenClampMinOp>(context);
     target.addIllegalOp<AtenClampMinOp>();
     patterns.add<DecomposeAtenClampMaxOp>(context);

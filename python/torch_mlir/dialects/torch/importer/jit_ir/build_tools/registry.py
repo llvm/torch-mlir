@@ -168,7 +168,15 @@ class JitOperator:
                     # the real ops, and tuples work fine in all the places this
                     # kicks in (e.g. conv dilations -- we aren't mutating those
                     # lists).
-                    default_debug = arg["default_debug"].replace(
+                    
+                    # Handle a special case when the list contains exactly
+                    # one element.
+                    if (len(arg["default_debug"]) > 2 and 
+                        ',' not in arg["default_debug"]):
+                        default_debug = arg["default_debug"].replace(
+                            '[', '(').replace(']', ',)')
+                    else:
+                        default_debug = arg["default_debug"].replace(
                         '[', '(').replace(']', ')')
                 elif arg["pytype"] == "str":
                     default_debug = repr(arg["default_debug"]).replace("'", '"')

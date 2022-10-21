@@ -14,6 +14,9 @@ from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "UpSampleNearest2dDynamicFactor_basic",
+    "AvgPool1dStaticModule_basic",
+    "AvgPool1dIntModule_basic",
+    "AvgPool1dFloatModule_basic",
 }
 
 EAGER_MODE_XFAIL_SET = {
@@ -139,6 +142,7 @@ MHLO_PASS_SET = {
     "NumToTensorFloatModule_basic",
     "AtenToDeviceModule_basic",
     "AvgPool2dStaticModule_basic",
+    "AvgPool1dStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Convolution2DStaticModule_basic",
     "ConvolutionModule2DTransposeStridedStatic_basic",
