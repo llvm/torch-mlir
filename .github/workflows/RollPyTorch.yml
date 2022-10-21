@@ -9,8 +9,11 @@ jobs:
   build_linux:
     name: Manylinux Build
     runs-on: ubuntu-latest
-    steps:
 
+    # Don't run this in everyone's forks.
+    if: github.repository == 'llvm/torch-mlir'
+
+    steps:
     - name: Get torch-mlir
       uses: actions/checkout@v3
       with:
