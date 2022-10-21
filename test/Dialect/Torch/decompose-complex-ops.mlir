@@ -680,6 +680,54 @@ func.func @torch.aten.adaptive_avg_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) 
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.adaptive_avg_pool1d(
+// CHECK-SAME:                                              %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+// CHECK:           %[[CST_7:.*]] = torch.constant.int 7
+// CHECK:           %[[VAL_0:.*]] = torch.prim.ListConstruct %[[CST_7]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[CST_2:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_1:.*]] = torch.aten.size.int %[[ARG]], %[[CST_2]] : !torch.vtensor<[?,?,?],f32>, !torch.int -> !torch.int
+// CHECK:           %[[CST_1:.*]] = torch.constant.int 1
+// CHECK:           %[[CST_0:.*]] = torch.constant.int 0
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL_2:.*]] = torch.aten.eq.int %[[VAL_1]], %[[CST_7]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[VAL_2]], "unimplemented: only support cases where input and output size are equal for non-unit output size"
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[CST_1]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[CST_1]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[CST_0]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_6:.*]] = torch.aten.avg_pool1d %[[ARG]], %[[VAL_3]], %[[VAL_4]], %[[VAL_5]], %[[FALSE]], %[[TRUE]] : !torch.vtensor<[?,?,?],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[?,?,?],f32>
+func.func @torch.aten.adaptive_avg_pool1d(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+  %int7 = torch.constant.int 7
+  %output_size = torch.prim.ListConstruct %int7 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.adaptive_avg_pool1d %arg0, %output_size : !torch.vtensor<[?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.adaptive_avg_pool1d$unit_output_size(
+// CHECK-SAME:                                                               %[[ARG:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+// CHECK:           %[[CST_1:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_0:.*]] = torch.prim.ListConstruct %[[CST_1]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[CST_2:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_1:.*]] = torch.aten.size.int %[[ARG]], %[[CST_2]] : !torch.vtensor<[?,?,?],f32>, !torch.int -> !torch.int
+// CHECK:           %[[CST_1_0:.*]] = torch.constant.int 1
+// CHECK:           %[[CST_0:.*]] = torch.constant.int 0
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[VAL_2:.*]] = torch.prim.ListConstruct %[[VAL_1]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[CST_1_0]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[CST_0]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = torch.aten.avg_pool1d %[[ARG]], %[[VAL_2]], %[[VAL_3]], %[[VAL_4]], %[[FALSE]], %[[TRUE]] : !torch.vtensor<[?,?,?],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[?,?,?],f32>
+func.func @torch.aten.adaptive_avg_pool1d$unit_output_size(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+  %int1 = torch.constant.int 1
+  %output_size = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.adaptive_avg_pool1d %arg0, %output_size : !torch.vtensor<[?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.clamp_min(
 // CHECK-SAME:                  %[[SELF:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[MIN:.*]] = torch.constant.int -2
