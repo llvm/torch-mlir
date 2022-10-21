@@ -198,9 +198,15 @@ static bool isValidNonContainerResultType(Type resultType) {
 static LogicalResult validateReturns(func::FuncOp func) {
   if (func.getResultTypes().size() > 1) {
     return func->emitError(
-      "Functions can only ever return one item. Multiple return values are "
-      "stored in a tuple.");
+      "Python functions should only ever return one item. Multiple return "
+      "values are returned as a tuple.");
   }
+
+  // Allow returns of nothing. This shouldn't be possible from Python, but it
+  // can happen in IR that's been directly constructed.
+  if (func.getResultTypes().size() == 0)
+    return success();
+
   const auto& resultType = func.getResultTypes().front();
 
   // Allow single tensor, scalar, and bool returns
