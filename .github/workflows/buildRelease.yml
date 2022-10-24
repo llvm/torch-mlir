@@ -93,12 +93,56 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
       with:
         release_id: ${{ github.event.inputs.release_id }}
+        
+        
+  build_windows:
+    name: Windows Build
+    runs-on: windows-latest
+    steps:
+    - name: Get torch-mlir
+      uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/setup-build
+      with:
+        cache-suffix: ''
+    - name: Set up Visual Studio shell
+      uses: egor-tensin/vs-shell@v2
+      with:
+        arch: x64
+    - name: Build Python wheels and smoke test.
+      shell: pwsh
+      run: |
+        ./build_tools/python_deploy/build_windows.ps1
+
+    # If we were given a release_id, then upload the package we just built
+    # to the github releases page.
+    - name: Upload Release Assets (if requested)
+      if: github.event.inputs.release_id != ''
+      id: upload-release-assets
+      uses: dwenegar/upload-release-assets@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
+        assets_path: ./build_tools/python_deploy/wheelhouse/torch*.whl
+    # Publishing is necessary to make the release visible to `pip`
+    # on the github releases page.
+    - name: Publish Release (if requested)
+      if: github.event.inputs.release_id != ''
+      id: publish_release
+      uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
+      with:
+        release_id: ${{ github.event.inputs.release_id }}
 
   publish_releases:
     runs-on: ubuntu-latest
     needs:
     - build_linux
     - build_macos
+    - build_windows
 
     # Publish even if one of the builds failed
     if: ${{ always() }}
