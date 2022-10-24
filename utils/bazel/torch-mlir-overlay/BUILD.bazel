@@ -412,10 +412,10 @@ cc_library(
     name = "TorchMLIRTorchToMhlo",
     srcs = glob([
         "lib/Conversion/*.h",
+        "lib/Conversion/TorchToMhlo/*.h",
         "lib/Conversion/TorchToMhlo/*.cpp",
-        "lib/Conversion/TorchToMhlo/*.h"
     ]),
-    hdrs = glob(["include/torch-mlir/Conversion/TorchToMhlo/TorchToMhlo.h"]),
+    hdrs = glob(["include/torch-mlir/Conversion/TorchToMhlo/*.h"]),
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
@@ -450,7 +450,7 @@ cc_library(
     name = "TorchMLIRTorchConversionPasses",
     srcs = glob([
         "lib/Dialect/TorchConversion/Transforms/*.cpp",
-        "lib/Dialect/TorchConversion/Transforms/*.h"
+        "lib/Dialect/TorchConversion/Transforms/*.h",
     ]),
     hdrs = glob(["include/torch-mlir/Dialect/TorchConversion/Transforms/*.h"]),
     strip_include_prefix = "include",
@@ -616,8 +616,18 @@ gentbl_cc_library(
 
 cc_library(
     name = "TorchMLIRTMTensorDialect",
-    srcs = glob(["externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/*.cpp"]),
-    hdrs = glob(["externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/*.h"]),
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/ScalarLoopOpInterface.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorDialect.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorInterfaces.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/IR/TMTensorOps.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/ScalarLoopOpInterface.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorInterfaces.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h",
+    ],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
         ":TorchMLIRTMTensorInterfacesIncGen",
@@ -669,8 +679,15 @@ gentbl_cc_library(
 
 cc_library(
     name = "TorchMLIRTMTensorPasses",
-    srcs = glob(["externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/*.cpp"]),
-    hdrs = ["externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/*.h"],
+    srcs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/Bufferize.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/ConvertToLoops.cpp",
+        "externals/llvm-external-projects/torch-mlir-dialects/lib/Dialect/TMTensor/Transforms/Passes.cpp",
+    ],
+    hdrs = [
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h",
+        "externals/llvm-external-projects/torch-mlir-dialects/include/torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h",
+    ],
     strip_include_prefix = "externals/llvm-external-projects/torch-mlir-dialects/include",
     deps = [
         ":TorchMLIRTMTensorDialect",
