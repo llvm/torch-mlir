@@ -23,6 +23,7 @@ EAGER_MODE_XFAIL_SET = {
     "QuantizedMLP_basic",
     "Matmul_vecmat",
     "BatchMlpLayerModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 MHLO_PASS_SET = {
@@ -611,6 +612,7 @@ LTC_XFAIL_SET = {
     "ElementwiseRemainderScalarModule_Bool_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
