@@ -13,6 +13,7 @@
 from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 REFBACKEND_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    "UpSampleNearest2dDynamicFactor_basic",
     "SingleTensorTupleReturn_basic",
 }
 
