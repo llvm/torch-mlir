@@ -1713,8 +1713,67 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     std::cout << "XXX: Found unbind op!" << std::endl;
 
     auto tensor = unbindOp.getOperand(0);
-    //rewriter.replaceOpWithNewOp<Aten__Getitem__TOp>(op, tensor, op.getOperand(1));
-    rewriter.replaceOp(op, {tensor, op.getOperand(1)});
+    ////rewriter.replaceOpWithNewOp<Aten__Getitem__TOp>(op, tensor, op.getOperand(1));
+    //SmallVector<Value> listElements;
+    //// TODO: Conver this integer (op.getOperand(1)) to a tensor
+    //int64_t items[] = {};
+    //llvm::MutableArrayRef<long> arrayRefItems;
+    //auto adjusted = rewriter.create<Torch::TensorStaticInfoCastOp>(
+    //  op->getLoc(), rewriter.getType<Torch::NonValueTensorType>(
+    //    arrayRefItems, op.getOperand(1).getType()), op.getOperand(1));
+    //listElements.push_back(adjusted);
+
+    // Try AtenTensorIntOp
+    //auto boolConst = rewriter.create<Torch::ConstantBoolOp>(op->getLoc(), false);
+    //SmallVector<Value> listElements;
+    //auto indexAsTensor = rewriter.create<Torch::AtenTensorIntOp>(
+    //  op->getLoc(), op.getOperand(1), op.getOperand(1).getType(), boolConst);
+    //auto indexAsTensor = rewriter.create<Torch::AtenTensorIntOp>(
+    //  op->getLoc(), mlir::ValueRange{op.getOperand(1), boolConst});
+    //listElements.push_back(indexAsTensor);
+    auto boolConst = rewriter.create<Torch::ConstantBoolOp>(op->getLoc(), false);
+    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
+    SmallVector<Value> listElements;
+    auto indexAsTensorType = rewriter.getType<Torch::NonValueTensorType>(
+      llvm::makeArrayRef({1L}), op.getOperand(1).getType());
+    auto indexAsTensorMLIRType = rewriter.getType<Torch::NonValueTensorType>(
+      llvm::makeArrayRef({1L}), IntegerType::get(op->getContext(), 64, IntegerType::Signed));
+
+    auto indexAsTensor = rewriter.create<Torch::AtenTensorIntOp>(
+      op->getLoc(),
+      indexAsTensorMLIRType,
+      op.getOperand(1),
+      /*dtype=*/noneVal,
+      /*device=*/noneVal,
+      /*requiresGrad=*/boolConst);
+    listElements.push_back(indexAsTensor);
+    
+    //listElements.push_back(op.getOperand(1).cast<Torch::NonValueTensorType>());
+    //listElements.push_back(op.getOperand(1));
+    //for (int64_t size : type->getSizes()) {
+    //  listElements.push_back(rewriter.create<Torch::ConstantIntOp>(
+    //      op->getLoc(), rewriter.getI64IntegerAttr(size)));
+    //}
+    //
+    //rewriter.
+    //rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
+    //    op, Torch::ListType::get(rewriter.getType<Torch::ValueTensorType>()),
+    //    listElements);
+
+    auto list = rewriter.create<Torch::PrimListConstructOp>(
+      op->getLoc(), Torch::ListType::get(indexAsTensor.getType()),
+      listElements);
+    //auto list = rewriter.create<Torch::PrimListConstructOp>(
+    //  op->getLoc(), Torch::ListType::get(Torch::OptionalType::get(
+    //    rewriter.getType<Torch::NonValueTensorType>(llvm::makeArrayRef({1L}), tensor.getType()))),
+    //  listElements);
+    //Value latestLiteral = rewriter.create<PrimListConstructOp>(
+    //    op->getLoc(), op.getType(), op->getOperands());
+    rewriter.replaceOpWithNewOp<AtenIndexTensorOp>(
+      op, op.getType(), tensor, list);
+    //rewriter.replaceOpWithNewOp<AtenIndexTensorOp>(
+    //  op, op.getType(), tensor, op.getOperand(1));
+    //rewriter.replaceOp(op, {tensor, op.getOperand(1)});
     return success();
   });
 
