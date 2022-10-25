@@ -499,3 +499,60 @@ func.func @torch.aten.convolution$transposed_groups(%arg0: !torch.vtensor<[1,2,7
   %3 = torch.aten.convolution %arg0, %arg1, %none, %2, %0, %1, %true, %0, %int2 : !torch.vtensor<[1,2,7,7],f32>, !torch.vtensor<[2,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,4,15,15],f32>
   return %3 : !torch.vtensor<[1,4,15,15],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.linear(
+// CHECK-NOT: mhlo.dynamic_reshape
+// CHECK:     mhlo.transpose
+// CHECK:     mhlo.dot
+// CHECK:     chlo.broadcast_add
+func.func @torch.aten.linear(%arg0: !torch.vtensor<[4,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor<[4,5],f32> {
+  %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[4,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[4,5],f32>
+  return %1 : !torch.vtensor<[4,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.linear$nobias(
+// CHECK-NOT: mhlo.dynamic_reshape
+// CHECK:     mhlo.transpose
+// CHECK:     mhlo.dot
+// CHECK-NOT: chlo.broadcast_add
+func.func @torch.aten.linear$nobias(%arg0: !torch.vtensor<[4,3],f32>, %arg1: !torch.vtensor<[5,3],f32>) -> !torch.vtensor<[4,5],f32> {
+  %none = torch.constant.none
+  %1 = torch.aten.linear %arg0, %arg1, %none : !torch.vtensor<[4,3],f32>, !torch.vtensor<[5,3],f32>, !torch.none -> !torch.vtensor<[4,5],f32>
+  return %1 : !torch.vtensor<[4,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.linear$dynamic(
+// CHECK:     mhlo.transpose
+// CHECK:     arith.muli
+// CHECK:     arith.muli
+// CHECK:     tensor.from_elements
+// CHECK:     mhlo.dynamic_reshape
+// CHECK:     mhlo.dot
+// CHECK:     mhlo.dynamic_reshape
+// CHECK:     chlo.broadcast_add
+func.func @torch.aten.linear$dynamic(%arg0: !torch.vtensor<[?,?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor<[?,?,5],f32> {
+  %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[?,?,5],f32>
+  return %1 : !torch.vtensor<[?,?,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.linear$dynamic4D(
+// CHECK:     mhlo.transpose
+// CHECK:     arith.muli
+// CHECK:     arith.muli
+// CHECK:     tensor.from_elements
+// CHECK:     mhlo.dynamic_reshape
+// CHECK:     mhlo.dot
+// CHECK:     mhlo.dynamic_reshape
+// CHECK:     chlo.broadcast_add
+func.func @torch.aten.linear$dynamic4D(%arg0: !torch.vtensor<[?,?,?,3],f32>, %arg1: !torch.vtensor<[5,3],f32>, %arg2: !torch.vtensor<[5],f32>) -> !torch.vtensor<[?,?,?,5],f32> {
+  %1 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,?,?,3],f32>, !torch.vtensor<[5,3],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[?,?,?,5],f32>
+  return %1 : !torch.vtensor<[?,?,?,5],f32>
+}
