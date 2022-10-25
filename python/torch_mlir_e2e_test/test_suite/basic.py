@@ -3006,3 +3006,19 @@ class AtenToDeviceModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenToDeviceModule())
 def AtenToDeviceModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(2, 4))
+
+# ==============================================================================
+
+class SingleTensorTupleReturn(torch.nn.Module):
+
+    @export
+    @annotate_args([
+        None,
+        ([-1 , -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return (x,)
+
+@register_test_case(module_factory=lambda: SingleTensorTupleReturn())
+def SingleTensorTupleReturn_basic(module, tu: TestUtils):
+    module.forward(torch.randn(2, 4))
