@@ -1737,7 +1737,7 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     auto indexAsTensorType = rewriter.getType<Torch::NonValueTensorType>(
       llvm::makeArrayRef({1L}), op.getOperand(1).getType());
     auto indexAsTensorMLIRType = rewriter.getType<Torch::NonValueTensorType>(
-      llvm::makeArrayRef({1L}), IntegerType::get(op->getContext(), 64, IntegerType::Signed));
+      ArrayRef<int64_t>(), IntegerType::get(op->getContext(), 64, IntegerType::Signed));
 
     auto indexAsTensor = rewriter.create<Torch::AtenTensorIntOp>(
       op->getLoc(),

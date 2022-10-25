@@ -6443,6 +6443,7 @@ def Torch_AtenTypeAsOp : Torch_Op<"aten.type_as", [
 }
 
 def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [
+    Pure,
     AllowsTypeRefinement,
     ReadOnly
   ]> {
