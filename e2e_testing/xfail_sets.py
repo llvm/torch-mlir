@@ -482,6 +482,8 @@ TOSA_PASS_SET = {
     "HardTanhIntModule_basic",
     "AtenRoundIntModule_basic",
     "MseLossNoReductionModule_basic",
+    "AddCMul_Module_basic",
+    "AddCDiv_Module_basic",
 }
 
 LTC_XFAIL_SET = {
