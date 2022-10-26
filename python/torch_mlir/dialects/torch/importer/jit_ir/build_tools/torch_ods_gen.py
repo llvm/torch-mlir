@@ -292,7 +292,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
             "aten::square : (Tensor) -> (Tensor)",
             "aten::unsqueeze : (Tensor, int) -> (Tensor)",
             "aten::zero : (Tensor) -> (Tensor)",
-            "aten::fill.Scalar : (Tensor, Scalar) -> (Tensor)"
+            "aten::fill.Scalar : (Tensor, Scalar) -> (Tensor)",
+            "aten::fill.Tensor : (Tensor, Tensor) -> (Tensor)"
     ]:
         emit_with_mutating_variants(key)
     # Elementwise tensor compute ops that don't have the standard mutating
