@@ -700,7 +700,8 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenMaskedFillScalarOp, AtenFlipOp, PrimAbsScalarOp, AtenNumpyTOp,
           AtenTriuOp, AtenMaskedFillTensorOp, AtenRollOp, AtenPowTensorTensorOp,
           AtenLiftFreshCopyOp, AtenIndexTensorHackedTwinOp,
-          AtenUpsampleNearest2dVecOp, AtenMishOp, AtenRoundOp>(op)) {
+          AtenUpsampleNearest2dVecOp, AtenMishOp, AtenRoundOp,
+          AtenFillTensorOp>(op)) {
     return incorporateKnowledge(op->getResult(0), operands[0]->getValue());
   }
 

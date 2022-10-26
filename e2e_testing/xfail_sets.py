@@ -618,4 +618,7 @@ LTC_XFAIL_SET = {
     "UpSampleNearest2dDynamicSize_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
+    "Fill_TensorFloat32WithFloat32_basic",
+    "Fill_TensorFloat32WithFloat64_basic",
+    "Fill_TensorFloat32WithInt64_basic",
 }

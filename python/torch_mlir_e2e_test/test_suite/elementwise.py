@@ -2397,3 +2397,62 @@ class Fill_TensorFloat64WithInt64(torch.nn.Module):
 def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
     module.forward(torch.randn(3, 2, 4).to(torch.float64))
 
+
+# ==============================================================================
+
+
+class Fill_TensorFloat32WithFloat32(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([], torch.float32, True),
+    ])
+    def forward(self, tensor, value):
+        return torch.ops.aten.fill_(tensor, value)
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat32WithFloat32())
+def Fill_TensorFloat32WithFloat32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand())
+
+
+class Fill_TensorFloat32WithFloat64(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([], torch.float64, True),
+    ])
+    def forward(self, tensor, value):
+        return torch.ops.aten.fill_(tensor, value)
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat32WithFloat64())
+def Fill_TensorFloat32WithFloat64_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand().to(torch.float64))
+
+
+class Fill_TensorFloat32WithInt64(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+        ([], torch.int64, True),
+    ])
+    def forward(self, tensor, value):
+        return torch.ops.aten.fill_(tensor, value)
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat32WithInt64())
+def Fill_TensorFloat32WithInt64_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.randint())

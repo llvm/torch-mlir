@@ -794,6 +794,9 @@ def aten〇masked_fill〇Tensor(self: List[int], mask: List[int], value: List[in
 def aten〇zero(self: List[int]) -> List[int]:
     return self
 
+def aten〇fill〇Tensor(self: List[int], value: List[int]) -> List[int]:
+    return self
+
 def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
     return self
 
