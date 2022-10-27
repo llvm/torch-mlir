@@ -1010,6 +1010,9 @@ def aten〇index_select(self: List[int], dim: int, index: List[int]) -> List[int
 def aten〇index_put(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇index_add(self: List[int], dim: int, index: List[int], source: List[int], alpha: float = 1) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇index_put〇hacked_twin(self: List[int], indices: List[List[int]], values: List[int], accumulate: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 

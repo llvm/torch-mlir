@@ -487,6 +487,8 @@ private:
                            ArrayRef<const ValueState *> operands);
   void visitAtenScalarImplicitOp(AtenScalarImplicitOp op,
                                  ArrayRef<const ValueState *> operands);
+  void visitAtenIntImplicitOp(AtenIntImplicitOp op,
+                                 ArrayRef<const ValueState *> operands);
   void visitAtenEmbeddingBagOp(Operation *op);
 };
 } // namespace
@@ -697,7 +699,7 @@ void TypeAnalysis::visitOperation(Operation *op,
           AtenSliceScatterOp, AtenGatherOp, AtenExpandOp, AtenExpandAsOp,
           AtenBroadcastToOp, AtenRepeatOp, AtenConstantPadNdOp, AtenPadOp,
           AtenZero_Op, AtenIndexTensorOp, ValsemVariantAtenIndexPutImplOp,
-          AtenIndexPutOp, ValsemVariantAtenCopyOp, AtenZeroOp,
+          AtenIndexPutOp, AtenIndexAddOp, ValsemVariantAtenCopyOp, AtenZeroOp,
           AtenIndexPutHackedTwinOp, AtenMaskedFillScalarOp, AtenFlipOp,
           PrimAbsScalarOp, AtenNumpyTOp, AtenTriuOp, AtenMaskedFillTensorOp,
           AtenRollOp, AtenPowTensorTensorOp, AtenLiftFreshCopyOp,
@@ -1148,6 +1150,11 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto intImplicit = dyn_cast<AtenIntImplicitOp>(op)) {
+    visitAtenIntImplicitOp(intImplicit, operands);
+    return;
+  }
+
   if (auto vectorNorm = dyn_cast<AtenLinalgVectorNormOp>(op)) {
     Type defaultDtype = operands[0]->getValue().dtype;
     Type dtype = getDtypeOrDefault(vectorNorm.getContext(), vectorNorm.dtype(),
@@ -1168,6 +1175,14 @@ void TypeAnalysis::incorporateKnowledge(Value v,
       knowledge, ValueKnowledge::getPessimisticValueState(v));
   assert(updatedKnowledge.has_value() && "IR has contradictory type!");
   getLatticeElement(v)->join(updatedKnowledge.value());
+}
+
+void TypeAnalysis::visitAtenIntImplicitOp(
+    AtenIntImplicitOp op, ArrayRef<const ValueState *> operands) {
+  auto knowledge =
+      ValueKnowledge::getScalarPessimisticValueState(op.getContext());
+  knowledge.setScalarType(Torch::IntType::get(op->getContext()));
+  incorporateKnowledge(op->getResult(0), knowledge);
 }
 
 void TypeAnalysis::visitAtenLinearOp(AtenLinearOp op,
