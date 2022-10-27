@@ -260,8 +260,8 @@ public:
                                 PatternRewriter &rewriter) const override {
     Value zero = rewriter.create<ConstantIntOp>(op.getLoc(),
                                                 rewriter.getI64IntegerAttr(0));
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenFillScalarOp>(op, op.getType(),
-                                                               op.self(), zero);
+    rewriter.replaceOpWithNewOp<AtenFillScalarOp>(op, op.getType(), op.self(),
+                                                  zero);
     return success();
   }
 };
@@ -1533,9 +1533,9 @@ public:
     Value emptyTensor = rewriter.create<AtenFullLikeOp>(
         loc, resultType, input, zero, op.dtype(), op.layout(), op.device(),
         op.pin_memory(), op.memory_format());
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenUniformOp>(
-        op, resultType, emptyTensor, /*from=*/zero, /*to=*/one,
-        /*generator=*/none);
+    rewriter.replaceOpWithNewOp<AtenUniformOp>(op, resultType, emptyTensor,
+                                               /*from=*/zero, /*to=*/one,
+                                               /*generator=*/none);
     return success();
   }
 };
@@ -1643,11 +1643,11 @@ public:
 // aten.bernoulli.Tensor(x, p) = (rand_like(float(x)) < p).cast(type(x)).
 // Since the input x can be an integer tensor, it's important to cast it to
 // float type before passing it to the `aten.rand_like` op.
-class DecomposeValsemVariantAtenBernoulliTensorOp
-    : public OpRewritePattern<ValsemVariantAtenBernoulliTensorOp> {
+class DecomposeAtenBernoulliTensorOp
+    : public OpRewritePattern<AtenBernoulliTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(ValsemVariantAtenBernoulliTensorOp op,
+  LogicalResult matchAndRewrite(AtenBernoulliTensorOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value input = op.self();
@@ -2199,7 +2199,7 @@ public:
   LogicalResult matchAndRewrite(AtenIndexPutOp op,
                                 PatternRewriter &rewriter) const override {
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
+    rewriter.replaceOpWithNewOp<Aten_IndexPutImplOp>(
         op, op.getType(), op.self(), op.indices(), op.values(), op.accumulate(),
         /*unsafe=*/cstFalse);
     return success();
@@ -2237,8 +2237,8 @@ public:
     Value emptyTensor = rewriter.create<AtenFullLikeOp>(
         op.getLoc(), op.getType(), op.self(), zero, op.dtype(), op.layout(),
         op.device(), op.pin_memory(), op.memory_format());
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenCopyOp>(
-        op, op.getType(), emptyTensor, op.self(), op.non_blocking());
+    rewriter.replaceOpWithNewOp<AtenCopyOp>(op, op.getType(), emptyTensor,
+                                            op.self(), op.non_blocking());
     return success();
   }
 };
@@ -2275,7 +2275,7 @@ public:
   LogicalResult matchAndRewrite(AtenIndexPutHackedTwinOp op,
                                 PatternRewriter &rewriter) const override {
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
-    rewriter.replaceOpWithNewOp<ValsemVariantAtenIndexPutImplOp>(
+    rewriter.replaceOpWithNewOp<Aten_IndexPutImplOp>(
         op, op.getType(), op.self(), op.indices(), op.values(), op.accumulate(),
         /*unsafe=*/cstFalse);
     return success();
@@ -2962,8 +2962,8 @@ public:
     target.addIllegalOp<AtenBernoulliOp>();
     patterns.add<DecomposeValsemVariantAtenBernoulliFloatOp>(context);
     target.addIllegalOp<ValsemVariantAtenBernoulliFloatOp>();
-    patterns.add<DecomposeValsemVariantAtenBernoulliTensorOp>(context);
-    target.addIllegalOp<ValsemVariantAtenBernoulliTensorOp>();
+    patterns.add<DecomposeAtenBernoulliTensorOp>(context);
+    target.addIllegalOp<AtenBernoulliTensorOp>();
     patterns.add<DecomposeAtenZeroOp>(context);
     target.addIllegalOp<AtenZeroOp>();
     patterns.add<DecomposeAtenRandLikeOp>(context);

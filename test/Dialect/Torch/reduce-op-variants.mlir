@@ -151,21 +151,6 @@ func.func @convert_to_value_semantic_tensors_optional_list_nones_and_tensors(%se
   return %ret : !torch.tensor
 }
 
-// CHECK-LABEL:   func.func @torch.aten.uniform_(
-// CHECK-SAME:         %[[T:.*]]: !torch.tensor, %[[MIN:.*]]: !torch.float, %[[MAX:.*]]: !torch.float,
-// CHECK-SAME:         %[[GENERATOR:.*]]: !torch.none) -> !torch.tensor {
-// CHECK:           %[[T_VTENSOR:.*]] = torch.copy.to_vtensor %[[T]] : !torch.vtensor
-// CHECK:           %[[VRET:.*]] = torch.valsem.aten.uniform %[[T_VTENSOR]], %[[MIN]], %[[MAX]], %[[GENERATOR]] :
-// CHECK-SAME:         !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
-// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
-// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
-// CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[T]] : !torch.vtensor, !torch.tensor
-// CHECK:           return %[[T]] : !torch.tensor
-func.func @torch.aten.uniform_(%t: !torch.tensor, %min: !torch.float, %max: !torch.float, %generator: !torch.none) -> !torch.tensor {
-  %ret = torch.aten.uniform_ %t, %min, %max, %generator: !torch.tensor, !torch.float, !torch.float, !torch.none -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
 // CHECK-LABEL:   func.func @torch.aten.bernoulli_.float(
 // CHECK-SAME:                                      %[[T:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:           %[[GENERATOR:.*]] = torch.constant.none
@@ -180,59 +165,5 @@ func.func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
   %generator = torch.constant.none
   %p = torch.constant.float 5.000000e-01
   %ret = torch.aten.bernoulli_.float %t, %p, %generator : !torch.tensor, !torch.float, !torch.none -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// CHECK-LABEL:   func.func @torch.aten.fill_.Scalar(
-// CHECK-SAME:                                  %[[T:.*]]: !torch.tensor) -> !torch.tensor {
-// CHECK:           %[[VALUE:.*]] = torch.constant.int 1
-// CHECK:           %[[T_VTENSOR:.*]] = torch.copy.to_vtensor %[[T]] : !torch.vtensor
-// CHECK:           %[[VRET:.*]] = torch.valsem.aten.fill.Scalar %[[T_VTENSOR]], %[[VALUE]] : !torch.vtensor, !torch.int -> !torch.vtensor
-// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
-// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
-// CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[T]] : !torch.vtensor, !torch.tensor
-// CHECK:           return %[[T]] : !torch.tensor
-func.func @torch.aten.fill_.Scalar(%t: !torch.tensor) -> !torch.tensor {
-  %value = torch.constant.int 1
-  %ret = torch.aten.fill_.Scalar %t, %value : !torch.tensor, !torch.int -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// CHECK-LABEL:   func.func @torch.aten._index_put_impl_(
-// CHECK-SAME:                                  %[[SELF:.*]]: !torch.tensor, %[[INDEX:.*]]: !torch.tensor, %[[VALUES:.*]]: !torch.tensor) -> !torch.tensor {
-// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[INDICES_OPTIONAL_LIST:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.tensor) -> !torch.list<optional<tensor>>
-// CHECK:           %[[SELF_VTENSOR:.*]] = torch.copy.to_vtensor %[[SELF]] : !torch.vtensor
-// CHECK:           %[[INDEX_VTENSOR:.*]] = torch.copy.to_vtensor %[[INDEX]] : !torch.vtensor
-// CHECK:           %[[INDICES_LIST:.*]] = torch.prim.ListConstruct %[[INDEX_VTENSOR]] : (!torch.vtensor) -> !torch.list<optional<vtensor>>
-// CHECK:           %[[VALUES_VTENSOR:.*]] = torch.copy.to_vtensor %[[VALUES]] : !torch.vtensor
-// CHECK:           %[[VRET:.*]] = torch.valsem.aten.index_put_impl %[[SELF_VTENSOR]], %[[INDICES_LIST]], %[[VALUES_VTENSOR]], %[[TRUE]], %[[FALSE]] : !torch.vtensor, !torch.list<optional<vtensor>>, !torch.vtensor, !torch.bool, !torch.bool -> !torch.vtensor
-// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
-// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
-// CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[SELF]] : !torch.vtensor, !torch.tensor
-// CHECK:           return %[[SELF:.*]] : !torch.tensor
-func.func @torch.aten._index_put_impl_(%self: !torch.tensor, %index: !torch.tensor, %values: !torch.tensor) -> !torch.tensor {
-  %true = torch.constant.bool true
-  %false = torch.constant.bool false
-  %indicesList = torch.prim.ListConstruct %index : (!torch.tensor) -> !torch.list<optional<tensor>>
-  %ret = torch.aten._index_put_impl_ %self, %indicesList, %values, %true, %false : !torch.tensor, !torch.list<optional<tensor>>, !torch.tensor, !torch.bool, !torch.bool -> !torch.tensor
-  return %ret : !torch.tensor
-}
-
-// CHECK-LABEL:   func.func @torch.aten.copy_(
-// CHECK-SAME:                          %[[DST:.*]]: !torch.tensor,
-// CHECK-SAME:                          %[[SRC:.*]]: !torch.tensor) -> !torch.tensor {
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[DST_VTENSOR:.*]] = torch.copy.to_vtensor %[[DST]] : !torch.vtensor
-// CHECK:           %[[SRC_VTENSOR:.*]] = torch.copy.to_vtensor %[[SRC]] : !torch.vtensor
-// CHECK:           %[[VRET:.*]] = torch.valsem.aten.copy %[[DST_VTENSOR]], %[[SRC_VTENSOR]], %[[FALSE]] : !torch.vtensor, !torch.vtensor, !torch.bool -> !torch.vtensor
-// CHECK:           %[[RET:.*]] = torch.copy.to_tensor %[[VRET]] : !torch.tensor
-// CHECK:           %[[COPY_VTENSOR:.*]] = torch.copy.to_vtensor %[[RET]] : !torch.vtensor
-// CHECK:           torch.overwrite.tensor.contents %[[COPY_VTENSOR]] overwrites %[[DST]] : !torch.vtensor, !torch.tensor
-// CHECK:           return %[[DST]] : !torch.tensor
-func.func @torch.aten.copy_(%dst: !torch.tensor, %src : !torch.tensor) -> !torch.tensor {
-  %false = torch.constant.bool false
-  %ret = torch.aten.copy_ %dst, %src, %false : !torch.tensor, !torch.tensor, !torch.bool -> !torch.tensor
   return %ret : !torch.tensor
 }

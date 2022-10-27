@@ -22,22 +22,23 @@ func.func @basic(%arg0: !torch.vtensor) -> !torch.vtensor {
 // -----
 
 // CHECK: module {
-// CHECK:   func.func private @__torch_mlir_shape_fn.aten.fill.Scalar(
+// CHECK:   func.func private @__torch_mlir_shape_fn.aten.bernoulli.float(
 
 // CHECK-LABEL:   func.func @valsem_ops(
 // CHECK-SAME:                     %[[ARG0:.*]]: !torch.vtensor,
-// CHECK-SAME:                     %[[ARG1:.*]]: !torch.int) -> !torch.vtensor {
+// CHECK-SAME:                     %[[ARG1:.*]]: !torch.float,
+// CHECK-SAME:                     %[[ARG2:.*]]: !torch.Generator) -> !torch.vtensor {
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate {
-// CHECK:             %[[VALUE:.*]] = torch.valsem.aten.fill.Scalar %[[ARG0]], %[[ARG1]] : !torch.vtensor, !torch.int -> !torch.vtensor
+// CHECK:             %[[VALUE:.*]] = torch.valsem.aten.bernoulli.float %[[ARG0]], %[[ARG1]], %[[ARG2]] : !torch.vtensor, !torch.float, !torch.Generator -> !torch.vtensor
 // CHECK:             torch.shape.calculate.yield %[[VALUE]] : !torch.vtensor
 // CHECK:           } shapes {
 // CHECK:             %[[SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
-// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.fill.Scalar(%[[SHAPE]], %{{.*}}) : (!torch.list<int>, !torch.float) -> !torch.list<int>
+// CHECK:             %[[RESULT_SHAPE:.*]] = func.call @__torch_mlir_shape_fn.aten.bernoulli.float(%[[SHAPE]], %{{.*}}) : (!torch.list<int>, !torch.float, !torch.any) -> !torch.list<int>
 // CHECK:             torch.shape.calculate.yield.shapes %[[RESULT_SHAPE]] : !torch.list<int>
 // CHECK:           } : !torch.vtensor
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
-func.func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtensor {
-  %0 = torch.valsem.aten.fill.Scalar %arg0, %arg1 : !torch.vtensor, !torch.int -> !torch.vtensor
+func.func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.float, %arg2: !torch.Generator) -> !torch.vtensor {
+  %0 = torch.valsem.aten.bernoulli.float %arg0, %arg1, %arg2 : !torch.vtensor, !torch.float, !torch.Generator -> !torch.vtensor
   return %0 : !torch.vtensor
 }
 
@@ -52,7 +53,7 @@ func.func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtenso
 // CHECK-SAME:                     %[[ARG1:.*]]: !torch.float) -> !torch.vtensor {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
 // CHECK:           %[[RESULT:.*]] = torch.shape.calculate {
-// CHECK:             %[[UNIFORM:.*]] = torch.valsem.aten.uniform %[[ARG0]], %[[ARG1]], %[[ARG1]], %[[NONE]] : !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
+// CHECK:             %[[UNIFORM:.*]] = torch.aten.uniform %[[ARG0]], %[[ARG1]], %[[ARG1]], %[[NONE]] : !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
 // CHECK:             torch.shape.calculate.yield %[[UNIFORM]] : !torch.vtensor
 // CHECK:           } shapes {
 // CHECK:             %[[ARG0_SHAPE:.*]] = torch.aten.size %[[ARG0]] : !torch.vtensor -> !torch.list<int>
@@ -63,7 +64,7 @@ func.func @valsem_ops(%arg0: !torch.vtensor, %arg1: !torch.int) -> !torch.vtenso
 // CHECK:           return %[[RESULT:.*]] : !torch.vtensor
 func.func @adjust_shape_function_arg$torch.any(%arg0: !torch.vtensor, %arg1: !torch.float) -> !torch.vtensor {
   %none = torch.constant.none
-  %0 = torch.valsem.aten.uniform %arg0, %arg1, %arg1, %none : !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
+  %0 = torch.aten.uniform %arg0, %arg1, %arg1, %none : !torch.vtensor, !torch.float, !torch.float, !torch.none -> !torch.vtensor
   return %0 : !torch.vtensor
 }
 

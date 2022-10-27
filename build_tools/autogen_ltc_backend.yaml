@@ -1,6 +1,7 @@
 blacklist:
 # List of unsupported ops in LTC autogen because of some error
 - _index_put_impl_  # Error: TODO not sure if there are other valid types to handle here
+- _index_put_impl # Error: TODO not sure if there are other valid types to handle here
 - empty_like  # Error: TODO add support for type BaseType(name=<BaseTy.MemoryFormat: 12>)
 - index.Tensor  # Error: TODO not sure if there are other valid types to handle here
 - index_put  # Error: TODO not sure if there are other valid types to handle here
@@ -23,6 +24,7 @@ blacklist:
 - arange
 - arange.start
 - arange.start_step
+- fill.Scalar
 
 # Disabled in favour of functionalized alternatives
 - _reshape_alias

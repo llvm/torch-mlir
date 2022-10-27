@@ -295,8 +295,8 @@ def not_present_in_registry(f):
     """Decorator for shape functions not present in the shape registry.
 
     This can happen for "valsem" ops that we have in Torch-MLIR, such as
-    torch.valsem.aten.fill.Scalar, which are consistent with PyTorch conventions
-    (e.g. being the value-semantic correspondent of torch.aten.fill_.Scalar),
+    torch.valsem.aten.bernoulli.float, which are consistent with PyTorch conventions
+    (e.g. being the value-semantic correspondent of torch.aten.bernoulli_.float),
     but that for whatever reason are not present in PyTorch. Such ops are useful
     to keep certain passes within Torch-MLIR as consistent as possible.
     For such ops, in the shape library generator, we treat them as if they
@@ -794,15 +794,12 @@ def aten〇masked_fill〇Tensor(self: List[int], mask: List[int], value: List[in
 def aten〇zero(self: List[int]) -> List[int]:
     return self
 
-@not_present_in_registry
 def aten〇fill〇Scalar(self: List[int], value: float) -> List[int]:
     return self
 
-@not_present_in_registry
 def aten〇copy(self: List[int], src: List[int], non_blocking: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-@not_present_in_registry
 def aten〇uniform(self: List[int], from_: float = 0., to: float = 1., generator: Any = None) -> List[int]:
     return self
 
@@ -810,12 +807,10 @@ def aten〇uniform(self: List[int], from_: float = 0., to: float = 1., generator
 def aten〇bernoulli〇float(self: List[int], p: float = 0.5, generator: Any = None) -> List[int]:
     return self
 
-@not_present_in_registry
 def aten〇bernoulli〇Tensor(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
-@not_present_in_registry
-def aten〇index_put_impl(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False, unsafe: bool = False) -> List[int]:
+def aten〇_index_put_impl(self: List[int], indices: List[Optional[List[int]]], values: List[int], accumulate: bool = False, unsafe: bool = False) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇bernoulli(self: List[int], generator: Any = None) -> List[int]:

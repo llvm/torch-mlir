@@ -2336,3 +2336,64 @@ class AtenRoundIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenRoundIntModule())
 def AtenRoundIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 5, low = -10))
+
+
+# ==============================================================================
+
+
+class Fill_TensorFloat64WithFloat32(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.fill_(tensor, 3.0)
+
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat32())
+def Fill_TensorFloat64WithFloat32_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4))
+
+
+class Fill_TensorFloat64WithFloat64(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.fill_(tensor, 3.0)
+
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat64WithFloat64())
+def Fill_TensorFloat64WithFloat64_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4).to(torch.float64))
+
+
+class Fill_TensorFloat64WithInt64(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, tensor):
+        return torch.ops.aten.fill_(tensor, 3)
+
+
+@register_test_case(module_factory=lambda: Fill_TensorFloat64WithInt64())
+def Fill_TensorFloat64WithInt64_basic(module, tu: TestUtils):
+    module.forward(torch.randn(3, 2, 4).to(torch.float64))
+
