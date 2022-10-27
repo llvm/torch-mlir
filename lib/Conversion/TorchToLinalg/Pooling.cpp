@@ -63,14 +63,14 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
 template <typename OpTy>
 static LogicalResult createPoolingOp(
     Operation *op, ConversionPatternRewriter &rewriter, Value self,
-    bool supportFPInputOnly, bool ceilMode,
+    bool supportNonFPInput, bool ceilMode,
     SmallVectorImpl<Value> &kernelSizeIntValues,
     SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
     SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
     SmallVectorImpl<Value> &outTensorShape, Value &paddedInput, Value &result) {
   Location loc = op->getLoc();
   Type elementType = self.getType().cast<RankedTensorType>().getElementType();
-  if (!elementType.isa<mlir::FloatType>() && !supportFPInputOnly)
+  if (!elementType.isa<mlir::FloatType>() && !supportNonFPInput)
     return op->emitError("unimplemented: non-floating point type");
 
   SmallVector<int64_t, 4> lowPaddingIncludingNC = {0, 0};
@@ -163,7 +163,7 @@ public:
     // `maxpool2d` contains the result of maxpool2d operation over the input.
     Value maxPool2d, paddedInput;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
-            op, rewriter, self, /*supportFPInput=*/false, ceilMode,
+            op, rewriter, self, /*supportNonFPInput=*/false, ceilMode,
             kernelSizeIntValues, strideInts, paddingInts, dilationInts,
             smallestFPValueAttr, outTensorShape, paddedInput, maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
@@ -240,7 +240,7 @@ public:
     Value maxPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
-            op, rewriter, self, /*supportFPInput=*/false, ceilMode,
+            op, rewriter, self, /*supportNonFPInput=*/false, ceilMode,
             kernelSizeIntValues, strideInts, paddingInts, dilationInts,
             smallestFPValueAttr, outTensorShape, paddedInput, maxPool2d)))
       return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
@@ -395,7 +395,7 @@ public:
     Value sumPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
     if (failed(createPoolingOp<linalg::PoolingNchwSumOp>(
-            op, rewriter, self, /*supportFPInput=*/true, ceilMode,
+            op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
             kernelSizeIntValues, strideInts, paddingInts, dilationInts,
             rewriter.getZeroAttr(inputElementType), outTensorShape, paddedInput,
             sumPool2d)))
