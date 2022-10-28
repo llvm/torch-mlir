@@ -861,7 +861,7 @@ func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
 }
 
 // -----
-// CHECK-LABEL:   func.func @torch.valsem.aten.copy(
+// CHECK-LABEL:   func.func @torch.aten.copy(
 // CHECK-SAME:                                   %[[ARG_0:.*]]: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
 // CHECK:           %[[INP:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[1,1,5,5],ui8> -> tensor<1x1x5x5xi8>
 // CHECK:           %[[CST5:.*]] = torch.constant.int 5
@@ -879,7 +879,7 @@ func.func @torch.prim.NumToTensor.Scalar() -> !torch.vtensor<[],si64> {
 // CHECK:           %[[VAL_6:.*]] = "tosa.logical_not"(%[[VAL_5]]) : (tensor<1x1x5x5xi1>) -> tensor<1x1x5x5xi1>
 // CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x1x5x5xi1> -> !torch.vtensor<[1,1,5,5],i1>
 // CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,1,5,5],i1>
-func.func @torch.valsem.aten.copy(%arg0: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
+func.func @torch.aten.copy(%arg0: !torch.vtensor<[1,1,5,5],ui8>) -> !torch.vtensor<[1,1,5,5],i1> {
   %int5 = torch.constant.int 5
   %int1 = torch.constant.int 1
   %int11 = torch.constant.int 11
@@ -890,7 +890,7 @@ func.func @torch.valsem.aten.copy(%arg0: !torch.vtensor<[1,1,5,5],ui8>) -> !torc
   %1 = torch.aten.to.dtype %0, %int11, %false, %false, %none : !torch.vtensor<[],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[],i1>
   %2 = torch.prim.ListConstruct %int1, %int1, %int5, %int5 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %3 = torch.aten.broadcast_to %1, %2 : !torch.vtensor<[],i1>, !torch.list<int> -> !torch.vtensor<[1,1,5,5],i1>
-  %4 = torch.valsem.aten.copy %3, %arg0, %false : !torch.vtensor<[1,1,5,5],i1>, !torch.vtensor<[1,1,5,5],ui8>, !torch.bool -> !torch.vtensor<[1,1,5,5],i1>
+  %4 = torch.aten.copy %3, %arg0, %false : !torch.vtensor<[1,1,5,5],i1>, !torch.vtensor<[1,1,5,5],ui8>, !torch.bool -> !torch.vtensor<[1,1,5,5],i1>
   return %4 : !torch.vtensor<[1,1,5,5],i1>
 }
 

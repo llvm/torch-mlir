@@ -1219,12 +1219,11 @@ public:
 } // namespace
 
 namespace {
-class ConvertValsemVariantAtenCopyOp
-    : public OpConversionPattern<ValsemVariantAtenCopyOp> {
+class ConvertAtenCopyOp : public OpConversionPattern<AtenCopyOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ValsemVariantAtenCopyOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenCopyOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1362,8 +1361,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
   target.addIllegalOp<AtenContiguousOp>();
   patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
-  target.addIllegalOp<ValsemVariantAtenCopyOp>();
-  patterns.add<ConvertValsemVariantAtenCopyOp>(typeConverter, context);
+  target.addIllegalOp<AtenCopyOp>();
+  patterns.add<ConvertAtenCopyOp>(typeConverter, context);
   target.addIllegalOp<AtenSliceScatterOp>();
   patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
 }

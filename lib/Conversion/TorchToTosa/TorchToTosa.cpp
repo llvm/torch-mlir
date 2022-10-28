@@ -3102,8 +3102,8 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<ValsemVariantAtenCopyOp>::matchAndRewrite(
-    ValsemVariantAtenCopyOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewrite(
+    AtenCopyOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
@@ -3856,7 +3856,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
-    INSERT_ATENOP_PATTERN(ValsemVariantAtenCopyOp);
+    INSERT_ATENOP_PATTERN(AtenCopyOp);
     INSERT_ATENOP_PATTERN(AtenToDtypeOp);
 #undef INSERT_ATENOP_PATTERN
 

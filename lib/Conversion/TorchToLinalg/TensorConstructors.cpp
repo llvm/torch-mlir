@@ -80,34 +80,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertValsemVariantAtenFillScalarOp
-    : public OpConversionPattern<ValsemVariantAtenFillScalarOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(ValsemVariantAtenFillScalarOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-    Location loc = op->getLoc();
-    Value self = adaptor.self();
-    Value initVal = adaptor.value();
-    auto tensorType = self.getType().cast<RankedTensorType>();
-    RankedTensorType resultType =
-        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-
-    Value initValCasted = convertScalarToDtype(rewriter, loc, initVal,
-                                               tensorType.getElementType());
-    Value result =
-        createInitTensor(rewriter, loc, getTensorSizes(rewriter, loc, self),
-                         tensorType.getElementType(), initValCasted);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 // Converts constant tensor allocation like ops.
 template <typename OpTy, int fillVal>
 class ConvertConstantTensorAllocOp : public OpConversionPattern<OpTy> {
@@ -344,8 +316,6 @@ void mlir::torch::torch_to_linalg::
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenConstantPadNdOp>();
   patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
-  target.addIllegalOp<ValsemVariantAtenFillScalarOp>();
-  patterns.add<ConvertValsemVariantAtenFillScalarOp>(typeConverter, context);
   target.addIllegalOp<AtenZerosOp, AtenOnesOp>();
   patterns.add<ConvertConstantTensorAllocOp<AtenZerosOp, 0>>(typeConverter,
                                                              context);

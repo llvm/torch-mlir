@@ -6308,7 +6308,7 @@ StringRef mlir::torch::Torch::getShapeLibrary() {
 "  func.func @\"__torch_mlir_shape_fn.aten.bernoulli.Tensor\"(%arg0: !torch.list<int>, %arg1: !torch.list<int>, %arg2: !torch.any) -> !torch.list<int> {\n"
 "    return %arg0 : !torch.list<int>\n"
 "  }\n"
-"  func.func @\"__torch_mlir_shape_fn.aten.index_put_impl\"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {\n"
+"  func.func @\"__torch_mlir_shape_fn.aten._index_put_impl\"(%arg0: !torch.list<int>, %arg1: !torch.list<optional<list<int>>>, %arg2: !torch.list<int>, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.list<int> {\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.unary(%arg0) : (!torch.list<int>) -> !torch.list<int>\n"
 "    return %0 : !torch.list<int>\n"
 "  }\n"

@@ -215,12 +215,12 @@ public:
 } // namespace
 
 namespace {
-class ConvertValsemVariantAtenIndexPutImplOp
-    : public OpConversionPattern<ValsemVariantAtenIndexPutImplOp> {
+class ConvertAten_IndexPutImplOp
+    : public OpConversionPattern<Aten_IndexPutImplOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ValsemVariantAtenIndexPutImplOp op, OpAdaptor adaptor,
+  matchAndRewrite(Aten_IndexPutImplOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -633,9 +633,8 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenBincountOp>();
     patterns.add<ConvertAtenBincountOp>(typeConverter, context);
-    target.addIllegalOp<ValsemVariantAtenIndexPutImplOp>();
-    patterns.add<ConvertValsemVariantAtenIndexPutImplOp>(typeConverter,
-                                                         context);
+    target.addIllegalOp<Aten_IndexPutImplOp>();
+    patterns.add<ConvertAten_IndexPutImplOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);

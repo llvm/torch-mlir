@@ -59,12 +59,11 @@ public:
 
 
 namespace {
-class ConvertValsemVariantAtenUniformOp
-    : public OpConversionPattern<ValsemVariantAtenUniformOp> {
+class ConvertAtenUniformOp : public OpConversionPattern<AtenUniformOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(ValsemVariantAtenUniformOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenUniformOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -162,6 +161,6 @@ void mlir::torch::torch_to_linalg::populateRandomPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenDropoutOp>();
   patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
-  target.addIllegalOp<ValsemVariantAtenUniformOp>();
-  patterns.add<ConvertValsemVariantAtenUniformOp>(typeConverter, context);
+  target.addIllegalOp<AtenUniformOp>();
+  patterns.add<ConvertAtenUniformOp>(typeConverter, context);
 }

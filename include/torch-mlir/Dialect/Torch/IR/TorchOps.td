@@ -1082,26 +1082,6 @@ def Torch_OverwriteTensorContentsOp : Torch_Op<"overwrite.tensor.contents", [
   }];
 }
 
-// The corresponding without underscore variant for `torch.aten.uniform_`
-// doesn't exist in the pytorch ops registry. Add it here.
-def Torch_ValsemVariantAtenUniformOp: Torch_Op<"valsem.aten.uniform", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "`uniform op : (Tensor, float, float, Generator?) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    Torch_FloatType:$from,
-    Torch_FloatType:$to,
-    AnyTorchOptionalGeneratorType:$generator
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $from `,` $to `,` $generator attr-dict `:` type($self) `,` type($from) `,` type($to) `,` type($generator) `->` type($result)";
-}
-
 // The corresponding without underscore variant for `torch.aten.bernoulli_.float`
 // doesn't exist in the pytorch ops registry. Add it here.
 def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.float", [
@@ -1119,83 +1099,6 @@ def Torch_ValsemVariantAtenBernoulliFloatOp: Torch_Op<"valsem.aten.bernoulli.flo
     AnyTorchTensorType:$result
   );
   let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` type($self) `,` type($p) `,` type($generator) `->` type($result)";
-}
-
-// The corresponding without underscore variant for `torch.aten.bernoulli_.Tensor`
-// doesn't exist in the pytorch ops registry. Add it here.
-def Torch_ValsemVariantAtenBernoulliTensorOp: Torch_Op<"valsem.aten.bernoulli.Tensor", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::bernoulli_.Tensor : (Tensor, Tensor, Generator?) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$p,
-    AnyTorchOptionalGeneratorType:$generator
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $p `,` $generator attr-dict `:` qualified(type($self)) `,` qualified(type($p)) `,` qualified(type($generator)) `->` qualified(type($result))";
-}
-
-// The corresponding without underscore variant for `torch.aten.fill_.Scalar`
-// doesn't exist in the pytorch ops registry. Add it here.
-def Torch_ValsemVariantAtenFillScalarOp: Torch_Op<"valsem.aten.fill.Scalar", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "`fill.Scalar op : (Tensor, Scalar) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchScalarType:$value
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $value attr-dict `:` qualified(type($self)) `,` qualified(type($value)) `->` qualified(type($result))";
-}
-
-// The corresponding without underscore variant for `torch.aten._index_put_impl_`
-// doesn't exist in the pytorch ops registry. Add it here.
-def Torch_ValsemVariantAtenIndexPutImplOp: Torch_Op<"valsem.aten.index_put_impl", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "`index_put_impl op : (Tensor, Tensor?[], Tensor, bool, bool) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfOptionalTensorType:$indices,
-    AnyTorchTensorType:$values,
-    Torch_BoolType:$accumulate,
-    Torch_BoolType:$unsafe
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $indices `,` $values `,` $accumulate `,` $unsafe attr-dict `:` qualified(type($self)) `,` qualified(type($indices)) `,` qualified(type($values)) `,` qualified(type($accumulate)) `,` qualified(type($unsafe)) `->` qualified(type($result))";
-}
-
-// The corresponding without underscore variant for `torch.aten.copy_`
-// doesn't exist in the pytorch ops registry. Add it here.
-def Torch_ValsemVariantAtenCopyOp : Torch_Op<"valsem.aten.copy", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "copy op : (Tensor, Tensor, bool) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$src,
-    Torch_BoolType:$non_blocking
-  );
-  let results = (outs
-    AnyTorchTensorType:$result
-  );
-  let assemblyFormat = "$self `,` $src `,` $non_blocking attr-dict `:` qualified(type($self)) `,` qualified(type($src)) `,` qualified(type($non_blocking)) `->` qualified(type($result))";
 }
 
 // To handle runtime assertions, torchscript provides us `torch._assert` operation. 
