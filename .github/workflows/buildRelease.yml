@@ -113,6 +113,7 @@ jobs:
     - name: Build Python wheels and smoke test.
       shell: pwsh
       run: |
+        $env:TORCH_MLIR_PYTHON_PACKAGE_VERSION = '${{ github.event.inputs.python_package_version }}'
         ./build_tools/python_deploy/build_windows.ps1
 
     # If we were given a release_id, then upload the package we just built
