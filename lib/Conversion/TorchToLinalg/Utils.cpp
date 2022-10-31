@@ -46,9 +46,9 @@ Value torch_to_linalg::getPaddedTensor(
       getIndexIntsAsOpFoldResult(b, lowPaddingInts);
   SmallVector<OpFoldResult> highPaddings =
       getIndexIntsAsOpFoldResult(b, highPaddingInts);
-  Value paddedInput = tensor::createPadScalarOp(
-      rankedTensorType, input, pad, /*low=*/lowPaddings, /*high=*/highPaddings,
-      /*packing=*/false, loc, b);
+  Value paddedInput =
+      b.create<tensor::PadOp>(loc, rankedTensorType, input, /*low=*/lowPaddings,
+                              /*high=*/highPaddings, pad);
   return paddedInput;
 }
 
