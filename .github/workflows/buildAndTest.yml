@@ -73,8 +73,8 @@ jobs:
       with:
         arch: x64
 
-    - name: Cache PyTorch Build
-      if: ${{ matrix.os-arch != 'windows-x86_64' }}
+    - name: Cache PyTorch Build (if running on main branch)
+      if: github.ref_name == 'main' && matrix.os-arch != 'windows-x86_64'
       id: cache-pytorch
       uses: actions/cache@v3
       with:
