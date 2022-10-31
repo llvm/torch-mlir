@@ -15,115 +15,129 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
-# Provisioned Jobs:
-# ubuntu/docker - x86_64 - llvm in-tree     - pytorch binary - build+test    # most used dev flow and fastest signal
-# ubuntu/docker - x86_64 - llvm out-of-tree - pytorch source - build+test    # most elaborate build
-# macos  - arm64  - llvm in-tree     - pytorch binary - build only    # cross compile, can't test arm64
 jobs:
-  build-test:
-    strategy:
-      fail-fast: true
-      matrix:
-        os-arch: [ubuntu-x86_64, macos-arm64, windows-x86_64]
-        llvm-build: [in-tree, out-of-tree]
-        torch-binary: [ON, OFF]
-        exclude:
-          # Exclude llvm in-tree and pytorch source
-          - llvm-build: in-tree
-            torch-binary: OFF
-          # Exclude llvm out-of-tree and pytorch binary
-          - llvm-build: out-of-tree
-            torch-binary: ON
-          # Exclude macos-arm64 and llvm out-of-tree altogether
-          - os-arch: macos-arm64
-            llvm-build: out-of-tree
-          - os-arch: windows-x86_64
-            llvm-build: out-of-tree
-        include:
-          # Specify OS versions
-          - os-arch: ubuntu-x86_64
-            os: ubuntu-22.04
-          - os-arch: macos-arm64
-            os: macos-12
-          - os-arch: windows-x86_64
-            os: windows-latest
-    runs-on: ${{ matrix.os }}
+  ubuntu-in-tree-binary-build:
+    name: Ubuntu in-tree build using PyTorch binary
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout torch-mlir
-      uses: actions/checkout@v2
-      with:
-        submodules: 'true'
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
-    - name: Fetch PyTorch commit hash
-      if: ${{ matrix.os-arch != 'windows-x86_64' }}
-      run: |
-        PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-version.txt)"
-        echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: ubuntu-in-tree-pytorch-binary
 
-    - name: Setup ccache
-      uses: ./.github/actions/setup-build
-      with:
-        cache-suffix: ${{ matrix.os-arch }}-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
+      - name: Build and Test
+        run: |
+          TM_PACKAGES="in-tree" \
+          TM_USE_PYTORCH_BINARY="ON" \
+          ./build_tools/python_deploy/build_linux_packages.sh
 
-    - name: Set up Visual Studio shell
-      if: ${{ matrix.os-arch == 'windows-x86_64' }}
-      uses: egor-tensin/vs-shell@v2
-      with:
-        arch: x64
+  ubuntu-out-of-tree-build:
+    name: Ubuntu out-of-tree build using PyTorch source
+    runs-on: ubuntu-22.04
 
-    - name: Cache PyTorch Build
-      if: ${{ matrix.os-arch != 'windows-x86_64' }}
-      id: cache-pytorch
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ matrix.os-arch }}-pytorch-${{ env.PT_HASH }}
+    steps:
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
 
-    - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
-      if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
-      run: |
-        cd $GITHUB_WORKSPACE
-        TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-version.txt)" \
-        TM_PACKAGES="${{ matrix.llvm-build }}" \
-        TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
-        TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
-        ./build_tools/python_deploy/build_linux_packages.sh
-    - name: Configure os-arch='macos-arm64' llvm-build='in-tree' torch-binary='${{ matrix.torch-binary }}'
-      # cross compile, can't test arm64
-      if: ${{ matrix.os-arch == 'macos-arm64' && matrix.llvm-build == 'in-tree' }}
-      run: |
-        # TODO: Reenable LTC after build on macOS-arm64 is fixed (https://github.com/llvm/torch-mlir/issues/1253)
-        cmake -GNinja -Bbuild_arm64 \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_C_COMPILER=clang \
-          -DCMAKE_CXX_COMPILER=clang++ \
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_LINKER=lld \
-          -DCMAKE_OSX_ARCHITECTURES=arm64 \
-          -DLLVM_ENABLE_ASSERTIONS=ON \
-          -DLLVM_ENABLE_PROJECTS=mlir \
-          -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
-          -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/externals/llvm-external-projects/torch-mlir-dialects" \
-          -DLLVM_TARGETS_TO_BUILD=AArch64 \
-          -DLLVM_USE_HOST_TOOLS=ON \
-          -DLLVM_ENABLE_ZSTD=OFF \
-          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DTORCH_MLIR_ENABLE_MHLO=OFF \
-          -DTORCH_MLIR_ENABLE_LTC=OFF \
-          -DTORCH_MLIR_USE_INSTALLED_PYTORCH="${{ matrix.torch-binary }}" \
-          -DMACOSX_DEPLOYMENT_TARGET=12.0 \
-          -DPython3_EXECUTABLE="$(which python)" \
-          $GITHUB_WORKSPACE/externals/llvm-project/llvm
-    - name: Build torch-mlir (cross-compile)
-      if: ${{ matrix.os-arch == 'macos-arm64' }}
-      run: |
-        cmake --build build_arm64
-    - name: Build torch-mlir (Windows)
-      if: ${{ matrix.os-arch == 'windows-x86_64' }}
-      shell: pwsh
-      run: |
-        ./build_tools/python_deploy/build_windows_ci.ps1
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: ubuntu-out-of-tree-pytorch-source
+
+      - name: Fetch PyTorch commit hash
+        run: |
+          PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-version.txt)"
+          echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
+
+      - name: Cache PyTorch Build
+        id: cache-pytorch
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
+          key: ubuntu-x86_64-pytorch-${{ env.PT_HASH }}
+
+      - name: Build and Test
+        run: |
+          TM_PACKAGES="out-of-tree" \
+          TM_USE_PYTORCH_BINARY="OFF" \
+          TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-version.txt)" \
+          TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
+          ./build_tools/python_deploy/build_linux_packages.sh
+
+  macos-build:
+    name: macOS in-tree cross-compiled build using PyTorch binary
+    runs-on: macos-12
+
+    steps:
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: macos-in-tree-pytorch-binary
+
+      - name: Configure Torch-MLIR
+        # cross compile, can't test arm64
+        run: |
+          # TODO: Reenable LTC after build on macOS-arm64 is fixed (https://github.com/llvm/torch-mlir/issues/1253)
+          cmake -GNinja -Bbuild \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_LINKER=lld \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_PROJECTS=mlir \
+            -DLLVM_EXTERNAL_PROJECTS="torch-mlir;torch-mlir-dialects" \
+            -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$GITHUB_WORKSPACE" \
+            -DLLVM_EXTERNAL_TORCH_MLIR_DIALECTS_SOURCE_DIR="${GITHUB_WORKSPACE}/externals/llvm-external-projects/torch-mlir-dialects" \
+            -DLLVM_TARGETS_TO_BUILD=AArch64 \
+            -DLLVM_USE_HOST_TOOLS=ON \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DTORCH_MLIR_ENABLE_MHLO=OFF \
+            -DTORCH_MLIR_ENABLE_LTC=OFF \
+            -DTORCH_MLIR_USE_INSTALLED_PYTORCH="ON" \
+            -DMACOSX_DEPLOYMENT_TARGET=12.0 \
+            -DPython3_EXECUTABLE="$(which python)" \
+            $GITHUB_WORKSPACE/externals/llvm-project/llvm
+
+      - name: Build Torch-MLIR
+        run: cmake --build build
+
+  windows-build:
+    name: Windows in-tree build using PyTorch binary
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout torch-mlir
+        uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-build
+        with:
+          cache-suffix: windows-in-tree-pytorch-binary
+
+      - name: Set up Visual Studio shell
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - name: Build Torch-MLIR
+        shell: pwsh
+        run: ./build_tools/python_deploy/build_windows_ci.ps1
