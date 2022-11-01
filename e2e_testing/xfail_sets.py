@@ -621,4 +621,6 @@ LTC_XFAIL_SET = {
     "Fill_TensorFloat32WithFloat32_basic",
     "Fill_TensorFloat32WithFloat64_basic",
     "Fill_TensorFloat32WithInt64_basic",
+    "UpSampleNearest2dBackwardVec_basic",
+    "UpSampleNearest2dBackwardOutputSizeNone_basic",
 }

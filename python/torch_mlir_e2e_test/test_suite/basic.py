@@ -3022,3 +3022,50 @@ class SingleTensorTupleReturn(torch.nn.Module):
 @register_test_case(module_factory=lambda: SingleTensorTupleReturn())
 def SingleTensorTupleReturn_basic(module, tu: TestUtils):
     module.forward(torch.randn(2, 4))
+
+
+# ==============================================================================
+
+
+class UpSampleNearest2dBackwardVec(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d_backward(input,
+                                               output_size=[4, 8],
+                                               input_size=[1, 1, 2, 3],
+                                               scale_factors=None)
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardVec())
+def UpSampleNearest2dBackwardVec_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 8))
+
+
+class UpSampleNearest2dBackwardOutputSizeNone(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d_backward(input,
+                                               output_size=None,
+                                               input_size=[1, 1, 2, 3],
+                                               scale_factors=[3.0, 4.0])
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardOutputSizeNone())
+def UpSampleNearest2dBackwardOutputSizeNone_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))

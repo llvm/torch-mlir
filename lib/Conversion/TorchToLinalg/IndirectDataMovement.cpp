@@ -896,6 +896,190 @@ public:
 };
 } // namespace
 
+static Value getGradOutputValue(OpBuilder &builder, Location loc,
+                                Value gradOutput, Type gradOutputElemType,
+                                Value numBatch, Value numChannel,
+                                Value inputIndexH, Value inputIndexW,
+                                Value kernelIndexH, Value kernelIndexW,
+                                SmallVector<Value> &gradOutputSizeIndexValues,
+                                SmallVector<Value, 2> &scaleFactorsIntValues) {
+  Value constantOne = builder.create<arith::ConstantIndexOp>(loc, 1);
+
+  Value outputIndexH = builder.create<arith::MulIOp>(
+      loc, inputIndexH, castIntToIndex(builder, loc, scaleFactorsIntValues[0]));
+  outputIndexH = builder.create<arith::AddIOp>(loc, outputIndexH, kernelIndexH);
+
+  Value outputIndexW = builder.create<arith::MulIOp>(
+      loc, inputIndexW, castIntToIndex(builder, loc, scaleFactorsIntValues[1]));
+  outputIndexW = builder.create<arith::AddIOp>(loc, outputIndexW, kernelIndexW);
+
+  // Handling corner cases.
+  Value gradOutputHMinusOne = builder.create<arith::SubIOp>(
+      loc, gradOutputSizeIndexValues[2], constantOne);
+  Value predH = builder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sle, outputIndexH, gradOutputHMinusOne);
+  outputIndexH = builder.create<arith::SelectOp>(loc, predH, outputIndexH,
+                                                 gradOutputHMinusOne);
+
+  Value gradOutputWMinusOne = builder.create<arith::SubIOp>(
+      loc, gradOutputSizeIndexValues[3], constantOne);
+  Value predW = builder.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::sle, outputIndexW, gradOutputWMinusOne);
+  outputIndexW = builder.create<arith::SelectOp>(loc, predW, outputIndexW,
+                                                 gradOutputWMinusOne);
+
+  Value gradOutputValue = builder.create<tensor::ExtractOp>(
+      loc, gradOutput,
+      ValueRange{numBatch, numChannel, outputIndexH, outputIndexW});
+  Value constantZero =
+      builder.create<arith::ConstantOp>(loc, builder.getF32FloatAttr(0.0));
+  Value pred = builder.create<arith::AndIOp>(loc, predH, predW);
+  Value result = builder.create<arith::SelectOp>(
+      loc, pred, gradOutputValue,
+      convertScalarToDtype(builder, loc, constantZero, gradOutputElemType));
+
+  return result;
+}
+
+// The implementation of the `aten.upsample_nearest2d_backward.vec` op's
+// lowering is as follows:
+// gradOutput: Tensor of size [n, c, oh, ow]
+// outTensor: Tensor of size [n, c, ih, iw], initialized with zero
+// kh = ceil(oh/ih), kw = ceil(ow/iw)
+//
+// for i in range(n):
+//   for j in range(c):
+//     for p in range(ih):
+//       for q in range(iw):
+//         for x in range(kh):
+//           for y in range(kw):
+//             outTensor[i, j, p, q] += gradOutput[i, j, (p*kh)+x, (q*kw)+y]
+namespace {
+class ConvertAtenUpsampleNearest2dBackwardVecOp
+    : public OpConversionPattern<AtenUpsampleNearest2dBackwardVecOp> {
+
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenUpsampleNearest2dBackwardVecOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    Value gradOutput = adaptor.grad_output();
+
+    Type resultType = getTypeConverter()->convertType(op.getResult().getType());
+    auto gradOutputType = gradOutput.getType().cast<RankedTensorType>();
+    auto gradOutputRank = gradOutputType.getRank();
+    Type elementType = gradOutputType.getElementType();
+
+    SmallVector<Value> gradOutputSizeIndexValues =
+        getTensorSizes(rewriter, loc, gradOutput);
+    SmallVector<Value> gradOutputSizeIntValues =
+        castIndexVectorToInt64Vector(rewriter, loc, gradOutputSizeIndexValues);
+    SmallVector<Value, 2> scaleFactorsFloatValues;
+
+    SmallVector<Value, 4> inputSizeTorchInt;
+    if (!getListConstructElements(op.input_size(), inputSizeTorchInt))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the input_size is not constructed from "
+              "ListConstruct");
+    SmallVector<Value, 4> inputSizeIntValues;
+    inputSizeIntValues = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), inputSizeTorchInt);
+
+    // The dimension at which the scaling starts.
+    unsigned hDimOffset = 2;
+
+    if (!op.scale_factors().getType().isa<Torch::NoneType>()) {
+      SmallVector<Value, 2> scaleFactorsTorchFloat;
+      if (!getListConstructElements(op.scale_factors(), scaleFactorsTorchFloat))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: the scale_factors is not constructed from "
+                "ListConstruct");
+      scaleFactorsFloatValues = getTypeConvertedValues(
+          rewriter, loc, getTypeConverter(), scaleFactorsTorchFloat);
+    } else {
+      for (unsigned i = hDimOffset; i < gradOutputRank; i++) {
+        auto scaleFactorVal = rewriter.create<arith::DivFOp>(
+            loc,
+            convertScalarToDtype(rewriter, loc, gradOutputSizeIntValues[i],
+                                 mlir::Float32Type::get(op->getContext())),
+            convertScalarToDtype(rewriter, loc, inputSizeIntValues[i],
+                                 mlir::Float32Type::get(op->getContext())));
+        scaleFactorsFloatValues.push_back(scaleFactorVal);
+      }
+    }
+
+    SmallVector<Value, 2> scaleFactorsIntValues;
+    for (auto v : scaleFactorsFloatValues)
+      scaleFactorsIntValues.push_back(convertScalarToDtype(
+          rewriter, loc, rewriter.create<math::CeilOp>(loc, v),
+          mlir::IntegerType::get(op->getContext(), 64)));
+
+    Value outTensor = createZeroInitTensor(
+        rewriter, loc,
+        castIntVectorToIndexVector(rewriter, loc, inputSizeIntValues),
+        elementType);
+
+    Value kernelTensor = rewriter.create<tensor::EmptyOp>(
+        loc,
+        getAsOpFoldResult(
+            castIntVectorToIndexVector(rewriter, loc, scaleFactorsIntValues)),
+        elementType);
+    unsigned kernelRank = scaleFactorsIntValues.size();
+
+    SmallVector<AffineExpr> affineExprs;
+    for (unsigned i = 0; i < gradOutputRank; i++)
+      affineExprs.push_back(rewriter.getAffineDimExpr(i));
+
+    AffineMap outputMap =
+        AffineMap::get(gradOutputRank + kernelRank,
+                       /*symbolCount=*/0, affineExprs, op->getContext());
+
+    affineExprs.clear();
+    for (unsigned i = gradOutputRank; i < gradOutputRank + kernelRank; i++)
+      affineExprs.push_back(rewriter.getAffineDimExpr(i));
+
+    AffineMap kernelMap =
+        AffineMap::get(gradOutputRank + kernelRank,
+                       /*symbolCount=*/0, affineExprs, op->getContext());
+
+    SmallVector<AffineMap> indexingMaps{kernelMap, outputMap};
+    SmallVector<StringRef> iteratorTypes(gradOutputRank,
+                                         getParallelIteratorTypeName());
+    iteratorTypes.push_back(getReductionIteratorTypeName());
+    iteratorTypes.push_back(getReductionIteratorTypeName());
+
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{kernelTensor},
+                ValueRange{outTensor},
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value n = rewriter.create<linalg::IndexOp>(loc, 0);
+                  Value c = rewriter.create<linalg::IndexOp>(loc, 1);
+                  Value ih = rewriter.create<linalg::IndexOp>(loc, 2);
+                  Value iw = rewriter.create<linalg::IndexOp>(loc, 3);
+                  Value kh = rewriter.create<linalg::IndexOp>(loc, 4);
+                  Value kw = rewriter.create<linalg::IndexOp>(loc, 5);
+                  Value accValue = getGradOutputValue(
+                      rewriter, loc, gradOutput, elementType, n, c, ih, iw, kh,
+                      kw, gradOutputSizeIndexValues, scaleFactorsIntValues);
+                  Value outputVal = args[1];
+                  outputVal =
+                      rewriter.create<arith::AddFOp>(loc, outputVal, accValue);
+                  b.create<linalg::YieldOp>(loc, outputVal);
+                })
+            ->getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateIndirectDataMovementPatternsAndLegality(
         TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -913,4 +1097,6 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dVecOp>();
   patterns.add<ConvertAtenUpsampleNearest2dVecOp>(typeConverter, context);
+  target.addIllegalOp<AtenUpsampleNearest2dBackwardVecOp>();
+  patterns.add<ConvertAtenUpsampleNearest2dBackwardVecOp>(typeConverter, context);
 }
