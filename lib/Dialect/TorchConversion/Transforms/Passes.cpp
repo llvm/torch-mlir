@@ -47,7 +47,7 @@ void mlir::torch::registerTorchConversionPasses() {
       "contract.",
       TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
 
-  mlir::PassPipelineRegistration<>(
+  mlir::PassPipelineRegistration<TorchConversion::TosaBackendPipelineOptions>(
       "torch-backend-to-tosa-backend-pipeline",
       "Pipeline lowering torch backend contract to TOSA backend "
       "contract.",
@@ -96,7 +96,11 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
 }
 
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
-    OpPassManager &pm) {
+    OpPassManager &pm, const TosaBackendPipelineOptions &options) {
+  if (!options.customOps.empty()) {
+    pm.addNestedPass<func::FuncOp>(
+        createConvertTorchToTosaCustomPass(options.customOps));
+  }
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass());
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());

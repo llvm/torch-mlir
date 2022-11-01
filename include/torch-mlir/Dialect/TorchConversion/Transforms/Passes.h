@@ -28,7 +28,15 @@ void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
 
 /// Creates a pipeline that lowers from the torch backend contract to the
 /// TOSA backend contract.
-void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
+struct TosaBackendPipelineOptions
+    : public PassPipelineOptions<TosaBackendPipelineOptions> {
+  ListOption<std::string> customOps{
+      *this, "custom-ops",
+      llvm::cl::desc("List of ops to be converted to tosa::CustomOp."),
+      llvm::cl::ZeroOrMore};
+};
+void createTorchBackendToTosaBackendPipeline(
+    OpPassManager &pm, const TosaBackendPipelineOptions &options);
 
 // Do not register the torch-to-mhlo pipeline if mhlo target is disabled
 #ifdef TORCH_MLIR_ENABLE_MHLO

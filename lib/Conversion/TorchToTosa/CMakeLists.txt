@@ -1,5 +1,6 @@
 add_mlir_conversion_library(TorchMLIRTorchToTosa
   TorchToTosa.cpp
+  TorchToTosaCustom.cpp
   TosaLegalizeUtils.cpp
   TosaLegalizeCommon.cpp
 

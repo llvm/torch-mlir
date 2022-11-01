@@ -17,6 +17,9 @@
 namespace mlir {
 namespace torch {
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToTosaCustomPass(ArrayRef<std::string> customOps);
 }
 } // namespace mlir
 

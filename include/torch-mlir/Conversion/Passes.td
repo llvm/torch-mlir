@@ -114,6 +114,41 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
 }
 
+def ConvertTorchToTosaCustom : Pass<"convert-torch-to-tosa-custom", "func::FuncOp"> {
+        let summary = "Convert Torch ops to TOSA custom ops";
+  let description = [{
+    The purpose to use tosa::custom is handle complex ops when we do not
+    want to decompose them into simple ops.
+    The aten op name will be used to construct a StringAttr as the identifier attribute for tosa::CustomOp.
+    So in the output the users know where the tosa::CustomOp is coming from by the StringAttr id.
+    Each input arg from Aten Dialect has to be converted to a tensor of number values as the
+    operand of tosa::CustomOp op.
+    The contract to follow:
+        AnyTorchTensorType 	->	TensorType<AnySizexAnyType>  of tosa::ConstOp
+        Torch_IntType		->      RankedTensorType<1xi64>  of tosa::ConstOp
+        Torch_FloatType		->      RankedTensorType<1xf32>  of tosa::ConstOp
+        ...
+        TODO:
+          1. Support more types: Torch_BoolType, Torch_QInt8Type, Torch_QUInt8Type
+              Torch_NoneType, Torch_StringType, Torch_OptionalType, Torch_ListType
+              Torch_NumberType, Torch_DictType, Torch_DeviceType, Torch_GeneratorType,
+              Torch_LinearParamsType, Torch_TupleType, Torch_UnionType,
+              Torch_AnyType, AnyTorchOptionalType,
+          2. Support multi result types
+    The examples are in the test/Conversion/TorchToTosa/custom.mlir
+  }];
+  let options = [
+    ListOption<"customOps", "custom-ops", "std::string",
+               "List of operation names that should be converted to tosa::custom",
+               "llvm::cl::ZeroOrMore">
+  ];
+
+  let constructor = [{
+      mlir::torch::createConvertTorchToTosaCustomPass(
+          /*customOps=*/{})
+  }];
+}
+
 def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to TMTensor/Linalg ops";
   let description = [{
