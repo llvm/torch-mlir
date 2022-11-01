@@ -154,4 +154,3 @@ jobs:
       with:
         workflow: Publish releases page
         token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
-        ref: "${{ env.tag_name }}"
