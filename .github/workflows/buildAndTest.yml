@@ -59,7 +59,7 @@ jobs:
     - name: Fetch PyTorch commit hash
       if: ${{ matrix.os-arch != 'windows-x86_64' }}
       run: |
-        PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-version.txt)"
+        PT_HASH="$(cat ${GITHUB_WORKSPACE}/pytorch-hash.txt)"
         echo "PT_HASH=${PT_HASH}" >> ${GITHUB_ENV}
 
     - name: Setup ccache
@@ -85,7 +85,7 @@ jobs:
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
       run: |
         cd $GITHUB_WORKSPACE
-        TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-version.txt)" \
+        TORCH_MLIR_SRC_PYTORCH_BRANCH="$(cat pytorch-hash.txt)" \
         TM_PACKAGES="${{ matrix.llvm-build }}" \
         TM_USE_PYTORCH_BINARY="${{ matrix.torch-binary }}" \
         TM_PYTORCH_INSTALL_WITHOUT_REBUILD="${{ steps.cache-pytorch.outputs.cache-hit }}" \
