@@ -49,6 +49,10 @@ SmallVector<Value>
 castIntVectorToIndexVector(OpBuilder &b, Location loc,
                            SmallVectorImpl<Value> &intValues);
 
+SmallVector<Value>
+castIndexVectorToInt64Vector(OpBuilder &b, Location loc,
+                             SmallVectorImpl<Value> &indexValues);
+
 Value getDimOp(OpBuilder &b, Location loc, Value v, int dim);
 
 SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
