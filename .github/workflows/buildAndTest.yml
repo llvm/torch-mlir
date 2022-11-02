@@ -73,13 +73,14 @@ jobs:
       with:
         arch: x64
 
-    - name: Cache PyTorch Build (if running on main branch)
-      if: github.ref_name == 'main' && matrix.os-arch != 'windows-x86_64'
+    - name: Cache PyTorch Build
+      if: matrix.os-arch != 'windows-x86_64'
       id: cache-pytorch
-      uses: actions/cache@v3
+      uses: ashay/cache@v1
       with:
         path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
-        key: ${{ matrix.os-arch }}-pytorch-${{ env.PT_HASH }}
+        key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
+        save: ${{ github.ref_name == 'main' && matrix.torch-binary == 'OFF' }}
 
     - name: Build and Test os-arch='ubuntu-x86_64' llvm-build='${{ matrix.llvm-build }}' torch-binary='${{ matrix.torch-binary }}'
       if: ${{ matrix.os-arch == 'ubuntu-x86_64' }}
