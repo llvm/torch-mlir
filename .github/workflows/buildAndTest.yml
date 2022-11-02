@@ -43,9 +43,9 @@ jobs:
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64
-            os: ubuntu-22.04
+            os: ubuntu-latest
           - os-arch: macos-arm64
-            os: macos-12
+            os: macos-latest
           - os-arch: windows-x86_64
             os: windows-latest
     runs-on: ${{ matrix.os }}
