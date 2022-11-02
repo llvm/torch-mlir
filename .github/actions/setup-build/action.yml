@@ -47,5 +47,5 @@ runs:
     uses: hendrikmuhs/ccache-action@v1.2
     with:
       key: ${{ runner.os }}-torch_mlir_build_assets-${{ inputs.cache-suffix }}
-      max-size: 2G
+      max-size: 300M
       verbose: 2
