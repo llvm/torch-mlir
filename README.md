@@ -22,7 +22,7 @@ Multiple Vendors use MLIR as the middle layer, mapping from platform frameworks 
 
 We have few paths to lower down to the Torch MLIR Dialect.
 
-![Torch Lowering Architectures](docs/Torch-MLIR.png)
+![Simplified Architecture Diagram for README](docs/images/readme_architecture_diagram.png)
 
  - TorchScript
     This is the most tested path down to Torch MLIR Dialect, and the PyTorch ecosystem is converging on using TorchScript IR as a lingua franca.
