@@ -7,7 +7,8 @@ inputs:
       Additional string that is used to compute the ccache hash.
       Different jobs running the action need distinct values for this key,
       but the content is irrelevant.
-    required: true
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -28,24 +29,38 @@ runs:
       python -m pip install -r requirements.txt
     shell: bash
 
-  - name: Install Ninja (Linux)
+  - name: Install prerequisites (Linux)
     if: ${{ runner.os == 'Linux' }}
-    run: sudo apt-get install -y ninja-build
+    run: sudo apt-get install --yes ccache ninja-build
     shell: bash
 
-  - name: Install Ninja (macOS)
+  - name: Install prerequisites (macOS)
     if: ${{ runner.os == 'macOS' }}
-    run: brew install ninja
+    run: brew install ccache ninja
     shell: bash
 
-  - name: Install Ninja (Windows)
+  - name: Install prerequisites (Windows)
     if: ${{ runner.os == 'Windows' }}
-    run: pip install ninja
+    run: |
+      pip install ninja
+      choco install ccache --yes
     shell: bash
 
-  - name: Ccache for C++ compilation
-    uses: hendrikmuhs/ccache-action@v1.2
+  - name: Configure ccache
+    run: |
+      rm -rf ${{ github.workspace }}/.ccache
+      mkdir -p ${{ github.workspace }}/.ccache
+      ccache --set-config "cache_dir=${{ github.workspace }}/.ccache"
+      ccache --set-config "compression=true"
+      ccache --set-config "max_size=300M"
+      ccache --zero-stats
+    shell: bash
+
+  - name: Enable ccache
+    uses: actions/cache@v3
     with:
-      key: ${{ runner.os }}-torch_mlir_build_assets-${{ inputs.cache-suffix }}
-      max-size: 300M
-      verbose: 2
+      path: ${{ github.workspace }}/.ccache
+      key: ${{ runner.os }}-${{ inputs.cache-suffix }}-${{ github.sha }}
+      restore-keys: |
+        ${{ runner.os }}-${{ inputs.cache-suffix }}-
+        ${{ runner.os }}-

@@ -65,7 +65,7 @@ jobs:
     - name: Setup ccache
       uses: ./.github/actions/setup-build
       with:
-        cache-suffix: ${{ matrix.os-arch }}-${{ matrix.llvm-build }}-${{ matrix.torch-binary }}
+        cache-suffix: 'build-${{ matrix.llvm-build }}'
 
     - name: Set up Visual Studio shell
       if: ${{ matrix.os-arch == 'windows-x86_64' }}
@@ -123,8 +123,8 @@ jobs:
       if: ${{ matrix.os-arch == 'macos-arm64' }}
       run: |
         cmake --build build_arm64
-    - name: Build torch-mlir (Windows)
+
+    - name: Build (Windows)
       if: ${{ matrix.os-arch == 'windows-x86_64' }}
-      shell: pwsh
-      run: |
-        ./build_tools/python_deploy/build_windows_ci.ps1
+      shell: bash
+      run: ./build_tools/python_deploy/build_windows_ci.sh

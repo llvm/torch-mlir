@@ -23,7 +23,7 @@ jobs:
     - name: Setup ccache
       uses: ./.github/actions/setup-build
       with:
-        cache-suffix: x86_64-out-of-tree-OFF
+        cache-suffix: 'rollPyTorch'
 
     - name: Determine nightly PyTorch version
       run: |
