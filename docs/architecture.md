@@ -15,7 +15,7 @@ halves interface at an abstraction layer that we call the "backend contract",
 which is a subset of the `torch` dialect with certain properties appealing for
 backends to lower from.
 
-![Torch-MLIR Architecture](Torch-MLIR_Architecture.png)
+![Torch-MLIR Architecture](images/architecture.png)
 
 The frontend of Torch-MLIR is concerned with interfacing to PyTorch itself, and
 then normalizing the program to the "backend contract". This part involves build
