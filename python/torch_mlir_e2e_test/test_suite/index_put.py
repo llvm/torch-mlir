@@ -827,10 +827,10 @@ class IndexAddModule(torch.nn.Module):
   @export
   @annotate_args([
       None,
-      ([-1, -1], torch.float32, True),
+      ([-1, -1], torch.int64, True),
       ([], torch.int64, True),
       ([-1], torch.int64, True),
-      ([-1, -1], torch.float32, True),
+      ([-1, -1], torch.int64, True),
   ])
   def forward(self, input, dims, indices, value):
     return torch.ops.aten.index_add(input, dim=dims, index=indices, source=value, alpha=1)
@@ -838,10 +838,10 @@ class IndexAddModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IndexAddModule())
 def IndexAddModule_basic(module, tu: TestUtils):
-  module.forward(torch.rand((3, 4), dtype=torch.float32),
+  module.forward(tu.randint(3, 4),
           torch.tensor(0),
           torch.tensor([0, 1]),
-          torch.rand((2, 4)))
+          tu.randint(2, 4))
 
 class IntImplicitModule(torch.nn.Module):
 

@@ -568,11 +568,19 @@ func.func @torch.aten.index_put(%input: !torch.vtensor<[?],f32>, %index: !torch.
 // CHECK-SAME:                  %[[INP:.*]]: !torch.vtensor<[?],f32>, %[[DIM:.*]]: !torch.int,
 // CHECK-SAME:                  %[[INDEX:.*]]: !torch.vtensor<[?],f32>, %[[VALUES:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                  %[[ALPHA:.*]]: !torch.int) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[L1:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor>
+// CHECK:           %[[L2:.*]] = torch.prim.ListConstruct %[[INDEX]] : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor>
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RES:.*]] = torch.valsem.aten.index_put_impl %[[INP]], %[[L2]], %[[VALUES]], %[[TRUE]], %[[FALSE]] : !torch.vtensor<[?],f32>, !torch.list<vtensor>, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool -> !torch.vtensor<[?],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[?],f32>
 func.func @torch.aten.index_add(%input: !torch.vtensor<[?],f32>, %dim: !torch.int, %index: !torch.vtensor<[?],f32>, %values: !torch.vtensor<[?],f32>, %alpha: !torch.int ) -> !torch.vtensor<[?],f32> {
-  %0 = torch.aten.index_add %input, %dim, %index, %values, %alpha: !torch.vtensor<[?],f32>, !torch.int, !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
-  return %0 : !torch.vtensor<[?],f32>
+  %0 = torch.prim.ListConstruct %index : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor>
+  %1 = torch.prim.ListConstruct %index : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor>
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %2 = torch.valsem.aten.index_put_impl %input, %1, %values, %true, %false : !torch.vtensor<[?],f32>, !torch.list<vtensor>, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool -> !torch.vtensor<[?],f32>
+  return %2 : !torch.vtensor<[?],f32>
 }
 
 // -----
