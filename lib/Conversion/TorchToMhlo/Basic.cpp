@@ -165,7 +165,7 @@ public:
     }
 
     SmallVector<int64_t> shape;
-    if (!matchPattern(op.size(), m_TorchConstantIntList(shape))) {
+    if (!matchPattern(op.size(), m_TorchListOfConstantInts(shape))) {
       return op.emitError("shape must be a list of Scalar constants");
     }
 
@@ -580,7 +580,7 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
                         "currently supported");
 
   SmallVector<int64_t> permValues;
-  if (!matchPattern(adaptor.dims(), m_TorchConstantIntList(permValues)))
+  if (!matchPattern(adaptor.dims(), m_TorchListOfConstantInts(permValues)))
     return rewriter.notifyMatchFailure(
         op, "only constant dimensions are currently supported");
 
@@ -914,7 +914,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   SmallVector<int64_t> normalizedShape;
   if (!matchPattern(op.normalized_shape(),
-                    m_TorchConstantIntList(normalizedShape))) {
+                    m_TorchListOfConstantInts(normalizedShape))) {
     return rewriter.notifyMatchFailure(
         op, "normalized_shape must be a list of const int");
   }

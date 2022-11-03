@@ -121,11 +121,11 @@ m_TorchConstantBool(bool *bind_value) {
 
 namespace detail {
 /// Matches the constant integers stored in a `torch.ListConstruct`.
-struct torch_list_construct_op_binder {
+struct torch_list_of_constant_ints_op_binder {
   SmallVectorImpl<int64_t> &bind_values;
 
   /// Creates a matcher instance that binds the value to bvs if match succeeds.
-  torch_list_construct_op_binder(SmallVectorImpl<int64_t> &bvs)
+  torch_list_of_constant_ints_op_binder(SmallVectorImpl<int64_t> &bvs)
       : bind_values(bvs) {}
 
   bool match(Operation *op) {
@@ -145,18 +145,18 @@ struct torch_list_construct_op_binder {
 } // namespace detail
 
 /// Matches the constant integers stored in a `torch.prim.ListConstruct`.
-inline detail::torch_list_construct_op_binder
-m_TorchConstantIntList(SmallVectorImpl<int64_t> &bind_values) {
-  return detail::torch_list_construct_op_binder(bind_values);
+inline detail::torch_list_of_constant_ints_op_binder
+m_TorchListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
+  return detail::torch_list_of_constant_ints_op_binder(bind_values);
 }
 
 namespace detail {
 /// Matches the constant bools stored in a `torch.ListConstruct`.
-struct torch_bool_list_construct_op_binder {
+struct torch_list_of_constant_bools_op_binder {
   SmallVectorImpl<bool> &bind_values;
 
   /// Creates a matcher instance that binds the value to bvs if match succeeds.
-  torch_bool_list_construct_op_binder(SmallVectorImpl<bool> &bvs)
+  torch_list_of_constant_bools_op_binder(SmallVectorImpl<bool> &bvs)
       : bind_values(bvs) {}
 
   bool match(Operation *op) {
@@ -176,9 +176,9 @@ struct torch_bool_list_construct_op_binder {
 } // namespace detail
 
 /// Matches the constant bools stored in a `torch.prim.ListConstruct`.
-inline detail::torch_bool_list_construct_op_binder
-m_TorchConstantBoolList(SmallVectorImpl<bool> &bind_values) {
-  return detail::torch_bool_list_construct_op_binder(bind_values);
+inline detail::torch_list_of_constant_bools_op_binder
+m_TorchListOfConstantBools(SmallVectorImpl<bool> &bind_values) {
+  return detail::torch_list_of_constant_bools_op_binder(bind_values);
 }
 
 namespace detail {

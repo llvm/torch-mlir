@@ -85,7 +85,7 @@ void assertIsValidDim(OpBuilder &b, Location loc, Value dim, Value inputRank) {
 // TODO: loose this constraint when properly support list type
 bool isConstantIntListMatching(Value value, SmallVectorImpl<int64_t> &expects) {
   SmallVector<int64_t> intValues;
-  if (!matchPattern(value, m_TorchConstantIntList(intValues)))
+  if (!matchPattern(value, m_TorchListOfConstantInts(intValues)))
     return false;
 
   if (intValues.size() != expects.size())

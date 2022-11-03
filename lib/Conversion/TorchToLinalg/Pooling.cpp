@@ -47,9 +47,9 @@ checkAndGetPoolingParameters(OpTy op, ConversionPatternRewriter &rewriter,
   }
   kernelSizeIntValues = getTypeConvertedValues(
       rewriter, op.getLoc(), typeConverter, kernelSizeTorchInt);
-  if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
+  if (!matchPattern(op.stride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(op, "only support constant int strides");
-  if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts)))
+  if (!matchPattern(op.padding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(op,
                                        "only support constant int paddings");
   if (!matchPattern(op.ceil_mode(), m_TorchConstantBool(&ceilMode)))
@@ -145,7 +145,7 @@ public:
     bool ceilMode;
     SmallVector<Value, 2> kernelSizeIntValues;
     SmallVector<int64_t, 2> strideInts, paddingInts, dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
+    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dOp>(
@@ -223,7 +223,7 @@ public:
     bool ceilMode;
     SmallVector<Value, 2> kernelSizeIntValues;
     SmallVector<int64_t, 2> strideInts, paddingInts, dilationInts;
-    if (!matchPattern(op.dilation(), m_TorchConstantIntList(dilationInts)))
+    if (!matchPattern(op.dilation(), m_TorchListOfConstantInts(dilationInts)))
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
     if (failed(checkAndGetPoolingParameters<AtenMaxPool2dWithIndicesOp>(

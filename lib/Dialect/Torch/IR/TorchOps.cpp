@@ -1965,7 +1965,7 @@ OpFoldResult Aten__Contains__IntListOp::fold(ArrayRef<Attribute> operands) {
   if (!matchPattern(itemConstruct, m_TorchConstantInt(&item)))
     return nullptr;
 
-  if (!matchPattern(l(), m_TorchConstantIntList(list)))
+  if (!matchPattern(l(), m_TorchListOfConstantInts(list)))
     return nullptr;
 
   for (auto elem : list) {

@@ -992,7 +992,7 @@ public:
       return failure();
 
     SmallVector<int64_t> dimensions;
-    if (!matchPattern(op.dims(), m_TorchConstantIntList(dimensions)))
+    if (!matchPattern(op.dims(), m_TorchListOfConstantInts(dimensions)))
       return rewriter.notifyMatchFailure(op, "all dimensions must be constant");
 
     Value inVector = adaptor.self();
