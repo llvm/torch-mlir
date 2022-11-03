@@ -14,7 +14,21 @@ set -euo pipefail
 src_dir="$(realpath "$(dirname "$0")"/..)"
 build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build}")"
 torch_ir_include_dir="${src_dir}/include/torch-mlir/Dialect/Torch/IR"
-python_packages_dir="${build_dir}/tools/torch-mlir/python_packages"
+
+in_tree_pkg_dir="${build_dir}/tools/torch-mlir/python_packages"
+out_of_tree_pkg_dir="${build_dir}/python_packages"
+
+if [[ ! -d "${in_tree_pkg_dir}" && ! -d "${out_of_tree_pkg_dir}" ]]; then
+  echo "Couldn't find in-tree or out-of-tree build, exiting."
+  exit 1
+fi
+
+# The `-nt` check works even if one of the two directories is missing.
+if [[ "${in_tree_pkg_dir}" -nt "${out_of_tree_pkg_dir}" ]]; then
+  python_packages_dir="${in_tree_pkg_dir}"
+else
+  python_packages_dir="${out_of_tree_pkg_dir}"
+fi
 
 TORCH_MLIR_EXT_PYTHONPATH="${TORCH_MLIR_EXT_PYTHONPATH:-""}"
 pypath="${python_packages_dir}/torch_mlir"
