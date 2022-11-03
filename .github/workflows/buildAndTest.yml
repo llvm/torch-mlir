@@ -43,16 +43,16 @@ jobs:
         include:
           # Specify OS versions
           - os-arch: ubuntu-x86_64
-            os: ubuntu-22.04
+            os: ubuntu-latest
           - os-arch: macos-arm64
-            os: macos-12
+            os: macos-latest
           - os-arch: windows-x86_64
             os: windows-latest
     runs-on: ${{ matrix.os }}
 
     steps:
     - name: Checkout torch-mlir
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: 'true'
 

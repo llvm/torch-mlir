@@ -14,7 +14,7 @@ runs:
 
   steps:
   - name: Set up Python
-    uses: actions/setup-python@v2
+    uses: actions/setup-python@v4
     with:
       python-version: '3.10'
 
@@ -28,12 +28,24 @@ runs:
       python -m pip install -r requirements.txt
     shell: bash
 
-  - name: Install Ninja
-    uses: llvm/actions/install-ninja@55d844821959226fab4911f96f37071c1d4c3268
+  - name: Install Ninja (Linux)
+    if: ${{ runner.os == 'Linux' }}
+    run: sudo apt-get install -y ninja-build
+    shell: bash
+
+  - name: Install Ninja (macOS)
+    if: ${{ runner.os == 'macOS' }}
+    run: brew install ninja
+    shell: bash
+
+  - name: Install Ninja (Windows)
+    if: ${{ runner.os == 'Windows' }}
+    run: pip install ninja
+    shell: bash
 
   - name: Ccache for C++ compilation
     uses: hendrikmuhs/ccache-action@v1.2
     with:
       key: ${{ runner.os }}-torch_mlir_build_assets-${{ inputs.cache-suffix }}
-      max-size: 2G
+      max-size: 300M
       verbose: 2

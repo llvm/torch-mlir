@@ -54,7 +54,7 @@ jobs:
 
   build_macos:
     name: MacOS Build
-    runs-on: macos-12
+    runs-on: macos-latest
     steps:
     - name: Get torch-mlir
       uses: actions/checkout@v2
