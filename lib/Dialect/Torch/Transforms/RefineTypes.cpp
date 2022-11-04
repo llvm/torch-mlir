@@ -885,7 +885,9 @@ void TypeAnalysis::visitOperation(Operation *op,
   }
 
   // 3 results take dtype from first operand.
-  if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp>(op)) {
+  if (isa<AtenNativeLayerNormOp, AtenNativeBatchNormOp,
+          AtenConvolutionBackwardOp, AtenConvolutionBackwardOverrideableOp>(
+          op)) {
     auto self = operands[0]->getValue();
     auto result0Knowledge =
         ValueKnowledge::getTensorPessimisticValueState(op->getContext());

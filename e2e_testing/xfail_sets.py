@@ -622,4 +622,8 @@ LTC_XFAIL_SET = {
     "Fill_TensorFloat32WithInt64_basic",
     "UpSampleNearest2dBackwardVec_basic",
     "UpSampleNearest2dBackwardOutputSizeNone_basic",
+    "ConvolutionBackwardModule1D_basic",
+    "ConvolutionBackwardModule2D_basic",
+    "ConvolutionBackwardModule2DPadded_basic",
+    "ConvolutionBackwardModule3D_basic"
 }

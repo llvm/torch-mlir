@@ -67,6 +67,40 @@ Value torch_to_linalg::getZeroPaddedTensor(
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
 
+// Helper function that adds dynamic padding to a tensor, ignoring unpaddedDims
+// dimensions at the beginning. The high and low padding are the same, and the
+// padding value is zero.
+Value torch_to_linalg::getDynamicZeroPaddedTensor(
+    Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
+    int unpaddedDims) {
+  assert(input.getType().isa<RankedTensorType>() &&
+         "input must be RankedTensorType");
+  unsigned int inRank = input.getType().cast<RankedTensorType>().getRank();
+  Location loc = op->getLoc();
+
+  SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
+  Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
+  SmallVector<Value> paddingIncludingUnchanged(unpaddedDims, c0);
+  paddingIncludingUnchanged.append(padding);
+  assert(unpaddedDims + padding.size() == inRank &&
+         "sum of unpaddedDims and padding.size() must equal to inputRank");
+  for (auto pad = paddingIncludingUnchanged.begin();
+       pad < paddingIncludingUnchanged.end(); pad++)
+    *pad = castIntToIndex(b, loc, *pad);
+
+  Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  Type inputType = RankedTensorType::get(
+      llvm::ArrayRef<int64_t>(SmallVector<int64_t>(inRank, kUnknownSize)),
+      elementType);
+
+  Value cf0 =
+      b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 0.0));
+  SmallVector<OpFoldResult> paddingValues =
+      getAsOpFoldResult(paddingIncludingUnchanged);
+  return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,
+                                 /*high=*/paddingValues, cf0);
+}
+
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
                                               Value in, Value paddingInt,
                                               Value dilationInt,

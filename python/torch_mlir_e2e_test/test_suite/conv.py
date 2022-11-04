@@ -12,6 +12,7 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class Conv2dNoPaddingModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
@@ -34,6 +35,7 @@ def Conv2dNoPaddingModule_basic(module, tu: TestUtils):
 
 
 class Conv2dBiasNoPaddingModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
@@ -56,6 +58,7 @@ def Conv2dBiasNoPaddingModule_basic(module, tu: TestUtils):
 
 
 class Conv2dWithPaddingModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
@@ -78,6 +81,7 @@ def Conv2dWithPaddingModule_basic(module, tu: TestUtils):
 
 
 class Conv2dWithPaddingDilationStrideModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
@@ -107,6 +111,7 @@ def Conv2dWithPaddingDilationStrideModule_basic(module, tu: TestUtils):
 
 
 class Conv2dWithPaddingDilationStrideStaticModule(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         torch.manual_seed(0)
@@ -134,6 +139,7 @@ def Conv2dWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
     t = tu.rand(5, 2, 10, 20)
     module.forward(t)
 
+
 # ==============================================================================
 
 class Convolution1DModule(torch.nn.Module):
@@ -148,14 +154,15 @@ class Convolution1DModule(torch.nn.Module):
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
-                                           weight,
-                                           bias=None,
-                                           stride=[1],
-                                           padding=[0],
-                                           dilation=[1],
-                                           transposed=False,
-                                           output_padding=[0],
-                                           groups=1)
+                                          weight,
+                                          bias=None,
+                                          stride=[1],
+                                          padding=[0],
+                                          dilation=[1],
+                                          transposed=False,
+                                          output_padding=[0],
+                                          groups=1)
+
 
 @register_test_case(module_factory=lambda: Convolution1DModule())
 def Convolution1DModule_basic(module, tu: TestUtils):
@@ -198,14 +205,15 @@ class Convolution3DModule(torch.nn.Module):
     ])
     def forward(self, inputVec, weight):
         return torch.ops.aten.convolution(inputVec,
-                                           weight,
-                                           bias=None,
-                                           stride=[1, 1, 1],
-                                           padding=[0, 0, 0],
-                                           dilation=[1, 1, 1],
-                                           transposed=False,
-                                           output_padding=[0, 0, 0],
-                                           groups=1)
+                                          weight,
+                                          bias=None,
+                                          stride=[1, 1, 1],
+                                          padding=[0, 0, 0],
+                                          dilation=[1, 1, 1],
+                                          transposed=False,
+                                          output_padding=[0, 0, 0],
+                                          groups=1)
+
 
 @register_test_case(module_factory=lambda: Convolution3DModule())
 def Convolution3DModule_basic(module, tu: TestUtils):
