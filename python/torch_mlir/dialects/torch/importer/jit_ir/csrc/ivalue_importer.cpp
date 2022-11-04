@@ -22,7 +22,6 @@
 #include "torch-mlir-c/TorchTypes.h"
 
 #include "ATen/native/quantized/PackedParams.h"
-#include "caffe2/core/scope_guard.h"
 
 using namespace torch_mlir;
 
@@ -153,6 +152,22 @@ private:
 };
 } // namespace
 
+// RAII pattern to insert an operation before going out of scope.
+class InserterGuard {
+private:
+  MlirBlock _importBlock;
+  MlirOperation _nnModule;
+
+public:
+  InserterGuard(MlirBlock importBlock, MlirOperation nnModule)
+      : _importBlock(importBlock), _nnModule(nnModule) {}
+
+  ~InserterGuard() {
+    mlirBlockInsertOwnedOperationBefore(
+        _importBlock, mlirBlockGetTerminator(_importBlock), _nnModule);
+  }
+};
+
 MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   // TODO: Can we do better?
   MlirLocation loc = mlirLocationUnknownGet(context);
@@ -177,10 +192,7 @@ MlirValue IValueImporter::importModule(torch::jit::Module currentModule) {
   MlirRegion nnModuleRegion = mlirOperationGetRegion(nnModule, 0);
   mlirRegionAppendOwnedBlock(nnModuleRegion, mlirBlockCreate(0, nullptr, nullptr));
   MlirBlock nnModuleBody = mlirRegionGetFirstBlock(nnModuleRegion);
-  auto inserter = caffe2::MakeGuard([&]() {
-    mlirBlockInsertOwnedOperationBefore(
-        importBlock, mlirBlockGetTerminator(importBlock), nnModule);
-  });
+  InserterGuard inserterGuard(importBlock, nnModule);
 
   if (!rootModuleName.has_value()) {
     rootModuleName = moduleTypeName;
