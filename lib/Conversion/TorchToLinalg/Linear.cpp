@@ -94,7 +94,6 @@ public:
 
 namespace {
 class ConvertAtenFlipOp : public OpConversionPattern<AtenFlipOp> {
-
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
@@ -501,11 +500,12 @@ public:
       return rewriter.create<arith::IndexCastOp>(loc, intType, v);
     };
 
-    SmallVector<int64_t> paddingInts;
-    if (!matchPattern(op.padding(), m_TorchConstantIntList(paddingInts))) {
+    SmallVector<Value> paddingIntValues;
+    if (!getListConstructElements(op.padding(), paddingIntValues))
       return rewriter.notifyMatchFailure(
-          op, "only support constant padding values");
-    }
+          op, "only support padding from a list construct");
+    paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                              paddingIntValues);
     SmallVector<int64_t> strideInts;
     if (!matchPattern(op.stride(), m_TorchConstantIntList(strideInts)))
       return rewriter.notifyMatchFailure(op,
@@ -548,8 +548,6 @@ public:
              "invalid: groups must divide weight batch size evenly.");
     SmallVector<Value> dilationIntValues =
         getAsConstantIntValues(rewriter, loc, dilationInts);
-    SmallVector<Value> paddingIntValues =
-        getAsConstantIntValues(rewriter, loc, paddingInts);
     SmallVector<Value> strideIntValues =
         getAsConstantIntValues(rewriter, loc, strideInts);
 
@@ -647,11 +645,8 @@ public:
 
     } else {
       // Pad input
-      SmallVector<int64_t, 4> paddingIncludingNC = {0, 0};
-      paddingIncludingNC.insert(paddingIncludingNC.end(), paddingInts.begin(),
-                                paddingInts.end());
-      paddedInput = torch_to_linalg::getZeroPaddedTensor(op, rewriter, input,
-                                                         paddingIncludingNC);
+      paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
+          op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2);
 
       // Calculate output dims
       for (size_t i = 0; i < numSpacialDims; i++)
@@ -752,7 +747,6 @@ public:
       }
 
       // Grouped case, use the grouped conv linalg op
-
       auto expandGroups = [&](Value tensor, size_t dim) {
         auto inType = tensor.getType().cast<RankedTensorType>();
         auto inShape = inType.getShape();

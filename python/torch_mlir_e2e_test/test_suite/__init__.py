@@ -15,6 +15,8 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "Conv_Transpose1dModule_basic",
     "MaxPool2dWith3dInputModule_basic",
     "MaxPool2dWithIndicesWith3dInputModule_basic",
+    "ConvolutionBackwardModule1D_basic",
+    "ConvolutionBackwardModule3D_basic",
 }
 
 def register_all_tests():

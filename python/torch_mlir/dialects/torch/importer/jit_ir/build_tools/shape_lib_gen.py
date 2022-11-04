@@ -981,6 +981,12 @@ def aten〇_convolution〇deprecated(input: List[int], weight: List[int], bias: 
 def aten〇flip(self: List[int], dims: List[int]) -> List[int]:
     return self
 
+def aten〇convolution_backward(grad_output: List[int], input: List[int], weight: List[int], bias_sizes: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, output_mask: List[bool]) -> Tuple[List[int], List[int], List[int]]:
+    return upstream_shape_functions.conv_backwards(grad_output, input, weight, bias_sizes)
+
+def aten〇convolution_backward_overrideable(grad_output: List[int], input: List[int], weight: List[int], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, output_mask: List[bool]) -> Tuple[List[int], List[int], List[int]]:
+    return upstream_shape_functions.conv_backwards(grad_output, input, weight, None)
+
 def aten〇batch_norm(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], training: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     # Torch's symbolic shape analysis is a bit looser about optional
     # arguments than we are, so their batch_norm helper function works
