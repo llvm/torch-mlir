@@ -8,7 +8,7 @@ pybind11
 wheel
 setuptools
 cmake
-ninja
+ninja==1.10.2
 
 # Workaround for what should be a torch dep
 # See discussion in #1174
