@@ -241,7 +241,7 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value startPlusLength =
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, length);
-    
+
     rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
         op, op.getResult().getType(), op.self(), /*dim=*/dim, /*start=*/start,
         /*end=*/startPlusLength, /*step=*/one);
@@ -3059,6 +3059,97 @@ public:
           loc, resultType, result, /*dim=*/cstNone, /*keepdim=*/cstFalse,
           /*dtype=*/cstNone);
     rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenRandintLowOp : public OpRewritePattern<AtenRandintLowOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandintLowOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+    BaseTensorType resultTensorType = resultType.cast<BaseTensorType>();
+
+    int64_t cstLow, cstHigh;
+    if (!matchPattern(op.low(), m_TorchConstantInt(&cstLow)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: low must be a constant integer");
+    if (!matchPattern(op.high(), m_TorchConstantInt(&cstHigh)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: high must be a constant integer");
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value low = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)cstLow));
+    Value high = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)cstHigh));
+
+    BaseTensorType floatResultType =
+        resultTensorType
+            .getWithSizesAndDtype(resultTensorType.getSizes(),
+                                  rewriter.getF32Type())
+            .cast<BaseTensorType>();
+    Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, floatResultType, op.size(), /*dtype=*/none, /*layout=*/op.layout(),
+        /*device=*/op.device(), /*pin_memory=*/op.pin_memory(),
+        /*memory_format=*/none);
+
+    Value result =
+        rewriter.create<AtenUniformOp>(loc, floatResultType, emptyTensor,
+                                       /*from=*/low,
+                                       /*to=*/high,
+                                       /*generator=*/none);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(
+        op, resultType, result,
+        getDtypeIntValueForType(rewriter, loc, resultTensorType.getDtype()),
+        /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.var_mean.correction` op into `aten.var.correction` and
+// `aten.mean.dim` op.
+class DecomposeAtenVarMeanCorrectionOp
+    : public OpRewritePattern<AtenVarMeanCorrectionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarMeanCorrectionOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value var = rewriter.create<AtenVarCorrectionOp>(
+        loc, op.getType(0), op.self(), op.dim(), op.correction(), op.keepdim());
+    Value mean =
+        rewriter.create<AtenMeanDimOp>(loc, op.getType(0), op.self(), op.dim(),
+                                       op.keepdim(), /*dtype=*/noneVal);
+    rewriter.replaceOp(op, {var, mean});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `prims.convert_element_type` op into `aten.to.dtype` op.
+class DecomposePrimsConvertElementTypeOp
+    : public OpRewritePattern<PrimsConvertElementTypeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsConvertElementTypeOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(
+        op, op.getType(), op.a(), op.dtype(), /*non_blocking=*/cstFalse,
+        /*copy=*/cstFalse, /*memory_format=*/cstNone);
     return success();
   }
 };
