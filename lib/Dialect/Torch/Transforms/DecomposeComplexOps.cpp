@@ -241,7 +241,7 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value startPlusLength =
         rewriter.create<AtenAddIntOp>(loc, one.getType(), start, length);
-    
+
     rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
         op, op.getResult().getType(), op.self(), /*dim=*/dim, /*start=*/start,
         /*end=*/startPlusLength, /*step=*/one);
@@ -3064,6 +3064,56 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRandintLowOp : public OpRewritePattern<AtenRandintLowOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandintLowOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+    BaseTensorType resultTensorType = resultType.cast<BaseTensorType>();
+
+    int64_t cstLow, cstHigh;
+    if (!matchPattern(op.low(), m_TorchConstantInt(&cstLow)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: low must be a constant integer");
+    if (!matchPattern(op.high(), m_TorchConstantInt(&cstHigh)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: high must be a constant integer");
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value low = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)cstLow));
+    Value high = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)cstHigh));
+
+    BaseTensorType floatResultType =
+        resultTensorType
+            .getWithSizesAndDtype(resultTensorType.getSizes(),
+                                  rewriter.getF32Type())
+            .cast<BaseTensorType>();
+    Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, floatResultType, op.size(), /*dtype=*/none, /*layout=*/op.layout(),
+        /*device=*/op.device(), /*pin_memory=*/op.pin_memory(),
+        /*memory_format=*/none);
+
+    Value result =
+        rewriter.create<AtenUniformOp>(loc, floatResultType, emptyTensor,
+                                       /*from=*/low,
+                                       /*to=*/high,
+                                       /*generator=*/none);
+    rewriter.replaceOpWithNewOp<AtenToDtypeOp>(
+        op, resultType, result,
+        getDtypeIntValueForType(rewriter, loc, resultTensorType.getDtype()),
+        /*non_blocking=*/cstFalse, /*copy=*/cstFalse, /*memory_format=*/none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3264,6 +3314,8 @@ public:
     target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
     patterns.add<DecomposeAtenMseLossOp>(context);
     target.addIllegalOp<AtenMseLossOp>();
+    patterns.add<DecomposeAtenRandintLowOp>(context);
+    target.addIllegalOp<AtenRandintLowOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));

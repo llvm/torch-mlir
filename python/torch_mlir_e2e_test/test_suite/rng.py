@@ -276,3 +276,43 @@ class RandLikeDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RandLikeDtypeModule())
 def RandLikeDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1024, 1024).double())
+
+# ==============================================================================
+
+class RandIntLowModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randint(low=1, high=1000, size=[1024, 1024])
+        mean = torch.mean(a.to(torch.float32))
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandIntLowModule())
+def RandIntLowModule_basic(module, tu: TestUtils):
+    module.forward()
+
+# ==============================================================================
+
+class RandIntLowDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randint(low=1, high=1000, size=[128, 256, 512], dtype=torch.float64)
+        mean = torch.mean(a)
+        return mean
+
+
+@register_test_case(module_factory=lambda: RandIntLowDtypeModule())
+def RandIntLowDtypeModule_basic(module, tu: TestUtils):
+    module.forward()

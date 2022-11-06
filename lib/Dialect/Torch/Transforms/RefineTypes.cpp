@@ -1158,6 +1158,17 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto randIntLow = dyn_cast<AtenRandintLowOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type defaultDtype =
+        IntegerType::get(op->getContext(), 64, IntegerType::Signed);
+    knowledge.dtype =
+        getDtypeOrDefault(op->getContext(), randIntLow.dtype(), defaultDtype);
+    incorporateKnowledge(randIntLow.getResult(), knowledge);
+    return;
+  }
+
   // Otherwise, this is an unknown operation, so reset the state.
   setAllToEntryStates(results);
   return;
