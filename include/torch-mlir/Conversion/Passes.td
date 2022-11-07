@@ -105,6 +105,61 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToLinalgPass()";
 }
 
+def ConvertTorchBackendLegalToTosaCustom
+    : Pass<"convert-torch-backend-legal-to-tosa-custom", "func::FuncOp"> {
+  let summary = "Convert Torch backend-legal operations to TOSA CustomOps.";
+  let description = [{
+    This pass extends the selective decomposition patterns to TOSA backend,
+    such that it will convert operations marked to custom-ops by the user
+    for the TOSA backend to CustomOps in TOSA dialect.
+    The backend-custom operations will not be decomposed or lowered through
+    the existing Torch to TOSA conversion patterns, even if such patterns
+    exist in the subsequent Torch to TOSA conversion pass; instead a TOSA
+    CustomOp will be created with the specifications below:
+      1. The 'identifier' attribute in the CustomOp will be the operation
+         name of the corresponding ATen operation.
+      2. The 'config' attribute in the CustomOp will be the specification
+         of the compilation pipeline, i.e. "torch_mlir"
+      3. All inputs to the ATen operation will be converted into legal TOSA
+         operations. There will be no distiction between inputs and constant
+         attributes; all will be treated as inputs to the CustomOp. It is up
+         to the consuming backend to deduce them based on the ATen operation
+         semantics.
+      4. Since TOSA conversion pattern of Torch operations are responsible
+         to consume and convet the constant attributes (such as 'axis' for a
+         reduction operation), the TOSA CustomOp conversion will also match
+         and rewrite these attributes as TOSA ConstOps as well. Specifically:
+           - !torch.bool                -> tosa.ConstOp (of tensor type i64)
+           - !torch.int                 -> tosa.ConstOp (of tensor type i64)
+           - !torch.float               -> tosa.ConstOp (of tensor type f32)
+           - !torch.list<int>           -> tosa.ConstOp (of tensor type i64)
+           - !torch.none                -> tosa.CustomOp (of tensor type i1)
+                                           The 'identifier' attribute of this
+                                           CustomOp is 'torch.constant.none'
+           - !torch.str                 -> tosa.CustomOp (of tensor type i1)
+                                           The 'identifier' attribute of this
+                                           CustomOp is 'torch.constant.str'
+         All other Torch ATen operations will be lowered to TOSA by the Torch
+         to TOSA conversion pass after this one.
+        TODO: Extend the contract for other Torch constant operations such as:
+          - torch.constant.device
+          - torch.constant.number
+      5. The input operands of the backend-legal Torch operation and the TOSA
+         CustomOp will have the same order.
+        TODO: Update this pass to populate the 'config' attribute of the TOSA
+              CustomOp to establish a proper operand mapping scheme between
+              the backend-legal Torch operation and the TOSA CustomOp.
+              (See the commit at https://github.com/llvm/llvm-project/commit/d94ee70f4f01e4d9eec49e02eff57a5655618401)
+  }];
+  let options = [ListOption<
+      "customOps", "custom-ops", "std::string",
+      "List of operations considered backend-legal that should be converted to"
+      " CustomOps in TOSA dialect.",
+      "llvm::cl::ZeroOrMore">];
+  let constructor =
+      "mlir::torch::createConvertTorchBackendLegalToTosaCustomPass(/*customOps=*/{})";
+}
+
 def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let summary = "Convert Torch ops to TOSA ops";
   let description = [{
