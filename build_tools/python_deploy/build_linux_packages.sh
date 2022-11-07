@@ -205,7 +205,7 @@ function build_in_tree() {
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DTORCH_MLIR_ENABLE_LTC=ON \
-      -DTORCH_MLIR_ENABLE_TCP=OFF \
+      -DTORCH_MLIR_ENABLE_TCP=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
@@ -277,6 +277,9 @@ function test_in_tree() {
 
   echo ":::: Run TorchDynamo e2e integration tests"
   python -m e2e_testing.main --config=torchdynamo -v
+
+  echo ":::: Run TCP e2e integration tests"
+  python -m e2e_testing.main --config=tcp -v
 }
 
 function setup_venv() {
