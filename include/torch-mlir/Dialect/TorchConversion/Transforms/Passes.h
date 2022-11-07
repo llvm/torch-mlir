@@ -51,6 +51,13 @@ void createTorchBackendToMhloBackendPipeline(
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyMhloBackendContractPass();
 #endif
 
+#ifdef TORCH_MLIR_ENABLE_TCP
+// Creates a pipeline that lowers from the torch backend contract to the TCP
+// backend contract.
+void createTorchBackendToTcpBackendPipeline(OpPassManager &pm);
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyTcpBackendContractPass();
+#endif // TORCH_MLIR_ENABLE_TCP
+
 std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
