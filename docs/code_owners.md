@@ -32,6 +32,7 @@ and Clang's
 ### TorchToTOSA
 
 - Eric Kunze (@eric-k256)
+- Suraj Sudhir (@sjarus)
 
 ### TorchToMHLO
 
