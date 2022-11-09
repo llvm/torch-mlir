@@ -59,14 +59,14 @@ class DictModule(torch.nn.Module):
 
 
 try:
-    # CHECK: Only Tensors, TensorPlaceholders, or a sequences of Tensors and TensorPlaceholders are supported as inputs.
+    # CHECK: Only Tensors, TensorPlaceholder's, or sequences of Tensors and TensorPlaceholder's are supported as example args for method inputs. Got '{'a': tensor(3.)}'
     torch_mlir.compile(DictModule(), {'a': torch.tensor(3.0)}, use_tracing=True)
 except Exception as e:
     print(e)
 
 
 try:
-    # CHECK: Only Tensors, TensorPlaceholders, or a sequences of Tensors and TensorPlaceholders are supported as inputs.
+    # CHECK: Only Tensors, TensorPlaceholder's, or sequences of Tensors and TensorPlaceholder's are supported as example args for method inputs. Got '{'a': tensor(3.)}'
     torch_mlir.compile(DictModule(), [{'a': torch.tensor(3.0)}], use_tracing=True)
 except Exception as e:
     print(e)
