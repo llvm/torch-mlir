@@ -106,3 +106,11 @@ func.func @single_tensor_tuple_return(%arg0: !torch.tensor) -> !torch.tuple<tens
   %0 = torch.prim.TupleConstruct %arg0 : !torch.tensor -> !torch.tuple<tensor>
   return %0 : !torch.tuple<tensor>
 }
+
+// -----
+
+// Multiple, non-tuple return
+// expected-error @+1 {{should only ever return one item}}
+func.func @multiple_non_tuple_return(%arg0: !torch.tensor) -> (!torch.tensor, !torch.tensor) {
+  return %arg0, %arg0 : !torch.tensor, !torch.tensor
+}
