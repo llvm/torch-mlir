@@ -273,7 +273,7 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
     run_pipeline_with_repro_report(
         mb.module,
-        f"torchscript-module-to-torch-backend-pipeline{option_string}",
+        f"builtin.module(torchscript-module-to-torch-backend-pipeline{option_string})",
         "Lowering TorchScript IR -> Torch Backend IR",
     )
 
@@ -288,7 +288,7 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     if output_type == OutputType.TOSA:
         run_pipeline_with_repro_report(
             mb.module,
-            "torch-backend-to-tosa-backend-pipeline",
+            "builtin.module(torch-backend-to-tosa-backend-pipeline)",
             "Lowering Torch Backend IR -> TOSA Backend IR")
         if verbose:
             print("\n====================")
@@ -299,7 +299,7 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     if output_type == OutputType.LINALG_ON_TENSORS:
         run_pipeline_with_repro_report(
             mb.module,
-            "torch-backend-to-linalg-on-tensors-backend-pipeline",
+            "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
             "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR")
         if verbose:
             print("\n====================")
@@ -310,7 +310,7 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
     elif output_type == OutputType.MHLO:
         run_pipeline_with_repro_report(
             mb.module,
-            "torch-backend-to-mhlo-backend-pipeline",
+            "builtin.module(torch-backend-to-mhlo-backend-pipeline)",
             "Lowering Torch Backend IR -> MHLO Backend IR")
         if verbose:
             print("\n====================")
