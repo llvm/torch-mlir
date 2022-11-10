@@ -173,8 +173,8 @@ class ExampleArgs:
             example_args = [example_args]
         for arg in example_args:
             if not isinstance(arg, _example_arg):
-                raise Exception(f"Only Tensors, TensorPlaceholder's, or sequences of "
-                                f"Tensors and TensorPlaceholder's are supported as "
+                raise Exception(f"Only Tensor's, TensorPlaceholder's, or sequences of "
+                                f"Tensor's and TensorPlaceholder's are supported as "
                                 f"example args for method inputs. "
                                 f"Got '{arg}'.")
         return tuple(example_args)
