@@ -114,7 +114,7 @@ class RefBackendInvoker:
         return invoke
 
 
-LOWERING_PIPELINE = ",".join([
+LOWERING_PIPELINE = "builtin.module(" + ",".join([
     "func.func(refback-generalize-tensor-pad)",
     # Bufferize.
     "func.func(scf-bufferize)",
@@ -152,7 +152,7 @@ LOWERING_PIPELINE = ",".join([
     "convert-func-to-llvm",
     "convert-cf-to-llvm",
     "reconcile-unrealized-casts",
-])
+]) + ")"
 
 
 class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):

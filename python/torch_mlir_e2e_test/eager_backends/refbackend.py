@@ -67,7 +67,7 @@ class EagerModeRefBackend(TorchMLIREagerBackend):
         if module_hash not in self.module_to_refbackend_invoker:
             run_pipeline_with_repro_report(
                 imported_module,
-                "torch-function-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline",
+                "builtin.module(torch-function-to-torch-backend-pipeline,torch-backend-to-linalg-on-tensors-backend-pipeline)",
                 "EagerMode",
             )
             self.module_to_refbackend_invoker[module_hash] = _ref_backend.load(
