@@ -1261,7 +1261,7 @@ def main(args):
     for function in torch.jit._state._python_cu.get_functions():
         mb.import_function(function)
     # Clean up the IR a bit before writing it out.
-    pm = PassManager.parse("canonicalize", context=mb.module.context)
+    pm = PassManager.parse("builtin.module(canonicalize)", context=mb.module.context)
     pm.run(mb.module)
     # Munge the IR a bit to make it more systematically accessible.
     asm = mb.module.operation.get_asm()
