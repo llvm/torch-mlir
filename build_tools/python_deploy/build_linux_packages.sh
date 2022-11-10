@@ -279,8 +279,8 @@ function setup_venv() {
   source /main_checkout/torch-mlir/docker_venv/bin/activate
 
   echo ":::: pip installing dependencies"
-  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
-  python3 -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt
+  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
+  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt
 
 }
 
@@ -347,7 +347,7 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
-  python -m pip install --upgrade -r /main_checkout/torch-mlir/requirements.txt \
+  python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt \
     --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
