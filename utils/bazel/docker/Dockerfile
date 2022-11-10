@@ -1,35 +1,40 @@
-ARG BASE_IMG=ubuntu:18.04
+ARG BASE_IMG=ubuntu:22.04
 FROM ${BASE_IMG} as dev-base
 
-ARG ARCH="x86_64"
-ARG BAZEL_VERSION=5.2.0
-
 # Install basic packages
-RUN apt-get update                                              && \
-    apt-get install -y                                             \
-    clang-10                                                       \
-    curl                                                           \
-    git                                                            \
-    python3-pip                                                    \
-    python3.8                                                      \
-    python3.8-dev                                                  \
-    wget                                                           \
+RUN apt-get update && \
+    apt-get install -y \
+    wget \
+    curl \
+    git \
+    python3-pip \
+    python3.10 \
+    python3.10-dev \
     unzip
 
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 10
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 10
-
-RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-10 10
-RUN update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-10 10
+# Install clang
+ARG REPO_NAME="deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main"
+RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    apt-get update && \
+    apt-get install -y \
+    clang
 
 # Install bazel
+ARG ARCH="x86_64"
+ARG BAZEL_VERSION=5.2.0
 RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
     && chmod a+x /usr/bin/bazel
 
+# Install torch-mlir requirements
 COPY requirements.txt /opt/app/requirements.txt
 COPY pytorch-requirements.txt /opt/app/pytorch-requirements.txt
 WORKDIR /opt/app
-RUN python -m pip install --upgrade pip
-RUN python -m pip install --upgrade --ignore-installed -r requirements.txt
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt
+
+# Clean up
+RUN apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/src/torch-mlir
