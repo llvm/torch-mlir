@@ -3010,7 +3010,30 @@ def AtenToDeviceModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class UpSampleNearest2dBackwardVec(torch.nn.Module):
+class UpSampleNearest2dBackward(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1, -1], torch.float64, True),
+    ])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d_backward(input,
+                                               output_size=[6, 12],
+                                               input_size=[1, 1, 2, 3],
+                                               scales_h=3.0,
+                                               scales_w=4.0)
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dBackward())
+def UpSampleNearest2dBackward_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))
+
+
+class UpSampleNearest2dBackwardScalesNone(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -3024,31 +3047,9 @@ class UpSampleNearest2dBackwardVec(torch.nn.Module):
         return torch.ops.aten.upsample_nearest2d_backward(input,
                                                output_size=[4, 8],
                                                input_size=[1, 1, 2, 3],
-                                               scale_factors=None)
+                                               scales_h=None,
+                                               scales_w=None)
 
-
-@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardVec())
-def UpSampleNearest2dBackwardVec_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardScalesNone())
+def UpSampleNearest2dBackwardScalesNone_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 8))
-
-
-class UpSampleNearest2dBackwardOutputSizeNone(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1, -1], torch.float64, True),
-    ])
-    def forward(self, input):
-        return torch.ops.aten.upsample_nearest2d_backward(input,
-                                               output_size=None,
-                                               input_size=[1, 1, 2, 3],
-                                               scale_factors=[3.0, 4.0])
-
-
-@register_test_case(module_factory=lambda: UpSampleNearest2dBackwardOutputSizeNone())
-def UpSampleNearest2dBackwardOutputSizeNone_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))

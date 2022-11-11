@@ -955,13 +955,13 @@ static Value getGradOutputValue(OpBuilder &builder, Location loc,
 //           for y in range(kw):
 //             outTensor[i, j, p, q] += gradOutput[i, j, (p*kh)+x, (q*kw)+y]
 namespace {
-class ConvertAtenUpsampleNearest2dBackwardVecOp
-    : public OpConversionPattern<AtenUpsampleNearest2dBackwardVecOp> {
+class ConvertAtenUpsampleNearest2dBackwardOp
+    : public OpConversionPattern<AtenUpsampleNearest2dBackwardOp> {
 
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenUpsampleNearest2dBackwardVecOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenUpsampleNearest2dBackwardOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
@@ -976,7 +976,6 @@ public:
         getTensorSizes(rewriter, loc, gradOutput);
     SmallVector<Value> gradOutputSizeIntValues =
         castIndexVectorToInt64Vector(rewriter, loc, gradOutputSizeIndexValues);
-    SmallVector<Value, 2> scaleFactorsFloatValues;
 
     SmallVector<Value, 4> inputSizeTorchInt;
     if (!getListConstructElements(op.input_size(), inputSizeTorchInt))
@@ -990,24 +989,32 @@ public:
     // The dimension at which the scaling starts.
     unsigned hDimOffset = 2;
 
-    if (!op.scale_factors().getType().isa<Torch::NoneType>()) {
-      SmallVector<Value, 2> scaleFactorsTorchFloat;
-      if (!getListConstructElements(op.scale_factors(), scaleFactorsTorchFloat))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: the scale_factors is not constructed from "
-                "ListConstruct");
-      scaleFactorsFloatValues = getTypeConvertedValues(
-          rewriter, loc, getTypeConverter(), scaleFactorsTorchFloat);
+    SmallVector<Value, 2> scaleFactorsFloatValues;
+    if (!op.scales_h().getType().isa<Torch::NoneType>()) {
+      scaleFactorsFloatValues.push_back(adaptor.scales_h());
     } else {
-      for (unsigned i = hDimOffset; i < gradOutputRank; i++) {
-        auto scaleFactorVal = rewriter.create<arith::DivFOp>(
-            loc,
-            convertScalarToDtype(rewriter, loc, gradOutputSizeIntValues[i],
-                                 mlir::Float32Type::get(op->getContext())),
-            convertScalarToDtype(rewriter, loc, inputSizeIntValues[i],
-                                 mlir::Float32Type::get(op->getContext())));
-        scaleFactorsFloatValues.push_back(scaleFactorVal);
-      }
+      auto scaleFactorVal = rewriter.create<arith::DivFOp>(
+          loc,
+          convertScalarToDtype(rewriter, loc,
+                               gradOutputSizeIntValues[hDimOffset],
+                               mlir::Float32Type::get(op->getContext())),
+          convertScalarToDtype(rewriter, loc, inputSizeIntValues[hDimOffset],
+                               mlir::Float32Type::get(op->getContext())));
+      scaleFactorsFloatValues.push_back(scaleFactorVal);
+    }
+
+    if (!op.scales_w().getType().isa<Torch::NoneType>()) {
+      scaleFactorsFloatValues.push_back(adaptor.scales_w());
+    } else {
+      auto scaleFactorVal = rewriter.create<arith::DivFOp>(
+          loc,
+          convertScalarToDtype(rewriter, loc,
+                               gradOutputSizeIntValues[hDimOffset + 1],
+                               mlir::Float32Type::get(op->getContext())),
+          convertScalarToDtype(rewriter, loc,
+                               inputSizeIntValues[hDimOffset + 1],
+                               mlir::Float32Type::get(op->getContext())));
+      scaleFactorsFloatValues.push_back(scaleFactorVal);
     }
 
     SmallVector<Value, 2> scaleFactorsIntValues;
@@ -1097,6 +1104,6 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dVecOp>();
   patterns.add<ConvertAtenUpsampleNearest2dVecOp>(typeConverter, context);
-  target.addIllegalOp<AtenUpsampleNearest2dBackwardVecOp>();
-  patterns.add<ConvertAtenUpsampleNearest2dBackwardVecOp>(typeConverter, context);
+  target.addIllegalOp<AtenUpsampleNearest2dBackwardOp>();
+  patterns.add<ConvertAtenUpsampleNearest2dBackwardOp>(typeConverter, context);
 }
