@@ -172,7 +172,7 @@ class ExampleArgs:
         if not isinstance(example_args, Sequence):
             example_args = [example_args]
         for arg in example_args:
-            if not isinstance(arg, _example_arg):
+            if not isinstance(arg, (TensorPlaceholder, torch.Tensor)):
                 raise Exception(f"Only Tensor's, TensorPlaceholder's, or sequences of "
                                 f"Tensor's and TensorPlaceholder's are supported as "
                                 f"example args for method inputs. "
