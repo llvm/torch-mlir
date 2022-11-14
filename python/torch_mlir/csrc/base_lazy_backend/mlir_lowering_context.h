@@ -43,7 +43,7 @@ public:
       const std::string& name, torch::lazy::BackendDevice device);
   TorchMlirLoweringContext(
       const std::string& name, torch::lazy::BackendDevice device,
-      c10::ArrayRef<torch::lazy::Node*> post_order,
+      c10::ArrayRef<const torch::lazy::Node*> post_order,
       torch::lazy::Util::EmissionMap emit_status);
 
   void Lower(const Node* node);

@@ -103,7 +103,7 @@ public:
 
   // Gets backend data if the node is a device data node. Otherwise returns
   // nullptr.
-  virtual BackendDataPtr GetComputationDataFromNode(Node*) const override;
+  virtual BackendDataPtr GetComputationDataFromNode(const Node*) const override;
 
   virtual at::Tensor MakeTensorFromComputationData(
       const BackendDataPtr data,
@@ -115,7 +115,7 @@ public:
 
   virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
       const std::string& name, BackendDevice device,
-      c10::ArrayRef<Node*> post_order,
+      c10::ArrayRef<const Node*> post_order,
       Util::EmissionMap emit_status) const override;
 
   virtual std::unique_ptr<LoweringContext> CreateLoweringContext(
