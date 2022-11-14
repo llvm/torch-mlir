@@ -45,10 +45,10 @@ TorchMlirLoweringContext::TorchMlirLoweringContext(
 
 TorchMlirLoweringContext::TorchMlirLoweringContext(
     const std::string& name, BackendDevice device,
-    c10::ArrayRef<torch::lazy::Node*> post_order, Util::EmissionMap emit_status)
+    c10::ArrayRef<const torch::lazy::Node*> post_order, Util::EmissionMap emit_status)
     : LoweringContext(
           name, std::forward<BackendDevice>(device),
-          std::forward<c10::ArrayRef<torch::lazy::Node*>>(post_order),
+          std::forward<c10::ArrayRef<const torch::lazy::Node*>>(post_order),
           std::forward<Util::EmissionMap>(emit_status)),
       graph_(std::make_shared<torch::jit::Graph>()),
       function_(

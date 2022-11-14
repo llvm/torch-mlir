@@ -106,9 +106,9 @@ BackendDataPtr TorchMlirBackendImpl::CreateDataPlaceholder(
 }
 
 BackendDataPtr
-TorchMlirBackendImpl::GetComputationDataFromNode(Node* node) const {
+TorchMlirBackendImpl::GetComputationDataFromNode(const Node* node) const {
   PRINT_FUNCTION();
-  auto* device_data_node = dynamic_cast<DeviceData*>(node);
+  const auto* device_data_node = dynamic_cast<const DeviceData*>(node);
   if (!device_data_node) {
     return nullptr;
   }
@@ -141,11 +141,11 @@ at::Tensor TorchMlirBackendImpl::MakeTensorFromComputationData(
 
 std::unique_ptr<LoweringContext> TorchMlirBackendImpl::CreateLoweringContext(
     const std::string& name, BackendDevice device,
-    c10::ArrayRef<Node*> post_order, Util::EmissionMap emit_status) const {
+    c10::ArrayRef<const Node*> post_order, Util::EmissionMap emit_status) const {
   PRINT_FUNCTION();
   return std::make_unique<TorchMlirLoweringContext>(
       name, std::forward<BackendDevice>(device),
-      std::forward<c10::ArrayRef<Node*>>(post_order),
+      std::forward<c10::ArrayRef<const Node*>>(post_order),
       std::forward<Util::EmissionMap>(emit_status));
 }
 
