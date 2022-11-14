@@ -1,7 +1,6 @@
 -r pytorch-requirements.txt
 
 numpy
-torchvision
 
 # Build requirements.
 pybind11
