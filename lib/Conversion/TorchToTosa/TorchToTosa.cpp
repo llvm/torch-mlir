@@ -2435,7 +2435,7 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
 
   dim = toPositiveDim(dim, selfRank);
-  if (!isValidDim(dim, selfRank))
+  if (!isValidDim(dim, selfRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   SmallVector<int64_t> outShape;
