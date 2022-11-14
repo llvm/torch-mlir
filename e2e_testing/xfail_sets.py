@@ -22,7 +22,6 @@ EAGER_MODE_XFAIL_SET = {
     "QuantizedMLP_basic",
     "Matmul_vecmat",
     "BatchMlpLayerModule_basic",
-    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 MHLO_PASS_SET = {
