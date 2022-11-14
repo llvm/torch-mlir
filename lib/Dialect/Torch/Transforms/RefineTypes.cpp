@@ -1192,6 +1192,26 @@ void TypeAnalysis::visitOperation(Operation *op,
     return;
   }
 
+  if (auto randn = dyn_cast<AtenRandnOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type defaultDtype = Float32Type::get(op->getContext());
+    knowledge.dtype =
+        getDtypeOrDefault(op->getContext(), randn.dtype(), defaultDtype);
+    incorporateKnowledge(randn.getResult(), knowledge);
+    return;
+  }
+
+  if (auto randnGenerator = dyn_cast<AtenRandnGeneratorOp>(op)) {
+    auto knowledge =
+        ValueKnowledge::getTensorPessimisticValueState(op->getContext());
+    Type defaultDtype = Float32Type::get(op->getContext());
+    knowledge.dtype = getDtypeOrDefault(op->getContext(),
+                                        randnGenerator.dtype(), defaultDtype);
+    incorporateKnowledge(randnGenerator.getResult(), knowledge);
+    return;
+  }
+
   // Otherwise, this is an unknown operation, so reset the state.
   setAllToEntryStates(results);
   return;

@@ -182,6 +182,29 @@ public:
                 "memory_format is supported");
     }
 
+    // TODO: Add support for device arg other than cpu.
+    if (!op.device().getType().isa<Torch::NoneType>()) {
+      std::string device;
+      if (!matchPattern(op.device(), m_TorchConstantDevice(device)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: device must be a constant str");
+      else if (device != "cpu")
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: device is expected to be cpu");
+    }
+
+    // TODO: Add support for non-strided layout.
+    // torch.layout is by default strided i.e. 0.
+    if (!op.layout().getType().isa<Torch::NoneType>()) {
+      int64_t tensorLayout;
+      if (!matchPattern(op.layout(), m_TorchConstantInt(&tensorLayout)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: layout must be a constant");
+      else if (tensorLayout != torch_upstream::Layout::Strided)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: layout is expected to be strided");
+    }
+
     Location loc = op.getLoc();
     TypeConverter *typeConverter = this->getTypeConverter();
     SmallVector<Value> resultSizeTorchInt, resultSize, resultSizeIndex;

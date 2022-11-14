@@ -135,7 +135,7 @@ public:
 
     if (!generator.getType().isa<Torch::NoneType>())
       return rewriter.notifyMatchFailure(
-          op, "The generator has to ben None because only global default "
+          op, "The generator has to be None because only global default "
               "generator is supported");
     // Get key, min and max used by `linalg.generic` compute payload.
     Value key = rewriter.create<TorchConversion::GetNextSeedOp>(loc);

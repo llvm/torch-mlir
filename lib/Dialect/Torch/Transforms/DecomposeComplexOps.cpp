@@ -3227,6 +3227,75 @@ public:
 } // namespace
 
 namespace {
+// The op is decomposed using the Box-Muller transform.
+// Refer: https://en.wikipedia.org/wiki/Box-Muller_transform
+class DecomposeAtenRandnGeneratorOp
+    : public OpRewritePattern<AtenRandnGeneratorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandnGeneratorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value low = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)0.0));
+    Value high = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)1.0));
+    Value cstMinusTwo = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)-2.0));
+    Value cstTwoPie = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr((double)(2.0 * 3.14159)));
+
+    Value emptyTensorA = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, resultType, op.size(), /*dtype=*/none, /*layout=*/op.layout(),
+        /*device=*/op.device(), /*pin_memory=*/op.pin_memory(),
+        /*memory_format=*/none);
+    Value emptyTensorB = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, resultType, op.size(), /*dtype=*/none, /*layout=*/op.layout(),
+        /*device=*/op.device(), /*pin_memory=*/op.pin_memory(),
+        /*memory_format=*/none);
+
+    Value uOne = rewriter.create<AtenUniformOp>(loc, resultType, emptyTensorA,
+                                                /*from=*/low,
+                                                /*to=*/high,
+                                                /*generator=*/op.generator());
+    Value uTwo = rewriter.create<AtenUniformOp>(loc, resultType, emptyTensorB,
+                                                /*from=*/low,
+                                                /*to=*/high,
+                                                /*generator=*/op.generator());
+
+    Value logUOne = rewriter.create<AtenLogOp>(loc, resultType, uOne);
+    Value minusTwoLogUOne =
+        rewriter.create<AtenMulScalarOp>(loc, resultType, logUOne, cstMinusTwo);
+    Value r = rewriter.create<AtenSqrtOp>(loc, resultType, minusTwoLogUOne);
+    Value theta =
+        rewriter.create<AtenMulScalarOp>(loc, resultType, uTwo, cstTwoPie);
+    Value cosTheta = rewriter.create<AtenCosOp>(loc, resultType, theta);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), r, cosTheta);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.randn` op into `aten.randn.generator` op.
+class DecomposeAtenRandnOp : public OpRewritePattern<AtenRandnOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRandnOp op,
+                                PatternRewriter &rewriter) const override {
+    Value none = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    rewriter.replaceOpWithNewOp<AtenRandnGeneratorOp>(
+        op, op.getType(), op.size(), /*generator=*/none, op.dtype(),
+        op.layout(), op.device(), op.pin_memory());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3435,6 +3504,10 @@ public:
     target.addIllegalOp<AtenVarMeanCorrectionOp>();
     patterns.add<DecomposePrimsConvertElementTypeOp>(context);
     target.addIllegalOp<PrimsConvertElementTypeOp>();
+    patterns.add<DecomposeAtenRandnOp>(context);
+    target.addIllegalOp<AtenRandnOp>();
+    patterns.add<DecomposeAtenRandnGeneratorOp>(context);
+    target.addIllegalOp<AtenRandnGeneratorOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
