@@ -294,3 +294,73 @@ class RandIntLowDtypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RandIntLowDtypeModule())
 def RandIntLowDtypeModule_basic(module, tu: TestUtils):
     module.forward()
+
+# ==============================================================================
+
+
+class RandnModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randn([4, 512, 1024])
+        std = torch.std(a.to(dtype=torch.float64))
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnModule())
+def RandnModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class RandnDtypeDeviceModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randn([4, 512, 1024],
+                                 dtype=torch.float64,
+                                 device=torch.device("cpu"))
+        std = torch.std(a)
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnDtypeDeviceModule())
+def RandnDtypeDeviceModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
+class RandnGeneratorModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+    ])
+    def forward(self):
+        a = torch.ops.aten.randn([4, 512, 1024], generator=None)
+        std = torch.std(a.to(dtype=torch.float64))
+        return std
+
+
+@register_test_case(module_factory=lambda: RandnGeneratorModule())
+def RandnGeneratorModule_basic(module, tu: TestUtils):
+    module.forward()

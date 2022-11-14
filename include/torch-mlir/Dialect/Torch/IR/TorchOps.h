@@ -75,6 +75,21 @@ struct torch_constant_str_op_binder {
     return false;
   }
 };
+
+struct torch_constant_device_op_binder {
+  std::string &bind_value;
+
+  /// Creates a matcher instance that binds the value to bv if match succeeds.
+  torch_constant_device_op_binder(std::string &bv) : bind_value(bv) {}
+
+  bool match(Operation *op) {
+    if (auto constantDevice = dyn_cast<Torch::ConstantDeviceOp>(op)) {
+      bind_value = constantDevice.value().str();
+      return true;
+    }
+    return false;
+  }
+};
 } // namespace detail
 
 /// Matches the integer stored in a `torch.constant.bool`.
@@ -93,6 +108,12 @@ m_TorchConstantFloat(double *bind_value) {
 inline detail::torch_constant_str_op_binder
 m_TorchConstantStr(std::string &bind_value) {
   return detail::torch_constant_str_op_binder(bind_value);
+}
+
+/// Matches the string device value stored in a `torch.constant.device`.
+inline detail::torch_constant_device_op_binder
+m_TorchConstantDevice(std::string &bind_value) {
+  return detail::torch_constant_device_op_binder(bind_value);
 }
 
 namespace detail {
