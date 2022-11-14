@@ -63,7 +63,7 @@ llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 if "Windows" in config.host_os:
   config.python_executable = '"%s"' % (config.python_executable)
 
-tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir]
+tool_dirs = [config.standalone_tools_dir, config.llvm_tools_dir, config.torch_mlir_obj_root]
 tools = [
     'torch-mlir-opt',
     ToolSubst('%PYTHON', config.python_executable, unresolved='ignore'),

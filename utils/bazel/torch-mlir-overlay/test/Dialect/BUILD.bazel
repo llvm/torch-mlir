@@ -1,0 +1,15 @@
+load("@llvm-project//llvm:lit_test.bzl", "lit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+[
+    lit_test(
+        name = "%s.test" % src,
+        srcs = [src],
+        data = [
+            "@torch-mlir//:torch-mlir-opt",
+            "@torch-mlir//test:lit_data",
+        ],
+    )
+    for src in glob(["**/*.mlir"])
+]
