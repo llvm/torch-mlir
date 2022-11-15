@@ -37,4 +37,4 @@ RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt
 RUN apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /opt/src/torch-mlir
+WORKDIR /opt/src/torch-mlir/utils/bazel
