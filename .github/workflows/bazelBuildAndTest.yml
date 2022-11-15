@@ -29,8 +29,8 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/bazel
-        # Continually update cache even if there's a "hit" during restore
-        # to avoid the cache going stale over time
+        # Continually update cache even if there's a "hit" during
+        # restore to avoid the cache going stale over time
         # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
         key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
         restore-keys: |
