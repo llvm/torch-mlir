@@ -544,6 +544,10 @@ def aten〇var〇dim(self: List[int], dim: Optional[List[int]], unbiased: bool =
 def aten〇var〇correction(self: List[int], dim: Optional[List[int]], correction: Optional[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
+def aten〇var_mean〇correction(self: List[int], dim: Optional[List[int]], correction: Optional[int], keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    out = upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+    return out, out
+
 def aten〇std(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 

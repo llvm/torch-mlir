@@ -402,6 +402,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::var : (Tensor, bool) -> (Tensor)")
     emit("aten::var.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
     emit("aten::var.correction : (Tensor, int[]?, int?, bool) -> (Tensor)")
+    emit("aten::var_mean.correction : (Tensor, int[]?, int?, bool) -> (Tensor, Tensor)")
     emit("aten::nll_loss_forward : (Tensor, Tensor, Tensor?, int, int) -> (Tensor, Tensor)")
     emit("aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)")
     emit("aten::bincount : (Tensor, Tensor?, int) -> (Tensor)")

@@ -755,3 +755,47 @@ class VarCorrectionLargeInputModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: VarCorrectionLargeInputModule())
 def VarCorrectionLargeInputModule_basic(module, tu: TestUtils):
     module.forward(100 + tu.rand(3, 4, 1024, 8192))
+
+
+# ==============================================================================
+
+
+class VarMeanCorrectionModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var_mean(x, dim=[1, 2], correction=2, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: VarMeanCorrectionModule())
+def VarMeanCorrectionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
+
+
+# ==============================================================================
+
+
+class VarMeanCorrectionNoneModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([
+        None,
+        ([-1, -1, -1], torch.float32, True),
+    ])
+    def forward(self, x):
+        return torch.ops.aten.var_mean(x, dim=None, correction=None, keepdim=False)
+
+
+@register_test_case(module_factory=lambda: VarMeanCorrectionNoneModule())
+def VarMeanCorrectionNoneModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 7))
