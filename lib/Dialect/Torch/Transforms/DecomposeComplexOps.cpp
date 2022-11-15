@@ -3114,6 +3114,28 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.var_mean.correction` op into `aten.var.correction` and
+// `aten.mean.dim` op.
+class DecomposeAtenVarMeanCorrectionOp
+    : public OpRewritePattern<AtenVarMeanCorrectionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVarMeanCorrectionOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+    Value var = rewriter.create<AtenVarCorrectionOp>(
+        loc, op.getType(0), op.self(), op.dim(), op.correction(), op.keepdim());
+    Value mean =
+        rewriter.create<AtenMeanDimOp>(loc, op.getType(0), op.self(), op.dim(),
+                                       op.keepdim(), /*dtype=*/noneVal);
+    rewriter.replaceOp(op, {var, mean});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 public:
@@ -3316,6 +3338,8 @@ public:
     target.addIllegalOp<AtenMseLossOp>();
     patterns.add<DecomposeAtenRandintLowOp>(context);
     target.addIllegalOp<AtenRandintLowOp>();
+    patterns.add<DecomposeAtenVarMeanCorrectionOp>(context);
+    target.addIllegalOp<AtenVarMeanCorrectionOp>();
 
     for (std::string opName : legalOps) {
       target.addLegalOp(OperationName(opName, context));
