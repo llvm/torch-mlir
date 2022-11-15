@@ -222,11 +222,14 @@ llvm::Optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 }
 
 static LogicalResult checkValidityOfCast(Type src, Type dest) {
-  if ((src.isInteger(64) && dest.isInteger(32)) ||
-      (src.isInteger(32) && dest.isInteger(64)) ||
+  if ((src == dest) ||
+      (src.isInteger(64) && dest.isInteger(32)) ||
+      (src.isInteger(64) && dest.isInteger(8)) ||
       (src.isInteger(64) && dest.isInteger(1)) ||
+      (src.isInteger(32) && dest.isInteger(64)) ||
       (src.isInteger(32) && dest.isInteger(1)) ||
       (src.isInteger(8) && dest.isInteger(1)) ||
+      (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isInteger(1))) {
     return success();
   }
