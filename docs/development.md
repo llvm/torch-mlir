@@ -184,6 +184,13 @@ Torch-MLIR can also be built using Bazel (apart from the official CMake build) f
 ```
 3. Find the built binary at `utils/bazel/bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
+We welcome patches to torch-mlir's Bazel build. If you do contribute,
+please complete your PR with an invocation of buildifier to ensure
+the BUILD files are formatted consistently:
+```shell
+bazel run @torch-mlir//:buildifier
+```
+
 ## Docker Builds
 
 We have preliminary support for building with Docker images. Currently this

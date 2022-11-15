@@ -12,6 +12,7 @@ package(
 )
 
 # Format bazel BUILD and .bzl files with a standard convention
+# Invoke as `bazel run @torch-mlir//:buildifier`
 buildifier(
     name = "buildifier",
 )
