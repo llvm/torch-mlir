@@ -29,7 +29,12 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/bazel
-        key: ubuntu_x86_64_torch_mlir_bazel_build_cache
+        # Continually update cache even if there's a "hit" during restore
+        # to avoid the cache going stale over time
+        # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
+        key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          torch_mlir-bazel-build-cache-${{ runner.os }}
 
     # Change bazel cache directory to root ownership
     # to allow writing to it from within the docker container.
