@@ -300,7 +300,26 @@ def compile(model: torch.nn.Module,
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
 
-    if use_tracing:
+    # Get the model as JIT IR (TorchScript) for import.
+    # TODO: Longer-term, we probably need to split `torch_mlir.compile`.
+    # There should be an "acquisition" step that does
+    # tracing/scripting/importing from FX/using torchdynamo.export/etc.
+    # + any lowering to the backend contract. Then there should be a
+    # "backend lowering" step that does the actual lowering to each
+    # backend. This separation should be visible at the Python API level, and
+    # we can implement a deliberately simplified API like `torch_mlir.compile`
+    # on top of those building blocks.
+    if isinstance(model, torch.jit._script.RecursiveScriptModule):
+        # If the user already converted the model to JIT IR themselves, just
+        # do some basic error checking, but take the model as-is.
+        for method_name in example_args._get_methods():
+            if not hasattr(model, method_name):
+                raise Exception(
+                    f"Model does not have exported method '{method_name}', "
+                    f"requested in `example_args`. Consider adding "
+                    f"`@torch.jit.export` to the method definition.")
+        scripted = model
+    elif use_tracing:
         scripted = torch.jit.trace_module(
             model,
             example_args._get_for_tracing(use_tracing, ignore_traced_shapes)

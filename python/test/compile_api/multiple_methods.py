@@ -29,6 +29,12 @@ print(torch_mlir.compile(TwoMethodsModule(), example_args, use_tracing=True))
 # CHECK-DAG: func.func @sin
 # CHECK-DAG: func.func @cos
 
+# As a convenience, we do the equivalent of calling `torch.jit.export` on all
+# methods indicated in `example_args` before calling `torch.jit.script`.
+# Otherwise the user would have to do this manually, which is tedious. This
+# technically mutates the user input model which is not great but probably okay
+# for this kind of API sugar. Users can always take full control of the process
+# by scripting the model themselves before passing it to `torch_mlir.compile`.
 print(torch_mlir.compile(TwoMethodsModule(), example_args))
 # CHECK: module
 # CHECK-DAG: func.func @sin
