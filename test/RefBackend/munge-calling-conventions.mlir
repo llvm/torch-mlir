@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt %s -refback-munge-calling-conventions -split-input-file | FileCheck %s
+// RUN: torch-mlir-opt %s -refback-munge-calling-conventions -split-input-file -verify-diagnostics | FileCheck %s
 
 // CHECK-LABEL:   func.func @f(
 // CHECK-SAME:            %[[ARG0:.*]]: memref<*xf32>) attributes {llvm.emit_c_interface} {
@@ -69,4 +69,11 @@ func.func @multiple_return_values(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %a
 
 func.func @two_return_values(%arg0: memref<?xf32>, %arg1: memref<?xi64>) -> (memref<?xf32>, memref<?xi64>) {
   return %arg0 ,%arg1 : memref<?xf32>, memref<?xi64>
+}
+
+// -----
+
+// expected-error-re @+1 {{argument must be a memref of {{.*}} but got 'tensor<?xf32>'}}
+func.func @f(%arg0: tensor<?xf32>) {
+  return
 }

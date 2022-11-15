@@ -142,9 +142,12 @@ static LogicalResult mungeFunction(
   SmallVector<Type> newArgTypes;
   for (auto arg : func.getArguments()) {
     auto type = arg.getType();
-    if (!isArgMemRefTypeValid(type))
-      return emitError(arg.getLoc(),
-                       "argument must be a memref of f32, f64, i32, i64, i8, i1");
+    if (!isArgMemRefTypeValid(type)) {
+      return emitError(arg.getLoc())
+          .append("argument must be a memref of f32, f64, i32, i64, i8, i1 but "
+                  "got ",
+                  type);
+    }
     auto cast = b.create<memref::CastOp>(arg.getLoc(), type, arg);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));

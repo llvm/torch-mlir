@@ -22,7 +22,7 @@ __all__ = [
 
 def assert_arg_type_is_supported(ty):
     SUPPORTED = [np.float32, np.float64, np.uint8, np.int8, np.int32, np.int64, np.bool_]
-    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported"
+    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
 
 
 memref_type_to_np_dtype = {
