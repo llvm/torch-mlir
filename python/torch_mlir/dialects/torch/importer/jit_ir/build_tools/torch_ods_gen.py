@@ -528,7 +528,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
-    emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
+    emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
 
 
     # Dict ops.

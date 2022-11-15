@@ -7968,27 +7968,28 @@ def Torch_AtenAsStridedScatterOp : Torch_Op<"aten.as_strided_scatter", [
   }];
 }
 
-def Torch_AtenUpsampleNearest2dVecOp : Torch_Op<"aten.upsample_nearest2d.vec", [
+def Torch_AtenUpsampleNearest2dOp : Torch_Op<"aten.upsample_nearest2d", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)`";
+  let summary = "Generated op for `aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)`";
   let arguments = (ins
-    AnyTorchTensorType:$input,
-    AnyTorchOptionalListOfTorchIntType:$output_size,
-    AnyTorchOptionalListOfTorchFloatType:$scale_factors
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$output_size,
+    AnyTorchOptionalFloatType:$scales_h,
+    AnyTorchOptionalFloatType:$scales_w
   );
   let results = (outs
     AnyTorchTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
-    ParseResult AtenUpsampleNearest2dVecOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 3, 1);
+    ParseResult AtenUpsampleNearest2dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
     }
-    void AtenUpsampleNearest2dVecOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 3, 1);
+    void AtenUpsampleNearest2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
 }
