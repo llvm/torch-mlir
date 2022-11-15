@@ -53,7 +53,7 @@ jobs:
                    -v "$(pwd)":"/opt/src/torch-mlir" \
                    -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                    torch-mlir:ci \
-                   ./utils/bazel/docker/run_bazel_build.sh
+                   bazel build @torch-mlir//:torch-mlir-opt
 
     # Switch back bazel cache directory to user ownership
     # to allow GHA post-cache step to save cache without
